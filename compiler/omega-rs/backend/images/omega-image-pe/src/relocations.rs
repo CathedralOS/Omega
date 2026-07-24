@@ -106,6 +106,7 @@ mod tests {
                 offset: 0x28,
                 byte_width: 8,
                 symbol_handle: Handle::invalid(),
+                addend: 0,
                 kind: RelocationKind::Absolute64,
             });
 

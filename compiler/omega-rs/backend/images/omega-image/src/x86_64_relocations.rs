@@ -18,6 +18,14 @@ pub fn apply_x86_64_relocations(
                 final_image_symbol_name(image, relocation.symbol_handle)
             )));
         };
+        let relocation_target = symbol_address
+            .checked_add_signed(relocation.addend)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{output_name} x86_64 relocation target overflows after addend {}",
+                    relocation.addend
+                ))
+            })?;
 
         match relocation.kind {
             RelocationKind::Absolute64 => {
@@ -27,7 +35,12 @@ pub fn apply_x86_64_relocations(
                         "{output_name} x86_64 absolute relocation targets non-materialized section {section:?}"
                     ))
                 })?;
-                patch_bytes::write_u64(section_bytes, relocation.offset, symbol_address, "x86_64")?;
+                patch_bytes::write_u64(
+                    section_bytes,
+                    relocation.offset,
+                    relocation_target,
+                    "x86_64",
+                )?;
             }
             RelocationKind::X86_64Relative32 => {
                 let section = relocation.section;
@@ -37,7 +50,7 @@ pub fn apply_x86_64_relocations(
                     ))
                 })?;
                 let relocation_address = section_address + relocation.offset as u64 + 4;
-                let delta = symbol_address as i64 - relocation_address as i64;
+                let delta = i128::from(relocation_target) - i128::from(relocation_address);
                 let value = i32::try_from(delta).map_err(|_| {
                     Diagnostic::error(format!(
                         "{output_name} x86_64 relative relocation is out of range: {delta} byte(s)"
@@ -103,6 +116,7 @@ mod tests {
                 offset: 0,
                 byte_width: 8,
                 symbol_handle: target,
+                addend: 7,
                 kind: RelocationKind::Absolute64,
             });
 
@@ -119,7 +133,7 @@ mod tests {
 
         assert_eq!(
             u64::from_le_bytes(image.memory.data.try_into().unwrap()),
-            0x1004
+            0x100b
         );
     }
 }

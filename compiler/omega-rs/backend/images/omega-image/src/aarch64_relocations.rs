@@ -27,6 +27,14 @@ pub fn apply_aarch64_relocations(
                 symbol_name
             )));
         };
+        let relocation_target = symbol_address
+            .checked_add_signed(relocation.addend)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{output_name} AArch64 relocation target overflows after addend {}",
+                    relocation.addend
+                ))
+            })?;
 
         match relocation.kind {
             RelocationKind::Absolute64 => {
@@ -39,7 +47,7 @@ pub fn apply_aarch64_relocations(
                 patch_bytes::write_u64(
                     section_bytes,
                     relocation.offset,
-                    symbol_address,
+                    relocation_target,
                     "AArch64",
                 )?;
             }
@@ -49,7 +57,7 @@ pub fn apply_aarch64_relocations(
                     &mut image.memory.text,
                     relocation.offset,
                     layout.text_address + relocation.offset as u64,
-                    symbol_address,
+                    relocation_target,
                 )?;
             }
             RelocationKind::Aarch64PageOffset12 => {
@@ -57,7 +65,7 @@ pub fn apply_aarch64_relocations(
                 patch_aarch64_add_page_offset(
                     &mut image.memory.text,
                     relocation.offset,
-                    symbol_address,
+                    relocation_target,
                 )?;
             }
             RelocationKind::Aarch64Branch26 => {
@@ -66,7 +74,7 @@ pub fn apply_aarch64_relocations(
                     &mut image.memory.text,
                     relocation.offset,
                     layout.text_address + relocation.offset as u64,
-                    symbol_address,
+                    relocation_target,
                 )?;
             }
             RelocationKind::X86_64Relative32 => {
@@ -153,4 +161,66 @@ fn patch_aarch64_branch26(
     instruction &= !0x03ff_ffff;
     instruction |= (immediate as u32) & 0x03ff_ffff;
     patch_bytes::write_u32(text, offset, instruction, "AArch64")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_aarch64_relocations;
+    use crate::{
+        FinalImage, FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageSection,
+        FinalImageSymbol,
+    };
+    use omega_core::arena::Handle;
+    use omega_object_file::{RelocationKind, SymbolKind};
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn absolute_relocation_applies_signed_addend() {
+        let mut image = FinalImage::with_capacity(
+            NativeTarget::linux_arm64(),
+            FinalImageMemory {
+                text: vec![0; 8],
+                data: vec![0; 8],
+                ..Default::default()
+            },
+            Handle::invalid(),
+            1,
+            0,
+            1,
+        );
+        let target = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "entry".into(),
+            section: FinalImageSection::Text,
+            offset: 8,
+            size: 1,
+            kind: SymbolKind::Function,
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: 0,
+                byte_width: 8,
+                symbol_handle: target,
+                addend: -4,
+                kind: RelocationKind::Absolute64,
+            });
+
+        apply_aarch64_relocations(
+            &mut image,
+            &FinalImageLayout {
+                text_address: 0x1000,
+                data_address: 0x2000,
+                bss_address: 0x3000,
+            },
+            "test image",
+        )
+        .expect("data relocation should apply");
+
+        assert_eq!(
+            u64::from_le_bytes(image.memory.data.try_into().unwrap()),
+            0x1004
+        );
+    }
 }

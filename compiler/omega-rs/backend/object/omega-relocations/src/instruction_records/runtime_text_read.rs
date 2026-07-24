@@ -78,6 +78,7 @@ pub(super) fn collect_runtime_text_read_relocations(
                         &context.input.object,
                         handle_symbol.as_ref(),
                     ),
+                    addend: 0,
                     kind: external_kind,
                 });
         }
@@ -100,6 +101,7 @@ pub(super) fn collect_runtime_text_read_relocations(
             ),
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            addend: 0,
             kind: external_kind,
         });
 }

@@ -99,6 +99,7 @@ fn insert_import_call_record(
             offset: context.selected_text_offset + call_offset_in_instruction,
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            addend: 0,
             kind: external_call_relocation_kind(context.input.target.architecture),
         });
 }
@@ -132,6 +133,7 @@ fn insert_get_std_handle_record(
             offset: context.selected_text_offset + fixup_offset_in_instruction,
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            addend: 0,
             kind: external_call_relocation_kind(context.input.target.architecture),
         });
 }

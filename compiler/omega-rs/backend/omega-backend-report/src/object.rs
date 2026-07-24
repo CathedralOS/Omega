@@ -199,12 +199,13 @@ fn write_relocation_record(
         ),
     };
     output.push_str(&format!(
-        "- {:?} {} {} @{} width {} -> {}\n",
+        "- {:?} {} {} @{} width {} -> {} addend {}\n",
         relocation.kind,
         origin,
         section_name(backend_plan.target, relocation.section),
         relocation.offset,
         relocation.byte_width,
-        object_symbol_name(backend_plan.object, relocation.symbol_handle)
+        object_symbol_name(backend_plan.object, relocation.symbol_handle),
+        relocation.addend
     ));
 }

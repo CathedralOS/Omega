@@ -13,3 +13,7 @@ pub(super) fn write_u32(bytes: &mut Vec<u8>, value: u32) {
 pub(super) fn write_u64(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend(value.to_le_bytes());
 }
+
+pub(super) fn write_i64(bytes: &mut Vec<u8>, value: i64) {
+    bytes.extend(value.to_le_bytes());
+}

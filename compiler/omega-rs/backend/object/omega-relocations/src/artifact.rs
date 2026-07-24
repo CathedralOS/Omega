@@ -58,16 +58,6 @@ fn translate_relocation(
     owner_symbol_handle: ObjectSymbolHandle,
     target_symbol: &mut impl FnMut(RelocationTarget) -> Option<ObjectSymbolHandle>,
 ) -> Result<RelocationRecord, Diagnostic> {
-    // The current object-relocation carrier has no explicit addend. Its
-    // relative branch kinds already encode their architectural PC bias, while
-    // absolute/page relocations resolve the named symbol exactly. Reject
-    // rather than silently discarding a future container addend.
-    if relocation.addend != 0 {
-        return Err(Diagnostic::error(format!(
-            "artifact relocation at byte {} carries unsupported addend {}",
-            relocation.destination_offset, relocation.addend
-        )));
-    }
     let kind = match (architecture, relocation.kind) {
         (_, ArtifactRelocationKind::Absolute64) => RelocationKind::Absolute64,
         (Architecture::X86_64, ArtifactRelocationKind::X86Relative32) => {
@@ -117,6 +107,7 @@ fn translate_relocation(
         offset,
         byte_width,
         symbol_handle,
+        addend: relocation.addend,
         kind,
     })
 }
@@ -258,10 +249,11 @@ mod tests {
         assert_eq!(record.byte_width, 4);
         assert_eq!(record.kind, RelocationKind::X86_64Relative32);
         assert_eq!(record.symbol_handle, destination);
+        assert_eq!(record.addend, 0);
     }
 
     #[test]
-    fn architecture_addend_and_symbol_failures_append_nothing() {
+    fn preserves_addends_while_architecture_and_symbol_failures_append_nothing() {
         let owner = Handle::from_arena_index(2);
         let destination = Handle::from_arena_index(3);
 
@@ -280,7 +272,7 @@ mod tests {
         assert_eq!(x86.record_count(), 0);
 
         let (addend, target) = validated(ArtifactRelocationKind::X86Relative32, 4);
-        let error = append_validated_artifact_relocations(
+        append_validated_artifact_relocations(
             &addend,
             SectionKind::Text,
             0,
@@ -288,9 +280,9 @@ mod tests {
             &mut x86,
             |candidate| (candidate == target).then_some(destination),
         )
-        .expect_err("unsupported addend rejects");
-        assert!(error.message.contains("unsupported addend"));
-        assert_eq!(x86.record_count(), 0);
+        .expect("semantic addend translates");
+        assert_eq!(x86.record_count(), 1);
+        assert_eq!(x86.records().next().expect("addend record").1.addend, 4);
 
         let (missing, _) = validated(ArtifactRelocationKind::X86Relative32, 0);
         let error = append_validated_artifact_relocations(
@@ -303,6 +295,6 @@ mod tests {
         )
         .expect_err("missing symbol rejects");
         assert!(error.message.contains("no object symbol"));
-        assert_eq!(x86.record_count(), 0);
+        assert_eq!(x86.record_count(), 1);
     }
 }

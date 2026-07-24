@@ -39,6 +39,7 @@ fn insert_data_address_relocations_for_architecture(
                 offset: operand_text_offset,
                 byte_width: 4,
                 symbol_handle,
+                addend: 0,
                 kind: RelocationKind::Aarch64Page21,
             });
             relocation_plan.push_record(RelocationRecord {
@@ -50,6 +51,7 @@ fn insert_data_address_relocations_for_architecture(
                 offset: operand_text_offset + 4,
                 byte_width: 4,
                 symbol_handle,
+                addend: 0,
                 kind: RelocationKind::Aarch64PageOffset12,
             });
         }
@@ -63,6 +65,7 @@ fn insert_data_address_relocations_for_architecture(
                 offset: operand_text_offset,
                 byte_width: 8,
                 symbol_handle,
+                addend: 0,
                 kind: RelocationKind::Absolute64,
             });
         }

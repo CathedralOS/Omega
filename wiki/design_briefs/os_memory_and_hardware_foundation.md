@@ -776,7 +776,9 @@ evidence, and informational sections do not perturb that identity. A backend
 adapter translates only the validated canonical carrier into
 the existing object-relocation plan, resolves each sealed target through
 compiler/provider infrastructure, and fails atomically on target-architecture
-mismatch, missing symbols, unsupported explicit addends, or offset overflow.
+mismatch, missing symbols, or offset overflow. Signed semantic addends survive
+the object carrier, direct-image application, reports, and identity
+fingerprints.
 
 The boot base case preserves the same discipline:
 

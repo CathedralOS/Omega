@@ -1762,8 +1762,10 @@ stronger operations it needs instead of citing machine parameters generally.
   entry/data targets. The object-layer adapter now consumes only that validated
   carrier, maps it to the existing target relocation vocabulary, resolves
   symbols through a sealed compiler/provider callback, and rejects
-  architecture mismatch, missing symbols, unsupported explicit addends, or
-  section-offset overflow before appending any record. The decoded carrier now
+  architecture mismatch, missing symbols, or section-offset overflow before
+  appending any record. Signed semantic addends now survive the object carrier,
+  direct-image application, reports, and identity fingerprints instead of
+  being silently discarded or rejected. The decoded carrier now
   retains the exact code bytes, and validation derives rather than trusts the
   normalizer-owned content identity over code, contract/footprint/placement
   promises, canonical entries, and canonical relocations. Entry/section order,

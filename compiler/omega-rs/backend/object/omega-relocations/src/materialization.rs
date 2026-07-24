@@ -80,6 +80,7 @@ pub fn append_native_materialization_relocations(
             offset,
             byte_width: 8,
             symbol_handle,
+            addend: 0,
             kind: RelocationKind::Absolute64,
         });
         appended += 1;
