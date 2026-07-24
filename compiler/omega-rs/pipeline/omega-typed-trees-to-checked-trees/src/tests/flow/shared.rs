@@ -399,7 +399,9 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         boundary_signature_symbol
     );
 
-    let capabilities = crate::capabilities::build_capability_facts(&program, &effects, &flow);
+    let service_reaches = omega_effects::infer_service_reaches(&program, &effects);
+    let capabilities =
+        crate::capabilities::build_capability_facts(&program, &service_reaches, &flow);
     assert_eq!(
         capabilities.count_by_kind(omega_effects::CapabilityFlowKind::Uses),
         1

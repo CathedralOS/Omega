@@ -5,7 +5,7 @@ use omega_artifacts::{
 use omega_checked_trees::CheckedTrees;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_effects::{CapabilityFlowKind, build_host_authority_registry};
+use omega_effects::{CapabilityFlowKind, build_boundary_provider_approval_registry};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
@@ -16,7 +16,7 @@ use omega_syntax_trees::item::{
 /// theoretical authority each boundary capability can mint and the authority-flow
 /// verbs it participates in (chapter 18, "Capabilities And Authority Flow").
 pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checked: &CheckedTrees) {
-    let registry = build_host_authority_registry(checked);
+    let registry = build_boundary_provider_approval_registry(checked);
 
     for trait_definition in checked.traits() {
         if !trait_definition.is_boundary {
@@ -24,24 +24,12 @@ pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checke
         }
 
         let provider = registry.provider(trait_definition.symbol);
-        let authority_effects = provider
-            .map(|provider| {
-                provider
-                    .effects
-                    .names()
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let approved_provider = provider
-            .map(|provider| provider.whitelisted)
-            .unwrap_or(true);
+        let approved_provider = provider.map(|provider| provider.approved).unwrap_or(true);
 
         report
             .capability_blast_radius
             .insert(CapabilityBlastRadius {
                 capability: trait_definition.name.to_string(),
-                authority_effects,
                 approved_provider,
                 uses: capability_verb_count(
                     checked,
@@ -218,7 +206,7 @@ pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
 }
 
 /// Adds the boundary primitive provider registry rows to the report: per
-/// provider, the governing contract, authority effects, and target
+/// provider, the governing contract, categorical host-authority requirement, and target
 /// applicability resolved from the boundary operator(s) bound to it. Registry
 /// diagnostics are discarded here; the compile pipeline reports them through
 /// its dedicated provider-validation step.
@@ -231,7 +219,7 @@ fn append_provider_registry(report: &mut BoundaryReport, syntax: &SyntaxTrees) {
             name: provider.name.clone(),
             category: provider.category.name().to_owned(),
             contract_ref: provider.contract_ref.clone(),
-            authority_effects: provider.effect_set.names().map(str::to_owned).collect(),
+            requires_host_authority: provider.requires_host_authority,
             target_applicability: provider.target_applicability.clone(),
             origin_package: provider.origin_package.clone(),
         });
@@ -380,7 +368,7 @@ mod tests {
         assert_eq!(provider.category, "SliceIndexing");
         assert_eq!(provider.contract_ref.as_deref(), Some("Slice::index"));
         assert!(
-            provider.authority_effects.is_empty(),
+            !provider.requires_host_authority,
             "slice indexing provider should carry no host authority"
         );
         assert!(

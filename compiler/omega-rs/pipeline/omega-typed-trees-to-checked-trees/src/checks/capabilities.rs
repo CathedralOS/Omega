@@ -1,22 +1,20 @@
-//! Host-call authorization check.
+//! Boundary-provider approval check.
 //!
-//! Ties the boundary provider registry and inferred effect sets to a resolution
-//! gate: a boundary call that requests host authority must be backed by an
-//! approved provider (chapter 18, "Host Providers"). Ordinary application code
-//! that implements its own host-authority boundary trait is minting authority it
-//! does not hold, and the call is rejected as an unapproved host call.
+//! Every boundary capability call must resolve through the approved provider
+//! edge for that exact capability. Ordinary application code that implements a
+//! whole boundary trait is minting authority it does not hold and rejects.
 
 use crate::labels::symbol_name;
 use omega_checked_trees::CheckFacts;
 use omega_core::diagnostics::Diagnostic;
-use omega_effects::{audit_host_calls, build_host_authority_registry};
+use omega_effects::{audit_boundary_provider_calls, build_boundary_provider_approval_registry};
 
-pub(crate) fn check_host_call_authorization(
+pub(crate) fn check_boundary_provider_approval(
     program: &omega_typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let registry = build_host_authority_registry(program);
-    let unapproved = audit_host_calls(program, &facts.effects, &registry);
+    let registry = build_boundary_provider_approval_registry(program);
+    let unapproved = audit_boundary_provider_calls(program, &facts.effects, &registry);
 
     if unapproved.is_empty() {
         return Ok(());
@@ -25,16 +23,10 @@ pub(crate) fn check_host_call_authorization(
     let diagnostics = unapproved
         .into_iter()
         .map(|call| {
-            let authority = call
-                .missing_authority
-                .names()
-                .collect::<Vec<_>>()
-                .join(", ");
             Diagnostic::error(format!(
-                "unapproved host call: {} in {} acquires host authority ({}) with no approved boundary provider",
+                "unapproved boundary call: {} in {} exercises a boundary capability with no approved provider for that exact capability",
                 symbol_name(program, call.boundary_trait_symbol),
                 symbol_name(program, call.state_symbol),
-                authority,
             ))
         })
         .collect::<Vec<_>>();

@@ -36,7 +36,7 @@ pub(crate) fn build_check_facts(
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
-    let capabilities = build_capability_facts(program, &effects, &flow);
+    let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     // TPR3 slice 4: the checker-established termination summaries (built
     // from the same pure functions the termination CHECK uses -- facts and
     // diagnostics cannot disagree).

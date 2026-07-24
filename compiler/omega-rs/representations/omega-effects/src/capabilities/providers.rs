@@ -13,9 +13,6 @@ use omega_syntax_trees::item::{
     BoundaryLevel, CapabilityContract, CapabilityContractKind, Item, OperatorDefinition,
 };
 
-use crate::EffectSet;
-use crate::capabilities::host_authority::host_authority_effects;
-
 /// Package path prefixes that are permitted to declare boundary providers.
 ///
 /// Aligned with the bundled-omega-path / `allows_boundary_policy` host registry
@@ -35,7 +32,10 @@ pub struct BoundaryProvider {
     /// Reference to the contract that governs this provider, if any. Sourced
     /// from the bound boundary operator's `requires` clause.
     pub contract_ref: Option<String>,
-    pub effect_set: EffectSet,
+    /// Whether the bound primitive crosses the host ABI and therefore requires
+    /// an explicit host-authority input. This is categorical provider metadata,
+    /// not a service-reach projection.
+    pub requires_host_authority: bool,
     /// Which targets this provider applies to; empty means all targets.
     pub target_applicability: Vec<String>,
     /// The package path that declared this provider.
@@ -106,7 +106,7 @@ pub fn build_provider_registry(
             name,
             category: declaration.category,
             contract_ref: None,
-            effect_set: EffectSet::empty(),
+            requires_host_authority: false,
             target_applicability: Vec::new(),
             origin_package,
         });
@@ -117,7 +117,7 @@ pub fn build_provider_registry(
     BoundaryProviderRegistry { providers }
 }
 
-/// Fills `contract_ref` / `effect_set` / `target_applicability` on each
+/// Fills `contract_ref` / authority requirement / `target_applicability` on each
 /// registered provider from the boundary operator(s) bound to it. A provider is
 /// otherwise just a declared row; the operator that binds it via its `provider`
 /// clause is what carries the governing contract, the declared effects, and the
@@ -167,13 +167,9 @@ fn apply_operator_to_providers(
         }
     }
 
-    // `effect_set`: the authority the bound operator carries. Operators declare
-    // no `effects` clause; their authority is implied by the provider category,
-    // so a host-ABI provider mints host authority while pure-compute primitives
-    // (slice indexing, pointer math, allocation) carry none.
-    provider
-        .effect_set
-        .insert_all(category_effects(provider.category));
+    // Host-ABI authority is categorical provider metadata. Pure-compute
+    // primitives require no host-authority input.
+    provider.requires_host_authority |= category_requires_host_authority(provider.category);
 
     // `target_applicability`: the named boundary levels the operator's contracts
     // scope it to. An operator with no named boundary applies to all targets
@@ -228,16 +224,14 @@ fn boundary_target_names(contracts: &[CapabilityContract]) -> Vec<String> {
     names
 }
 
-/// The authority effects a provider of `category` carries. Only host-ABI calls
-/// reach the host surface; the remaining categories are pure-compute primitives.
-fn category_effects(category: ProviderCategory) -> EffectSet {
+fn category_requires_host_authority(category: ProviderCategory) -> bool {
     match category {
-        ProviderCategory::HostAbiCall => host_authority_effects(),
+        ProviderCategory::HostAbiCall => true,
         ProviderCategory::SliceIndexing
         | ProviderCategory::PointerOffset
         | ProviderCategory::PointerAccess
         | ProviderCategory::DescriptorConstruction
-        | ProviderCategory::Allocation => EffectSet::empty(),
+        | ProviderCategory::Allocation => false,
     }
 }
 

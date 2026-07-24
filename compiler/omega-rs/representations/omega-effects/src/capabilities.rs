@@ -1,5 +1,5 @@
 pub mod analysis;
-pub mod host_authority;
+pub mod provider_approval;
 pub mod provider_plan;
 pub mod providers;
 

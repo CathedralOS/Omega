@@ -2440,7 +2440,8 @@ fn rejects_declared_machine_effects_below_reached_effects() {
 /// `representations -> pipeline` upward edge.
 mod effects_analysis {
     use omega_effects::{
-        EffectSet, audit_host_calls, build_host_authority_registry, infer_effects,
+        EffectSet, audit_boundary_provider_calls, build_boundary_provider_approval_registry,
+        infer_effects,
     };
     use omega_typed_trees::TypedTrees;
 
@@ -2551,8 +2552,8 @@ mod effects_analysis {
             "#,
         );
         let effects = infer_effects(&program);
-        let registry = build_host_authority_registry(&program);
-        let unapproved = audit_host_calls(&program, &effects, &registry);
+        let registry = build_boundary_provider_approval_registry(&program);
+        let unapproved = audit_boundary_provider_calls(&program, &effects, &registry);
         assert!(
             unapproved.is_empty(),
             "abstract provider should be approved"
@@ -2588,17 +2589,69 @@ mod effects_analysis {
             "#,
         );
         let effects = infer_effects(&program);
-        let registry = build_host_authority_registry(&program);
-        let unapproved = audit_host_calls(&program, &effects, &registry);
+        let registry = build_boundary_provider_approval_registry(&program);
+        let unapproved = audit_boundary_provider_calls(&program, &effects, &registry);
         assert_eq!(
             unapproved.len(),
             1,
             "in-package host provider should be flagged as unapproved"
         );
+        let local_files = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "LocalFiles")
+            .expect("LocalFiles boundary");
         assert_eq!(
-            unapproved[0].missing_authority.names().collect::<Vec<_>>(),
-            ["filesystem_io"]
+            unapproved[0].boundary_trait_symbol, local_files.symbol,
+            "approval failure must name the exact boundary capability",
         );
+    }
+
+    #[test]
+    fn in_package_boundary_provider_needs_no_lowercase_effect_to_be_unapproved() {
+        let program = lower(
+            r#"
+            boundary trait LocalClock {
+                machine tick(token: i32);
+            }
+
+            data FakeClock {}
+
+            machine FakeClock::tick(token: i32) satisfies LocalClock {}
+
+            data Main {
+                clock: FakeClock;
+            }
+
+            machine Main::main(&mut self) {
+                self.clock.tick(0);
+            }
+            "#,
+        );
+        let effects = infer_effects(&program);
+        let registry = build_boundary_provider_approval_registry(&program);
+        let local_clock = program
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "LocalClock")
+            .expect("LocalClock boundary");
+        assert!(
+            !registry
+                .provider(local_clock.symbol)
+                .expect("LocalClock approval")
+                .approved
+        );
+        let call_targets = effects
+            .machines()
+            .iter()
+            .flat_map(|machine| effects.states.span_or_empty(machine.states))
+            .flat_map(|state| effects.calls.span_or_empty(state.calls))
+            .map(|call| call.target_state_symbol)
+            .collect::<Vec<_>>();
+        let unapproved = audit_boundary_provider_calls(&program, &effects, &registry);
+
+        assert_eq!(unapproved.len(), 1, "call targets: {call_targets:?}");
+        assert_eq!(unapproved[0].boundary_trait_symbol, local_clock.symbol);
     }
 }
 
@@ -2609,7 +2662,7 @@ mod effects_analysis {
 /// `omega-effects` itself - see `effects_analysis` above for the rationale).
 mod provider_registry {
     use omega_core::operator_spelling::ProviderCategory;
-    use omega_effects::{build_provider_registry, host_authority_effects};
+    use omega_effects::build_provider_registry;
     use omega_syntax_trees::SyntaxTrees;
 
     use omega_source_files_to_tokens::Lexer;
@@ -2649,15 +2702,9 @@ mod provider_registry {
         // referenced by the operator's qualified name.
         assert_eq!(provider.contract_ref.as_deref(), Some("omega::host::write"));
 
-        // effect_set: a host-ABI provider carries host authority.
         assert!(
-            !provider.effect_set.is_empty(),
-            "host-ABI provider should carry host authority effects"
-        );
-        assert_eq!(
-            provider.effect_set,
-            host_authority_effects(),
-            "host-ABI provider should carry the full host authority set"
+            provider.requires_host_authority,
+            "host-ABI provider should require explicit host authority"
         );
     }
 
@@ -2692,7 +2739,7 @@ mod provider_registry {
         );
         // Pure-compute primitive: no host authority.
         assert!(
-            provider.effect_set.is_empty(),
+            !provider.requires_host_authority,
             "slice indexing provider should not carry host authority"
         );
     }
@@ -2713,7 +2760,7 @@ mod provider_registry {
             .expect("provider should be registered");
         // No operator binds it, so metadata stays at empty defaults.
         assert_eq!(provider.contract_ref, None);
-        assert!(provider.effect_set.is_empty());
+        assert!(!provider.requires_host_authority);
         assert!(provider.target_applicability.is_empty());
     }
 }
@@ -3247,10 +3294,10 @@ mod structural_entailment {
 }
 
 mod provider_plan {
+    use omega_effects::build_boundary_provider_approval_registry;
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema,
     };
-    use omega_effects::{EffectSet, build_host_authority_registry};
     use omega_source_files_to_tokens::Lexer;
     use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -3361,19 +3408,9 @@ mod provider_plan {
         );
         assert_eq!(method("tick").service_reach, ["Device", "Timer"]);
 
-        let registry = build_host_authority_registry(&program);
+        let registry = build_boundary_provider_approval_registry(&program);
         let timer_provider = registry.provider(timer.symbol).expect("Timer provider");
-        assert!(
-            timer_provider
-                .effects
-                .contains_all(EffectSet::from_name("device_io").expect("known effect"))
-        );
-        assert!(
-            !timer_provider
-                .effects
-                .intersects(EffectSet::from_name("filesystem_io").expect("known effect")),
-            "ordinary policy parents must not contribute boundary service reach"
-        );
+        assert!(timer_provider.approved);
     }
 
     #[test]

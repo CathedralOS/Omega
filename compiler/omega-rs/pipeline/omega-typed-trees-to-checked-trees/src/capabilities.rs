@@ -10,9 +10,9 @@
 //! - `stores`   — the capability is retained in a machine-owned field, either as
 //!   the receiver of the boundary call or as the target of a `self.field = <call>`
 //!   assignment.
-//! - `acquires` — the boundary mints fresh host authority that the package holds
-//!   itself (a host-authority call through a machine-owned capability, or a
-//!   host-authority boundary that returns a fresh capability value).
+//! - `acquires` — the package obtains authority it holds itself (a boundary call
+//!   through a machine-owned capability, or a boundary that returns a fresh
+//!   capability value).
 //! - `returns`  — a capability value leaves through the enclosing state's
 //!   capability-typed return.
 //! - `derives`  — a narrower capability is produced from an existing capability
@@ -22,8 +22,7 @@ use omega_checked_trees::FlowFacts;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_effects::{
-    CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, EffectPlan, EffectSet,
-    requires_host_authority,
+    CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, ServiceReachInferencePlan,
 };
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::ExpressionNode;
@@ -45,7 +44,7 @@ enum ReceiverProvenance {
 
 pub(crate) fn build_capability_facts(
     program: &TypedTrees,
-    effects: &EffectPlan,
+    service_reaches: &ServiceReachInferencePlan,
     flow: &FlowFacts,
 ) -> CapabilityFlowPlan {
     let mut flows = Arena::with_capacity(flow.boundaries.edges.len());
@@ -69,17 +68,17 @@ pub(crate) fn build_capability_facts(
         }
     }
 
-    // Derive every authority-flow verb from the effect plan, which records every
-    // boundary call (including abstract boundary-trait calls that the control
-    // flow facts elide because they have no in-package implementation state).
-    for machine_effects in effects.machines() {
-        let machine = machine_for_symbol(program, machine_effects.symbol);
-        for state_effects in effects.states.span_or_empty(machine_effects.states) {
+    // Derive every authority-flow verb from normalized call topology, including
+    // abstract boundary-trait calls that raw control-flow facts elide because
+    // they have no in-package implementation state.
+    for machine_reach in service_reaches.machines() {
+        let machine = machine_for_symbol(program, machine_reach.machine);
+        for state_reach in service_reaches.states_for(machine_reach) {
             let enclosing =
-                machine.and_then(|machine| enclosing_state(program, machine, state_effects.symbol));
-            for call in effects.calls.span_or_empty(state_effects.calls) {
+                machine.and_then(|machine| enclosing_state(program, machine, state_reach.state));
+            for call in service_reaches.calls_for(state_reach) {
                 let Some((capability_symbol, signature)) =
-                    boundary_capability(program, call.target_state_symbol)
+                    boundary_capability(program, call.target_state)
                 else {
                     continue;
                 };
@@ -88,15 +87,13 @@ pub(crate) fn build_capability_facts(
                     &mut flows,
                     CapabilityFlowKind::Uses,
                     capability_symbol,
-                    machine_effects.symbol,
-                    state_effects.symbol,
+                    machine_reach.machine,
+                    state_reach.state,
                     call.statement_index,
                     call.call_ordinal,
                     SymbolHandle::invalid(),
                 );
 
-                let call_effects = call_effects(call.direct, signature, program);
-                let mints_authority = requires_host_authority(call_effects);
                 let returns_capability = signature
                     .map(|signature| is_capability_type(program, signature.return_type))
                     .unwrap_or(false);
@@ -120,27 +117,24 @@ pub(crate) fn build_capability_facts(
                         &mut flows,
                         CapabilityFlowKind::Stores,
                         capability_symbol,
-                        machine_effects.symbol,
-                        state_effects.symbol,
+                        machine_reach.machine,
+                        state_reach.state,
                         call.statement_index,
                         call.call_ordinal,
                         SymbolHandle::invalid(),
                     );
                 }
 
-                // `acquires`: the package mints host authority it holds itself —
-                // a host-authority call through a machine-owned capability, or a
-                // host-authority boundary that yields a fresh capability value.
-                if mints_authority
-                    && (returns_capability
-                        || matches!(provenance, ReceiverProvenance::MachineOwned))
-                {
+                // `acquires`: the package obtains authority it holds itself —
+                // a boundary call through a machine-owned capability, or a
+                // boundary that yields a fresh capability value.
+                if returns_capability || matches!(provenance, ReceiverProvenance::MachineOwned) {
                     push_unique(
                         &mut flows,
                         CapabilityFlowKind::Acquires,
                         capability_symbol,
-                        machine_effects.symbol,
-                        state_effects.symbol,
+                        machine_reach.machine,
+                        state_reach.state,
                         call.statement_index,
                         call.call_ordinal,
                         SymbolHandle::invalid(),
@@ -157,8 +151,8 @@ pub(crate) fn build_capability_facts(
                         &mut flows,
                         CapabilityFlowKind::Derives,
                         capability_symbol,
-                        machine_effects.symbol,
-                        state_effects.symbol,
+                        machine_reach.machine,
+                        state_reach.state,
                         call.statement_index,
                         call.call_ordinal,
                         SymbolHandle::invalid(),
@@ -176,8 +170,8 @@ pub(crate) fn build_capability_facts(
                         &mut flows,
                         CapabilityFlowKind::Returns,
                         capability_symbol,
-                        machine_effects.symbol,
-                        state_effects.symbol,
+                        machine_reach.machine,
+                        state_reach.state,
                         call.statement_index,
                         call.call_ordinal,
                         SymbolHandle::invalid(),
@@ -191,7 +185,7 @@ pub(crate) fn build_capability_facts(
     // A boundary capability that a nested (non-boundary) call returns, derives,
     // or acquires-and-returns flows the same verb up to its caller, following
     // the call graph one or more levels.
-    propagate_nested_capability_flows(program, effects, &mut flows);
+    propagate_nested_capability_flows(program, service_reaches, &mut flows);
 
     CapabilityFlowPlan::with_roots(flows)
 }
@@ -214,10 +208,10 @@ struct CallEdge {
 /// call levels.
 fn propagate_nested_capability_flows(
     program: &TypedTrees,
-    effects: &EffectPlan,
+    service_reaches: &ServiceReachInferencePlan,
     flows: &mut Arena<CapabilityFlowFact>,
 ) {
-    let edges = collect_call_edges(effects);
+    let edges = collect_call_edges(service_reaches);
 
     loop {
         let mut added = false;
@@ -268,20 +262,20 @@ fn propagate_nested_capability_flows(
     }
 }
 
-fn collect_call_edges(effects: &EffectPlan) -> Vec<CallEdge> {
+fn collect_call_edges(service_reaches: &ServiceReachInferencePlan) -> Vec<CallEdge> {
     let mut edges = Vec::new();
-    for machine_effects in effects.machines() {
-        for state_effects in effects.states.span_or_empty(machine_effects.states) {
-            for call in effects.calls.span_or_empty(state_effects.calls) {
-                if !call.target_state_symbol.is_valid() {
+    for machine_reach in service_reaches.machines() {
+        for state_reach in service_reaches.states_for(machine_reach) {
+            for call in service_reaches.calls_for(state_reach) {
+                if !call.target_state.is_valid() {
                     continue;
                 }
                 edges.push(CallEdge {
-                    caller_machine_symbol: machine_effects.symbol,
-                    caller_state_symbol: state_effects.symbol,
+                    caller_machine_symbol: machine_reach.machine,
+                    caller_state_symbol: state_reach.state,
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
-                    target_state_symbol: call.target_state_symbol,
+                    target_state_symbol: call.target_state,
                 });
             }
         }
@@ -357,20 +351,6 @@ fn push_unique(
         flows.append(fact);
     }
     !exists
-}
-
-fn call_effects(
-    direct: EffectSet,
-    signature: Option<&StateSignature>,
-    program: &TypedTrees,
-) -> EffectSet {
-    let mut effects = direct;
-    if let Some(signature) = signature {
-        for effect in program.state_signature_effects(signature) {
-            effects.insert_name(effect.as_str());
-        }
-    }
-    effects
 }
 
 /// Classifies the receiver of the boundary call at `statement_index` as
@@ -634,10 +614,11 @@ mod tests {
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let effects = omega_effects::infer_effects(&typed);
-        // Capability-flow verbs (returns/derives) are derived from the effect
-        // plan and the call graph, independent of the control-flow facts, so an
-        // empty FlowFacts exercises the nested-propagation logic.
-        let plan = build_capability_facts(&typed, &effects, &FlowFacts::default());
+        let service_reaches = omega_effects::infer_service_reaches(&typed, &effects);
+        // Capability-flow verbs derive from normalized call topology,
+        // independent of raw control-flow facts, so an empty FlowFacts
+        // exercises the nested-propagation logic.
+        let plan = build_capability_facts(&typed, &service_reaches, &FlowFacts::default());
         (typed, plan)
     }
 
@@ -675,15 +656,11 @@ mod tests {
         let (program, plan) = capability_plan(
             r#"
             boundary trait Folder {
-                machine write_line(text: String)
-                effects
-                    filesystem_io;
+                machine write_line(text: String);
             }
 
             boundary trait RootDir {
-                machine open() -> Folder
-                effects
-                    filesystem_io;
+                machine open() -> Folder;
             }
 
             data Vault {
@@ -859,9 +836,7 @@ mod tests {
         let (program, plan) = capability_plan(
             r#"
             boundary trait Disk {
-                machine write_line(text: String)
-                effects
-                    filesystem_io;
+                machine write_line(text: String);
             }
 
             data Archiver {
