@@ -13,8 +13,25 @@ pub enum CheckedOperandLoaderRegister {
 /// final-image validation can decode independently from the encoder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedOperandLoaderKind {
-    Immediate { value: u64 },
-    Storage { byte_offset: u32, byte_size: u8 },
+    Immediate {
+        value: u64,
+    },
+    Storage {
+        byte_offset: u32,
+        byte_size: u8,
+    },
+    Pointee {
+        pointer_byte_offset: u32,
+        field_byte_offset: u32,
+        byte_size: u8,
+    },
+    FrameFixedIndexed {
+        descriptor_byte_offset: u32,
+        element_index: u64,
+        element_byte_size: u32,
+        field_byte_offset: u32,
+        byte_size: u8,
+    },
 }
 
 /// One operand loader's exact subspan and expected semantic meaning.

@@ -350,6 +350,28 @@ fn fingerprint_checked_operand_loader(
             fingerprint_into(fingerprint, &[2, byte_size]);
             fingerprint_into(fingerprint, &byte_offset.to_le_bytes());
         }
+        Kind::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => {
+            fingerprint_into(fingerprint, &[3, byte_size]);
+            fingerprint_into(fingerprint, &pointer_byte_offset.to_le_bytes());
+            fingerprint_into(fingerprint, &field_byte_offset.to_le_bytes());
+        }
+        Kind::FrameFixedIndexed {
+            descriptor_byte_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            fingerprint_into(fingerprint, &[4, byte_size]);
+            fingerprint_into(fingerprint, &descriptor_byte_offset.to_le_bytes());
+            fingerprint_into(fingerprint, &element_index.to_le_bytes());
+            fingerprint_into(fingerprint, &element_byte_size.to_le_bytes());
+            fingerprint_into(fingerprint, &field_byte_offset.to_le_bytes());
+        }
     }
 }
 
@@ -442,6 +464,122 @@ fn validate_checked_operand_loader(
                 selected_instruction_index,
             )?;
         }
+        Kind::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => {
+            validate_checked_indirect_operand_loader(
+                loader.register,
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+                width,
+                encoded,
+                final_bytes,
+                selected_instruction_index,
+            )?;
+            require_checked_operand_storage_relocation(
+                relocations,
+                instruction_byte_offset + start + 2,
+                selected_instruction_index,
+            )?;
+        }
+        Kind::FrameFixedIndexed {
+            descriptor_byte_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            let displacement = element_index
+                .checked_mul(u64::from(element_byte_size))
+                .and_then(|scaled| scaled.checked_add(u64::from(field_byte_offset)))
+                .and_then(|displacement| u32::try_from(displacement).ok())
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "checked-assembly instruction #{selected_instruction_index} fixed-index operand displacement overflows its retained range"
+                    ))
+                })?;
+            validate_checked_indirect_operand_loader(
+                loader.register,
+                descriptor_byte_offset,
+                displacement,
+                byte_size,
+                width,
+                encoded,
+                final_bytes,
+                selected_instruction_index,
+            )?;
+            require_checked_operand_storage_relocation(
+                relocations,
+                instruction_byte_offset + start + 2,
+                selected_instruction_index,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_checked_indirect_operand_loader(
+    register: omega_machine_bytes::CheckedOperandLoaderRegister,
+    pointer_byte_offset: u32,
+    value_byte_offset: u32,
+    byte_size: u8,
+    width: usize,
+    encoded: &[u8],
+    final_bytes: &[u8],
+    selected_instruction_index: u32,
+) -> Result<(), Diagnostic> {
+    use omega_machine_bytes::CheckedOperandLoaderRegister as Register;
+
+    let pointer_displacement = i32::try_from(pointer_byte_offset).map_err(|_| {
+        Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} indirect pointer displacement does not fit x86 disp32"
+        ))
+    })?;
+    let value_displacement = i32::try_from(value_byte_offset).map_err(|_| {
+        Diagnostic::error(format!(
+            "checked-assembly instruction #{selected_instruction_index} indirect value displacement does not fit x86 disp32"
+        ))
+    })?;
+    let value_opcode: &[u8] = match (register, byte_size) {
+        (Register::R10, 1) => &[0x44, 0x8a, 0x90],
+        (Register::R10, 2) => &[0x66, 0x44, 0x8b, 0x90],
+        (Register::R10, 4) => &[0x44, 0x8b, 0x90],
+        (Register::R10, 8) => &[0x4c, 0x8b, 0x90],
+        (Register::R11, 1) => &[0x44, 0x8a, 0x98],
+        (Register::R11, 2) => &[0x66, 0x44, 0x8b, 0x98],
+        (Register::R11, 4) => &[0x44, 0x8b, 0x98],
+        (Register::R11, 8) => &[0x4c, 0x8b, 0x98],
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "checked-assembly instruction #{selected_instruction_index} retains unsupported {byte_size}-byte indirect operand semantics"
+            )));
+        }
+    };
+    let mut suffix = Vec::with_capacity(7 + value_opcode.len() + 4);
+    suffix.extend([0x49, 0x8b, 0x87]);
+    suffix.extend(pointer_displacement.to_le_bytes());
+    suffix.extend(value_opcode);
+    suffix.extend(value_displacement.to_le_bytes());
+    let expected_width = 10 + suffix.len();
+    if width != expected_width
+        || encoded.get(..2) != Some(&[0x49, 0xbf])
+        || encoded.get(2..10) != Some(&[0; 8])
+        || encoded.get(10..) != Some(suffix.as_slice())
+    {
+        return Err(Diagnostic::error(format!(
+            "encoded checked-assembly instruction #{selected_instruction_index} indirect operand loader does not match its retained pointer/value/register semantics"
+        )));
+    }
+    if final_bytes.get(..2) != Some(&[0x49, 0xbf])
+        || final_bytes.get(10..) != Some(suffix.as_slice())
+    {
+        return Err(Diagnostic::error(format!(
+            "final checked-assembly instruction #{selected_instruction_index} changed its indirect operand loader semantics"
+        )));
     }
     Ok(())
 }
@@ -1518,6 +1656,131 @@ mod tests {
         )
         .expect_err("a storage loader without its exact relocation must reject");
         assert!(diagnostic.message.contains("source-storage relocation"));
+    }
+
+    fn indirect_operand_fixture(
+        kind: omega_machine_bytes::CheckedOperandLoaderKind,
+        pointer_byte_offset: u32,
+        value_byte_offset: u32,
+    ) -> (
+        omega_machine_bytes::EncodedMachineCode,
+        Vec<u8>,
+        RelocationPlan,
+    ) {
+        use omega_core::arena::Arena;
+        use omega_core::inline_assembly::AsmControlRegister;
+        use omega_machine_bytes::{
+            CheckedInstructionValidationKind, CheckedOperandLoaderRegister,
+            CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
+        };
+
+        let mut encoded = Vec::new();
+        encoded.extend([0x49, 0xbf]);
+        encoded.extend(0u64.to_le_bytes());
+        encoded.extend([0x49, 0x8b, 0x87]);
+        encoded.extend(pointer_byte_offset.to_le_bytes());
+        encoded.extend([0x4c, 0x8b, 0x90]);
+        encoded.extend(value_byte_offset.to_le_bytes());
+        encoded.extend([0x41, 0x0f, 0x22, 0xda]);
+
+        let mut bytes = Arena::with_capacity(encoded.len());
+        let span = bytes.insert_many(encoded.iter().copied());
+        let mut instructions = Arena::with_capacity(1);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 12,
+            bytes: span,
+            checked_validation_kind: Some(CheckedInstructionValidationKind::ControlRegisterWrite {
+                register: AsmControlRegister::Cr3,
+                source_operand_byte_width: 24,
+            }),
+            checked_operand_loaders: [
+                Some(CheckedOperandLoaderValidation {
+                    byte_offset: 0,
+                    byte_width: 24,
+                    register: CheckedOperandLoaderRegister::R10,
+                    kind,
+                }),
+                None,
+            ],
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            byte_count: encoded.len(),
+        };
+
+        let mut final_bytes = encoded;
+        final_bytes[2..10].copy_from_slice(&0x1234_5678_9abc_def0u64.to_le_bytes());
+        let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: Handle::invalid(),
+                selected_instruction_index: 12,
+            },
+            section: SectionKind::Text,
+            offset: 2,
+            byte_width: 8,
+            symbol_handle: Handle::invalid(),
+            kind: RelocationKind::Absolute64,
+        });
+        (code, final_bytes, relocations)
+    }
+
+    #[test]
+    fn validates_pointee_and_fixed_index_operand_loader_semantics() {
+        use omega_machine_bytes::CheckedOperandLoaderKind;
+
+        let (pointee_code, pointee_bytes, pointee_relocations) = indirect_operand_fixture(
+            CheckedOperandLoaderKind::Pointee {
+                pointer_byte_offset: 24,
+                field_byte_offset: 8,
+                byte_size: 8,
+            },
+            24,
+            8,
+        );
+        let (_, pointee_fingerprint) = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &pointee_code,
+            &pointee_bytes,
+            &pointee_relocations,
+        )
+        .expect("pointee loader semantics and relocation should validate");
+
+        let (fixed_code, fixed_bytes, fixed_relocations) = indirect_operand_fixture(
+            CheckedOperandLoaderKind::FrameFixedIndexed {
+                descriptor_byte_offset: 24,
+                element_index: 2,
+                element_byte_size: 4,
+                field_byte_offset: 0,
+                byte_size: 8,
+            },
+            24,
+            8,
+        );
+        let (_, fixed_fingerprint) = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &fixed_code,
+            &fixed_bytes,
+            &fixed_relocations,
+        )
+        .expect("fixed-index loader semantics and relocation should validate");
+        assert_ne!(
+            pointee_fingerprint, fixed_fingerprint,
+            "semantically distinct operand plans must not share a certificate fingerprint"
+        );
+
+        let mut wrong_pointer_load = pointee_bytes;
+        wrong_pointer_load[10] ^= 1;
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &pointee_code,
+            &wrong_pointer_load,
+            &pointee_relocations,
+        )
+        .expect_err("changing the retained pointer load must reject");
+        assert!(diagnostic.message.contains("indirect operand loader"));
     }
 
     #[test]
