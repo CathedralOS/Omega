@@ -31,6 +31,13 @@ pub fn append_validated_artifact_relocations(
             "artifact relocation translation requires a valid owner object symbol",
         ));
     }
+    if artifact.artifact().architecture() != relocations.target.architecture {
+        return Err(Diagnostic::error(format!(
+            "artifact architecture {:?} is incompatible with target architecture {:?}",
+            artifact.artifact().architecture(),
+            relocations.target.architecture
+        )));
+    }
 
     let mut translated = Vec::with_capacity(artifact.relocations().len());
     for relocation in artifact.relocations() {
@@ -144,6 +151,7 @@ mod tests {
             total_length: 400,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
+            architecture: Architecture::X86_64,
             code_length: 64,
             code: vec![0x90; 64],
             contracts: id(3, MachineContractSetId::from_normalized_identity),
@@ -256,6 +264,21 @@ mod tests {
     fn preserves_addends_while_architecture_and_symbol_failures_append_nothing() {
         let owner = Handle::from_arena_index(2);
         let destination = Handle::from_arena_index(3);
+
+        let (wrong_artifact_architecture, target) =
+            validated(ArtifactRelocationKind::Absolute64, 0);
+        let mut aarch64 = RelocationPlan::with_target(NativeTarget::linux_arm64());
+        let error = append_validated_artifact_relocations(
+            &wrong_artifact_architecture,
+            SectionKind::Text,
+            0,
+            owner,
+            &mut aarch64,
+            |candidate| (candidate == target).then_some(destination),
+        )
+        .expect_err("artifact architecture mismatch rejects");
+        assert!(error.message.contains("artifact architecture"));
+        assert_eq!(aarch64.record_count(), 0);
 
         let (wrong_architecture, target) = validated(ArtifactRelocationKind::Aarch64Branch26, 0);
         let mut x86 = RelocationPlan::with_target(NativeTarget::linux_x64());

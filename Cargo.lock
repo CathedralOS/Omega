@@ -464,6 +464,7 @@ version = "0.1.0"
 dependencies = [
  "omega-extents",
  "omega-layout-plans",
+ "omega-target",
 ]
 
 [[package]]
@@ -478,6 +479,7 @@ dependencies = [
  "omega-executable-installation",
  "omega-extents",
  "omega-layout-plans",
+ "omega-target",
 ]
 
 [[package]]

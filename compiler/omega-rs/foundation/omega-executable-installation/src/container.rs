@@ -80,6 +80,7 @@ pub struct DecodedArtifactContainer {
     pub total_length: u64,
     pub artifact: ArtifactId,
     pub content: ArtifactContentId,
+    pub architecture: Architecture,
     pub code_length: u64,
     /// Exact decoded executable bytes. The post-decode validator binds these
     /// bytes into normalized content identity before any admission fact exists.
@@ -305,6 +306,7 @@ pub fn validate_decoded_container(
         limits.max_relocations,
     )?;
     let computed_content = compute_content_identity(
+        decoded.architecture,
         &decoded.code,
         decoded.contracts,
         decoded.declared_footprint,
@@ -325,6 +327,7 @@ pub fn validate_decoded_container(
     let artifact = Artifact::from_canonical_decode(
         decoded.artifact,
         decoded.content,
+        decoded.architecture,
         decoded.code,
         decoded.contracts,
         decoded.declared_footprint,
@@ -356,6 +359,7 @@ pub fn normalized_decoded_content_identity(
         decoded.relocations.len().max(1),
     )?;
     compute_content_identity(
+        decoded.architecture,
         &decoded.code,
         decoded.contracts,
         decoded.declared_footprint,
@@ -370,6 +374,7 @@ pub fn normalized_decoded_content_identity(
 
 #[allow(clippy::too_many_arguments)]
 fn compute_content_identity(
+    architecture: Architecture,
     code: &[u8],
     contracts: MachineContractSetId,
     footprint: MachineFootprintId,
@@ -382,6 +387,13 @@ fn compute_content_identity(
 ) -> Result<ArtifactContentId, InstallationDiagnostic> {
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_bytes(&mut fingerprint, b"omega-executable-content-v1");
+    fingerprint_bytes(
+        &mut fingerprint,
+        &[match architecture {
+            Architecture::Aarch64 => 1,
+            Architecture::X86_64 => 2,
+        }],
+    );
     fingerprint_bytes(&mut fingerprint, &(code.len() as u64).to_le_bytes());
     fingerprint_bytes(&mut fingerprint, code);
     for identity in [
@@ -574,6 +586,7 @@ mod tests {
             total_length: 400,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
+            architecture: Architecture::X86_64,
             code_length: 64,
             code: vec![0x90; 64],
             contracts,
@@ -639,6 +652,7 @@ mod tests {
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
         let container = validate_decoded_container(decoded(), limits()).expect("container");
         assert_eq!(container.artifact().identity().normalized_identity(), 1);
+        assert_eq!(container.artifact().architecture(), Architecture::X86_64);
         assert_eq!(container.artifact().byte_length(), 64);
         assert_eq!(container.artifact().code(), &[0x90; 64]);
         assert_eq!(container.artifact().entries().len(), 1);
@@ -657,6 +671,16 @@ mod tests {
             container.artifact().placement_constraints(),
             PlacementConstraints::unconstrained(omega_layout_plans::PlacementPhase::Load)
         );
+    }
+
+    #[test]
+    fn content_identity_binds_the_instruction_set_architecture() {
+        let mut changed = decoded();
+        changed.architecture = Architecture::Aarch64;
+
+        let error =
+            validate_decoded_container(changed, limits()).expect_err("architecture drift rejects");
+        assert!(error.0.contains("content identity"));
     }
 
     #[test]

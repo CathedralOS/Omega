@@ -11,6 +11,7 @@ use omega_layout_plans::{
     EntryStubId, MaterializationDiagnostic, PlacementConstraints, PlacementSite,
     PostHandoffWriterPlan, PostHandoffWriterSource, RelocationTarget,
 };
+use omega_target::Architecture;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -60,6 +61,7 @@ pub use container::*;
 struct ArtifactRecord {
     identity: ArtifactId,
     content: ArtifactContentId,
+    architecture: Architecture,
     byte_length: u64,
     code: Vec<u8>,
     contracts: MachineContractSetId,
@@ -105,6 +107,7 @@ impl Artifact {
     pub fn from_canonical_decode(
         identity: ArtifactId,
         content: ArtifactContentId,
+        architecture: Architecture,
         code: Vec<u8>,
         contracts: MachineContractSetId,
         declared_footprint: MachineFootprintId,
@@ -148,6 +151,7 @@ impl Artifact {
         Ok(Self(Arc::new(ArtifactRecord {
             identity,
             content,
+            architecture,
             byte_length,
             code,
             contracts,
@@ -165,6 +169,10 @@ impl Artifact {
 
     pub fn content(&self) -> ArtifactContentId {
         self.0.content
+    }
+
+    pub fn architecture(&self) -> Architecture {
+        self.0.architecture
     }
 
     pub fn byte_length(&self) -> u64 {
@@ -1260,6 +1268,7 @@ mod tests {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
             id(identity + 10, ArtifactContentId::from_normalized_identity),
+            Architecture::X86_64,
             vec![0; 64],
             id(30, MachineContractSetId::from_normalized_identity),
             id(31, MachineFootprintId::from_normalized_identity),
