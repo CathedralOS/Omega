@@ -542,3 +542,150 @@ device/DMA visibility plus compiler-only barriers separate. The normalized
 atomic operation records the portable order; target lowering supplies a
 validated realization, including no emitted instruction where the target
 memory model proves that sufficient.
+
+## 14. How does a foreign contract declare retained data-pointer lifetime?
+
+The extern model already distinguishes borrowed-out, borrowed-in, transferred,
+and opaque-handle pointer relationships. Borrowed-out is intentionally
+call-scoped: a checked adapter may lend a slice to one synchronous native call,
+and the borrow ends when that call returns. Real APIs also retain pointers for
+asynchronous work, registration, or later callbacks. The checked IR currently
+has no normalized contract fact that distinguishes those APIs, so it cannot
+reject a call-scoped pointer passed to a retaining leaf without guessing from
+ABI shape, suspension, or a raw address.
+
+This is the data-lifetime sibling of question 12, not the same decision. A
+sealed external entry reference governs foreign control entering Omega;
+retention governs foreign custody of Omega storage after an outbound call.
+Some APIs use both and need two independently auditable contracts.
+
+Decide:
+
+- which existing boundary declaration owns the call-scoped-versus-retaining
+  fact, and whether it is selected per pointer parameter, per return, or by a
+  named registration protocol;
+- how retained read, retained write, ownership transfer, and foreign allocation
+  differ without turning one pointer annotation into a grab bag;
+- which pinned `Extent` loan or transferred allocation must accompany a
+  retained pointer, and how the foreign contract binds the exact range,
+  polarity, lifetime, provenance, and permitted service reach;
+- which linear receipt represents the foreign-held loan, how completion,
+  cancellation, unregistration, or process teardown returns it, and which
+  quiescence evidence is required before reuse;
+- how a checked adapter proves that a call-scoped borrow cannot escape through
+  a retaining contract, including indirect provider calls; and
+- which residual claims are proved from checked providers versus accepted under
+  a boundary receipt, with missing or opaque lifetime evidence failing closed.
+
+Recommendation: keep pointer representation and ABI classification separate
+from lifetime. Put a normalized, per-parameter foreign-use contract on the
+ordinary boundary requirement, with call-scoped borrow as the strict default.
+A retaining contract must consume or borrow an explicit pinned loan and return
+a linear custody/registration receipt whose completion releases that exact
+range. Reuse `Extent`, external-loan, provider-admission, and quiescence
+machinery; do not infer retention from `suspends`, `blocks`, pointer shape, or
+the fact that a native function happens to return later.
+
+## 15. What is the public boundary write-frame clause spelling?
+
+Omega already computes normalized body write frames and uses them to preserve
+facts across calls. Boundary requirements need an authored frame because no
+body exists from which to infer one. The semantics are settled: the clause
+names the complete set of places the call may mutate; omission means an empty
+frame; checked implementations must remain within it; and frame evidence is
+part of the public contract rather than private proof detail.
+
+The current guide spells this clause `stores`, but explicitly treats that word
+as provisional. It now also conflicts with the authority-flow report verb
+`Stores`, which means retaining authority beyond the call rather than mutating
+a place.
+
+Decide:
+
+- whether the clause is named `writes`, `modifies`, `stores`, or another single
+  verb, and whether the same spelling applies to requirements and explicit
+  implementation refinements;
+- the exact path-list grammar, including multiple paths, indexed/ranged places,
+  parameter-relative paths, and whether braces or commas are used;
+- how an explicitly empty frame is written when useful for documentation, while
+  ordinary omission continues to mean no writes;
+- whether whole-object entries subsume descendants during normalization and how
+  diagnostics present that relationship; and
+- whether any non-memory mutation belongs here, or remains represented only by
+  service reach, operational ceilings, linear obligations, and postconditions.
+
+Recommendation: rename the provisional clause to `writes` and keep it a plain
+machine-contract clause with a comma-separated place list. It says exactly what
+the checker needs and avoids colliding with authority retention. Keep effects,
+resource consumption, foreign retention, and hardware state out of the write
+frame; they already have independent contracts.
+
+## 16. What is the authored domain-policy surface?
+
+Frozen decision 19 settled the semantic model: predicate and semantic facets
+are independent; semantic introduction is sealed by default; operator meaning
+comes from binding-site selection; weakening requires checked agreement; and
+open operator families need deterministic ownership. The normalized compiler
+model now carries these facts, but four source surfaces were deliberately left
+as sketches. Compatibility inference from “has facts” versus “has no facts”
+cannot be retired until declarations author the facets directly.
+
+Decide:
+
+- how a domain declares `predicate`, `semantic`, or both facets without
+  inventing a parallel attribute system or silently inferring public semantics
+  from its body;
+- the declaration spelling for sealed-by-default versus open semantic
+  introduction, and how an exported `MintAuthority<D>` is accepted at an
+  explicit qualification site;
+- how an open operator family names its designated dispatch-owner position and
+  how packages opt into that family without ambient candidate search;
+- the source shape of a `weakens_to` certificate, including the denotation and
+  operation-agreement obligations it must prove; and
+- which of these declarations contribute to normalized semantic identity,
+  sealed-theory identity, trust reports, and package coherence.
+
+Recommendation: use explicit clauses inside ordinary domain/operator
+declarations, not attributes or compiler-recognized naming. Require the facet
+pair to be authored; keep introduction sealed by omission with one explicit
+open clause; pass `MintAuthority<D>` as an ordinary capability value at the
+qualification operation; name one owner position in an open operator-family
+declaration; and make weakening an ordinary checked certificate block whose
+normalized promise, but not private proof steps, enters theory identity.
+
+## 17. What is the Omega-authored `AccessPlan` policy surface?
+
+The OS foundation deliberately separates layout geometry from access behavior.
+`LayoutPlan` says where bits live. The normalized `AccessPlan` says how a
+placed field may be observed or changed: exact transfer width, stable versus
+externally-changing or atomic observation, read/write/atomic permissions,
+public versus provider-private exposure, and statically pinned service reach.
+The Rust validator, sealed field-authorization seam, and plan-pair checks are
+live, but the Omega source record and policy-machine contract remain open.
+
+Decide:
+
+- which ordinary `omega::core` data records and closed case families represent
+  access entries, observation, operation permission, transfer width, exposure,
+  and pinned reach;
+- which trait or requirement a package-authored policy machine satisfies and
+  which schema/layout facts it receives when producing an `AccessPlan`;
+- whether one policy produces a complete plan for a layout, or whether access
+  families compose through an explicit normalized merge;
+- how provider-private primitive access is made available only to the declaring
+  device package while public derived accessors expose contracted operations
+  such as W1C without a generic RMW escape;
+- how a placed-view derivation cites both evaluated plan identities and checks
+  them against the exact `Extent` loan/provenance before minting field tokens;
+  and
+- which plan changes alter public accessor identity versus only provider
+  realization evidence.
+
+Recommendation: copy the programmable-layout pattern. Define ordinary closed
+`AccessPlan` data in `omega::core`; have an explicitly selected policy machine
+compute one complete name-keyed plan from the reflected schema and validated
+layout; normalize and validate the result in the compiler; and derive all
+public field tokens/accessors from the accepted pair. Keep device-specific
+operations as checked package machines over provider-private sealed access.
+Do not add a volatile qualifier, public arbitrary-offset primitive, access
+behavior to `FieldPlan`, or customer-shaped MMIO syntax.
