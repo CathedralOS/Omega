@@ -129,7 +129,7 @@ mod tests {
         ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits, ContainerSection,
         ContainerSectionKind, DecodedArtifactContainer, EntrySetId, MachineContractSetId,
         MachineFootprintId, OMEGA_EXECUTABLE_CONTAINER_VERSION, PlacementPlanId, ProofPayloadId,
-        RelocationSetId, validate_decoded_container,
+        RelocationSetId, normalized_decoded_content_identity, validate_decoded_container,
     };
     use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
     use omega_target::NativeTarget;
@@ -148,12 +148,13 @@ mod tests {
         let entry = EntryStubId::from_normalized_identity(9).expect("normalized entry identity");
         let target = RelocationTarget::Entry(entry);
         let relocations = id(6, RelocationSetId::from_normalized_identity);
-        let decoded = DecodedArtifactContainer {
+        let mut decoded = DecodedArtifactContainer {
             format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
             total_length: 400,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
             code_length: 64,
+            code: vec![0x90; 64],
             contracts: id(3, MachineContractSetId::from_normalized_identity),
             declared_footprint: id(4, MachineFootprintId::from_normalized_identity),
             placement_plan: id(5, PlacementPlanId::from_normalized_identity),
@@ -221,6 +222,7 @@ mod tests {
                 },
             ],
         };
+        decoded.content = normalized_decoded_content_identity(&decoded).expect("content identity");
         let limits = ContainerLimits {
             max_total_bytes: 4096,
             max_sections: 16,

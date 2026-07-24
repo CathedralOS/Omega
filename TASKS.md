@@ -1753,8 +1753,12 @@ stronger operations it needs instead of citing machine parameters generally.
   carrier, maps it to the existing target relocation vocabulary, resolves
   symbols through a sealed compiler/provider callback, and rejects
   architecture mismatch, missing symbols, unsupported explicit addends, or
-  section-offset overflow before appending any record. Connect the canonical
-  set to content identity; implement
+  section-offset overflow before appending any record. The decoded carrier now
+  retains the exact code bytes, and validation derives rather than trusts the
+  normalizer-owned content identity over code, contract/footprint/placement
+  promises, canonical entries, and canonical relocations. Entry/section order,
+  proof evidence, and informational sections remain identity-invisible.
+  Implement
   admission/PCC and final-footprint validators, materializer/installer
   providers, Omega linear integration, and provider-backed
   quiescence/replacement execution. Code-placement claims already validate the
