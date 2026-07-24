@@ -7,7 +7,9 @@ use omega_assigned_target_operations::{
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_bytes::{EncodedMachineCode, EncodedMachineInstruction};
+use omega_machine_bytes::{
+    EncodedMachineCode, EncodedMachineInstruction, FixedCheckedInstructionKind,
+};
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 
 pub(crate) fn emit_function_bytes(
@@ -60,6 +62,7 @@ pub(crate) fn emit_function_bytes(
             encoded_code.instructions.insert(EncodedMachineInstruction {
                 selected_instruction_index: machine_instruction.selected_instruction_index,
                 bytes: HandleSpan::empty(),
+                fixed_checked_kind: None,
             });
             continue;
         }
@@ -101,10 +104,37 @@ pub(crate) fn emit_function_bytes(
         encoded_code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
+            fixed_checked_kind: fixed_checked_instruction_kind(&machine_instruction.source_kind),
         });
     }
 
     Ok(())
+}
+
+fn fixed_checked_instruction_kind(
+    kind: &SelectedInstructionKind,
+) -> Option<FixedCheckedInstructionKind> {
+    use omega_core::inline_assembly::{AsmFenceKind, AsmInterruptControlKind};
+
+    match kind {
+        SelectedInstructionKind::MachineHalt => Some(FixedCheckedInstructionKind::MachineHalt),
+        SelectedInstructionKind::MemoryFence(AsmFenceKind::Load) => {
+            Some(FixedCheckedInstructionKind::LoadFence)
+        }
+        SelectedInstructionKind::MemoryFence(AsmFenceKind::Store) => {
+            Some(FixedCheckedInstructionKind::StoreFence)
+        }
+        SelectedInstructionKind::MemoryFence(AsmFenceKind::Full) => {
+            Some(FixedCheckedInstructionKind::FullFence)
+        }
+        SelectedInstructionKind::InterruptControl(AsmInterruptControlKind::Disable) => {
+            Some(FixedCheckedInstructionKind::InterruptDisable)
+        }
+        SelectedInstructionKind::InterruptControl(AsmInterruptControlKind::Enable) => {
+            Some(FixedCheckedInstructionKind::InterruptEnable)
+        }
+        _ => None,
+    }
 }
 
 fn insert_encoded_machine_instruction(

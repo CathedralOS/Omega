@@ -38,8 +38,12 @@ pub struct CompilerTextValidationEvidence {
     pub encoded_text_fingerprint: u64,
     pub final_compiler_text_fingerprint: u64,
     pub relocation_envelope_fingerprint: u64,
+    /// Relocation-free checked-assembly instructions whose exact final bytes
+    /// were validated at retained instruction boundaries.
+    pub fixed_checked_instruction_fingerprint: u64,
     pub derivation_fingerprint: u64,
     pub text_relocation_count: usize,
+    pub fixed_checked_instruction_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

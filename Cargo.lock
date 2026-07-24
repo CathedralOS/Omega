@@ -329,6 +329,7 @@ dependencies = [
  "omega-interpreter",
  "omega-layout",
  "omega-layout-plans",
+ "omega-machine-bytes",
  "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-bodies",
@@ -515,6 +516,7 @@ dependencies = [
  "omega-image-pe",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
+ "omega-machine-bytes",
  "omega-object-file",
  "omega-target",
 ]

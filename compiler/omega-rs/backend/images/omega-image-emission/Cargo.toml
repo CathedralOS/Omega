@@ -16,5 +16,6 @@ omega-image-macho = { path = "../omega-image-macho" }
 omega-image-pe = { path = "../omega-image-pe" }
 omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
+omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
 omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../foundation/omega-target" }

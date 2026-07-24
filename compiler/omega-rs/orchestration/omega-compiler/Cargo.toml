@@ -24,6 +24,7 @@ omega-instruction-selection = { path = "../../backend/omega-instruction-selectio
 omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
 omega-tokens = { path = "../../representations/omega-tokens" }
 omega-layout = { path = "../../backend/omega-layout" }
+omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-backend-pipeline = { path = "../omega-backend-pipeline" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-backend-report = { path = "../../backend/omega-backend-report" }

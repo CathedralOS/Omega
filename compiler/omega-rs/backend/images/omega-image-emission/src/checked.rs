@@ -24,14 +24,46 @@ pub fn emit_checked_executable_image(
     let architecture = input.target.architecture;
     let entry_symbol = omega_object_file::object_entry_symbol_name(input.object).to_owned();
     let encoded_text_bytes = input.text_bytes;
+    if input.encoded_machine_code.bytes.storage_slice() != encoded_text_bytes {
+        return Err(Diagnostic::error(
+            "checked image input text does not match its encoded-machine byte carrier",
+        ));
+    }
+    let encoded_machine_code = input.encoded_machine_code;
     let relocations = input.relocations;
     if let Some(emitted_output) = emit_executable_image(input) {
         let mut emitted_output = emitted_output?;
-        emitted_output.compiler_text_validation = Some(validate_final_text_relocation_envelope(
+        let mut compiler_text_validation = validate_final_text_relocation_envelope(
             encoded_text_bytes,
             &emitted_output.final_text_bytes,
             relocations,
-        )?);
+        )?;
+        let (fixed_checked_instruction_count, fixed_checked_instruction_fingerprint) =
+            validate_fixed_checked_instruction_bytes(
+                architecture,
+                encoded_machine_code,
+                &emitted_output.final_text_bytes,
+            )?;
+        compiler_text_validation.fixed_checked_instruction_count = fixed_checked_instruction_count;
+        compiler_text_validation.fixed_checked_instruction_fingerprint =
+            fixed_checked_instruction_fingerprint;
+        let mut derivation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &compiler_text_validation
+                .derivation_fingerprint
+                .to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &fixed_checked_instruction_fingerprint.to_le_bytes(),
+        );
+        fingerprint_into(
+            &mut derivation_fingerprint,
+            &(fixed_checked_instruction_count as u64).to_le_bytes(),
+        );
+        compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
+        emitted_output.compiler_text_validation = Some(compiler_text_validation);
         validate_executable_region_enumeration(&emitted_output.executable_regions)?;
         validate_compiler_entry_call_return_bytes(
             architecture,
@@ -181,9 +213,96 @@ fn validate_final_text_relocation_envelope(
         encoded_text_fingerprint,
         final_compiler_text_fingerprint,
         relocation_envelope_fingerprint,
+        fixed_checked_instruction_fingerprint: 0,
         derivation_fingerprint,
         text_relocation_count: text_relocations.len(),
+        fixed_checked_instruction_count: 0,
     })
+}
+
+/// Validate the exact final encodings of the first closed checked-assembly
+/// subset. Instruction boundaries come from the encoded carrier; arbitrary
+/// byte scanning could mistake immediates or data for opcodes.
+fn validate_fixed_checked_instruction_bytes(
+    architecture: Architecture,
+    code: &omega_machine_bytes::EncodedMachineCode,
+    final_text_bytes: &[u8],
+) -> Result<(usize, u64), Diagnostic> {
+    use omega_machine_bytes::FixedCheckedInstructionKind;
+
+    let mut count = 0usize;
+    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    for (_, instruction) in code.instructions.iter() {
+        let Some(kind) = instruction.fixed_checked_kind else {
+            continue;
+        };
+        if architecture != Architecture::X86_64 {
+            return Err(Diagnostic::error(
+                "fixed checked-assembly validation found an x86 instruction on a non-x86 target",
+            ));
+        }
+        if instruction.bytes.is_empty() || !instruction.bytes.start().is_valid() {
+            return Err(Diagnostic::error(format!(
+                "fixed checked-assembly instruction #{} has no encoded byte span",
+                instruction.selected_instruction_index
+            )));
+        }
+        let byte_offset = instruction.bytes.start().arena_index() as usize - 1;
+        let byte_count = instruction.bytes.len();
+        let byte_end = byte_offset
+            .checked_add(byte_count)
+            .filter(|end| *end <= final_text_bytes.len())
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "fixed checked-assembly instruction #{} exceeds final compiler text",
+                    instruction.selected_instruction_index
+                ))
+            })?;
+        let encoded_bytes = code.bytes.span(instruction.bytes).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "fixed checked-assembly instruction #{} names an invalid encoded byte span",
+                instruction.selected_instruction_index
+            ))
+        })?;
+        let expected: &[u8] = match kind {
+            FixedCheckedInstructionKind::MachineHalt => &[0xf4],
+            FixedCheckedInstructionKind::LoadFence => &[0x0f, 0xae, 0xe8],
+            FixedCheckedInstructionKind::StoreFence => &[0x0f, 0xae, 0xf8],
+            FixedCheckedInstructionKind::FullFence => &[0x0f, 0xae, 0xf0],
+            FixedCheckedInstructionKind::InterruptDisable => &[0xfa],
+            FixedCheckedInstructionKind::InterruptEnable => &[0xfb],
+        };
+        if encoded_bytes != expected {
+            return Err(Diagnostic::error(format!(
+                "encoded checked-assembly instruction #{} does not match its closed catalog kind",
+                instruction.selected_instruction_index
+            )));
+        }
+        if &final_text_bytes[byte_offset..byte_end] != expected {
+            return Err(Diagnostic::error(format!(
+                "final checked-assembly instruction #{} changed after encoding",
+                instruction.selected_instruction_index
+            )));
+        }
+
+        let kind_tag = match kind {
+            FixedCheckedInstructionKind::MachineHalt => 1,
+            FixedCheckedInstructionKind::LoadFence => 2,
+            FixedCheckedInstructionKind::StoreFence => 3,
+            FixedCheckedInstructionKind::FullFence => 4,
+            FixedCheckedInstructionKind::InterruptDisable => 5,
+            FixedCheckedInstructionKind::InterruptEnable => 6,
+        };
+        fingerprint_into(&mut fingerprint, &[kind_tag]);
+        fingerprint_into(
+            &mut fingerprint,
+            &u64::from(instruction.selected_instruction_index).to_le_bytes(),
+        );
+        fingerprint_into(&mut fingerprint, &(byte_offset as u64).to_le_bytes());
+        fingerprint_into(&mut fingerprint, expected);
+        count += 1;
+    }
+    Ok((count, fingerprint))
 }
 
 fn relocation_kind_tag(kind: RelocationKind) -> u8 {
@@ -274,6 +393,7 @@ mod tests {
     use super::{
         emit_checked_executable_image, validate_compiler_entry_call_return_bytes,
         validate_executable_region_enumeration, validate_final_text_relocation_envelope,
+        validate_fixed_checked_instruction_bytes,
     };
     use crate::ExecutableImageInput;
     use omega_core::arena::Handle;
@@ -296,6 +416,10 @@ mod tests {
                 target,
                 object: &object,
                 relocations: &relocations,
+                encoded_machine_code: &omega_machine_bytes::EncodedMachinePlan::with_capacity(
+                    target, 0, 0, 0,
+                )
+                .code,
                 text_bytes: &[0xaa, 0xbb],
                 data_bytes: &[],
                 subsystem: 3,
@@ -401,5 +525,57 @@ mod tests {
         let diagnostic = validate_executable_region_enumeration(&inventory)
             .expect_err("checked images must classify every executable byte");
         assert!(diagnostic.message.contains("4 unclassified byte(s)"));
+    }
+
+    #[test]
+    fn validates_fixed_checked_assembly_at_retained_instruction_boundaries() {
+        use omega_core::arena::Arena;
+        use omega_machine_bytes::{
+            EncodedMachineCode, EncodedMachineInstruction, FixedCheckedInstructionKind,
+        };
+
+        let mut bytes = Arena::with_capacity(5);
+        let halt = bytes.insert_many([0xf4]);
+        let fence = bytes.insert_many([0x0f, 0xae, 0xf0]);
+        let cli = bytes.insert_many([0xfa]);
+        let mut instructions = Arena::with_capacity(3);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 4,
+            bytes: halt,
+            fixed_checked_kind: Some(FixedCheckedInstructionKind::MachineHalt),
+        });
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 5,
+            bytes: fence,
+            fixed_checked_kind: Some(FixedCheckedInstructionKind::FullFence),
+        });
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 6,
+            bytes: cli,
+            fixed_checked_kind: Some(FixedCheckedInstructionKind::InterruptDisable),
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            byte_count: 5,
+        };
+
+        let (count, fingerprint) = validate_fixed_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &[0xf4, 0x0f, 0xae, 0xf0, 0xfa],
+        )
+        .expect("closed checked-assembly bytes should validate");
+        assert_eq!(count, 3);
+        assert_ne!(fingerprint, 0);
+
+        let diagnostic = validate_fixed_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &[0xf4, 0x0f, 0xae, 0xe8, 0xfa],
+        )
+        .expect_err("a changed final fence kind must reject");
+        assert!(diagnostic.message.contains("changed after encoding"));
     }
 }
