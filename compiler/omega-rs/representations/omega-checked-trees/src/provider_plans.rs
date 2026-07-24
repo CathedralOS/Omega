@@ -127,9 +127,8 @@ fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_effects::{
-        EffectSet,
-        provider_plan::{ProviderBinding, ProviderPlanRow, ServiceMethod, ServiceSchema},
+    use omega_effects::provider_plan::{
+        ProviderBinding, ProviderPlanRow, ServiceMethod, ServiceSchema,
     };
 
     fn candidate(name: &str, method: &str) -> ProviderPlan {
@@ -143,8 +142,9 @@ mod tests {
                     name: method.into(),
                     parameter_count: 0,
                     has_result: false,
-                    effects: Vec::new(),
                     service_reach: vec![format!("{name}Service")],
+                    may_suspend: false,
+                    may_block: false,
                     calling_plan_fingerprint: None,
                 }],
             },
@@ -154,7 +154,6 @@ mod tests {
                     machine: format!("{name}Provider::{method}"),
                 },
             }],
-            effect_set: EffectSet::empty(),
             origin_package: "test".into(),
         }
     }

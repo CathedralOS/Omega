@@ -494,7 +494,10 @@ summaries, and the persistent graph crates no longer depend on `omega-effects`.
 The typed-tree report joins those same normalized scopes with the independent
 operational fixed points. All semantic phase filters derive their sorted
 canonical service catalog from rendered node rows rather than the global
-lowercase effect-name table.
+lowercase effect-name table. Provider-plan method schemas and fingerprints
+likewise retain only canonical service names and independent
+`may_suspend`/`may_block` ceilings; the duplicate lowercase method surface and
+plan-wide compatibility bitset are gone.
 Dedicated may-axis fixed points never depend on operational bits. Migrating the
 remaining capability/fixture consumers and deleting the compatibility engine
 is the next EFX slice.
