@@ -226,6 +226,13 @@ fn mutable_recast_accepts_equal_integer_representation_sets() {
 }
 
 #[test]
+fn mutable_recast_accepts_equivalent_typed_record_representations() {
+    let canary = "recast/runtime_mutable_equivalent_record_recast_exit";
+    assert_exit_70(canary, "mutable-equivalent-record-recast");
+    compile_for_cross_targets(canary, "mutable-equivalent-record-recast");
+}
+
+#[test]
 fn mutable_recast_rejects_equal_looking_cross_carrier_domains() {
     let diagnostics = fail_diagnostics("recast/recast_mut_cross_carrier_domain_not_equivalent");
     assert!(
@@ -242,5 +249,15 @@ fn mutable_recast_rejects_different_range_bit_sets() {
         diagnostics
             .contains("source and target constraints are not proven representation-equivalent"),
         "wrong range representation-set diagnostic:\n{diagnostics}"
+    );
+}
+
+#[test]
+fn mutable_recast_rejects_different_record_leaf_sets() {
+    let diagnostics = fail_diagnostics("recast/recast_mut_record_leaf_sets_differ");
+    assert!(
+        diagnostics.contains("identical layout geometry")
+            && diagnostics.contains("fact implication in BOTH directions"),
+        "wrong record representation-set diagnostic:\n{diagnostics}"
     );
 }

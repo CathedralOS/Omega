@@ -446,13 +446,18 @@ enum MutableScalarRecast {
         offset: usize,
         target_name: String,
     },
+    RecordTyped {
+        source: Cell,
+        source_name: String,
+        target_name: String,
+    },
 }
 
 impl MutableScalarRecast {
     fn target(&self) -> Option<PrimitiveType> {
         match self {
             Self::Direct { target, .. } | Self::ByteRegion { target, .. } => Some(*target),
-            Self::RecordByteRegion { .. } => None,
+            Self::RecordByteRegion { .. } | Self::RecordTyped { .. } => None,
         }
     }
 }
@@ -1582,7 +1587,8 @@ impl<'program> Evaluator<'program> {
                             self.write_scalar_byte_region(&cells, offset, target, value)?;
                             return Ok(());
                         }
-                        MutableScalarRecast::RecordByteRegion { .. } => {
+                        MutableScalarRecast::RecordByteRegion { .. }
+                        | MutableScalarRecast::RecordTyped { .. } => {
                             return trap("record recast reached the scalar write seam");
                         }
                     }
@@ -5238,6 +5244,19 @@ impl<'program> Evaluator<'program> {
                                 "cannot assemble mutable record recast `{target_name}`"
                             ))
                         }),
+                    MutableScalarRecast::RecordTyped {
+                        source,
+                        source_name,
+                        target_name,
+                    } => {
+                        let cells = self.snapshot_typed_record_bytes(&source, &source_name)?;
+                        self.assemble_record_view(&target_name, &cells, 0)?
+                            .ok_or_else(|| {
+                                Halt::Trap(format!(
+                                    "cannot assemble typed mutable record recast `{target_name}`"
+                                ))
+                            })
+                    }
                 };
             }
             return Ok(inner.borrow().clone());
@@ -5300,6 +5319,24 @@ impl<'program> Evaluator<'program> {
                     },
                 };
                 return Ok(Some((source_cell, recast)));
+            }
+        }
+        if target.is_none() {
+            let source = self.resolve_place(cast.value, frame)?;
+            let source = self.deref_cell(source);
+            let source_name = match &*source.borrow() {
+                Value::Struct { type_name, .. } => Some(type_name.clone()),
+                _ => None,
+            };
+            if let Some(source_name) = source_name {
+                return Ok(Some((
+                    Rc::clone(&source),
+                    MutableScalarRecast::RecordTyped {
+                        source,
+                        source_name,
+                        target_name,
+                    },
+                )));
             }
         }
         let Some(target) = target else {
@@ -5396,13 +5433,22 @@ impl<'program> Evaluator<'program> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
             return Ok(None);
         };
-        let MutableScalarRecast::RecordByteRegion {
-            cells,
-            offset,
-            target_name,
-        } = recast
-        else {
-            return Ok(None);
+        let (cells, offset, target_name) = match recast {
+            MutableScalarRecast::RecordByteRegion {
+                cells,
+                offset,
+                target_name,
+            } => (cells, offset, target_name),
+            MutableScalarRecast::RecordTyped {
+                source,
+                source_name,
+                target_name,
+            } => (
+                self.snapshot_typed_record_bytes(&source, &source_name)?,
+                0,
+                target_name,
+            ),
+            _ => return Ok(None),
         };
         if path.is_empty() {
             return self.assemble_record_view(&target_name, &cells, offset);
@@ -5427,16 +5473,29 @@ impl<'program> Evaluator<'program> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame) else {
             return Ok(false);
         };
-        let MutableScalarRecast::RecordByteRegion {
-            cells,
-            offset,
-            target_name,
-        } = recast
-        else {
-            return Ok(false);
+        let (cells, offset, target_name, typed_source) = match recast {
+            MutableScalarRecast::RecordByteRegion {
+                cells,
+                offset,
+                target_name,
+            } => (cells, offset, target_name, None),
+            MutableScalarRecast::RecordTyped {
+                source,
+                source_name,
+                target_name,
+            } => (
+                self.snapshot_typed_record_bytes(&source, &source_name)?,
+                0,
+                target_name,
+                Some((source, source_name)),
+            ),
+            _ => return Ok(false),
         };
         if path.is_empty() {
             self.write_record_view(&target_name, &cells, offset, value)?;
+            if let Some((source, source_name)) = typed_source {
+                self.commit_typed_record_bytes(&source, &source_name, &cells)?;
+            }
             return Ok(true);
         }
         let Some((field_offset, field_type)) =
@@ -5448,6 +5507,9 @@ impl<'program> Evaluator<'program> {
             ));
         };
         self.write_record_view_type(field_type, &cells, field_offset, value)?;
+        if let Some((source, source_name)) = typed_source {
+            self.commit_typed_record_bytes(&source, &source_name, &cells)?;
+        }
         Ok(true)
     }
 
@@ -6688,6 +6750,46 @@ impl<'program> Evaluator<'program> {
             let field_value = field_cell.borrow().clone();
             self.write_record_view_type(type_reference, cells, offset, field_value)?;
         }
+        Ok(())
+    }
+
+    /// The interpreter stores typed records as semantic field cells rather
+    /// than a contiguous byte allocation. A typed record recast nevertheless
+    /// aliases the record's representation, so snapshot the established source
+    /// through its own layout, operate on those bytes through the target
+    /// layout, then decode writes back through the source layout. Validation
+    /// has already proved identical geometry and leaf representation sets.
+    fn snapshot_typed_record_bytes(
+        &self,
+        source: &Cell,
+        source_name: &str,
+    ) -> EvalResult<Vec<Cell>> {
+        let (size, _) = self
+            .record_view_data_layout(source_name, &mut HashSet::new())
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "cannot lay out typed mutable record recast source `{source_name}`"
+                ))
+            })?;
+        let cells = (0..size).map(|_| Value::Int(0).cell()).collect::<Vec<_>>();
+        self.write_record_view(source_name, &cells, 0, source.borrow().clone())?;
+        Ok(cells)
+    }
+
+    fn commit_typed_record_bytes(
+        &self,
+        source: &Cell,
+        source_name: &str,
+        cells: &[Cell],
+    ) -> EvalResult<()> {
+        let value = self
+            .assemble_record_view_inner(source_name, cells, 0, &mut HashSet::new())?
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "cannot restore typed mutable record recast source `{source_name}`"
+                ))
+            })?;
+        *source.borrow_mut() = value;
         Ok(())
     }
 

@@ -1,0 +1,44 @@
+// RUN CANARY (exit 70) + interpreter differential. A mutable alias between
+// established typed records may retain facts when both layouts have identical
+// geometry and each corresponding leaf admits the same stored bit patterns.
+// The field names deliberately differ: representation, not nominal spelling,
+// owns the judgment.
+use omega::language::std::console;
+
+data SignedRecord {
+    signed_value: i16 [0..=100];
+    signed_tag: i16 [0..=2];
+    enabled: bool;
+}
+
+data UnsignedRecord {
+    unsigned_value: u16 [0..=100];
+    unsigned_tag: u16 [0..=2];
+    active: bool;
+}
+
+data Main {
+    console: Console;
+    source: SignedRecord;
+}
+
+machine Main::main(&mut self) {
+    self.source.signed_value = 7;
+    self.source.signed_tag = 2;
+    let view: &mut UnsignedRecord =
+        &mut self.source as &mut UnsignedRecord;
+    view.unsigned_value = 99;
+    view.active = true;
+    transition self.source.signed_value == 99
+        && view.unsigned_value == 99
+        && self.source.signed_tag == 2
+        && view.unsigned_tag == 2
+        && self.source.enabled
+        && view.active {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

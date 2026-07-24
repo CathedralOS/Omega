@@ -1506,13 +1506,13 @@ stronger operations it needs instead of citing machine parameters generally.
   for a numeric store into the referee. Equal-looking predicates over different
   primitive carriers remain fenced until their bit-pattern sets can be proved
   equivalent, and float ranges remain fenced because numeric intervals do not
-  describe NaNs, signed zero, or payload bits. Fact-bearing record work has two
-  distinct rungs: typed record-to-record aliases may proceed by proving identical
-  layout geometry and leaf representation sets (the native address path is
-  already general; the interpreter still needs typed-record backing), while raw
-  bytes must not acquire record facts through `recast` and remain fenced until a
-  validate/materialize mint supplies evidence. Continue the typed-alias rung,
-  general non-record tiling, and float/domain representation-set reasoning.
+  describe NaNs, signed zero, or payload bits. Typed record-to-record mutable
+  aliases now admit when total size/alignment, leaf offsets/sizes, and every leaf
+  representation set are equivalent; this includes range-bearing signed/unsigned
+  leaves and `bool`, with native/interpreter execution and x86-64/AArch64 compile
+  rails. Raw bytes still cannot acquire record facts through `recast` and remain
+  fenced until a validate/materialize mint supplies evidence. Continue general
+  non-record tiling and float/domain representation-set reasoning.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one
