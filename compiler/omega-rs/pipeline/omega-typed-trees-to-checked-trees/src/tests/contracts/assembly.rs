@@ -196,8 +196,8 @@ fn canonical_asm_services_enter_normalized_reach_inference() {
     "#;
 
     let typed = parse_typed_trees(source);
-    let effects = omega_effects::infer_effects(&typed);
-    let reaches = omega_effects::infer_service_reaches(&typed, &effects);
+    let operations = omega_effects::infer_operational_may(&typed);
+    let reaches = omega_effects::infer_service_reaches(&typed, &operations);
     let machine = typed
         .machines()
         .iter()

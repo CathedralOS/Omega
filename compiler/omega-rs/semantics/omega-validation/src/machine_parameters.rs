@@ -22,13 +22,13 @@ pub(crate) fn validate_static_machine_arguments(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let effects = omega_effects::infer_effects(program);
-    let service_reaches = omega_effects::infer_service_reaches(program, &effects);
+    let operations = omega_effects::infer_operational_may(program);
+    let service_reaches = omega_effects::infer_service_reaches(program, &operations);
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
-                &effects,
+                &operations,
                 &service_reaches,
                 call.target_symbol,
                 call.target.as_str(),
@@ -44,7 +44,7 @@ pub(crate) fn validate_static_machine_arguments(
                 if let StatementNode::Call(call) = statement {
                     validate_call_selection(
                         program,
-                        &effects,
+                        &operations,
                         &service_reaches,
                         call.target_symbol,
                         call.target.as_str(),
@@ -71,7 +71,7 @@ pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Ve
 
 fn validate_call_selection(
     program: &TypedTrees,
-    effects: &omega_effects::EffectPlan,
+    operations: &omega_effects::OperationalPlan,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
     target_symbol: SymbolHandle,
     target_name: &str,
@@ -157,7 +157,7 @@ fn validate_call_selection(
         }
         validate_selected_callable_shape(
             program,
-            effects,
+            operations,
             service_reaches,
             target_name,
             parameter,
@@ -174,7 +174,7 @@ fn validate_call_selection(
 #[allow(clippy::too_many_arguments)]
 fn validate_selected_callable_shape(
     program: &TypedTrees,
-    effects: &omega_effects::EffectPlan,
+    operations: &omega_effects::OperationalPlan,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
@@ -188,7 +188,7 @@ fn validate_selected_callable_shape(
     if let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) {
         validate_callable_shape(
             program,
-            effects,
+            operations,
             service_reaches,
             generic_call,
             parameter,
@@ -240,7 +240,7 @@ fn validate_selected_callable_shape(
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_shape(
     program: &TypedTrees,
-    effects: &omega_effects::EffectPlan,
+    operations: &omega_effects::OperationalPlan,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
@@ -255,7 +255,7 @@ fn validate_callable_shape(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
-    let inferred = effects
+    let inferred = operations
         .machines()
         .iter()
         .find(|summary| summary.symbol == actual_machine.symbol);
@@ -558,11 +558,11 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let effects = omega_effects::infer_effects(program);
-    let service_reaches = omega_effects::infer_service_reaches(program, &effects);
+    let operations = omega_effects::infer_operational_may(program);
+    let service_reaches = omega_effects::infer_service_reaches(program, &operations);
     validate_selected_callable_shape(
         program,
-        &effects,
+        &operations,
         &service_reaches,
         family_name,
         parameter,

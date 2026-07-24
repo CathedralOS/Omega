@@ -350,8 +350,8 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
         .iter()
         .find(|machine| machine.name.as_str() == "apply")
         .expect("apply machine");
-    let effects = omega_effects::infer_effects(&typed);
-    let service_reaches = omega_effects::infer_service_reaches(&typed, &effects);
+    let operations = omega_effects::infer_operational_may(&typed);
+    let service_reaches = omega_effects::infer_service_reaches(&typed, &operations);
     let apply_reach = service_reaches
         .for_machine(apply.symbol)
         .expect("apply service-reach summary");

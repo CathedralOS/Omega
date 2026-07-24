@@ -1,12 +1,12 @@
 // An unapproved host call. Ordinary application code implements its own
-// `LocalDisk` boundary trait in-package and mints `filesystem_io` authority
+// `LocalDisk` boundary trait in-package and mints `LocalDisk` authority
 // directly, rather than going through a toolchain/whitelisted provider. The
 // host-call authorization gate must reject this as an unapproved host call.
 
 boundary trait LocalDisk {
     machine write_bytes(path: &[u8])
     effects
-        filesystem_io;
+        LocalDisk;
 }
 
 data Disk {
@@ -15,7 +15,7 @@ data Disk {
 
 machine Disk::write_bytes(path: &[u8]) satisfies LocalDisk
 effects
-    filesystem_io
+    LocalDisk
 {
 }
 

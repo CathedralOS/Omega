@@ -11,16 +11,16 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::machine::Machine;
 
 pub(super) struct BuildTimeAdmissionPlan {
-    effects: omega_effects::EffectPlan,
+    operations: omega_effects::OperationalPlan,
     service_reaches: omega_effects::ServiceReachInferencePlan,
 }
 
 impl BuildTimeAdmissionPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
-        let effects = omega_effects::infer_effects(program);
-        let service_reaches = omega_effects::infer_service_reaches(program, &effects);
+        let operations = omega_effects::infer_operational_may(program);
+        let service_reaches = omega_effects::infer_service_reaches(program, &operations);
         Self {
-            effects,
+            operations,
             service_reaches,
         }
     }
@@ -40,7 +40,7 @@ impl BuildTimeAdmissionPlan {
                 )
             })?;
         let operational_summary = self
-            .effects
+            .operations
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol)

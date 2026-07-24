@@ -6,8 +6,8 @@
 // of the type, storage lives wherever the value lives, and running out of
 // room is a PROOF failure at compile time, never a runtime reallocation or
 // trap (allocator story stage 1: every operation that needs room carries a
-// `requires` obligation the caller must discharge). The `alloc`/`dealloc`
-// effects and the `Arena` boundary (core/arena.omg) are untouched by this
+// `requires` obligation the caller must discharge). `Arena` service reach
+// and the `Arena` boundary (core/arena.omg) are untouched by this
 // type; they only enter the story at stage 2 (`Vec<'r, T>` borrowing a
 // Arena).
 //

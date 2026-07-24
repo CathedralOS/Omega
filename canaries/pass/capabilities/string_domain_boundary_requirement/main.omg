@@ -16,7 +16,7 @@ boundary trait CConsole {
     requires
         text in Utf8 & NoNul
     effects
-        stdout_io;
+        CConsole;
 }
 
 data Main {

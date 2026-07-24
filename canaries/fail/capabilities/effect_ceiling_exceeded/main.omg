@@ -1,12 +1,15 @@
 // Chapter 18 "Standard Effects": when a concrete machine declares an `effects`
 // block, that block is a ceiling for the machine's reached effects. `Worker::run`
-// declares only `stdout_io` but transitively reaches `filesystem_io` through the
+// declares only `Console` but transitively reaches `Disk` through the
 // boundary write, so it exceeds its declared ceiling and is rejected.
 
 boundary trait Disk {
     machine write(text: &[u8])
     effects
-        filesystem_io;
+        Disk;
+}
+
+boundary trait Console {
 }
 
 data Worker {
@@ -15,7 +18,7 @@ data Worker {
 
 machine Worker::run(&mut self)
 effects
-    stdout_io
+    Console
 {
     self.disk.write("x");
 }

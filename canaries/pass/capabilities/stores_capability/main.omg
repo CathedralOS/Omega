@@ -9,7 +9,7 @@ domain [u8]::Utf8 {
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
     effects
-        stdout_io;
+        Console;
 }
 
 data Journal {

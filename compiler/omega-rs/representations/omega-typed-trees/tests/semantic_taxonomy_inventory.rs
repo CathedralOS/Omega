@@ -163,23 +163,18 @@ fn data_properties_carries_first_class_multiplicity() {
     assert!(!copy);
 }
 
-/// LOSS 4 -- RE-PINNED (EFX, 2026-07-24): the obsolete kinded
-/// `EffectRowId`/`EffectRowTable` carrier is gone. Machines carry only the
+/// LOSS 4 -- RE-PINNED (EFX, 2026-07-24): machines carry only the
 /// symbol-resolved `ServiceReachRowId`, while suspension and blocking have
-/// independent plans. The flat `EffectSet` below remains solely as the
-/// compatibility engine for consumers not yet migrated to those plans.
+/// independent plans. The former global name/u64 effect engine is absent;
+/// service rows normalize resolved identities as deterministic sets.
 #[test]
-fn legacy_effect_set_remains_only_as_a_flat_compatibility_engine() {
-    use omega_effects::EffectSet;
-    let mut set = EffectSet::empty();
-    // The flat surface: emptiness is bit-emptiness; union is bit-or over
-    // name-assigned indices. A kinded row cannot be reconstructed from this
-    // object -- that is the loss being pinned (and the ordering constraint:
-    // "effect-row identity must not depend on the legacy numeric bit
-    // assigned to a name").
-    assert!(set.is_empty());
-    let grew = set.insert_all(EffectSet::empty());
-    assert!(!grew && set.is_empty());
+fn service_reach_rows_are_identity_sets_without_global_name_bits() {
+    use omega_core::semantics::{ServiceReachId, ServiceReachRowTable};
+    let mut rows = ServiceReachRowTable::default();
+    let console = ServiceReachId(2);
+    let filesystem = ServiceReachId(3);
+    let row = rows.intern(vec![filesystem, console, filesystem]);
+    assert_eq!(rows.services(row), &[console, filesystem]);
 }
 
 /// LOSS 5 (record §Multiplicity, ownership summaries): control-flow

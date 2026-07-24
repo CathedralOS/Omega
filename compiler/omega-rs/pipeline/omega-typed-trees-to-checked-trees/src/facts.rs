@@ -7,14 +7,14 @@ use crate::proof::build_proof_facts_with_operators;
 use crate::semantic::build_semantic_facts;
 use crate::values::build_value_facts;
 use omega_checked_trees::CheckFacts;
-use omega_effects::EffectPlan;
+use omega_effects::OperationalPlan;
 use omega_proof::obligations::ProofPlan;
 use omega_typed_trees::TypedTrees;
 
 pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
-    effects: EffectPlan,
+    operations: OperationalPlan,
 ) -> CheckFacts {
     let borrow = build_borrow_facts(program);
     let values = build_value_facts(program);
@@ -23,14 +23,14 @@ pub(crate) fn build_check_facts(
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
-    let service_reach_inference = omega_effects::infer_service_reaches(program, &effects);
+    let service_reach_inference = omega_effects::infer_service_reaches(program, &operations);
     let flow = build_flow_facts_with_service_reaches(
         program,
         &borrow,
         &proof,
         &mut semantic,
         &domains,
-        &effects,
+        &operations,
         &service_reach_inference,
     );
     // Domain-owned meanings are selected only from declarations, mints, and
@@ -49,7 +49,7 @@ pub(crate) fn build_check_facts(
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(program, &service_reaches, &effects);
+    let contract_plans = build_contract_plans(program, &service_reaches, &operations);
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = build_carry_facts(program);
@@ -62,7 +62,7 @@ pub(crate) fn build_check_facts(
         invariants,
         domains,
         operators,
-        effects,
+        operations,
         capabilities,
         flow,
         termination,
@@ -99,7 +99,7 @@ fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
 fn build_contract_plans(
     program: &TypedTrees,
     service_reaches: &omega_checked_trees::ServiceReachFacts,
-    effects: &EffectPlan,
+    effects: &OperationalPlan,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let frame_resolver = omega_validation::CallFrameResolver::new(program);

@@ -1,4 +1,4 @@
-use super::{validate_effect_plan, validate_program};
+use super::{validate_behavior_plan, validate_program};
 use omega_source_files_to_tokens::Lexer;
 use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -433,17 +433,17 @@ fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
         "#,
     );
 
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let worker = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "work")
         .expect("worker machine");
-    let summary = effects
+    let summary = operations
         .machines()
         .iter()
         .find(|summary| summary.symbol == worker.symbol)
-        .expect("worker effects");
+        .expect("worker operations");
     assert!(summary.transitive_may_suspend, "{summary:#?}");
 
     let diagnostics = super::validate_static_machine_selections(&typed)
@@ -475,17 +475,17 @@ fn static_machine_argument_rejects_blocking_independently_from_suspension() {
         "#,
     );
 
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let worker = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "work")
         .expect("worker machine");
-    let summary = effects
+    let summary = operations
         .machines()
         .iter()
         .find(|summary| summary.symbol == worker.symbol)
-        .expect("worker effects");
+        .expect("worker operations");
     assert!(summary.transitive_may_block, "{summary:#?}");
 
     let diagnostics = super::validate_static_machine_selections(&typed)
@@ -611,7 +611,7 @@ fn recursive_private_operational_inference_reaches_independent_fixed_points() {
         }
         "#,
     );
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
 
     for name in ["A::step", "B::step"] {
         let symbol = typed
@@ -620,11 +620,11 @@ fn recursive_private_operational_inference_reaches_independent_fixed_points() {
             .find(|machine| machine.name.as_str() == name)
             .unwrap_or_else(|| panic!("machine {name}"))
             .symbol;
-        let summary = effects
+        let summary = operations
             .machines()
             .iter()
             .find(|summary| summary.symbol == symbol)
-            .unwrap_or_else(|| panic!("effect summary for {name}"));
+            .unwrap_or_else(|| panic!("operational summary for {name}"));
         assert!(summary.body_may_suspend, "{name} should infer suspension");
         assert!(summary.body_may_block, "{name} should infer blocking");
         assert!(summary.transitive_may_suspend);
@@ -646,8 +646,8 @@ fn published_operational_omission_is_a_negative_ceiling() {
         }
         "#,
     );
-    let effects = omega_effects::infer_effects(&typed);
-    let diagnostics = validate_effect_plan(&typed, &effects)
+    let operations = omega_effects::infer_operational_may(&typed);
+    let diagnostics = validate_behavior_plan(&typed, &operations)
         .expect_err("published omission must reject inferred operational behavior");
 
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -999,10 +999,10 @@ fn rejects_unknown_trait_machine_effects() {
 
     let diagnostics = validate_program(&typed).expect_err("validation should reject effect");
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("unknown effect `stdoutish`")),
-        "expected unknown effect diagnostic, got {diagnostics:#?}"
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("unknown boundary service `stdoutish`")),
+        "expected unknown service diagnostic, got {diagnostics:#?}"
     );
 }
 
@@ -2270,10 +2270,12 @@ fn rejects_domain_import_cycles() {
 #[test]
 fn rejects_machine_effects_outside_trait_ceiling() {
     let source = r#"
+    boundary trait Filesystem {}
+
     boundary trait Console {
         machine write_line(text: &[u8])
         effects
-            stdout_io;
+            Console;
     }
 
     data ConsoleImpl {
@@ -2281,7 +2283,7 @@ fn rejects_machine_effects_outside_trait_ceiling() {
 
     machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
     effects
-        stdout_io, filesystem_io
+        Console + Filesystem
     {
     }
 
@@ -2303,8 +2305,8 @@ fn rejects_machine_effects_outside_trait_ceiling() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("effect `filesystem_io` is not allowed by the trait requirement")),
-        "expected effect ceiling diagnostic, got {diagnostics:#?}"
+            .contains("service `Filesystem` is not allowed by the trait requirement")),
+        "expected service ceiling diagnostic, got {diagnostics:#?}"
     );
 }
 
@@ -2314,7 +2316,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
     boundary trait Console {
         machine write_line(text: &[u8])
         effects
-            stdout_io;
+            Console;
     }
 
     data ConsoleImpl {
@@ -2322,7 +2324,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
 
     machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
     effects
-        stdout_io
+        Console
     {
     }
 
@@ -2349,7 +2351,7 @@ fn accepts_machine_effects_below_trait_ceiling() {
     boundary trait Console {
         machine write_line(text: &[u8])
         effects
-            stdout_io;
+            Console;
     }
 
     data TestConsole {
@@ -2405,9 +2407,9 @@ fn rejects_published_service_ceiling_below_reached_services() {
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-    let effect_plan = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let diagnostics =
-        validate_effect_plan(&typed, &effect_plan).expect_err("service ceiling should fail");
+        validate_behavior_plan(&typed, &operations).expect_err("service ceiling should fail");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -2431,8 +2433,8 @@ fn rejects_published_service_ceiling_below_reached_services() {
 /// `representations -> pipeline` upward edge.
 mod effects_analysis {
     use omega_effects::{
-        EffectSet, audit_boundary_provider_calls, build_boundary_provider_approval_registry,
-        infer_effects,
+        audit_boundary_provider_calls, build_boundary_provider_approval_registry,
+        infer_operational_may, infer_service_reaches,
     };
     use omega_typed_trees::TypedTrees;
 
@@ -2449,25 +2451,10 @@ mod effects_analysis {
     }
 
     #[test]
-    fn effect_sets_are_bitsets_with_named_edges() {
-        let mut effects = EffectSet::empty();
-        assert!(effects.insert_name("stdout_io"));
-        assert!(effects.insert_name("process_exit"));
-        assert!(!effects.insert_name("nope"));
-        assert!(effects.contains_all(EffectSet::from_name("stdout_io").unwrap()));
-        assert_eq!(
-            effects.names().collect::<Vec<_>>(),
-            ["stdout_io", "process_exit"]
-        );
-    }
-
-    #[test]
-    fn propagates_machine_effects_to_call_sites() {
+    fn propagates_canonical_service_reach_to_call_sites() {
         let source = r#"
         boundary trait Console {
-            machine write_line(text: &[u8])
-            effects
-                stdout_io;
+            machine write_line(text: &[u8]);
         }
 
         data ConsoleImpl {
@@ -2475,7 +2462,7 @@ mod effects_analysis {
 
         machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
         effects
-            stdout_io
+            Console
         {
         }
 
@@ -2489,38 +2476,31 @@ mod effects_analysis {
         "#;
 
         let typed = lower(source);
-        let plan = infer_effects(&typed);
+        let operations = infer_operational_may(&typed);
+        let services = infer_service_reaches(&typed, &operations);
+        let console = typed
+            .service_reaches
+            .id_for_name("Console")
+            .expect("Console service");
 
         let main_machine = typed
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "Main::main")
             .expect("main machine");
-        let main_effects = plan
-            .machines()
-            .iter()
-            .find(|effects| effects.symbol == main_machine.symbol)
-            .expect("main effects");
-        assert!(
-            main_effects
-                .transitive
-                .contains_all(EffectSet::from_name("stdout_io").unwrap())
+        let main_services = services
+            .for_machine(main_machine.symbol)
+            .expect("main service summary");
+        assert_eq!(
+            services.services(main_services.inferred_transitive),
+            &[console]
         );
-
-        let main_state = plan
-            .states
-            .span_or_empty(main_effects.states)
+        let main_state = services
+            .states_for(main_services)
             .first()
-            .expect("state");
-        let call = plan
-            .calls
-            .span_or_empty(main_state.calls)
-            .first()
-            .expect("call");
-        assert!(
-            call.transitive
-                .contains_all(EffectSet::from_name("stdout_io").unwrap())
-        );
+            .expect("main state");
+        let call = services.calls_for(main_state).first().expect("call");
+        assert_eq!(services.services(call.inferred_transitive), &[console]);
     }
 
     #[test]
@@ -2528,9 +2508,7 @@ mod effects_analysis {
         let program = lower(
             r#"
             boundary trait Console {
-                machine write_line(text: &[u8])
-                effects
-                    stdout_io;
+                machine write_line(text: &[u8]);
             }
 
             data Main {
@@ -2542,9 +2520,9 @@ mod effects_analysis {
             }
             "#,
         );
-        let effects = infer_effects(&program);
+        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
-        let unapproved = audit_boundary_provider_calls(&program, &effects, &registry);
+        let unapproved = audit_boundary_provider_calls(&program, &operations, &registry);
         assert!(
             unapproved.is_empty(),
             "abstract provider should be approved"
@@ -2556,18 +2534,13 @@ mod effects_analysis {
         let program = lower(
             r#"
             boundary trait LocalFiles {
-                machine write_bytes(path: &[u8])
-                effects
-                    filesystem_io;
+                machine write_bytes(path: &[u8]);
             }
 
             data Disk {
             }
 
-            machine Disk::write_bytes(path: &[u8]) satisfies LocalFiles
-            effects
-                filesystem_io
-            {
+            machine Disk::write_bytes(path: &[u8]) satisfies LocalFiles {
             }
 
             data Main {
@@ -2579,9 +2552,9 @@ mod effects_analysis {
             }
             "#,
         );
-        let effects = infer_effects(&program);
+        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
-        let unapproved = audit_boundary_provider_calls(&program, &effects, &registry);
+        let unapproved = audit_boundary_provider_calls(&program, &operations, &registry);
         assert_eq!(
             unapproved.len(),
             1,
@@ -2619,7 +2592,7 @@ mod effects_analysis {
             }
             "#,
         );
-        let effects = infer_effects(&program);
+        let operations = infer_operational_may(&program);
         let registry = build_boundary_provider_approval_registry(&program);
         let local_clock = program
             .traits()
@@ -2632,14 +2605,14 @@ mod effects_analysis {
                 .expect("LocalClock approval")
                 .approved
         );
-        let call_targets = effects
+        let call_targets = operations
             .machines()
             .iter()
-            .flat_map(|machine| effects.states.span_or_empty(machine.states))
-            .flat_map(|state| effects.calls.span_or_empty(state.calls))
+            .flat_map(|machine| operations.states.span_or_empty(machine.states))
+            .flat_map(|state| operations.calls.span_or_empty(state.calls))
             .map(|call| call.target_state_symbol)
             .collect::<Vec<_>>();
-        let unapproved = audit_boundary_provider_calls(&program, &effects, &registry);
+        let unapproved = audit_boundary_provider_calls(&program, &operations, &registry);
 
         assert_eq!(unapproved.len(), 1, "call targets: {call_targets:?}");
         assert_eq!(unapproved[0].boundary_trait_symbol, local_clock.symbol);
@@ -3310,7 +3283,7 @@ mod provider_plan {
             "boundary trait Console {\n\
              machine write_line(text: &[u8])\n\
              effects\n\
-                 stdout_io\n\
+                 Console\n\
              suspends;\n\
              blocks;\n\
              machine exit_process(return_code: i32);\n\
@@ -3343,15 +3316,13 @@ mod provider_plan {
     fn trait_parents_expand_requirements_without_laundering_policy_into_service_reach() {
         let program = typed(
             "trait Calling<C> {\n\
-             machine policy_probe()\n\
-             effects\n\
-                 filesystem_io;\n\
+             machine policy_probe();\n\
              }\n\
              data X64Convention {}\n\
              boundary trait Device {\n\
              machine read()\n\
              effects\n\
-                 device_io;\n\
+                 Device;\n\
              }\n\
              boundary trait Timer: Device + Calling<X64Convention> {\n\
              machine tick();\n\

@@ -603,22 +603,40 @@ fn validate_trait_effect_ceiling(
     requirement: &StateSignature,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let allowed_effects = program.state_signature_effects(requirement);
-
-    for effect in program.machine_effects(machine) {
-        if !allowed_effects
-            .iter()
-            .any(|allowed| allowed.as_str() == effect.as_str())
-        {
+    let allowed_services = program
+        .service_reach_rows
+        .services(requirement.service_reach_row);
+    for service in program
+        .service_reach_rows
+        .services(machine.service_reach_row)
+    {
+        if !allowed_services.contains(service) {
+            let service_name = program
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>");
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: effect `{}` is not allowed by the trait requirement",
+                "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: service `{service_name}` is not allowed by the trait requirement",
                 machine.name,
                 state.name,
                 trait_name,
                 requirement.name,
-                effect
             )));
         }
+    }
+
+    if machine.suspends && !requirement.suspends {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `suspends;` exceeds the trait requirement's operational ceiling",
+            machine.name, state.name, trait_name, requirement.name,
+        )));
+    }
+    if machine.blocks && !requirement.blocks {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: `blocks;` exceeds the trait requirement's operational ceiling",
+            machine.name, state.name, trait_name, requirement.name,
+        )));
     }
 }
 

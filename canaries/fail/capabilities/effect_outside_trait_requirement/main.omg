@@ -1,12 +1,15 @@
 // Chapter 18 "Standard Effects": declared effects are ceilings; a concrete
 // machine "may not declare a new effect outside the trait requirement." The trait
-// requires only `stdout_io`, but the implementation declares `filesystem_io` too,
+// requires only `Console`, but the implementation declares `Filesystem` too,
 // which is outside the trait ceiling and is rejected.
 
 boundary trait Console {
     machine write_line(text: &[u8])
     effects
-        stdout_io;
+        Console;
+}
+
+boundary trait Filesystem {
 }
 
 data MyConsole {
@@ -15,8 +18,8 @@ data MyConsole {
 
 machine MyConsole::write_line(text: &[u8]) satisfies Console
 effects
-    stdout_io
-    filesystem_io
+    Console
+    Filesystem
 {
 }
 

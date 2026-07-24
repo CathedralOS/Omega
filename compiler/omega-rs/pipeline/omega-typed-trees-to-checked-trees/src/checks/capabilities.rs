@@ -14,7 +14,7 @@ pub(crate) fn check_boundary_provider_approval(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let registry = build_boundary_provider_approval_registry(program);
-    let unapproved = audit_boundary_provider_calls(program, &facts.effects, &registry);
+    let unapproved = audit_boundary_provider_calls(program, &facts.operations, &registry);
 
     if unapproved.is_empty() {
         return Ok(());

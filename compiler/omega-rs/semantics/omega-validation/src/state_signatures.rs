@@ -287,11 +287,9 @@ fn validate_state_signature_effects(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for effect in signature.effects {
-        if !omega_effects::is_standard_effect_name(effect.as_str())
-            && !is_resolved_service_name(program, effect.as_str())
-        {
+        if !is_resolved_service_name(program, effect.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} state `{}` declares unknown effect `{}`",
+                "{owner} state `{}` declares unknown boundary service `{}`",
                 signature.name, effect
             )));
         }
@@ -333,11 +331,9 @@ pub(crate) fn validate_machine_effects(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for effect in program.machine_effects(machine) {
-        if !omega_effects::is_standard_effect_name(effect.as_str())
-            && !is_resolved_service_name(program, effect.as_str())
-        {
+        if !is_resolved_service_name(program, effect.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` declares unknown effect `{}`",
+                "machine `{}` declares unknown boundary service `{}`",
                 machine.name, effect
             )));
         }

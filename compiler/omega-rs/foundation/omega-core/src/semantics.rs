@@ -329,18 +329,6 @@ pub struct MachineTerminationPlan {
     pub implementation_witness: Option<RankingWitness>,
 }
 
-/// Compatibility classification for the v0 catalog. Normalized service rows
-/// accept only `ServiceReach`; operational spellings remain classified solely
-/// so parsers and migration diagnostics can direct authors to the independent
-/// `suspends;` and `blocks;` clauses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EffectMemberKind {
-    /// Reach to a boundary service (minted by boundary-trait declarations).
-    ServiceReach,
-    /// A retired mixed-row spelling for an operational possibility.
-    OperationalMay,
-}
-
 macro_rules! semantic_id {
     ($(#[$doc:meta])* $name:ident) => {
         $(#[$doc])*
@@ -505,48 +493,6 @@ impl RankingViewId {
             _ => None,
         }
     }
-}
-
-/// Compatibility catalog for standard service names plus retired operational
-/// spellings. Normalized `ServiceReachRowId` construction uses resolved
-/// boundary-trait identities instead; this catalog remains only until the
-/// legacy lowercase effect engine and its migration diagnostics are retired.
-pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
-    ("alloc", EffectMemberKind::ServiceReach),
-    ("dealloc", EffectMemberKind::ServiceReach),
-    ("stdin_io", EffectMemberKind::ServiceReach),
-    ("stdout_io", EffectMemberKind::ServiceReach),
-    ("stderr_io", EffectMemberKind::ServiceReach),
-    ("filesystem_io", EffectMemberKind::ServiceReach),
-    ("network_io", EffectMemberKind::ServiceReach),
-    ("process_spawn", EffectMemberKind::ServiceReach),
-    ("process_exit", EffectMemberKind::ServiceReach),
-    ("process_signal", EffectMemberKind::ServiceReach),
-    ("env_read", EffectMemberKind::ServiceReach),
-    ("env_write", EffectMemberKind::ServiceReach),
-    ("clock_read", EffectMemberKind::ServiceReach),
-    ("random_read", EffectMemberKind::ServiceReach),
-    ("thread_spawn", EffectMemberKind::ServiceReach),
-    ("thread_block", EffectMemberKind::OperationalMay),
-    ("sync_wait", EffectMemberKind::OperationalMay),
-    ("sync_wake", EffectMemberKind::ServiceReach),
-    ("device_io", EffectMemberKind::ServiceReach),
-    ("memory_map", EffectMemberKind::ServiceReach),
-    ("dynamic_link", EffectMemberKind::ServiceReach),
-    ("host_boundary", EffectMemberKind::ServiceReach),
-    ("machine_control", EffectMemberKind::ServiceReach),
-    // Retained only for directed migration diagnostics. They are not service
-    // row members and have no legacy EffectSet bits.
-    ("Suspend", EffectMemberKind::OperationalMay),
-    ("Block", EffectMemberKind::OperationalMay),
-];
-
-/// The kind of a standard effect member.
-pub fn effect_member_kind(name: &str) -> Option<EffectMemberKind> {
-    EFFECT_MEMBER_CATALOG
-        .iter()
-        .find(|(candidate, _)| *candidate == name)
-        .map(|(_, kind)| *kind)
 }
 
 /// Deterministic normalizer for service-only rows. Boundary-trait identity is
@@ -842,16 +788,6 @@ mod tests {
         assert!(!SemanticDomainId::default().is_valid());
         assert!(!ServiceReachId::default().is_valid());
         assert!(!ServiceReachRowId::default().is_valid());
-        // The compatibility catalog retains only the classification needed
-        // for directed migration diagnostics.
-        assert_eq!(
-            effect_member_kind("filesystem_io"),
-            Some(EffectMemberKind::ServiceReach)
-        );
-        assert_eq!(
-            effect_member_kind("thread_block"),
-            Some(EffectMemberKind::OperationalMay)
-        );
     }
 
     #[test]

@@ -22,7 +22,7 @@ pub(crate) fn lower_typed_trees(
     // and interpreter) then rounds once from the spelling.
     omega_validation::land_float_literal_destinations(&mut program);
     let validated = validate_typed_program(&program)?;
-    let mut facts = build_check_facts(&program, &validated.proof_plan, validated.effects);
+    let mut facts = build_check_facts(&program, &validated.proof_plan, validated.operations);
 
     // MP5: specialization selection happens before checked contract plans
     // exist. Bind the selected machines' normalized contract identities now,

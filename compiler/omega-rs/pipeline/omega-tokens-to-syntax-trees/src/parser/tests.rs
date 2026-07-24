@@ -452,7 +452,7 @@ fn parses_plain_and_boundary_traits() {
         boundary trait Console {
             machine write_line(text: String)
             effects
-                stdout_io;
+                Console;
         }
         "#;
 
@@ -479,7 +479,7 @@ fn parses_plain_and_boundary_traits() {
     let signature = parsed.items.state_signature(signature_handle);
     let effects = parsed.items.identifier_path_members(signature.effects);
     assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0].as_str(), "stdout_io");
+    assert_eq!(effects[0].as_str(), "Console");
 }
 
 #[test]
@@ -1035,7 +1035,7 @@ fn parses_trait_machine_contract_clauses() {
             ensures
                 handle in FileHandle::Open
             effects
-                filesystem_io;
+                Filesystem;
         }
         "#;
 
@@ -1059,7 +1059,7 @@ fn parses_trait_machine_contract_clauses() {
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
     assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0].as_str(), "filesystem_io");
+    assert_eq!(effects[0].as_str(), "Filesystem");
 }
 
 #[test]

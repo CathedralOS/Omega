@@ -112,9 +112,9 @@ traits `MachineControl` and `PortIo`. Compiler-known asm calls resolve those
 symbol-backed identities into the ordinary recursive service-reach fixed
 point. Direct emission sites must import and publish the matching service, and
 every known checked caller on a path to the instruction must publish it as
-well; diagnostics retain the normalized call path. This admission no longer
-consults the lowercase/u64 `EffectSet` catalog. The old lowercase projection
-remains explicitly isolated to still-unmigrated flow/graph carriers.
+well; diagnostics retain the normalized call path. This admission consumes
+the same canonical rows as all other service-reach checks; no lowercase/u64
+projection remains.
 
 Authority remains orthogonal: the same catalog entry independently carries
 `MachineOwner`, `IdtControl`, or no authority, and listing a service row cannot

@@ -4,7 +4,7 @@ use omega_core::semantics::{OperationalMaySummary, ServiceReachSummary};
 pub(super) fn attach_reach_summaries(
     flow: &mut FlowFacts,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
-    effects: &omega_effects::EffectPlan,
+    operations: &omega_effects::OperationalPlan,
 ) {
     let FlowControlFacts { states, calls, .. } = &mut flow.control;
     states.for_each_mut(|_, state| {
@@ -16,21 +16,21 @@ pub(super) fn attach_reach_summaries(
             })
             .unwrap_or_default();
 
-        let effect_state = effects
+        let effect_state = operations
             .machines()
             .iter()
-            .flat_map(|machine| effects.states.span_or_empty(machine.states))
+            .flat_map(|machine| operations.states.span_or_empty(machine.states))
             .find(|summary| summary.symbol == state.state_symbol);
         state.operational = effect_state
             .map(|summary| {
                 let direct_may_suspend = summary.direct_may_suspend
-                    || effects
+                    || operations
                         .calls
                         .span_or_empty(summary.calls)
                         .iter()
                         .any(|call| call.direct_may_suspend);
                 let direct_may_block = summary.direct_may_block
-                    || effects
+                    || operations
                         .calls
                         .span_or_empty(summary.calls)
                         .iter()
@@ -60,7 +60,7 @@ pub(super) fn attach_reach_summaries(
                 .unwrap_or_default();
 
             let effect_call = effect_state.and_then(|state| {
-                effects
+                operations
                     .calls
                     .span_or_empty(state.calls)
                     .iter()

@@ -46,38 +46,38 @@ pub(super) fn check_suspension_carry(
         else {
             continue;
         };
-        let Some(machine_effects) = facts
-            .effects
+        let Some(machine_operations) = facts
+            .operations
             .machines()
             .iter()
-            .find(|effects| effects.symbol == machine.symbol)
+            .find(|operations| operations.symbol == machine.symbol)
         else {
             continue;
         };
-        let Some(state_effects) = facts
-            .effects
+        let Some(state_operations) = facts
+            .operations
             .states
-            .span_or_empty(machine_effects.states)
+            .span_or_empty(machine_operations.states)
             .iter()
-            .find(|effects| effects.symbol == state.symbol)
+            .find(|operations| operations.symbol == state.symbol)
         else {
             continue;
         };
 
         for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
-            let Some(call_effects) = facts
-                .effects
+            let Some(call_operations) = facts
+                .operations
                 .calls
-                .span_or_empty(state_effects.calls)
+                .span_or_empty(state_operations.calls)
                 .iter()
-                .find(|effects| {
-                    effects.statement_index == call.statement_index
-                        && effects.call_ordinal == call.call_ordinal
+                .find(|operations| {
+                    operations.statement_index == call.statement_index
+                        && operations.call_ordinal == call.call_ordinal
                 })
             else {
                 continue;
             };
-            if !call_effects.direct_may_suspend && !call_effects.transitive_may_suspend {
+            if !call_operations.direct_may_suspend && !call_operations.transitive_may_suspend {
                 continue;
             }
 

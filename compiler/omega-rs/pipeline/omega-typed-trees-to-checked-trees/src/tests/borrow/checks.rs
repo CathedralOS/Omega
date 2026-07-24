@@ -32,12 +32,19 @@ fn rejects_view_return_of_body_local() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -46,7 +53,7 @@ fn rejects_view_return_of_body_local() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -524,12 +531,19 @@ fn check_program(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagno
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -538,7 +552,7 @@ fn check_program(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagno
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -585,12 +599,19 @@ fn accepts_mutable_local_named_place_arguments() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -599,7 +620,7 @@ fn accepts_mutable_local_named_place_arguments() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -702,12 +723,19 @@ fn accepts_disjoint_member_borrow_arguments() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -716,7 +744,7 @@ fn accepts_disjoint_member_borrow_arguments() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -803,12 +831,19 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -817,7 +852,7 @@ fn rejects_direct_mutable_borrow_while_local_alias_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -875,12 +910,19 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -889,7 +931,7 @@ fn rejects_direct_mutable_borrow_while_helper_alias_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -936,12 +978,19 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -950,7 +999,7 @@ fn rejects_local_borrow_creation_while_prior_alias_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1002,12 +1051,19 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1016,7 +1072,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_last_use() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1052,12 +1108,19 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1066,7 +1129,7 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1127,12 +1190,19 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1141,7 +1211,7 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1195,12 +1265,19 @@ fn rejects_vec_push_while_slice_view_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1209,7 +1286,7 @@ fn rejects_vec_push_while_slice_view_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1268,12 +1345,19 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1282,7 +1366,7 @@ fn accepts_mutating_call_through_owner_on_disjoint_field() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1333,12 +1417,19 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1347,7 +1438,7 @@ fn accepts_known_pure_mutable_receiver_call_while_view_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1387,12 +1478,19 @@ fn accepts_mutable_slice_alias_index_from_fixed_array_field() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1401,7 +1499,7 @@ fn accepts_mutable_slice_alias_index_from_fixed_array_field() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1450,12 +1548,19 @@ fn accepts_recursive_slice_parameter_index_proof_from_guard() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1464,7 +1569,7 @@ fn accepts_recursive_slice_parameter_index_proof_from_guard() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1502,12 +1607,19 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1516,7 +1628,7 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1568,12 +1680,19 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1582,7 +1701,7 @@ fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1649,12 +1768,19 @@ fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1663,7 +1789,7 @@ fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1716,12 +1842,19 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1730,7 +1863,7 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),
@@ -1792,12 +1925,19 @@ fn accepts_view_return_disambiguated_by_explicit_lifetime() {
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
-    let effects = omega_effects::infer_effects(&typed);
+    let operations = omega_effects::infer_operational_may(&typed);
     let borrow = build_borrow_facts(&typed);
     let proof = build_proof_facts(&typed, &proof_plan, &borrow);
     let mut semantic = build_semantic_facts(&typed, &proof);
     let domains = build_domain_facts(&typed, &semantic);
-    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let flow = build_flow_facts(
+        &typed,
+        &borrow,
+        &proof,
+        &mut semantic,
+        &domains,
+        &operations,
+    );
     let facts = omega_checked_trees::CheckFacts {
         semantic,
         proof,
@@ -1806,7 +1946,7 @@ fn accepts_view_return_disambiguated_by_explicit_lifetime() {
         invariants: Default::default(),
         domains,
         operators: Default::default(),
-        effects,
+        operations,
         capabilities: Default::default(),
         flow,
         termination: Default::default(),

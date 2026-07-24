@@ -170,17 +170,6 @@ impl BuiltinFunction {
         }
     }
 
-    /// Compatibility projection for consumers that still store the retired
-    /// global lowercase/u64 effect representation. New semantic consumers
-    /// must use `asm_intrinsic_service_name` and resolved service rows.
-    pub fn asm_intrinsic_legacy_effect_name(self) -> Option<&'static str> {
-        match self.asm_intrinsic_service_name()? {
-            "MachineControl" => Some("machine_control"),
-            "PortIo" => Some("device_io"),
-            _ => None,
-        }
-    }
-
     pub fn is_asm_intrinsic(self) -> bool {
         matches!(
             self,
@@ -465,14 +454,6 @@ mod builtin_ordinal_tests {
         assert_eq!(
             BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
             Some("MachineControl")
-        );
-        assert_eq!(
-            BuiltinFunction::AsmHlt.asm_intrinsic_legacy_effect_name(),
-            Some("machine_control")
-        );
-        assert_eq!(
-            BuiltinFunction::AsmPortOut.asm_intrinsic_legacy_effect_name(),
-            Some("device_io")
         );
     }
 }

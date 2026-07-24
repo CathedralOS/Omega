@@ -16,7 +16,7 @@ boundary trait Console {
     requires
         item in Item::Ready
     effects
-        stdout_io;
+        Console;
 }
 
 data Worker {

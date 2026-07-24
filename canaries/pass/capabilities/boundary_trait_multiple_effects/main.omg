@@ -1,16 +1,18 @@
 domain [u8]::Utf8 {
     valid_utf8(self);
 }
-// Chapter 18 "Standard Effects": a single boundary machine may declare more than
-// one standard effect; the declared set is the ceiling for that surface. Here a
-// network fetch declares both `network_io` and `alloc`, exercising a multi-effect
-// boundary declaration that propagates to its caller.
+// A single boundary machine may declare more than one service identity; the
+// declared set is the ceiling for that surface. This fetch reaches both `Net`
+// and `Allocator`, exercising a multi-service boundary declaration.
+
+boundary trait Allocator {
+}
 
 boundary trait Net {
     machine write_line(text: &[u8] in Utf8)
     effects
-        network_io
-        alloc;
+        Net
+        Allocator;
 }
 
 data Client {

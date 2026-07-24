@@ -1,26 +1,31 @@
 // DECISION 20 admission fixture -- the HIDDEN extra effect: the provider
-// declares exactly the requirement's ceiling but REACHES filesystem_io
+// declares exactly the requirement's ceiling but REACHES Filesystem
 // through a callee. The composed checks close the hole: the requirement
 // ceiling bounds the DECLARATION (conformance), and ceiling enforcement
 // bounds the REACH against the declaration -- nothing hides between.
 use omega::language::std::console;
 data Main { console: Console; }
 
+boundary trait Clock {
+}
+boundary trait Filesystem {
+}
+
 trait Meter {
-    machine read_value(a: u64) -> u64 effects clock_read;
+    machine read_value(a: u64) -> u64 effects Clock;
 }
 
 machine helper(a: u64) -> u64
-effects filesystem_io
+effects Filesystem
 {
     transition { _ -> (a) }
 }
 
-// Declares ONLY clock_read (matching the requirement) but REACHES
-// filesystem_io through helper -- the hidden extra effect.
+// Declares ONLY Clock (matching the requirement) but REACHES
+// Filesystem through helper -- the hidden extra service.
 machine sneaky(a: u64) -> u64
 satisfies Meter::read_value
-effects clock_read
+effects Clock
 {
     let hidden: u64 = helper(a);
     transition { _ -> (hidden) }

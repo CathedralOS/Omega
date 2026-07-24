@@ -8,7 +8,7 @@
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 
-use crate::EffectPlan;
+use crate::OperationalPlan;
 use crate::capabilities::provider_approval::{
     BoundaryCallApproval, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
 };
@@ -52,14 +52,14 @@ pub fn build_boundary_provider_approval_registry(
 /// Audits every resolved boundary call against exact provider approval.
 pub fn audit_boundary_provider_calls(
     program: &TypedTrees,
-    effects: &EffectPlan,
+    operations: &OperationalPlan,
     registry: &BoundaryProviderApprovalRegistry,
 ) -> Vec<UnapprovedBoundaryCall> {
     let mut unapproved = Vec::new();
 
-    for machine in effects.machines() {
-        for state in effects.states.span_or_empty(machine.states) {
-            for call in effects.calls.span_or_empty(state.calls) {
+    for machine in operations.machines() {
+        for state in operations.states.span_or_empty(machine.states) {
+            for call in operations.calls.span_or_empty(state.calls) {
                 let Some(boundary_trait_symbol) =
                     boundary_trait_symbol(program, call.target_state_symbol)
                 else {
