@@ -327,7 +327,10 @@ the exact construction receipt before the table becomes `Installable`.
 Generated construction and a one-time imported-table scan are two evidence
 routes to the same `InstallablePageTable` state. In either case an exact receipt
 must bind the table, grant, normalized plan, final content identity, and complete
-mapping set. Installation is separate: it must bind that same construction
+mapping set. The receipt is minted from and retains the complete canonical
+storage/mapping evidence rather than authorizing through compact
+`PageTablePlanId` FNV identity; an equal report/cache identity cannot replay
+acceptance across exact-plan drift. Installation is separate: it must bind that same construction
 receipt and content, establish the table active, and supply the exact activation
 receipt for every pending mapping. Only then do `MappedExtent` values expose
 loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,

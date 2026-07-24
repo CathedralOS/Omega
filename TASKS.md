@@ -1703,6 +1703,10 @@ stronger operations it needs instead of citing machine parameters generally.
   provenance, era, lineage, and rights as well as the destination authority
   that teardown must restore; caller-chosen mapping IDs cannot hide storage-
   epoch drift, physical-frame substitution, or different returned authority.
+  Construction receipts are minted from and retain that complete canonical
+  storage/mapping evidence rather than authorizing through the compact FNV
+  plan identity; an equal report/cache ID cannot replay construction
+  acceptance across exact-plan drift.
   Removal is now symmetric:
   installed storage and mappings remain captive until the exact installation
   is inactive, every open table-retirement fact holds, and every mapping
