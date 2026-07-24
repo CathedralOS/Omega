@@ -335,6 +335,76 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn bit_placements_use_the_declared_representation_width() {
+    let main_path = write_program(
+        "compact-bit-policy",
+        r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data FieldPlan { case At(offset: i64); case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64); }
+data FieldEntry { key: i64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data CompactBits { entries: [FieldEntry; 64]; }
+machine CompactBits::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+        container: 0, container_width: 8, destination_lsb: 0, source_lsb: 0, width: 1 } };
+    self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::Bits {
+        container: 0, container_width: 8, destination_lsb: 1, source_lsb: 0, width: 3 } };
+    Plan { entries: self.entries, entry_count: 2, size_fixed: 1, size_is_dynamic: false, align: 1 }
+}
+data PackedFlags { present: bool; mode: u8 [0..=7]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("compact bit policy should compile");
+    let report = compute_layout_plan(&checked.typed, "CompactBits::plan", "PackedFlags")
+        .expect("bool and range-constrained fields should use their declared bit width");
+    assert_eq!(report.size, Some(1));
+    assert_eq!(report.entries.len(), 2);
+    assert!(matches!(
+        report.entries[1].placement,
+        LayoutPlacementReport::Bits {
+            source_lsb: 0,
+            width: 3,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn compact_bit_placements_still_require_complete_source_tiling() {
+    let main_path = write_program(
+        "compact-bit-gap",
+        r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data FieldPlan { case At(offset: i64); case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64); }
+data FieldEntry { key: i64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data TooNarrow { entries: [FieldEntry; 64]; }
+machine TooNarrow::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
+        container: 0, container_width: 8, destination_lsb: 0, source_lsb: 0, width: 2 } };
+    Plan { entries: self.entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
+}
+data PackedMode { mode: u8 [0..=7]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("compact gap should parse");
+    let error = compute_layout_plan(&checked.typed, "TooNarrow::plan", "PackedMode")
+        .expect_err("a constrained field must still tile every representable bit");
+    assert!(
+        error.contains("end at bit 2, expected 3"),
+        "unexpected diagnostic: {error}"
+    );
+}
+
+#[test]
 fn fragmented_source_gaps_are_rejected() {
     let main_path = write_program(
         "fragment-gap-policy",

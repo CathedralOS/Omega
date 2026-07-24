@@ -144,15 +144,16 @@ pub fn type_reference_carries_range(
     }
 }
 
-/// Normalize every representation invariant that a stage-2 wire scalar decode
-/// must establish into one inclusive interval. This includes authored integer
-/// range shells, `bool`'s intrinsic `{0, 1}` representation, and the finite
-/// carrier bounds of `i32`/`u32`. The latter prevent a hostile wider varint
-/// from becoming valid merely because the eventual store truncates it.
+/// Normalize a scalar type's declared representation invariants into one
+/// inclusive interval. This includes authored integer range shells, `bool`'s
+/// intrinsic `{0, 1}` representation, and the finite carrier bounds of
+/// `i32`/`u32`.
 /// Validation has already rejected non-constant or contradictory authored
 /// ranges; `None` therefore means the scalar spans the full decoder value
 /// width (`i64`/`u64`), never "skip an invariant we failed to understand".
-pub fn scalar_decode_range(
+/// Wire decoding and compact bit-layout validation deliberately share this
+/// declaration-owned fact.
+pub fn scalar_representation_range(
     program: &crate::TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<omega_core::wire::WireScalarRange> {
@@ -212,6 +213,14 @@ pub fn scalar_decode_range(
         maximum,
         signed: primitive.is_signed_integer(),
     })
+}
+
+/// Wire-facing name retained for the decode pipeline.
+pub fn scalar_decode_range(
+    program: &crate::TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<omega_core::wire::WireScalarRange> {
+    scalar_representation_range(program, handle)
 }
 
 /// Resolve one named data field's declared type through reference/constraint
