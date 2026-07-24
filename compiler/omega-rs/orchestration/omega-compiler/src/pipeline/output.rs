@@ -21,6 +21,7 @@ pub(super) fn write_output(
                 target: emitted.target,
                 object: &emitted.object,
                 relocations: &emitted.relocations,
+                encoded_machine_code: &emitted.encoded_machine_code,
                 text_bytes: &emitted.text_bytes,
                 data_bytes: &emitted.data_bytes,
                 subsystem: emitted.subsystem,
@@ -137,7 +138,7 @@ fn write_executable_region_inventory(
         inventory.inventory_fingerprint,
     );
     let mut json = String::from(
-        "{\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
+        "{\n  \"placement_stage\": \"final_image\",\n  \"enumeration_complete\": false,\n  \"region_enumeration_complete\": true,\n  \"footprint_enumeration_complete\": false,\n  \"covered_classes\": [\"compiler_functions\", \"import_thunks\"],\n  \"absent_by_construction_classes\": [\"relaxation_products\", \"veneers\", \"generated_stubs\"],\n  \"final_byte_validated_classes\": [\"compiler_function_relocation_envelope\", \"compiler_entry_call_return_mechanics\", \"fixed_checked_assembly\", \"import_thunks\"],\n  \"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"],\n",
     );
     json.push_str("  \"boundary_contract_fingerprint\": ");
     if let Some(fingerprint) = footprints.boundary_contract_fingerprint {
@@ -146,13 +147,15 @@ fn write_executable_region_inventory(
         json.push_str("null");
     }
     json.push_str(&format!(
-        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
+        ",\n  \"implementation_evidence_fingerprint\": \"0x{implementation_evidence_fingerprint:016x}\",\n  \"implementation_fragment_count\": {},\n  \"compiler_text_validation\": {{\"encoded_text_fingerprint\": \"0x{:016x}\", \"final_compiler_text_fingerprint\": \"0x{:016x}\", \"relocation_envelope_fingerprint\": \"0x{:016x}\", \"fixed_checked_instruction_fingerprint\": \"0x{:016x}\", \"derivation_fingerprint\": \"0x{:016x}\", \"text_relocation_count\": {}, \"fixed_checked_instruction_count\": {}}},\n  \"inventory_fingerprint\": \"0x{:016x}\",\n  \"boundary_placement_binding_fingerprint\": \"0x{binding_fingerprint:016x}\",\n",
         footprints.fragments.len(),
         compiler_text_validation.encoded_text_fingerprint,
         compiler_text_validation.final_compiler_text_fingerprint,
         compiler_text_validation.relocation_envelope_fingerprint,
+        compiler_text_validation.fixed_checked_instruction_fingerprint,
         compiler_text_validation.derivation_fingerprint,
         compiler_text_validation.text_relocation_count,
+        compiler_text_validation.fixed_checked_instruction_count,
         inventory.inventory_fingerprint
     ));
     json.push_str(&format!(
