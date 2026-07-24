@@ -1656,9 +1656,13 @@ stronger operations it needs instead of citing machine parameters generally.
   now consumes virtual authority while independently owning, shared-borrowing,
   or exclusive-borrowing its source; unmap returns reusable ranges only after
   an exact provider receipt releases stale translations and establishes its
-  open completion facts. Connect these models to the opaque Omega `[linear]`
-  carrier, sealed fact establishment, provider execution/effects, and source
-  APIs.
+  open completion facts. Provider page-table execution/effects and further
+  normalized mapping work remain ordinary engineering. Connecting this model
+  to the source-visible opaque Omega `[linear]` carrier, sealed fact
+  establishment, storage, calling conventions, and source APIs is
+  **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
+  `boundary data`; do not substitute a forgeable plain record or a universal
+  pointer-sized handle.
 - **L6b — AccessPlan and placed views.** The separate normalized validator is
   live: name-keyed entries pin exact transfer width, stable/external/atomic
   observation, ordinary and atomic permissions, exported versus
@@ -1720,9 +1724,12 @@ stronger operations it needs instead of citing machine parameters generally.
   device-write requires exclusive polarity; admitted grants pin borrower,
   space, provenance, open-set rights, and an open set of completion facts; an
   exact provider receipt must establish borrower release plus every required
-  fence/cache/provider fact. Connect it to Omega linearity/permission contexts
-  and provider execution, then build the DMA slice. Bidirectional sharing
-  remains an explicit atomic/coherence protocol, not ordinary lending.
+  fence/cache/provider fact. Provider execution and the normalized DMA slice
+  may proceed independently. Connecting the token and its borrowed Extent to
+  Omega storage, calling conventions, linearity, and permission contexts is
+  **OWNER-BLOCKED (#8)** on opaque runtime `boundary data` representation.
+  Bidirectional sharing remains an explicit atomic/coherence protocol, not
+  ordinary lending.
 - **EXI1–EXI5 — admitted executable installation.** The normalized
   `omega-executable-installation` ladder is live: immutable artifacts gain a
   reusable sealed admission only from exact evidence; one-shot extent-backed
@@ -2022,13 +2029,13 @@ stronger operations it needs instead of citing machine parameters generally.
   SCCs now admit non-tail calls only when every member carries one structural
   witness and every edge passes a strict case-payload subterm into the callee's
   ranked parameter; unmeasured and nondecreasing cycles reject, and all three
-  cases are authoritative canaries. **Language-design blocker:** the runtime
-  mutual-recursion notes disagree on whether a cycle may contain forwarding
-  (non-increasing) edges when their subgraph is acyclic or whether every
-  cross-machine edge must be strict. Keep the two aggregate-decrease fixtures
-  out of the authoritative pass roster until that admissibility rule is frozen;
-  this does not block proof-only SCCs because they require strict structural
-  descent on every edge.
+  cases are authoritative canaries. Frozen decision 23 resolves the previously
+  inconsistent runtime notes in the strict direction: every edge inside a
+  cyclic component must strictly decrease the selected joint rank. The
+  state-cycle and cross-machine forwarding-plus-later-decrease fixtures are now
+  authoritative rejection canaries rather than pass-shaped pending examples;
+  the checker no longer admits a merely non-increasing edge by analyzing a
+  separate acyclic forwarding subgraph.
 - **Service and operational contract split.** Demonstrate service-reach rows,
   independent inferred/published `suspends` and `blocks` ceilings, and the
   separate `terminates` guarantee; pin recursive inference, omission as a
