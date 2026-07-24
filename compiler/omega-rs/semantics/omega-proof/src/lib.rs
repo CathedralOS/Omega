@@ -593,6 +593,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Operator(OperatorDefinition {
             is_boundary: false,
             name: operator_name,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             parameters: HandleSpan::empty(),
             return_type,
@@ -666,6 +667,7 @@ mod tests {
             target: None,
             boundary: false,
             bodyless: false,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
@@ -719,6 +721,7 @@ mod tests {
             target: None,
             boundary: false,
             bodyless: false,
+            lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,

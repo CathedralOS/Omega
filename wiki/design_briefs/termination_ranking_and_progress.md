@@ -104,12 +104,12 @@ both halves so body inference cannot silently become interface authorship.
 
 Visual artifact status (2026-07-17): `05_machine_contracts.json` serializes
 that split explicitly. Each machine has an authored `contract` object
-(fingerprint, supply, published effect row, published termination) and a sibling
-`implementation` object (checked summary and private normalized ranking
-witness). Import-slot and component tooling can pin the former without parsing
-or accidentally incorporating proof-local material from the latter. Proof-cache
-storage and complete Merkle-key mechanics remain deferred to the dedicated
-theoretical proof-caching brief.
+(fingerprint, supply, canonical service-reach and operational ceilings,
+published termination) and a sibling `implementation` object (checked summary
+and private normalized ranking witness). Import-slot and component tooling can
+pin the former without parsing or accidentally incorporating proof-local
+material from the latter. Proof-cache storage and complete Merkle-key mechanics
+remain deferred to the dedicated theoretical proof-caching brief.
 
 Mutually recursive or mutually cyclic machines use one joint ranking for the
 strongly connected component, and every cyclic edge must decrease it. The

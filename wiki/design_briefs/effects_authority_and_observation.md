@@ -273,8 +273,10 @@ provider authority/reporting no longer projects service names. Static-machine
 refinement consumes exact service rows, checked trees carry grouped
 `ServiceReachFacts` directly, and machine-contract identity has no legacy
 effect-row field or fingerprint input. The remaining migration removes
-lowercase general-validation/build-policy consumers and old fixtures,
-eliminates the resolved/typed compatibility rows, and deletes the table.
+lowercase general-validation consumers and old fixtures, then deletes the
+global service-name/u64 table. The obsolete `EffectRowId`/`EffectRowTable`
+carrier has already been removed from core, resolved trees, and typed trees;
+those stages retain only symbol-resolved `ServiceReachRowId` values.
 Build-script admission now consumes exact service reach and admits only the
 pinned canonical `FilesystemHost` and `Console` staging slots; custom boundary
 wrappers do not inherit admission from a lowercase category. Unknown service

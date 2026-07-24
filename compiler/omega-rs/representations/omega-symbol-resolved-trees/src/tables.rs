@@ -419,7 +419,6 @@ mod tests {
             boundary: false,
             supply_mode: Default::default(),
             termination_plan: Default::default(),
-            effect_row: Default::default(),
             service_reach_row: Default::default(),
             storage: MachineStorage {
                 lifetime_parameters: Vec::new(),

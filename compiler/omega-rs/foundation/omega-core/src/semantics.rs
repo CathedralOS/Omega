@@ -366,16 +366,6 @@ semantic_id!(
     SemanticDomainId
 );
 semantic_id!(
-    /// Normalized declaration/core identity of one effect member.
-    EffectMemberId
-);
-semantic_id!(
-    /// Normalized effect-row identity (member set + parent closure). Must
-    /// never depend on prover strength, provider selection, or the legacy
-    /// numeric bit assigned to a name.
-    EffectRowId
-);
-semantic_id!(
     /// Normalized identity of one boundary-service trait. Ordinary traits and
     /// operational may-clauses never receive this identity.
     ServiceReachId
@@ -518,10 +508,9 @@ impl RankingViewId {
 }
 
 /// Compatibility catalog for standard service names plus retired operational
-/// spellings. `EffectMemberId` = catalog position + 1 (deterministic across
-/// programs). Normalized `ServiceReachRowId` construction admits only entries
-/// classified as `ServiceReach`; omega-effects' legacy bit table is the
-/// service-only subset, and row identity never reads those bits.
+/// spellings. Normalized `ServiceReachRowId` construction uses resolved
+/// boundary-trait identities instead; this catalog remains only until the
+/// legacy lowercase effect engine and its migration diagnostics are retired.
 pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
     ("alloc", EffectMemberKind::ServiceReach),
     ("dealloc", EffectMemberKind::ServiceReach),
@@ -552,59 +541,12 @@ pub const EFFECT_MEMBER_CATALOG: &[(&str, EffectMemberKind)] = &[
     ("Block", EffectMemberKind::OperationalMay),
 ];
 
-/// The canonical member identity for a standard effect name.
-pub fn effect_member_id(name: &str) -> Option<EffectMemberId> {
-    EFFECT_MEMBER_CATALOG
-        .iter()
-        .position(|(candidate, _)| *candidate == name)
-        .map(|position| EffectMemberId(u32::try_from(position + 1).expect("catalog fits u32")))
-}
-
 /// The kind of a standard effect member.
 pub fn effect_member_kind(name: &str) -> Option<EffectMemberKind> {
     EFFECT_MEMBER_CATALOG
         .iter()
         .find(|(candidate, _)| *candidate == name)
         .map(|(_, kind)| *kind)
-}
-
-/// Decision 22 (STR4): the deterministic effect-ROW interner -- normalized
-/// row identity is the SORTED, DEDUPED member-id set, independent of
-/// spelling order, prover strength, provider selection, and the legacy
-/// numeric bits. `EffectRowId(1)` is ALWAYS the empty row; further ids
-/// follow intern order (deterministic because lowering order is).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct EffectRowTable {
-    rows: Vec<Vec<EffectMemberId>>,
-}
-
-impl EffectRowTable {
-    /// The empty row's fixed identity (`NULL`/0 stays "not computed").
-    pub const EMPTY_ROW: EffectRowId = EffectRowId(1);
-
-    /// Intern a member set (sorted + deduped here) and return its row id.
-    pub fn intern(&mut self, mut members: Vec<EffectMemberId>) -> EffectRowId {
-        members.sort_by_key(|member| member.0);
-        members.dedup();
-        if self.rows.is_empty() {
-            // Reserve id 1 for the empty row before anything else interns.
-            self.rows.push(Vec::new());
-        }
-        if let Some(position) = self.rows.iter().position(|row| *row == members) {
-            return EffectRowId(u32::try_from(position + 1).expect("row table fits u32"));
-        }
-        self.rows.push(members);
-        EffectRowId(u32::try_from(self.rows.len()).expect("row table fits u32"))
-    }
-
-    /// The members of an interned row (empty for `NULL`/unknown ids).
-    pub fn members(&self, row: EffectRowId) -> &[EffectMemberId] {
-        row.0
-            .checked_sub(1)
-            .and_then(|index| self.rows.get(index as usize))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
 }
 
 /// Deterministic normalizer for service-only rows. Boundary-trait identity is
@@ -900,23 +842,8 @@ mod tests {
         assert!(!SemanticDomainId::default().is_valid());
         assert!(!ServiceReachId::default().is_valid());
         assert!(!ServiceReachRowId::default().is_valid());
-        assert!(EffectRowId(1).is_valid());
-    }
-
-    #[test]
-    fn effect_row_identity_is_order_and_duplicate_blind() {
-        // Decision 22: row identity = the normalized member SET. The empty
-        // row always gets the fixed id 1.
-        let mut table = EffectRowTable::default();
-        let io = effect_member_id("filesystem_io").expect("catalog member");
-        let block = effect_member_id("thread_block").expect("catalog member");
-        assert_eq!(table.intern(Vec::new()), EffectRowTable::EMPTY_ROW);
-        let row = table.intern(vec![block, io]);
-        assert_eq!(table.intern(vec![io, block, io]), row);
-        assert_ne!(row, EffectRowTable::EMPTY_ROW);
-        assert_eq!(table.members(row), &[io, block]);
-        assert_eq!(table.members(EffectRowId::NULL), &[] as &[EffectMemberId]);
-        // The kinded split: reaching a service vs an operational possibility.
+        // The compatibility catalog retains only the classification needed
+        // for directed migration diagnostics.
         assert_eq!(
             effect_member_kind("filesystem_io"),
             Some(EffectMemberKind::ServiceReach)

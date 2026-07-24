@@ -1166,12 +1166,14 @@ stronger operations it needs instead of citing machine parameters generally.
   exact normalized service rows, and checked trees own grouped
   `ServiceReachFacts` directly: the duplicate `EffectRowFacts` projection and
   legacy effect-row inputs/artifact field in machine-contract identity are
-  deleted. Remaining EFX work is to migrate the legacy general
-  validation/build-policy consumers and lowercase fixtures, remove the
-  resolved/typed compatibility rows, and then delete the global
-  service-name/u64 engine entirely. Build-script admission now recognizes only
-  the pinned canonical `FilesystemHost` and `Console` staging services; custom
-  boundary wrappers cannot launder admission through a lowercase category.
+  deleted. The obsolete `EffectRowId`/`EffectRowTable` carrier is also gone
+  from core, resolved trees, and typed trees; those stages retain only
+  symbol-resolved `ServiceReachRowId` values. Remaining EFX work is to migrate
+  the legacy general-validation consumers and lowercase fixtures, and then
+  delete the global service-name/u64 engine entirely. Build-script admission
+  now recognizes only the pinned canonical `FilesystemHost` and `Console`
+  staging services; custom boundary wrappers cannot launder admission through
+  a lowercase category.
   The direct-call acknowledgement keyword is a separate owner decision and
   must consume the normalized suspension/blocking plans rather than
   source-token presence.

@@ -25,9 +25,6 @@ pub struct Machine {
     /// compatibility shape the current cycle checker consumes until TPR3
     /// migrates it onto this plan.
     pub termination_plan: omega_core::semantics::MachineTerminationPlan,
-    /// STR4 (decision 22): the normalized effect-row identity (copied,
-    /// never re-derived; indexes the tree's `effect_rows` table).
-    pub effect_row: omega_core::semantics::EffectRowId,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: omega_core::semantics::ServiceReachRowId,
     pub lifetime_parameters: Vec<Identifier>,
@@ -59,7 +56,6 @@ impl Default for Machine {
             boundary: false,
             supply_mode: omega_core::semantics::MachineSupplyMode::CheckedBody,
             termination_plan: omega_core::semantics::MachineTerminationPlan::default(),
-            effect_row: omega_core::semantics::EffectRowId::NULL,
             service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
