@@ -8,10 +8,12 @@
 //!   size (`&i32 as &f32`, `&mut u32 as &mut i32`), or a scalar view into a
 //!   proven in-bounds `[u8; N]` region, bound as the direct
 //!   initializer of a reference-typed let whose stated type restates the
-//!   target. Shared views may weaken source facts. Mutable views require
-//!   recursively fact-free primitive or record target shapes, including
-//!   literal-length fixed arrays nested in records, which proves the required
-//!   implication in BOTH directions. Lowering is address identity:
+//!   target. Shared views may weaken source facts. Mutable scalar views admit
+//!   fact-free types or normalized domain conjunctions that imply one another
+//!   in BOTH directions; ranges and merely equal-looking cross-carrier
+//!   predicates remain fenced. Mutable record views require recursively
+//!   fact-free target shapes, including literal-length fixed arrays nested in
+//!   records. Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
@@ -31,6 +33,7 @@
 //! spelled `as`; the bare mismatch refuses.
 
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use omega_typed_trees::statement::StatementNode;
@@ -493,18 +496,18 @@ fn judge_scalar_recast(
         region_length,
     } = interior
     {
-        if mutable_recast {
-            let target_is_fact_free = matches!(
-                program.type_reference_table.type_reference(let_referee),
-                TypeReferenceNode::Named { .. }
-            );
-            if !target_is_fact_free {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{context}: a mutable recast must prove fact implication in BOTH directions; \
+        if mutable_recast
+            && !mutable_scalar_fact_sets_equivalent(
+                program,
+                &[],
+                mutable_scalar_fact_domains(program, let_referee).as_deref(),
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: a mutable recast must prove fact implication in BOTH directions; \
                      a raw byte region can only be viewed as a fact-free primitive in this rung"
-                )));
-                return;
-            }
+            )));
+            return;
         }
         let Some(target_size) = target.scalar_byte_size() else {
             return;
@@ -538,20 +541,18 @@ fn judge_scalar_recast(
         return;
     }
     if mutable_recast {
-        let source_is_fact_free = source_type.is_some_and(|type_reference| {
-            matches!(
-                program.type_reference_table.type_reference(type_reference),
-                TypeReferenceNode::Named { .. }
-            )
-        });
-        let target_is_fact_free = matches!(
-            program.type_reference_table.type_reference(let_referee),
-            TypeReferenceNode::Named { .. }
-        );
-        if !source_is_fact_free || !target_is_fact_free {
+        let source_facts = source_type
+            .and_then(|type_reference| mutable_scalar_fact_domains(program, type_reference));
+        let target_facts = mutable_scalar_fact_domains(program, let_referee);
+        if !mutable_scalar_fact_sets_equivalent(
+            program,
+            source_facts.as_deref().unwrap_or(&[]),
+            target_facts.as_deref(),
+        ) || source_facts.is_none()
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "{context}: a mutable recast must prove fact implication in BOTH directions; \
-                 this rung accepts only fact-free primitive source and target types"
+                 source and target constraints are not proven representation-equivalent"
             )));
             return;
         }
@@ -570,6 +571,78 @@ fn judge_scalar_recast(
             source_primitive.name()
         )));
     }
+}
+
+/// The normalized domain facts carried by one scalar type reference.
+///
+/// Arithmetic policy changes how expressions compute, not which bit patterns
+/// are established values, so it contributes no representation fact here.
+/// Ranges and legacy named constraints remain fenced until their value-set
+/// equivalence can be proved rather than guessed.
+fn mutable_scalar_fact_domains(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> Option<Vec<SymbolHandle>> {
+    let mut domains = Vec::new();
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                type_reference = *referee;
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        omega_typed_trees::types::TypeConstraintNode::Domain(domain)
+                            if domain.symbol.is_valid() =>
+                        {
+                            if !domains.contains(&domain.symbol) {
+                                domains.push(domain.symbol);
+                            }
+                        }
+                        omega_typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
+                        omega_typed_trees::types::TypeConstraintNode::Domain(_)
+                        | omega_typed_trees::types::TypeConstraintNode::Named(_)
+                        | omega_typed_trees::types::TypeConstraintNode::Range { .. } => {
+                            return None;
+                        }
+                    }
+                }
+                type_reference = *base_type;
+            }
+            TypeReferenceNode::Named { name, .. }
+                if PrimitiveType::from_name(name.as_str())
+                    .is_some_and(|primitive| primitive != PrimitiveType::Bool) =>
+            {
+                return Some(domains);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// Mutable aliases are safe only when arbitrary writes accepted through either
+/// view remain established through the other. Domain conjunctions therefore
+/// owe implication in both directions. The normalized domain graph already
+/// accounts for shared semantic identities and explicit membership chains.
+fn mutable_scalar_fact_sets_equivalent(
+    program: &TypedTrees,
+    source_domains: &[SymbolHandle],
+    target_domains: Option<&[SymbolHandle]>,
+) -> bool {
+    let Some(target_domains) = target_domains else {
+        return false;
+    };
+    let implies = |sources: &[SymbolHandle], targets: &[SymbolHandle]| {
+        targets.iter().all(|target| {
+            sources.iter().any(|source| {
+                omega_typed_trees::domain::declared_domain_implies(program, *source, *target)
+            })
+        })
+    };
+    implies(source_domains, target_domains) && implies(target_domains, source_domains)
 }
 
 /// The companion hole-closer: a reference-typed let over a BARE borrow of a

@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) + interpreter differential. A mutable recast may retain
+// facts when both views carry the same normalized domain. Either u32 view
+// therefore denotes the same established value set. Cross-carrier predicates
+// that merely LOOK equal remain fenced until their bit-pattern sets can be
+// proved equivalent. Other canaries independently pin mutable write-through.
+use omega::language::std::console;
+
+domain u32::Small {
+    self <= 100;
+}
+
+data Main {
+    console: Console;
+    value: u32 in Small;
+}
+
+machine Main::main(&mut self) {
+    let view: &mut u32 in Small = &mut self.value as &mut u32;
+    transition self.value == 0 && view == 0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
