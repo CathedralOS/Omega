@@ -50,9 +50,10 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     // The implicit effect of calling ANY boundary-trait method that declares
     // no effect row: a boundary trait is the foreign surface, so its calls
     // interact with the host by construction. This is what makes the
-    // decision-12 transitive surface see `console.write_line(..)` without
-    // per-signature declarations -- the build-time evaluation gates (const
-    // array lengths, layout plan()) reject on it statically.
+    // legacy transitive surface see `console.write_line(..)` without
+    // per-signature declarations. Normalized build-time admission consumes
+    // symbol-resolved service rows instead; this bit remains for unmigrated
+    // compatibility consumers only.
     "host_boundary",
     // Ring-0 CPU control (`asm { hlt/cli/sti }`; later MSR/CR writes).
     // DISTINCT from device_io because the enforcement substrate differs:

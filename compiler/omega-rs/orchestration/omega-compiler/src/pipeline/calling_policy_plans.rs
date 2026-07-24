@@ -203,6 +203,10 @@ pub(crate) fn compute_boundary_calling_plans(
         }
     }
 
+    if pending.is_empty() {
+        return Ok(());
+    }
+    let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(typed);
     let mut evaluated = Vec::with_capacity(pending.len());
     for (
         boundary_trait,
@@ -213,10 +217,13 @@ pub(crate) fn compute_boundary_calling_plans(
         relationship_span,
     ) in pending
     {
-        let validated =
-            evaluate_materialized_calling_policy_plan(typed, &policy_machine, &signature).map_err(
-                |reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)],
-            )?;
+        let validated = evaluate_materialized_calling_policy_plan(
+            typed,
+            &admission,
+            &policy_machine,
+            &signature,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(relationship_span)])?;
         evaluated.push(
             omega_typed_trees::typed_trees::BoundaryCallingPlanIdentity {
                 boundary_trait,
@@ -758,11 +765,13 @@ pub fn evaluate_calling_policy_plan(
     signature: &CallSignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
     let materialized = materialized_boundary_signature_from_abi(signature)?;
-    evaluate_materialized_calling_policy_plan(typed, policy_machine, &materialized)
+    let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(typed);
+    evaluate_materialized_calling_policy_plan(typed, &admission, policy_machine, &materialized)
 }
 
 fn evaluate_materialized_calling_policy_plan(
     typed: &TypedTrees,
+    admission: &super::build_time_admission::BuildTimeAdmissionPlan,
     policy_machine: &str,
     signature: &MaterializedBoundarySignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {
@@ -773,24 +782,12 @@ fn evaluate_materialized_calling_policy_plan(
         ));
     }
 
-    let effect_plan = omega_effects::infer_effects(typed);
     let machine = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == policy_machine)
         .ok_or_else(|| format!("no calling-policy machine named `{policy_machine}` exists"))?;
-    let transitive = effect_plan
-        .machines()
-        .iter()
-        .find(|entry| entry.symbol == machine.symbol)
-        .map(|entry| entry.transitive)
-        .unwrap_or_else(omega_effects::EffectSet::empty);
-    if !transitive.is_empty() {
-        return Err(format!(
-            "calling-policy machine `{policy_machine}` is not effect-free: it reaches effects `{}`; only effect-free machines run at build time",
-            transitive.names().collect::<Vec<_>>().join(", ")
-        ));
-    }
+    admission.require_service_and_operational_floor(typed, machine)?;
 
     let value = omega_interpreter::evaluate_build_time_machine(
         typed,

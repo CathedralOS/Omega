@@ -1,8 +1,8 @@
-// COMPTIME STAGE 1 -- PURITY GATE: only an EFFECT-FREE machine may be
-// evaluated in a constant position (frozen decision 12's purity predicate,
-// read from the INFERRED TRANSITIVE effect plan). `loud_size` declares the
-// `process_exit` effect, so `[i64; loud_size()]` must reject naming the
-// machine and the effect -- never silently evaluate or fall back.
+// COMPTIME STAGE 1 -- CONTRACT GATE: a machine evaluated in a constant
+// position must have empty normalized service reach and may neither suspend
+// nor block. `loud_size` publishes `Console` reach, so
+// `[i64; loud_size()]` must reject naming the machine and service -- never
+// silently evaluate or fall back.
 use omega::language::std::console;
 
 data Main {
@@ -12,7 +12,7 @@ data Main {
 
 machine loud_size() -> u64
 effects
-    process_exit
+    Console
 {
     transition {
         _ -> (12 + 4)

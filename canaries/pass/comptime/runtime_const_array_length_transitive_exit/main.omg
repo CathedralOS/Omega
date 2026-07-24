@@ -1,5 +1,5 @@
 // COMPTIME STAGE 1, TRANSITIVE PURITY: the const-position callee
-// `table_size()` itself CALLS another effect-free machine (`base()`); the
+// `table_size()` itself CALLS another build-time-admissible machine (`base()`); the
 // decision-12 inferred effect surface is transitive, so the whole call tree
 // is const-evaluable and the reference interpreter folds it to 5 * 3 + 1 =
 // 16. The existing comptime canary's callee is a single arithmetic

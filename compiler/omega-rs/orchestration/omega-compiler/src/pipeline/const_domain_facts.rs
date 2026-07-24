@@ -3,8 +3,8 @@
 //!
 //! Generic instance synthesis runs before symbol resolution. It can discharge
 //! closed arithmetic facts there, but a fact such as `is_buffer_size(self);`
-//! must wait until its callee has a typed symbol and
-//! an inferred transitive effect surface. This pass runs immediately after the
+//! must wait until its callee has a typed symbol and a normalized build-time
+//! contract summary. This pass runs immediately after the
 //! other typed const-evaluation pass and replaces a proven concrete membership
 //! with the ordinary `true` fact consumed by checking.
 
@@ -17,6 +17,8 @@ use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
 };
 use omega_typed_trees::types::PrimitiveType;
+
+use super::build_time_admission::BuildTimeAdmissionPlan;
 
 struct PendingMembership {
     fact: Handle<ProofFact>,
@@ -61,13 +63,13 @@ pub(super) fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), 
         return Ok(());
     }
 
-    let effect_plan = omega_effects::infer_effects(typed);
+    let admission = BuildTimeAdmissionPlan::infer(typed);
     let mut replacements = Vec::new();
     let mut affected_data = Vec::new();
     let mut diagnostics = Vec::new();
 
     for pending in pending {
-        match evaluate_membership(typed, &effect_plan, &pending) {
+        match evaluate_membership(typed, &admission, &pending) {
             Ok(Some(true)) => {
                 replacements.push(pending.fact);
                 affected_data.push(pending.data_symbol);
@@ -119,7 +121,7 @@ pub(super) fn evaluate_const_domain_facts(typed: &mut TypedTrees) -> Result<(), 
 
 fn evaluate_membership(
     typed: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
+    admission: &BuildTimeAdmissionPlan,
     pending: &PendingMembership,
 ) -> Result<Option<bool>, String> {
     let Some(domain) = typed
@@ -140,12 +142,12 @@ fn evaluate_membership(
         )
     })?;
 
-    evaluate_domain_facts(typed, effect_plan, domain, value, &mut vec![domain.symbol])
+    evaluate_domain_facts(typed, admission, domain, value, &mut vec![domain.symbol])
 }
 
 fn evaluate_machine_fact(
     typed: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
+    admission: &BuildTimeAdmissionPlan,
     expression: ExpressionHandle,
     self_value: i64,
 ) -> Result<Option<bool>, String> {
@@ -191,18 +193,7 @@ fn evaluate_machine_fact(
     };
     let machine_name = machine.name.as_str();
 
-    let transitive = effect_plan
-        .machines()
-        .iter()
-        .find(|entry| entry.symbol == machine.symbol)
-        .map(|entry| entry.transitive)
-        .unwrap_or_else(omega_effects::EffectSet::empty);
-    if !transitive.is_empty() {
-        return Err(format!(
-            "machine `{machine_name}` is not effect-free: it reaches effects `{}`; only effect-free machines may be evaluated at compile time",
-            transitive.names().collect::<Vec<_>>().join(", ")
-        ));
-    }
+    admission.require_service_and_operational_floor(typed, machine)?;
 
     let parameters = typed.state_parameters(state);
     if parameters.len() != 1
@@ -251,7 +242,7 @@ fn evaluate_machine_fact(
 
 fn evaluate_domain_facts(
     typed: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
+    admission: &BuildTimeAdmissionPlan,
     domain: &omega_typed_trees::domain::DomainDefinition,
     self_value: i64,
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
@@ -259,11 +250,11 @@ fn evaluate_domain_facts(
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
         match fact {
             ProofFact::Expression(expression) => {
-                let value =
-                    match evaluate_machine_fact(typed, effect_plan, *expression, self_value)? {
-                        Some(value) => Some(ConstProofValue::Boolean(value)),
-                        None => evaluate_domain_fact_expression(typed, *expression, self_value)?,
-                    };
+                let value = match evaluate_machine_fact(typed, admission, *expression, self_value)?
+                {
+                    Some(value) => Some(ConstProofValue::Boolean(value)),
+                    None => evaluate_domain_fact_expression(typed, *expression, self_value)?,
+                };
                 match value {
                     Some(ConstProofValue::Boolean(true)) => {}
                     Some(ConstProofValue::Boolean(false)) => return Ok(Some(false)),
@@ -290,7 +281,7 @@ fn evaluate_domain_facts(
                     };
                 match evaluate_nested_domain_membership(
                     typed,
-                    effect_plan,
+                    admission,
                     membership.domain_symbol,
                     nested_value,
                     visiting,
@@ -307,7 +298,7 @@ fn evaluate_domain_facts(
 
 fn evaluate_nested_domain_membership(
     typed: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
+    admission: &BuildTimeAdmissionPlan,
     domain_symbol: omega_core::symbols::SymbolHandle,
     self_value: i64,
     visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
@@ -324,7 +315,7 @@ fn evaluate_nested_domain_membership(
     };
 
     visiting.push(domain_symbol);
-    let result = evaluate_domain_facts(typed, effect_plan, domain, self_value, visiting);
+    let result = evaluate_domain_facts(typed, admission, domain, self_value, visiting);
     visiting.pop();
     result
 }

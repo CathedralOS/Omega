@@ -209,10 +209,10 @@ data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
 data FieldPlan { case At(offset: i64); case Skip; }
 data FieldEntry { key: i64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
-boundary trait Console { machine write_line(text: String); machine exit_process(return_code: i32); }
+boundary trait Console { machine write(code: i64); }
 data Chatty { console: Console; entries: [FieldEntry; 64]; }
 machine Chatty::plan(&mut self, schema: Schema) -> Plan {
-    self.console.write_line("planning...");
+    self.console.write(1);
     Plan { entries: self.entries, entry_count: schema.field_count as i64,
            size_fixed: 0, size_is_dynamic: true, align: 1 }
 }
@@ -225,8 +225,8 @@ machine Main::main(&mut self) { }
     let error = compute_layout_plan(&checked.typed, "Chatty::plan", "Simple")
         .expect_err("an effectful policy must be rejected");
     assert!(
-        error.contains("not effect-free"),
-        "expected a purity rejection (static gate or the dynamic backstop), got: {error}"
+        error.contains("not build-time admissible") && error.contains("service reach [Console]"),
+        "expected the normalized service-reach gate to reject the policy, got: {error}"
     );
 }
 

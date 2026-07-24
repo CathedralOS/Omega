@@ -1,4 +1,4 @@
-// A zero-argument, effect-free machine call inside const-generic arithmetic is
+// A zero-argument, build-time-admissible machine call inside const-generic arithmetic is
 // evaluated before the surrounding checked expression fold and instance
 // synthesis. Its result must determine both layout and indexed runtime storage
 // in the native and interpreter engines.

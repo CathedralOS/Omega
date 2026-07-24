@@ -1,1 +1,1 @@
-domain operator spelling `+` has competing meanings
+ambiguous operator spelling `+` has 2 viable candidates

@@ -2,6 +2,7 @@ mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
 mod build_config;
+mod build_time_admission;
 mod calling_policy_plans;
 mod checked_entry;
 pub mod compile_options;

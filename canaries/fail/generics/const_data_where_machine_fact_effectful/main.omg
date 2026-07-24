@@ -1,8 +1,10 @@
-// Build-time domain facts use the inferred transitive-effect gate. An
-// effectful machine may not decide const-generic membership.
+// Build-time domain facts use the normalized build-time contract gate. A
+// service-reaching machine may not decide const-generic membership.
+boundary trait Console { machine exit_process(return_code: i32); }
+
 machine is_buffer_size(value: u64) -> bool
 effects
-    process_exit
+    Console
 {
     value > 0 && value <= 8
 }

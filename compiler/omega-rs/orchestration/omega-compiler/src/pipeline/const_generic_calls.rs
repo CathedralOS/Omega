@@ -2,7 +2,7 @@
 //! arguments (`Buffer<table_size()>`). Generic record instances must be
 //! synthesized before the ordinary frontend runs, while the established
 //! build-time evaluator needs typed trees. Build a sanitized probe program,
-//! type it, reuse the same transitive-effect gate and interpreter entry as
+//! type it, reuse the same normalized build-time gate and interpreter entry as
 //! fixed-array lengths, then substitute canonical decimal leaves into the
 //! authoritative syntax tree before monomorphization.
 
@@ -46,7 +46,7 @@ pub(super) fn evaluate_const_generic_calls(
         .map_err(|diagnostic| vec![diagnostic])?;
     let typed = omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let effect_plan = omega_effects::infer_effects(&typed);
+    let admission = super::build_time_admission::BuildTimeAdmissionPlan::infer(&typed);
 
     let mut values: BTreeMap<String, u64> = BTreeMap::new();
     for (_, machine_name) in &pending {
@@ -55,7 +55,7 @@ pub(super) fn evaluate_const_generic_calls(
         }
         let value = super::const_lengths::evaluate_zero_argument_machine(
             &typed,
-            &effect_plan,
+            &admission,
             machine_name,
             "generic argument",
         )

@@ -1,6 +1,8 @@
+boundary trait Console { machine exit_process(return_code: i32); }
+
 machine loud_size() -> u64
 effects
-    process_exit
+    Console
 {
     transition { _ -> 4 }
 }
