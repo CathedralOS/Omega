@@ -287,6 +287,10 @@ fn validate_checked_instruction_bytes(
             CheckedInstructionValidationKind::InterruptEnable => 6,
             CheckedInstructionValidationKind::PortWriteImmediatePort { .. } => 7,
             CheckedInstructionValidationKind::PortReadImmediatePort { .. } => 8,
+            CheckedInstructionValidationKind::MsrReadImmediateIndex { .. } => 9,
+            CheckedInstructionValidationKind::MsrWriteImmediateIndex { .. } => 10,
+            CheckedInstructionValidationKind::ControlRegisterRead { .. } => 11,
+            CheckedInstructionValidationKind::ControlRegisterWrite { .. } => 12,
         };
         fingerprint_into(&mut fingerprint, &[kind_tag]);
         fingerprint_into(
@@ -318,7 +322,11 @@ fn validate_checked_instruction_kind(
         CheckedInstructionValidationKind::InterruptDisable => Some(&[0xfa]),
         CheckedInstructionValidationKind::InterruptEnable => Some(&[0xfb]),
         CheckedInstructionValidationKind::PortWriteImmediatePort { .. }
-        | CheckedInstructionValidationKind::PortReadImmediatePort { .. } => None,
+        | CheckedInstructionValidationKind::PortReadImmediatePort { .. }
+        | CheckedInstructionValidationKind::MsrReadImmediateIndex { .. }
+        | CheckedInstructionValidationKind::MsrWriteImmediateIndex { .. }
+        | CheckedInstructionValidationKind::ControlRegisterRead { .. }
+        | CheckedInstructionValidationKind::ControlRegisterWrite { .. } => None,
     };
     if let Some(expected) = fixed_expected {
         if encoded_bytes != expected {
@@ -384,24 +392,156 @@ fn validate_checked_instruction_kind(
                 )));
             }
             let destination_relocation_offset = byte_offset + 16;
-            let matching_relocations = relocations
-                .records()
-                .filter(|(_, relocation)| {
-                    relocation.section == SectionKind::Text
-                        && relocation.kind == RelocationKind::Absolute64
-                        && relocation.offset == destination_relocation_offset
-                        && relocation.byte_width == 8
-                })
-                .count();
-            if matching_relocations != 1 {
+            require_absolute64_text_relocation(
+                relocations,
+                destination_relocation_offset,
+                selected_instruction_index,
+                "in",
+            )?;
+        }
+        CheckedInstructionValidationKind::MsrReadImmediateIndex {
+            index,
+            destination_byte_offset,
+        } => {
+            let mut prefix = Vec::with_capacity(27);
+            prefix.extend([0x49, 0xba]);
+            prefix.extend(u64::from(index).to_le_bytes());
+            prefix.extend([
+                0x44, 0x89, 0xd1, 0x0f, 0x32, 0x41, 0x89, 0xc2, 0x48, 0xc1, 0xe2, 0x20, 0x49, 0x09,
+                0xd2, 0x49, 0xbf,
+            ]);
+            let mut suffix = Vec::with_capacity(7);
+            suffix.extend([0x4d, 0x89, 0x97]);
+            suffix.extend(destination_byte_offset.to_le_bytes());
+            if encoded_bytes.len() != 42
+                || !encoded_bytes.starts_with(&prefix)
+                || encoded_bytes[27..35] != [0; 8]
+                || !encoded_bytes.ends_with(&suffix)
+            {
                 return Err(Diagnostic::error(format!(
-                    "checked `in` instruction #{selected_instruction_index} requires exactly one destination relocation at final text byte {destination_relocation_offset}; found {matching_relocations}"
+                    "encoded checked `rdmsr` instruction #{selected_instruction_index} does not bind index {index:#010x} and its destination through the closed result envelope"
+                )));
+            }
+            if final_bytes.len() != 42
+                || !final_bytes.starts_with(&prefix)
+                || !final_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `rdmsr` instruction #{selected_instruction_index} changed its index, privileged opcode, result combine, or destination envelope"
+                )));
+            }
+            require_absolute64_text_relocation(
+                relocations,
+                byte_offset + 27,
+                selected_instruction_index,
+                "rdmsr",
+            )?;
+        }
+        CheckedInstructionValidationKind::MsrWriteImmediateIndex { index } => {
+            let mut prefix = Vec::with_capacity(12);
+            prefix.extend([0x49, 0xba]);
+            prefix.extend(u64::from(index).to_le_bytes());
+            prefix.extend([0x41, 0x52]);
+            let suffix = [
+                0x41, 0x5a, 0x44, 0x89, 0xd1, 0x44, 0x89, 0xd8, 0x4c, 0x89, 0xda, 0x48, 0xc1, 0xea,
+                0x20, 0x0f, 0x30,
+            ];
+            if encoded_bytes.len() < prefix.len() + suffix.len()
+                || !encoded_bytes.starts_with(&prefix)
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `wrmsr` instruction #{selected_instruction_index} does not bind index {index:#010x} through the closed split-value envelope"
+                )));
+            }
+            if !final_bytes.starts_with(&prefix) || !final_bytes.ends_with(&suffix) {
+                return Err(Diagnostic::error(format!(
+                    "final checked `wrmsr` instruction #{selected_instruction_index} changed its index or privileged opcode envelope"
+                )));
+            }
+        }
+        CheckedInstructionValidationKind::ControlRegisterRead {
+            register,
+            destination_byte_offset,
+        } => {
+            let modrm = control_register_modrm(register);
+            let prefix = [0x41, 0x0f, 0x20, modrm, 0x49, 0xbf];
+            let mut suffix = Vec::with_capacity(7);
+            suffix.extend([0x4d, 0x89, 0x97]);
+            suffix.extend(destination_byte_offset.to_le_bytes());
+            if encoded_bytes.len() != 21
+                || !encoded_bytes.starts_with(&prefix)
+                || encoded_bytes[6..14] != [0; 8]
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked control-register read #{selected_instruction_index} does not match its register and destination envelope"
+                )));
+            }
+            if final_bytes.len() != 21
+                || !final_bytes.starts_with(&prefix)
+                || !final_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked control-register read #{selected_instruction_index} changed its register, privileged opcode, or destination envelope"
+                )));
+            }
+            require_absolute64_text_relocation(
+                relocations,
+                byte_offset + 6,
+                selected_instruction_index,
+                register.read_mnemonic(),
+            )?;
+        }
+        CheckedInstructionValidationKind::ControlRegisterWrite { register } => {
+            let suffix = [0x41, 0x0f, 0x22, control_register_modrm(register)];
+            if encoded_bytes.len() <= suffix.len() || !encoded_bytes.ends_with(&suffix) {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked control-register write #{selected_instruction_index} does not match its register and privileged opcode envelope"
+                )));
+            }
+            if !final_bytes.ends_with(&suffix) {
+                return Err(Diagnostic::error(format!(
+                    "final checked control-register write #{selected_instruction_index} changed its register or privileged opcode envelope"
                 )));
             }
         }
         _ => unreachable!("fixed checked instruction kinds returned above"),
     }
     Ok(())
+}
+
+fn require_absolute64_text_relocation(
+    relocations: &RelocationPlan,
+    expected_offset: usize,
+    selected_instruction_index: u32,
+    mnemonic: &str,
+) -> Result<(), Diagnostic> {
+    let matching_relocations = relocations
+        .records()
+        .filter(|(_, relocation)| {
+            relocation.section == SectionKind::Text
+                && relocation.kind == RelocationKind::Absolute64
+                && relocation.offset == expected_offset
+                && relocation.byte_width == 8
+        })
+        .count();
+    if matching_relocations != 1 {
+        return Err(Diagnostic::error(format!(
+            "checked `{mnemonic}` instruction #{selected_instruction_index} requires exactly one destination relocation at final text byte {expected_offset}; found {matching_relocations}"
+        )));
+    }
+    Ok(())
+}
+
+fn control_register_modrm(register: omega_core::inline_assembly::AsmControlRegister) -> u8 {
+    use omega_core::inline_assembly::AsmControlRegister;
+    match register {
+        AsmControlRegister::Cr0 => 0xc2,
+        AsmControlRegister::Cr2 => 0xd2,
+        AsmControlRegister::Cr3 => 0xda,
+        AsmControlRegister::Cr4 => 0xe2,
+    }
 }
 
 fn relocation_kind_tag(kind: RelocationKind) -> u8 {
@@ -778,6 +918,61 @@ mod tests {
             &relocations,
         )
         .expect_err("changing a final out opcode must reject");
+        assert!(diagnostic.message.contains("privileged opcode envelope"));
+    }
+
+    #[test]
+    fn rejects_mutated_final_wrmsr_opcode_after_index_binding() {
+        use omega_core::arena::Arena;
+        use omega_machine_bytes::{
+            CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
+        };
+
+        let mut encoded = Vec::new();
+        encoded.extend([0x49, 0xba]);
+        encoded.extend(0xc000_0080u64.to_le_bytes());
+        encoded.extend([0x41, 0x52]);
+        encoded.extend([0x49, 0xbb]);
+        encoded.extend(0x1122_3344_5566_7788u64.to_le_bytes());
+        encoded.extend([
+            0x41, 0x5a, 0x44, 0x89, 0xd1, 0x44, 0x89, 0xd8, 0x4c, 0x89, 0xda, 0x48, 0xc1, 0xea,
+            0x20, 0x0f, 0x30,
+        ]);
+        let mut bytes = Arena::with_capacity(encoded.len());
+        let span = bytes.insert_many(encoded.iter().copied());
+        let mut instructions = Arena::with_capacity(1);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 10,
+            bytes: span,
+            checked_validation_kind: Some(
+                CheckedInstructionValidationKind::MsrWriteImmediateIndex { index: 0xc000_0080 },
+            ),
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            byte_count: encoded.len(),
+        };
+        let relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+
+        validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &encoded,
+            &relocations,
+        )
+        .expect("exact WRMSR index and split-value envelope should validate");
+
+        let last = encoded.len() - 1;
+        encoded[last] = 0x31;
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &encoded,
+            &relocations,
+        )
+        .expect_err("a changed final WRMSR opcode must reject");
         assert!(diagnostic.message.contains("privileged opcode envelope"));
     }
 }

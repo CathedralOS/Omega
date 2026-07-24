@@ -160,6 +160,44 @@ fn checked_instruction_validation_kind(
                 destination_byte_offset,
             })
         }
+        SelectedInstructionKind::MsrRead {
+            index,
+            dest_byte_offset,
+            ..
+        } => {
+            let index = emission_context
+                .assigned_target_operations
+                .immediate_integer(*index)
+                .and_then(|index| u32::try_from(index).ok())?;
+            let destination_byte_offset = u32::try_from(*dest_byte_offset).ok()?;
+            Some(CheckedInstructionValidationKind::MsrReadImmediateIndex {
+                index,
+                destination_byte_offset,
+            })
+        }
+        SelectedInstructionKind::MsrWrite { index, .. } => {
+            let index = emission_context
+                .assigned_target_operations
+                .immediate_integer(*index)
+                .and_then(|index| u32::try_from(index).ok())?;
+            Some(CheckedInstructionValidationKind::MsrWriteImmediateIndex { index })
+        }
+        SelectedInstructionKind::ControlRegisterRead {
+            register,
+            dest_byte_offset,
+            ..
+        } => {
+            let destination_byte_offset = u32::try_from(*dest_byte_offset).ok()?;
+            Some(CheckedInstructionValidationKind::ControlRegisterRead {
+                register: *register,
+                destination_byte_offset,
+            })
+        }
+        SelectedInstructionKind::ControlRegisterWrite { register, .. } => {
+            Some(CheckedInstructionValidationKind::ControlRegisterWrite {
+                register: *register,
+            })
+        }
         _ => None,
     }
 }

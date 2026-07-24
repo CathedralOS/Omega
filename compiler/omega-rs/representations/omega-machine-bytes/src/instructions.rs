@@ -25,6 +25,20 @@ pub enum CheckedInstructionValidationKind {
         port: u16,
         destination_byte_offset: u32,
     },
+    MsrReadImmediateIndex {
+        index: u32,
+        destination_byte_offset: u32,
+    },
+    MsrWriteImmediateIndex {
+        index: u32,
+    },
+    ControlRegisterRead {
+        register: omega_core::inline_assembly::AsmControlRegister,
+        destination_byte_offset: u32,
+    },
+    ControlRegisterWrite {
+        register: omega_core::inline_assembly::AsmControlRegister,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
