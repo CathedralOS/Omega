@@ -292,3 +292,50 @@ binds installed artifact, destination, resolved private context, roots/ledger,
 content, and control. The runtime receipt names both identities. Do not put
 runtime instance IDs into the prebuilt code template, synthesize executable
 bytes after handoff, or expose a source operation that accepts an address.
+
+## 8. How does opaque runtime `boundary data` acquire a representation?
+
+`boundary data` correctly has no public fields or constructor. It currently also
+has no backend layout at all: layout planning skips every
+`DataSupplyMode::BoundaryOpaque` declaration. That is sufficient for proof-only
+symbols such as `Real`, but not for runtime provider-minted values such as
+`Extent`, `Ptr<T>`, `TaskRuntime`, `InterruptMaskGuard`, or
+`InterruptAcknowledgement`. Those values must cross calls, occupy storage, obey
+linearity/carry rules, and preserve a provider-owned identity without exposing
+forgeable representation.
+
+The normalized Rust `omega-extents` carrier and the opaque Omega `Extent`
+declaration therefore do not yet meet. Cathedral cannot replace its temporary
+plain extent record honestly until the source/runtime boundary says what value
+the provider returns and how that value is stored and passed.
+
+Decide:
+
+- how a declaration distinguishes a proof-only opaque symbol from a runtime
+  opaque carrier without inferring semantics from special names;
+- whether runtime opacity always lowers to a compiler-owned sealed handle, or
+  whether a provider may select among a closed validated representation
+  vocabulary such as handle, native pointer, word token, or fat descriptor;
+- how the representation enters `LayoutPlan`, `Calling<C>`, artifact identity,
+  provider admission, and separate-component ABI compatibility without making
+  private payload fields public;
+- where the provider-owned backing state lives, how a source value resolves to
+  it, and how stale handles, target width, provenance, and generation are
+  validated;
+- how moves, borrows, linear consumption, carry policy, suspension, and
+  destruction operate on an opaque carrier, especially when the provider state
+  is larger than the source representation; and
+- whether `Ptr<T>` is an admitted special native-pointer representation or an
+  ordinary instance of the same representation-plan mechanism, while ensuring
+  no raw numeric address becomes authority.
+
+Recommendation: keep `boundary data` as the opacity/trust surface, but require a
+runtime use to be backed by an admitted, normalized representation plan. The
+closed plan vocabulary should include an erased proof-only case and a
+compiler-managed sealed-handle case first; add native word/pointer/descriptor
+cases only where their operation contracts and target ABI validate them. The
+provider plan owns minting, backing storage, lookup, and consumption, while the
+source carrier exposes no constructor or representation fields. Do not silently
+assign every opaque type zero size, make every carrier pointer-sized, infer a
+representation from its name, or let a package declare arbitrary layout bytes
+as authority.
