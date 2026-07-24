@@ -135,6 +135,17 @@ pub struct StackNestingRelation {
     pub edges: BTreeSet<StackNestingEdge>,
 }
 
+/// Exact canonical inputs retained behind every stack-composition result.
+///
+/// Compact fingerprints remain useful report keys, but are not admission
+/// evidence: two distinct nesting graphs or provider summaries must remain
+/// distinguishable even if their compact fingerprints collide.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StackCompositionEvidence {
+    relation: StackNestingRelation,
+    summaries: BTreeMap<ExternalRootId, ProviderStackSummary>,
+}
+
 /// Provisioning domain produced from the one normalized `EntryStack` fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StackDomain {
@@ -156,6 +167,7 @@ pub struct ComposedStackDemand {
     wcsu_alignment: u64,
     contributing_roots: BTreeSet<ExternalRootId>,
     validation_receipts: BTreeSet<StackValidationReceiptId>,
+    composition_evidence: StackCompositionEvidence,
     artifact_composition_fingerprint: u64,
     composition_fingerprint: u64,
 }
@@ -323,6 +335,13 @@ pub fn compose_artifact_stacks<'a>(
         reject_dedicated_stack_reentry(root, &outgoing, &by_root, &mut active_classes)?;
     }
 
+    let composition_evidence = StackCompositionEvidence {
+        relation: relation.clone(),
+        summaries: by_root
+            .iter()
+            .map(|(root, summary)| (*root, **summary))
+            .collect(),
+    };
     let input_fingerprint = fingerprint_stack_inputs(relation, &by_root);
     let mut demands = BTreeMap::new();
     let mut domain_wcsu_bytes = BTreeMap::new();
@@ -369,6 +388,7 @@ pub fn compose_artifact_stacks<'a>(
                 wcsu_alignment,
                 contributing_roots,
                 validation_receipts,
+                composition_evidence: composition_evidence.clone(),
                 artifact_composition_fingerprint: input_fingerprint,
                 composition_fingerprint: fingerprint.finish(),
             },
@@ -555,6 +575,15 @@ pub struct FixedWorkProviderSummary {
     pub validation_receipt: ProviderWorkValidationReceiptId,
 }
 
+/// Exact canonical provider graph retained by a composed work demand.
+///
+/// The compact composition fingerprint is presentation identity only; root
+/// admission compares this graph through the sealed demand value itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FixedWorkCompositionEvidence {
+    summaries: BTreeMap<ProviderWorkSummaryId, FixedWorkProviderSummary>,
+}
+
 /// Canonical transitive result of a fixed-work provider graph. The private
 /// fields ensure callers cannot hand-author a demand that skipped a callee.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -564,6 +593,7 @@ pub struct ComposedFixedWorkDemand {
     units: u64,
     summaries: BTreeSet<ProviderWorkSummaryId>,
     provider_receipts: BTreeSet<ProviderWorkValidationReceiptId>,
+    composition_evidence: FixedWorkCompositionEvidence,
     composition_fingerprint: u64,
 }
 
@@ -631,12 +661,27 @@ pub fn compose_fixed_work<'a>(
         })
         .collect();
     let composition_fingerprint = fingerprint_fixed_work_composition(&used, &by_identity);
+    let composition_evidence = FixedWorkCompositionEvidence {
+        summaries: used
+            .iter()
+            .map(|identity| {
+                (
+                    *identity,
+                    (*by_identity
+                        .get(identity)
+                        .expect("used fixed-work summary exists"))
+                    .clone(),
+                )
+            })
+            .collect(),
+    };
     Ok(ComposedFixedWorkDemand {
         root,
         root_provider: root_summary.provider,
         units,
         summaries: used,
         provider_receipts,
+        composition_evidence,
         composition_fingerprint,
     })
 }
@@ -1800,6 +1845,8 @@ impl InstalledRootLedger {
         }
         if let Some(existing) = self.roots.values().next()
             && (existing.nesting_relation != root.candidate.nesting_relation
+                || existing.stack.realization.composition_evidence
+                    != root.candidate.stack.realization.composition_evidence
                 || existing
                     .stack
                     .realization
@@ -4950,6 +4997,60 @@ mod tests {
     }
 
     #[test]
+    fn stack_composition_retains_exact_inputs_beyond_compact_fingerprints() {
+        let root = root_id(140, ExternalRootId::from_normalized_identity);
+        let nested = root_id(141, ExternalRootId::from_normalized_identity);
+        let relation_identity = root_id(142, NestingRelationId::from_normalized_identity);
+        let root_summary = ProviderStackSummary {
+            root,
+            provider: root_id(143, RootProviderId::from_normalized_identity),
+            stack: EntryStack::Dedicated { class: 4 },
+            local_wcsu_bytes: 1024,
+            wcsu_alignment: 16,
+            validation_receipt: root_id(144, StackValidationReceiptId::from_normalized_identity),
+        };
+        let nested_summary = ProviderStackSummary {
+            root: nested,
+            provider: root_id(145, RootProviderId::from_normalized_identity),
+            stack: EntryStack::Dedicated { class: 1 },
+            local_wcsu_bytes: 2048,
+            wcsu_alignment: 16,
+            validation_receipt: root_id(146, StackValidationReceiptId::from_normalized_identity),
+        };
+        let without_edge = compose_artifact_stacks(
+            &StackNestingRelation {
+                identity: relation_identity,
+                edges: BTreeSet::new(),
+            },
+            [&root_summary, &nested_summary],
+        )
+        .expect("independent roots");
+        let with_edge = compose_artifact_stacks(
+            &StackNestingRelation {
+                identity: relation_identity,
+                edges: BTreeSet::from([StackNestingEdge {
+                    interrupted: root,
+                    preemptor: nested,
+                }]),
+            },
+            [&root_summary, &nested_summary],
+        )
+        .expect("dedicated nested root");
+
+        let exact = without_edge.demand(root).expect("root demand");
+        let mut collided = with_edge.demand(root).expect("root demand").clone();
+        collided.artifact_composition_fingerprint = exact.artifact_composition_fingerprint;
+        collided.composition_fingerprint = exact.composition_fingerprint;
+
+        assert_eq!(exact.composed_wcsu_bytes, collided.composed_wcsu_bytes);
+        assert_eq!(exact.contributing_roots, collided.contributing_roots);
+        assert_ne!(
+            exact, &collided,
+            "compact fingerprint collision cannot erase exact nesting evidence"
+        );
+    }
+
+    #[test]
     fn fixed_work_composition_is_transitive_canonical_and_fails_closed() {
         let leaf_identity = root_id(61, ProviderWorkSummaryId::from_normalized_identity);
         let root_identity = root_id(60, ProviderWorkSummaryId::from_normalized_identity);
@@ -4997,6 +5098,59 @@ mod tests {
         let error = compose_fixed_work(root_identity, [&root, &cyclic_leaf])
             .expect_err("cyclic work graph");
         assert!(error.0.contains("cycle"));
+    }
+
+    #[test]
+    fn fixed_work_composition_retains_exact_graph_beyond_compact_fingerprint() {
+        let leaf_identity = root_id(71, ProviderWorkSummaryId::from_normalized_identity);
+        let root_identity = root_id(70, ProviderWorkSummaryId::from_normalized_identity);
+        let leaf = FixedWorkProviderSummary {
+            identity: leaf_identity,
+            provider: root_id(72, RootProviderId::from_normalized_identity),
+            local_units: 4,
+            calls: BTreeSet::new(),
+            validation_receipt: root_id(
+                73,
+                ProviderWorkValidationReceiptId::from_normalized_identity,
+            ),
+        };
+        let root = FixedWorkProviderSummary {
+            identity: root_identity,
+            provider: root_id(74, RootProviderId::from_normalized_identity),
+            local_units: 3,
+            calls: BTreeSet::from([FixedWorkCall {
+                callee: leaf_identity,
+                maximum_invocations: 2,
+            }]),
+            validation_receipt: root_id(
+                75,
+                ProviderWorkValidationReceiptId::from_normalized_identity,
+            ),
+        };
+        let exact = compose_fixed_work(root_identity, [&root, &leaf]).expect("original work graph");
+
+        let drifted_leaf = FixedWorkProviderSummary {
+            local_units: 2,
+            ..leaf
+        };
+        let drifted_root = FixedWorkProviderSummary {
+            calls: BTreeSet::from([FixedWorkCall {
+                callee: leaf_identity,
+                maximum_invocations: 4,
+            }]),
+            ..root
+        };
+        let mut collided = compose_fixed_work(root_identity, [&drifted_root, &drifted_leaf])
+            .expect("equal-total drifted work graph");
+        collided.composition_fingerprint = exact.composition_fingerprint;
+
+        assert_eq!(exact.units, collided.units);
+        assert_eq!(exact.summaries, collided.summaries);
+        assert_eq!(exact.provider_receipts, collided.provider_receipts);
+        assert_ne!(
+            exact, collided,
+            "compact fingerprint collision cannot erase exact work-graph evidence"
+        );
     }
 
     #[test]
