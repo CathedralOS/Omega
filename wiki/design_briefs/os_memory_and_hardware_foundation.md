@@ -690,14 +690,19 @@ This normalized ladder is live in `omega-executable-installation`. Canonically
 decoded artifacts are immutable and reusable; exact admission evidence checks
 content, contracts, declared footprint, and placement plan before establishing
 the executable qualification. A one-shot authority claims an Extent-backed
-placement, materialization checks the admitted artifact's real size and freezes
-writes, the final certificate is bound to artifact + placement + final bytes +
-realized footprint, and installation consumes an authority scoped to that
-artifact, admission, placement, scope, and audience. Synchronous visibility and
+placement. The reusable artifact retains its exact bytes and canonical
+relocations through admission. A provider-side pure materializer resolves only
+sealed entry/data identities, applies checked target relocations to a private
+copy, validates AArch64 instruction shapes, and derives a content- and
+placement-bound final-byte identity; this inert result grants neither writes
+nor execution. A separate provider writes those bytes and freezes authority.
+The final certificate is bound to artifact + placement + final bytes + realized
+footprint, and installation consumes an authority scoped to that artifact,
+admission, placement, scope, and audience. Synchronous visibility and
 `HardwareEnforced | ConventionOnly | Unsupported` W^X reporting are checked.
-Failed linear transitions return their inputs. Container decode, actual PCC and
-final-code validators, provider execution, Omega linear integration, and live
-replacement remain.
+Failed linear transitions return their inputs. Schema byte decode, actual PCC
+and final-code validators, destination write/freeze and installation-provider
+execution, Omega linear integration, and live replacement remain.
 
 `CodePlacement` now consumes the existing placement-plan vocabulary rather
 than duplicating it. The one-shot authority carries normalized range,

@@ -238,9 +238,14 @@ The compiler foundation now has an executable form of that state machine in
 Extent-backed placement; frozen materialization; artifact/placement/final-byte/
 footprint-bound validation; scoped installation authority; synchronous
 visibility; and explicit W^X enforcement reporting. Every failed consuming
-transition returns its authority inputs. The native container, real PCC and
-final-code validators, target materializer/installer operations, Omega
-linearity, and live replacement remain implementation work.
+transition returns its authority inputs. The reusable artifact retains exact
+code and canonical relocations. Its pure provider materializer resolves only
+sealed targets, patches a private copy with checked target semantics, validates
+AArch64 instruction shapes, and derives a placement/content-bound final-byte
+identity without acquiring destination-write or execute authority. The
+schema-driven native-container decoder, real PCC and final-code validators,
+destination write/freeze and installer operations, Omega linearity, and live
+replacement remain implementation work.
 
 Extent-backed placement claims are also connected to the normalized placement
 plan: actual destination base/length must satisfy its range, alignment, phase,
@@ -278,11 +283,11 @@ produces an immutable admission candidate, never executable eligibility.
 Normalization binds the exact code bytes, instruction-set architecture,
 contracts, footprint, placement, entries, and canonical relocations into
 content identity; proof evidence remains outside that promise. The artifact
-retains its immutable bytes and architecture, and relocation lowering rejects
-cross-architecture substitution even when a relocation kind is otherwise
-shared. Signed relocation addends survive the validated artifact, object plan,
-image application, report, and fingerprint. The schema-driven byte decoder
-remains to connect.
+retains its immutable bytes, architecture, and canonical relocation set through
+admission, and relocation lowering rejects cross-architecture substitution even
+when a relocation kind is otherwise shared. Signed relocation addends survive
+the validated artifact, canonical materializer, object plan, image application,
+report, and fingerprint. The schema-driven byte decoder remains to connect.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,

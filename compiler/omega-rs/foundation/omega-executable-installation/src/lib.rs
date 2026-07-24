@@ -54,8 +54,10 @@ normalized_id!(ProofPayloadId, "proof-payload");
 normalized_id!(InformationalSectionId, "informational-section");
 
 mod container;
+mod materializer;
 
 pub use container::*;
+pub use materializer::*;
 
 #[derive(Debug, PartialEq, Eq)]
 struct ArtifactRecord {
@@ -480,6 +482,25 @@ pub struct MaterializationReceipt {
 }
 
 impl MaterializationReceipt {
+    /// Bind a provider's write/freeze receipt to the exact output of the
+    /// canonical materializer instead of restating its artifact/placement
+    /// identities independently.
+    pub const fn from_materialized(
+        materialized: &MaterializedArtifactBytes,
+        realized_footprint: MachineFootprintId,
+        writes_frozen: bool,
+    ) -> Self {
+        Self {
+            artifact: materialized.artifact(),
+            admission: materialized.admission(),
+            placement: materialized.placement(),
+            placement_plan: materialized.placement_plan(),
+            final_bytes: materialized.final_bytes(),
+            realized_footprint,
+            writes_frozen,
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub const fn from_provider(
         artifact: ArtifactId,
@@ -1368,6 +1389,32 @@ mod tests {
         )
     }
 
+    fn relocatable_artifact(
+        identity: u64,
+        architecture: Architecture,
+        code: Vec<u8>,
+        relocations: Vec<DecodedArtifactRelocation>,
+    ) -> Artifact {
+        Artifact::from_canonical_decode(
+            id(identity, ArtifactId::from_normalized_identity),
+            id(identity + 10, ArtifactContentId::from_normalized_identity),
+            architecture,
+            code,
+            id(30, MachineContractSetId::from_normalized_identity),
+            id(31, MachineFootprintId::from_normalized_identity),
+            id(32, PlacementPlanId::from_normalized_identity),
+            artifact_placement_constraints(),
+            id(33, EntrySetId::from_normalized_identity),
+            vec![ArtifactEntry::from_canonical_decode(
+                entry_id(identity + 1000),
+                0,
+            )],
+            id(34, RelocationSetId::from_normalized_identity),
+            relocations,
+        )
+        .expect("relocatable artifact")
+    }
+
     fn frozen(admitted: &AdmittedArtifact, placement_identity: u64, base: u64) -> FrozenPlacement {
         let placement = placement_authority(placement_identity, base)
             .claim(placement_extent(placement_identity, base, 4096))
@@ -1433,6 +1480,145 @@ mod tests {
             ),
         )
         .expect("installed code")
+    }
+
+    #[test]
+    fn canonical_materializer_patches_x86_relative_targets_and_binds_the_receipt() {
+        let target = RelocationTarget::Entry(entry_id(1001));
+        let mut code = vec![0x90; 64];
+        code[0] = 0xe8;
+        code[1..5].fill(0);
+        let candidate = relocatable_artifact(
+            1,
+            Architecture::X86_64,
+            code,
+            vec![DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::X86Relative32,
+                destination_offset: 1,
+                target,
+                addend: -4,
+            }],
+        );
+        let admitted = admit(&candidate);
+        let placement = placement_authority(100, 0x1000)
+            .claim(placement_extent(100, 0x1000, 4096))
+            .expect("placement");
+
+        let materialized = materialize_admitted_artifact(&admitted, &placement, |candidate| {
+            (candidate == target).then_some(0x1024)
+        })
+        .expect("materialized bytes");
+        assert_eq!(
+            i32::from_le_bytes(materialized.bytes()[1..5].try_into().unwrap()),
+            0x1b
+        );
+
+        materialize_and_freeze(
+            &admitted,
+            placement,
+            MaterializationReceipt::from_materialized(
+                &materialized,
+                id(31, MachineFootprintId::from_normalized_identity),
+                true,
+            ),
+        )
+        .expect("receipt is bound to canonical materializer output");
+    }
+
+    #[test]
+    fn aarch64_materialization_validates_the_relocated_instruction_shape() {
+        let target = RelocationTarget::Entry(entry_id(1002));
+        let mut branch = vec![0; 64];
+        branch[..4].copy_from_slice(&0x9400_0000u32.to_le_bytes());
+        let candidate = relocatable_artifact(
+            2,
+            Architecture::Aarch64,
+            branch,
+            vec![DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::Aarch64Branch26,
+                destination_offset: 0,
+                target,
+                addend: 0,
+            }],
+        );
+        let admitted = admit(&candidate);
+        let placement = placement_authority(101, 0x1000)
+            .claim(placement_extent(101, 0x1000, 4096))
+            .expect("placement");
+        let materialized = materialize_admitted_artifact(&admitted, &placement, |_| Some(0x1010))
+            .expect("AArch64 branch materialization");
+        assert_eq!(
+            u32::from_le_bytes(materialized.bytes()[..4].try_into().unwrap()),
+            0x9400_0004
+        );
+
+        let invalid = relocatable_artifact(
+            3,
+            Architecture::Aarch64,
+            vec![0; 64],
+            vec![DecodedArtifactRelocation {
+                kind: ArtifactRelocationKind::Aarch64Branch26,
+                destination_offset: 0,
+                target,
+                addend: 0,
+            }],
+        );
+        let invalid = admit(&invalid);
+        let error = materialize_admitted_artifact(&invalid, &placement, |_| Some(0x1010))
+            .expect_err("relocation cannot rewrite an arbitrary instruction");
+        assert!(error.0.contains("B/BL"));
+    }
+
+    #[test]
+    fn aarch64_materialization_patches_page_pairs_and_absolute_data() {
+        let target = RelocationTarget::Entry(entry_id(1004));
+        let mut code = vec![0; 64];
+        code[..4].copy_from_slice(&0x9000_0000u32.to_le_bytes());
+        code[4..8].copy_from_slice(&0x9100_0000u32.to_le_bytes());
+        let candidate = relocatable_artifact(
+            4,
+            Architecture::Aarch64,
+            code,
+            vec![
+                DecodedArtifactRelocation {
+                    kind: ArtifactRelocationKind::Aarch64Page21,
+                    destination_offset: 0,
+                    target,
+                    addend: 0,
+                },
+                DecodedArtifactRelocation {
+                    kind: ArtifactRelocationKind::Aarch64PageOffset12,
+                    destination_offset: 4,
+                    target,
+                    addend: 0,
+                },
+                DecodedArtifactRelocation {
+                    kind: ArtifactRelocationKind::Absolute64,
+                    destination_offset: 8,
+                    target,
+                    addend: -6,
+                },
+            ],
+        );
+        let admitted = admit(&candidate);
+        let placement = placement_authority(102, 0x1000)
+            .claim(placement_extent(102, 0x1000, 4096))
+            .expect("placement");
+        let materialized = materialize_admitted_artifact(&admitted, &placement, |_| Some(0x3456))
+            .expect("AArch64 page-pair materialization");
+
+        assert_eq!(
+            u32::from_le_bytes(materialized.bytes()[..4].try_into().unwrap()),
+            0xd000_0000
+        );
+        assert_eq!(
+            u32::from_le_bytes(materialized.bytes()[4..8].try_into().unwrap()),
+            0x9111_5800
+        );
+        assert_eq!(
+            u64::from_le_bytes(materialized.bytes()[8..16].try_into().unwrap()),
+            0x3450
+        );
     }
 
     #[test]

@@ -1797,10 +1797,15 @@ stronger operations it needs instead of citing machine parameters generally.
   their byte-granular rule. The reusable immutable artifact now retains the
   canonical relocation set alongside its exact code bytes, so admission cannot
   strand the later materializer or force an unmodeled relocation side channel.
+  A canonical provider helper now resolves only sealed entry/data targets,
+  applies exact x86-relative, AArch64 page/branch, and absolute relocations to
+  a private copy, validates AArch64 instruction shapes, and derives a
+  placement/content-bound final-byte identity. Its inert output can bind the
+  materialization receipt but grants neither destination writes nor execution.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement
-  admission/PCC and final-footprint validators, materializer/installer
-  providers, Omega linear integration, and provider-backed
+  admission/PCC and final-footprint validators, destination write/freeze and
+  installer providers, Omega linear integration, and provider-backed
   quiescence/replacement execution. Code-placement claims already validate the
   actual Extent base/length against normalized range, alignment, phase, regime,
   and installation-scope constraints before materialization. The normalized
