@@ -18,6 +18,7 @@ pub enum CheckedInstructionValidationKind {
     /// privileged destination and the closed register/opcode envelope.
     PortWriteImmediatePort {
         port: u16,
+        value_operand_byte_width: u32,
     },
     /// `in al, dx` with a compile-time-known port and a compiler-owned
     /// relocated destination store.
@@ -44,6 +45,7 @@ pub enum CheckedInstructionValidationKind {
     },
     MsrWriteImmediateIndex {
         index: u32,
+        value_operand_byte_width: u32,
     },
     MsrReadRuntimeIndex {
         index_operand_byte_width: u32,
@@ -59,11 +61,14 @@ pub enum CheckedInstructionValidationKind {
     },
     ControlRegisterWrite {
         register: omega_core::inline_assembly::AsmControlRegister,
+        source_operand_byte_width: u32,
     },
     FlagsSnapshot {
         destination_byte_offset: u32,
     },
-    FlagsRestore,
+    FlagsRestore {
+        source_operand_byte_width: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

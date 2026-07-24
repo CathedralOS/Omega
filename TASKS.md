@@ -620,6 +620,10 @@ schemas recover the same instance without publishing policy type identity.
    now retain the exact encoded widths of their runtime operands, independently
    validate the fixed DX/AL or ECX/EDX:EAX privileged-opcode skeleton at those
    boundaries, and bind compiler-owned destination relocations for reads.
+   Immediate-port and immediate-MSR writes likewise bind the exact value-loader
+   boundary, while control-register writes and RFLAGS restore bind the exact
+   source-loader boundary; none may hide extra unclassified bytes between its
+   operand and privileged opcode.
    Complete semantic decoding of the retained value-operand loaders, other
    operand-bearing checked assembly, and general compiler-function body
    decoding remain incomplete.
