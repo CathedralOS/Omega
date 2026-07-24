@@ -61,6 +61,7 @@ fn lower_trait_requirements(
             syntax::types::TypeReferenceNode::Generic {
                 base_name,
                 arguments,
+                ..
             } => (
                 base_name,
                 lower_child_type_references(lowerer, syntax_trees, *arguments)?,

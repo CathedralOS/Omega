@@ -451,6 +451,7 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
         TypeReferenceNode::Generic {
             base_name,
             arguments,
+            ..
         } => {
             let arguments = syntax_trees
                 .type_references

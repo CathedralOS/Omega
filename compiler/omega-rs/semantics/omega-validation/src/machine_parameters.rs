@@ -755,11 +755,13 @@ fn required_type_matches(
                 base_symbol: actual_base,
                 base_name: actual_name,
                 arguments: actual_arguments,
+                ..
             },
             TypeReferenceNode::Generic {
                 base_symbol: required_base,
                 base_name: required_name,
                 arguments: required_arguments,
+                ..
             },
         ) => {
             let same_base = if actual_base.is_valid() && required_base.is_valid() {

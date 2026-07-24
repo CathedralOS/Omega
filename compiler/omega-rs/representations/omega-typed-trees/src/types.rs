@@ -332,6 +332,7 @@ impl TypeReferenceTable {
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
+                lifetime_arguments,
                 arguments,
             } => {
                 let arguments = self.copy_type_reference_handles_from(
@@ -343,6 +344,7 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
                     base_name: base_name.clone(),
+                    lifetime_arguments: lifetime_arguments.clone(),
                     arguments,
                 })
             }
@@ -538,6 +540,9 @@ pub enum TypeReferenceNode {
     Generic {
         base_symbol: SymbolHandle,
         base_name: Identifier,
+        /// Erased borrow-region arguments. They are retained for lifetime
+        /// checking but ignored by runtime generic identity and layout.
+        lifetime_arguments: Vec<Identifier>,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
     DynamicTrait {

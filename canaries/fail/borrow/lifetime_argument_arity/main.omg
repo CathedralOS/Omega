@@ -1,0 +1,17 @@
+// FAIL canary (lifetimes stage 2): explicit lifetime applications must supply
+// exactly the number of erased lifetime binders declared by the data type.
+
+data PairView<'left, 'right> {
+    left: &'left i32;
+    right: &'right i32;
+}
+
+data Bad<'only> {
+    view: PairView<'only>;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

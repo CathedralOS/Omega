@@ -1,0 +1,29 @@
+// PASS canary (lifetimes stage 2): an erased lifetime argument on
+// borrow-carrying data selects the one input retained by the result.
+
+data View<'buf> {
+    body: &'buf mut i32;
+}
+
+machine select<'left, 'right>(
+    first: &'left mut i32,
+    second: &'right mut i32
+) -> View<'left> {
+    let selected: View<'left> = View { body: first };
+    transition {
+        _ -> selected
+    }
+}
+
+data Main {
+}
+
+machine Main::main<'left, 'right>(
+    &mut self,
+    first: &'left mut i32,
+    second: &'right mut i32
+) {
+    let selected: View<'left> = select(first, second);
+    second = 1;
+    selected.body = 1;
+}

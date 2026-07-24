@@ -170,6 +170,7 @@ impl TypeReferenceTable {
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments: Vec::new(),
             arguments,
         })
     }
@@ -268,6 +269,10 @@ pub enum TypeReferenceNode {
     },
     Generic {
         base_name: Identifier,
+        /// Erased borrow-region arguments (`Message<'buf, T>`). Kept separate
+        /// from runtime type/const/machine arguments so they never affect
+        /// monomorphization arity or layout identity.
+        lifetime_arguments: Vec<Identifier>,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
     /// A pre-resolution const-generic argument expression. Generic-data

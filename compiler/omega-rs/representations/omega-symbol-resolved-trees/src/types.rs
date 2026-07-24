@@ -222,6 +222,9 @@ pub struct GenericTypeReference {
 pub struct GenericTypeReferenceStorage {
     pub base_symbol: SymbolHandle,
     pub base_name: DiagnosticName,
+    /// Erased borrow-region arguments. These remain diagnostic names rather
+    /// than symbols and do not participate in runtime generic identity.
+    pub lifetime_arguments: Vec<DiagnosticName>,
     pub arguments: HandleSpan<TypeReference>,
 }
 
@@ -503,6 +506,7 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Generic {
                     base_symbol: generic.base_symbol,
                     base_name: generic.base_name.clone(),
+                    lifetime_arguments: generic.lifetime_arguments.clone(),
                     arguments,
                 })
             }
@@ -552,6 +556,7 @@ pub enum TypeReferenceNode {
     Generic {
         base_symbol: SymbolHandle,
         base_name: DiagnosticName,
+        lifetime_arguments: Vec<DiagnosticName>,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
     DynamicTrait {

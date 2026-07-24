@@ -120,11 +120,30 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
+        let mut lifetime_arguments = Vec::new();
         let mut argument_start = Handle::invalid();
         let mut argument_count = 0u32;
         let mut first_argument = TypeReferenceHandle::invalid();
 
         loop {
+            if input.at_punctuation(PunctuationKind::Apostrophe) {
+                if argument_count != 0 {
+                    return Err(input.error_here(
+                        "lifetime arguments precede type, const, and machine arguments",
+                    ));
+                }
+                let input_after_tick = input.take_punctuation(PunctuationKind::Apostrophe, "'")?;
+                let (lifetime, rest) = input_after_tick.take_identifier()?;
+                lifetime_arguments.push(lifetime);
+                input = rest;
+
+                if input.at_punctuation(PunctuationKind::Comma) {
+                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                    continue;
+                }
+                break;
+            }
+
             // Const data arguments share the generic argument list with type
             // arguments. Keep literal values and scoped const paths as
             // symbol-free named leaves until the declaration's parameter kinds
@@ -231,12 +250,15 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
         // `Task<T>` becomes a real linear core type in TR2; silently folding a
         // lifecycle claim into its result would recreate the bug this pass
         // removes.
-        if base_name.as_str() == "Join" && argument_count == 1 {
+        if base_name.as_str() == "Join" {
             return Err(input.error_here(
                 "`Join<T>` is retired: task activation returns a linear `Task<T>`; \
                  settle it with `finish()` or transfer it to another owner",
             ));
-        } else if base_name.as_str() == "Slice" && argument_count == 1 {
+        } else if base_name.as_str() == "Slice"
+            && lifetime_arguments.is_empty()
+            && argument_count == 1
+        {
             // `Slice<T>` is the canonical slice type; `[T]` is its alias. Both fold
             // to the same `Slice` node, so the spellings are interchangeable
             // (`Slice<u8> in Utf8` == `[u8] in Utf8`). Like `Join`, `Slice` is a
@@ -251,6 +273,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 .type_references
                 .insert(TypeReferenceNode::Generic {
                     base_name,
+                    lifetime_arguments,
                     arguments,
                 })
         }

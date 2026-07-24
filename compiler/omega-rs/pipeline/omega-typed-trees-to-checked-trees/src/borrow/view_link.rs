@@ -14,8 +14,9 @@
 //!
 //! - a `&self`/`&mut self` parameter links the output to self (elision rule 3),
 //!   regardless of other ref inputs;
-//! - an EXPLICIT output lifetime (`-> &'buf T`) links the output to the input
-//!   carrying the same lifetime name (stage 2); it must match exactly one input;
+//! - an EXPLICIT output lifetime (`-> &'buf T` or `-> Message<'buf>`) links the
+//!   output to the input carrying the same lifetime name (stage 2); it must
+//!   match exactly one input;
 //! - otherwise (an ELIDED output) exactly one ref input is the source (elision
 //!   rule 1); zero ref inputs leaves the output unlinked (historical behavior);
 //!   two or more are ambiguous and must be disambiguated with a lifetime.
@@ -87,7 +88,7 @@ pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) ->
         }
     }
 
-    match reference_lifetime(program, state.return_type) {
+    match return_lifetime(program, state.return_type) {
         Some(output_lifetime) => {
             let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
                 .iter()
@@ -139,6 +140,25 @@ fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle)
     }
 }
 
+/// The single explicit lifetime governing a returned borrow. Direct views use
+/// their reference tag; borrow-carrying data uses its one erased lifetime
+/// argument. Multi-lifetime aggregate results need field-to-input result
+/// contracts and therefore remain outside this stage.
+fn return_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { lifetime, .. } => {
+            lifetime.as_ref().map(|name| name.as_str())
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => return_lifetime(program, *base_type),
+        TypeReferenceNode::Generic {
+            lifetime_arguments, ..
+        } if is_borrow_carrying_data(program, type_reference) && lifetime_arguments.len() == 1 => {
+            Some(lifetime_arguments[0].as_str())
+        }
+        _ => None,
+    }
+}
+
 /// Whether a type reference is a view (a reference, possibly under a
 /// `Constrained` wrapper).
 pub(crate) fn is_reference_type(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
@@ -165,7 +185,19 @@ pub(crate) fn is_borrow_carrying_data(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new())
+    type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new(), false)
+}
+
+/// Whether a data value structurally carries at least one mutable borrow.
+///
+/// A call-produced borrow-carrying aggregate has no literal initializer to
+/// inspect field by field, so its returned loan polarity comes from the
+/// declared aggregate shape instead.
+pub(crate) fn is_mutably_borrow_carrying_data(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    type_structurally_carries_borrow(program, type_reference, &[], &mut Vec::new(), true)
 }
 
 fn type_structurally_carries_borrow(
@@ -173,15 +205,24 @@ fn type_structurally_carries_borrow(
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visiting: &mut Vec<SymbolHandle>,
+    require_mutable: bool,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_structurally_carries_borrow(program, *base_type, substitutions, visiting)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_structurally_carries_borrow(program, *element_type, substitutions, visiting)
-        }
+        TypeReferenceNode::Reference { is_mutable, .. } => !require_mutable || *is_mutable,
+        TypeReferenceNode::Constrained { base_type, .. } => type_structurally_carries_borrow(
+            program,
+            *base_type,
+            substitutions,
+            visiting,
+            require_mutable,
+        ),
+        TypeReferenceNode::FixedArray { element_type, .. } => type_structurally_carries_borrow(
+            program,
+            *element_type,
+            substitutions,
+            visiting,
+            require_mutable,
+        ),
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
@@ -201,7 +242,13 @@ fn type_structurally_carries_borrow(
                     .zip(arguments.iter())
                     .map(|(parameter, argument)| (parameter.symbol, *argument)),
             );
-            data_definition_carries_borrow(program, definition, &nested_substitutions, visiting)
+            data_definition_carries_borrow(
+                program,
+                definition,
+                &nested_substitutions,
+                visiting,
+                require_mutable,
+            )
         }
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some((_, concrete)) = substitutions
@@ -214,12 +261,19 @@ fn type_structurally_carries_borrow(
                     *concrete,
                     substitutions,
                     visiting,
+                    require_mutable,
                 );
             }
             let Some(definition) = data_definition(program, *symbol) else {
                 return false;
             };
-            data_definition_carries_borrow(program, definition, substitutions, visiting)
+            data_definition_carries_borrow(
+                program,
+                definition,
+                substitutions,
+                visiting,
+                require_mutable,
+            )
         }
         TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
@@ -242,6 +296,7 @@ fn data_definition_carries_borrow(
     definition: &omega_typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visiting: &mut Vec<SymbolHandle>,
+    require_mutable: bool,
 ) -> bool {
     if visiting.contains(&definition.symbol) {
         return false;
@@ -256,6 +311,7 @@ fn data_definition_carries_borrow(
                 field.type_reference,
                 substitutions,
                 visiting,
+                require_mutable,
             ),
             omega_typed_trees::data::DataMember::Variant(variant) => {
                 program.data_payload_fields(variant).iter().any(|field| {
@@ -264,6 +320,7 @@ fn data_definition_carries_borrow(
                         field.type_reference,
                         substitutions,
                         visiting,
+                        require_mutable,
                     )
                 })
             }

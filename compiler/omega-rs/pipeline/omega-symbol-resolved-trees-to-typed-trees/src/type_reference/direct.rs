@@ -82,6 +82,11 @@ pub(super) fn lower_type_reference_handle_with_context(
                 .insert(typed::types::TypeReferenceNode::Generic {
                     base_symbol: generic.base_symbol,
                     base_name: crate::name::lower_name(&generic.base_name),
+                    lifetime_arguments: generic
+                        .lifetime_arguments
+                        .iter()
+                        .map(crate::name::lower_name)
+                        .collect(),
                     arguments,
                 }))
         }

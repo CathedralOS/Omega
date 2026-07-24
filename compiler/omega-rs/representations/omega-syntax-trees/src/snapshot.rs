@@ -433,6 +433,7 @@ pub enum TypeReferenceSnapshot {
     },
     Generic {
         base_name: IdentifierSnapshot,
+        lifetime_arguments: Vec<IdentifierSnapshot>,
         arguments: Vec<TypeReferenceSnapshot>,
     },
     ConstExpression {
@@ -1342,9 +1343,11 @@ fn snapshot_type_reference_handle(
         },
         TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments,
             arguments,
         } => TypeReferenceSnapshot::Generic {
             base_name: snapshot_identifier(base_name),
+            lifetime_arguments: lifetime_arguments.iter().map(snapshot_identifier).collect(),
             arguments: syntax_trees
                 .type_references
                 .type_reference_handles(*arguments)

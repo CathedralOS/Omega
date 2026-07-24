@@ -25,6 +25,7 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
     let root = types.insert(TypeReferenceNode::Generic {
         base_symbol: SymbolHandle::invalid(),
         base_name: Identifier::generated("Result"),
+        lifetime_arguments: Vec::new(),
         arguments,
     });
 
@@ -182,6 +183,7 @@ fn type_reference_symbol_remap_reaches_nested_types_and_constraints() {
     let generic = types.insert(TypeReferenceNode::Generic {
         base_symbol: old,
         base_name: Identifier::generated("Box"),
+        lifetime_arguments: Vec::new(),
         arguments,
     });
     let constraints = types.insert_constraints([TypeConstraintNode::Range {

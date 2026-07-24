@@ -396,6 +396,7 @@ fn validate_type_reference_handle_with_context(
         }
         TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments,
             arguments,
             ..
         } => {
@@ -403,6 +404,15 @@ fn validate_type_reference_handle_with_context(
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown generic type `{base_name}`"
                 )));
+            }
+
+            for lifetime in lifetime_arguments {
+                if !type_parameter_scope.contains_lifetime(lifetime.as_str()) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses undeclared lifetime argument `'{}' in `{base_name}`; declare it in the owner's generic parameter list",
+                        lifetime.as_str()
+                    )));
+                }
             }
 
             validate_generic_argument_bounds(
@@ -422,6 +432,13 @@ fn validate_type_reference_handle_with_context(
                 .iter()
                 .find(|definition| definition.name.as_str() == base_name.as_str());
             if let Some(definition) = definition {
+                if definition.lifetime_parameters.len() != lifetime_arguments.len() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "data `{base_name}` expected {} lifetime arguments but got {}",
+                        definition.lifetime_parameters.len(),
+                        lifetime_arguments.len()
+                    )));
+                }
                 let parameters = program.data_type_parameters(definition);
                 // A zero-parameter data declaration can still appear in the
                 // `Policy<Schema>` layout-application form. Its argument is a

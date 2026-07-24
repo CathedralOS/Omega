@@ -604,6 +604,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
     let mut type_parameter_count = 0u32;
     let mut lifetime_parameters = Vec::new();
     let mut declared_names = Vec::<String>::new();
+    let mut saw_runtime_parameter = false;
 
     loop {
         // A leading bracket is the attribute-prefix spelling, which decision
@@ -619,6 +620,11 @@ fn parse_type_parameters_in<'tokens, 'source>(
         // type/const/machine parameters so runtime generic arity and
         // monomorphization never count it.
         if input.at_punctuation(PunctuationKind::Apostrophe) {
+            if saw_runtime_parameter {
+                return Err(input.error_here(
+                    "lifetime parameters precede type, const, and machine parameters",
+                ));
+            }
             let after_tick = input.take_punctuation(PunctuationKind::Apostrophe, "'")?;
             let (lifetime_name, next) = after_tick.take_identifier()?;
             if declared_names
@@ -673,6 +679,7 @@ fn parse_type_parameters_in<'tokens, 'source>(
             let (name, input) = input.take_identifier()?;
             (name, TypeParameterKind::Type, input)
         };
+        saw_runtime_parameter = true;
         input = next;
         if declared_names
             .iter()

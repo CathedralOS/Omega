@@ -79,6 +79,7 @@ pub(super) fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), 
                     TypeReferenceNode::Generic {
                         base_name,
                         arguments,
+                        ..
                     } => requirements.push(TraitRequirementInput {
                         name: base_name.as_str().to_string(),
                         arguments: syntax
@@ -415,6 +416,7 @@ fn type_reference_key(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Stri
         TypeReferenceNode::Generic {
             base_name,
             arguments,
+            ..
         } => format!(
             "{}<{}>",
             base_name.as_str(),
@@ -510,6 +512,7 @@ fn substitute_type_reference(
         TypeReferenceNode::Generic {
             base_name,
             arguments,
+            ..
         } => {
             let original = syntax
                 .type_references

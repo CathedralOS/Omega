@@ -603,13 +603,19 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
         }
         TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments,
             arguments,
         } => {
-            let arguments = syntax
-                .type_references
-                .type_reference_handles(*arguments)
+            let arguments = lifetime_arguments
                 .iter()
-                .map(|argument| type_reference_label(syntax, *argument))
+                .map(|lifetime| format!("'{}", lifetime.as_str()))
+                .chain(
+                    syntax
+                        .type_references
+                        .type_reference_handles(*arguments)
+                        .iter()
+                        .map(|argument| type_reference_label(syntax, *argument)),
+                )
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{base_name}<{arguments}>")

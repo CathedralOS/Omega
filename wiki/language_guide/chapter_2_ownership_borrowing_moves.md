@@ -240,11 +240,32 @@ every carried source; a returned aggregate is valid only when all of those
 sources outlive the call, and projecting a named field retains only that
 field's loans. Fixed-array literal positions retain exact ordinals too:
 projecting a constant index keeps only that element's loans, while a dynamic
-index conservatively keeps every candidate element's loans. Explicit lifetime
-arguments on named borrow-carrying data, result contracts relating different
-fields to different input lifetimes, general outlives constraints, and
-non-literal aggregate construction remain implementation work; they are not
-new language-design questions.
+index conservatively keeps every candidate element's loans.
+
+Named borrow-carrying data accepts explicit erased lifetime applications:
+
+```omega
+machine select<'left, 'right>(
+    first: &'left [u8],
+    second: &'right [u8]
+) -> ChatMessage<'left> {
+    let selected: ChatMessage<'left> =
+        ChatMessage { sender_id: 0; body: first };
+    transition {
+        _ -> selected
+    }
+}
+```
+
+Lifetime arguments precede runtime type/const/machine arguments, validate
+against the data declaration's lifetime arity and the lexical owner's declared
+binders, and remain separate from runtime generic arity, layout, and
+monomorphization identity. A call-produced aggregate governed by one explicit
+result lifetime keeps the corresponding input loan active while unrelated
+inputs such as `second` remain independently usable. Result contracts
+relating different fields to different input lifetimes, general outlives
+constraints, and the remaining non-literal aggregate construction forms remain
+implementation work; they are not new language-design questions.
 
 ## Relationship To Drops
 

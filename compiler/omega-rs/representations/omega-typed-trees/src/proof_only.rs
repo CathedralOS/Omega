@@ -87,6 +87,7 @@ impl ProofOnlyClassification {
                 base_symbol,
                 base_name,
                 arguments,
+                ..
             } => {
                 if self.is_proof_only(*base_symbol) {
                     return Some(base_name.clone());
@@ -314,6 +315,7 @@ fn collect_inline_data_edges(
             base_symbol,
             base_name,
             arguments,
+            ..
         } => {
             if let Some(target) = index_by_symbol.get(&base_symbol.arena_index()) {
                 edge(*target, base_name.clone());

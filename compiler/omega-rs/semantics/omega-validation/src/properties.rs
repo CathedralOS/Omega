@@ -288,6 +288,7 @@ impl<'program> CarryDerivation<'program> {
                 base_symbol,
                 base_name,
                 arguments,
+                ..
             } => {
                 let arguments = self
                     .program

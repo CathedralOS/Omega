@@ -245,11 +245,13 @@ fn type_reference_matches(
                 base_symbol: actual_symbol,
                 base_name: actual_name,
                 arguments: actual_arguments,
+                ..
             },
             TypeReferenceNode::Generic {
                 base_symbol: expected_symbol,
                 base_name: expected_name,
                 arguments: expected_arguments,
+                ..
             },
         ) => {
             ((actual_symbol.is_valid() && actual_symbol == expected_symbol)
@@ -452,6 +454,7 @@ fn canonical_type_reference(
             base_symbol,
             base_name,
             arguments,
+            ..
         } => {
             let base = canonical_named_type(*base_symbol, base_name.as_str(), normalizer);
             let arguments = program

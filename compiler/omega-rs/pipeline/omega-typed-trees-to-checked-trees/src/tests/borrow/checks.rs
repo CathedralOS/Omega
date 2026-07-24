@@ -1819,3 +1819,87 @@ fn accepts_view_return_disambiguated_by_explicit_lifetime() {
     check_checked_facts(&typed, &facts)
         .expect("an explicit output lifetime naming one input should compile");
 }
+
+/// A single erased lifetime argument on borrow-carrying data has the same
+/// linking role as a direct reference lifetime. The aggregate result borrows
+/// only `first`, so mutating `second` while it remains live is sound.
+#[test]
+fn accepts_aggregate_return_disambiguated_by_explicit_lifetime_argument() {
+    let source = r#"
+        data View<'buf> {
+            body: &'buf mut i32;
+        }
+
+        machine select<'left, 'right>(
+            first: &'left mut i32,
+            second: &'right mut i32
+        ) -> View<'left> {
+            let selected: View<'left> = View { body: first };
+            transition {
+                _ -> selected
+            }
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'left, 'right>(
+            first: &'left mut i32,
+            second: &'right mut i32
+        ) {
+            let selected: View<'left> = select(first, second);
+            write(second);
+            write(selected.body);
+        }
+    "#;
+
+    check_program(source)
+        .expect("the aggregate lifetime argument should retain only its named source");
+}
+
+/// The same aggregate result keeps its named source loan active at the call
+/// site; mutating that source before the result's last use must reject.
+#[test]
+fn rejects_linked_source_mutation_for_explicit_aggregate_lifetime_argument() {
+    let source = r#"
+        data View<'buf> {
+            body: &'buf mut i32;
+        }
+
+        machine select<'left, 'right>(
+            first: &'left mut i32,
+            second: &'right mut i32
+        ) -> View<'left> {
+            let selected: View<'left> = View { body: first };
+            transition {
+                _ -> selected
+            }
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'left, 'right>(
+            first: &'left mut i32,
+            second: &'right mut i32
+        ) {
+            let selected: View<'left> = select(first, second);
+            write(first);
+            write(selected.body);
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("the aggregate result must retain its named source");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("mutates `first` while local borrow `selected` is still active"),
+        "expected the aggregate result's linked-source conflict, got:\n{combined}"
+    );
+}

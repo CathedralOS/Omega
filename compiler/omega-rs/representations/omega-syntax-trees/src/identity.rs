@@ -647,9 +647,13 @@ fn count_type_reference_handle(
         }
         crate::types::TypeReferenceNode::Generic {
             base_name,
+            lifetime_arguments,
             arguments,
         } => {
             count_identifier(base_name, counts);
+            for lifetime in lifetime_arguments {
+                count_identifier(lifetime, counts);
+            }
             for argument in syntax_trees
                 .type_references
                 .type_reference_handles(*arguments)

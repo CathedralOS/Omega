@@ -1,0 +1,16 @@
+// FAIL canary (lifetimes stage 2): an explicit lifetime argument is resolved
+// in the lexical owner's erased lifetime namespace.
+
+data View<'buf> {
+    body: &'buf i32;
+}
+
+data Bad {
+    view: View<'ghost>;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

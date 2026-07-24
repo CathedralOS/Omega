@@ -1,5 +1,6 @@
 use crate::borrow::view_link::{
-    ViewReturnSource, is_borrow_carrying_data, resolve_view_return_source,
+    ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
+    resolve_view_return_source,
 };
 use crate::context::*;
 use crate::semantic_calls::find_state;
@@ -124,6 +125,40 @@ fn borrow_carrying_data_loans(
     local_data: &omega_checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
+    // A call-produced aggregate has no field initializer expressions to walk.
+    // Its explicit result lifetime still identifies one source argument, so
+    // attach that source to the aggregate as a whole. Field and nested uses
+    // overlap this root path and therefore keep the source loan live.
+    if let omega_checked_trees::expression::ExpressionNode::Call(call) = program
+        .expression_table
+        .expression(local_data.initial_value)
+    {
+        let Some(place) = helper_call_borrow_loan_place(
+            program,
+            state.symbol,
+            statement_index,
+            machine_symbol,
+            call,
+        ) else {
+            return Vec::new();
+        };
+        return rebase_borrow_places_through_local_loans(program, place, loan_trackers)
+            .into_iter()
+            .map(|(place, source_owner_symbol)| StatementBorrowLoan {
+                owner_symbol: local_data.symbol,
+                owner_name: local_data.name.clone(),
+                owner_path: Vec::new(),
+                place,
+                source_owner_symbol,
+                kind: if is_mutably_borrow_carrying_data(program, local_data.type_reference) {
+                    omega_checked_trees::BorrowAccessKind::Mutable
+                } else {
+                    omega_checked_trees::BorrowAccessKind::Read
+                },
+            })
+            .collect();
+    }
+
     let initializers = borrowed_initializers(
         program,
         local_data.type_reference,

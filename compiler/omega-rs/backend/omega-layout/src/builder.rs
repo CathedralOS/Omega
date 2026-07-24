@@ -717,6 +717,7 @@ impl<'program> LayoutBuilder<'program> {
                 base_symbol,
                 base_name,
                 arguments,
+                ..
             } => {
                 if let Some(binding) = binding_for_type(*base_symbol, base_name, bindings) {
                     return self
