@@ -1,0 +1,10 @@
+// FAIL CANARY: a numeric float range is not a bit-pattern set. In particular,
+// it does not account for NaNs, signed zero, infinities, or NaN payloads, so it
+// cannot justify a writable alias even when the other carrier has equal width.
+data Main {
+    value: f32 [0..=1];
+}
+
+machine Main::main(&mut self) {
+    let bits: &mut u32 = &mut self.value as &mut u32;
+}

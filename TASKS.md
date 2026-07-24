@@ -1512,7 +1512,12 @@ stronger operations it needs instead of citing machine parameters generally.
   leaves and `bool`, with native/interpreter execution and x86-64/AArch64 compile
   rails. Raw bytes still cannot acquire record facts through `recast` and remain
   fenced until a validate/materialize mint supplies evidence. Continue general
-  non-record tiling and float/domain representation-set reasoning.
+  non-record tiling and float/domain representation-set reasoning. Top-level
+  array/slice targets first require the cast/recast AST to carry a full type
+  reference rather than its current name-path-only target; the source spelling
+  is already settled (`as &[T]` / `as &[T; N]`), so this is an engineering
+  prerequisite, not an owner decision. Do not encode structural types as
+  generated names to bypass it.
 - **L6a — Extent.** The normalized conservation foundation is live in
   `omega-extents`: admitted one-shot root grants mint nonempty ranges;
   move-split preserves exact geometry; only compatible siblings from one
