@@ -1665,10 +1665,13 @@ stronger operations it needs instead of citing machine parameters generally.
   a one-time imported-table scan must bind the exact canonical plan and mapping
   set before `InstallablePageTable` exists; and installation exposes mappings
   only after one receipt binds the same grant, plan, content, construction
-  evidence, and every exact activation receipt. Target-specific entry writers,
-  imported-table scanners, page-table-control execution/effects, teardown, and
-  further normalized mapping work remain ordinary engineering. Connecting this
-  model to the source-visible opaque Omega `[linear]` carrier, sealed fact
+  evidence, and every exact activation receipt. Removal is now symmetric:
+  installed storage and mappings remain captive until the exact installation
+  is inactive, every open table-retirement fact holds, and every mapping
+  supplies its own valid translation-release receipt. Target-specific entry
+  writers, imported-table scanners, page-table-control execution/effects, and
+  further normalized mapping work remain ordinary engineering. Connecting
+  this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
   `boundary data`; do not substitute a forgeable plain record or a universal

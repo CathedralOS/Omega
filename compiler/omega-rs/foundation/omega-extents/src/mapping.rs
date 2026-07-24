@@ -530,10 +530,10 @@ impl<'source> PendingUnmap<'source> {
         self.mapping.identity
     }
 
-    pub fn complete(
-        self,
-        receipt: TranslationReleaseReceipt,
-    ) -> Result<UnmappedExtents, Box<UnmapCompletionError<'source>>> {
+    pub(crate) fn validate_release_receipt(
+        &self,
+        receipt: &TranslationReleaseReceipt,
+    ) -> Result<(), ExtentDiagnostic> {
         let mismatch = if receipt.mapping != self.mapping.identity {
             Some("translation-release receipt names a different mapping")
         } else if receipt.grant != self.mapping.grant {
@@ -551,11 +551,21 @@ impl<'source> PendingUnmap<'source> {
             None
         };
 
-        if let Some(message) = mismatch {
+        match mismatch {
+            Some(message) => Err(ExtentDiagnostic(message.into())),
+            None => Ok(()),
+        }
+    }
+
+    pub fn complete(
+        self,
+        receipt: TranslationReleaseReceipt,
+    ) -> Result<UnmappedExtents, Box<UnmapCompletionError<'source>>> {
+        if let Err(diagnostic) = self.validate_release_receipt(&receipt) {
             return Err(Box::new(UnmapCompletionError {
                 pending: self,
                 receipt,
-                diagnostic: ExtentDiagnostic(message.into()),
+                diagnostic,
             }));
         }
 

@@ -40,6 +40,23 @@ normalized_id!(
     PageTableInstallationReceiptId,
     "page-table-installation-receipt"
 );
+normalized_id!(PageTableRemovalReceiptId, "page-table-removal-receipt");
+normalized_id!(PageTableRetirementFactId, "page-table-retirement-fact");
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PageTableRetirementObligations(BTreeSet<PageTableRetirementFactId>);
+
+impl PageTableRetirementObligations {
+    pub fn from_normalized_facts(
+        facts: impl IntoIterator<Item = PageTableRetirementFactId>,
+    ) -> Self {
+        Self(facts.into_iter().collect())
+    }
+
+    pub fn facts(&self) -> impl Iterator<Item = PageTableRetirementFactId> + '_ {
+        self.0.iter().copied()
+    }
+}
 
 /// Reusable provider-admitted policy for one page-table construction family.
 ///
@@ -54,6 +71,7 @@ pub struct PageTableGrant {
     mapped_space: AddressSpaceId,
     minimum_storage_bytes: u64,
     storage_alignment: u64,
+    retirement_obligations: PageTableRetirementObligations,
 }
 
 impl PageTableGrant {
@@ -66,6 +84,7 @@ impl PageTableGrant {
         mapped_space: AddressSpaceId,
         minimum_storage_bytes: u64,
         storage_alignment: u64,
+        retirement_obligations: PageTableRetirementObligations,
     ) -> Result<Self, ExtentDiagnostic> {
         if minimum_storage_bytes == 0 {
             return Err(ExtentDiagnostic(
@@ -85,6 +104,7 @@ impl PageTableGrant {
             mapped_space,
             minimum_storage_bytes,
             storage_alignment,
+            retirement_obligations,
         })
     }
 
@@ -359,12 +379,15 @@ impl<'source> InstallablePageTable<'source> {
             mappings.insert(identity, mapping);
         }
 
+        let grant = self.grant.identity;
+        let retirement_obligations = self.grant.retirement_obligations;
         Ok(InstalledPageTable {
             identity: self.identity,
-            grant: self.grant.identity,
+            grant,
             plan: self.plan,
             content: self.content,
             installation_receipt: receipt.identity,
+            retirement_obligations,
             storage: self.storage,
             mappings,
         })
@@ -424,6 +447,7 @@ pub struct InstalledPageTable<'source> {
     plan: PageTablePlanId,
     content: PageTableContentId,
     installation_receipt: PageTableInstallationReceiptId,
+    retirement_obligations: PageTableRetirementObligations,
     storage: Extent,
     mappings: BTreeMap<MappingId, MappedExtent<'source>>,
 }
@@ -459,6 +483,183 @@ impl<'source> InstalledPageTable<'source> {
 
     pub fn mapping_mut(&mut self, identity: MappingId) -> Option<&mut MappedExtent<'source>> {
         self.mappings.get_mut(&identity)
+    }
+
+    pub fn begin_removal(self) -> PendingPageTableRemoval<'source> {
+        PendingPageTableRemoval {
+            identity: self.identity,
+            grant: self.grant,
+            plan: self.plan,
+            content: self.content,
+            installation_receipt: self.installation_receipt,
+            retirement_obligations: self.retirement_obligations,
+            storage: self.storage,
+            mappings: self
+                .mappings
+                .into_iter()
+                .map(|(identity, mapping)| (identity, mapping.begin_unmap()))
+                .collect(),
+        }
+    }
+}
+
+/// Linear state after the page-table provider begins retiring the table.
+///
+/// Storage and every mapping remain captive until the provider proves the
+/// table inactive, discharges target retirement facts, and supplies each
+/// mapping's exact stale-translation release receipt.
+#[derive(Debug)]
+pub struct PendingPageTableRemoval<'source> {
+    identity: PageTableId,
+    grant: PageTableGrantId,
+    plan: PageTablePlanId,
+    content: PageTableContentId,
+    installation_receipt: PageTableInstallationReceiptId,
+    retirement_obligations: PageTableRetirementObligations,
+    storage: Extent,
+    mappings: BTreeMap<MappingId, PendingUnmap<'source>>,
+}
+
+impl<'source> PendingPageTableRemoval<'source> {
+    pub const fn identity(&self) -> PageTableId {
+        self.identity
+    }
+
+    pub fn complete(
+        self,
+        mut receipt: PageTableRemovalReceipt,
+    ) -> Result<RemovedPageTable, Box<PageTableRemovalError<'source>>> {
+        let expected = self.mappings.keys().copied().collect::<BTreeSet<_>>();
+        let actual = receipt.releases.keys().copied().collect::<BTreeSet<_>>();
+        let mismatch = if receipt.table != self.identity {
+            Some("page-table removal receipt names a different table".into())
+        } else if receipt.grant != self.grant {
+            Some("page-table removal receipt names a different grant".into())
+        } else if receipt.plan != self.plan {
+            Some("page-table removal receipt names a different normalized plan".into())
+        } else if receipt.content != self.content {
+            Some("page-table removal receipt names different table content".into())
+        } else if receipt.installation_receipt != self.installation_receipt {
+            Some("page-table removal receipt names a different installation".into())
+        } else if !receipt.inactive {
+            Some("page-table removal receipt does not establish an inactive table".into())
+        } else if !self
+            .retirement_obligations
+            .0
+            .is_subset(&receipt.established_facts)
+        {
+            Some("page-table removal receipt lacks required retirement facts".into())
+        } else if expected != actual {
+            Some("page-table removal receipt does not cover the exact mapping set".into())
+        } else {
+            self.mappings.iter().find_map(|(identity, pending)| {
+                pending
+                    .validate_release_receipt(
+                        receipt
+                            .releases
+                            .get(identity)
+                            .expect("exact key sets were validated"),
+                    )
+                    .err()
+                    .map(|diagnostic| diagnostic.0)
+            })
+        };
+
+        if let Some(message) = mismatch {
+            return Err(Box::new(PageTableRemovalError {
+                pending: self,
+                receipt,
+                diagnostic: ExtentDiagnostic(message),
+            }));
+        }
+
+        let mut mappings = BTreeMap::new();
+        for (identity, pending) in self.mappings {
+            let release = receipt
+                .releases
+                .remove(&identity)
+                .expect("exact key sets were validated");
+            let extents = pending
+                .complete(release)
+                .expect("translation release receipts were prevalidated");
+            mappings.insert(identity, extents);
+        }
+        Ok(RemovedPageTable {
+            table: self.identity,
+            removal_receipt: receipt.identity,
+            storage: self.storage,
+            mappings,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct PageTableRemovalReceipt {
+    identity: PageTableRemovalReceiptId,
+    table: PageTableId,
+    grant: PageTableGrantId,
+    plan: PageTablePlanId,
+    content: PageTableContentId,
+    installation_receipt: PageTableInstallationReceiptId,
+    inactive: bool,
+    established_facts: BTreeSet<PageTableRetirementFactId>,
+    releases: BTreeMap<MappingId, TranslationReleaseReceipt>,
+}
+
+impl PageTableRemovalReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_admitted_provider(
+        identity: PageTableRemovalReceiptId,
+        table: PageTableId,
+        grant: PageTableGrantId,
+        plan: PageTablePlanId,
+        content: PageTableContentId,
+        installation_receipt: PageTableInstallationReceiptId,
+        inactive: bool,
+        established_facts: impl IntoIterator<Item = PageTableRetirementFactId>,
+        releases: impl IntoIterator<Item = (MappingId, TranslationReleaseReceipt)>,
+    ) -> Result<Self, ExtentDiagnostic> {
+        let mut normalized = BTreeMap::new();
+        for (mapping, receipt) in releases {
+            if normalized.insert(mapping, receipt).is_some() {
+                return Err(ExtentDiagnostic(
+                    "page-table removal receipt repeats a mapping".into(),
+                ));
+            }
+        }
+        Ok(Self {
+            identity,
+            table,
+            grant,
+            plan,
+            content,
+            installation_receipt,
+            inactive,
+            established_facts: established_facts.into_iter().collect(),
+            releases: normalized,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct RemovedPageTable {
+    table: PageTableId,
+    removal_receipt: PageTableRemovalReceiptId,
+    storage: Extent,
+    mappings: BTreeMap<MappingId, UnmappedExtents>,
+}
+
+impl RemovedPageTable {
+    pub const fn table(&self) -> PageTableId {
+        self.table
+    }
+
+    pub const fn removal_receipt(&self) -> PageTableRemovalReceiptId {
+        self.removal_receipt
+    }
+
+    pub fn into_parts(self) -> (Extent, BTreeMap<MappingId, UnmappedExtents>) {
+        (self.storage, self.mappings)
     }
 }
 
@@ -525,6 +726,23 @@ impl<'source> PageTableInstallError<'source> {
 
     pub fn into_parts(self) -> (InstallablePageTable<'source>, PageTableInstallationReceipt) {
         (self.table, self.receipt)
+    }
+}
+
+#[derive(Debug)]
+pub struct PageTableRemovalError<'source> {
+    pending: PendingPageTableRemoval<'source>,
+    receipt: PageTableRemovalReceipt,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl<'source> PageTableRemovalError<'source> {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (PendingPageTableRemoval<'source>, PageTableRemovalReceipt) {
+        (self.pending, self.receipt)
     }
 }
 
@@ -626,6 +844,10 @@ mod tests {
             id(20, AddressSpaceId::from_normalized_identity),
             4096,
             4096,
+            PageTableRetirementObligations::from_normalized_facts([id(
+                90,
+                PageTableRetirementFactId::from_normalized_identity,
+            )]),
         )
         .expect("page-table grant")
     }
@@ -645,7 +867,10 @@ mod tests {
                 25,
                 TranslationActivationFactId::from_normalized_identity,
             )]),
-            TranslationReleaseObligations::default(),
+            TranslationReleaseObligations::from_normalized_facts([id(
+                26,
+                TranslationCompletionFactId::from_normalized_identity,
+            )]),
         )
     }
 
@@ -667,6 +892,18 @@ mod tests {
             [id(
                 25,
                 TranslationActivationFactId::from_normalized_identity,
+            )],
+        )
+    }
+
+    fn release(identity: u64) -> TranslationReleaseReceipt {
+        TranslationReleaseReceipt::from_admitted_provider(
+            id(identity, MappingId::from_normalized_identity),
+            id(40, MappingGrantId::from_normalized_identity),
+            true,
+            [id(
+                26,
+                TranslationCompletionFactId::from_normalized_identity,
             )],
         )
     }
@@ -867,5 +1104,100 @@ mod tests {
             .add_mapping(pending)
             .expect("borrowed mapping belongs to the draft");
         assert_ne!(draft.plan_identity().normalized_identity(), 0);
+    }
+
+    #[test]
+    fn installed_table_releases_authority_only_after_exact_retirement() {
+        let mut draft = draft();
+        draft
+            .add_mapping(pending_mapping(51, 0x8000))
+            .expect("mapping");
+        let construction = construction_receipt(&draft, true);
+        let installable = draft.finish(construction).expect("installable");
+        let installation = installation_receipt(
+            &installable,
+            true,
+            [(id(51, MappingId::from_normalized_identity), activation(51))],
+        );
+        let installed = installable.install(installation).expect("installed");
+        let pending = installed.begin_removal();
+
+        let receipt = PageTableRemovalReceipt::from_admitted_provider(
+            id(80, PageTableRemovalReceiptId::from_normalized_identity),
+            pending.identity,
+            pending.grant,
+            pending.plan,
+            pending.content,
+            pending.installation_receipt,
+            false,
+            [id(90, PageTableRetirementFactId::from_normalized_identity)],
+            [(id(51, MappingId::from_normalized_identity), release(51))],
+        )
+        .expect("inactive-negative receipt");
+        let error = pending
+            .complete(receipt)
+            .expect_err("a live table retains every authority");
+        assert!(error.diagnostic().0.contains("inactive table"));
+        let (pending, _) = (*error).into_parts();
+
+        let receipt = PageTableRemovalReceipt::from_admitted_provider(
+            id(80, PageTableRemovalReceiptId::from_normalized_identity),
+            pending.identity,
+            pending.grant,
+            pending.plan,
+            pending.content,
+            pending.installation_receipt,
+            true,
+            [],
+            [(id(51, MappingId::from_normalized_identity), release(51))],
+        )
+        .expect("missing-fact receipt");
+        let error = pending
+            .complete(receipt)
+            .expect_err("retirement facts are mandatory");
+        assert!(error.diagnostic().0.contains("retirement facts"));
+        let (pending, _) = (*error).into_parts();
+
+        let receipt = PageTableRemovalReceipt::from_admitted_provider(
+            id(80, PageTableRemovalReceiptId::from_normalized_identity),
+            pending.identity,
+            pending.grant,
+            pending.plan,
+            pending.content,
+            pending.installation_receipt,
+            true,
+            [id(90, PageTableRetirementFactId::from_normalized_identity)],
+            [],
+        )
+        .expect("missing-release receipt");
+        let error = pending
+            .complete(receipt)
+            .expect_err("every mapping needs a release receipt");
+        assert!(error.diagnostic().0.contains("exact mapping set"));
+        let (pending, _) = (*error).into_parts();
+
+        let receipt = PageTableRemovalReceipt::from_admitted_provider(
+            id(80, PageTableRemovalReceiptId::from_normalized_identity),
+            pending.identity,
+            pending.grant,
+            pending.plan,
+            pending.content,
+            pending.installation_receipt,
+            true,
+            [id(90, PageTableRetirementFactId::from_normalized_identity)],
+            [(id(51, MappingId::from_normalized_identity), release(51))],
+        )
+        .expect("exact removal receipt");
+        let removed = pending.complete(receipt).expect("removed table");
+        let (storage, mappings) = removed.into_parts();
+        assert_eq!(storage.base(), 0x4000);
+        let (destination, source) = mappings
+            .into_iter()
+            .next()
+            .expect("released mapping")
+            .1
+            .into_parts();
+        assert_eq!(destination.base(), 0x8000);
+        assert!(source.is_some());
     }
 }

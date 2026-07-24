@@ -307,8 +307,18 @@ receipt and content, establish the table active, and supply the exact activation
 receipt for every pending mapping. Only then do `MappedExtent` values expose
 loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,
 or a receipt for another table cannot mint active address authority. Target
-entry writers/scanners, page-table-control operations, teardown receipts, and
-source-visible opaque carriers remain implementation work over this lifecycle.
+entry writers/scanners, page-table-control operations, and source-visible opaque
+carriers remain implementation work over this lifecycle.
+
+Retirement closes the conservation loop. Beginning removal captures table
+storage and starts unmapping every active mapping. Nothing is returned until one
+exact receipt binds the installed table, plan, content, and installation
+receipt; establishes that the table is inactive; discharges the grant's open
+retirement facts (including target all-core/quiescence facts); and supplies
+each mapping's exact translation-release receipt. A failed or partial removal
+returns the pending state unchanged. Successful removal returns table storage,
+each destination range, and every owned physical source together, so no
+authority is leaked or recreated by teardown.
 
 Shared-memory IPC and MMIO share external mutability, not an observation model.
 For proved or mutually trusted peers, an atomic protocol may return a linear
