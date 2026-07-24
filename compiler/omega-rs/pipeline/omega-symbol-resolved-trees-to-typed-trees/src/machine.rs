@@ -33,7 +33,6 @@ pub(crate) fn lower_machine(
         type_parameters: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
-        terminates: machine.terminates,
         decreases: omega_core::arena::HandleSpan::empty(),
         decrease_order: omega_core::arena::HandleSpan::empty(),
         decrease_view_arguments: omega_core::arena::HandleSpan::empty(),

@@ -299,7 +299,7 @@ pub struct MachineSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
-    pub terminates: bool,
+    pub termination: TerminationInterfaceSnapshot,
     pub decreases: Vec<ExpressionSnapshot>,
     pub decrease_order: Vec<String>,
     pub effects: Vec<String>,
@@ -309,6 +309,22 @@ pub struct MachineSnapshot {
     pub contracts: Vec<SignatureContractSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "interface", rename_all = "snake_case")]
+pub enum TerminationInterfaceSnapshot {
+    InternalDerived,
+    Published {
+        guarantee: TerminationGuaranteeSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TerminationGuaranteeSnapshot {
+    NoGuarantee,
+    EventualTerminal { premises: Vec<u32> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -677,7 +693,7 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        terminates: machine.terminates,
+        termination: termination_interface_snapshot(&machine.termination_plan.interface),
         decreases: program
             .tables
             .bodies
@@ -715,6 +731,27 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .map(|state| program.machine_state(*state))
             .map(|state| state_snapshot(program, state))
             .collect(),
+    }
+}
+
+fn termination_interface_snapshot(
+    interface: &omega_core::semantics::TerminationInterface,
+) -> TerminationInterfaceSnapshot {
+    use omega_core::semantics::{TerminationGuarantee, TerminationInterface};
+    match interface {
+        TerminationInterface::InternalDerived => TerminationInterfaceSnapshot::InternalDerived,
+        TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => {
+            TerminationInterfaceSnapshot::Published {
+                guarantee: TerminationGuaranteeSnapshot::NoGuarantee,
+            }
+        }
+        TerminationInterface::Published(TerminationGuarantee::EventualTerminal { premises }) => {
+            TerminationInterfaceSnapshot::Published {
+                guarantee: TerminationGuaranteeSnapshot::EventualTerminal {
+                    premises: premises.iter().map(|premise| premise.0).collect(),
+                },
+            }
+        }
     }
 }
 

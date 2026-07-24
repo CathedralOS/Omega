@@ -25,10 +25,9 @@ pub struct Machine {
     /// -> published guarantee; `terminates by ...` -> witness subjects +
     /// explicit view, canonical defaults elaborated where the root-state
     /// parameter type determines them), copied -- never re-derived --
-    /// downstream. `checked_summary` stays `NoGuarantee` until TPR3's
-    /// migrated cycle checker establishes it. `terminates`/`decreases`/
-    /// `decrease_order` in the storage below remain the compatibility
-    /// shape the current checker consumes until TPR3/TPR6 retire them.
+    /// downstream. `checked_summary` stays `NoGuarantee` until the cycle
+    /// checker establishes it. Ranking subjects remain private witness
+    /// material in the storage below.
     pub termination_plan: omega_core::semantics::MachineTerminationPlan,
     /// EFX: normalized boundary-service row, populated after symbol
     /// assignment. Every member is a resolved boundary trait identity.
@@ -42,7 +41,6 @@ pub struct MachineStorage {
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub terminates: bool,
     pub decreases: HandleSpan<ExpressionHandle>,
     pub decrease_order: HandleSpan<DiagnosticName>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).

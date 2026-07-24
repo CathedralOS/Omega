@@ -1139,6 +1139,12 @@ stronger operations it needs instead of citing machine parameters generally.
 - **STR — semantic carrier cleanup.** Finish termination-plan integration,
   validation/resolution from normalized domain/machine/permission plans,
   lowering only from checked selections, and deletion of compatibility bools.
+  Resolved and typed machines now carry no duplicate `terminates` boolean:
+  `MachineTerminationPlan` is the sole downstream public-interface carrier,
+  and their snapshots serialize that structured interface and guarantee.
+  Static-machine refinement therefore accepts only an explicit
+  `Published(EventualTerminal)` promise; a private ranking witness cannot
+  masquerade as a public termination contract.
 - **EFX — split service reach, suspension, and blocking.** Make `effects` a
   symbol-resolved row of boundary-service reach only. Add independent
   `suspends;` and `blocks;` public may-clauses; omission on a requirement or
@@ -1233,9 +1239,11 @@ stronger operations it needs instead of citing machine parameters generally.
   omission on requirements/exports/providers is therefore explicit, satisfying
   implementations inherit that exact default, the distinction enters
   `MachineContractPlan` identity, and `04_machine_contract_manifest.json`
-  serializes it without exposing private ranking witnesses. Continue with
-  sealed profile domains, grant-backed admission and receipts, and pinned
-  progress premises. Profiles are never flow-inferred ranking evidence.
+  serializes it without exposing private ranking witnesses. Resolved and typed
+  compatibility booleans are retired, including static-machine selection and
+  snapshot consumers. Continue with sealed profile domains, grant-backed
+  admission and receipts, and pinned progress premises. Profiles are never
+  flow-inferred ranking evidence.
 - **GR6 — remaining trust consumers.** Finish qualification authority,
   ProgressProfile minting/premises, and MachineContractPlan permission/provider
   admission through the existing grant/receipt carrier.

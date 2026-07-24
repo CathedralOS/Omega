@@ -66,7 +66,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_facets() {
 /// `terminates`/`decreases`/`decrease_order` compatibility shape remains the
 /// checker's input until TPR3 migrates it onto the plan (TPR6 retires it).
 #[test]
-fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
+fn machine_record_carries_one_public_termination_interface() {
     fn witness(machine: Machine) {
         let Machine {
             symbol: _,
@@ -87,8 +87,10 @@ fn machine_record_carries_the_termination_plan_beside_the_compat_bools() {
             type_parameters: _,
             owned_data: _,
             satisfies: _,
-            terminates: _, // compatibility: the checker's input until TPR3
-            decreases: _,  // compatibility witness material until TPR3
+            // The normalized plan above is the sole downstream carrier for
+            // the public termination interface. These fields are private
+            // witness material only.
+            decreases: _,
             decrease_order: _,
             decrease_view_arguments: _, // TPR3: argumented-view arguments
             decrease_range: _,          // TPR3: the rank-range constraint

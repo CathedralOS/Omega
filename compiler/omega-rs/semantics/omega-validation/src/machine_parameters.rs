@@ -284,7 +284,12 @@ fn validate_callable_shape(
         actual_services,
         actual_may_suspend,
         actual_may_block,
-        actual_machine.terminates,
+        matches!(
+            &actual_machine.termination_plan.interface,
+            omega_core::semantics::TerminationInterface::Published(
+                omega_core::semantics::TerminationGuarantee::EventualTerminal { .. }
+            )
+        ),
         program.machine_contracts(actual_machine),
         generic_types,
         bindings,
