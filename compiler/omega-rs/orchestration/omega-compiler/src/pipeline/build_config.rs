@@ -119,60 +119,75 @@ pub(crate) fn compute_build_config(
     }
     let machine_name = machine.name.as_str();
 
-    // The effect gate (owner answers, OWNER_QUESTIONS #4/#5, 2026-07-11i):
-    // `build` MAY reach `filesystem_io` (staging assets is the point) and
-    // console output (`stdout_io`/`stderr_io` -- "harmless and everyone
-    // wants it") -- as DECLARED effects on the build machine itself,
-    // forbidden anywhere else by the ordinary effect system. Anything
-    // outside that set still refuses; a row-less boundary trait surfaces
-    // as `host_boundary`, so the message points at declaring rows.
+    // The build gate admits exactly the pinned standard staging slots from
+    // build_and_package_model.md: FilesystemHost and Console. These are
+    // canonical boundary-service identities, never lowercase compatibility
+    // categories. Custom boundary wrappers are distinct services and refuse
+    // unless the build contract is deliberately extended.
     let effect_plan = omega_effects::infer_effects(typed);
-    let transitive = effect_plan
-        .machines()
+    let service_plan = omega_effects::infer_service_reaches(typed, &effect_plan);
+    let transitive = service_plan
+        .for_machine(machine.symbol)
+        .map(|entry| service_plan.services(entry.inferred_transitive))
+        .unwrap_or(&[]);
+    let transitive_names = transitive
         .iter()
-        .find(|entry| entry.symbol == machine.symbol)
-        .map(|entry| entry.transitive)
-        .unwrap_or_else(omega_effects::EffectSet::empty);
+        .map(|service| {
+            typed
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>")
+        })
+        .collect::<Vec<_>>();
     if std::env::var_os("OMEGA_DEBUG_BUILD_CONFIG").is_some() {
         eprintln!(
-            "BUILDCFG: machine `{}` found, transitive effects [{}]",
+            "BUILDCFG: machine `{}` found, inferred transitive service reach [{}]",
             machine.name.as_str(),
-            transitive.names().collect::<Vec<_>>().join(", "),
+            transitive_names.join(", "),
         );
     }
-    const ALLOWED_BUILD_EFFECTS: &[&str] = &["filesystem_io", "stdout_io", "stderr_io"];
-    let disallowed: Vec<&str> = transitive
-        .names()
-        .filter(|name| !ALLOWED_BUILD_EFFECTS.contains(name))
+    const ALLOWED_BUILD_SERVICES: &[&str] = &["FilesystemHost", "Console"];
+    let disallowed: Vec<&str> = transitive_names
+        .iter()
+        .copied()
+        .filter(|name| !ALLOWED_BUILD_SERVICES.contains(name))
         .collect();
     if !disallowed.is_empty() {
-        let boundary_hint = if disallowed.contains(&"host_boundary") {
-            " (a boundary trait without declared effect rows surfaces as \
-             `host_boundary`; declare rows -- e.g. `effects stdout_io;` on a \
-             console method -- so the gate can tell what the call does)"
-        } else {
-            ""
-        };
         return Err(vec![Diagnostic::error(format!(
-            "`{machine_name}` reaches effects `{}` -- build.omg may declare only \
-             `{}`{boundary_hint}",
+            "`{machine_name}` reaches boundary service{} `{}` -- build.omg may reach only \
+             the pinned staging service{} `{}`",
+            if disallowed.len() == 1 { "" } else { "s" },
             disallowed.join(", "),
-            ALLOWED_BUILD_EFFECTS.join("`, `"),
+            if ALLOWED_BUILD_SERVICES.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+            ALLOWED_BUILD_SERVICES.join("`, `"),
         ))]);
     }
-    // The allowed effects must be DECLARED on the build machine (the owner's
-    // "declared effect on the main func within build" -- reaching the
-    // filesystem silently is refused even though it would be allowed).
-    let declared = typed.machine_effects(machine);
+    // Allowed services must still be authored on the build machine's stable
+    // public ceiling; inferred reach cannot silently expand staging authority.
+    let declared = typed.service_reach_rows.services(machine.service_reach_row);
     let undeclared: Vec<&str> = transitive
-        .names()
-        .filter(|name| !declared.iter().any(|effect| effect.as_str() == *name))
+        .iter()
+        .filter(|service| !declared.contains(service))
+        .map(|service| {
+            typed
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>")
+        })
         .collect();
     if !undeclared.is_empty() {
         return Err(vec![Diagnostic::error(format!(
-            "`{machine_name}` reaches effects `{}` without declaring them; add \
-             `effects {}` to the build machine's signature",
+            "`{machine_name}` reaches boundary service{} `{}` without declaring {} in its \
+             service ceiling; add `effects {}` to the build machine's signature",
+            if undeclared.len() == 1 { "" } else { "s" },
             undeclared.join(", "),
+            if undeclared.len() == 1 { "it" } else { "them" },
             undeclared.join(", "),
         ))]);
     }
@@ -191,10 +206,9 @@ pub(crate) fn compute_build_config(
         ],
     };
 
-    // Effect-free builds keep the pure engine; a declared-filesystem build
-    // runs the GRANTED entry (real filesystem, unscoped -- the owner
-    // explicitly de-scoped permission ceremony: "I don't think we give a
-    // shit about permissions at this point").
+    // Service-free builds keep the pure engine; an admitted staging-service
+    // build runs the granted entry (real filesystem, unscoped under the
+    // current owner policy).
     let mut arguments = if transitive.is_empty() {
         omega_interpreter::evaluate_build_time_machine_arguments(
             typed,

@@ -5,7 +5,6 @@ mod contracts;
 mod multiplicity;
 mod operators;
 mod ranges;
-mod service_reaches;
 pub(crate) mod termination;
 
 use omega_core::diagnostics::Diagnostic;
@@ -59,12 +58,6 @@ pub(crate) fn check_checked_facts_recording(
 
     if let Err(mut termination_diagnostics) = termination::check_machine_termination(program) {
         diagnostics.append(&mut termination_diagnostics);
-    }
-
-    if let Err(mut service_diagnostics) =
-        service_reaches::check_service_reach_ceilings(program, facts)
-    {
-        diagnostics.append(&mut service_diagnostics);
     }
 
     if let Err(mut host_call_diagnostics) =

@@ -1162,12 +1162,19 @@ stronger operations it needs instead of citing machine parameters generally.
   approval is now exact to the reached capability symbol, capability-flow
   acquisition derives from normalized call topology, primitive providers carry
   a categorical host-authority requirement, and boundary reports no longer
-  render service names as authority. Remaining EFX work is to migrate legacy
-  validation/build-policy consumers and lowercase fixtures, eliminate the
-  remaining compatibility projection, and then delete the global
-  service-name/u64 engine entirely. The direct-call
-  acknowledgement keyword is a separate owner decision and must consume the
-  normalized suspension/blocking plans rather than source-token presence.
+  render service names as authority. Static-machine refinement now compares
+  exact normalized service rows, and checked trees own grouped
+  `ServiceReachFacts` directly: the duplicate `EffectRowFacts` projection and
+  legacy effect-row inputs/artifact field in machine-contract identity are
+  deleted. Remaining EFX work is to migrate the legacy general
+  validation/build-policy consumers and lowercase fixtures, remove the
+  resolved/typed compatibility rows, and then delete the global
+  service-name/u64 engine entirely. Build-script admission now recognizes only
+  the pinned canonical `FilesystemHost` and `Console` staging services; custom
+  boundary wrappers cannot launder admission through a lowercase category.
+  The direct-call acknowledgement keyword is a separate owner decision and
+  must consume the normalized suspension/blocking plans rather than
+  source-token presence.
 - **TPR4/TPR6 — publication and progress profiles.** Serialize public
   termination omission/default rules in artifacts. Resolve sealed profile
   domains, grant-backed admission and receipts, and pinned progress premises.

@@ -41,23 +41,15 @@ pub(crate) fn build_check_facts(
     // from the same pure functions the termination CHECK uses -- facts and
     // diagnostics cannot disagree).
     let termination = crate::checks::termination::build_termination_facts(program);
-    // STR4 slice 2: kinded effect rows (published ceiling vs inferred).
-    let mut effect_rows = build_effect_row_facts(program, &effects);
     // EFX: the durable service-reach fixed point is built independently from
-    // resolved boundary-trait identities. The legacy effect rows remain only
-    // for consumers not yet migrated.
+    // resolved boundary-trait identities and stored as a first-class checked
+    // root with grouped machine/state/call arenas.
     let service_reaches = build_service_reach_facts(program, service_reach_inference);
-    effect_rows.service_reaches = service_reaches;
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(
-        program,
-        &effect_rows,
-        &effect_rows.service_reaches,
-        &effects,
-    );
+    let contract_plans = build_contract_plans(program, &service_reaches, &effects);
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = build_carry_facts(program);
@@ -74,7 +66,7 @@ pub(crate) fn build_check_facts(
         capabilities,
         flow,
         termination,
-        effect_rows,
+        service_reaches,
         qualifications,
         contract_plans,
         carry,
@@ -100,21 +92,18 @@ fn build_carry_facts(program: &TypedTrees) -> omega_checked_trees::CarryFacts {
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's
 /// normalized contract plan from the published halves already carried on
-/// the records (supply mode, effect-row ceiling, published termination),
+/// the records (supply mode, service/operational ceilings, published termination),
 /// with a deterministic fingerprint over them. Only DECLARED material
 /// enters -- acceptance 8 (a stronger prover cannot change an exported
 /// contract ID) holds by construction.
 fn build_contract_plans(
     program: &TypedTrees,
-    effect_rows: &omega_checked_trees::EffectRowFacts,
     service_reaches: &omega_checked_trees::ServiceReachFacts,
     effects: &EffectPlan,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let frame_resolver = omega_validation::CallFrameResolver::new(program);
     for machine in program.machines() {
-        let published_effect_row = machine.effect_row;
-        let members = effect_rows.rows.members(published_effect_row).to_vec();
         let service_fact = service_reaches.for_machine(machine.symbol);
         let published_service_row = machine.service_reach_row;
         let published_service_names = service_reaches
@@ -312,8 +301,6 @@ fn build_contract_plans(
         };
         let fingerprint = omega_checked_trees::contract_fingerprint(
             machine.supply_mode,
-            published_effect_row,
-            &members,
             &published_service_names,
             suspension.interface,
             blocking.interface,
@@ -335,7 +322,6 @@ fn build_contract_plans(
         machines.push(omega_checked_trees::MachineContractPlan {
             machine: machine.symbol,
             supply_mode: machine.supply_mode,
-            published_effect_row,
             service_reach,
             suspension,
             blocking,
@@ -534,55 +520,6 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
         }
     }
     omega_checked_trees::QualificationFacts { machines }
-}
-
-/// STR4 slice 2 (decision 22): build the kinded effect-row facts. The
-/// typed trees' interner extends (prefix-stable, so machine `effect_row`
-/// ids stay valid) with rows for the checker-INFERRED direct/transitive
-/// summaries. The bit->member hop goes through the CANONICAL NAME, never
-/// the bit value; the omega-effects consistency pin holds the
-/// correspondence.
-fn build_effect_row_facts(
-    program: &TypedTrees,
-    effects: &EffectPlan,
-) -> omega_checked_trees::EffectRowFacts {
-    let mut rows = program.effect_rows.clone();
-    let mut intern_set = |set: omega_effects::EffectSet| {
-        let members: Vec<omega_core::semantics::EffectMemberId> = set
-            .names()
-            .filter(|name| {
-                omega_core::semantics::effect_member_kind(name)
-                    == Some(omega_core::semantics::EffectMemberKind::ServiceReach)
-            })
-            .filter_map(omega_core::semantics::effect_member_id)
-            .collect();
-        rows.intern(members)
-    };
-    let mut machines = Vec::new();
-    for machine_effects in effects.machines() {
-        // STR4 slice 3 + seed rework: the honest declaration-free
-        // summaries (the authored clause lives in published_ceiling; the
-        // inferred rows carry only what the body observes and reaches).
-        let inferred_direct = intern_set(machine_effects.body_observed);
-        let inferred_transitive = intern_set(machine_effects.body_transitive);
-        let published_ceiling = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_effects.symbol)
-            .map(|machine| machine.effect_row)
-            .unwrap_or(omega_core::semantics::EffectRowId::NULL);
-        machines.push(omega_checked_trees::MachineEffectRows {
-            machine: machine_effects.symbol,
-            published_ceiling,
-            inferred_direct,
-            inferred_transitive,
-        });
-    }
-    omega_checked_trees::EffectRowFacts {
-        rows,
-        machines,
-        service_reaches: Default::default(),
-    }
 }
 
 /// Build the boundary-symbol service fixed point without consulting the

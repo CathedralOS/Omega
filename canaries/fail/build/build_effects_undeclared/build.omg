@@ -1,6 +1,6 @@
-// FAIL CANARY -- build.omg reaching the filesystem WITHOUT declaring it
-// (owner answers #4/#5, gated 2026-07-11j): the effects are allowed for a
-// build machine but must be DECLARED on its signature.
+// FAIL CANARY -- build.omg reaching FilesystemHost WITHOUT declaring that
+// canonical service in its public ceiling. The staging service is allowed,
+// but inferred reach may not silently widen the build contract.
 use omega::language::std::filesystem_host;
 
 data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }

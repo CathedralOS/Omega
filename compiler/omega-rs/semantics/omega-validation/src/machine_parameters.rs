@@ -2,8 +2,9 @@
 //!
 //! Static selections are checked at the generic call edge. The selected
 //! machine must be concrete, match the authored callable shape, stay within
-//! the required effect ceiling, and conservatively refine conjunctive
-//! requires/ensures facts. This pass never invents a callback contract.
+//! the required service and operational ceilings, and conservatively refine
+//! conjunctive requires/ensures facts. This pass never invents a callback
+//! contract.
 
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -216,7 +217,6 @@ fn validate_selected_callable_shape(
             program.state_signature_type_parameters(actual_signature),
             program.state_signature_parameters(actual_signature),
             actual_signature.return_type,
-            signature_effect_set(program, actual_signature),
             program
                 .service_reach_rows
                 .services(actual_signature.service_reach_row),
@@ -259,9 +259,6 @@ fn validate_callable_shape(
         .machines()
         .iter()
         .find(|summary| summary.symbol == actual_machine.symbol);
-    let actual_effects = inferred
-        .map(|summary| summary.transitive)
-        .unwrap_or_else(|| machine_effect_set(program, actual_machine));
     let actual_services = service_reaches
         .for_machine(actual_machine.symbol)
         .map(|summary| service_reaches.services(summary.effective))
@@ -284,7 +281,6 @@ fn validate_callable_shape(
         program.machine_type_parameters(actual_machine),
         program.state_parameters(actual_state),
         actual_state.return_type,
-        actual_effects,
         actual_services,
         actual_may_suspend,
         actual_may_block,
@@ -306,7 +302,6 @@ fn validate_callable_parts(
     actual_type_parameters: &[TypeParameter],
     actual_parameters: &[StateParameter],
     actual_return_type: TypeReferenceHandle,
-    actual_effects: omega_effects::EffectSet,
     actual_services: &[omega_core::semantics::ServiceReachId],
     actual_may_suspend: bool,
     actual_may_block: bool,
@@ -387,18 +382,6 @@ fn validate_callable_parts(
             program.display_type_reference(requirement.return_type),
             program.display_type_reference(actual_return_type)
         )));
-    }
-
-    let allowed_effects = signature_effect_set(program, requirement);
-    for effect in actual_effects.names() {
-        let effect_set = omega_effects::EffectSet::from_name(effect)
-            .expect("an inferred service effect is part of the legacy service catalog");
-        if !allowed_effects.contains_all(effect_set) {
-            diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: effect `{effect}` exceeds its authored ceiling",
-                parameter.name
-            )));
-        }
     }
 
     let allowed_services = program
@@ -540,7 +523,6 @@ fn validate_callable_type_parameters(
                     program.state_signature_type_parameters(actual_contract),
                     program.state_signature_parameters(actual_contract),
                     actual_contract.return_type,
-                    signature_effect_set(program, actual_contract),
                     program
                         .service_reach_rows
                         .services(actual_contract.service_reach_row),
@@ -591,25 +573,6 @@ pub(crate) fn validate_data_machine_selection(
         &mut Vec::new(),
         diagnostics,
     );
-}
-
-fn machine_effect_set(program: &TypedTrees, machine: &Machine) -> omega_effects::EffectSet {
-    let mut effects = omega_effects::EffectSet::empty();
-    for effect in program.machine_effects(machine) {
-        effects.insert_name(effect.as_str());
-    }
-    effects
-}
-
-fn signature_effect_set(
-    program: &TypedTrees,
-    signature: &omega_typed_trees::signature::StateSignature,
-) -> omega_effects::EffectSet {
-    let mut effects = omega_effects::EffectSet::empty();
-    for effect in program.state_signature_effects(signature) {
-        effects.insert_name(effect.as_str());
-    }
-    effects
 }
 
 #[derive(Clone, Copy)]

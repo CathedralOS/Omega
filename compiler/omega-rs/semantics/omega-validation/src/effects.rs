@@ -1,7 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::StatementNode;
 
 pub fn validate_effect_plan(
@@ -13,6 +12,7 @@ pub fn validate_effect_plan(
 
     validate_pure_discards(program, effect_plan, &service_reaches, &mut diagnostics);
     validate_asm_intrinsic_declarations(program, effect_plan, &service_reaches, &mut diagnostics);
+    validate_service_reach_ceilings(program, &service_reaches, &mut diagnostics);
 
     for machine_effects in effect_plan.machines() {
         let Some(machine) = program
@@ -22,26 +22,6 @@ pub fn validate_effect_plan(
         else {
             continue;
         };
-
-        let declared_effects = declared_machine_effect_set(program, machine);
-        let reached_effects = machine_effects.transitive;
-        if !declared_effects.is_empty() && !declared_effects.contains_all(reached_effects) {
-            let missing = reached_effects.difference(declared_effects);
-            let mut message = format!(
-                "machine `{}` declares effects `{}` but reaches undeclared effects `{}`",
-                machine.name,
-                format_effect_set(declared_effects),
-                format_effect_set(missing)
-            );
-            append_effect_paths(
-                program,
-                effect_plan,
-                machine_effects.symbol,
-                missing,
-                &mut message,
-            );
-            diagnostics.push(Diagnostic::error(message));
-        }
 
         // Requirements, boundaries, accepted contracts, and external
         // realizations publish closed operational ceilings. Omission is an
@@ -66,6 +46,74 @@ pub fn validate_effect_plan(
     }
 
     crate::finish_diagnostics(diagnostics)
+}
+
+fn validate_service_reach_ceilings(
+    program: &TypedTrees,
+    service_reaches: &omega_effects::ServiceReachInferencePlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for machine in program.machines() {
+        let publishes = machine.supply_mode
+            != omega_core::semantics::MachineSupplyMode::CheckedBody
+            || !program
+                .service_reach_rows
+                .services(machine.service_reach_row)
+                .is_empty();
+        if !publishes {
+            continue;
+        }
+        let Some(summary) = service_reaches.for_machine(machine.symbol) else {
+            continue;
+        };
+        let published = service_reaches.services(summary.published);
+        let missing = service_reaches
+            .services(summary.inferred_transitive)
+            .iter()
+            .copied()
+            .filter(|service| !published.contains(service))
+            .collect::<Vec<_>>();
+        if missing.is_empty() {
+            continue;
+        }
+        let names = missing
+            .iter()
+            .map(|service| {
+                program
+                    .service_reaches
+                    .definition(*service)
+                    .map(|definition| definition.name.as_str())
+                    .unwrap_or("<unknown canonical service>")
+            })
+            .collect::<Vec<_>>();
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` publishes service reach `{}` but its checked body reaches undeclared service{} `{}`",
+            machine.name,
+            format_service_row(program, published),
+            if names.len() == 1 { "" } else { "s" },
+            names.join(" + "),
+        )));
+    }
+}
+
+fn format_service_row(
+    program: &TypedTrees,
+    services: &[omega_core::semantics::ServiceReachId],
+) -> String {
+    if services.is_empty() {
+        return "<none>".to_owned();
+    }
+    services
+        .iter()
+        .map(|service| {
+            program
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>")
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
 }
 
 /// The v0 `machine_control`/port-I/O DISCHARGE gate
@@ -391,18 +439,15 @@ fn append_inline_asm_service_path(
 /// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
 /// result the caller does not need while keeping the callee's observable work.
 /// When the resolved callee provably has no observable channel at all -- an
-/// empty effect set AND no `&mut`/out parameters -- the statement is dead
+/// empty service/operational reach AND no `&mut`/out parameters -- the statement is dead
 /// runtime code. AMENDED (owner, 2026-07-12) from reject to WARN, for
 /// uniform compilation: the statement always compiles, and the deadness
 /// surfaces as a warning ONLY outside proof use. Proof use is silent by
 /// design -- a statement call whose callee is a PROOF MACHINE is a CITATION
 /// (ch10 "Citing Proofs": invoked for its ensures, erased at codegen), and
 /// inside a proof machine's own body every discard is compile-time
-/// material. The effect surface is read from the inferred plan's
-/// TRANSITIVE machine set, not the declared signature surface: a machine that
-/// declares nothing but transitively calls `console.write` is effectful, and
-/// the declared-vs-reached ceiling above only fires when something IS declared,
-/// so the declared set alone would produce false "pure" verdicts.
+/// material. Service reach and the independent operational summaries come
+/// from their recursive plans, never the lowercase compatibility set.
 fn validate_pure_discards(
     program: &TypedTrees,
     effect_plan: &omega_effects::EffectPlan,
@@ -443,12 +488,13 @@ fn validate_pure_discards(
                     continue;
                 };
 
-                if callee.effects.is_empty()
-                    && !callee.has_service_reach
+                if !callee.has_service_reach
+                    && !callee.may_suspend
+                    && !callee.may_block
                     && !callee.has_mutable_parameter
                 {
                     diagnostics.push(Diagnostic::warning(format!(
-                        "`_ = {target}(...);` discards a provably pure call: `{target}` has no effects and no mutable out-parameters, so the discard is dead code; remove the statement or use the result",
+                        "`_ = {target}(...);` discards a provably pure call: `{target}` has no service reach, suspension, blocking, or mutable out-parameters, so the discard is dead code; remove the statement or use the result",
                         target = call.target.as_str()
                     )));
                 }
@@ -458,8 +504,9 @@ fn validate_pure_discards(
 }
 
 struct DiscardCallee {
-    effects: omega_effects::EffectSet,
     has_service_reach: bool,
+    may_suspend: bool,
+    may_block: bool,
     has_mutable_parameter: bool,
 }
 
@@ -503,17 +550,22 @@ fn resolve_discard_callee(
         // The callee machine's transitive set is the conservative surface: a
         // called state may transition through sibling states, so anything the
         // machine can reach counts against purity.
-        let effects = effect_plan
+        let operational = effect_plan
             .machines()
             .iter()
             .find(|entry| entry.symbol == machine.symbol)
-            .map(|entry| entry.transitive)?;
+            .map(|entry| (entry.transitive_may_suspend, entry.transitive_may_block))?;
 
         return Some(DiscardCallee {
-            effects,
             has_service_reach: service_reaches
                 .for_machine(machine.symbol)
-                .is_some_and(|summary| !service_reaches.services(summary.effective).is_empty()),
+                .is_some_and(|summary| {
+                    !service_reaches
+                        .services(summary.inferred_transitive)
+                        .is_empty()
+                }),
+            may_suspend: operational.0,
+            may_block: operational.1,
             has_mutable_parameter: program
                 .state_parameters(state)
                 .iter()
@@ -540,126 +592,24 @@ fn resolve_discard_callee(
 
 /// Signatures have no body to traverse. Their normalized service row and, for
 /// a boundary trait, the enclosing service identity still make the call
-/// observable even when the lowercase compatibility list is empty.
+/// observable without consulting a lowercase compatibility list.
 fn signature_discard_callee(
     program: &TypedTrees,
     trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
     signature: &omega_typed_trees::signature::StateSignature,
 ) -> DiscardCallee {
-    let mut effects = omega_effects::EffectSet::empty();
-    for effect in program.state_signature_effects(signature) {
-        effects.insert_name(effect.as_str());
-    }
-
     DiscardCallee {
-        effects,
         has_service_reach: trait_definition.is_boundary
             || !program
                 .service_reach_rows
                 .services(signature.service_reach_row)
                 .is_empty(),
+        may_suspend: signature.suspends,
+        may_block: signature.blocks,
         has_mutable_parameter: program
             .state_signature_parameters(signature)
             .iter()
             .any(|parameter| parameter.is_mutable),
-    }
-}
-
-fn append_effect_paths(
-    program: &TypedTrees,
-    effect_plan: &omega_effects::EffectPlan,
-    root_machine_symbol: SymbolHandle,
-    missing: omega_effects::EffectSet,
-    message: &mut String,
-) {
-    for effect_name in missing.names() {
-        let Some(effect) = omega_effects::EffectSet::from_name(effect_name) else {
-            continue;
-        };
-        let Some(path) = effect_plan.find_effect_path(root_machine_symbol, effect) else {
-            continue;
-        };
-
-        message.push_str("\n\ncall path for `");
-        message.push_str(effect_name);
-        message.push_str("`:");
-        append_effect_path_source(program, &path.source, message, 1);
-    }
-}
-
-fn append_effect_path_source(
-    program: &TypedTrees,
-    source: &omega_effects::EffectPathSource,
-    message: &mut String,
-    depth: usize,
-) {
-    match source {
-        omega_effects::EffectPathSource::MachineDirect { machine_symbol } => {
-            message.push('\n');
-            push_indent(message, depth);
-            message.push_str("source: machine `");
-            message.push_str(&machine_label(program, *machine_symbol));
-            message.push_str("` directly declares the effect");
-        }
-        omega_effects::EffectPathSource::StateDirect {
-            machine_symbol,
-            state_symbol,
-        } => {
-            message.push('\n');
-            push_indent(message, depth);
-            message.push_str("source: state `");
-            message.push_str(&callable_state_label(
-                program,
-                *machine_symbol,
-                *state_symbol,
-            ));
-            message.push_str("` directly declares the effect");
-        }
-        omega_effects::EffectPathSource::CallDirect {
-            caller_machine_symbol,
-            caller_state_symbol,
-            statement_index,
-            call_ordinal,
-            target_machine_symbol,
-            target_state_symbol,
-        } => {
-            append_effect_call_step(
-                program,
-                message,
-                depth,
-                *caller_machine_symbol,
-                *caller_state_symbol,
-                *statement_index,
-                *call_ordinal,
-                *target_machine_symbol,
-                *target_state_symbol,
-            );
-            message.push('\n');
-            push_indent(message, depth + 1);
-            message.push_str("source: target signature declares the effect");
-        }
-        omega_effects::EffectPathSource::ThroughCall {
-            caller_machine_symbol,
-            caller_state_symbol,
-            statement_index,
-            call_ordinal,
-            target_machine_symbol,
-            target_state_symbol,
-            target_source,
-        } => {
-            append_effect_call_step(
-                program,
-                message,
-                depth,
-                *caller_machine_symbol,
-                *caller_state_symbol,
-                *statement_index,
-                *call_ordinal,
-                *target_machine_symbol,
-                *target_state_symbol,
-            );
-            append_effect_path_source(program, target_source, message, depth + 1);
-        }
     }
 }
 
@@ -786,50 +736,4 @@ fn symbol_label(symbol: SymbolHandle) -> String {
     } else {
         "<unresolved>".to_owned()
     }
-}
-
-fn declared_machine_effect_set(
-    program: &TypedTrees,
-    machine: &Machine,
-) -> omega_effects::EffectSet {
-    let mut effects = omega_effects::EffectSet::empty();
-    for effect in program.machine_effects(machine) {
-        effects.insert_name(effect.as_str());
-    }
-    // Compatibility only: the generic legacy ceiling and flow graph still
-    // carry lowercase bits. Derive their conservative projection from
-    // canonical, symbol-resolved rows so authoring never regresses to those
-    // names.
-    for service in program
-        .service_reach_rows
-        .services(machine.service_reach_row)
-    {
-        let Some(definition) = program.service_reaches.definition(*service) else {
-            continue;
-        };
-        match definition.name.as_str() {
-            "MachineControl" => {
-                effects.insert_name("machine_control");
-            }
-            "PortIo" => {
-                effects.insert_name("device_io");
-            }
-            // Boundary-service identities have no one-to-one member in the
-            // retired global catalog. Its conservative host-facing bit is the
-            // compatibility projection until the generic ceiling/graph path
-            // consumes normalized rows directly.
-            _ => {
-                effects.insert_name("host_boundary");
-            }
-        }
-    }
-    effects
-}
-
-fn format_effect_set(effects: omega_effects::EffectSet) -> String {
-    if effects.is_empty() {
-        return "<none>".to_owned();
-    }
-
-    effects.names().collect::<Vec<_>>().join(", ")
 }

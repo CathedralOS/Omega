@@ -95,7 +95,7 @@ pub(crate) fn build_state_graph_with_workers(
 }
 
 fn install_service_reach_roots(state_graph: &mut StateGraph, program: &CheckedTrees) {
-    let reach = &program.facts.effect_rows.service_reaches;
+    let reach = &program.facts.service_reaches;
     state_graph.semantics.service_reach =
         StateGraphServiceReachRoots::with_roots(reach.services.clone(), reach.rows.clone());
 }

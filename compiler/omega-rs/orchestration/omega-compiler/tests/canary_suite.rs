@@ -35109,10 +35109,19 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     // COLLECT-ALL, not first-panic: one regressed member must not exempt the
     // rest of the fail corpus from its check (the serial-umbrella masking
-    // pattern -- every conversion so far has found something hiding).
+    // pattern -- every conversion so far has found something hiding). Local
+    // iteration may select a focused subset with OMEGA_FAIL_CANARY_FILTER;
+    // CI's unset default still checks the complete corpus.
     let mut failures: Vec<String> = Vec::new();
+    let filter = std::env::var("OMEGA_FAIL_CANARY_FILTER").ok();
+    let mut selected = 0usize;
 
-    for canary_name in ACTIVE_FAIL_CANARIES {
+    for canary_name in ACTIVE_FAIL_CANARIES.iter().copied().filter(|canary_name| {
+        filter
+            .as_deref()
+            .is_none_or(|filter| canary_name.contains(filter))
+    }) {
+        selected += 1;
         let canary = fail_canary(canary_name);
         let expected_path = canary.join("expected.txt");
         let expected_fragment = fs::read_to_string(&expected_path)
@@ -35147,6 +35156,10 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
         }
     }
 
+    assert!(
+        filter.is_none() || selected > 0,
+        "OMEGA_FAIL_CANARY_FILTER matched no active fail canaries"
+    );
     assert!(
         failures.is_empty(),
         "{} fail canary(ies) drifted:\n\n{}",

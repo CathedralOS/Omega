@@ -269,11 +269,17 @@ manifests. Checked flow/graph carriers, semantic reports, build-time purity,
 assembly reach, executable manifests, and provider-plan schema identity now
 consume the split representation directly. Boundary-provider approval is
 symbol-exact, capability flows use normalized call topology, and categorical
-provider authority/reporting no longer projects service names. The remaining
-migration removes lowercase validation/build-policy consumers and old
-fixtures, eliminates the final compatibility projections, and deletes the
-table. Unknown service identifiers resolve normally; there is no global
-hard-coded service table in the end state.
+provider authority/reporting no longer projects service names. Static-machine
+refinement consumes exact service rows, checked trees carry grouped
+`ServiceReachFacts` directly, and machine-contract identity has no legacy
+effect-row field or fingerprint input. The remaining migration removes
+lowercase general-validation/build-policy consumers and old fixtures,
+eliminates the resolved/typed compatibility rows, and deletes the table.
+Build-script admission now consumes exact service reach and admits only the
+pinned canonical `FilesystemHost` and `Console` staging slots; custom boundary
+wrappers do not inherit admission from a lowercase category. Unknown service
+identifiers resolve normally; there is no global hard-coded service table in
+the end state.
 
 ## Acceptance register
 
