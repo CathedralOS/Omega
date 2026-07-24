@@ -33375,6 +33375,41 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
 }
 
 #[test]
+fn msr_and_control_register_envelopes_are_bound_in_final_image_validation() {
+    for (canary_name, expected_count) in [
+        ("inline_asm/asm_msr_compile", 2),
+        ("inline_asm/asm_control_registers_compile", 7),
+    ] {
+        let canary = pass_canary(canary_name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-final-machine-control-evidence-{}-{}",
+            std::process::id(),
+            expected_count
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("linux_x64".into()),
+            write_output: true,
+        })
+        .expect("structured machine-control assembly should emit final-byte evidence");
+
+        let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
+            .expect("final executable-region inventory should be written");
+        assert!(
+            executable_regions.contains(&format!(
+                "\"checked_instruction_validation_count\": {expected_count}"
+            )),
+            "{canary_name} should publish evidence for every structured machine-control instruction:\n{executable_regions}"
+        );
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn aarch64_hfa_entry_argument_spreads_vector_registers() {
     let canary = pass_canary("targets/aarch64_hfa_entry_argument");
     let build_dir =

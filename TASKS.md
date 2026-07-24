@@ -599,11 +599,17 @@ schemas recover the same instance without publishing policy type identity.
    normalized port identity as well: direct-image emission independently
    validates the final DX/AL privileged-opcode envelope, and `in` additionally
    requires the exact compiler-owned destination relocation and store shape.
+   Immediate-index `rdmsr`/`wrmsr` retain the normalized MSR identity and
+   validate their final index setup, privileged opcode, result-combine or
+   split-value envelope, and destination relocation where applicable.
+   Structured CR0/CR2/CR3/CR4 reads and writes likewise retain the selected
+   control-register identity, validate the exact ModRM/opcode envelope, and
+   require the compiler-owned destination relocation for reads.
    The compiler-text derivation evidence binds the validated instruction count
    and final-byte fingerprint. This is a deliberately narrow first
-   body-footprint slice; dynamic-port forms, complete value-operand decoding,
-   other operand-bearing checked assembly, and general compiler-function body
-   decoding remain incomplete.
+   body-footprint slice; dynamic port/MSR-index forms, complete value-operand
+   decoding, flags save/restore and other operand-bearing checked assembly, and
+   general compiler-function body decoding remain incomplete.
    Checked direct-image emission now rejects any unclassified executable gap,
    so the current closed emitter has complete region enumeration. Relaxation
    products, veneers, and general generated stubs are recorded as absent by
