@@ -62,6 +62,9 @@ pub struct RelocationRecord {
     pub offset: usize,
     pub byte_width: usize,
     pub symbol_handle: ObjectSymbolHandle,
+    /// Signed semantic addend applied to the resolved symbol before the
+    /// target-specific relocation transform.
+    pub addend: i64,
     pub kind: RelocationKind,
 }
 
@@ -76,6 +79,7 @@ impl Default for RelocationRecord {
             offset: 0,
             byte_width: 0,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Aarch64Branch26,
         }
     }

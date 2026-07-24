@@ -30,6 +30,7 @@ pub struct FinalImageRelocation {
     pub offset: usize,
     pub byte_width: usize,
     pub symbol_handle: FinalImageSymbolHandle,
+    pub addend: i64,
     pub kind: RelocationKind,
 }
 
@@ -40,6 +41,7 @@ impl Default for FinalImageRelocation {
             offset: 0,
             byte_width: 0,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Aarch64Branch26,
         }
     }

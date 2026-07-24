@@ -77,6 +77,7 @@ pub(super) fn copy_object_relocations(image: &mut FinalImage, relocations: &Relo
                     .then_some(symbol_handle)
                     .filter(|handle| symbols.is_valid(*handle))
                     .unwrap_or_else(Handle::invalid),
+                addend: relocation.addend,
                 kind: relocation.kind,
             }
         }));

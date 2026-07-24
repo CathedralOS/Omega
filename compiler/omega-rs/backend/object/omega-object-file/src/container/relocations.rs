@@ -1,4 +1,4 @@
-use super::bytes::{write_string, write_u32, write_u64};
+use super::bytes::{write_i64, write_string, write_u32, write_u64};
 use super::ids::{relocation_kind_id, section_kind_id};
 use crate::{ObjectPlan, RelocationOrigin, RelocationPlan, object_symbol_name};
 
@@ -35,6 +35,7 @@ pub(super) fn write_relocations(
             u32::try_from(relocation.byte_width).expect("relocation byte width overflow"),
         );
         write_string(bytes, object_symbol_name(object, relocation.symbol_handle));
+        write_i64(bytes, relocation.addend);
         write_u32(bytes, relocation_kind_id(relocation.kind));
     }
 }

@@ -163,6 +163,7 @@ fn validate_final_text_relocation_envelope(
             relocation.offset,
             relocation.byte_width,
             relocation_kind_tag(relocation.kind),
+            relocation.addend,
         ));
     }
 
@@ -183,7 +184,7 @@ fn validate_final_text_relocation_envelope(
     let encoded_text_fingerprint = fingerprint_bytes(encoded_text_bytes);
     let final_compiler_text_fingerprint = fingerprint_bytes(final_compiler_text);
     let mut relocation_envelope_fingerprint = 0xcbf2_9ce4_8422_2325u64;
-    for (offset, width, kind) in &text_relocations {
+    for (offset, width, kind, addend) in &text_relocations {
         fingerprint_into(
             &mut relocation_envelope_fingerprint,
             &(*offset as u64).to_le_bytes(),
@@ -193,6 +194,7 @@ fn validate_final_text_relocation_envelope(
             &(*width as u64).to_le_bytes(),
         );
         fingerprint_into(&mut relocation_envelope_fingerprint, &[*kind]);
+        fingerprint_into(&mut relocation_envelope_fingerprint, &addend.to_le_bytes());
     }
     let mut derivation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_into(
@@ -1037,6 +1039,7 @@ fn require_checked_operand_storage_relocation(
                 && relocation.kind == RelocationKind::Absolute64
                 && relocation.offset == expected_offset
                 && relocation.byte_width == 8
+                && relocation.addend == 0
                 && relocation.origin.selected_instruction_index()
                     == Some(selected_instruction_index)
         })
@@ -1774,6 +1777,7 @@ mod tests {
             offset: 1,
             byte_width: 4,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::X86_64Relative32,
         });
 
@@ -1782,6 +1786,23 @@ mod tests {
         assert_eq!(evidence.text_relocation_count, 1);
         assert_ne!(evidence.encoded_text_fingerprint, 0);
         assert_ne!(evidence.derivation_fingerprint, 0);
+        let mut addend_relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+        let mut addend_record = relocations
+            .records()
+            .next()
+            .expect("relocation record")
+            .1
+            .clone();
+        addend_record.addend = 4;
+        addend_relocations.push_record(addend_record);
+        let addend_evidence =
+            validate_final_text_relocation_envelope(&encoded, &relocated, &addend_relocations)
+                .expect("addend remains valid envelope evidence");
+        assert_ne!(
+            evidence.relocation_envelope_fingerprint,
+            addend_evidence.relocation_envelope_fingerprint,
+            "semantic addends must participate in the final relocation identity"
+        );
         relocated[0] = 0x90;
         let diagnostic =
             validate_final_text_relocation_envelope(&encoded, &relocated, &relocations)
@@ -1960,6 +1981,7 @@ mod tests {
             offset: destination_relocation_offset,
             byte_width: 8,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Absolute64,
         });
 
@@ -2066,6 +2088,7 @@ mod tests {
             offset: 2,
             byte_width: 8,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Absolute64,
         });
 
@@ -2163,6 +2186,7 @@ mod tests {
             offset: 2,
             byte_width: 8,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Absolute64,
         });
         (code, final_bytes, relocations)
@@ -2293,6 +2317,7 @@ mod tests {
             offset: 2,
             byte_width: 8,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Absolute64,
         });
 
@@ -2395,6 +2420,7 @@ mod tests {
                 offset,
                 byte_width: 8,
                 symbol_handle: Handle::invalid(),
+                addend: 0,
                 kind: RelocationKind::Absolute64,
             });
         }
@@ -2417,6 +2443,7 @@ mod tests {
             offset: 2,
             byte_width: 8,
             symbol_handle: Handle::invalid(),
+            addend: 0,
             kind: RelocationKind::Absolute64,
         });
         let diagnostic = validate_checked_instruction_bytes(
@@ -2503,6 +2530,7 @@ mod tests {
                 offset,
                 byte_width: 8,
                 symbol_handle: Handle::invalid(),
+                addend: 0,
                 kind: RelocationKind::Absolute64,
             });
         }

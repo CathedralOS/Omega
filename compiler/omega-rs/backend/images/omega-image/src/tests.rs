@@ -64,6 +64,7 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
         offset: 4,
         byte_width: 4,
         symbol_handle: import_symbol,
+        addend: 0,
         kind: RelocationKind::X86_64Relative32,
     });
 

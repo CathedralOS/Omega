@@ -73,6 +73,7 @@ fn collect_host_operation_call_relocation(
             ),
             byte_width: external_call_relocation_width(context.input.target.architecture),
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            addend: 0,
             kind: external_call_relocation_kind(context.input.target.architecture),
         });
 }
