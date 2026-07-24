@@ -1,4 +1,4 @@
-use super::SymbolResolvedTreesSnapshot;
+use super::{MachineSupplySnapshot, SymbolResolvedTreesSnapshot};
 use crate::SymbolResolvedTrees;
 use crate::domain::DomainDefinition;
 use crate::expression::ExpressionNode;
@@ -87,6 +87,10 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
 
     let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
     assert_eq!(snapshot.roots.machines.len(), 1);
+    assert_eq!(
+        snapshot.roots.machines[0].supply,
+        MachineSupplySnapshot::CheckedBody
+    );
     assert_eq!(snapshot.roots.machines[0].states.len(), 1);
     assert_eq!(snapshot.roots.domain_definitions[0].semantic_id, 17);
     assert!(snapshot.roots.domain_definitions[0].facets.predicate);

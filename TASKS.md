@@ -1145,6 +1145,9 @@ stronger operations it needs instead of citing machine parameters generally.
   Resolved and typed machines now carry no duplicate `terminates` boolean:
   `MachineTerminationPlan` is the sole downstream public-interface carrier,
   and their snapshots serialize that structured interface and guarantee.
+  Resolved and typed snapshots now also serialize the complete normalized
+  `MachineSupplyMode`, including the external-binding identity, instead of
+  omitting supply or asking consumers to infer it from `boundary`.
   Static-machine refinement therefore accepts only an explicit
   `Published(EventualTerminal)` promise; a private ranking witness cannot
   masquerade as a public termination contract.
@@ -1636,6 +1639,10 @@ stronger operations it needs instead of citing machine parameters generally.
   size, and permitted static reaches; field authorization derives polarity
   from that loan and mints the only token primitive lowering may accept. Never
   expose arbitrary-offset access or per-access revocation probes.
+  **Language-design blocker:** the normalized plan and sealed lowering seam
+  are settled, but the concrete Omega `AccessPlan` record/policy spelling is
+  still explicitly open in the programmable-layouts brief. Do not invent that
+  source contract while implementing the independent target-emission work.
 - **L6c — symbolic materializer.** The normalized source/action plan and
   loader-versus-post-handoff validation are live. Range/alignment/phase/regime/
   installation-scope constraints are normalized, concrete-site validated, and
@@ -1973,7 +1980,11 @@ stronger operations it needs instead of citing machine parameters generally.
 - **Units.** Before broad generic work, implement two units in one dimension
   and pin: explicit conversion, scaled dimensionless results, distinct
   Energy/Torque kinds, generic preservation, no silent forgetting, and package
-  coherence for operator tuples.
+  coherence for operator tuples. **Language-design blocker:** the honest slice
+  depends on the still-deferred authored domain-facet/introduction policy and
+  open operator-family/dispatch-owner surface (DOM1/DOM2). A closed local
+  encoding would not satisfy this acceptance contract; resume after those
+  surfaces are frozen.
 - **OS gauntlet.** Validate the foundation against UART/MMIO, page tables,
   DMA, shared-page IPC, IDT/timer entry, and SMP AP bringup. A customer that
   needs a new keyword or customer-shaped primitive returns to design review.
