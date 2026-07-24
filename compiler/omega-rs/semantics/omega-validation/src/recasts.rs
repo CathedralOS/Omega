@@ -12,17 +12,18 @@
 //!   fact-free types, normalized domain conjunctions that imply one another
 //!   in BOTH directions, or integer ranges that denote the same normalized
 //!   bit-pattern set. Merely equal-looking cross-carrier predicates and float
-//!   ranges remain fenced. Mutable byte-region record views require recursively
-//!   fact-free target shapes, including literal-length fixed arrays nested in
-//!   records. Mutable typed record aliases may retain facts when source and
-//!   target have identical geometry and representation-equivalent leaves.
+//!   ranges remain fenced. Byte-region aggregate views require recursively
+//!   fact-free target shapes, including top-level and nested literal-length
+//!   fixed arrays. Mutable typed aggregate aliases may retain facts when source
+//!   and target have identical geometry and representation-equivalent leaves;
+//!   shared aliases may weaken facts.
 //!   Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
-//! - **Fenced (deeper byte-view rung, L4/L5):** top-level arrays and remaining
-//!   non-record shapes (byte-granular tiling over plan-laid layouts), interior
-//!   recasts into and non-let positions.
+//! - **Fenced (deeper byte-view rung, L4/L5):** unsized slices and remaining
+//!   dynamically-sized shapes (byte-granular tiling over plan-laid layouts),
+//!   interior recasts into and non-let positions.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
 //!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
 //!   MINT's job (fallible, case-returning), never a recast's.
@@ -376,17 +377,31 @@ fn judge_scalar_recast(
         return;
     }
 
-    // Target: a fixed-width scalar primitive, restated by the let.
+    // Target: a fixed-width scalar or recursively fixed aggregate, restated
+    // exactly by the let. Structural targets are semantic type references;
+    // their cached display spelling never participates in the judgment.
     let target_name = program
         .named_type_reference(cast.target_type)
         .map(|name| name.as_str().to_string())
         .unwrap_or_else(|| program.display_type_reference(cast.target_type));
-    // RUNG C2: a fixed RECORD target, recursively containing primitives,
-    // records, and literal-length arrays, sized by the natural-alignment rule
-    // (kept in lockstep with omega-layout by the drift canary). The view keeps
-    // size_of(record) live bytes from the region.
-    if PrimitiveType::from_name(&target_name).is_none() {
-        if let Some(record_size) = fixed_record_size(program, &target_name) {
+    if program.primitive_type_reference(cast.target_type).is_none() {
+        // RUNG C2/C3: a recursively fixed RECORD or literal-length ARRAY
+        // target. The same normalized representation supplies size/alignment
+        // and scalar-leaf facts; this is the top-level-array continuation of
+        // the array fields records already admit.
+        if let Some(target_representation) =
+            mutable_type_representation(program, cast.target_type)
+        {
+            if program.normalized_type_identity(let_referee)
+                != program.normalized_type_identity(cast.target_type)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{context}: the let's declared type must restate the recast target \
+                     `&{}{target_name}`",
+                    if mutable_recast { "mut " } else { "" },
+                )));
+                return;
+            }
             let source = strip_mutable(program, cast.value);
             let interior = interior_byte_region_source(program, machine, state, source);
             if let InteriorByteRegion::OffsetUnproven {
@@ -402,94 +417,79 @@ fn judge_scalar_recast(
                 region_length,
             } = interior
             {
-                if mutable_recast
-                    && !record_view_is_fact_free(program, &target_name, &mut HashSet::new())
-                {
+                if !record_view_type_is_fact_free(
+                    program,
+                    cast.target_type,
+                    &mut HashSet::new(),
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "{context}: mutable record recast target `{target_name}` must be \
-                         recursively fact-free over a raw byte region; writable views require \
-                         fact implication in BOTH directions, and unchecked bytes cannot \
-                         establish constrained fields, bool, or record invariants"
+                        "{context}: byte-region recast target `{target_name}` must be recursively \
+                         fact-free; unchecked bytes cannot establish constrained fields, bool, \
+                         or record invariants{}",
+                        if mutable_recast {
+                            "; mutable views require fact implication in BOTH directions"
+                        } else {
+                            ""
+                        },
                     )));
                     return;
                 }
-                let Some(end) = offset.checked_add(record_size as i64) else {
+                let Some(end) = offset.checked_add(target_representation.size as i64) else {
                     return;
                 };
                 if end > region_length {
                     diagnostics.push(Diagnostic::error(format!(
-                        "{context}: the recast target `{target_name}` needs {record_size} bytes at offset {offset}, but the region holds {region_length} -- the view would read past the buffer (§5b rule 1 is byte-granular)",
-                    )));
-                }
-                let let_names_target = if mutable_recast {
-                    matches!(
-                        program.type_reference_table.type_reference(let_referee),
-                        TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
-                    )
-                } else {
-                    crate::places::unwrapped_type_reference(program, let_referee)
-                        .map(|unwrapped| {
-                            matches!(
-                                program.type_reference_table.type_reference(unwrapped),
-                                TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
-                            )
-                        })
-                        .unwrap_or(false)
-                };
-                if !let_names_target {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{context}: the let's declared type must restate the recast target `&{target_name}`",
+                        "{context}: the recast target `{target_name}` needs {} bytes at offset \
+                         {offset}, but the region holds {region_length} -- the view would read \
+                         past the buffer (§5b rule 1 is byte-granular)",
+                        target_representation.size,
                     )));
                 }
                 return;
             }
-            if mutable_recast {
-                let source_type =
-                    crate::places::declared_place_type_raw(program, machine, Some(state), source);
-                let source_name = source_type.and_then(|source_type| {
-                    named_record_type(program, source_type).map(str::to_owned)
-                });
-                if let Some(source_name) = source_name {
-                    let source_representation =
-                        mutable_record_representation(program, &source_name);
-                    let target_representation =
-                        mutable_record_representation(program, &target_name);
-                    if source_representation
-                        .as_ref()
-                        .zip(target_representation.as_ref())
-                        .is_some_and(|(source, target)| {
-                            mutable_record_representations_equivalent(program, source, target)
-                        })
-                    {
-                        let let_names_target = matches!(
-                            program.type_reference_table.type_reference(let_referee),
-                            TypeReferenceNode::Named { name, .. } if name.as_str() == target_name
-                        );
-                        if !let_names_target {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "{context}: the let's declared type must restate the recast target \
-                                 `&mut {target_name}`"
-                            )));
-                        }
-                        return;
-                    }
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{context}: mutable record aliases require identical layout geometry and \
-                         representation-equivalent leaf facts; source `{source_name}` and target \
-                         `{target_name}` do not prove fact implication in BOTH directions"
-                    )));
+            let source_type =
+                crate::places::declared_place_type_raw(program, machine, Some(state), source);
+            if let Some(source_type) = source_type
+                && let Some(source_representation) =
+                    mutable_type_representation(program, source_type)
+            {
+                let compatible = if mutable_recast {
+                    mutable_record_representations_equivalent(
+                        program,
+                        &source_representation,
+                        &target_representation,
+                    )
+                } else {
+                    record_representation_implies(
+                        program,
+                        &source_representation,
+                        &target_representation,
+                    )
+                };
+                if compatible {
                     return;
                 }
+                diagnostics.push(Diagnostic::error(format!(
+                    "{context}: {} aggregate aliases require identical layout geometry and {}; \
+                     the source and target `{target_name}` are not representation-compatible",
+                    if mutable_recast { "mutable" } else { "shared" },
+                    if mutable_recast {
+                        "leaf fact implication in BOTH directions"
+                    } else {
+                        "source leaf facts implying every target leaf fact"
+                    },
+                )));
+                return;
             }
         }
         diagnostics.push(Diagnostic::error(format!(
             "{context}: recast target `{target_name}` is not a scalar primitive or an \
-             eligible fixed record over a byte region or typed record place; deeper shapes \
+             eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes \
              land with the byte-view rung"
         )));
         return;
     }
-    let Some(target) = PrimitiveType::from_name(&target_name) else {
+    let Some(target) = program.primitive_type_reference(cast.target_type) else {
         return;
     };
     if target == PrimitiveType::Bool {
@@ -794,16 +794,16 @@ struct MutableRecordLeaf {
     facts: MutableScalarRepresentationFacts,
 }
 
-fn named_record_type(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
-    let unwrapped = crate::places::unwrapped_type_reference(program, type_reference)?;
-    match program.type_reference_table.type_reference(unwrapped) {
-        TypeReferenceNode::Named { name, .. }
-            if PrimitiveType::from_name(name.as_str()).is_none() =>
-        {
-            Some(name.as_str())
-        }
-        _ => None,
-    }
+fn mutable_type_representation(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<MutableRecordRepresentation> {
+    let mut representation =
+        mutable_record_type_representation(program, type_reference, &mut HashSet::new())?;
+    representation
+        .leaves
+        .sort_by_key(|leaf| (leaf.offset, leaf.size));
+    Some(representation)
 }
 
 /// Normalize one established record into the byte geometry and scalar
@@ -811,18 +811,6 @@ fn named_record_type(program: &TypedTrees, type_reference: TypeReferenceHandle) 
 /// zero-gated establishment remain fenced: arbitrary field writes cannot prove
 /// those relational facts. Leaves may carry scalar domains/ranges (and bool's
 /// exact `{0,1}` set), because both alias directions are checked below.
-fn mutable_record_representation(
-    program: &TypedTrees,
-    name: &str,
-) -> Option<MutableRecordRepresentation> {
-    let mut representation =
-        mutable_record_representation_inner(program, name, &mut HashSet::new())?;
-    representation
-        .leaves
-        .sort_by_key(|leaf| (leaf.offset, leaf.size));
-    Some(representation)
-}
-
 fn mutable_record_representation_inner(
     program: &TypedTrees,
     name: &str,
@@ -971,6 +959,46 @@ fn mutable_record_representations_equivalent(
                         &target.facts,
                     )
             })
+}
+
+fn record_representation_implies(
+    program: &TypedTrees,
+    source: &MutableRecordRepresentation,
+    target: &MutableRecordRepresentation,
+) -> bool {
+    source.size == target.size
+        && source.align == target.align
+        && source.leaves.len() == target.leaves.len()
+        && source
+            .leaves
+            .iter()
+            .zip(&target.leaves)
+            .all(|(source, target)| {
+                source.offset == target.offset
+                    && source.size == target.size
+                    && scalar_representation_facts_imply(program, &source.facts, &target.facts)
+            })
+}
+
+fn scalar_representation_facts_imply(
+    program: &TypedTrees,
+    source: &MutableScalarRepresentationFacts,
+    target: &MutableScalarRepresentationFacts,
+) -> bool {
+    let domains_imply = target.domains.iter().all(|target| {
+        source.domains.iter().any(|source| {
+            omega_typed_trees::domain::declared_domain_implies(program, *source, *target)
+        })
+    });
+    let patterns_imply = source.bit_patterns.iter().all(|(source_low, source_high)| {
+        target
+            .bit_patterns
+            .iter()
+            .any(|(target_low, target_high)| {
+                target_low <= source_low && source_high <= target_high
+            })
+    });
+    domains_imply && patterns_imply
 }
 
 #[cfg(test)]
@@ -1151,98 +1179,6 @@ fn push_offset_unproven(
          {offset_display} <= K {{ true -> ... }}`), or `ensures`-bound the boundary \
          out-param that feeds it",
     )));
-}
-
-/// The fixed size of a byte-view-safe record. Ordinary records use natural
-/// packing; a synthesized plan-laid record uses the already validated plan's
-/// exact size/alignment/offsets. Named record fields recurse, which permits a
-/// plain wrapper around a plan-laid foreign record without teaching recast
-/// syntax to parse a policy application. Cycles and non-record shapes refuse.
-///
-/// LOCKSTEP: ordinary placement mirrors omega-layout's record rule, while
-/// plan-laid placement consumes `TypedTrees::plan_laid_layouts`, the same
-/// normalized record the layout builder trusts.
-fn fixed_record_size(program: &TypedTrees, name: &str) -> Option<usize> {
-    record_view_layout(program, name, &mut HashSet::new()).map(|(size, _)| size)
-}
-
-fn record_view_layout(
-    program: &TypedTrees,
-    name: &str,
-    visiting: &mut HashSet<String>,
-) -> Option<(usize, usize)> {
-    if !visiting.insert(name.to_owned()) {
-        return None;
-    }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == name)?;
-    let mut fields = Vec::new();
-    for member in program.data_members(data) {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
-            visiting.remove(name);
-            return None;
-        };
-        let Some(layout) = record_view_type_layout(program, field.type_reference, visiting) else {
-            visiting.remove(name);
-            return None;
-        };
-        fields.push(layout);
-    }
-
-    let result = if let Some(plan) = program
-        .plan_laid_layouts
-        .iter()
-        .find(|plan| plan.data_name == name)
-    {
-        if plan.offsets.len() != fields.len()
-            || fields.iter().zip(&plan.offsets).any(|((size, _), offset)| {
-                offset.checked_add(*size).is_none_or(|end| end > plan.size)
-            })
-        {
-            None
-        } else {
-            Some((plan.size, plan.align))
-        }
-    } else {
-        let mut offset = 0usize;
-        let mut max_align = 1usize;
-        for (size, align) in fields {
-            offset = offset.div_ceil(align) * align;
-            offset = offset.checked_add(size)?;
-            max_align = max_align.max(align);
-        }
-        Some((offset.div_ceil(max_align) * max_align, max_align))
-    };
-    visiting.remove(name);
-    result
-}
-
-fn record_view_type_layout(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    visiting: &mut HashSet<String>,
-) -> Option<(usize, usize)> {
-    let unwrapped = crate::places::unwrapped_type_reference(program, type_reference)?;
-    if let Some(primitive) = program.primitive_type_reference(unwrapped) {
-        let size = primitive.scalar_byte_size()?;
-        return Some((size, size));
-    }
-    match program.type_reference_table.type_reference(unwrapped) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => {
-            let (element_size, element_align) =
-                record_view_type_layout(program, *element_type, visiting)?;
-            Some((element_size.checked_mul(*length)?, element_align))
-        }
-        TypeReferenceNode::Named { name, .. } => {
-            record_view_layout(program, name.as_str(), visiting)
-        }
-        _ => None,
-    }
 }
 
 /// Mutable byte views must preserve every target fact after arbitrary writes.

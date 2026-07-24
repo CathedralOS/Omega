@@ -3110,20 +3110,7 @@ fn select_runtime_dispatch_local_initializer_write(
                 return;
             }
         }
-        let target_size = input
-            .program
-            .primitive_type_reference(cast.target_type)
-            .and_then(|primitive| primitive.scalar_byte_size())
-            .or_else(|| {
-                let name = input.program.named_type_reference(cast.target_type)?;
-                // Rung C2: a RECORD target sizes by its data layout.
-                input
-                    .layouts
-                    .data_layouts
-                    .iter()
-                    .find(|(_, data)| data.name.as_str() == name.as_str())
-                    .map(|(_, data)| data.layout.size)
-            });
+        let target_size = recast_target_byte_size(input, cast.target_type);
         let source = cast.value;
         if let Some(size) = target_size
             && let Some(place) =
@@ -3422,6 +3409,15 @@ fn strip_recast_initializer(
         }
         _ => initializer,
     }
+}
+
+pub(in crate::selection) fn recast_target_byte_size(
+    input: &InstructionSelectionInput<'_>,
+    target: omega_checked_trees::types::TypeReferenceHandle,
+) -> Option<usize> {
+    omega_layout::layout_type_reference(input.program, input.target, target)
+        .ok()
+        .map(|layout| layout.size)
 }
 
 /// Extract the callee `target_key` from a StateCall-family operation, or

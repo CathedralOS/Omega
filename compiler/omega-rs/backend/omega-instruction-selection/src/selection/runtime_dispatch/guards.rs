@@ -1916,6 +1916,20 @@ fn resolve_runtime_value_operand_in_table(
         }));
     }
 
+    if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+        }));
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
         input,
         dispatch_index,
