@@ -325,7 +325,7 @@ pub fn validate_decoded_container(
     let artifact = Artifact::from_canonical_decode(
         decoded.artifact,
         decoded.content,
-        decoded.code_length,
+        decoded.code,
         decoded.contracts,
         decoded.declared_footprint,
         decoded.placement_plan,
@@ -640,6 +640,7 @@ mod tests {
         let container = validate_decoded_container(decoded(), limits()).expect("container");
         assert_eq!(container.artifact().identity().normalized_identity(), 1);
         assert_eq!(container.artifact().byte_length(), 64);
+        assert_eq!(container.artifact().code(), &[0x90; 64]);
         assert_eq!(container.artifact().entries().len(), 1);
         assert_eq!(container.artifact().entries()[0].identity(), entry);
         assert_eq!(container.artifact().entries()[0].code_offset(), 16);
