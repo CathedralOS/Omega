@@ -33334,15 +33334,41 @@ fn fixed_checked_assembly_is_validated_against_final_image_bytes() {
     let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
         .expect("final executable-region inventory should be written");
     assert!(
-        executable_regions.contains("\"fixed_checked_instruction_count\": 3")
+        executable_regions.contains("\"checked_instruction_validation_count\": 3")
             && executable_regions.contains(
-                "\"fixed_checked_instruction_fingerprint\": \"0x"
+                "\"checked_instruction_validation_fingerprint\": \"0x"
             )
             && executable_regions.contains("\"fixed_checked_assembly\"")
             && executable_regions.contains(
                 "\"missing_classes\": [\"compiler_function_body_footprint_decoding\", \"admitted_leaves\"]"
             ),
         "final image evidence should cover all three fixed fence instructions without claiming complete body decoding:\n{executable_regions}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn immediate_port_io_is_bound_in_final_image_validation() {
+    let canary = pass_canary("inline_asm/asm_port_out_final_validation");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("immediate-port checked assembly should emit final-byte evidence");
+
+    let executable_regions = fs::read_to_string(build_dir.join("13_executable_regions.json"))
+        .expect("final executable-region inventory should be written");
+    assert!(
+        executable_regions.contains("\"checked_instruction_validation_count\": 1")
+            && executable_regions.contains("\"checked_instruction_validation_fingerprint\": \"0x"),
+        "final image evidence should bind the immediate port instruction:\n{executable_regions}"
     );
 
     let _ = fs::remove_dir_all(&build_dir);

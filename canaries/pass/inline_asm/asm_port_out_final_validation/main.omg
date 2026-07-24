@@ -1,0 +1,16 @@
+// COMPILE CANARY (linux_x64 freestanding): an immediate port identity survives
+// checked-assembly lowering into the independent final-byte validation record.
+// The transferred byte is ordinary data; the validator binds the privileged
+// destination and closed DX/AL/out envelope.
+use omega::language::core::assembly;
+
+data Main {}
+
+machine Main::main(&mut self) effects PortIo {
+    asm where clobbers r10, r11, r15, rax, rdx {
+        out 0x3F8, 0x41
+    }
+}
+
+target linux_x64 {
+}

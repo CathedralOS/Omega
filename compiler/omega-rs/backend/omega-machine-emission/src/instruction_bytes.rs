@@ -8,9 +8,10 @@ use omega_assigned_target_operations::{
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{
-    EncodedMachineCode, EncodedMachineInstruction, FixedCheckedInstructionKind,
+    CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
+use omega_target_operations::RuntimeValueOperandSource;
 
 pub(crate) fn emit_function_bytes(
     emission_context: MachineEmissionContext<'_>,
@@ -62,7 +63,7 @@ pub(crate) fn emit_function_bytes(
             encoded_code.instructions.insert(EncodedMachineInstruction {
                 selected_instruction_index: machine_instruction.selected_instruction_index,
                 bytes: HandleSpan::empty(),
-                fixed_checked_kind: None,
+                checked_validation_kind: None,
             });
             continue;
         }
@@ -104,34 +105,60 @@ pub(crate) fn emit_function_bytes(
         encoded_code.instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             bytes: byte_span,
-            fixed_checked_kind: fixed_checked_instruction_kind(&machine_instruction.source_kind),
+            checked_validation_kind: checked_instruction_validation_kind(
+                emission_context,
+                &machine_instruction.source_kind,
+            ),
         });
     }
 
     Ok(())
 }
 
-fn fixed_checked_instruction_kind(
+fn checked_instruction_validation_kind(
+    emission_context: MachineEmissionContext<'_>,
     kind: &SelectedInstructionKind,
-) -> Option<FixedCheckedInstructionKind> {
+) -> Option<CheckedInstructionValidationKind> {
     use omega_core::inline_assembly::{AsmFenceKind, AsmInterruptControlKind};
 
     match kind {
-        SelectedInstructionKind::MachineHalt => Some(FixedCheckedInstructionKind::MachineHalt),
+        SelectedInstructionKind::MachineHalt => Some(CheckedInstructionValidationKind::MachineHalt),
         SelectedInstructionKind::MemoryFence(AsmFenceKind::Load) => {
-            Some(FixedCheckedInstructionKind::LoadFence)
+            Some(CheckedInstructionValidationKind::LoadFence)
         }
         SelectedInstructionKind::MemoryFence(AsmFenceKind::Store) => {
-            Some(FixedCheckedInstructionKind::StoreFence)
+            Some(CheckedInstructionValidationKind::StoreFence)
         }
         SelectedInstructionKind::MemoryFence(AsmFenceKind::Full) => {
-            Some(FixedCheckedInstructionKind::FullFence)
+            Some(CheckedInstructionValidationKind::FullFence)
         }
         SelectedInstructionKind::InterruptControl(AsmInterruptControlKind::Disable) => {
-            Some(FixedCheckedInstructionKind::InterruptDisable)
+            Some(CheckedInstructionValidationKind::InterruptDisable)
         }
         SelectedInstructionKind::InterruptControl(AsmInterruptControlKind::Enable) => {
-            Some(FixedCheckedInstructionKind::InterruptEnable)
+            Some(CheckedInstructionValidationKind::InterruptEnable)
+        }
+        SelectedInstructionKind::PortWrite { port, .. } => {
+            let port = emission_context
+                .assigned_target_operations
+                .immediate_integer(*port)
+                .and_then(|port| u16::try_from(port).ok())?;
+            Some(CheckedInstructionValidationKind::PortWriteImmediatePort { port })
+        }
+        SelectedInstructionKind::PortRead {
+            port,
+            dest_byte_offset,
+            ..
+        } => {
+            let port = emission_context
+                .assigned_target_operations
+                .immediate_integer(*port)
+                .and_then(|port| u16::try_from(port).ok())?;
+            let destination_byte_offset = u32::try_from(*dest_byte_offset).ok()?;
+            Some(CheckedInstructionValidationKind::PortReadImmediatePort {
+                port,
+                destination_byte_offset,
+            })
         }
         _ => None,
     }

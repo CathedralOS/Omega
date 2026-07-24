@@ -38,15 +38,17 @@ pub fn emit_checked_executable_image(
             &emitted_output.final_text_bytes,
             relocations,
         )?;
-        let (fixed_checked_instruction_count, fixed_checked_instruction_fingerprint) =
-            validate_fixed_checked_instruction_bytes(
+        let (checked_instruction_validation_count, checked_instruction_validation_fingerprint) =
+            validate_checked_instruction_bytes(
                 architecture,
                 encoded_machine_code,
                 &emitted_output.final_text_bytes,
+                relocations,
             )?;
-        compiler_text_validation.fixed_checked_instruction_count = fixed_checked_instruction_count;
-        compiler_text_validation.fixed_checked_instruction_fingerprint =
-            fixed_checked_instruction_fingerprint;
+        compiler_text_validation.checked_instruction_validation_count =
+            checked_instruction_validation_count;
+        compiler_text_validation.checked_instruction_validation_fingerprint =
+            checked_instruction_validation_fingerprint;
         let mut derivation_fingerprint = 0xcbf2_9ce4_8422_2325u64;
         fingerprint_into(
             &mut derivation_fingerprint,
@@ -56,11 +58,11 @@ pub fn emit_checked_executable_image(
         );
         fingerprint_into(
             &mut derivation_fingerprint,
-            &fixed_checked_instruction_fingerprint.to_le_bytes(),
+            &checked_instruction_validation_fingerprint.to_le_bytes(),
         );
         fingerprint_into(
             &mut derivation_fingerprint,
-            &(fixed_checked_instruction_count as u64).to_le_bytes(),
+            &(checked_instruction_validation_count as u64).to_le_bytes(),
         );
         compiler_text_validation.derivation_fingerprint = derivation_fingerprint;
         emitted_output.compiler_text_validation = Some(compiler_text_validation);
@@ -213,37 +215,39 @@ fn validate_final_text_relocation_envelope(
         encoded_text_fingerprint,
         final_compiler_text_fingerprint,
         relocation_envelope_fingerprint,
-        fixed_checked_instruction_fingerprint: 0,
+        checked_instruction_validation_fingerprint: 0,
         derivation_fingerprint,
         text_relocation_count: text_relocations.len(),
-        fixed_checked_instruction_count: 0,
+        checked_instruction_validation_count: 0,
     })
 }
 
-/// Validate the exact final encodings of the first closed checked-assembly
-/// subset. Instruction boundaries come from the encoded carrier; arbitrary
-/// byte scanning could mistake immediates or data for opcodes.
-fn validate_fixed_checked_instruction_bytes(
+/// Validate the privilege-bearing final encodings of the closed checked-
+/// assembly subset. Instruction boundaries and normalized operand facts come
+/// from the encoded carrier; arbitrary byte scanning could mistake immediates
+/// or data for opcodes.
+fn validate_checked_instruction_bytes(
     architecture: Architecture,
     code: &omega_machine_bytes::EncodedMachineCode,
     final_text_bytes: &[u8],
+    relocations: &RelocationPlan,
 ) -> Result<(usize, u64), Diagnostic> {
-    use omega_machine_bytes::FixedCheckedInstructionKind;
+    use omega_machine_bytes::CheckedInstructionValidationKind;
 
     let mut count = 0usize;
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
     for (_, instruction) in code.instructions.iter() {
-        let Some(kind) = instruction.fixed_checked_kind else {
+        let Some(kind) = instruction.checked_validation_kind else {
             continue;
         };
         if architecture != Architecture::X86_64 {
             return Err(Diagnostic::error(
-                "fixed checked-assembly validation found an x86 instruction on a non-x86 target",
+                "checked-assembly validation found an x86 instruction on a non-x86 target",
             ));
         }
         if instruction.bytes.is_empty() || !instruction.bytes.start().is_valid() {
             return Err(Diagnostic::error(format!(
-                "fixed checked-assembly instruction #{} has no encoded byte span",
+                "checked-assembly instruction #{} has no encoded byte span",
                 instruction.selected_instruction_index
             )));
         }
@@ -254,44 +258,35 @@ fn validate_fixed_checked_instruction_bytes(
             .filter(|end| *end <= final_text_bytes.len())
             .ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "fixed checked-assembly instruction #{} exceeds final compiler text",
+                    "checked-assembly instruction #{} exceeds final compiler text",
                     instruction.selected_instruction_index
                 ))
             })?;
         let encoded_bytes = code.bytes.span(instruction.bytes).ok_or_else(|| {
             Diagnostic::error(format!(
-                "fixed checked-assembly instruction #{} names an invalid encoded byte span",
+                "checked-assembly instruction #{} names an invalid encoded byte span",
                 instruction.selected_instruction_index
             ))
         })?;
-        let expected: &[u8] = match kind {
-            FixedCheckedInstructionKind::MachineHalt => &[0xf4],
-            FixedCheckedInstructionKind::LoadFence => &[0x0f, 0xae, 0xe8],
-            FixedCheckedInstructionKind::StoreFence => &[0x0f, 0xae, 0xf8],
-            FixedCheckedInstructionKind::FullFence => &[0x0f, 0xae, 0xf0],
-            FixedCheckedInstructionKind::InterruptDisable => &[0xfa],
-            FixedCheckedInstructionKind::InterruptEnable => &[0xfb],
-        };
-        if encoded_bytes != expected {
-            return Err(Diagnostic::error(format!(
-                "encoded checked-assembly instruction #{} does not match its closed catalog kind",
-                instruction.selected_instruction_index
-            )));
-        }
-        if &final_text_bytes[byte_offset..byte_end] != expected {
-            return Err(Diagnostic::error(format!(
-                "final checked-assembly instruction #{} changed after encoding",
-                instruction.selected_instruction_index
-            )));
-        }
+        let final_bytes = &final_text_bytes[byte_offset..byte_end];
+        validate_checked_instruction_kind(
+            kind,
+            instruction.selected_instruction_index,
+            byte_offset,
+            encoded_bytes,
+            final_bytes,
+            relocations,
+        )?;
 
         let kind_tag = match kind {
-            FixedCheckedInstructionKind::MachineHalt => 1,
-            FixedCheckedInstructionKind::LoadFence => 2,
-            FixedCheckedInstructionKind::StoreFence => 3,
-            FixedCheckedInstructionKind::FullFence => 4,
-            FixedCheckedInstructionKind::InterruptDisable => 5,
-            FixedCheckedInstructionKind::InterruptEnable => 6,
+            CheckedInstructionValidationKind::MachineHalt => 1,
+            CheckedInstructionValidationKind::LoadFence => 2,
+            CheckedInstructionValidationKind::StoreFence => 3,
+            CheckedInstructionValidationKind::FullFence => 4,
+            CheckedInstructionValidationKind::InterruptDisable => 5,
+            CheckedInstructionValidationKind::InterruptEnable => 6,
+            CheckedInstructionValidationKind::PortWriteImmediatePort { .. } => 7,
+            CheckedInstructionValidationKind::PortReadImmediatePort { .. } => 8,
         };
         fingerprint_into(&mut fingerprint, &[kind_tag]);
         fingerprint_into(
@@ -299,10 +294,114 @@ fn validate_fixed_checked_instruction_bytes(
             &u64::from(instruction.selected_instruction_index).to_le_bytes(),
         );
         fingerprint_into(&mut fingerprint, &(byte_offset as u64).to_le_bytes());
-        fingerprint_into(&mut fingerprint, expected);
+        fingerprint_into(&mut fingerprint, final_bytes);
         count += 1;
     }
     Ok((count, fingerprint))
+}
+
+fn validate_checked_instruction_kind(
+    kind: omega_machine_bytes::CheckedInstructionValidationKind,
+    selected_instruction_index: u32,
+    byte_offset: usize,
+    encoded_bytes: &[u8],
+    final_bytes: &[u8],
+    relocations: &RelocationPlan,
+) -> Result<(), Diagnostic> {
+    use omega_machine_bytes::CheckedInstructionValidationKind;
+
+    let fixed_expected: Option<&[u8]> = match kind {
+        CheckedInstructionValidationKind::MachineHalt => Some(&[0xf4]),
+        CheckedInstructionValidationKind::LoadFence => Some(&[0x0f, 0xae, 0xe8]),
+        CheckedInstructionValidationKind::StoreFence => Some(&[0x0f, 0xae, 0xf8]),
+        CheckedInstructionValidationKind::FullFence => Some(&[0x0f, 0xae, 0xf0]),
+        CheckedInstructionValidationKind::InterruptDisable => Some(&[0xfa]),
+        CheckedInstructionValidationKind::InterruptEnable => Some(&[0xfb]),
+        CheckedInstructionValidationKind::PortWriteImmediatePort { .. }
+        | CheckedInstructionValidationKind::PortReadImmediatePort { .. } => None,
+    };
+    if let Some(expected) = fixed_expected {
+        if encoded_bytes != expected {
+            return Err(Diagnostic::error(format!(
+                "encoded checked-assembly instruction #{selected_instruction_index} does not match its closed catalog kind"
+            )));
+        }
+        if final_bytes != expected {
+            return Err(Diagnostic::error(format!(
+                "final checked-assembly instruction #{selected_instruction_index} changed after encoding"
+            )));
+        }
+        return Ok(());
+    }
+
+    match kind {
+        CheckedInstructionValidationKind::PortWriteImmediatePort { port } => {
+            let mut prefix = Vec::with_capacity(13);
+            prefix.extend([0x49, 0xba]);
+            prefix.extend(u64::from(port).to_le_bytes());
+            prefix.extend([0x44, 0x89, 0xd2]);
+            let suffix = [0x44, 0x89, 0xd8, 0xee];
+            if encoded_bytes.len() < prefix.len() + suffix.len()
+                || !encoded_bytes.starts_with(&prefix)
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `out` instruction #{selected_instruction_index} does not bind port {port:#06x} through the closed DX/AL envelope"
+                )));
+            }
+            if !final_bytes.starts_with(&prefix) || !final_bytes.ends_with(&suffix) {
+                return Err(Diagnostic::error(format!(
+                    "final checked `out` instruction #{selected_instruction_index} changed its port or privileged opcode envelope"
+                )));
+            }
+        }
+        CheckedInstructionValidationKind::PortReadImmediatePort {
+            port,
+            destination_byte_offset,
+        } => {
+            let mut prefix = Vec::with_capacity(16);
+            prefix.extend([0x49, 0xba]);
+            prefix.extend(u64::from(port).to_le_bytes());
+            prefix.extend([0x44, 0x89, 0xd2, 0xec, 0x49, 0xbf]);
+            let mut suffix = Vec::with_capacity(7);
+            suffix.extend([0x41, 0x88, 0x87]);
+            suffix.extend(destination_byte_offset.to_le_bytes());
+            if encoded_bytes.len() != 31
+                || !encoded_bytes.starts_with(&prefix)
+                || encoded_bytes[16..24] != [0; 8]
+                || !encoded_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "encoded checked `in` instruction #{selected_instruction_index} does not bind port {port:#06x} and its destination through the closed AL-store envelope"
+                )));
+            }
+            if final_bytes.len() != 31
+                || !final_bytes.starts_with(&prefix)
+                || !final_bytes.ends_with(&suffix)
+            {
+                return Err(Diagnostic::error(format!(
+                    "final checked `in` instruction #{selected_instruction_index} changed its port, privileged opcode, or destination envelope"
+                )));
+            }
+            let destination_relocation_offset = byte_offset + 16;
+            let matching_relocations = relocations
+                .records()
+                .filter(|(_, relocation)| {
+                    relocation.section == SectionKind::Text
+                        && relocation.kind == RelocationKind::Absolute64
+                        && relocation.offset == destination_relocation_offset
+                        && relocation.byte_width == 8
+                })
+                .count();
+            if matching_relocations != 1 {
+                return Err(Diagnostic::error(format!(
+                    "checked `in` instruction #{selected_instruction_index} requires exactly one destination relocation at final text byte {destination_relocation_offset}; found {matching_relocations}"
+                )));
+            }
+        }
+        _ => unreachable!("fixed checked instruction kinds returned above"),
+    }
+    Ok(())
 }
 
 fn relocation_kind_tag(kind: RelocationKind) -> u8 {
@@ -391,9 +490,9 @@ fn validate_compiler_entry_call_return_bytes(
 #[cfg(test)]
 mod tests {
     use super::{
-        emit_checked_executable_image, validate_compiler_entry_call_return_bytes,
-        validate_executable_region_enumeration, validate_final_text_relocation_envelope,
-        validate_fixed_checked_instruction_bytes,
+        emit_checked_executable_image, validate_checked_instruction_bytes,
+        validate_compiler_entry_call_return_bytes, validate_executable_region_enumeration,
+        validate_final_text_relocation_envelope,
     };
     use crate::ExecutableImageInput;
     use omega_core::arena::Handle;
@@ -528,10 +627,10 @@ mod tests {
     }
 
     #[test]
-    fn validates_fixed_checked_assembly_at_retained_instruction_boundaries() {
+    fn validates_checked_assembly_at_retained_instruction_boundaries() {
         use omega_core::arena::Arena;
         use omega_machine_bytes::{
-            EncodedMachineCode, EncodedMachineInstruction, FixedCheckedInstructionKind,
+            CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
         };
 
         let mut bytes = Arena::with_capacity(5);
@@ -542,17 +641,17 @@ mod tests {
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 4,
             bytes: halt,
-            fixed_checked_kind: Some(FixedCheckedInstructionKind::MachineHalt),
+            checked_validation_kind: Some(CheckedInstructionValidationKind::MachineHalt),
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 5,
             bytes: fence,
-            fixed_checked_kind: Some(FixedCheckedInstructionKind::FullFence),
+            checked_validation_kind: Some(CheckedInstructionValidationKind::FullFence),
         });
         instructions.insert(EncodedMachineInstruction {
             selected_instruction_index: 6,
             bytes: cli,
-            fixed_checked_kind: Some(FixedCheckedInstructionKind::InterruptDisable),
+            checked_validation_kind: Some(CheckedInstructionValidationKind::InterruptDisable),
         });
         let code = EncodedMachineCode {
             functions: Arena::new(),
@@ -561,21 +660,124 @@ mod tests {
             byte_count: 5,
         };
 
-        let (count, fingerprint) = validate_fixed_checked_instruction_bytes(
+        let relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+        let (count, fingerprint) = validate_checked_instruction_bytes(
             omega_target::Architecture::X86_64,
             &code,
             &[0xf4, 0x0f, 0xae, 0xf0, 0xfa],
+            &relocations,
         )
         .expect("closed checked-assembly bytes should validate");
         assert_eq!(count, 3);
         assert_ne!(fingerprint, 0);
 
-        let diagnostic = validate_fixed_checked_instruction_bytes(
+        let diagnostic = validate_checked_instruction_bytes(
             omega_target::Architecture::X86_64,
             &code,
             &[0xf4, 0x0f, 0xae, 0xe8, 0xfa],
+            &relocations,
         )
         .expect_err("a changed final fence kind must reject");
         assert!(diagnostic.message.contains("changed after encoding"));
+    }
+
+    #[test]
+    fn validates_immediate_port_identity_and_privileged_io_envelopes() {
+        use omega_core::arena::Arena;
+        use omega_machine_bytes::{
+            CheckedInstructionValidationKind, EncodedMachineCode, EncodedMachineInstruction,
+        };
+
+        let mut out_bytes = Vec::new();
+        out_bytes.extend([0x49, 0xba]);
+        out_bytes.extend(0x3f8u64.to_le_bytes());
+        out_bytes.extend([0x44, 0x89, 0xd2]);
+        out_bytes.extend([0x49, 0xbb]);
+        out_bytes.extend(0x41u64.to_le_bytes());
+        out_bytes.extend([0x44, 0x89, 0xd8, 0xee]);
+        let mut in_bytes = Vec::new();
+        in_bytes.extend([0x49, 0xba]);
+        in_bytes.extend(0x3fdu64.to_le_bytes());
+        in_bytes.extend([0x44, 0x89, 0xd2, 0xec, 0x49, 0xbf]);
+        in_bytes.extend(0u64.to_le_bytes());
+        in_bytes.extend([0x41, 0x88, 0x87]);
+        in_bytes.extend(4u32.to_le_bytes());
+
+        let mut bytes = Arena::with_capacity(out_bytes.len() + in_bytes.len());
+        let out_span = bytes.insert_many(out_bytes.iter().copied());
+        let in_span = bytes.insert_many(in_bytes.iter().copied());
+        let mut instructions = Arena::with_capacity(2);
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 8,
+            bytes: out_span,
+            checked_validation_kind: Some(
+                CheckedInstructionValidationKind::PortWriteImmediatePort { port: 0x3f8 },
+            ),
+        });
+        instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: 9,
+            bytes: in_span,
+            checked_validation_kind: Some(
+                CheckedInstructionValidationKind::PortReadImmediatePort {
+                    port: 0x3fd,
+                    destination_byte_offset: 4,
+                },
+            ),
+        });
+        let code = EncodedMachineCode {
+            functions: Arena::new(),
+            instructions,
+            bytes,
+            byte_count: out_bytes.len() + in_bytes.len(),
+        };
+        let mut final_bytes = out_bytes;
+        final_bytes.extend(in_bytes);
+        let destination_relocation_offset = final_bytes.len() - 31 + 16;
+        final_bytes[destination_relocation_offset..destination_relocation_offset + 8]
+            .copy_from_slice(&0x1234_5678_9abc_def0u64.to_le_bytes());
+        let mut relocations = RelocationPlan::with_target(NativeTarget::linux_x64());
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Instruction {
+                function_symbol_handle: Handle::invalid(),
+                selected_instruction_index: 9,
+            },
+            section: SectionKind::Text,
+            offset: destination_relocation_offset,
+            byte_width: 8,
+            symbol_handle: Handle::invalid(),
+            kind: RelocationKind::Absolute64,
+        });
+
+        let (count, fingerprint) = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &final_bytes,
+            &relocations,
+        )
+        .expect("closed port identities and opcode envelopes should validate");
+        assert_eq!(count, 2);
+        assert_ne!(fingerprint, 0);
+
+        let mut wrong_port = final_bytes.clone();
+        wrong_port[2] ^= 1;
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &wrong_port,
+            &relocations,
+        )
+        .expect_err("changing a final port identity must reject");
+        assert!(diagnostic.message.contains("changed its port"));
+
+        let mut wrong_opcode = final_bytes;
+        wrong_opcode[out_span.len() - 1] = 0x90;
+        let diagnostic = validate_checked_instruction_bytes(
+            omega_target::Architecture::X86_64,
+            &code,
+            &wrong_opcode,
+            &relocations,
+        )
+        .expect_err("changing a final out opcode must reject");
+        assert!(diagnostic.message.contains("privileged opcode envelope"));
     }
 }
