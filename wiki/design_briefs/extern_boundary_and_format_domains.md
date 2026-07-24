@@ -245,11 +245,12 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 - callback registration/revocation and long-lived foreign borrows;
 - dynamic-library loading/unloading under component versioning;
-- source-visible reified entry references (deferred until dynamic callbacks
-  demonstrate a need beyond build/provider selection). Static machine
-  parameters do not close this item: they substitute a symbol into specialized
-  code but do not produce a runtime carrier, relocation source, or sealed entry
-  identity; and
+- source-visible reified entry references. Windows WndProc registration is now
+  the first concrete dynamic-callback customer, so this is no longer deferred
+  for lack of demand; the source and registration-lifetime contract is tracked
+  in `OWNER_QUESTIONS.md` #12. Static machine parameters do not close this
+  item: they substitute a symbol into specialized code but do not produce a
+  runtime carrier, relocation source, or sealed entry identity; and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain
