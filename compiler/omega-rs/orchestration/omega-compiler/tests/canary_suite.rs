@@ -1329,6 +1329,10 @@ fn boundary_trait_canary_reports_capability_use() {
 
     let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
         .expect("capability manifest should be written");
+    let typed_trees = fs::read_to_string(build_dir.join("04_typed_trees.html"))
+        .expect("typed-tree report should be written");
+    let checked_trees = fs::read_to_string(build_dir.join("05_checked_trees.html"))
+        .expect("checked-tree report should be written");
     let state_graph = fs::read_to_string(build_dir.join("06_state_graph.html"))
         .expect("state graph report should be written");
     let control_flow = fs::read_to_string(build_dir.join("07_control_flow.html"))
@@ -1355,17 +1359,24 @@ fn boundary_trait_canary_reports_capability_use() {
         manifest
     );
     for (name, report) in [
+        ("typed trees", typed_trees.as_str()),
+        ("checked trees", checked_trees.as_str()),
         ("state graph", state_graph.as_str()),
         ("control flow", control_flow.as_str()),
     ] {
         assert!(
             report.contains("reached service reach: Console")
                 && report.contains("suspension: direct no, reached no")
-                && report.contains("blocking: direct no, reached no"),
+                && report.contains("blocking: direct no, reached no")
+                && report.contains("const SERVICE_REACH_NAMES = [")
+                && report.contains("\"serviceReaches\":[\"Console\"]"),
             "{name} report should retain canonical service reach and independent operational axes\n{report}"
         );
         assert!(
-            !report.contains("reached effects:") && !report.contains("[0x"),
+            !report.contains("reached effects:")
+                && !report.contains("[0x")
+                && !report.contains("const EFFECT_NAMES")
+                && !report.contains("\"effects\":"),
             "{name} report must not reconstruct legacy effect bits\n{report}"
         );
     }
