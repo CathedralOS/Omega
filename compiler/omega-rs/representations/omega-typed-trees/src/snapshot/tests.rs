@@ -1,6 +1,9 @@
-use super::{TypeConstraintSnapshot, TypedTreesSnapshot, type_constraint_snapshot};
+use super::{
+    MachineSupplySnapshot, TypeConstraintSnapshot, TypedTreesSnapshot, type_constraint_snapshot,
+};
 use crate::TypedTrees;
 use crate::domain::DomainDefinition;
+use crate::machine::Machine;
 use crate::name::Identifier;
 use crate::types::{DomainConstraint, TypeConstraintNode};
 
@@ -63,4 +66,33 @@ fn snapshots_normalized_domain_constraint_identity_and_facets() {
             semantic_facet: Some(7),
         } if name == "Utf8"
     ));
+}
+
+#[test]
+fn snapshots_normalized_machine_supply_including_external_binding_identity() {
+    let mut program = TypedTrees::default();
+    program.push_machine(Machine {
+        name: Identifier::generated("checked"),
+        ..Machine::default()
+    });
+    program.push_machine(Machine {
+        name: Identifier::generated("leaf"),
+        supply_mode: omega_core::semantics::MachineSupplyMode::ExternalRealization {
+            binding: omega_core::semantics::ExternalBindingId(17),
+        },
+        ..Machine::default()
+    });
+
+    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+    assert_eq!(
+        snapshot.roots.machines[0].supply,
+        MachineSupplySnapshot::CheckedBody
+    );
+    assert_eq!(
+        snapshot.roots.machines[1].supply,
+        MachineSupplySnapshot::ExternalRealization { binding: 17 }
+    );
+    let json = snapshot.to_json_pretty().expect("snapshot JSON");
+    assert!(json.contains("\"kind\": \"external_realization\""));
+    assert!(json.contains("\"binding\": 17"));
 }

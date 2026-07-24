@@ -287,6 +287,7 @@ pub struct MachineSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
+    pub supply: MachineSupplySnapshot,
     pub termination: TerminationInterfaceSnapshot,
     pub decreases: Vec<ExpressionSnapshot>,
     pub decrease_order: Vec<String>,
@@ -297,6 +298,16 @@ pub struct MachineSnapshot {
     pub contracts: Vec<SignatureContractSnapshot>,
     pub owned_data: Vec<OwnedDataSnapshot>,
     pub states: Vec<StateSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MachineSupplySnapshot {
+    CheckedBody,
+    Requirement,
+    Boundary,
+    Accepted,
+    ExternalRealization { binding: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -699,6 +710,7 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        supply: machine_supply_snapshot(machine.supply_mode),
         termination: termination_interface_snapshot(&machine.termination_plan.interface),
         decreases: program
             .expression_table
@@ -734,6 +746,21 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .iter()
             .map(|state| state_snapshot(program, state))
             .collect(),
+    }
+}
+
+fn machine_supply_snapshot(
+    supply: omega_core::semantics::MachineSupplyMode,
+) -> MachineSupplySnapshot {
+    use omega_core::semantics::MachineSupplyMode;
+    match supply {
+        MachineSupplyMode::CheckedBody => MachineSupplySnapshot::CheckedBody,
+        MachineSupplyMode::Requirement => MachineSupplySnapshot::Requirement,
+        MachineSupplyMode::Boundary => MachineSupplySnapshot::Boundary,
+        MachineSupplyMode::Accepted => MachineSupplySnapshot::Accepted,
+        MachineSupplyMode::ExternalRealization { binding } => {
+            MachineSupplySnapshot::ExternalRealization { binding: binding.0 }
+        }
     }
 }
 
