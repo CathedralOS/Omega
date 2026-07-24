@@ -105,7 +105,6 @@ pub(crate) fn lower_machine_into(
             type_parameters,
             owned_data: HandleSpan::empty(),
             satisfies,
-            terminates: machine.terminates,
             decreases,
             decrease_order,
             decrease_view_arguments,

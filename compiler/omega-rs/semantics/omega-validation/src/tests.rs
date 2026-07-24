@@ -413,6 +413,70 @@ fn static_machine_argument_need_not_republish_a_tautological_postcondition() {
 }
 
 #[test]
+fn static_machine_argument_requires_a_published_termination_guarantee() {
+    let typed = typed_program_from_source(
+        r#"
+        machine selected(value: u64) -> u64
+        terminates by value;
+        {
+            transition value > 0 {
+                true -> selected(value - 1)
+                false -> 0
+            }
+        }
+
+        machine invoke<machine F>(value: u64) -> u64
+        where machine F(value: u64) -> u64 terminates;
+        {
+            F(value)
+        }
+
+        machine caller(value: u64) -> u64 {
+            invoke<selected>(value)
+        }
+        "#,
+    );
+
+    let diagnostics = super::validate_static_machine_selections(&typed)
+        .expect_err("a private ranking witness must not publish a termination promise");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("the requirement guarantees termination")
+    }));
+}
+
+#[test]
+fn static_machine_argument_accepts_a_published_termination_guarantee() {
+    let typed = typed_program_from_source(
+        r#"
+        machine selected(value: u64) -> u64
+        terminates;
+        terminates by value;
+        {
+            transition value > 0 {
+                true -> selected(value - 1)
+                false -> 0
+            }
+        }
+
+        machine invoke<machine F>(value: u64) -> u64
+        where machine F(value: u64) -> u64 terminates;
+        {
+            F(value)
+        }
+
+        machine caller(value: u64) -> u64 {
+            invoke<selected>(value)
+        }
+        "#,
+    );
+
+    super::validate_static_machine_selections(&typed)
+        .expect("an explicit published termination guarantee should satisfy the slot");
+}
+
+#[test]
 fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
     let typed = typed_program_from_source(
         r#"

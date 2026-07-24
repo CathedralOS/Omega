@@ -20,10 +20,9 @@ pub struct Machine {
     pub supply_mode: omega_core::semantics::MachineSupplyMode,
     /// TPR2 (decision 23): the normalized termination plan (published
     /// guarantee vs private ranking witness), populated ONCE at the
-    /// syntax->resolved lowering and COPIED here -- never re-derived. The
-    /// `terminates`/`decreases`/`decrease_order` fields below remain the
-    /// compatibility shape the current cycle checker consumes until TPR3
-    /// migrates it onto this plan.
+    /// syntax->resolved lowering and COPIED here -- never re-derived. Ranking
+    /// subjects below are implementation witnesses, not compatibility
+    /// contract flags.
     pub termination_plan: omega_core::semantics::MachineTerminationPlan,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: omega_core::semantics::ServiceReachRowId,
@@ -31,7 +30,6 @@ pub struct Machine {
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
-    pub terminates: bool,
     pub decreases: HandleSpan<ExpressionHandle>,
     pub decrease_order: HandleSpan<Identifier>,
     /// TPR3: argumented-view arguments (`-> Nat::IncreasingTo(limit)`).
@@ -60,7 +58,6 @@ impl Default for Machine {
             type_parameters: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
-            terminates: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),
             decrease_view_arguments: HandleSpan::empty(),
