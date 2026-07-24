@@ -3267,12 +3267,14 @@ mod provider_plan {
     fn service_schema_reifies_a_boundary_trait() {
         // PRV2: the schema derives from the typed boundary TraitDefinition
         // -- names, parameter counts (receiver excluded), result presence,
-        // and declared effects.
+        // canonical service reach, and independent operational ceilings.
         let program = typed(
             "boundary trait Console {\n\
              machine write_line(text: &[u8])\n\
              effects\n\
-                 stdout_io;\n\
+                 stdout_io\n\
+             suspends;\n\
+             blocks;\n\
              machine exit_process(return_code: i32);\n\
              }\n\
              data Main { console: Console; }\n\
@@ -3290,10 +3292,13 @@ mod provider_plan {
         assert_eq!(schema.methods[0].name, "write_line");
         assert_eq!(schema.methods[0].parameter_count, 1);
         assert!(!schema.methods[0].has_result);
-        assert_eq!(schema.methods[0].effects, vec!["stdout_io".to_owned()]);
         assert_eq!(schema.methods[0].service_reach, vec!["Console".to_owned()]);
+        assert!(schema.methods[0].may_suspend);
+        assert!(schema.methods[0].may_block);
         assert_eq!(schema.methods[1].name, "exit_process");
         assert_eq!(schema.methods[1].service_reach, vec!["Console".to_owned()]);
+        assert!(!schema.methods[1].may_suspend);
+        assert!(!schema.methods[1].may_block);
     }
 
     #[test]
@@ -3389,7 +3394,6 @@ mod provider_plan {
             target: "t".to_owned(),
             schema: schema.clone(),
             rows,
-            effect_set: omega_effects::EffectSet::empty(),
             origin_package: "omega::language::std".to_owned(),
         };
         let forward = plan(vec![row("a", 1), row("b", 2)]);

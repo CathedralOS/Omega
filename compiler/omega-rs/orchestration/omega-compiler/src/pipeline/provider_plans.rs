@@ -426,7 +426,6 @@ pub(crate) fn derive_satisfies_plans(
                         target: target.clone(),
                         schema,
                         rows: Vec::new(),
-                        effect_set: omega_effects::EffectSet::empty(),
                         origin_package: String::new(),
                     });
                     plans.len() - 1
@@ -462,20 +461,6 @@ pub(crate) fn derive_satisfies_plans(
                 method: requirement.as_str().to_owned(),
                 binding: row_binding,
             });
-            // The effect CEILING: the satisfied requirement's declared
-            // effects, from the schema.
-            let mut ceiling = plan.effect_set;
-            if let Some(method) = plan
-                .schema
-                .methods
-                .iter()
-                .find(|method| method.name == requirement.as_str())
-            {
-                for effect in &method.effects {
-                    ceiling.insert_name(effect);
-                }
-            }
-            plan.effect_set = ceiling;
         }
     }
     plans
@@ -523,8 +508,9 @@ pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type:
 /// Validate every derived candidate before coverage and selection. A partial
 /// candidate may wait for more conformances, but duplicate/stray rows and
 /// malformed binding shapes are invalid in their own right. For checked
-/// adapters, transitive effects must also fit inside the satisfied
-/// requirement's declared ceiling.
+/// adapters, normalized service reach must also fit inside the satisfied
+/// requirement's declared ceiling. Independent operational refinement is
+/// validated by the machine-conformance checker that produced the candidate.
 pub(crate) fn validate_provider_plan_candidates(
     typed: &TypedTrees,
     plans: &[omega_effects::provider_plan::ProviderPlan],
@@ -564,37 +550,6 @@ pub(crate) fn validate_provider_plan_candidates(
             else {
                 continue;
             };
-            let transitive = effect_plan
-                .machines()
-                .iter()
-                .find(|entry| entry.symbol == adapter.symbol)
-                .map(|entry| entry.transitive)
-                .unwrap_or_else(omega_effects::EffectSet::empty);
-            let ceiling: Vec<&str> = plan
-                .schema
-                .methods
-                .iter()
-                .find(|method| method.name == row.method)
-                .map(|method| method.effects.iter().map(String::as_str).collect())
-                .unwrap_or_default();
-            let hidden: Vec<&str> = transitive
-                .names()
-                .filter(|name| !ceiling.contains(name))
-                .collect();
-            if !hidden.is_empty() {
-                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                    "adapter `{}` does not refine `{}::{}`: its body reaches effect(s) \
-                     [{}] outside the requirement's declared ceiling [{}] -- the \
-                     satisfied requirement is the public contract; widen it or drop \
-                     the effect",
-                    machine,
-                    plan.schema.trait_name,
-                    row.method,
-                    hidden.join(", "),
-                    ceiling.join(", "),
-                )));
-            }
-
             let service_ceiling = plan
                 .schema
                 .methods
@@ -1064,8 +1019,9 @@ mod tests {
                         name: (*method).to_owned(),
                         parameter_count: 0,
                         has_result: false,
-                        effects: Vec::new(),
                         service_reach: vec!["Pair".to_owned()],
+                        may_suspend: false,
+                        may_block: false,
                         calling_plan_fingerprint: None,
                     })
                     .collect(),
@@ -1077,7 +1033,6 @@ mod tests {
                     binding: ProviderBinding::VtableSlot { index: 0 },
                 })
                 .collect(),
-            effect_set: omega_effects::EffectSet::empty(),
             origin_package: String::new(),
         }
     }

@@ -265,11 +265,13 @@ plans, admission checks, and manifest fields. Boundary-trait declarations now
 mint canonical symbol-keyed identities after resolution, and normalized rows
 with parent closure drive recursive inference, checked ceilings, static-machine
 and checked-provider admission, contract/provider identity, snapshots, and
-manifests. The remaining migration moves legacy capability/authority,
-flow/graph, build-time-purity, assembly, and component consumers onto those
-rows, derives any temporary lowercase projection from them, migrates old
-fixtures, and deletes the table. Unknown service identifiers resolve normally;
-there is no global hard-coded service table in the end state.
+manifests. Checked flow/graph carriers, semantic reports, build-time purity,
+assembly reach, executable manifests, and provider-plan schema identity now
+consume the split representation directly. The remaining migration removes
+the lowercase host-authority/capability audits and old fixtures, eliminates
+the final compatibility projections, and deletes the table. Unknown service
+identifiers resolve normally; there is no global hard-coded service table in
+the end state.
 
 ## Acceptance register
 

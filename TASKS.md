@@ -1155,8 +1155,11 @@ stronger operations it needs instead of citing machine parameters generally.
   typed-tree report now joins the same normalized machine/state/call service
   rows with the independent operational fixed points, and the shared phase
   filter derives a deterministic canonical-service catalog from rendered
-  nodes instead of the global lowercase effect-name table. Remaining EFX work
-  is to migrate the legacy capability/authority consumers and other lowercase
+  nodes instead of the global lowercase effect-name table. Provider-plan
+  method schemas and stable identities now carry canonical service names plus
+  independent suspension/blocking ceilings; their redundant lowercase method
+  rows and plan-wide `EffectSet` aggregate are deleted. Remaining EFX work is
+  to migrate the legacy host-authority/capability audits and other lowercase
   fixtures, eliminate the remaining compatibility projection, and then delete
   the global service-name/u64 engine entirely. The direct-call
   acknowledgement keyword is a separate owner decision and must consume the

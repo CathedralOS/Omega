@@ -9,8 +9,6 @@
 //! never author-selected plan data -- which is why no trust field exists
 //! on these types.
 
-use crate::EffectSet;
-
 /// The service schema a plan serves: a boundary trait's callable surface,
 /// reified from the typed `TraitDefinition` (today that read is scattered
 /// -- parameter-count walks in the compiler pipeline, Console detection in
@@ -31,12 +29,14 @@ pub struct ServiceMethod {
     pub parameter_count: usize,
     /// Whether the method declares a return type.
     pub has_result: bool,
-    /// The method's declared effect names (`stdout_io`, `filesystem_io`).
-    pub effects: Vec<String>,
     /// EFX: normalized boundary-service identities rendered from the
     /// symbol-resolved service table. This includes the containing boundary
     /// trait and any explicit additional reach (with parent closure).
     pub service_reach: Vec<String>,
+    /// Independent authored operational ceilings. These never derive from
+    /// service reach and participate directly in provider schema identity.
+    pub may_suspend: bool,
+    pub may_block: bool,
     /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
     /// `Calling<C>` relationship. Policy type/source identity is excluded.
     pub calling_plan_fingerprint: Option<u64>,
@@ -96,8 +96,6 @@ pub struct ProviderPlan {
     pub schema: ServiceSchema,
     /// One row per bound method.
     pub rows: Vec<ProviderPlanRow>,
-    /// The plan's declared effect surface (union of its methods').
-    pub effect_set: EffectSet,
     /// Where the plan came from -- admission provenance input.
     pub origin_package: String,
 }
@@ -186,12 +184,9 @@ fn collect_service_methods(
                 .filter(|parameter| !parameter.is_self)
                 .count(),
             has_result: signature.return_type.is_valid(),
-            effects: program
-                .state_signature_effects(signature)
-                .iter()
-                .map(|effect| effect.as_str().to_owned())
-                .collect(),
             service_reach: service_reach_names(program, trait_definition, signature),
+            may_suspend: signature.suspends,
+            may_block: signature.blocks,
             calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
                 policy_owner,
                 boundary_arguments,
@@ -245,14 +240,14 @@ impl ProviderPlan {
         methods.sort_by(|left, right| left.name.cmp(&right.name));
         for method in methods {
             rendered.push_str(&format!(
-                "\nm:{}/{}/{}/{}",
+                "\nm:{}/{}/{}/services:{}/suspend:{}/block:{}",
                 method.name,
                 method.parameter_count,
                 method.has_result,
-                method.effects.join(",")
+                method.service_reach.join("+"),
+                method.may_suspend,
+                method.may_block,
             ));
-            rendered.push_str("/services:");
-            rendered.push_str(&method.service_reach.join("+"));
             if let Some(fingerprint) = method.calling_plan_fingerprint {
                 rendered.push_str(&format!("/calling:{fingerprint:016x}"));
             }
@@ -361,24 +356,27 @@ mod tests {
                     name: "write_line".to_owned(),
                     parameter_count: 1,
                     has_result: false,
-                    effects: vec!["stdout_io".to_owned()],
                     service_reach: vec!["Console".to_owned()],
+                    may_suspend: false,
+                    may_block: false,
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
                     name: "read_byte".to_owned(),
                     parameter_count: 0,
                     has_result: true,
-                    effects: vec!["stdin_io".to_owned()],
                     service_reach: vec!["Console".to_owned()],
+                    may_suspend: true,
+                    may_block: false,
                     calling_plan_fingerprint: None,
                 },
                 ServiceMethod {
                     name: "exit_process".to_owned(),
                     parameter_count: 1,
                     has_result: false,
-                    effects: Vec::new(),
                     service_reach: vec!["Console".to_owned()],
+                    may_suspend: false,
+                    may_block: true,
                     calling_plan_fingerprint: None,
                 },
             ],
@@ -411,7 +409,6 @@ mod tests {
                     },
                 },
             ],
-            effect_set: EffectSet::empty(),
             origin_package: "omega::language::std".to_owned(),
         }
     }
@@ -428,6 +425,24 @@ mod tests {
         assert_eq!(
             first.identity_fingerprint(),
             refactored.identity_fingerprint()
+        );
+    }
+
+    #[test]
+    fn independent_operational_ceilings_enter_provider_identity() {
+        let baseline = windows_console_plan();
+        let baseline_identity = baseline.identity_fingerprint();
+
+        let mut suspending = baseline.clone();
+        suspending.schema.methods[0].may_suspend = true;
+        assert_ne!(suspending.identity_fingerprint(), baseline_identity);
+
+        let mut blocking = baseline;
+        blocking.schema.methods[0].may_block = true;
+        assert_ne!(blocking.identity_fingerprint(), baseline_identity);
+        assert_ne!(
+            suspending.identity_fingerprint(),
+            blocking.identity_fingerprint()
         );
     }
 
