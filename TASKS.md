@@ -684,9 +684,13 @@ schemas recover the same instance without publishing policy type identity.
    architecture drift, and a footprint beyond the plan's state ceiling reject.
    `PreparedIdtLoad` also owns the exact private
    packed 10-byte x86 descriptor (table-byte limit plus placed base) and exposes
-   only its content-bound fingerprint. **Next:** insert and execute both emitted
-   helpers through those opaque provider inputs in the concrete Cathedral
-   provider, then finalize their materialization/installation receipts.
+   only its content-bound fingerprint. Insertion into Cathedral's initial image
+   is **OWNER-BLOCKED** on `OWNER_QUESTIONS.md` under "bootstrap provider
+   helpers": the current lowering consumes runtime populated/prepared seals
+   which cannot exist until after the artifact containing the helper has been
+   admitted and placed. Once template-versus-invocation staging is settled,
+   insert and execute both emitted helpers through opaque provider inputs and
+   finalize their materialization/installation receipts.
 5. **IDT2 — installed-root ledger.** The normalized `omega-external-roots`
    foundation is live. It admits only an entry present in the exact
    installed artifact; consumes owner-scoped slot authority; and records
@@ -737,13 +741,13 @@ schemas recover the same instance without publishing policy type identity.
    constructed until that exact root/ledger/control gate succeeds. The sealed
    writer preparation and address-free generated machine carrier now likewise
    prevent a swapped plan/destination/resolver from reaching code generation.
-   **Next:**
-   drive the selected-plan/root binding from concrete Cathedral PIC/LAPIC
-   candidate construction and insert/execute both plan-driven generated
-   operations in the concrete provider. R10 materialization is emitted from the
-   exact normalized private-pointer placement, the writer context is populated
-   opaquely from the installed resolver, and the load preparation owns the
-   exact private packed descriptor before lowering.
+   Concrete Cathedral PIC/LAPIC candidate construction may proceed, but
+   inserting the plan-driven generated writer/load operations into the initial
+   artifact is **OWNER-BLOCKED** on the bootstrap-helper staging question. R10
+   materialization is emitted from the exact normalized private-pointer
+   placement, the writer context is populated opaquely from the installed
+   resolver, and the load preparation owns the exact private packed descriptor
+   before invocation.
    The stack/IST policy must remain one fact consumed by both layout
    materialization and WCSU analysis.
 6. **IDT3 — linear interrupt obligations.** The source contract is live in
