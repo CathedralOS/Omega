@@ -907,10 +907,12 @@ active domain with alignment, a distinct dedicated class switches domains, and
 sequential roots sharing a class provision their maximum. Missing endpoints,
 cycles, unknown nested provider-selected stacks, overflow, and re-entry of an
 already active dedicated class fail closed. Every installed root in a ledger
-must bind the same complete composition fingerprint. Machine-state admission
-checks the final footprint against the `StatePlan`; canonical fixed-work
-provider summaries compose transitively while rejecting missing callees,
-cycles, zero invocation bounds, overflow, and excess demand. The report is
+must bind the same exact canonical nesting relation and provider-summary set.
+The sealed stack and work realizations retain those complete inputs; compact
+composition fingerprints are report keys, not admission evidence.
+Machine-state admission checks the final footprint against the `StatePlan`;
+canonical fixed-work provider summaries compose transitively while rejecting
+missing callees, cycles, zero invocation bounds, overflow, and excess demand. The report is
 deliberately not a numbered compiler phase because roots may be installed after
 image build. A sealed provider-execution binding now joins the normalized
 selected provider-plan identity, exact entry and boundary, effects, and the

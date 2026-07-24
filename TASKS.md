@@ -773,8 +773,11 @@ schemas recover the same instance without publishing policy type identity.
    switch domains, sequential roots sharing a class combine by maximum, and
    cycles, missing endpoints, unknown nested provider-selected stacks,
    arithmetic overflow, or re-entry of an active dedicated class reject. The
-   ledger requires every installed root to carry the same artifact-wide
-   composition fingerprint. A sealed `ProviderExecution` now binds the selected
+   sealed stack and work realizations now retain their complete canonical
+   nesting relation/provider-summary inputs; compact composition fingerprints
+   remain report keys and cannot hide graph drift or authorize across a
+   collision. The ledger requires every installed root to carry the same exact
+   artifact-wide stack evidence. A sealed `ProviderExecution` now binds the selected
    normalized provider-plan identity, exact entry/boundary/effect set, and all
    three independent realizations into root admission. It retains the complete
    `ValidatedExternalRoot`, and slot admission retains both that exact root and
