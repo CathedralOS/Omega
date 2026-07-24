@@ -265,10 +265,37 @@ result lifetime keeps the corresponding input loan active while unrelated
 inputs such as `second` remain independently usable. Moving a borrow-carrying
 local—or projecting and moving one of its nested fields—transfers the contained
 loan paths and their read/mutable polarity to the destination local; ordinary
-data assignment cannot erase a borrow. Result contracts relating different
-fields to different input lifetimes, general outlives constraints, and the
-remaining aggregate expression forms remain implementation work; they are not
-new language-design questions.
+data assignment cannot erase a borrow.
+
+For an explicitly multi-lifetime result, the checker derives the result
+contract structurally from the data declaration:
+
+```omega
+data Pair<'left, 'right> {
+    left: &'left mut i32;
+    right: &'right mut i32;
+}
+
+machine pair<'left, 'right>(
+    left: &'left mut i32,
+    right: &'right mut i32
+) -> Pair<'left, 'right> {
+    let result: Pair<'left, 'right> = Pair {
+        left: left,
+        right: right,
+    };
+    transition {
+        _ -> result
+    }
+}
+```
+
+The mapping follows nested records, sum payloads, fixed arrays, and concrete
+generic arguments, preserving each carried field's projection and polarity.
+Here `result.left` retains only `left`, while `result.right` retains only
+`right`.
+General outlives constraints and the remaining aggregate expression forms
+remain implementation work; they are not new language-design questions.
 
 ## Relationship To Drops
 

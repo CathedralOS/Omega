@@ -1982,3 +1982,95 @@ fn rejects_source_mutation_after_borrow_carrying_field_transfer() {
         "expected the projected aggregate's source conflict, got:\n{combined}"
     );
 }
+
+/// An explicitly multi-lifetime result derives one source mapping per field;
+/// using `right` does not keep the unrelated `left` loan active.
+#[test]
+fn accepts_field_specific_sources_for_multi_lifetime_result() {
+    let source = r#"
+        data Pair<'left, 'right> {
+            left: &'left mut i32;
+            right: &'right mut i32;
+        }
+
+        machine pair<'left, 'right>(
+            left: &'left mut i32,
+            right: &'right mut i32
+        ) -> Pair<'left, 'right> {
+            let result: Pair<'left, 'right> = Pair {
+                left: left,
+                right: right,
+            };
+            transition {
+                _ -> result
+            }
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'left, 'right>(
+            left: &'left mut i32,
+            right: &'right mut i32
+        ) {
+            let result: Pair<'left, 'right> = pair(left, right);
+            let selected: &mut i32 = result.right;
+            write(left);
+            write(selected);
+        }
+    "#;
+
+    check_program(source)
+        .expect("a field-specific use should retain only that field's named source");
+}
+
+/// The field-specific mapping still rejects mutation of the source retained by
+/// the field used later.
+#[test]
+fn rejects_linked_field_source_for_multi_lifetime_result() {
+    let source = r#"
+        data Pair<'left, 'right> {
+            left: &'left mut i32;
+            right: &'right mut i32;
+        }
+
+        machine pair<'left, 'right>(
+            left: &'left mut i32,
+            right: &'right mut i32
+        ) -> Pair<'left, 'right> {
+            let result: Pair<'left, 'right> = Pair {
+                left: left,
+                right: right,
+            };
+            transition {
+                _ -> result
+            }
+        }
+
+        machine write(value: &mut i32) {
+            value = 1;
+        }
+
+        machine exercise<'left, 'right>(
+            left: &'left mut i32,
+            right: &'right mut i32
+        ) {
+            let result: Pair<'left, 'right> = pair(left, right);
+            write(right);
+            write(result.right);
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("the right result field must retain the right input");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("mutates `right` while local borrow `result` is still active"),
+        "expected the multi-lifetime field conflict, got:\n{combined}"
+    );
+}

@@ -1,0 +1,35 @@
+// FAIL canary (lifetimes stage 2): each field in a multi-lifetime aggregate
+// result retains its corresponding named input.
+
+data Pair<'left, 'right> {
+    left: &'left mut i32;
+    right: &'right mut i32;
+}
+
+machine pair<'left, 'right>(
+    left: &'left mut i32,
+    right: &'right mut i32
+) -> Pair<'left, 'right> {
+    let result: Pair<'left, 'right> = Pair {
+        left: left,
+        right: right,
+    };
+    transition {
+        _ -> result
+    }
+}
+
+machine exercise<'left, 'right>(
+    left: &'left mut i32,
+    right: &'right mut i32
+) {
+    let result: Pair<'left, 'right> = pair(left, right);
+    right = 1;
+    result.right = 2;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

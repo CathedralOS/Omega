@@ -26,6 +26,8 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::state::State;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+use super::tracker::BorrowOwnerSegment;
+
 /// Where a returned view's borrow comes from.
 #[derive(Debug, Clone)]
 pub(crate) enum ViewReturnSource {
@@ -38,9 +40,19 @@ pub(crate) enum ViewReturnSource {
     /// is the ordinal among NON-SELF parameters, which equals the positional
     /// argument index at a call site.
     Parameter { non_self_index: usize },
+    /// A borrow-carrying aggregate maps each carried field to the one input
+    /// named by that field's instantiated lifetime.
+    Fields { fields: Vec<ViewReturnFieldSource> },
     /// The signature is ambiguous or ill-formed; the declaration check turns
     /// this into a diagnostic and the loan attributor tracks no loan.
     Ambiguous(ViewReturnAmbiguity),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ViewReturnFieldSource {
+    pub(crate) owner_path: Vec<BorrowOwnerSegment>,
+    pub(crate) non_self_index: usize,
+    pub(crate) kind: omega_checked_trees::BorrowAccessKind,
 }
 
 /// Why a view-returning signature could not be resolved to a single input.
@@ -88,7 +100,47 @@ pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) ->
         }
     }
 
-    match return_lifetime(program, state.return_type) {
+    if let Some(output_fields) = aggregate_return_lifetimes(program, state.return_type) {
+        let mut fields = Vec::with_capacity(output_fields.len());
+        for output in output_fields {
+            let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
+                .iter()
+                .filter(|(_, _, lifetime)| *lifetime == Some(output.lifetime.as_str()))
+                .collect();
+            match matching.as_slice() {
+                [] => {
+                    return ViewReturnSource::Ambiguous(
+                        ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                            lifetime: output.lifetime,
+                        },
+                    );
+                }
+                [single] => fields.push(ViewReturnFieldSource {
+                    owner_path: output.owner_path,
+                    non_self_index: single.0,
+                    kind: if output.is_mutable {
+                        omega_checked_trees::BorrowAccessKind::Mutable
+                    } else {
+                        omega_checked_trees::BorrowAccessKind::Read
+                    },
+                }),
+                _ => {
+                    return ViewReturnSource::Ambiguous(
+                        ViewReturnAmbiguity::LifetimeMatchesMultipleInputs {
+                            lifetime: output.lifetime,
+                            candidates: matching
+                                .iter()
+                                .map(|(_, name, _)| (*name).to_owned())
+                                .collect(),
+                        },
+                    );
+                }
+            }
+        }
+        return ViewReturnSource::Fields { fields };
+    }
+
+    match reference_lifetime(program, state.return_type) {
         Some(output_lifetime) => {
             let matching: Vec<&(usize, &str, Option<&str>)> = ref_parameters
                 .iter()
@@ -140,23 +192,254 @@ fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle)
     }
 }
 
-/// The single explicit lifetime governing a returned borrow. Direct views use
-/// their reference tag; borrow-carrying data uses its one erased lifetime
-/// argument. Multi-lifetime aggregate results need field-to-input result
-/// contracts and therefore remain outside this stage.
-fn return_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { lifetime, .. } => {
-            lifetime.as_ref().map(|name| name.as_str())
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => return_lifetime(program, *base_type),
-        TypeReferenceNode::Generic {
-            lifetime_arguments, ..
-        } if is_borrow_carrying_data(program, type_reference) && lifetime_arguments.len() == 1 => {
-            Some(lifetime_arguments[0].as_str())
-        }
-        _ => None,
+#[derive(Clone)]
+struct AggregateReturnLifetime {
+    owner_path: Vec<BorrowOwnerSegment>,
+    lifetime: String,
+    is_mutable: bool,
+}
+
+/// Instantiate the lifetime carried by each returned aggregate field. This is
+/// the result-contract derivation for ordinary records: the data declaration
+/// says which field uses which lifetime parameter, and the result application
+/// supplies those parameters' machine-lifetime arguments.
+fn aggregate_return_lifetimes(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<Vec<AggregateReturnLifetime>> {
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    if lifetime_arguments.is_empty() {
+        return None;
     }
+    let definition = data_definition(program, *base_symbol)?;
+    let lifetime_substitutions = definition
+        .lifetime_parameters
+        .iter()
+        .zip(lifetime_arguments)
+        .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.as_str().to_owned()))
+        .collect::<Vec<_>>();
+    let type_arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    let type_substitutions = program
+        .data_type_parameters(definition)
+        .iter()
+        .zip(type_arguments)
+        .map(|(parameter, argument)| (parameter.symbol, *argument))
+        .collect::<Vec<_>>();
+    let mut output = Vec::new();
+    collect_data_return_lifetimes(
+        program,
+        definition,
+        &lifetime_substitutions,
+        &type_substitutions,
+        &[],
+        &mut Vec::new(),
+        &mut output,
+    );
+    (!output.is_empty()).then_some(output)
+}
+
+fn collect_type_return_lifetimes(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    lifetime_substitutions: &[(String, String)],
+    type_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    owner_path: &[BorrowOwnerSegment],
+    visiting: &mut Vec<SymbolHandle>,
+    output: &mut Vec<AggregateReturnLifetime>,
+) {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            is_mutable,
+            lifetime: Some(lifetime),
+            ..
+        } => {
+            let lifetime = lifetime_substitutions
+                .iter()
+                .rev()
+                .find_map(|(parameter, argument)| {
+                    (parameter == lifetime.as_str()).then_some(argument.clone())
+                })
+                .unwrap_or_else(|| lifetime.as_str().to_owned());
+            output.push(AggregateReturnLifetime {
+                owner_path: owner_path.to_vec(),
+                lifetime,
+                is_mutable: *is_mutable,
+            });
+        }
+        TypeReferenceNode::Reference { lifetime: None, .. } => {}
+        TypeReferenceNode::Constrained { base_type, .. } => collect_type_return_lifetimes(
+            program,
+            *base_type,
+            lifetime_substitutions,
+            type_substitutions,
+            owner_path,
+            visiting,
+            output,
+        ),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            if let omega_typed_trees::types::FixedArrayLength::Literal(length) = length {
+                for index in 0..*length {
+                    let mut element_path = owner_path.to_vec();
+                    element_path.push(BorrowOwnerSegment::FixedIndex(index));
+                    collect_type_return_lifetimes(
+                        program,
+                        *element_type,
+                        lifetime_substitutions,
+                        type_substitutions,
+                        &element_path,
+                        visiting,
+                        output,
+                    );
+                }
+            } else {
+                collect_type_return_lifetimes(
+                    program,
+                    *element_type,
+                    lifetime_substitutions,
+                    type_substitutions,
+                    owner_path,
+                    visiting,
+                    output,
+                );
+            }
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } => {
+            let Some(definition) = data_definition(program, *base_symbol) else {
+                return;
+            };
+            let nested_lifetimes = definition
+                .lifetime_parameters
+                .iter()
+                .zip(lifetime_arguments)
+                .map(|(parameter, argument)| {
+                    let argument = lifetime_substitutions
+                        .iter()
+                        .rev()
+                        .find_map(|(outer, concrete)| {
+                            (outer == argument.as_str()).then_some(concrete.clone())
+                        })
+                        .unwrap_or_else(|| argument.as_str().to_owned());
+                    (parameter.as_str().to_owned(), argument)
+                })
+                .collect::<Vec<_>>();
+            let nested_arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            let mut nested_types = type_substitutions.to_vec();
+            nested_types.extend(
+                program
+                    .data_type_parameters(definition)
+                    .iter()
+                    .zip(nested_arguments)
+                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
+            );
+            collect_data_return_lifetimes(
+                program,
+                definition,
+                &nested_lifetimes,
+                &nested_types,
+                owner_path,
+                visiting,
+                output,
+            );
+        }
+        TypeReferenceNode::Named { symbol, .. } => {
+            if let Some((_, concrete)) = type_substitutions
+                .iter()
+                .rev()
+                .find(|(parameter, _)| parameter == symbol)
+            {
+                collect_type_return_lifetimes(
+                    program,
+                    *concrete,
+                    lifetime_substitutions,
+                    type_substitutions,
+                    owner_path,
+                    visiting,
+                    output,
+                );
+            } else if let Some(definition) = data_definition(program, *symbol) {
+                collect_data_return_lifetimes(
+                    program,
+                    definition,
+                    lifetime_substitutions,
+                    type_substitutions,
+                    owner_path,
+                    visiting,
+                    output,
+                );
+            }
+        }
+        TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn collect_data_return_lifetimes(
+    program: &TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+    lifetime_substitutions: &[(String, String)],
+    type_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    owner_path: &[BorrowOwnerSegment],
+    visiting: &mut Vec<SymbolHandle>,
+    output: &mut Vec<AggregateReturnLifetime>,
+) {
+    if visiting.contains(&definition.symbol) {
+        return;
+    }
+    visiting.push(definition.symbol);
+    for member in program.data_members(definition) {
+        match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                let mut field_path = owner_path.to_vec();
+                field_path.push(BorrowOwnerSegment::Field(field.symbol));
+                collect_type_return_lifetimes(
+                    program,
+                    field.type_reference,
+                    lifetime_substitutions,
+                    type_substitutions,
+                    &field_path,
+                    visiting,
+                    output,
+                );
+            }
+            omega_typed_trees::data::DataMember::Variant(variant) => {
+                for field in program.data_payload_fields(variant) {
+                    let mut field_path = owner_path.to_vec();
+                    field_path.push(BorrowOwnerSegment::Field(field.symbol));
+                    collect_type_return_lifetimes(
+                        program,
+                        field.type_reference,
+                        lifetime_substitutions,
+                        type_substitutions,
+                        &field_path,
+                        visiting,
+                        output,
+                    );
+                }
+            }
+        }
+    }
+    visiting.pop();
 }
 
 /// Whether a type reference is a view (a reference, possibly under a

@@ -1548,11 +1548,14 @@ stronger operations it needs instead of citing machine parameters generally.
   identity/layout, and let a single-lifetime aggregate result retain precisely
   the named input through a call-produced local. Moving a borrow-carrying local
   or one of its fields now transfers its exact nested loan paths and polarity
-  instead of laundering the source through ordinary data assignment. Finish
-  result contracts relating different fields to different input lifetimes,
-  general outlives constraints, and loan propagation through the remaining
-  aggregate expression forms. These are settled implementation work needed by
-  placed views and task storage, not owner-design blockers.
+  instead of laundering the source through ordinary data assignment.
+  Multi-lifetime aggregate results now derive a field-specific result contract
+  from the data declaration and instantiated lifetime arguments, retaining
+  each field's named input independently through nested records, payloads,
+  fixed arrays, and concrete generic arguments. Finish general outlives
+  constraints and loan propagation through the remaining aggregate expression
+  forms. These are settled implementation work needed by placed views and task
+  storage, not owner-design blockers.
 - **Const data parameters.** Literal and scoped named-integer-const arguments
   now parse in generic type position, validate against the declared integer
   kind/range, and substitute into fixed-array layout, descriptors, runtime

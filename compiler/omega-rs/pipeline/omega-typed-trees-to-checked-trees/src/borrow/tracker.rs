@@ -3,7 +3,7 @@ use crate::context::*;
 use super::accesses::BorrowAccessPlace;
 
 #[derive(Debug, Clone, Copy)]
-pub(super) enum BorrowOwnerSegment {
+pub(crate) enum BorrowOwnerSegment {
     Field(SymbolHandle),
     FixedIndex(usize),
 }
