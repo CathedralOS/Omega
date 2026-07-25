@@ -920,7 +920,10 @@ all consumed values. The live ledger separately retains the complete installed
 root evidence. Interrupt-entry receipts derive from the live borrowed root
 handle and bind that exact root, provider execution, and installed-code
 context, so colliding report IDs cannot mint an invocation or its linear
-obligations. The live ledger also owns a deterministic report
+obligations. Provider receipts for mask save/restore and acknowledgement derive
+from those live opaque carriers and retain the same complete invocation
+evidence; compact control, guard, acknowledgement, and invocation IDs cannot
+settle debt from another root. The live ledger also owns a deterministic report
 fingerprint that binds each normalized root contract to its exact installed
 code, artifact, slot, owner, and admission. `omega-artifacts` writes this live
 state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,

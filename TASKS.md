@@ -788,7 +788,10 @@ schemas recover the same instance without publishing policy type identity.
    final-byte realization at either lifecycle edge. The ledger separately
    retains the complete installed-root evidence and interrupt-entry receipts
    derive from the live handle, so the same substitution cannot mint an
-   invocation or its opaque linear obligations. Acknowledgement,
+   invocation or its opaque linear obligations. Mask save/restore and
+   acknowledgement receipts likewise derive from their exact live
+   control/guard/acknowledgement carriers and retain the complete invocation
+   evidence rather than restating IDs. Acknowledgement,
    component-pin, trust-receipt, entry, code, or resource drift rejects even if
    a compact identity collides. Execution/plan/code identities remain report
    keys in the ledger fingerprint and manifest. The
