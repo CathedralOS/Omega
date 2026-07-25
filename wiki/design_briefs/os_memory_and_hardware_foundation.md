@@ -732,7 +732,8 @@ decoded artifacts are immutable and reusable; exact admission evidence checks
 the complete immutable artifact rather than relying on compact FNV identities
 as collision-resistant authority before establishing executable qualification.
 Admission from a validated container also binds the proof-payload identity and
-the exact proof bytes independently of content identity, so verifier acceptance
+the exact proof bytes independently of content identity. The normalizer derives
+the former from the latter rather than accepting a restated pair, so verifier acceptance
 cannot be replayed across byte, proof, or semantic-container drift even if a
 compact proof identity collides;
 informational sections remain excluded from the gate. This is the substitution-

@@ -3,6 +3,15 @@ use super::*;
 pub const OMEGA_EXECUTABLE_CONTAINER_VERSION: u16 = 2;
 const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
 
+pub fn normalized_proof_payload_identity(proof: &[u8]) -> ProofPayloadId {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in b"omega.proof-payload.v1".iter().chain(proof) {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    ProofPayloadId(if hash == 0 { 1 } else { hash })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContainerLimits {
     pub max_total_bytes: u64,
@@ -260,6 +269,11 @@ pub fn validate_decoded_container(
             decoded.code.len(),
             decoded.code_length
         )));
+    }
+    if decoded.proof_payload != normalized_proof_payload_identity(&decoded.proof) {
+        return Err(InstallationDiagnostic(
+            "proof-payload identity does not match the exact proof bytes".into(),
+        ));
     }
 
     let mut ranges = Vec::with_capacity(decoded.sections.len());
@@ -670,7 +684,8 @@ mod tests {
         let footprint = id(4, MachineFootprintId::from_normalized_identity);
         let placement = id(5, PlacementPlanId::from_normalized_identity);
         let relocations = id(6, RelocationSetId::from_normalized_identity);
-        let proof = id(7, ProofPayloadId::from_normalized_identity);
+        let proof_bytes = vec![0xa5; 64];
+        let proof = normalized_proof_payload_identity(&proof_bytes);
         let entry_set = id(8, EntrySetId::from_normalized_identity);
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
         let mut decoded = DecodedArtifactContainer {
@@ -697,7 +712,7 @@ mod tests {
                 addend: -4,
             }],
             proof_payload: proof,
-            proof: vec![0xa5; 64],
+            proof: proof_bytes,
             sections: vec![
                 ContainerSection {
                     kind: ContainerSectionKind::Code,
@@ -787,7 +802,8 @@ mod tests {
         );
 
         let mut changed = decoded();
-        changed.proof_payload = id(99, ProofPayloadId::from_normalized_identity);
+        changed.proof[0] ^= 1;
+        changed.proof_payload = normalized_proof_payload_identity(&changed.proof);
         changed.sections[6].kind = ContainerSectionKind::Proof(changed.proof_payload);
         let changed = validate_decoded_container(changed, limits()).expect("changed proof");
         let replay = ValidatedContainerAdmissionEvidence::from_validator(
@@ -799,20 +815,18 @@ mod tests {
             .expect_err("acceptance for another proof payload must not replay");
         assert!(error.0.contains("different proof payload"));
 
-        let mut changed_bytes = decoded();
-        changed_bytes.proof[0] ^= 1;
-        let changed_bytes =
-            validate_decoded_container(changed_bytes, limits()).expect("changed proof bytes");
+        let changed_bytes = changed;
         assert_eq!(
             changed_bytes.artifact().content(),
             container.artifact().content(),
             "proof evidence remains outside executable promise identity"
         );
-        let replay = ValidatedContainerAdmissionEvidence::from_validator(
+        let mut replay = ValidatedContainerAdmissionEvidence::from_validator(
             id(72, AdmissionReceiptId::from_normalized_identity),
             &changed_bytes,
             true,
         );
+        replay.proof_payload = container.proof_payload;
         let error = admit_validated_container(&container, replay)
             .expect_err("acceptance for different proof bytes must not replay");
         assert!(error.0.contains("different exact proof bytes"));
@@ -1084,7 +1098,8 @@ mod tests {
         assert_eq!(validated.artifact().content(), two_entry_identity);
 
         let mut changed_proof = decoded();
-        changed_proof.proof_payload = id(99, ProofPayloadId::from_normalized_identity);
+        changed_proof.proof[0] ^= 1;
+        changed_proof.proof_payload = normalized_proof_payload_identity(&changed_proof.proof);
         changed_proof.sections[6].kind = ContainerSectionKind::Proof(changed_proof.proof_payload);
         let validated =
             validate_decoded_container(changed_proof, limits()).expect("proof is evidence");
