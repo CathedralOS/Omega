@@ -302,14 +302,14 @@ flags" sum erases the target distinction.
 The inverse scalar decoder consumes compiler-materialized
 field widths and the same named geometry, reconstructs complete logical
 fields, and rejects incomplete or overlapping source fragments. Decoding
-establishes no domain, trust, or authority fact. The first x86 imported-table
-validator now applies it entry by entry, rejects any reserved/unsupported bit
-that cannot round-trip through the normalized plan, and requires the complete
-image to equal the deterministic hierarchy for the exact pending mapping set
-before minting the separate `ImportedScan` construction receipt. This strict v1
-profile does not mistake decoding for establishment or claim equivalence for
-alternate hierarchy allocation. Source establishment and the AArch64 scanner
-remain separate work.
+establishes no domain, trust, or authority fact. Strict x86-64 and AArch64
+imported-table validators now apply it entry by entry, reject any reserved or
+unsupported bit that cannot round-trip through the normalized target plan, and
+require the complete image to equal the deterministic hierarchy for the exact
+pending mapping set before minting the separate `ImportedScan` construction
+receipt. This v1 profile does not mistake decoding for establishment or claim
+equivalence for alternate hierarchy allocation. Source establishment remains
+separate work.
 Step 8 now also has a normalized symbolic foundation: sealed
 `Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or

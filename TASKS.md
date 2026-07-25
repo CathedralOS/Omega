@@ -1798,14 +1798,14 @@ stronger operations it needs instead of citing machine parameters generally.
   the same generated-construction receipt lifecycle without collapsing the two
   targets into a common flags algebra. Add huge-page/PAT/LA57 or AArch64
   block/LPA2/dirty-state
-  policies only for real target customers. The first x86 imported-table scanner
-  is live and born strict: every entry must round-trip through the same named
-  scalar layout with all unsupported bits zero, and the complete image must
-  equal the deterministic hierarchy for the exact draft before it can mint an
-  `ImportedScan` construction receipt. This deliberately rejects alternate
-  hierarchy allocation, aliases, huge pages, and hardware-mutated accessed/
-  dirty state until those policies have explicit contracts. Add the AArch64
-  scanner, then implement page-table-control execution/effects plus Cathedral's
+  policies only for real target customers. Strict imported-table scanners are
+  live for both x86-64 and AArch64: every entry must round-trip through its
+  target's exact named scalar layout with all unsupported bits zero, and the
+  complete image must equal the deterministic hierarchy for the exact draft
+  before it can mint an `ImportedScan` construction receipt. This deliberately
+  rejects alternate hierarchy allocation, aliases, huge pages, and
+  hardware-mutated accessed/dirty state until those policies have explicit
+  contracts. Implement page-table-control execution/effects plus Cathedral's
   concrete CR3/TTBR activation as ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
