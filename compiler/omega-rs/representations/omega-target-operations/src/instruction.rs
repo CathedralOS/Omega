@@ -18,12 +18,7 @@ pub use operand::{
     TargetInstructionOperandKind,
 };
 pub use operation::{SelectedInstruction, TargetOperation};
-pub use operation_kind::{
-    GENERATED_IDT_WRITER_CONTEXT_ABI_V1, GENERATED_IDT_WRITER_DESTINATION_OFFSET,
-    GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH, GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET,
-    GeneratedIdtWriterStep, SelectedInstructionKind, TargetOperationDomain, TargetOperationKind,
-    generated_idt_writer_context_byte_len,
-};
+pub use operation_kind::{SelectedInstructionKind, TargetOperationDomain, TargetOperationKind};
 pub use plan::{InstructionPlan, TargetOperationCode, TargetOperationPlan};
 pub use semantics::{
     TargetBoundarySummary, TargetOwnershipSummary, TargetSemanticSummary, TargetValueSummary,

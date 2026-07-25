@@ -34,32 +34,6 @@ scanners, or receipts.
 
 ## Priority queue
 
-### P0 — Remove compiler-owned IDT lifecycle
-
-The page-table specialization has been removed. Apply the same ownership rule
-to the IDT specialization currently embedded in `omega-external-roots` and its
-backend consumers.
-
-Keep:
-
-- the general external-root ledger and installed-root analysis;
-- sealed entry identities;
-- generic fragmented/symbolic materialization;
-- checked `lidt` instruction encoding and contracts; and
-- provider admission and general grants/receipts.
-
-Remove or migrate into Cathedral package code:
-
-- `PreparedIdtWriter`, `PopulatedIdtWriter`, and `MaterializedIdt`;
-- `PreparedIdtLoad` and `InstalledIdt`; and
-- IDT-specific destination, control, materialization, and installation
-  identities/receipts.
-
-Do not add another customer-shaped replacement. If Cathedral cannot express a
-step, route the missing general primitive into P1/P2. Done when compiler crates
-contain no IDT lifecycle model and Cathedral still owns its gate schema and
-policy.
-
 ### P1 — Runtime representation for opaque boundary values
 
 **OWNER-BLOCKED: `OWNER_QUESTIONS.md` #8.**

@@ -10,33 +10,6 @@ mod tests;
 
 pub use classification::TargetOperationDomain;
 
-/// `IDTWRIT1`: packed private-context ABI selected by generated writer
-/// lowering. R10 points at a destination u64 followed by dense u64 source
-/// slots. The values are provider-private and never enter source operations.
-pub const GENERATED_IDT_WRITER_CONTEXT_ABI_V1: u64 = 0x4944_5457_5249_5431;
-pub const GENERATED_IDT_WRITER_DESTINATION_OFFSET: usize = 0;
-pub const GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET: usize = 8;
-pub const GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH: usize = 8;
-
-pub fn generated_idt_writer_context_byte_len(source_slot_count: usize) -> Option<usize> {
-    source_slot_count
-        .checked_mul(GENERATED_IDT_WRITER_SOURCE_SLOT_WIDTH)?
-        .checked_add(GENERATED_IDT_WRITER_SOURCE_SLOTS_OFFSET)
-}
-
-/// Address-free generated IDT-writer fragment. `source_slot` indexes the
-/// provider-private packed context consumed by the ISA encoder; no numeric
-/// handler address is retained in the target operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GeneratedIdtWriterStep {
-    pub container_byte_offset: u64,
-    pub container_width_bits: u16,
-    pub destination_lsb: u16,
-    pub source_lsb: u16,
-    pub width: u16,
-    pub source_slot: usize,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetOperationKind {
     EnterFunction,
@@ -545,42 +518,6 @@ pub enum TargetOperationKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
-    /// Compiler-generated, deriver-only x86 `lidt [r10]`. A validated
-    /// one-private-pointer invocation plan selects the input register copied
-    /// into R10; the numeric descriptor address remains absent. No
-    /// abstract/source operation converts to this variant.
-    GeneratedIdtLoad {
-        pointer_register: omega_calling_conventions::MachineRegister,
-        materialized: omega_external_roots::MaterializedIdtId,
-        descriptor: omega_external_roots::IdtDestinationId,
-        descriptor_fingerprint: u64,
-        content_fingerprint: u64,
-        root_ledger_fingerprint: u64,
-        control: omega_external_roots::IdtControlId,
-    },
-    /// Compiler-generated, address-free direct-destination IDT writer. The
-    /// populated seal owns the actual destination and opaque resolved context;
-    /// this carrier retains only the plan-selected pointer register, exact
-    /// identities/fingerprints, fragment geometry, and private context-slot
-    /// indices. No abstract/source operation converts to this variant.
-    GeneratedIdtWriter {
-        pointer_register: omega_calling_conventions::MachineRegister,
-        context: omega_external_roots::IdtWriterContextId,
-        preparation: omega_external_roots::IdtWriterPreparationId,
-        installed_code: omega_external_roots::InstalledCodeId,
-        artifact: omega_external_roots::ArtifactId,
-        destination: omega_external_roots::IdtDestinationId,
-        writer_fingerprint: u64,
-        placement_fingerprint: u64,
-        initial_content_fingerprint: u64,
-        root_binding_fingerprint: u64,
-        byte_len: usize,
-        little_endian: bool,
-        context_abi: u64,
-        context_fingerprint: u64,
-        source_slot_count: usize,
-        steps: std::sync::Arc<[GeneratedIdtWriterStep]>,
-    },
     /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
     FlagsSnapshot {
         dest_region: RuntimeStorageRegion,
