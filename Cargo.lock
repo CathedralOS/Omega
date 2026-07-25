@@ -691,6 +691,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-page-tables"
+version = "0.1.0"
+dependencies = [
+ "omega-extents",
+]
+
+[[package]]
 name = "omega-platform-interface"
 version = "0.1.0"
 dependencies = [

@@ -282,11 +282,16 @@ there is no caller-supplied offset, every planned field must be supplied
 exactly once, widths and fragments are rechecked, padding/reserved bits start
 at zero, and the destination changes only after complete validation. A packed
 x86-64 page-table word and a compiler-evaluated compact-bit policy pin the
-foundation path. The inverse scalar decoder consumes compiler-materialized
+foundation path. The first complete x86-64 table consumer now lives in
+`omega-page-tables`: it maps admitted Extent rights to that entry vocabulary,
+derives four-level 4 KiB table bytes from the normalized pending mappings, and
+fails closed on unknown or unrepresentable policy facts. It remains a target
+consumer of plans, not a second layout mechanism or a source-visible raw writer.
+The inverse scalar decoder consumes compiler-materialized
 field widths and the same named geometry, reconstructs complete logical
 fields, and rejects incomplete or overlapping source fragments. Decoding
 establishes no domain, trust, or authority fact; source establishment and
-target writer/scanner integration remain separate validators.
+imported-table scanner integration remain separate validators.
 Step 8 now also has a normalized symbolic foundation: sealed
 `Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or

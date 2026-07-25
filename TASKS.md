@@ -1774,9 +1774,19 @@ stronger operations it needs instead of citing machine parameters generally.
   the projections expose inert data and cannot borrow, consume, split, complete
   a mapping, or release authority. Target-specific entry writers, imported-table
   entry writers and imported scanners can now share the same ordinary scalar
-  materialize/decode consumer; target-specific field-policy mapping,
-  page-table-control execution/effects, and further normalized mapping work
-  remain ordinary engineering. Connecting
+  materialize/decode consumer. The first complete target writer is live in
+  `omega-page-tables`: it deterministically expands the draft's exact pending
+  mappings into a four-level x86-64 table with 4 KiB leaves, allocating hierarchy
+  pages only from the draft's physical storage extent. It validates canonical
+  virtual addresses, configured physical-address width, equal/aligned page
+  ranges, bounded hierarchy/leaf counts, and an admitted semantic-right-to-PTE
+  policy; unknown rights and unenforceable NX reject. Intermediate permissions
+  monotonically cover their descendants, unused storage remains zero, and the
+  result is inert exact bytes plus plan/content report facts—never translation
+  or installation authority. Add huge-page/PAT/LA57 policies only for real
+  target customers, build the AArch64 writer, connect imported-table scanning,
+  and implement page-table-control execution/effects and Cathedral's concrete
+  CR3 activation as ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
