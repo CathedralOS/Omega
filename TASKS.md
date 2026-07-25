@@ -1721,7 +1721,11 @@ stronger operations it needs instead of citing machine parameters generally.
   set before `InstallablePageTable` exists; and installation exposes mappings
   only after one receipt binds the same grant, plan, content, construction
   evidence, and every exact activation receipt derived from those opaque
-  mapping contexts. The plan fingerprint now binds
+  mapping contexts. Installation and removal receipts themselves now derive
+  from opaque complete-table contexts retaining the exact grant, canonical plan
+  evidence, construction route, storage authority, mapping contexts, and
+  installation era; compact table/plan/content IDs cannot substitute another
+  installable or installed table. The plan fingerprint now binds
   the table storage's space, provenance, mapping era, lineage, geometry, and
   rights, plus each mapping's actual source range, custody mode, space,
   provenance, era, lineage, and rights as well as the destination authority

@@ -340,7 +340,12 @@ acceptance across exact-plan drift. Installation is separate: it must bind that
 same construction receipt and content, establish the table active, and supply
 the exact activation receipt for every pending mapping. Each receipt is derived
 from the opaque exact mapping context rather than caller-restated identifiers.
-Only then do `MappedExtent` values expose
+The table installation receipt likewise derives from one opaque context
+retaining the exact admitted grant, canonical plan evidence, construction
+route, storage authority, and mapping-context set. Retirement carries that
+same context plus the exact installation receipt. Compact table, plan, content,
+or receipt IDs therefore cannot authorize another installable or installed
+table after storage-authority drift. Only then do `MappedExtent` values expose
 loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,
 or a receipt for another table cannot mint active address authority. Target
 entry writers can inspect borrowed, inert projections of the draft's exact

@@ -276,6 +276,7 @@ impl<'source> PageTableDraft<'source> {
             identity: self.identity,
             grant: self.grant,
             plan,
+            plan_evidence,
             content: receipt.content,
             evidence: receipt.evidence,
             construction_receipt: receipt.identity,
@@ -335,11 +336,54 @@ pub struct InstallablePageTable<'source> {
     identity: PageTableId,
     grant: PageTableGrant,
     plan: PageTablePlanId,
+    plan_evidence: Vec<u64>,
     content: PageTableContentId,
     evidence: PageTableConstructionEvidence,
     construction_receipt: PageTableConstructionReceiptId,
     storage: Extent,
     mappings: BTreeMap<MappingId, PendingMap<'source>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PageTableStorageEvidence {
+    base: u64,
+    length: u64,
+    space: AddressSpaceId,
+    rights: ExtentRights,
+    provenance: ExtentProvenanceId,
+    era: MappingEraId,
+    lineage: ExtentLineageId,
+}
+
+impl PageTableStorageEvidence {
+    fn from_extent(extent: &Extent) -> Self {
+        Self {
+            base: extent.base(),
+            length: extent.length(),
+            space: extent.address_space(),
+            rights: extent.rights().clone(),
+            provenance: extent.provenance(),
+            era: extent.era(),
+            lineage: extent.lineage_root(),
+        }
+    }
+}
+
+/// Exact opaque input to the provider operation that activates one complete
+/// page table. Compact table/plan/content IDs remain report keys; this context
+/// additionally retains the canonical plan, storage authority, and every
+/// pending mapping context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTableInstallationContext {
+    table: PageTableId,
+    grant: PageTableGrant,
+    plan: PageTablePlanId,
+    plan_evidence: Vec<u64>,
+    content: PageTableContentId,
+    construction_evidence: PageTableConstructionEvidence,
+    construction_receipt: PageTableConstructionReceiptId,
+    storage: PageTableStorageEvidence,
+    mappings: BTreeMap<MappingId, MappingReceiptContext>,
 }
 
 impl<'source> InstallablePageTable<'source> {
@@ -366,22 +410,33 @@ impl<'source> InstallablePageTable<'source> {
         self.mappings.get(&mapping).map(PendingMap::receipt_context)
     }
 
+    pub fn installation_context(&self) -> PageTableInstallationContext {
+        PageTableInstallationContext {
+            table: self.identity,
+            grant: self.grant.clone(),
+            plan: self.plan,
+            plan_evidence: self.plan_evidence.clone(),
+            content: self.content,
+            construction_evidence: self.evidence,
+            construction_receipt: self.construction_receipt,
+            storage: PageTableStorageEvidence::from_extent(&self.storage),
+            mappings: self
+                .mappings
+                .iter()
+                .map(|(identity, mapping)| (*identity, mapping.receipt_context()))
+                .collect(),
+        }
+    }
+
     pub fn install(
         self,
         mut receipt: PageTableInstallationReceipt,
     ) -> Result<InstalledPageTable<'source>, Box<PageTableInstallError<'source>>> {
+        let installation_context = self.installation_context();
         let expected = self.mappings.keys().copied().collect::<BTreeSet<_>>();
         let actual = receipt.activations.keys().copied().collect::<BTreeSet<_>>();
-        let mismatch = if receipt.table != self.identity {
-            Some("page-table installation receipt names a different table".into())
-        } else if receipt.grant != self.grant.identity {
-            Some("page-table installation receipt names a different grant".into())
-        } else if receipt.plan != self.plan {
-            Some("page-table installation receipt names a different normalized plan".into())
-        } else if receipt.content != self.content {
-            Some("page-table installation receipt names different table content".into())
-        } else if receipt.construction_receipt != self.construction_receipt {
-            Some("page-table installation receipt names different construction evidence".into())
+        let mismatch = if receipt.context != installation_context {
+            Some("page-table installation receipt does not bind the exact installable table".into())
         } else if !receipt.active {
             Some("page-table installation receipt does not establish active translations".into())
         } else if expected != actual {
@@ -428,6 +483,7 @@ impl<'source> InstallablePageTable<'source> {
             plan: self.plan,
             content: self.content,
             installation_receipt: receipt.identity,
+            installation_context,
             retirement_obligations,
             storage: self.storage,
             mappings,
@@ -438,24 +494,15 @@ impl<'source> InstallablePageTable<'source> {
 #[derive(Debug)]
 pub struct PageTableInstallationReceipt {
     identity: PageTableInstallationReceiptId,
-    table: PageTableId,
-    grant: PageTableGrantId,
-    plan: PageTablePlanId,
-    content: PageTableContentId,
-    construction_receipt: PageTableConstructionReceiptId,
+    context: PageTableInstallationContext,
     active: bool,
     activations: BTreeMap<MappingId, TranslationActivationReceipt>,
 }
 
 impl PageTableInstallationReceipt {
-    #[allow(clippy::too_many_arguments)]
     pub fn from_admitted_provider(
         identity: PageTableInstallationReceiptId,
-        table: PageTableId,
-        grant: PageTableGrantId,
-        plan: PageTablePlanId,
-        content: PageTableContentId,
-        construction_receipt: PageTableConstructionReceiptId,
+        context: &PageTableInstallationContext,
         active: bool,
         activations: impl IntoIterator<Item = (MappingId, TranslationActivationReceipt)>,
     ) -> Result<Self, ExtentDiagnostic> {
@@ -469,11 +516,7 @@ impl PageTableInstallationReceipt {
         }
         Ok(Self {
             identity,
-            table,
-            grant,
-            plan,
-            content,
-            construction_receipt,
+            context: context.clone(),
             active,
             activations: normalized,
         })
@@ -488,6 +531,7 @@ pub struct InstalledPageTable<'source> {
     plan: PageTablePlanId,
     content: PageTableContentId,
     installation_receipt: PageTableInstallationReceiptId,
+    installation_context: PageTableInstallationContext,
     retirement_obligations: PageTableRetirementObligations,
     storage: Extent,
     mappings: BTreeMap<MappingId, MappedExtent<'source>>,
@@ -527,12 +571,13 @@ impl<'source> InstalledPageTable<'source> {
     }
 
     pub fn begin_removal(self) -> PendingPageTableRemoval<'source> {
+        let removal_context = PageTableRemovalContext {
+            installation: self.installation_context,
+            installation_receipt: self.installation_receipt,
+        };
         PendingPageTableRemoval {
             identity: self.identity,
-            grant: self.grant,
-            plan: self.plan,
-            content: self.content,
-            installation_receipt: self.installation_receipt,
+            removal_context,
             retirement_obligations: self.retirement_obligations,
             storage: self.storage,
             mappings: self
@@ -544,6 +589,14 @@ impl<'source> InstalledPageTable<'source> {
     }
 }
 
+/// Exact opaque state that the retirement provider must make inactive before
+/// table storage or mapped authority can be reclaimed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTableRemovalContext {
+    installation: PageTableInstallationContext,
+    installation_receipt: PageTableInstallationReceiptId,
+}
+
 /// Linear state after the page-table provider begins retiring the table.
 ///
 /// Storage and every mapping remain captive until the provider proves the
@@ -552,10 +605,7 @@ impl<'source> InstalledPageTable<'source> {
 #[derive(Debug)]
 pub struct PendingPageTableRemoval<'source> {
     identity: PageTableId,
-    grant: PageTableGrantId,
-    plan: PageTablePlanId,
-    content: PageTableContentId,
-    installation_receipt: PageTableInstallationReceiptId,
+    removal_context: PageTableRemovalContext,
     retirement_obligations: PageTableRetirementObligations,
     storage: Extent,
     mappings: BTreeMap<MappingId, PendingUnmap<'source>>,
@@ -564,6 +614,10 @@ pub struct PendingPageTableRemoval<'source> {
 impl<'source> PendingPageTableRemoval<'source> {
     pub const fn identity(&self) -> PageTableId {
         self.identity
+    }
+
+    pub fn removal_context(&self) -> PageTableRemovalContext {
+        self.removal_context.clone()
     }
 
     /// Exact opaque context required to receipt release of one stale
@@ -580,16 +634,8 @@ impl<'source> PendingPageTableRemoval<'source> {
     ) -> Result<RemovedPageTable, Box<PageTableRemovalError<'source>>> {
         let expected = self.mappings.keys().copied().collect::<BTreeSet<_>>();
         let actual = receipt.releases.keys().copied().collect::<BTreeSet<_>>();
-        let mismatch = if receipt.table != self.identity {
-            Some("page-table removal receipt names a different table".into())
-        } else if receipt.grant != self.grant {
-            Some("page-table removal receipt names a different grant".into())
-        } else if receipt.plan != self.plan {
-            Some("page-table removal receipt names a different normalized plan".into())
-        } else if receipt.content != self.content {
-            Some("page-table removal receipt names different table content".into())
-        } else if receipt.installation_receipt != self.installation_receipt {
-            Some("page-table removal receipt names a different installation".into())
+        let mismatch = if receipt.context != self.removal_context {
+            Some("page-table removal receipt does not bind the exact installed table".into())
         } else if !receipt.inactive {
             Some("page-table removal receipt does not establish an inactive table".into())
         } else if !self
@@ -645,25 +691,16 @@ impl<'source> PendingPageTableRemoval<'source> {
 #[derive(Debug)]
 pub struct PageTableRemovalReceipt {
     identity: PageTableRemovalReceiptId,
-    table: PageTableId,
-    grant: PageTableGrantId,
-    plan: PageTablePlanId,
-    content: PageTableContentId,
-    installation_receipt: PageTableInstallationReceiptId,
+    context: PageTableRemovalContext,
     inactive: bool,
     established_facts: BTreeSet<PageTableRetirementFactId>,
     releases: BTreeMap<MappingId, TranslationReleaseReceipt>,
 }
 
 impl PageTableRemovalReceipt {
-    #[allow(clippy::too_many_arguments)]
     pub fn from_admitted_provider(
         identity: PageTableRemovalReceiptId,
-        table: PageTableId,
-        grant: PageTableGrantId,
-        plan: PageTablePlanId,
-        content: PageTableContentId,
-        installation_receipt: PageTableInstallationReceiptId,
+        context: &PageTableRemovalContext,
         inactive: bool,
         established_facts: impl IntoIterator<Item = PageTableRetirementFactId>,
         releases: impl IntoIterator<Item = (MappingId, TranslationReleaseReceipt)>,
@@ -678,11 +715,7 @@ impl PageTableRemovalReceipt {
         }
         Ok(Self {
             identity,
-            table,
-            grant,
-            plan,
-            content,
-            installation_receipt,
+            context: context.clone(),
             inactive,
             established_facts: established_facts.into_iter().collect(),
             releases: normalized,
@@ -1046,11 +1079,7 @@ mod tests {
     ) -> PageTableInstallationReceipt {
         PageTableInstallationReceipt::from_admitted_provider(
             id(70, PageTableInstallationReceiptId::from_normalized_identity),
-            table.identity(),
-            table.grant.identity,
-            table.plan(),
-            table.content(),
-            table.construction_receipt,
+            &table.installation_context(),
             active,
             activations,
         )
@@ -1138,6 +1167,46 @@ mod tests {
                 .mapping(id(52, MappingId::from_normalized_identity))
                 .is_some()
         );
+    }
+
+    #[test]
+    fn installation_receipt_retains_exact_table_authority_beyond_compact_ids() {
+        let mut first_draft = draft();
+        first_draft
+            .add_mapping(pending_mapping(51, 0x8000))
+            .expect("first mapping");
+        let first_construction = construction_receipt(&first_draft, true);
+        let first = first_draft
+            .finish(first_construction)
+            .expect("first installable table");
+
+        let mut drifted_draft = begin_page_table(
+            id(50, PageTableId::from_normalized_identity),
+            &table_grant(),
+            extent(999, 0x4000, 4096, 1, 2, &[3]),
+        )
+        .expect("same compact table identity over another storage lineage");
+        drifted_draft
+            .add_mapping(pending_mapping(51, 0x8000))
+            .expect("same pending mapping");
+        let drifted_construction = construction_receipt(&drifted_draft, true);
+        let mut drifted = drifted_draft
+            .finish(drifted_construction)
+            .expect("drifted installable table");
+        drifted.plan = first.plan;
+
+        let receipt = installation_receipt(
+            &first,
+            true,
+            [(
+                id(51, MappingId::from_normalized_identity),
+                activation(&first, 51),
+            )],
+        );
+        let error = drifted
+            .install(receipt)
+            .expect_err("compact IDs cannot substitute different table storage authority");
+        assert!(error.diagnostic().0.contains("exact installable table"));
     }
 
     #[test]
@@ -1412,11 +1481,7 @@ mod tests {
 
         let receipt = PageTableRemovalReceipt::from_admitted_provider(
             id(80, PageTableRemovalReceiptId::from_normalized_identity),
-            pending.identity,
-            pending.grant,
-            pending.plan,
-            pending.content,
-            pending.installation_receipt,
+            &pending.removal_context(),
             false,
             [id(90, PageTableRetirementFactId::from_normalized_identity)],
             [(
@@ -1433,11 +1498,7 @@ mod tests {
 
         let receipt = PageTableRemovalReceipt::from_admitted_provider(
             id(80, PageTableRemovalReceiptId::from_normalized_identity),
-            pending.identity,
-            pending.grant,
-            pending.plan,
-            pending.content,
-            pending.installation_receipt,
+            &pending.removal_context(),
             true,
             [],
             [(
@@ -1454,11 +1515,7 @@ mod tests {
 
         let receipt = PageTableRemovalReceipt::from_admitted_provider(
             id(80, PageTableRemovalReceiptId::from_normalized_identity),
-            pending.identity,
-            pending.grant,
-            pending.plan,
-            pending.content,
-            pending.installation_receipt,
+            &pending.removal_context(),
             true,
             [id(90, PageTableRetirementFactId::from_normalized_identity)],
             [],
@@ -1472,11 +1529,7 @@ mod tests {
 
         let receipt = PageTableRemovalReceipt::from_admitted_provider(
             id(80, PageTableRemovalReceiptId::from_normalized_identity),
-            pending.identity,
-            pending.grant,
-            pending.plan,
-            pending.content,
-            pending.installation_receipt,
+            &pending.removal_context(),
             true,
             [id(90, PageTableRetirementFactId::from_normalized_identity)],
             [(
