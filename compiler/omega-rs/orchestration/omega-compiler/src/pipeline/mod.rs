@@ -45,7 +45,4 @@ pub use omega_layout_plans::{
     decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
     normalized_layout_plan_fingerprint,
 };
-pub use provider_plans::{
-    GeneratedIdtLoadLowering, GeneratedIdtWriterLowering, lower_populated_idt_writer,
-    lower_prepared_idt_load, selected_external_root_provider_plan_id,
-};
+pub use provider_plans::selected_external_root_provider_plan_id;

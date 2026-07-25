@@ -680,29 +680,6 @@ pub(super) fn encode_machine_instruction_bytes(
                 ))
             })
         }
-        SelectedInstructionKind::GeneratedIdtLoad {
-            pointer_register, ..
-        } => omega_instruction_selection::encode_generated_idt_load_bytes(
-            input.target.architecture,
-            *pointer_register,
-        ),
-        SelectedInstructionKind::GeneratedIdtWriter {
-            pointer_register,
-            byte_len,
-            little_endian,
-            context_abi,
-            source_slot_count,
-            steps,
-            ..
-        } => omega_instruction_selection::encode_generated_idt_writer_bytes(
-            input.target.architecture,
-            *pointer_register,
-            *byte_len,
-            *little_endian,
-            *context_abi,
-            *source_slot_count,
-            steps,
-        ),
         SelectedInstructionKind::FlagsSnapshot {
             dest_byte_offset, ..
         } => {

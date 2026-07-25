@@ -124,11 +124,6 @@ pub enum MachineInstructionKind {
     MemoryFence(omega_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
     InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
-    /// Compiler-generated, deriver-only `lidt [r10]` publication operation.
-    GeneratedIdtLoad,
-    /// Compiler-generated checked IDT writer over the pinned private
-    /// `IDTWRIT1` provider context.
-    GeneratedIdtWriter,
     /// Compiler-balanced RFLAGS snapshot.
     FlagsSnapshot,
     /// Compiler-balanced RFLAGS restore.
@@ -151,9 +146,6 @@ pub enum MachineInstructionKind {
 impl MachineInstructionKind {
     /// Whether this instruction comes from the user-checked assembly catalog
     /// and therefore must retain independent final-image validation evidence.
-    ///
-    /// Generated IDT helpers have their own exact whole-helper validators and
-    /// are deliberately not part of this per-instruction catalog.
     pub const fn requires_checked_assembly_validation(self) -> bool {
         matches!(
             self,
@@ -196,7 +188,5 @@ mod tests {
         }
 
         assert!(!MachineInstructionKind::NoOp.requires_checked_assembly_validation());
-        assert!(!MachineInstructionKind::GeneratedIdtLoad.requires_checked_assembly_validation());
-        assert!(!MachineInstructionKind::GeneratedIdtWriter.requires_checked_assembly_validation());
     }
 }

@@ -12,9 +12,8 @@ use omega_instruction_selection::{
     dispatch_loop_enter_width, dispatch_state_write_width, entry_argument_register_write_width,
     entry_arguments_slice_descriptor_write_width, entry_indirect_argument_write_width,
     entry_stack_argument_write_width, flags_restore_width, flags_snapshot_width,
-    function_enter_width, generated_idt_load_width, generated_idt_writer_width,
-    host_call_sequence_width, interrupt_control_width, machine_halt_width, memory_fence_width,
-    msr_read_width, msr_write_width, port_read_width, port_write_width,
+    function_enter_width, host_call_sequence_width, interrupt_control_width, machine_halt_width,
+    memory_fence_width, msr_read_width, msr_write_width, port_read_width, port_write_width,
     return_register_integer_write_width, return_width, runtime_atomic_compare_exchange_width,
     runtime_atomic_fetch_add_width, runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width,
     runtime_atomic_fetch_sub_width, runtime_atomic_fetch_xor_width,
@@ -943,30 +942,6 @@ fn machine_instruction_width(
                     kind.mnemonic(),
                 ))
             });
-        }
-        SelectedInstructionKind::GeneratedIdtLoad {
-            pointer_register, ..
-        } => {
-            return generated_idt_load_width(input.target.architecture, *pointer_register);
-        }
-        SelectedInstructionKind::GeneratedIdtWriter {
-            pointer_register,
-            byte_len,
-            little_endian,
-            context_abi,
-            source_slot_count,
-            steps,
-            ..
-        } => {
-            return generated_idt_writer_width(
-                input.target.architecture,
-                *pointer_register,
-                *byte_len,
-                *little_endian,
-                *context_abi,
-                *source_slot_count,
-                steps,
-            );
         }
         SelectedInstructionKind::FlagsSnapshot { .. } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {

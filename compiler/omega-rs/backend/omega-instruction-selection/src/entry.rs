@@ -1,43 +1,10 @@
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineState,
-    MachineStateSet, PlanDiagnostic, RegisterSet, StateFootprintEvidence,
-    ValidatedBoundaryEntryPlan, ValueLocation, ValueShape, validate_boundary_entry_plan,
-    validate_call_return_mechanics_footprint, validate_runtime_value_guard_footprint,
-    validate_state_footprint,
+    BoundaryEntryPlan, CallSignature, EntryControl, IndirectPointerLocation, MachineStateSet,
+    PlanDiagnostic, RegisterSet, StateFootprintEvidence, ValidatedBoundaryEntryPlan, ValueLocation,
+    ValueShape, validate_boundary_entry_plan, validate_call_return_mechanics_footprint,
+    validate_runtime_value_guard_footprint, validate_state_footprint,
 };
-
-/// Exact implementation footprint of the generated IDT publication
-/// operation. The x86 encoder owns the R10 scratch identity; loading IDTR is a
-/// control-state mutation even though it does not alter flags or interrupt
-/// enablement.
-pub fn derive_generated_idt_load_footprint(
-    architecture: omega_target::Architecture,
-) -> Option<StateFootprintEvidence> {
-    match architecture {
-        omega_target::Architecture::Aarch64 => None,
-        omega_target::Architecture::X86_64 => Some(StateFootprintEvidence::new(
-            omega_isa_x86_64::lidt_from_r10_clobbers(),
-            MachineStateSet::new([MachineState::ControlState]),
-        )),
-    }
-}
-
-/// Exact implementation footprint of the generated direct-destination IDT
-/// writer. The encoder first moves the plan-selected private-context pointer
-/// into R10, then writes four additional scratch registers and arithmetic
-/// flags while preserving control state and the stack.
-pub fn derive_generated_idt_writer_footprint(
-    architecture: omega_target::Architecture,
-) -> Option<StateFootprintEvidence> {
-    match architecture {
-        omega_target::Architecture::Aarch64 => None,
-        omega_target::Architecture::X86_64 => Some(StateFootprintEvidence::new(
-            omega_isa_x86_64::generated_idt_writer_clobbers(),
-            omega_isa_x86_64::generated_idt_writer_additional_machine_state(),
-        )),
-    }
-}
 
 /// The observable exit half of one validated boundary plan. Result fragments
 /// remain ordered exactly as canonical validation produced them.
@@ -775,42 +742,6 @@ mod tests {
         CallingPolicy, MachineRegime, MachineRegister, MachineState, ValueShape,
         evaluate_ordinary_boundary_entry_plan,
     };
-
-    #[test]
-    fn generated_idt_load_footprint_is_exact_and_x86_only() {
-        let evidence = derive_generated_idt_load_footprint(omega_target::Architecture::X86_64)
-            .expect("x86 IDT load footprint");
-        assert_eq!(evidence.registers().as_slice(), &[MachineRegister::X86R10]);
-        assert!(
-            evidence
-                .machine_state()
-                .contains_all(MachineStateSet::new([MachineState::ControlState]))
-        );
-        assert!(derive_generated_idt_load_footprint(omega_target::Architecture::Aarch64).is_none());
-    }
-
-    #[test]
-    fn generated_idt_writer_footprint_is_exact_and_x86_only() {
-        let evidence = derive_generated_idt_writer_footprint(omega_target::Architecture::X86_64)
-            .expect("x86 IDT writer footprint");
-        assert_eq!(
-            evidence.registers().as_slice(),
-            &[
-                MachineRegister::X86Rax,
-                MachineRegister::X86Rcx,
-                MachineRegister::X86Rdx,
-                MachineRegister::X86R11,
-            ]
-        );
-        assert!(
-            evidence
-                .machine_state()
-                .contains_all(MachineStateSet::new([MachineState::Flags]))
-        );
-        assert!(
-            derive_generated_idt_writer_footprint(omega_target::Architecture::Aarch64).is_none()
-        );
-    }
 
     #[test]
     fn inbound_writes_consume_the_exact_selected_register() {

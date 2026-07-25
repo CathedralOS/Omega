@@ -610,9 +610,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: MSR_WRITE_CLOBBERS,
         }),
 
-        // The installed-IDT provider is the only deriver allowed to lower
-        // this operation. Its operand is the private descriptor for the exact
-        // content/ledger-bound `InstalledIdt` transition, never a source addr.
+        // This remains deriver-only: an admitted provider supplies the
+        // descriptor operand under the instruction's checked authority
+        // contract, never as an unrestricted source address.
         "lidt" => Contract(AsmInstructionContract {
             availability: DeriverOnly,
             shape: DescriptorTableLoad,

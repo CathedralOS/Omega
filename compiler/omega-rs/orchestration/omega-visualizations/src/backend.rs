@@ -2291,7 +2291,6 @@ fn machine_instruction_is_control(instruction: &MachineInstruction) -> bool {
             | omega_machine_instructions::MachineInstructionKind::DispatchStateWrite
             | omega_machine_instructions::MachineInstructionKind::DispatchTerminate
             | omega_machine_instructions::MachineInstructionKind::DispatchCaseLeave
-            | omega_machine_instructions::MachineInstructionKind::GeneratedIdtLoad
             | omega_machine_instructions::MachineInstructionKind::HostCallSequence
             | omega_machine_instructions::MachineInstructionKind::Return
     )
