@@ -1566,6 +1566,65 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn linux_filesystem_rows_bind_value_syscalls_and_openat_adapters() {
+        for (target, expected_openat, expected_close, expected_policy) in [
+            (
+                NativeTarget::linux_x64(),
+                257,
+                3,
+                CallingPolicy::LinuxSyscallX86_64,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                56,
+                57,
+                CallingPolicy::LinuxSyscallAarch64,
+            ),
+        ] {
+            let plan = build_host_abi_plan(target);
+            for (operation, expected_number, parameter_count) in [
+                (HostOperation::Open, expected_openat, 3),
+                (HostOperation::OpenCreate, expected_openat, 4),
+                (HostOperation::Close, expected_close, 1),
+            ] {
+                let (_, binding) = plan
+                    .bindings
+                    .iter()
+                    .find(|(_, binding)| {
+                        binding.operation_key.capability == HostCapability::Filesystem
+                            && binding.operation_key.operation == operation
+                    })
+                    .expect("Linux filesystem syscall binding");
+                assert!(matches!(
+                    binding.mechanism,
+                    HostBindingMechanism::Syscall { number, .. }
+                        if number == expected_number
+                ));
+                let boundary = binding
+                    .boundary_entry_plan
+                    .as_ref()
+                    .expect("value-returning syscall retains its exact plan");
+                assert_eq!(boundary.call.policy, expected_policy);
+                assert_eq!(boundary.call.parameters.len(), parameter_count);
+                assert!(boundary.call.result.is_some());
+            }
+
+            for method in ["open", "open_create"] {
+                let lowering = plan
+                    .platform_call_lowerings
+                    .iter()
+                    .find(|(_, row)| row.state.as_ref() == method)
+                    .map(|(_, row)| row)
+                    .expect("Linux open lowering");
+                assert_eq!(
+                    lowering.data,
+                    PlatformCallData::ConstantArgument { value: -100 }
+                );
+            }
+        }
+    }
+
+    #[test]
     fn external_binding_retains_and_resolves_its_source_selected_plan() {
         let signature = CallSignature {
             parameters: vec![ValueShape::integer(8, 8)],
