@@ -386,8 +386,20 @@ must equal the canonical hierarchy derived independently from the exact draft
 before an `ImportedScan` construction receipt exists. V1 intentionally rejects
 alternative allocation, aliases, huge pages, and hardware-mutated accessed/
 dirty state rather than asserting an unproved equivalence. Huge pages, PAT/
-LA57, AArch64 blocks/LPA2/dirty state, control operations, and source-visible
-opaque carriers remain implementation work over the same lifecycle.
+LA57, and AArch64 blocks/LPA2/dirty state remain target-policy work over the
+same lifecycle.
+
+The first control-operation seam is live for x86-64 without exposing raw
+installation authority. A provider derives one inert CR3 activation plan from
+an `InstallablePageTable`; the plan pins the PCID-zero root operand plus the
+exact opaque construction and pending-mapping contexts. After checked CR3
+execution, provider evidence must report that same observed root and cover
+exactly those mappings before it can become the ordinary
+`PageTableInstallationReceipt`. A numeric root alone can therefore neither
+activate mappings nor mint access. The source-level checked-assembly wrapper,
+Cathedral wiring, and AArch64 TTBR/barrier sibling remain fenced on the opaque
+runtime boundary-carrier representation; they must not substitute a forgeable
+record or pointer-sized handle.
 
 Retirement closes the conservation loop. Beginning removal captures table
 storage and starts unmapping every active mapping. Nothing is returned until one
