@@ -18,6 +18,9 @@ pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{
     InstalledCode, InstalledCodeContext, ResolvedPostHandoffEntryWriterContext,
 };
+use omega_extents::{
+    AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+};
 use omega_layout_plans::{
     ByteOrder, EntryStubId, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, RelocationTarget,
@@ -2217,6 +2220,7 @@ pub struct IdtRootBinding {
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnpublishedIdtDestination {
     identity: IdtDestinationId,
+    extent: Extent,
     bytes: Vec<u8>,
     site: PlacementSite,
     mapped: bool,
@@ -2227,6 +2231,7 @@ pub struct UnpublishedIdtDestination {
 impl UnpublishedIdtDestination {
     pub fn from_provider(
         identity: IdtDestinationId,
+        extent: Extent,
         bytes: Vec<u8>,
         site: PlacementSite,
         mapped: bool,
@@ -2235,6 +2240,7 @@ impl UnpublishedIdtDestination {
     ) -> Self {
         Self {
             identity,
+            extent,
             bytes,
             site,
             mapped,
@@ -2245,6 +2251,41 @@ impl UnpublishedIdtDestination {
 
     pub const fn identity(&self) -> IdtDestinationId {
         self.identity
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct IdtDestinationEvidence {
+    identity: IdtDestinationId,
+    base: u64,
+    length: u64,
+    address_space: AddressSpaceId,
+    rights: ExtentRights,
+    provenance: ExtentProvenanceId,
+    era: MappingEraId,
+    lineage: ExtentLineageId,
+    site: PlacementSite,
+    mapped: bool,
+    pinned: bool,
+    writable: bool,
+}
+
+impl IdtDestinationEvidence {
+    fn from_destination(destination: &UnpublishedIdtDestination) -> Self {
+        Self {
+            identity: destination.identity,
+            base: destination.extent.base(),
+            length: destination.extent.length(),
+            address_space: destination.extent.address_space(),
+            rights: destination.extent.rights().clone(),
+            provenance: destination.extent.provenance(),
+            era: destination.extent.era(),
+            lineage: destination.extent.lineage_root(),
+            site: destination.site,
+            mapped: destination.mapped,
+            pinned: destination.pinned,
+            writable: destination.writable,
+        }
     }
 }
 
@@ -2494,6 +2535,18 @@ pub fn prepare_idt_writer(
             bindings,
         );
     }
+    if destination.site.base_address != destination.extent.base()
+        || destination.bytes.len() as u64 > destination.extent.length()
+    {
+        return reject(
+            ExternalRootDiagnostic(
+                "IDT writer destination bytes/site do not fit the exact owned Extent".into(),
+            ),
+            destination,
+            writer,
+            bindings,
+        );
+    }
     if let Err(error) = installed_code.validate_post_handoff_entry_writer(
         &writer,
         destination.bytes.len(),
@@ -2693,6 +2746,7 @@ impl MaterializedIdt {
         MaterializedIdtEvidence {
             identity: self.identity,
             destination: self.destination.identity,
+            destination_evidence: IdtDestinationEvidence::from_destination(&self.destination),
             site: self.destination.site,
             content: self.destination.bytes[..self.writer.byte_len].to_vec(),
             writer: self.writer.clone(),
@@ -2706,6 +2760,7 @@ impl MaterializedIdt {
 struct MaterializedIdtEvidence {
     identity: MaterializedIdtId,
     destination: IdtDestinationId,
+    destination_evidence: IdtDestinationEvidence,
     site: PlacementSite,
     content: Vec<u8>,
     writer: PostHandoffWriterPlan,
@@ -3557,6 +3612,21 @@ mod tests {
             ),
         )
         .expect("placement constraints")
+    }
+
+    fn idt_destination_extent(lineage: u64, base: u64, length: u64) -> Extent {
+        ExtentRootGrant::from_admitted_provider(
+            extent_id(lineage, ExtentLineageId::from_normalized_identity),
+            extent_id(50, AddressSpaceId::from_normalized_identity),
+            ExtentRights::from_normalized_identities([extent_id(
+                51,
+                ExtentRightId::from_normalized_identity,
+            )]),
+            extent_id(52, ExtentProvenanceId::from_normalized_identity),
+            extent_id(53, MappingEraId::from_normalized_identity),
+        )
+        .mint(base, length)
+        .expect("IDT destination Extent")
     }
 
     fn installed_code(artifact_identity: u64, entry: EntryStubId) -> InstalledCode {
@@ -4746,6 +4816,7 @@ mod tests {
             &code,
             UnpublishedIdtDestination::from_provider(
                 destination_id,
+                idt_destination_extent(300, 0x1000, 16),
                 vec![0_u8; 16],
                 site,
                 true,
@@ -4766,10 +4837,33 @@ mod tests {
                 .contains("exact installed artifact")
         );
 
+        let extent_mismatch = prepare_idt_writer(
+            &code,
+            UnpublishedIdtDestination::from_provider(
+                destination_id,
+                idt_destination_extent(305, 0x2000, 16),
+                vec![0_u8; 16],
+                site,
+                true,
+                true,
+                true,
+            ),
+            writer.clone(),
+            [binding],
+        )
+        .expect_err("numeric site cannot substitute another owned Extent");
+        assert!(
+            extent_mismatch
+                .diagnostic()
+                .0
+                .contains("exact owned Extent")
+        );
+
         let wrong_phase_error = prepare_idt_writer(
             &code,
             UnpublishedIdtDestination::from_provider(
                 destination_id,
+                idt_destination_extent(301, 0x1000, 16),
                 vec![0_u8; 16],
                 PlacementSite {
                     phase: PlacementPhase::Load,
@@ -4789,6 +4883,7 @@ mod tests {
             &code,
             UnpublishedIdtDestination::from_provider(
                 destination_id,
+                idt_destination_extent(302, 0x1000, 16),
                 vec![0_u8; 16],
                 site,
                 true,
@@ -4814,6 +4909,7 @@ mod tests {
             &code,
             UnpublishedIdtDestination::from_provider(
                 destination_id,
+                idt_destination_extent(303, 0x1000, 16),
                 vec![0_u8; 16],
                 site,
                 true,
@@ -4987,6 +5083,7 @@ mod tests {
             &code,
             UnpublishedIdtDestination::from_provider(
                 mismatch_destination,
+                idt_destination_extent(304, 0x1000, 16),
                 vec![0_u8; 16],
                 site,
                 true,
