@@ -2222,7 +2222,7 @@ stronger operations it needs instead of citing machine parameters generally.
   open operator-family/dispatch-owner surface (DOM1/DOM2). A closed local
   encoding would not satisfy this acceptance contract; resume after those
   surfaces are frozen.
-- **OS gauntlet.** Validate the foundation against UART/MMIO, page tables,
+- **OS gauntlet.** Validate the foundation against UART/MMIO, an OS-package address-translation implementation,
   DMA, shared-page IPC, IDT/timer entry, and SMP AP bringup. A customer that
   needs a new keyword or customer-shaped primitive returns to design review.
 - **Control-state negative rails.** Backward-edge return integrity is derived
