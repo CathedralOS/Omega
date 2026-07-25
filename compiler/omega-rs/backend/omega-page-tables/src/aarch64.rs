@@ -5,8 +5,9 @@ use omega_extents::{
     PageTableConstructionReceipt, PageTableConstructionReceiptId, PageTableDraft, PageTablePlanId,
 };
 use omega_layout_plans::{
-    ByteOrder, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
-    materialize_scalar_layout_into, normalized_layout_plan_fingerprint,
+    ByteOrder, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, ScalarFieldSchema,
+    ScalarFieldValue, decode_scalar_layout, materialize_scalar_layout_into,
+    normalized_layout_plan_fingerprint,
 };
 
 use crate::PageTableMaterializationDiagnostic;
@@ -373,6 +374,142 @@ impl MaterializedAarch64PageTable {
     }
 }
 
+/// Exact canonical imported AArch64 table validated against one normalized
+/// draft and target policy.
+///
+/// V1 intentionally accepts only the deterministic hierarchy produced by
+/// [`materialize_aarch64_4k_page_table`]. Alternate table-page allocation,
+/// aliases, block descriptors, and hardware-mutated state require explicit
+/// policies before they can establish construction evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedImportedAarch64PageTable {
+    plan: PageTablePlanId,
+    root_physical_address: u64,
+    table_page_count: usize,
+    leaf_entry_count: usize,
+    content_fingerprint: u64,
+    bytes: Vec<u8>,
+}
+
+impl ValidatedImportedAarch64PageTable {
+    pub const fn plan(&self) -> PageTablePlanId {
+        self.plan
+    }
+
+    pub const fn root_physical_address(&self) -> u64 {
+        self.root_physical_address
+    }
+
+    pub const fn table_page_count(&self) -> usize {
+        self.table_page_count
+    }
+
+    pub const fn leaf_entry_count(&self) -> usize {
+        self.leaf_entry_count
+    }
+
+    pub const fn content_fingerprint(&self) -> u64 {
+        self.content_fingerprint
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Mints the ordinary imported-scan construction receipt over these exact
+    /// bytes. It still grants no translation or page-table-control authority.
+    pub fn into_construction_receipt(
+        self,
+        identity: PageTableConstructionReceiptId,
+        draft: &PageTableDraft<'_>,
+    ) -> Result<PageTableConstructionReceipt, PageTableMaterializationDiagnostic> {
+        if self.plan != draft.plan_identity()
+            || self.root_physical_address != draft.storage_base()
+            || self.bytes.len() as u64 != draft.storage_length()
+        {
+            return Err(PageTableMaterializationDiagnostic(
+                "validated imported AArch64 bytes do not bind the supplied page-table draft".into(),
+            ));
+        }
+        Ok(PageTableConstructionReceipt::from_admitted_provider(
+            identity,
+            draft,
+            self.bytes,
+            PageTableConstructionEvidence::ImportedScan,
+            true,
+        ))
+    }
+}
+
+/// Validates an imported table image through the same normalized plan and
+/// scalar-layout vocabulary as generated construction.
+///
+/// Each descriptor must round-trip through the declared named fields, making
+/// reserved or unsupported bits fail closed. The complete image must then equal
+/// the deterministic bytes for the exact draft; decoding alone establishes no
+/// mapping or construction authority.
+pub fn validate_imported_aarch64_4k_page_table(
+    draft: &PageTableDraft<'_>,
+    policy: &Aarch64PageTablePolicy,
+    imported: &[u8],
+) -> Result<ValidatedImportedAarch64PageTable, PageTableMaterializationDiagnostic> {
+    let expected = materialize_aarch64_4k_page_table(draft, policy)?;
+    if imported.len() != expected.bytes.len() {
+        return Err(PageTableMaterializationDiagnostic(format!(
+            "imported AArch64 table has {} bytes, exact draft storage has {}",
+            imported.len(),
+            expected.bytes.len()
+        )));
+    }
+
+    let schema = aarch64_descriptor_field_schema();
+    for (entry_index, source) in imported.chunks_exact(size_of::<u64>()).enumerate() {
+        let values = decode_scalar_layout(
+            &policy.descriptor_layout,
+            &schema,
+            ByteOrder::LittleEndian,
+            source,
+        )
+        .map_err(|diagnostic| {
+            PageTableMaterializationDiagnostic(format!(
+                "imported AArch64 descriptor {entry_index} does not decode: {}",
+                diagnostic.0
+            ))
+        })?;
+        let mut canonical = [0_u8; size_of::<u64>()];
+        materialize_scalar_layout_into(
+            &policy.descriptor_layout,
+            &values,
+            ByteOrder::LittleEndian,
+            &mut canonical,
+        )
+        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))?;
+        if canonical != source {
+            return Err(PageTableMaterializationDiagnostic(format!(
+                "imported AArch64 descriptor {entry_index} sets reserved or unsupported bits"
+            )));
+        }
+        let expected_entry =
+            &expected.bytes[entry_index * size_of::<u64>()..(entry_index + 1) * size_of::<u64>()];
+        if source != expected_entry {
+            let table = entry_index / AARCH64_ENTRIES_PER_TABLE;
+            let slot = entry_index % AARCH64_ENTRIES_PER_TABLE;
+            return Err(PageTableMaterializationDiagnostic(format!(
+                "imported AArch64 table page {table} slot {slot} differs from the exact normalized mapping plan"
+            )));
+        }
+    }
+
+    Ok(ValidatedImportedAarch64PageTable {
+        plan: expected.plan,
+        root_physical_address: expected.root_physical_address,
+        table_page_count: expected.table_page_count,
+        leaf_entry_count: expected.leaf_entry_count,
+        content_fingerprint: expected.content_fingerprint,
+        bytes: imported.to_vec(),
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LeafPage {
     virtual_address: u64,
@@ -725,6 +862,26 @@ fn materialize_page_descriptor(
     materialize_scalar_layout_into(layout, &fields, ByteOrder::LittleEndian, &mut bytes)
         .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))?;
     Ok(u64::from_le_bytes(bytes))
+}
+
+fn aarch64_descriptor_field_schema() -> [ScalarFieldSchema; 10] {
+    [
+        scalar_schema("valid", 1),
+        scalar_schema("table_or_page", 1),
+        scalar_schema("attribute_index", 3),
+        scalar_schema("access_permission", 2),
+        scalar_schema("shareability", 2),
+        scalar_schema("access_flag", 1),
+        scalar_schema("not_global", 1),
+        scalar_schema("output_address", 36),
+        scalar_schema("privileged_execute_never", 1),
+        scalar_schema("unprivileged_execute_never", 1),
+    ]
+}
+
+fn scalar_schema(field: &str, width_bits: u16) -> ScalarFieldSchema {
+    ScalarFieldSchema::new(field, width_bits)
+        .expect("canonical AArch64 page-descriptor schema has valid scalar widths")
 }
 
 fn scalar(
@@ -1126,5 +1283,67 @@ mod tests {
         )
         .expect_err("shifted hardware bit must reject");
         assert!(error.0.contains("exactly match"));
+    }
+
+    #[test]
+    fn canonical_imported_image_enters_the_imported_scan_lifecycle() {
+        let fixture = Fixture::new();
+        let draft = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable, fixture.normal]),
+            4,
+        );
+        let generated = materialize_aarch64_4k_page_table(
+            &draft,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+        )
+        .expect("materialize");
+        let imported = validate_imported_aarch64_4k_page_table(
+            &draft,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+            generated.bytes(),
+        )
+        .expect("canonical imported table");
+        assert_eq!(imported.plan(), draft.plan_identity());
+        assert_eq!(imported.table_page_count(), 4);
+        assert_eq!(imported.leaf_entry_count(), 1);
+
+        let receipt = imported
+            .into_construction_receipt(
+                id(30, PageTableConstructionReceiptId::from_normalized_identity),
+                &draft,
+            )
+            .expect("imported construction receipt");
+        let installable = draft.finish(receipt).expect("installable imported table");
+        assert_eq!(
+            installable.evidence(),
+            PageTableConstructionEvidence::ImportedScan
+        );
+        assert_eq!(installable.bytes(), generated.bytes());
+    }
+
+    #[test]
+    fn imported_scan_rejects_reserved_bits_and_mapping_drift() {
+        let fixture = Fixture::new();
+        let draft = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable, fixture.normal]),
+            4,
+        );
+        let policy = fixture.policy(Aarch64TranslationBase::Lower);
+        let generated = materialize_aarch64_4k_page_table(&draft, &policy).expect("materialize");
+
+        let mut reserved = generated.bytes().to_vec();
+        reserved[0] |= 1 << 5;
+        let error = validate_imported_aarch64_4k_page_table(&draft, &policy, &reserved)
+            .expect_err("reserved bit must reject");
+        assert!(error.0.contains("reserved or unsupported"));
+
+        let mut drifted = generated.bytes().to_vec();
+        let leaf_offset = 3 * AARCH64_PAGE_BYTES as usize + 4 * size_of::<u64>();
+        drifted[leaf_offset] ^= ACCESS_PERMISSION_READ_ONLY as u8;
+        let error = validate_imported_aarch64_4k_page_table(&draft, &policy, &drifted)
+            .expect_err("semantic mapping drift must reject");
+        assert!(error.0.contains("differs from the exact normalized"));
     }
 }
