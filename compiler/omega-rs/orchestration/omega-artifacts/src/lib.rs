@@ -10,6 +10,7 @@ use omega_checked_trees::{CheckedTrees, machine::Machine};
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
+use omega_executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 use omega_external_roots::{InstalledRootLedger, InstalledRootRecord};
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::NativeTarget;
@@ -73,14 +74,42 @@ impl ArtifactWriter {
 
     pub fn write_bytes(&self, file_name: &str, bytes: &[u8]) -> Result<PathBuf, Diagnostic> {
         let path = self.root.join(file_name);
-        fs::write(&path, bytes).map_err(|error| {
+        let temp_path = temp_path_for(&path);
+        let _ = fs::remove_file(&temp_path);
+        fs::write(&temp_path, bytes).map_err(|error| {
             Diagnostic::error(format!(
-                "failed to write artifact {}: {error}",
+                "failed to write temporary artifact {}: {error}",
+                temp_path.display()
+            ))
+        })?;
+        fs::rename(&temp_path, &path).map_err(|error| {
+            let _ = fs::remove_file(&temp_path);
+            Diagnostic::error(format!(
+                "failed to install artifact {}: {error}",
                 path.display()
             ))
         })?;
 
         Ok(path)
+    }
+
+    /// Packages one already-normalized executable artifact in Omega's
+    /// canonical semantic container.
+    ///
+    /// This is deliberately downstream of artifact construction and upstream
+    /// of any target firmware envelope. It accepts neither a native image nor
+    /// arbitrary bytes pretending to be code. The encoder revalidates its own
+    /// output before this writer installs the file atomically.
+    pub fn write_executable_container(
+        &self,
+        file_name: &str,
+        artifact: &Artifact,
+        proof: &[u8],
+        limits: ContainerLimits,
+    ) -> Result<PathBuf, Diagnostic> {
+        let bytes = encode_executable_container(artifact, proof, limits)
+            .map_err(|diagnostic| Diagnostic::error(diagnostic.0))?;
+        self.write_bytes(file_name, &bytes)
     }
 
     pub fn remove_files<'a>(
@@ -1784,7 +1813,12 @@ mod tests {
     use omega_checked_trees::name::Identifier;
     use omega_checked_trees::state::State;
     use omega_core::symbols::SymbolHandle;
-    use omega_executable_installation::{ArtifactId, InstallationDiagnostic, InstalledCodeId};
+    use omega_executable_installation::{
+        Artifact, ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits,
+        DecodedArtifactContainer, EntrySetId, InstallationDiagnostic, InstalledCodeId,
+        MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
+        decode_executable_container, normalized_decoded_content_identity,
+    };
     use omega_external_roots::{
         AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
         ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
@@ -1797,9 +1831,12 @@ mod tests {
         StructuralWorkValidationReceiptId, TrustReceiptId, compose_artifact_stacks,
         compose_fixed_work,
     };
-    use omega_layout_plans::EntryStubId;
+    use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
+    use omega_target::Architecture;
 
-    use super::{build_backend_surface_report, external_root_records_manifest_json};
+    use super::{
+        ArtifactWriter, build_backend_surface_report, external_root_records_manifest_json,
+    };
 
     fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         constructor(identity).expect("normalized root identity")
@@ -1814,6 +1851,90 @@ mod tests {
 
     fn entry_id(identity: u64) -> EntryStubId {
         EntryStubId::from_normalized_identity(identity).expect("normalized entry identity")
+    }
+
+    fn executable_container_fixture() -> Artifact {
+        let artifact_id = install_id(900, ArtifactId::from_normalized_identity);
+        let contracts = install_id(901, MachineContractSetId::from_normalized_identity);
+        let footprint = install_id(902, MachineFootprintId::from_normalized_identity);
+        let placement_plan = install_id(903, PlacementPlanId::from_normalized_identity);
+        let entry_set = install_id(904, EntrySetId::from_normalized_identity);
+        let relocation_set = install_id(905, RelocationSetId::from_normalized_identity);
+        let code = vec![0xc3];
+        let entries = vec![ArtifactEntry::from_canonical_decode(entry_id(906), 0)];
+        let placement_constraints =
+            PlacementConstraints::new(None, 1, PlacementPhase::Load, None, None)
+                .expect("placement constraints");
+        let decoded = DecodedArtifactContainer {
+            format_version: omega_executable_installation::OMEGA_EXECUTABLE_CONTAINER_VERSION,
+            total_length: 1,
+            artifact: artifact_id,
+            content: install_id(907, ArtifactContentId::from_normalized_identity),
+            architecture: Architecture::X86_64,
+            code_length: code.len() as u64,
+            code: code.clone(),
+            contracts,
+            declared_footprint: footprint,
+            placement_plan,
+            placement_constraints,
+            entry_set,
+            entries: entries.clone(),
+            relocation_set,
+            relocations: Vec::new(),
+            proof_payload: omega_executable_installation::normalized_proof_payload_identity(b""),
+            proof: Vec::new(),
+            sections: Vec::new(),
+        };
+        let content =
+            normalized_decoded_content_identity(&decoded).expect("normalized content identity");
+        Artifact::from_canonical_decode(
+            artifact_id,
+            content,
+            Architecture::X86_64,
+            code,
+            contracts,
+            footprint,
+            placement_plan,
+            placement_constraints,
+            entry_set,
+            entries,
+            relocation_set,
+            Vec::new(),
+        )
+        .expect("canonical artifact")
+    }
+
+    #[test]
+    fn writes_canonical_executable_container_atomically() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-artifact-container-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let writer = ArtifactWriter::new(&root).expect("artifact writer");
+        let limits = ContainerLimits {
+            max_total_bytes: 64 * 1024,
+            max_sections: 16,
+            max_section_bytes: 32 * 1024,
+            max_relocations: 64,
+        };
+        let artifact = executable_container_fixture();
+
+        let path = writer
+            .write_executable_container("program.omega-artifact", &artifact, b"proof", limits)
+            .expect("canonical artifact output");
+        let bytes = std::fs::read(&path).expect("written artifact bytes");
+        let decoded =
+            decode_executable_container(&bytes, limits).expect("written bytes remain canonical");
+
+        assert_eq!(decoded.artifact(), &artifact);
+        assert_eq!(decoded.proof(), b"proof");
+        assert!(!root.join(".program.omega-artifact.tmp").exists());
+        std::fs::remove_dir_all(root).expect("remove test artifact directory");
     }
 
     #[test]

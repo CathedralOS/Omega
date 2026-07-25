@@ -333,6 +333,11 @@ total-size bounds before allocation, and routes its completed bytes back
 through the hostile-input decoder before returning them. Producer and consumer
 therefore share one schema and fail closed on drift; optional informational
 decoration is intentionally a later packaging step with no admission role.
+The ordinary artifact writer now exposes the only compiler-packaging seam for
+this form: it accepts an already-normalized `Artifact` plus exact proof bytes,
+invokes the canonical encoder, and atomically installs the resulting file. It
+does not accept a final PE/ELF/Mach-O image or a caller-selected byte buffer as
+an executable candidate.
 Verifier evidence retains that exact immutable candidate rather than using its
 compact FNV identities as collision-resistant authority; the proof-payload
 identity is normalizer-derived from and retained beside the exact proof bytes,
@@ -344,9 +349,10 @@ retains its immutable bytes, architecture, and canonical relocation set through
 admission, and relocation lowering rejects cross-architecture substitution even
 when a relocation kind is otherwise shared. Signed relocation addends survive
 the validated artifact, canonical materializer, object plan, image application,
-report, and fingerprint. Connecting the canonical encoder to final compiler
-artifact packaging and wrapping its result in the target's firmware envelope
-remain engineering.
+report, and fingerprint. Retaining and translating the compiler's semantic
+code, relocation, contract, footprint, placement, and entry facts into that
+packaging seam remains engineering, as does wrapping the canonical result in
+the target's firmware envelope.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,
