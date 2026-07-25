@@ -168,6 +168,7 @@ mod tests {
                 addend,
             }],
             proof_payload: id(7, ProofPayloadId::from_normalized_identity),
+            proof: vec![0xa5; 64],
             sections: vec![
                 ContainerSection {
                     kind: ContainerSectionKind::Code,

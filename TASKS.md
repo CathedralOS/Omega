@@ -1913,10 +1913,11 @@ stronger operations it needs instead of citing machine parameters generally.
   lifecycle rather than becoming authorization surrogates.
   The checked-container admission gate now retains the exact immutable
   validated artifact rather than treating compact FNV identities as collision-
-  resistant evidence, and separately binds its identity-invisible proof
-  payload; acceptance cannot replay across byte/content/contracts/footprint/
-  placement/entry/proof drift, while informational sections remain incapable
-  of contributing admission authority.
+  resistant evidence, and separately retains both the proof-payload identity
+  and its exact identity-invisible bytes. Acceptance cannot replay across
+  byte/content/contracts/footprint/placement/entry/proof drift even when a
+  compact proof identity collides, while informational sections remain
+  incapable of contributing admission authority.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement the actual trusted/PCC and final-footprint validators,
   destination write/freeze and
