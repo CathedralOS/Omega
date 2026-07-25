@@ -54,9 +54,11 @@ normalized_id!(ProofPayloadId, "proof-payload");
 normalized_id!(InformationalSectionId, "informational-section");
 
 mod container;
+mod container_bytes;
 mod materializer;
 
 pub use container::*;
+pub use container_bytes::*;
 pub use materializer::*;
 
 #[derive(Debug, PartialEq, Eq)]

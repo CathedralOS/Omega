@@ -2,6 +2,8 @@ use super::*;
 
 pub const OMEGA_EXECUTABLE_CONTAINER_VERSION: u16 = 2;
 const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
+const CANONICAL_RELOCATION_COUNT_BYTES: u64 = 8;
+const CANONICAL_RELOCATION_RECORD_BYTES: u64 = 32;
 
 pub fn normalized_proof_payload_identity(proof: &[u8]) -> ProofPayloadId {
     let mut hash = 0xcbf29ce484222325u64;
@@ -317,6 +319,24 @@ pub fn validate_decoded_container(
             ContainerSectionKind::Relocations(identity) => {
                 relocations += 1;
                 require_identity("relocation", identity, decoded.relocation_set)?;
+                let relocation_count = u64::try_from(decoded.relocations.len()).map_err(|_| {
+                    InstallationDiagnostic(
+                        "artifact relocation count cannot be represented by the container".into(),
+                    )
+                })?;
+                let expected_length = relocation_count
+                    .checked_mul(CANONICAL_RELOCATION_RECORD_BYTES)
+                    .and_then(|records| records.checked_add(CANONICAL_RELOCATION_COUNT_BYTES))
+                    .ok_or_else(|| {
+                        InstallationDiagnostic("artifact relocation-set length overflows".into())
+                    })?;
+                if section.length != expected_length {
+                    return Err(InstallationDiagnostic(format!(
+                        "relocation section length {} does not match {} canonical relocations",
+                        section.length,
+                        decoded.relocations.len()
+                    )));
+                }
             }
             ContainerSectionKind::Contracts(identity) => {
                 contracts += 1;
@@ -690,7 +710,7 @@ mod tests {
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
         let mut decoded = DecodedArtifactContainer {
             format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
-            total_length: 400,
+            total_length: 448,
             artifact: id(1, ArtifactId::from_normalized_identity),
             content: id(2, ArtifactContentId::from_normalized_identity),
             architecture: Architecture::X86_64,
@@ -722,31 +742,31 @@ mod tests {
                 ContainerSection {
                     kind: ContainerSectionKind::Relocations(relocations),
                     offset: 64,
-                    length: 64,
+                    length: 40,
                 },
                 ContainerSection {
                     kind: ContainerSectionKind::Contracts(contracts),
-                    offset: 128,
+                    offset: 144,
                     length: 64,
                 },
                 ContainerSection {
                     kind: ContainerSectionKind::Footprint(footprint),
-                    offset: 192,
+                    offset: 208,
                     length: 64,
                 },
                 ContainerSection {
                     kind: ContainerSectionKind::Placement(placement),
-                    offset: 256,
+                    offset: 272,
                     length: 64,
                 },
                 ContainerSection {
                     kind: ContainerSectionKind::Entries(entry_set),
-                    offset: 320,
+                    offset: 336,
                     length: 16,
                 },
                 ContainerSection {
                     kind: ContainerSectionKind::Proof(proof),
-                    offset: 336,
+                    offset: 384,
                     length: 64,
                 },
             ],
@@ -842,13 +862,13 @@ mod tests {
         );
 
         let mut decorated = decoded();
-        decorated.total_length = 464;
+        decorated.total_length = 512;
         decorated.sections.push(ContainerSection {
             kind: ContainerSectionKind::Informational(id(
                 88,
                 InformationalSectionId::from_normalized_identity,
             )),
-            offset: 400,
+            offset: 448,
             length: 64,
         });
         let decorated =
@@ -893,13 +913,13 @@ mod tests {
     #[test]
     fn unknown_required_rejects_while_unknown_optional_is_informational() {
         let mut optional = decoded();
-        optional.total_length = 464;
+        optional.total_length = 512;
         optional.sections.push(ContainerSection {
             kind: ContainerSectionKind::Unknown {
                 identity: 99,
                 required: false,
             },
-            offset: 400,
+            offset: 448,
             length: 64,
         });
         let container =
@@ -907,13 +927,13 @@ mod tests {
         assert_eq!(container.unknown_informational_sections(), &[99]);
 
         let mut required = decoded();
-        required.total_length = 464;
+        required.total_length = 512;
         required.sections.push(ContainerSection {
             kind: ContainerSectionKind::Unknown {
                 identity: 99,
                 required: true,
             },
-            offset: 400,
+            offset: 448,
             length: 64,
         });
         let error = validate_decoded_container(required, limits()).expect_err("required unknown");
@@ -923,10 +943,10 @@ mod tests {
     #[test]
     fn duplicate_missing_overlapping_and_out_of_bounds_sections_reject() {
         let mut duplicate = decoded();
-        duplicate.total_length = 464;
+        duplicate.total_length = 512;
         duplicate.sections.push(ContainerSection {
             kind: ContainerSectionKind::Code,
-            offset: 400,
+            offset: 448,
             length: 64,
         });
         let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate code");
@@ -943,7 +963,7 @@ mod tests {
         assert!(error.0.contains("overlap"));
 
         let mut outside = decoded();
-        outside.sections[6].offset = 350;
+        outside.sections[6].offset = 430;
         let error = validate_decoded_container(outside, limits()).expect_err("outside");
         assert!(error.0.contains("exceeds"));
     }
@@ -958,8 +978,6 @@ mod tests {
         let mut duplicate = decoded();
         duplicate.entries.push(duplicate.entries[0]);
         duplicate.sections[5].length = 32;
-        duplicate.sections[6].offset = 352;
-        duplicate.total_length = 416;
         duplicate.content =
             normalized_decoded_content_identity(&duplicate).expect("duplicate content identity");
         let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate entry");
@@ -998,6 +1016,7 @@ mod tests {
                 addend: -4,
             },
         ];
+        canonical.sections[1].length = 72;
         canonical.content =
             normalized_decoded_content_identity(&canonical).expect("relocation content identity");
         let validated =
@@ -1020,6 +1039,7 @@ mod tests {
                 addend: 0,
             },
         ];
+        overlapping.sections[1].length = 72;
         let error = validate_decoded_container(overlapping, limits()).expect_err("overlap rejects");
         assert!(error.0.contains("overlaps"));
 
@@ -1037,6 +1057,7 @@ mod tests {
             target: RelocationTarget::Entry(entry),
             addend: 0,
         });
+        too_many.sections[1].length = 72;
         let error = validate_decoded_container(too_many, strict_limits).expect_err("bound rejects");
         assert!(error.0.contains("exceeding configured bound"));
     }
@@ -1087,8 +1108,6 @@ mod tests {
             .entries
             .push(ArtifactEntry::from_canonical_decode(entry, 24));
         reordered.sections[5].length = 32;
-        reordered.sections[6].offset = 352;
-        reordered.total_length = 416;
         reordered.content =
             normalized_decoded_content_identity(&reordered).expect("two-entry identity");
         let two_entry_identity = reordered.content;
