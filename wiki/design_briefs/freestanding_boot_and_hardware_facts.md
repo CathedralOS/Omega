@@ -319,6 +319,13 @@ exact copy of every semantic section and derives the normalized executable-
 content and proof identities. The result is an immutable admission candidate,
 never executable eligibility.
 
+Optional known and unknown informational sections remain opaque and
+identity-invisible to executable admission, but they are not allowed to
+self-name: the decoder derives their trace identity from the section kind and
+exact bytes and rejects a directory restatement that differs. This preserves
+normalizer-owned reporting identity without granting the payload semantic or
+admission authority.
+
 The inverse compiler-side encoder is live over the same layout records. It
 emits only the seven required semantic sections in canonical order, derives the
 proof identity from the exact payload, checks configured section/relocation/
