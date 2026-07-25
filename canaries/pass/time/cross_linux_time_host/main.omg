@@ -1,13 +1,15 @@
-// Linux std::time structural canary. Both clock reads lower through the
-// platform-owned clock_gettime timespec adapter; calibration values are
-// target constants. Native execution remains gated on a real Linux host.
+// Linux std::time structural canary. Clock reads lower through the
+// platform-owned clock_gettime timespec-result adapter; sleep lowers through
+// the nanosleep timespec-argument adapter. Calibration values are target
+// constants. Native execution remains gated on a real Linux host.
 use omega::language::std::time_host;
 use omega::language::std::console;
 
 data Main {
     host: TimeHost;
     console: Console;
-    monotonic: u64;
+    first_monotonic: u64;
+    second_monotonic: u64;
     frequency: u64;
     wall: u64;
     wall_units: u64;
@@ -16,12 +18,14 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.monotonic = self.host.monotonic_ticks();
+    self.first_monotonic = self.host.monotonic_ticks();
+    self.host.sleep(30);
+    self.second_monotonic = self.host.monotonic_ticks();
     self.frequency = self.host.monotonic_ticks_per_second();
     self.wall = self.host.wall_clock_raw();
     self.wall_units = self.host.wall_clock_units_per_second();
     self.wall_offset = self.host.wall_clock_epoch_offset_seconds();
-    transition self.monotonic > 0 {
+    transition self.second_monotonic > self.first_monotonic {
         true -> check_frequency()
         false -> fail_monotonic()
     }

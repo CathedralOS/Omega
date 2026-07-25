@@ -2267,8 +2267,10 @@ stronger operations it needs instead of citing machine parameters generally.
   temporaries, fail-closed status handling, nanosecond assembly, width and
   relocation coverage, and a two-target structural canary. The x86-64 image
   was also run under WSL/Ubuntu on 2026-07-24 and returned the expected
-  real-clock result. Remaining platform work is native AArch64 confirmation,
-  Linux filesystem rows, and the Linux millisecond-sleep adapter; these are
+  real-clock result. The matching `nanosleep` adapter now converts Omega's
+  millisecond scalar into a compiler-owned private `timespec` on both targets;
+  its structural canary shares the real WSL run. Remaining platform work is
+  native AArch64 confirmation and Linux filesystem rows; these are
   engineering/platform gates, not language-design blockers.
 - **macOS/x86 and other unavailable hosts.** Keep target emission structurally
   pinned; do not claim runtime verification without the host.

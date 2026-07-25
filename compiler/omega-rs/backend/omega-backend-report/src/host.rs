@@ -192,6 +192,7 @@ fn write_platform_call_lowering(
         PlatformCallData::TimespecResult { clock_id } => {
             output.push_str(&format!(" data timespec_result clock_id={clock_id}"))
         }
+        PlatformCallData::TimespecArgument => output.push_str(" data timespec_argument"),
     }
     output.push('\n');
 }

@@ -11,6 +11,7 @@ struct LinuxSyscallNumbers {
     write: u32,
     exit_group: u32,
     clock_gettime: u32,
+    nanosleep: u32,
 }
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
@@ -35,6 +36,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         linux_clock_gettime_syscall(
             "wall_clock_raw",
             syscall_numbers.clock_gettime,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_timespec_syscall(
+            "sleep",
+            "nanosleep",
+            syscall_numbers.nanosleep,
             &policy,
             plan.target.architecture,
         ),
@@ -150,6 +158,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Clock", "wall_clock_epoch_offset_seconds")],
         PlatformCallData::ConstantResult { value: 0 },
     );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "sleep",
+        [host_operation("Clock", "sleep")],
+        PlatformCallData::TimespecArgument,
+    );
 }
 
 fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
@@ -159,18 +174,24 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             write: 64,
             exit_group: 94,
             clock_gettime: 113,
+            nanosleep: 101,
         },
         Architecture::X86_64 => LinuxSyscallNumbers {
             read: 0,
             write: 1,
             exit_group: 231,
             clock_gettime: 228,
+            nanosleep: 35,
         },
     }
 }
 
 pub fn linux_clock_gettime_syscall_number(architecture: Architecture) -> u32 {
     linux_syscall_numbers(architecture).clock_gettime
+}
+
+pub fn linux_nanosleep_syscall_number(architecture: Architecture) -> u32 {
+    linux_syscall_numbers(architecture).nanosleep
 }
 
 fn linux_clock_gettime_syscall(
@@ -198,6 +219,39 @@ fn linux_clock_gettime_syscall(
         operation_key: crate::HostOperationKey::from_names("Clock", operation),
         mechanism: HostBindingMechanism::Syscall {
             name: "clock_gettime".into(),
+            number,
+            number_register: 8,
+            supervisor_call: 0,
+        },
+        boundary_policy: std::sync::Arc::clone(policy),
+        boundary_entry_plan: Some(boundary_entry_plan),
+    }
+}
+
+fn linux_timespec_syscall(
+    operation: &str,
+    name: &str,
+    number: u32,
+    policy: &std::sync::Arc<str>,
+    architecture: Architecture,
+) -> HostBinding {
+    let calling_policy = match architecture {
+        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+    };
+    let word = ValueShape::integer(8, 8);
+    let signature = CallSignature {
+        parameters: vec![word, word],
+        result: Some(word),
+    };
+    let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(calling_policy, &signature)
+        .expect("the built-in Linux timespec syscall signature must have a syscall plan")
+        .plan()
+        .clone();
+    HostBinding {
+        operation_key: crate::HostOperationKey::from_names("Clock", operation),
+        mechanism: HostBindingMechanism::Syscall {
+            name: name.into(),
             number,
             number_register: 8,
             supervisor_call: 0,

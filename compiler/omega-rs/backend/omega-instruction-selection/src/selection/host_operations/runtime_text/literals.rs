@@ -37,7 +37,8 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         | PlatformCallData::SingleByteWrite
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. }
-        | PlatformCallData::TimespecResult { .. } => return None,
+        | PlatformCallData::TimespecResult { .. }
+        | PlatformCallData::TimespecArgument => return None,
     };
     if !host_call_uses_runtime_text_input_buffer(input, host_call) {
         return None;

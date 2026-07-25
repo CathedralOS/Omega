@@ -5,7 +5,7 @@ mod windows;
 pub use darwin::{
     DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,
 };
-pub use linux::linux_clock_gettime_syscall_number;
+pub use linux::{linux_clock_gettime_syscall_number, linux_nanosleep_syscall_number};
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanDiagnostic, BoundaryPlanResult, CallPlan, CallSignature,
     CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation,
@@ -158,6 +158,16 @@ impl HostOperationKey {
                 self.operation,
                 HostOperation::MonotonicTicks | HostOperation::WallClockRaw
             )
+    }
+
+    /// Whether a Linux syscall binding consumes the semantic millisecond
+    /// argument through a compiler-owned `timespec`. The external signature is
+    /// `nanosleep(timespec*, timespec*) -> status`; the second pointer is null.
+    pub fn uses_linux_timespec_argument(self) -> bool {
+        matches!(
+            (self.capability, self.operation),
+            (HostCapability::Clock, HostOperation::Sleep)
+        )
     }
 
     pub fn passes_trailing_mode_on_stack(self) -> bool {
@@ -1018,6 +1028,10 @@ pub enum PlatformCallData {
     TimespecResult {
         clock_id: i64,
     },
+    /// Linux `nanosleep(&timespec, NULL)`: the one semantic argument remains
+    /// milliseconds in Omega; target emission owns the private conversion and
+    /// temporary storage.
+    TimespecArgument,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1456,15 +1470,17 @@ mod binding_plan_tests {
 
     #[test]
     fn linux_clock_rows_bind_exact_timespec_syscalls_and_constants() {
-        for (target, expected_number, expected_policy) in [
+        for (target, expected_clock_number, expected_sleep_number, expected_policy) in [
             (
                 NativeTarget::linux_x64(),
                 228,
+                35,
                 CallingPolicy::LinuxSyscallX86_64,
             ),
             (
                 NativeTarget::linux_arm64(),
                 113,
+                101,
                 CallingPolicy::LinuxSyscallAarch64,
             ),
         ] {
@@ -1483,7 +1499,7 @@ mod binding_plan_tests {
                     number,
                     ref name,
                     ..
-                } if number == expected_number && name.as_ref() == "clock_gettime"
+                } if number == expected_clock_number && name.as_ref() == "clock_gettime"
             ));
             let boundary = binding
                 .boundary_entry_plan
@@ -1515,6 +1531,37 @@ mod binding_plan_tests {
                     value: 1_000_000_000
                 }
             );
+
+            let (_, sleep_binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == HostCapability::Clock
+                        && binding.operation_key.operation == HostOperation::Sleep
+                })
+                .expect("Linux sleep binding");
+            assert!(matches!(
+                sleep_binding.mechanism,
+                HostBindingMechanism::Syscall {
+                    number,
+                    ref name,
+                    ..
+                } if number == expected_sleep_number && name.as_ref() == "nanosleep"
+            ));
+            let sleep_boundary = sleep_binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("nanosleep carries its exact external signature");
+            assert_eq!(sleep_boundary.call.policy, expected_policy);
+            assert_eq!(sleep_boundary.call.parameters.len(), 2);
+            assert!(sleep_boundary.call.result.is_some());
+            let sleep = plan
+                .platform_call_lowerings
+                .iter()
+                .find(|(_, row)| row.state.as_ref() == "sleep")
+                .map(|(_, row)| row)
+                .expect("sleep lowering");
+            assert_eq!(sleep.data, PlatformCallData::TimespecArgument);
         }
     }
 
