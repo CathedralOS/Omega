@@ -1759,9 +1759,11 @@ stronger operations it needs instead of citing machine parameters generally.
   Construction receipts are minted from and retain that complete canonical
   storage/mapping evidence rather than authorizing through the compact FNV
   plan identity. They now also retain the complete table-byte snapshot through
-  installable, installed, and retirement contexts; an equal plan or content
-  report/cache ID cannot replay construction or installation acceptance across
-  exact-plan or exact-byte drift.
+  installable, installed, and retirement contexts, and the normalizer derives
+  `PageTableContentId` from that snapshot rather than accepting a provider-
+  selected value. An equal plan or content report/cache ID cannot replay
+  construction or installation acceptance across exact-plan or exact-byte
+  drift.
   Removal is now symmetric:
   installed storage and mappings remain captive until the exact installation
   is inactive, every open table-retirement fact holds, and every mapping

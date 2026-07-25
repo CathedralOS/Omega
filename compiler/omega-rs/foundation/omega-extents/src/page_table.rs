@@ -258,6 +258,9 @@ impl<'source> PageTableDraft<'source> {
             Some("page-table construction receipt names a different normalized plan")
         } else if receipt.plan_evidence != plan_evidence {
             Some("page-table construction receipt does not bind the exact canonical plan")
+        } else if receipt.content != PageTableContentId(normalized_content_identity(&receipt.bytes))
+        {
+            Some("page-table content identity does not match the exact table bytes")
         } else if receipt.bytes.len() as u64 != self.storage.length() {
             Some("page-table construction receipt does not cover the exact table storage")
         } else if !receipt.complete {
@@ -314,11 +317,11 @@ impl PageTableConstructionReceipt {
     pub fn from_admitted_provider(
         identity: PageTableConstructionReceiptId,
         draft: &PageTableDraft<'_>,
-        content: PageTableContentId,
         bytes: Vec<u8>,
         evidence: PageTableConstructionEvidence,
         complete: bool,
     ) -> Self {
+        let content = PageTableContentId(normalized_content_identity(&bytes));
         Self {
             identity,
             table: draft.identity,
@@ -943,6 +946,18 @@ fn normalized_plan_identity(draft: &PageTableDraft<'_>) -> u64 {
     if hash == 0 { 1 } else { hash }
 }
 
+fn normalized_content_identity(bytes: &[u8]) -> u64 {
+    const OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+
+    let mut hash = OFFSET_BASIS;
+    for byte in b"omega.page-table-content.v1".iter().chain(bytes) {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    if hash == 0 { 1 } else { hash }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1085,7 +1100,6 @@ mod tests {
         PageTableConstructionReceipt::from_admitted_provider(
             id(60, PageTableConstructionReceiptId::from_normalized_identity),
             draft,
-            id(61, PageTableContentId::from_normalized_identity),
             vec![0xa5; 4096],
             PageTableConstructionEvidence::Generated,
             complete,
@@ -1238,11 +1252,11 @@ mod tests {
             .expect("first installable table");
 
         let second_draft = draft();
-        let mut second_receipt = construction_receipt(&second_draft, true);
-        second_receipt.bytes[0] ^= 1;
-        let second = second_draft
+        let second_receipt = construction_receipt(&second_draft, true);
+        let mut second = second_draft
             .finish(second_receipt)
-            .expect("same compact content identity with different exact bytes");
+            .expect("second installable table with different exact bytes");
+        second.bytes[0] ^= 1;
         assert_eq!(first.content(), second.content());
         assert_ne!(first.bytes(), second.bytes());
 
@@ -1278,7 +1292,6 @@ mod tests {
         let receipt = PageTableConstructionReceipt::from_admitted_provider(
             id(60, PageTableConstructionReceiptId::from_normalized_identity),
             &draft,
-            id(61, PageTableContentId::from_normalized_identity),
             vec![0x5a; 4096],
             PageTableConstructionEvidence::ImportedScan,
             true,
@@ -1308,6 +1321,17 @@ mod tests {
             .finish(receipt)
             .expect_err("exact canonical-plan substitution must reject");
         assert!(error.diagnostic().0.contains("exact canonical plan"));
+    }
+
+    #[test]
+    fn construction_receipt_content_identity_is_derived_from_exact_bytes() {
+        let draft = draft();
+        let mut receipt = construction_receipt(&draft, true);
+        receipt.bytes[0] ^= 1;
+        let error = draft
+            .finish(receipt)
+            .expect_err("provider cannot restate a content ID over different table bytes");
+        assert!(error.diagnostic().0.contains("content identity"));
     }
 
     #[test]
