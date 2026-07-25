@@ -1926,6 +1926,12 @@ stronger operations it needs instead of citing machine parameters generally.
   byte/content/contracts/footprint/placement/entry/proof drift even when a
   compact proof identity collides, while informational sections remain
   incapable of contributing admission authority.
+  The inverse compiler-side encoder now emits the canonical seven-section
+  semantic container through the same scalar-layout records, checks all
+  configured size/count bounds before allocation, and self-decodes before
+  returning bytes so producer/consumer schema drift fails closed. Connect that
+  encoder to final compiler artifact packaging and the target firmware
+  envelope without introducing another executable format.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement the actual trusted/PCC and final-footprint validators,
   destination write/freeze and

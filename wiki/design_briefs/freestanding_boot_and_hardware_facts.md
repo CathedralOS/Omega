@@ -316,6 +316,14 @@ match the header. The semantic validator then enforces one exact copy of every
 semantic section and derives the normalized executable-content and proof
 identities. The result is an immutable admission candidate, never executable
 eligibility.
+
+The inverse compiler-side encoder is live over the same layout records. It
+emits only the seven required semantic sections in canonical order, derives the
+proof identity from the exact payload, checks configured section/relocation/
+total-size bounds before allocation, and routes its completed bytes back
+through the hostile-input decoder before returning them. Producer and consumer
+therefore share one schema and fail closed on drift; optional informational
+decoration is intentionally a later packaging step with no admission role.
 Verifier evidence retains that exact immutable candidate rather than using its
 compact FNV identities as collision-resistant authority; the proof-payload
 identity is normalizer-derived from and retained beside the exact proof bytes,
@@ -327,8 +335,9 @@ retains its immutable bytes, architecture, and canonical relocation set through
 admission, and relocation lowering rejects cross-architecture substitution even
 when a relocation kind is otherwise shared. Signed relocation addends survive
 the validated artifact, canonical materializer, object plan, image application,
-report, and fingerprint. Producing this inner container from compiler artifacts
-and wrapping it in the target's firmware envelope remain engineering.
+report, and fingerprint. Connecting the canonical encoder to final compiler
+artifact packaging and wrapping its result in the target's firmware envelope
+remain engineering.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,
