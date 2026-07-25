@@ -1,4 +1,6 @@
+mod generated_writer;
 mod place_copy;
+pub use generated_writer::*;
 pub use place_copy::{
     PLACE_COPY_MAX_SITES, PlaceCopySide, PlaceCopySites, copy_places_to_pointee_clobbers,
     encode_copy_places, encode_place_address_write, encode_place_binary_write,

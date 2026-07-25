@@ -7,6 +7,7 @@ use omega_calling_conventions::{
 use omega_core::diagnostics::Diagnostic;
 
 mod dispatch;
+mod generated_writer;
 mod place_bounded_buffer;
 mod primitives;
 mod runtime_storage;
@@ -16,6 +17,7 @@ mod wire_decode;
 mod wire_encode;
 
 pub use dispatch::*;
+pub use generated_writer::*;
 pub use place_bounded_buffer::*;
 use primitives::*;
 pub use runtime_storage::*;
