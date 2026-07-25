@@ -19,7 +19,8 @@ use omega_executable_installation::{
     InstalledCode, InstalledCodeContext, ResolvedPostHandoffEntryWriterContext,
 };
 use omega_extents::{
-    AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+    AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
+    MappingEraId,
 };
 use omega_layout_plans::{
     ByteOrder, EntryStubId, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
@@ -82,6 +83,11 @@ normalized_id!(
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(MaterializedIdtId, "materialized IDT");
 normalized_id!(IdtDestinationId, "IDT destination");
+normalized_id!(
+    IdtDestinationMappingReceiptId,
+    "IDT destination mapping receipt"
+);
+normalized_id!(IdtDestinationPinReceiptId, "IDT destination pin receipt");
 normalized_id!(IdtWriterPreparationId, "IDT writer preparation");
 normalized_id!(IdtWriterContextId, "IDT writer context");
 normalized_id!(IdtMaterializationReceiptId, "IDT materialization receipt");
@@ -2223,9 +2229,7 @@ pub struct UnpublishedIdtDestination {
     extent: Extent,
     bytes: Vec<u8>,
     site: PlacementSite,
-    mapped: bool,
-    pinned: bool,
-    writable: bool,
+    admission: IdtDestinationAdmission,
 }
 
 impl UnpublishedIdtDestination {
@@ -2234,23 +2238,120 @@ impl UnpublishedIdtDestination {
         extent: Extent,
         bytes: Vec<u8>,
         site: PlacementSite,
-        mapped: bool,
-        pinned: bool,
-        writable: bool,
-    ) -> Self {
-        Self {
+        admission: IdtDestinationAdmission,
+    ) -> Result<Self, Box<IdtDestinationCreationError>> {
+        let mismatch = if !admission.accepted {
+            Some("IDT destination admission was not accepted")
+        } else if !admission.matches_extent(&extent) {
+            Some("IDT destination admission does not bind the exact Extent")
+        } else if !extent
+            .rights()
+            .contains(&ExtentRights::from_normalized_identities([
+                admission.writable_right
+            ]))
+        {
+            Some("IDT destination Extent lacks the admitted writable right")
+        } else if site.base_address != extent.base() || bytes.len() as u64 > extent.length() {
+            Some("IDT destination bytes/site do not fit the exact owned Extent")
+        } else {
+            None
+        };
+        if let Some(message) = mismatch {
+            return Err(Box::new(IdtDestinationCreationError {
+                extent,
+                bytes,
+                site,
+                admission,
+                diagnostic: ExternalRootDiagnostic(message.into()),
+            }));
+        }
+        Ok(Self {
             identity,
             extent,
             bytes,
             site,
-            mapped,
-            pinned,
-            writable,
-        }
+            admission,
+        })
     }
 
     pub const fn identity(&self) -> IdtDestinationId {
         self.identity
+    }
+}
+
+/// Exact provider evidence that one destination range is already mapped,
+/// pinned, and writable before the generated writer may borrow it.
+///
+/// Mapping and pinning are provider-established facts. Writability is checked
+/// independently against the actual Extent's grant-established rights. All
+/// three are bound to the complete Extent authority, so a compact destination
+/// identity or equal numeric range cannot replay admission across lineage,
+/// provenance, rights, or mapping-era drift.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdtDestinationAdmission {
+    mapping_receipt: IdtDestinationMappingReceiptId,
+    pin_receipt: IdtDestinationPinReceiptId,
+    base: u64,
+    length: u64,
+    address_space: AddressSpaceId,
+    rights: ExtentRights,
+    provenance: ExtentProvenanceId,
+    era: MappingEraId,
+    lineage: ExtentLineageId,
+    writable_right: ExtentRightId,
+    accepted: bool,
+}
+
+impl IdtDestinationAdmission {
+    pub fn from_admitted_provider(
+        mapping_receipt: IdtDestinationMappingReceiptId,
+        pin_receipt: IdtDestinationPinReceiptId,
+        extent: &Extent,
+        writable_right: ExtentRightId,
+        accepted: bool,
+    ) -> Self {
+        Self {
+            mapping_receipt,
+            pin_receipt,
+            base: extent.base(),
+            length: extent.length(),
+            address_space: extent.address_space(),
+            rights: extent.rights().clone(),
+            provenance: extent.provenance(),
+            era: extent.era(),
+            lineage: extent.lineage_root(),
+            writable_right,
+            accepted,
+        }
+    }
+
+    fn matches_extent(&self, extent: &Extent) -> bool {
+        self.base == extent.base()
+            && self.length == extent.length()
+            && self.address_space == extent.address_space()
+            && self.rights == *extent.rights()
+            && self.provenance == extent.provenance()
+            && self.era == extent.era()
+            && self.lineage == extent.lineage_root()
+    }
+}
+
+#[derive(Debug)]
+pub struct IdtDestinationCreationError {
+    extent: Extent,
+    bytes: Vec<u8>,
+    site: PlacementSite,
+    admission: IdtDestinationAdmission,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl IdtDestinationCreationError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (Extent, Vec<u8>, PlacementSite, IdtDestinationAdmission) {
+        (self.extent, self.bytes, self.site, self.admission)
     }
 }
 
@@ -2265,9 +2366,7 @@ struct IdtDestinationEvidence {
     era: MappingEraId,
     lineage: ExtentLineageId,
     site: PlacementSite,
-    mapped: bool,
-    pinned: bool,
-    writable: bool,
+    admission: IdtDestinationAdmission,
 }
 
 impl IdtDestinationEvidence {
@@ -2282,9 +2381,7 @@ impl IdtDestinationEvidence {
             era: destination.extent.era(),
             lineage: destination.extent.lineage_root(),
             site: destination.site,
-            mapped: destination.mapped,
-            pinned: destination.pinned,
-            writable: destination.writable,
+            admission: destination.admission.clone(),
         }
     }
 }
@@ -2525,16 +2622,6 @@ pub fn prepare_idt_writer(
         Ok(roots) => roots,
         Err(diagnostic) => return reject(diagnostic, destination, writer, bindings),
     };
-    if !destination.mapped || !destination.pinned || !destination.writable {
-        return reject(
-            ExternalRootDiagnostic(
-                "IDT writer destination must be mapped, pinned, and writable".into(),
-            ),
-            destination,
-            writer,
-            bindings,
-        );
-    }
     if destination.site.base_address != destination.extent.base()
         || destination.bytes.len() as u64 > destination.extent.length()
     {
@@ -3627,6 +3714,36 @@ mod tests {
         )
         .mint(base, length)
         .expect("IDT destination Extent")
+    }
+
+    fn idt_writable_right() -> ExtentRightId {
+        extent_id(51, ExtentRightId::from_normalized_identity)
+    }
+
+    fn idt_destination(
+        identity: IdtDestinationId,
+        lineage: u64,
+        base: u64,
+        length: u64,
+        bytes: Vec<u8>,
+        site: PlacementSite,
+    ) -> UnpublishedIdtDestination {
+        let extent = idt_destination_extent(lineage, base, length);
+        let admission = IdtDestinationAdmission::from_admitted_provider(
+            root_id(
+                lineage + 10_000,
+                IdtDestinationMappingReceiptId::from_normalized_identity,
+            ),
+            root_id(
+                lineage + 20_000,
+                IdtDestinationPinReceiptId::from_normalized_identity,
+            ),
+            &extent,
+            idt_writable_right(),
+            true,
+        );
+        UnpublishedIdtDestination::from_provider(identity, extent, bytes, site, admission)
+            .expect("admitted IDT destination")
     }
 
     fn installed_code(artifact_identity: u64, entry: EntryStubId) -> InstalledCode {
@@ -4814,15 +4931,7 @@ mod tests {
             PostHandoffWriterSource::Resolve(RelocationTarget::Entry(foreign_entry));
         let foreign_error = prepare_idt_writer(
             &code,
-            UnpublishedIdtDestination::from_provider(
-                destination_id,
-                idt_destination_extent(300, 0x1000, 16),
-                vec![0_u8; 16],
-                site,
-                true,
-                true,
-                true,
-            ),
+            idt_destination(destination_id, 300, 0x1000, 16, vec![0_u8; 16], site),
             foreign_writer,
             [IdtRootBinding {
                 entry: foreign_entry,
@@ -4837,41 +4946,39 @@ mod tests {
                 .contains("exact installed artifact")
         );
 
-        let extent_mismatch = prepare_idt_writer(
-            &code,
-            UnpublishedIdtDestination::from_provider(
-                destination_id,
-                idt_destination_extent(305, 0x2000, 16),
-                vec![0_u8; 16],
-                site,
-                true,
-                true,
-                true,
+        let admitted_extent = idt_destination_extent(305, 0x1000, 16);
+        let exact_admission = IdtDestinationAdmission::from_admitted_provider(
+            root_id(
+                10_305,
+                IdtDestinationMappingReceiptId::from_normalized_identity,
             ),
-            writer.clone(),
-            [binding],
-        )
-        .expect_err("numeric site cannot substitute another owned Extent");
-        assert!(
-            extent_mismatch
-                .diagnostic()
-                .0
-                .contains("exact owned Extent")
+            root_id(20_305, IdtDestinationPinReceiptId::from_normalized_identity),
+            &admitted_extent,
+            idt_writable_right(),
+            true,
         );
+        let extent_mismatch = UnpublishedIdtDestination::from_provider(
+            destination_id,
+            idt_destination_extent(306, 0x1000, 16),
+            vec![0_u8; 16],
+            site,
+            exact_admission,
+        )
+        .expect_err("equal geometry cannot substitute another owned Extent");
+        assert!(extent_mismatch.diagnostic().0.contains("exact Extent"));
 
         let wrong_phase_error = prepare_idt_writer(
             &code,
-            UnpublishedIdtDestination::from_provider(
+            idt_destination(
                 destination_id,
-                idt_destination_extent(301, 0x1000, 16),
+                301,
+                0x1000,
+                16,
                 vec![0_u8; 16],
                 PlacementSite {
                     phase: PlacementPhase::Load,
                     ..site
                 },
-                true,
-                true,
-                true,
             ),
             writer.clone(),
             [binding],
@@ -4879,27 +4986,26 @@ mod tests {
         .expect_err("placement phase drift cannot enter checked writer lowering");
         assert!(wrong_phase_error.diagnostic().0.contains("placement phase"));
 
-        let writable_error = prepare_idt_writer(
-            &code,
-            UnpublishedIdtDestination::from_provider(
-                destination_id,
-                idt_destination_extent(302, 0x1000, 16),
-                vec![0_u8; 16],
-                site,
-                true,
-                true,
-                false,
+        let non_writable_extent = idt_destination_extent(302, 0x1000, 16);
+        let writable_admission = IdtDestinationAdmission::from_admitted_provider(
+            root_id(
+                10_302,
+                IdtDestinationMappingReceiptId::from_normalized_identity,
             ),
-            writer.clone(),
-            [binding],
+            root_id(20_302, IdtDestinationPinReceiptId::from_normalized_identity),
+            &non_writable_extent,
+            extent_id(999, ExtentRightId::from_normalized_identity),
+            true,
+        );
+        let writable_error = UnpublishedIdtDestination::from_provider(
+            destination_id,
+            non_writable_extent,
+            vec![0_u8; 16],
+            site,
+            writable_admission,
         )
         .expect_err("non-writable destination cannot enter checked writer lowering");
-        assert!(
-            writable_error
-                .diagnostic()
-                .0
-                .contains("mapped, pinned, and writable")
-        );
+        assert!(writable_error.diagnostic().0.contains("writable right"));
 
         let mut expected = vec![0_u8; 16];
         expected[..8].copy_from_slice(&0x1010_u64.to_le_bytes());
@@ -4907,15 +5013,7 @@ mod tests {
         wrong_expected[0] ^= 1;
         let prepared = prepare_idt_writer(
             &code,
-            UnpublishedIdtDestination::from_provider(
-                destination_id,
-                idt_destination_extent(303, 0x1000, 16),
-                vec![0_u8; 16],
-                site,
-                true,
-                true,
-                true,
-            ),
+            idt_destination(destination_id, 303, 0x1000, 16, vec![0_u8; 16], site),
             writer.clone(),
             [binding],
         )
@@ -5081,15 +5179,7 @@ mod tests {
         let mismatch_destination = root_id(209, IdtDestinationId::from_normalized_identity);
         let mismatch = prepare_idt_writer(
             &code,
-            UnpublishedIdtDestination::from_provider(
-                mismatch_destination,
-                idt_destination_extent(304, 0x1000, 16),
-                vec![0_u8; 16],
-                site,
-                true,
-                true,
-                true,
-            ),
+            idt_destination(mismatch_destination, 304, 0x1000, 16, vec![0_u8; 16], site),
             writer,
             [IdtRootBinding {
                 entry: entry_id(1002),

@@ -822,8 +822,12 @@ schemas recover the same instance without publishing policy type identity.
    `UnpublishedIdtDestination` now owns the concrete linear Extent, validates
    its byte range and placement base against that authority, and retains the
    Extent's space/rights/provenance/era/lineage through publication evidence.
-   The mapped/pinned/writable facts are still provider assertions pending the
-   concrete bootstrap placement provider.
+   Loose mapped/pinned/writable booleans are gone. Destination admission now
+   binds exact mapping and pin receipt identities to that complete Extent, and
+   independently checks the provider-selected writable right against the
+   Extent's grant-established rights; equal numeric geometry from another
+   lineage cannot replay admission. The concrete bootstrap placement provider
+   still has to produce those receipts.
    Concrete Cathedral PIC/LAPIC candidate construction may proceed, but
    inserting the plan-driven generated writer/load operations into the initial
    artifact is **OWNER-BLOCKED** on the bootstrap-helper staging question. R10
@@ -883,7 +887,10 @@ schemas recover the same instance without publishing policy type identity.
      from an explicitly supplied divisor. Invoking those helpers during
      bootstrap and connecting the acknowledgement to the installed root remain
      gated by the exception-IDT publication path; do not enable IF before that
-     path is live.
+     path is live. A forced UEFI-frontier compile now imports and invokes the
+     PIC, PIT, x2APIC, and vector/IST helpers together, pinning their current
+     parser, checker, checked-instruction, and backend compatibility even though
+     the production boot frontier cannot invoke them before publication.
    - Add LAPIC one-shot timing as the production multicore/tickless provider
      without changing the root requirement. Cathedral now carries one pure,
      zero-authority `local_apic` fact package for the architectural xAPIC MMIO

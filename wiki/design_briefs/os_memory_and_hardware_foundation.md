@@ -971,8 +971,11 @@ the installed-artifact resolver, placement phase, mapped/pinned/writable
 authority, and fragment geometry. The unpublished destination now owns its
 concrete linear Extent, checks byte length and site base against that range,
 and carries space/rights/provenance/era/lineage into exact publication
-evidence. The mapped/pinned/writable facts remain provider assertions until the
-bootstrap placement provider supplies their concrete receipts. The writer
+evidence. Loose mapped/pinned/writable booleans are gone: exact mapping and pin
+receipt identities bind the complete Extent, while the provider-selected
+writable right must actually occur in its grant-established right set. Those
+facts remain provider-established until the bootstrap placement provider
+supplies their concrete receipts. The writer
 also retains the opaque complete
 installed-code lifecycle context through population, and the materialization
 receipt derives from that populated writer rather than restating resolver IDs.
