@@ -13,7 +13,7 @@ use super::primitives::{
 use omega_calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_layout_plans::{
-    ByteOrder, GeneratedPostHandoffWriterPlan, GeneratedPostHandoffWriterStep,
+    ByteOrder, GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,
     POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET, post_handoff_writer_context_byte_len,
 };
@@ -40,14 +40,14 @@ pub const fn generated_post_handoff_writer_additional_machine_state() -> Machine
 
 pub fn generated_post_handoff_writer_width(
     pointer_register: MachineRegister,
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
 ) -> Result<usize, Diagnostic> {
     Ok(encode_generated_post_handoff_writer_bytes(pointer_register, plan)?.len())
 }
 
 pub fn encode_generated_post_handoff_writer_bytes(
     pointer_register: MachineRegister,
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     let pointer_register = validate_generated_post_handoff_writer(pointer_register, plan)?;
     let mut bytes = Vec::new();
@@ -148,7 +148,7 @@ pub fn encode_generated_post_handoff_writer_bytes(
 
 fn validate_generated_post_handoff_writer(
     pointer_register: MachineRegister,
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
 ) -> Result<u8, Diagnostic> {
     let MachineRegister::Aarch64X(pointer_register) = pointer_register else {
         return Err(Diagnostic::error(format!(
@@ -275,7 +275,7 @@ mod tests {
         PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
     };
 
-    fn helper() -> GeneratedPostHandoffWriterPlan {
+    fn fragment() -> GeneratedPostHandoffWriterFragmentPlan {
         let target = RelocationTarget::Data(
             DataSymbolId::from_normalized_identity(9).expect("data identity"),
         );
@@ -310,21 +310,21 @@ mod tests {
                 },
             ],
         }
-        .lower_reusable_helper()
-        .expect("reusable helper")
-        .helper
+        .lower_reusable_fragment()
+        .expect("reusable fragment")
+        .fragment
     }
 
     #[test]
     fn generated_writer_emits_fragment_program_for_data_symbols() {
-        let helper = helper();
+        let fragment = fragment();
         let bytes =
-            encode_generated_post_handoff_writer_bytes(MachineRegister::Aarch64X(0), &helper)
+            encode_generated_post_handoff_writer_bytes(MachineRegister::Aarch64X(0), &fragment)
                 .expect("AArch64 writer");
         assert!(!bytes.is_empty());
         assert_eq!(
             bytes.len(),
-            generated_post_handoff_writer_width(MachineRegister::Aarch64X(0), &helper)
+            generated_post_handoff_writer_width(MachineRegister::Aarch64X(0), &fragment)
                 .expect("matching width")
         );
         assert_eq!(
@@ -342,8 +342,9 @@ mod tests {
 
     #[test]
     fn generated_writer_rejects_non_aarch64_context_register() {
-        let error = encode_generated_post_handoff_writer_bytes(MachineRegister::X86Rdi, &helper())
-            .expect_err("wrong architecture register");
+        let error =
+            encode_generated_post_handoff_writer_bytes(MachineRegister::X86Rdi, &fragment())
+                .expect_err("wrong architecture register");
         assert!(error.message.contains("cannot arrive"));
     }
 }
