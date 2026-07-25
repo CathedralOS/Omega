@@ -253,6 +253,31 @@ fn slice_recast_execution_tiling_and_fact_fences() {
 }
 
 #[test]
+fn aggregate_slice_recasts_compose_leaf_representation_sets() {
+    let canary = "recast/runtime_aggregate_slice_representation_recast_exit";
+    assert_exit_70(canary, "aggregate-slice-representation-recast");
+
+    let main = repo_root()
+        .join("canaries/pass")
+        .join(canary)
+        .join("main.omg");
+    let checked = compile_to_checked(&main, None).expect("aggregate slice recast should compile");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "the interpreter must preserve aggregate slice facts and write-through: {interpreted:?}"
+    );
+
+    compile_for_cross_targets(canary, "aggregate-slice-representation-recast");
+
+    let diagnostics = fail_diagnostics("recast/aggregate_slice_mut_leaf_sets_differ");
+    assert!(
+        diagnostics.contains("fact implication in BOTH directions"),
+        "aggregate slice leaf-set mismatch produced the wrong diagnostic:\n{diagnostics}"
+    );
+}
+
+#[test]
 fn mutable_recast_fact_fences_reject() {
     for canary in [
         "recast/recast_mut_fact_fenced",

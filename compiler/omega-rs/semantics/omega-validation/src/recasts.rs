@@ -19,7 +19,9 @@
 //!   fact-free target shapes, including top-level and nested literal-length
 //!   fixed arrays. Mutable typed aggregate aliases may retain facts when source
 //!   and target have identical geometry and representation-equivalent leaves;
-//!   shared aliases may weaken facts.
+//!   shared aliases may weaken facts. The same repeated-leaf judgment serves
+//!   unsized slices of aggregate elements over a complete typed fixed array;
+//!   element stride includes layout padding rather than repacking the leaves.
 //!   Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
