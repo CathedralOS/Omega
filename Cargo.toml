@@ -52,6 +52,7 @@ members = [
     "compiler/omega-rs/backend/omega-runtime-branching",
     "compiler/omega-rs/backend/omega-runtime-dispatch-loop",
     "compiler/omega-rs/backend/omega-layout",
+    "compiler/omega-rs/backend/omega-page-tables",
     "compiler/omega-rs/backend/omega-instruction-selection",
     "compiler/omega-rs/backend/omega-emission-planning",
     "compiler/omega-rs/backend/omega-machine-emission",

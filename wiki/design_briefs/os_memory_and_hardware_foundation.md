@@ -354,8 +354,20 @@ or a receipt for another table cannot mint active address authority. Target
 entry writers can inspect borrowed, inert projections of the draft's exact
 table-storage destination and every pending source/destination mapping fact
 without borrowing, consuming, splitting, completing, or releasing authority.
-The target writers/scanners themselves, page-table-control operations, and
-source-visible opaque carriers remain implementation work over this lifecycle.
+The first concrete writer now consumes exactly those projections. The
+`omega-page-tables` x86-64 policy expands each normalized mapping into 4 KiB
+leaves, allocates the four-level hierarchy deterministically from the beginning
+of the draft's physical storage extent, and emits one exact zero-filled storage
+image. It rejects noncanonical virtual addresses, address-width overflow,
+misaligned or unequal ranges, exhausted table/leaf bounds, semantic rights with
+no admitted PTE meaning, and non-executable mappings when NX cannot be enforced.
+The semantic-right map is provider-owned policy: naming a right does not
+establish it, and unknown rights are never silently discarded. Its output is
+only inert bytes plus plan/content report facts. The separate construction
+receipt still establishes `Installable`, and the separate page-table-control
+provider still activates it. Huge pages, PAT/LA57, the AArch64 writer, imported
+scanners, control operations, and source-visible opaque carriers remain
+implementation work over the same lifecycle.
 
 Retirement closes the conservation loop. Beginning removal captures table
 storage and starts unmapping every active mapping. Nothing is returned until one
