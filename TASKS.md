@@ -1789,11 +1789,15 @@ stronger operations it needs instead of citing machine parameters generally.
   harmless, while a shifted or substituted bit placement rejects without
   authorizing through the compact layout fingerprint. The matching AArch64
   stage-1 writer is live for four-level 4 KiB tables in either admitted TTBR
-  address half. Its distinct
-  policy maps exactly one semantic memory-class fact to `AttrIndx` plus
-  shareability, maps ordinary rights to AP/nG/PXN/UXN, enforces the configured
-  32–48-bit output-address width, and enters the same generated-construction
-  receipt lifecycle. Add huge-page/PAT/LA57 or AArch64 block/LPA2/dirty-state
+  address half. Its distinct policy maps exactly one semantic memory-class fact
+  to `AttrIndx` plus shareability, maps ordinary rights to AP/nG/PXN/UXN, and
+  enforces the configured 32–48-bit output-address width. Both its hierarchy
+  pointers and leaves now pass through its own exact named-field descriptor
+  layout and the same ordinary scalar materializer as x86; declaration
+  reordering normalizes away while shifted hardware geometry rejects. It enters
+  the same generated-construction receipt lifecycle without collapsing the two
+  targets into a common flags algebra. Add huge-page/PAT/LA57 or AArch64
+  block/LPA2/dirty-state
   policies only for real target customers. The first x86 imported-table scanner
   is live and born strict: every entry must round-trip through the same named
   scalar layout with all unsupported bits zero, and the complete image must

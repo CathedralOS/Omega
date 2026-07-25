@@ -374,7 +374,10 @@ provider still activates it. The AArch64 sibling consumes the same draft but a
 different target algebra: one admitted semantic memory-class fact selects
 `AttrIndx` and shareability, ordinary mapped rights select AP/nG/PXN/UXN, and
 the policy pins the TTBR lower/upper half plus 32–48-bit physical-address
-width. It emits four-level 4 KiB stage-1 tables and reaches the identical
+width. Its hierarchy pointers and leaves also pass named values through the
+ordinary scalar materializer, but against an exact AArch64 descriptor layout;
+declaration order normalizes away and shifted hardware geometry rejects. It
+emits four-level 4 KiB stage-1 tables and reaches the identical
 generated-construction receipt without treating AArch64 flags as x86 flags.
 The first x86 imported-table validator is live over the inverse scalar consumer.
 Every entry must round-trip through the exact normalized geometry with

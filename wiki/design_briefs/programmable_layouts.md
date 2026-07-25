@@ -292,10 +292,13 @@ materializer. The provider retains and compares the exact normalized x86
 geometry: declaration order normalizes away, but shifted hardware bits reject;
 the compact layout fingerprint remains report/cache identity and never
 authorizes materialization.
-The AArch64 sibling uses the same normalized mappings and construction
-lifecycle while retaining its independent descriptor algebra: semantic memory
-class selects `AttrIndx`/shareability and access rights select AP/nG/PXN/UXN.
-No common "page flags" sum erases the target distinction.
+The AArch64 sibling uses the same normalized mappings, named-field scalar
+consumer, and construction lifecycle while retaining its independent descriptor
+algebra: semantic memory class selects `AttrIndx`/shareability and access rights
+select AP/nG/PXN/UXN. Hierarchy pointers and leaves both use its exact normalized
+AArch64 geometry; declaration order is irrelevant, shifted hardware bits reject,
+and the compact fingerprint remains report/cache identity only. No common "page
+flags" sum erases the target distinction.
 The inverse scalar decoder consumes compiler-materialized
 field widths and the same named geometry, reconstructs complete logical
 fields, and rejects incomplete or overlapping source fragments. Decoding
