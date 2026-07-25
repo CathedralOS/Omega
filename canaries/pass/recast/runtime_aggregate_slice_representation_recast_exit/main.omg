@@ -1,0 +1,78 @@
+// RUN CANARY (exit 70) + interpreter differential. A typed fixed array may be
+// re-viewed as an unsized slice of a differently named aggregate when every
+// repeated element preserves layout geometry and leaf representation facts.
+// The shared view weakens the integer range; the mutable view uses the exact
+// same bit-pattern set in both directions. The trailing bool leaves one byte
+// of native padding per element, so success also proves element stride rather
+// than densely repacking scalar leaves.
+use omega::language::std::console;
+
+data Narrow {
+    signed_value: i16 [0..=100];
+    enabled: bool;
+}
+
+data Wide {
+    unsigned_value: u16 [0..=200];
+    active: bool;
+}
+
+data Exact {
+    unsigned_value: u16 [0..=100];
+    active: bool;
+}
+
+data Main {
+    console: Console;
+    source: [Narrow; 2];
+}
+
+machine Main::main(&mut self) {
+    self.source[0].signed_value = 7;
+    self.source[0].enabled = false;
+    self.source[1].signed_value = 11;
+    self.source[1].enabled = true;
+
+    let read: &[Wide] = &self.source as &[Wide];
+    transition read.len > 1 {
+        true -> inspect(read)
+        _ -> bad()
+    }
+
+    state inspect(&mut self, read: &[Wide]) {
+    transition read[0].unsigned_value == 7
+        && !read[0].active
+        && read[1].unsigned_value == 11
+        && read[1].active {
+        true -> mutate()
+        _ -> bad()
+    }
+    }
+
+    state mutate(&mut self) {
+    let write: &mut [Exact] = &mut self.source as &mut [Exact];
+    transition write.len > 1 {
+        true -> write_values(write)
+        _ -> bad()
+    }
+    }
+
+    state write_values(&mut self, write: &mut [Exact]) {
+    write[1].unsigned_value = 99;
+    write[0].active = true;
+    transition write[0].unsigned_value == 7
+        && write[0].active
+        && write[1].unsigned_value == 99
+        && write[1].active
+        && self.source[0].signed_value == 7
+        && self.source[0].enabled
+        && self.source[1].signed_value == 99
+        && self.source[1].enabled {
+        true -> good()
+        _ -> bad()
+    }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

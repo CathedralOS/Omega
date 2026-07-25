@@ -1,0 +1,21 @@
+// FAIL CANARY: repeating an aggregate through an unsized slice does not erase
+// its leaf facts. Equal size/alignment and equal cardinality are insufficient:
+// the target integer leaf admits bit pattern 101 while the source admits 0.
+data SourceElement {
+    signed_value: i16 [0..=100];
+    enabled: bool;
+}
+
+data ShiftedElement {
+    unsigned_value: u16 [1..=101];
+    active: bool;
+}
+
+data Main {
+    source: [SourceElement; 2];
+}
+
+machine Main::main(&mut self) {
+    let view: &mut [ShiftedElement] =
+        &mut self.source as &mut [ShiftedElement];
+}

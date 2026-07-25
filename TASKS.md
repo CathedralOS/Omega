@@ -64,8 +64,9 @@ References:
 #### L4/L5 — plan-laid views
 
 - Finish source-visible validate/materialize establishment over owned storage.
-- Complete non-scalar tiling, mutable views, and remaining aggregate
-  representation-set checks.
+- Complete the remaining non-scalar tiling and mutable-view establishment
+  paths. Recursive aggregate representation-set checks are live for records,
+  literal fixed arrays, and complete-source aggregate slices.
 - Keep validation as the only route from raw bytes to established typed facts.
 - Do not expose a raw-offset writer.
 

@@ -238,7 +238,12 @@ recursively fact-free elements; an already-typed shared view may weaken facts,
 and an already-typed mutable view requires implication in both directions.
 Native lowering and the interpreter preserve the backing address through
 indexed reads, writes, and state-parameter forwarding. No generated semantic
-name or second slice carrier participates.
+name or second slice carrier participates. Aggregate elements use the same
+recursive leaf judgment: a typed fixed array may be viewed as an unsized slice
+of a differently named record when every repeated element preserves layout
+geometry and facts. Shared range weakening and mutable exact equivalence are
+live through padded element strides on both native targets and the interpreter;
+a single mismatched nested leaf representation set rejects.
 
 ## Policy selection
 
