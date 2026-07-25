@@ -3562,27 +3562,15 @@ mod tests {
         );
         let validated =
             validate_final_placement(frozen, &certificate).expect("validated placement");
-        install_validated(
-            validated,
-            InstallAuthority::from_admitted_provider(
-                artifact.identity(),
-                admitted.admission(),
-                install_id(100, CodePlacementId::from_normalized_identity),
-                install_id(61, InstallationScopeId::from_normalized_identity),
-                InstallationAudience::FutureFetcher,
-            ),
-            InstallationReceipt::from_provider(
-                install_id(300, InstalledCodeId::from_normalized_identity),
-                artifact.identity(),
-                admitted.admission(),
-                install_id(100, CodePlacementId::from_normalized_identity),
-                install_id(61, InstallationScopeId::from_normalized_identity),
-                install_id(180, FinalValidationId::from_normalized_identity),
-                true,
-                WxEnforcement::HardwareEnforced,
-            ),
-        )
-        .expect("installed code")
+        let install_authority = InstallAuthority::from_admitted_provider(&validated);
+        let installation_receipt = InstallationReceipt::from_provider(
+            install_id(300, InstalledCodeId::from_normalized_identity),
+            &validated,
+            true,
+            WxEnforcement::HardwareEnforced,
+        );
+        install_validated(validated, install_authority, installation_receipt)
+            .expect("installed code")
     }
 
     fn boundary() -> ValidatedBoundaryEntryPlan {

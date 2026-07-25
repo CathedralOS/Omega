@@ -254,7 +254,11 @@ identity without acquiring destination-write or execute authority.
 Materialization receipts retain that complete canonical output, while final
 validation evidence is minted from and retains the exact frozen artifact and
 byte snapshot; compact normalized identities remain report keys rather than
-collision-resistant authority. The
+collision-resistant authority. Installation and retirement continue that rule:
+their authorities and receipts retain the complete validated placement or
+installed realization, including exact bytes, Extent authority facts, scope,
+audience, validation, and W^X state. Compact lifecycle IDs never substitute for
+that evidence. The
 schema-driven native-container decoder, real PCC and final-code validators,
 destination write/freeze and installer operations, Omega linearity, and live
 replacement remain implementation work.

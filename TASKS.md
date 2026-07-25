@@ -1878,6 +1878,14 @@ stronger operations it needs instead of citing machine parameters generally.
   Final validation evidence is constructed from that exact frozen carrier and
   retains the complete artifact and byte snapshot; compact artifact/final-byte
   IDs remain reporting keys and cannot replay acceptance across a collision.
+  Installation authority and visibility/W^X receipts now retain that complete
+  validated placement evidence as well: canonical artifact, frozen bytes,
+  realized footprint, validation result, placement geometry, Extent
+  space/rights/provenance/era/lineage, scope, constraints, and audience.
+  Retirement authority and completion receipts likewise bind the complete
+  installed realization. Compact artifact, placement, validation, and
+  installed-code IDs therefore remain reporting keys across the entire
+  lifecycle rather than becoming authorization surrogates.
   The checked-container admission gate now retains the exact immutable
   validated artifact rather than treating compact FNV identities as collision-
   resistant evidence, and separately binds its identity-invisible proof
@@ -1893,8 +1901,9 @@ stronger operations it needs instead of citing machine parameters generally.
   and installation-scope constraints before materialization. The normalized
   retirement path already distinguishes visibility from quiescence, requires
   X removal and write-authority restoration, and returns the exact placement
-  for reuse only after an exact scoped receipt. PE/COFF remains only a firmware
-  envelope; no arbitrary byte-to-code path exists.
+  for reuse only after a receipt bound to that complete installed
+  realization. PE/COFF remains only a firmware envelope; no arbitrary
+  byte-to-code path exists.
 - **Wire runtime.** Scalar decode now establishes destination range facts
   instead of rejecting ranged fields: each call binds the normalized inclusive
   interval from the actual value declaration across plain, nested, and repeated

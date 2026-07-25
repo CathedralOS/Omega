@@ -638,29 +638,63 @@ pub struct ValidatedPlacement {
     validation: FinalValidationId,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct InstallAuthority {
-    artifact: ArtifactId,
+/// Exact provider-side evidence for one validated placement. Normalized IDs
+/// remain report keys; authorization compares the canonical artifact, frozen
+/// bytes, placement geometry, authority lineage, and validation result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ValidatedPlacementEvidence {
+    artifact: Artifact,
     admission: AdmissionReceiptId,
     placement: CodePlacementId,
     scope: InstallationScopeId,
     audience: InstallationAudience,
+    constraints: PlacementConstraints,
+    base: u64,
+    length: u64,
+    address_space: AddressSpaceId,
+    rights: ExtentRights,
+    provenance: ExtentProvenanceId,
+    era: omega_extents::MappingEraId,
+    lineage: omega_extents::ExtentLineageId,
+    final_bytes: Vec<u8>,
+    realized_footprint: MachineFootprintId,
+    validation: FinalValidationId,
+}
+
+impl ValidatedPlacementEvidence {
+    fn from_validated(validated: &ValidatedPlacement) -> Self {
+        let frozen = &validated.frozen;
+        let extent = &frozen.placement.extent;
+        Self {
+            artifact: frozen.artifact.artifact.clone(),
+            admission: frozen.artifact.admission,
+            placement: frozen.placement.placement,
+            scope: frozen.placement.scope,
+            audience: frozen.placement.audience,
+            constraints: frozen.placement.constraints,
+            base: extent.base(),
+            length: extent.length(),
+            address_space: extent.address_space(),
+            rights: extent.rights().clone(),
+            provenance: extent.provenance(),
+            era: extent.era(),
+            lineage: extent.lineage_root(),
+            final_bytes: frozen.materialized.bytes().to_vec(),
+            realized_footprint: frozen.realized_footprint,
+            validation: validated.validation,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct InstallAuthority {
+    validated: ValidatedPlacementEvidence,
 }
 
 impl InstallAuthority {
-    pub const fn from_admitted_provider(
-        artifact: ArtifactId,
-        admission: AdmissionReceiptId,
-        placement: CodePlacementId,
-        scope: InstallationScopeId,
-        audience: InstallationAudience,
-    ) -> Self {
+    pub fn from_admitted_provider(validated: &ValidatedPlacement) -> Self {
         Self {
-            artifact,
-            admission,
-            placement,
-            scope,
-            audience,
+            validated: ValidatedPlacementEvidence::from_validated(validated),
         }
     }
 }
@@ -675,34 +709,21 @@ pub enum WxEnforcement {
 #[derive(Debug, PartialEq, Eq)]
 pub struct InstallationReceipt {
     installed: InstalledCodeId,
-    artifact: ArtifactId,
-    admission: AdmissionReceiptId,
-    placement: CodePlacementId,
-    scope: InstallationScopeId,
-    validation: FinalValidationId,
+    validated: ValidatedPlacementEvidence,
     visibility_complete: bool,
     wx: WxEnforcement,
 }
 
 impl InstallationReceipt {
-    #[allow(clippy::too_many_arguments)]
-    pub const fn from_provider(
+    pub fn from_provider(
         installed: InstalledCodeId,
-        artifact: ArtifactId,
-        admission: AdmissionReceiptId,
-        placement: CodePlacementId,
-        scope: InstallationScopeId,
-        validation: FinalValidationId,
+        validated: &ValidatedPlacement,
         visibility_complete: bool,
         wx: WxEnforcement,
     ) -> Self {
         Self {
             installed,
-            artifact,
-            admission,
-            placement,
-            scope,
-            validation,
+            validated: ValidatedPlacementEvidence::from_validated(validated),
             visibility_complete,
             wx,
         }
@@ -714,25 +735,10 @@ pub fn install_validated(
     authority: InstallAuthority,
     receipt: InstallationReceipt,
 ) -> Result<InstalledCode, Box<InstallationError>> {
-    let frozen = &validated.frozen;
-    let artifact = frozen.artifact.artifact.0.identity;
-    let admission = frozen.artifact.admission;
-    let placement = frozen.placement.placement;
-    let scope = frozen.placement.scope;
-    let audience = frozen.placement.audience;
-    let mismatch = if authority.artifact != artifact
-        || authority.admission != admission
-        || authority.placement != placement
-        || authority.scope != scope
-        || authority.audience != audience
-    {
+    let evidence = ValidatedPlacementEvidence::from_validated(&validated);
+    let mismatch = if authority.validated != evidence {
         Some("install authority is not scoped to this validated placement")
-    } else if receipt.artifact != artifact
-        || receipt.admission != admission
-        || receipt.placement != placement
-        || receipt.scope != scope
-        || receipt.validation != validated.validation
-    {
+    } else if receipt.validated != evidence {
         Some("installation receipt does not match validated placement")
     } else if !receipt.visibility_complete {
         Some("installation did not complete instruction-fetch visibility")
@@ -752,9 +758,7 @@ pub fn install_validated(
 
     Ok(InstalledCode {
         identity: receipt.installed,
-        artifact: validated.frozen.artifact,
-        placement: validated.frozen.placement,
-        validation: validated.validation,
+        validated,
         wx: receipt.wx,
     })
 }
@@ -782,9 +786,7 @@ impl InstallationError {
 #[derive(Debug)]
 pub struct InstalledCode {
     identity: InstalledCodeId,
-    artifact: AdmittedArtifact,
-    placement: CodePlacement,
-    validation: FinalValidationId,
+    validated: ValidatedPlacement,
     wx: WxEnforcement,
 }
 
@@ -845,15 +847,15 @@ impl InstalledCode {
     }
 
     pub fn artifact(&self) -> ArtifactId {
-        self.artifact.artifact.0.identity
+        self.validated.frozen.artifact.artifact.0.identity
     }
 
     pub const fn placement(&self) -> CodePlacementId {
-        self.placement.placement
+        self.validated.frozen.placement.placement
     }
 
     pub const fn validation(&self) -> FinalValidationId {
-        self.validation
+        self.validated.validation
     }
 
     pub const fn wx(&self) -> WxEnforcement {
@@ -866,7 +868,10 @@ impl InstalledCode {
         &self,
         identity: EntryStubId,
     ) -> Result<RelocationTarget, InstallationDiagnostic> {
-        self.artifact.selected_entry_target(identity)
+        self.validated
+            .frozen
+            .artifact
+            .selected_entry_target(identity)
     }
 
     /// Check the exact post-handoff entry writer without resolving an entry
@@ -1015,17 +1020,32 @@ impl InstalledCode {
     fn resolve_entry_target(&self, target: RelocationTarget) -> Option<u64> {
         match target {
             RelocationTarget::Entry(identity) => self
+                .validated
+                .frozen
                 .artifact
                 .artifact
                 .entry(identity)
-                .and_then(|entry| self.placement.extent.base().checked_add(entry.code_offset)),
+                .and_then(|entry| {
+                    self.validated
+                        .frozen
+                        .placement
+                        .extent
+                        .base()
+                        .checked_add(entry.code_offset)
+                }),
             RelocationTarget::Data(_) => None,
         }
     }
 
     fn contains_entry_target(&self, target: RelocationTarget) -> bool {
         match target {
-            RelocationTarget::Entry(identity) => self.artifact.artifact.entry(identity).is_some(),
+            RelocationTarget::Entry(identity) => self
+                .validated
+                .frozen
+                .artifact
+                .artifact
+                .entry(identity)
+                .is_some(),
             RelocationTarget::Data(_) => false,
         }
     }
@@ -1076,28 +1096,36 @@ fn fingerprint_post_handoff_entry_writer_context(
 /// One-shot authority to retire one exact installed realization. Required
 /// completion facts are open provider vocabulary; quiescence and permission
 /// transition remain mandatory lifecycle gates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InstalledCodeEvidence {
+    installed: InstalledCodeId,
+    validated: ValidatedPlacementEvidence,
+    wx: WxEnforcement,
+}
+
+impl InstalledCodeEvidence {
+    fn from_installed(installed: &InstalledCode) -> Self {
+        Self {
+            installed: installed.identity,
+            validated: ValidatedPlacementEvidence::from_validated(&installed.validated),
+            wx: installed.wx,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetirementAuthority {
-    installed: InstalledCodeId,
-    artifact: ArtifactId,
-    placement: CodePlacementId,
-    scope: InstallationScopeId,
+    installed: InstalledCodeEvidence,
     required_facts: std::collections::BTreeSet<RetirementFactId>,
 }
 
 impl RetirementAuthority {
     pub fn from_admitted_provider(
-        installed: InstalledCodeId,
-        artifact: ArtifactId,
-        placement: CodePlacementId,
-        scope: InstallationScopeId,
+        installed: &InstalledCode,
         required_facts: impl IntoIterator<Item = RetirementFactId>,
     ) -> Self {
         Self {
-            installed,
-            artifact,
-            placement,
-            scope,
+            installed: InstalledCodeEvidence::from_installed(installed),
             required_facts: required_facts.into_iter().collect(),
         }
     }
@@ -1105,10 +1133,7 @@ impl RetirementAuthority {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetirementReceipt {
-    installed: InstalledCodeId,
-    artifact: ArtifactId,
-    placement: CodePlacementId,
-    scope: InstallationScopeId,
+    installed: InstalledCodeEvidence,
     executors_quiesced: bool,
     execute_disabled: bool,
     write_authority_restored: bool,
@@ -1116,22 +1141,15 @@ pub struct RetirementReceipt {
 }
 
 impl RetirementReceipt {
-    #[allow(clippy::too_many_arguments)]
     pub fn from_provider(
-        installed: InstalledCodeId,
-        artifact: ArtifactId,
-        placement: CodePlacementId,
-        scope: InstallationScopeId,
+        installed: &InstalledCode,
         executors_quiesced: bool,
         execute_disabled: bool,
         write_authority_restored: bool,
         established_facts: impl IntoIterator<Item = RetirementFactId>,
     ) -> Self {
         Self {
-            installed,
-            artifact,
-            placement,
-            scope,
+            installed: InstalledCodeEvidence::from_installed(installed),
             executors_quiesced,
             execute_disabled,
             write_authority_restored,
@@ -1163,20 +1181,10 @@ pub fn retire_installed(
     authority: RetirementAuthority,
     receipt: RetirementReceipt,
 ) -> Result<RetiredInstallation, Box<RetirementError>> {
-    let artifact = installed.artifact.artifact.0.identity;
-    let placement = installed.placement.placement;
-    let scope = installed.placement.scope;
-    let mismatch = if authority.installed != installed.identity
-        || authority.artifact != artifact
-        || authority.placement != placement
-        || authority.scope != scope
-    {
+    let evidence = InstalledCodeEvidence::from_installed(&installed);
+    let mismatch = if authority.installed != evidence {
         Some("retirement authority is not scoped to this installed code")
-    } else if receipt.installed != installed.identity
-        || receipt.artifact != artifact
-        || receipt.placement != placement
-        || receipt.scope != scope
-    {
+    } else if receipt.installed != evidence {
         Some("retirement receipt does not match installed code")
     } else if !receipt.executors_quiesced {
         Some("retirement receipt does not establish executor quiescence")
@@ -1201,9 +1209,10 @@ pub fn retire_installed(
         }));
     }
 
+    let ValidatedPlacement { frozen, .. } = installed.validated;
     Ok(RetiredInstallation {
-        previous_artifact: installed.artifact,
-        placement: installed.placement,
+        previous_artifact: frozen.artifact,
+        placement: frozen.placement,
     })
 }
 
@@ -1288,6 +1297,27 @@ mod tests {
             id(33, EntrySetId::from_normalized_identity),
             entry_id(identity + 1000),
         )
+    }
+
+    fn colliding_artifact(identity: u64, fill: u8) -> Artifact {
+        Artifact::from_canonical_decode(
+            id(identity, ArtifactId::from_normalized_identity),
+            id(identity + 10, ArtifactContentId::from_normalized_identity),
+            Architecture::X86_64,
+            vec![fill; 64],
+            id(30, MachineContractSetId::from_normalized_identity),
+            id(31, MachineFootprintId::from_normalized_identity),
+            id(32, PlacementPlanId::from_normalized_identity),
+            artifact_placement_constraints(),
+            id(33, EntrySetId::from_normalized_identity),
+            vec![ArtifactEntry::from_canonical_decode(
+                entry_id(identity + 1000),
+                16,
+            )],
+            id(34, RelocationSetId::from_normalized_identity),
+            Vec::new(),
+        )
+        .expect("colliding artifact")
     }
 
     fn artifact_with(
@@ -1423,27 +1453,14 @@ mod tests {
         let certificate = certificate(&frozen, 80 + placement);
         let validated =
             validate_final_placement(frozen, &certificate).expect("validated placement");
-        install_validated(
-            validated,
-            InstallAuthority::from_admitted_provider(
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(placement, CodePlacementId::from_normalized_identity),
-                id(61, InstallationScopeId::from_normalized_identity),
-                InstallationAudience::FutureFetcher,
-            ),
-            InstallationReceipt::from_provider(
-                id(200 + placement, InstalledCodeId::from_normalized_identity),
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(placement, CodePlacementId::from_normalized_identity),
-                id(61, InstallationScopeId::from_normalized_identity),
-                id(80 + placement, FinalValidationId::from_normalized_identity),
-                true,
-                WxEnforcement::HardwareEnforced,
-            ),
-        )
-        .expect("installed code")
+        let authority = InstallAuthority::from_admitted_provider(&validated);
+        let receipt = InstallationReceipt::from_provider(
+            id(200 + placement, InstalledCodeId::from_normalized_identity),
+            &validated,
+            true,
+            WxEnforcement::HardwareEnforced,
+        );
+        install_validated(validated, authority, receipt).expect("installed code")
     }
 
     #[test]
@@ -1598,30 +1615,43 @@ mod tests {
         let certificate = certificate(&frozen, 180);
         let validated =
             validate_final_placement(frozen, &certificate).expect("validated placement");
-        let authority = InstallAuthority::from_admitted_provider(
-            admitted.artifact().identity(),
-            admitted.admission(),
-            id(100, CodePlacementId::from_normalized_identity),
-            id(61, InstallationScopeId::from_normalized_identity),
-            InstallationAudience::FutureFetcher,
+        let authority = InstallAuthority::from_admitted_provider(&validated);
+        let receipt = InstallationReceipt::from_provider(
+            id(200, InstalledCodeId::from_normalized_identity),
+            &validated,
+            true,
+            WxEnforcement::HardwareEnforced,
         );
-        let installed = install_validated(
-            validated,
-            authority,
-            InstallationReceipt::from_provider(
-                id(200, InstalledCodeId::from_normalized_identity),
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(100, CodePlacementId::from_normalized_identity),
-                id(61, InstallationScopeId::from_normalized_identity),
-                id(180, FinalValidationId::from_normalized_identity),
-                true,
-                WxEnforcement::HardwareEnforced,
-            ),
-        )
-        .expect("installed code");
+        let installed = install_validated(validated, authority, receipt).expect("installed code");
         assert_eq!(installed.artifact(), second_reference.artifact().identity());
         assert_eq!(installed.wx(), WxEnforcement::HardwareEnforced);
+    }
+
+    #[test]
+    fn installation_receipt_cannot_substitute_colliding_normalized_artifact() {
+        let first = admit(&colliding_artifact(1, 0x90));
+        let second = admit(&colliding_artifact(1, 0xcc));
+
+        let first_frozen = frozen(&first, 114, 0xc000);
+        let first_certificate = certificate(&first_frozen, 194);
+        let first_validated = validate_final_placement(first_frozen, &first_certificate)
+            .expect("first validated placement");
+
+        let second_frozen = frozen(&second, 114, 0xc000);
+        let second_certificate = certificate(&second_frozen, 194);
+        let second_validated = validate_final_placement(second_frozen, &second_certificate)
+            .expect("second validated placement");
+
+        let authority = InstallAuthority::from_admitted_provider(&first_validated);
+        let substituted_receipt = InstallationReceipt::from_provider(
+            id(314, InstalledCodeId::from_normalized_identity),
+            &second_validated,
+            true,
+            WxEnforcement::HardwareEnforced,
+        );
+        let error = install_validated(first_validated, authority, substituted_receipt)
+            .expect_err("exact frozen bytes must outrank colliding report identities");
+        assert!(error.diagnostic().0.contains("receipt"));
     }
 
     #[test]
@@ -1865,28 +1895,15 @@ mod tests {
         let certificate = certificate(&frozen, 184);
         let validated =
             validate_final_placement(frozen, &certificate).expect("validated placement");
-        let authority = InstallAuthority::from_admitted_provider(
-            admitted.artifact().identity(),
-            admitted.admission(),
-            id(104, CodePlacementId::from_normalized_identity),
-            id(61, InstallationScopeId::from_normalized_identity),
-            InstallationAudience::FutureFetcher,
+        let authority = InstallAuthority::from_admitted_provider(&validated);
+        let receipt = InstallationReceipt::from_provider(
+            id(204, InstalledCodeId::from_normalized_identity),
+            &validated,
+            true,
+            WxEnforcement::Unsupported,
         );
-        let error = install_validated(
-            validated,
-            authority,
-            InstallationReceipt::from_provider(
-                id(204, InstalledCodeId::from_normalized_identity),
-                admitted.artifact().identity(),
-                admitted.admission(),
-                id(104, CodePlacementId::from_normalized_identity),
-                id(61, InstallationScopeId::from_normalized_identity),
-                id(184, FinalValidationId::from_normalized_identity),
-                true,
-                WxEnforcement::Unsupported,
-            ),
-        )
-        .expect_err("unsupported provider rejects");
+        let error = install_validated(validated, authority, receipt)
+            .expect_err("unsupported provider rejects");
         assert!(error.diagnostic().0.contains("does not support"));
         let (_validated, _authority, _receipt) = (*error).into_parts();
     }
@@ -1940,46 +1957,17 @@ mod tests {
         let admitted = admit(&artifact(1));
         let installed = installed_code(&admitted, 107, 0x7000);
         let retirement_fact = id(300, RetirementFactId::from_normalized_identity);
-        let authority = RetirementAuthority::from_admitted_provider(
-            installed.identity(),
-            installed.artifact(),
-            installed.placement(),
-            id(61, InstallationScopeId::from_normalized_identity),
-            [retirement_fact],
-        );
-        let error = retire_installed(
-            installed,
-            authority,
-            RetirementReceipt::from_provider(
-                id(307, InstalledCodeId::from_normalized_identity),
-                admitted.artifact().identity(),
-                id(107, CodePlacementId::from_normalized_identity),
-                id(61, InstallationScopeId::from_normalized_identity),
-                false,
-                true,
-                true,
-                [retirement_fact],
-            ),
-        )
-        .expect_err("visibility is not quiescence");
+        let authority = RetirementAuthority::from_admitted_provider(&installed, [retirement_fact]);
+        let receipt =
+            RetirementReceipt::from_provider(&installed, false, true, true, [retirement_fact]);
+        let error = retire_installed(installed, authority, receipt)
+            .expect_err("visibility is not quiescence");
         assert!(error.diagnostic().0.contains("quiescence"));
         let (installed, authority, _) = (*error).into_parts();
 
-        let retired = retire_installed(
-            installed,
-            authority,
-            RetirementReceipt::from_provider(
-                id(307, InstalledCodeId::from_normalized_identity),
-                admitted.artifact().identity(),
-                id(107, CodePlacementId::from_normalized_identity),
-                id(61, InstallationScopeId::from_normalized_identity),
-                true,
-                true,
-                true,
-                [retirement_fact],
-            ),
-        )
-        .expect("retired code");
+        let receipt =
+            RetirementReceipt::from_provider(&installed, true, true, true, [retirement_fact]);
+        let retired = retire_installed(installed, authority, receipt).expect("retired code");
         assert_eq!(
             retired.previous_artifact().artifact().identity(),
             admitted.artifact().identity()
@@ -2010,5 +1998,26 @@ mod tests {
         assert!(error.diagnostic().0.contains("not aligned"));
         let (_authority, extent) = (*error).into_parts();
         assert_eq!(extent.base(), 0x7101);
+    }
+
+    #[test]
+    fn retirement_receipt_cannot_substitute_colliding_installed_realization() {
+        let first = admit(&colliding_artifact(1, 0x90));
+        let second = admit(&colliding_artifact(1, 0xcc));
+        let first_installed = installed_code(&first, 115, 0xd000);
+        let second_installed = installed_code(&second, 115, 0xd000);
+
+        let authority =
+            RetirementAuthority::from_admitted_provider(&first_installed, std::iter::empty());
+        let substituted_receipt = RetirementReceipt::from_provider(
+            &second_installed,
+            true,
+            true,
+            true,
+            std::iter::empty(),
+        );
+        let error = retire_installed(first_installed, authority, substituted_receipt)
+            .expect_err("retirement must bind the exact installed realization");
+        assert!(error.diagnostic().0.contains("receipt"));
     }
 }
