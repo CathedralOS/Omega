@@ -291,11 +291,31 @@ in checked Omega remain compiler-owned, non-addressable control state across
 both execution and parking. Forward-edge indirect calls separately require
 sealed requirement-compatible entry references or descriptors.
 
-The normalized Omega-native container validator is live over checked-layout
-decode output. It enforces configured bounds, checked non-overlapping ranges,
-one exact copy of every semantic section, rejection of unknown required
-sections, and informational-only treatment of unknown optional sections. It
-produces an immutable admission candidate, never executable eligibility.
+The normalized Omega-native container byte decoder and validator are live.
+The decoder uses the ordinary validated scalar-layout consumer rather than a
+bespoke pointer parser. Its canonical little-endian v2 form is deliberately
+small:
+
+- a 64-byte `OMEGAXE2` header fixes version, architecture, total length,
+  artifact/content identities, and a section count;
+- the section directory starts immediately after the header and uses bounded
+  32-byte records (`kind`, required flag, normalized identity, offset, length);
+- code and proof remain exact opaque byte spans; contract and footprint
+  sections contain one normalized identity; placement has one fixed 64-byte
+  constraint record; entries are fixed 16-byte identity/offset records; and
+  relocations are one checked count followed by fixed 32-byte records from the
+  closed relocation/target vocabulary;
+- all reserved fields are zero, semantic sections are required, informational
+  sections are optional, and an unknown required section rejects before any
+  admission candidate exists.
+
+Every count and byte range is bounded and checked before slicing. Sections
+cannot overlap the canonical header/directory prefix or one another, payload
+identities must match their directory entries, and the exact input length must
+match the header. The semantic validator then enforces one exact copy of every
+semantic section and derives the normalized executable-content and proof
+identities. The result is an immutable admission candidate, never executable
+eligibility.
 Verifier evidence retains that exact immutable candidate rather than using its
 compact FNV identities as collision-resistant authority; the proof-payload
 identity is normalizer-derived from and retained beside the exact proof bytes,
@@ -307,7 +327,8 @@ retains its immutable bytes, architecture, and canonical relocation set through
 admission, and relocation lowering rejects cross-architecture substitution even
 when a relocation kind is otherwise shared. Signed relocation addends survive
 the validated artifact, canonical materializer, object plan, image application,
-report, and fingerprint. The schema-driven byte decoder remains to connect.
+report, and fingerprint. Producing this inner container from compiler artifacts
+and wrapping it in the target's firmware envelope remain engineering.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,

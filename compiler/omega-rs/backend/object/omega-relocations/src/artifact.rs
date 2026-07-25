@@ -181,7 +181,7 @@ mod tests {
                 ContainerSection {
                     kind: ContainerSectionKind::Relocations(relocations),
                     offset: 64,
-                    length: 64,
+                    length: 40,
                 },
                 ContainerSection {
                     kind: ContainerSectionKind::Contracts(id(
