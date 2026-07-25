@@ -364,7 +364,7 @@ Dynamic dispatch is still needed for runtime-selected implementations:
 - Hot-swappable OS components.
 - Runtime-loaded plugins.
 - ABI/component boundaries.
-- Versioned replacement slots.
+- Versioned replaceable requirement bindings.
 - User app extension points.
 
 That should be explicit.
@@ -408,8 +408,10 @@ check:
 
 For a Theseus-like OS, `dyn`-like runtime indirection is not optional. Versioned
 data can prove that replacement is compatible and that state can migrate, but a
-running caller still needs a stable dispatch slot, table, trampoline, endpoint,
-or loader binding that can be updated to the new implementation.
+running caller still needs an era-safe runtime binding, table, trampoline, or
+endpoint that can be updated to the new realization. This is runtime
+representation of an ordinary requirement crossing, not a `slot` source
+construct.
 
 Working rule:
 

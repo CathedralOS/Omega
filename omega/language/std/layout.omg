@@ -11,6 +11,13 @@
 // array position as identity. Repeating a key permits fragmented placement of
 // one logical source. Keys are opaque handles copied from SchemaField; the
 // compiler normalizes them back to field names before identity/reporting.
+//
+// COUNT CARRIER NOTE: the normative temporary carrier for nonnegative byte
+// sizes, alignments, offsets, widths, counts, and indices is u64, distinct from
+// addr. The i64 spellings below are compatibility debt from the pilot policy
+// ABI, not a semantic choice; TASKS.md tracks migrating the schema and all
+// compiler consumers together. Signed carriers remain only where a value is
+// genuinely signed or an explicitly retained sentinel requires one.
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, and the declared identity number (-1 when unnumbered). Ranges

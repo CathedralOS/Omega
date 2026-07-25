@@ -53,7 +53,13 @@ them (`width(size) <= width(uintptr)`).
   discipline as an index, tying into the allocator-as-capability and lifetimes
   work — an address in Omega is a checked capability, not an unsafe escape.
 - **count (magnitude / `len` / sizes).** Non-negative; the carrier of lengths and
-  sizes. Its width is a lowering detail (§4).
+  sizes. Its width is a lowering detail (§4). Until the dedicated count
+  lowering exists, the source carrier is `u64`, never `i64` or `addr`.
+- **Compiler-facing policy data follows the same rule.** Schema byte sizes,
+  lengths, counts, and indices use `u64`. Signed carriers remain only for
+  genuinely signed offsets/addends or an explicitly documented sentinel.
+  Existing `i64` count fields in layout/calling policy records are migration
+  debt, not a competing design.
 - **Invariant:** `width(count) <= width(addr)`, so the model survives CHERI-class
   ISAs (count stays 64 while addr widens to 128, independently).
 

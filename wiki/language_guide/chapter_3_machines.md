@@ -240,7 +240,7 @@ and never lower. No frame ever materializes.
 
 The ranking witness is implementation evidence, not public contract identity.
 Changing a valid witness revalidates the implementation without changing what
-callers or import slots see. See
+callers or external requirement bindings see. See
 [termination_ranking_and_progress.md](../design_briefs/termination_ranking_and_progress.md).
 
 ## Contracts

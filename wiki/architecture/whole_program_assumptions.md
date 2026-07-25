@@ -3,8 +3,8 @@
 Omega today is a WHOLE-PROGRAM compiler: one entrypoint, one fused lowering,
 one direct executable image. That is the right shape for the current phase.
 But the language's first large consumer (`wiki/cathedral_alignment.md`) needs
-components that are compiled, signed, shipped, loaded, and hot-swapped
-INDEPENDENTLY, with machines as the swap boundary
+provider realizations that can be compiled, signed, shipped, loaded, and
+hot-swapped independently
 ([Versioned Data](../language_guide/chapter_22_versioned_data.md)).
 
 This page exists so the whole-program assumption is a TRACKED decision per
@@ -43,20 +43,26 @@ real.
 
 - Direct image construction (no external linker) remains the bet; component
   loading would extend the image/loader machinery, not abandon it.
-- The machine/state graph as the unit of contract is unchanged -- machines
-  are already the planned swap points; the work is making their COMPILED form
-  self-contained enough to load.
+- The machine/state graph as the unit of behavioral contract is unchanged.
+  A replaceable component is not one arbitrary machine or one package: it is a
+  selected provider realization plus the closed code/state/resource graph that
+  the realization owns.
+- Package-shaped component closures are a valid first implementation fence,
+  not the definition of component. Removing that fence must only admit more
+  closures without changing already-accepted programs.
 
 ## Footnotes / unknowns
 
 [^artifact]: The component artifact format is undesigned: what a compiled,
-signed, loadable Omega component contains (code, layout report, boundary
-provider manifest, wire schemas, version/migration tables, authority-flow
-report) and how it is content-addressed.
+signed, loadable realization contains (mapping lifetime cohorts, code, layout
+report, requirement/provider manifest, schemas, resource-demand records,
+version/migration tables, authority-flow report) and how it is
+content-addressed.
 
-[^abi]: The cross-component ABI granularity is undesigned: presumably "machine
-entry + immutable schema/layout identities + wire schemas," but calling convention,
-dispatch handoff, and frame ownership across a component edge are open.
+[^abi]: The cross-component ABI representation is undesigned. Crossings name
+requirement identities with evaluated calling, state, and representation plans;
+the concrete entry-acquisition protocol, stack ownership, dispatch handoff, and
+artifact encoding remain open.
 
 [^loader]: Loader/linker responsibilities (who patches what at load time, how
 content-addressed code dedup works in memory) belong to the consumer OS's

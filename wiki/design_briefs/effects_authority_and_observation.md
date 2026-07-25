@@ -161,7 +161,7 @@ ceiling.
 
 The normalized authored service row and the authored suspension/blocking
 ceilings are independent parts of an exported machine's semantic contract
-identity, import-slot identity, and component compatibility surface. Body
+identity, requirement-binding identity, and component compatibility surface. Body
 inference only checks inclusion on each axis.
 
 > **Published-identity law:** every published identity is owned by a small,
@@ -176,7 +176,7 @@ exported identity remains authored. Stable syntactic/CFG reachability feeds
 normalization; heuristic entailment does not.
 
 This is the service/operational-contract instance of decision 19's
-normalization-versus-entailment law and the component import-slot admission
+normalization-versus-entailment law and the component requirement-binding admission
 law.
 
 ## No laundering, masking, or handlers

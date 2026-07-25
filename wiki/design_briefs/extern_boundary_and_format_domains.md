@@ -254,7 +254,8 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain
-ordinary library/API engineering. Per-slot provider override has settled on
+ordinary library/API engineering. Per-requirement provider override has settled on
 `select_provider<BoundaryTrait, ProviderType>()`; equivalent scoped APIs for
-test and component slot owners remain engineering work, not an open grammar
-question.
+tests and replaceable-realization owners remain engineering work, not an open
+grammar question. "Binding" here is build/artifact state, not a source `slot`
+construct.

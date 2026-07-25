@@ -431,7 +431,7 @@ stratum and is rejected if runtime lowering is requested.
 
 The normalized artifact separates the public termination guarantee from the
 private ranking witness. A witness change invalidates its provider proof cache,
-not caller or import-slot contract identity. See chapter 9 and
+not caller or external requirement-binding identity. See chapter 9 and
 [Termination, Ranking, And Progress](../design_briefs/termination_ranking_and_progress.md).
 
 ## Citing Proofs
@@ -546,8 +546,14 @@ of chapter 8 applied to proofs. A build that can afford the check *proves*
 the claim outright; one that cannot accepts the narrow execution claim
 above and lifts it by theorem.
 
-Trust has a data face too. `boundary data` declares a type with no
-definition, as `boundary machine` declares a contract with no body. The N5
+Trust has a data face too. `boundary data` declares a type whose source
+representation is externally admitted rather than structurally defined. It
+does not mean “imported layout” or “exported layout,” and the keyword does not
+encode traffic direction. A `boundary machine` is likewise classified by its
+supply mode—checked body, trait requirement, selected provider, or accepted
+declaration—rather than by an inbound/outbound reading of `boundary`.
+
+The N5
 `omega::language::core::real` package is an ordinary core declaration built
 from this surface; its relevant contents are:
 

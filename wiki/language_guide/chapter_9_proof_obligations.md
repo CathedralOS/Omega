@@ -179,7 +179,7 @@ logic and profile entailment remain deferred.
 
 The ranking witness is excluded from published contract identity. Swapping one
 valid view for another revalidates the implementation and proof cache only;
-callers and import slots continue to see the same guarantee. The complete
+callers and external requirement bindings continue to see the same guarantee. The complete
 ruling and acceptance register are frozen in
 [termination_ranking_and_progress.md](../design_briefs/termination_ranking_and_progress.md).
 

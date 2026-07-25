@@ -96,9 +96,12 @@ Last pruned: 2026-07-22.
   catalogs and user/deriver-only availability, and specify final emitted
   machine-state footprint evidence. Opaque/manual raw assembly is not an
   alternative.
-- Specify the separately compiled component artifact and ABI, including
-  bounded multi-version coexistence, pinned import slots, version budgets,
-  outbound calls from old continuations, and eventual continuation migration.
+- Specify the separately compiled realization artifact and ABI representation.
+  The semantic unit is a selected provider realization plus its owned closure,
+  not a package. Remaining work includes lifetime-cohort mappings, requirement
+  bindings, era acquisition/accounting, bounded live-era policy, candidate
+  resource admission, outbound calls from old continuations, and optional
+  continuation migration. No `slot` keyword or replacement DSL is implied.
 
 ## Tooling and build-time execution
 

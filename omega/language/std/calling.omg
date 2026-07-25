@@ -7,6 +7,11 @@
 // recursive public structure without requiring an infinitely sized recursive
 // data declaration. ValuePlacement uses the separate classified ABI shape the
 // policy chooses after inspecting that graph.
+//
+// COUNT CARRIER NOTE: byte sizes, alignments, counts, indices, and nonnegative
+// stack offsets normatively use u64, never addr. Their i64 spelling in this
+// pilot schema is migration debt that must move with compiler consumers as one
+// compatibility change; it is not a precedent for signed sizes.
 
 domain [u8; 256]::Utf8 {
     valid_utf8(self);

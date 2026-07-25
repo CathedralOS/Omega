@@ -120,8 +120,8 @@ guard. Both restore prior state explicitly; neither relies on drop timing.
 
 ## Interrupt entry and the IDT
 
-The language does not have an interrupt declaration or IDT DSL. The x86 IDT
-vertical slice composes the common pieces:
+The language does not have an interrupt declaration or IDT DSL. The x86 IDT is
+a Cathedral acceptance slice that composes the common pieces:
 
 1. ordinary `data` for the gate schema;
 2. an x86 layout policy with bit and fragmented placements;
@@ -131,28 +131,23 @@ vertical slice composes the common pieces:
 4. an ordinary `boundary machine ... satisfies ...` handler;
 5. provider/build selection of the handler;
 6. symbolic entry-stub identity resolved by a phase-aware materializer;
-7. a generated checked writer producing a validated, content-bound
-   `MaterializedIdt` from an exclusive unpublished placement;
-8. separate checked `lidt` installation under `IdtControl`, with roots recorded
-   before hardware reachability; and
+7. a Cathedral-authored checked writer establishing a content-bound table fact
+   over an exclusive unpublished placement;
+8. a separate Cathedral installer presenting table and CPU publication
+   authority to checked `lidt`, with roots recorded before hardware
+   reachability; and
 9. a linear acknowledgement token for exactly-once EOI.
 
-The provider-neutral obligation spelling is live in
-`omega::language::core::interrupt`: the mask guard and acknowledgement are
-distinct opaque linear values with consuming `restore` and `complete`
-operations. Their normalized provider mint and entry settlement are live in
-the installed-root ledger: an exact entry receipt binds the installed root,
-selected provider execution, invocation, and acknowledgement policy before the
-opaque values exist; replay rejects; nested mask guards restore exact prior
-states in LIFO order; and exit requires both the entry mask state and the exact
-completed acknowledgement. Cathedral now carries pure xAPIC/x2APIC register
-and timer encodings alongside its PIC/PIT facts. Those values grant no MMIO/MSR
-authority and deliberately leave frequency enumeration/calibration to the
-selected provider. Cathedral's checked x2APIC helpers now program one-shot
-mode, arm/stop, and EOI with parsed `wrmsr` contracts retaining
-`MachineControl` reach. They cannot enable x2APIC/IF or publish a root. The
-concrete PIC/LAPIC providers still owe execution of the normalized entry and
-acknowledgement transitions in their generated paths.
+The generic obligations are distinct opaque linear values with consuming
+settlement operations: restoring prior CPU interrupt state is not the same
+fact as acknowledging a device. Their normalized provider mint and entry
+settlement are recorded in the installed-root ledger. An exact entry receipt
+binds the installed root, selected provider execution, invocation, and
+acknowledgement policy before the opaque values exist; replay rejects; nested
+saved-state guards restore exact prior states in LIFO order; and exit requires
+all obligations selected by the admitted plan to be settled. The concrete
+types, PIC/LAPIC protocol, timer source, vector policy, and transition machines
+belong to Cathedral.
 
 The selected provider plan may keep entry identity private for static tables;
 the program does not need a source-visible function pointer or numeric code
@@ -176,27 +171,21 @@ the image base is known is the canonical path. Fields consumed by the loader
 before the first Omega instruction must remain expressible in the object
 format's native relocation vocabulary.
 
-The generated writer is not a general table-construction or address-resolution
-API. It receives one exact mapped/pinned/writable unpublished placement and a
-sealed resolver restricted to the boot-admitted artifact's root set. It writes
-that destination directly; failure produces no established table claim.
-Layout validation checks geometry, while the target IDT validator separately
-checks selectors, gates, privilege levels, IST assignments, reserved bits, and
-the exact admitted roots. Only then may the writer produce `MaterializedIdt`.
+The generic materializer is not a public address-resolution escape hatch. It
+receives one exact mapped/pinned/writable unpublished placement and a sealed
+resolver restricted to the boot-admitted artifact's root set. It writes that
+destination directly; failure produces no established consumer value. Layout
+validation checks geometry. Cathedral's separate IDT validator checks
+selectors, gates, privilege levels, IST assignments, reserved bits, and exact
+admitted roots before Cathedral establishes its materialized-table fact.
 
-The writer does not hold `IdtControl` and cannot publish. A separate installer
-prepares the external-root records, completes required visibility, executes
-checked `lidt`, and returns `InstalledIdt` plus its installation receipt. Root
-records precede hardware reachability. The live preparation carrier is sealed:
-it is minted only for the exact materialized content/destination, live root
-handles, ledger fingerprint, and `IdtControl`. Compiler lowering from that
-carrier produces the generated-only target/machine `lidt [r10]` operation with
-its retained identities and exact R10 + control-state footprint. The
-materialization receipt binds the writer, plan, artifact, entries, destination,
-and exact final content bytes; the installation receipt separately binds the
-granted CPU/table scope, prepared roots, visibility, and `lidt` operation while
-retaining the exact materialized table evidence prepared for publication.
-Compact FNV fingerprints remain audit/report identities, not authorization.
+The Cathedral writer does not hold CPU publication authority and cannot make
+the table live. A separate Cathedral installer prepares the external-root
+records, completes required visibility, and invokes checked `lidt`. Root
+records precede hardware reachability. Omega owns the instruction contract,
+sealed symbolic targets, generic materialization guarantees, root ledger, and
+receipts; Cathedral owns the table-state carriers and the lifecycle connecting
+them. Audit fingerprints identify reports and caches, never authority.
 
 The earliest writer's software-fault-free claim is an admitted conjunction, not
 an absolute promise that hardware cannot fail. Its destination and stack are
@@ -213,7 +202,7 @@ root manifest, evidence, ordinary native relocations, and reserved data/BSS.
 UEFI authenticates the outer image when Secure Boot policy requires it, loads
 and relocates the sections, and transfers control to the typed Omega entry. It
 does not understand Omega PCC, split IDT offsets, root-ledger policy, or
-`MaterializedIdt`.
+Cathedral's materialized-table fact.
 
 While firmware services remain available, Cathedral learns the actual image
 placement, fixes its final virtual-address plan, and reserves the mapped/pinned
@@ -228,7 +217,7 @@ The boot image can perform this work because firmware authenticated and entered
 the initially admitted artifact. That is the explicit trust base, not an
 ordinary package granting itself authority. The platform provider attenuates
 that initial authority into exact placements, the sealed artifact resolver,
-and CPU-scoped `IdtControl`.
+and Cathedral's CPU-scoped publication authority.
 
 ## Admitted executable installation and AP bringup
 
@@ -286,7 +275,7 @@ provider customer.
 Every executable mapping and relevant checked-assembly operation
 requires admitted-artifact provenance. There is no `ExecutableMemory`
 capability, JIT path, self-modifying code, or alternate raw-byte route.
-Component-slot binding is a later logical dispatch/versioning operation, not
+Replaceable requirement binding is a later logical dispatch/versioning operation, not
 part of code placement. Installation prevents injection. Backward-edge returns
 in checked Omega remain compiler-owned, non-addressable control state across
 both execution and parking. Forward-edge indirect calls separately require

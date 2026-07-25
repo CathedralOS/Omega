@@ -92,21 +92,33 @@ or what semantic migration means.
 ## Live Replacement Is A Separate Protocol
 
 Replacing a running component concerns executions, borrows, authorities,
-dispatch slots, and runtime state. It is not a wire-era operation. Omega keeps
+requirement bindings, and runtime state. It is not a wire-era operation. Omega keeps
 only the irreducible substrate first-class:
 
 - normalized typed artifact and machine-contract identities;
-- deterministic validation, refinement admission, and pinned import slots;
+- deterministic validation, refinement admission, and pinned requirement
+  bindings;
 - liveness pins for frames, borrows, callbacks, registrations, and authorities;
 - admitted boundary operations for loading and atomic installation; and
 - ownership, linear obligations, effects, trust receipts, and checked machines.
 
+The replaceable unit is a selected provider realization plus the closed code,
+state, resource, and version graph it owns. It is not intrinsically a package.
+Calls across that closure name requirements; concrete calls remain legal
+inside it. Whether a requirement is statically fused or preserved as a
+replaceable edge is a build/deployment choice.
+
 Quiesce, capture, upgrade, install, resume, and rollback are ordinary machines
-coordinated by a package. A linear quiescence token can ensure that every path
-installs, resumes, or otherwise terminally settles the stopped component. The
-point of no return must be explicit: while resume is legal, the old state must
-remain recoverable; after it is consumed, the remaining path must be
-infallible-or-install by contract.
+coordinated by a package. The replacement plan declares its drain/coexistence
+policy and point of no return before publication. Before that point an abort
+must restore the old arrangement; afterward recovery is roll-forward or a
+separately admitted reverse replacement.
+
+Every live old-era activation, continuation, state object, registration,
+authority, and external claim receives an explicit disposition: drain, retain
+with the old era, migrate, restart/cancel under contract, redirect, or transfer
+to a named receiver that acknowledges ownership. Reclamation requires the
+runtime ledger's residual for the relevant lifetime cohort to be empty.
 
 Capture owns device, clock, scheduler, and other boundary reach. Replayable
 upgrade code operates on owned old state and captured context, writes an
@@ -114,17 +126,30 @@ exclusive output, observes no shared or atomic racing state, and calls only
 deterministic providers. An empty effects row alone is necessary but not
 sufficient to establish determinism.
 
-Arena-backed pools, quiescence tokens, coexistence policy, migration graphs,
-and replacement orchestration are package concerns. Cathedral is the planned
-first customer. If that implementation discovers a semantic requirement that
+Semantic requirement compatibility is separate from resource admission. Each
+candidate carries target-specific realized stack, work, and machine-state
+demand. The runtime admits it only after provisioning the peak of every retained
+era plus the candidate. A fixed resource budget enters requirement identity
+only when policy intentionally forbids reprovisioning at replacement.
+
+Entry switching is era-safe rather than instant by assumption: a racing caller
+is accounted either in the closing era or the new era. Visibility of new code
+gates entry; quiescence of the old era gates reclamation. Parked continuations
+ordinarily pin the code and metadata of their era. "New routing is active" and
+"the old era is reclaimed" are therefore separate completion states.
+
+Arena-backed pools, era ledgers, coexistence policy, migration graphs, and
+replacement orchestration are runtime/package concerns. Cathedral is the
+planned first customer. If that implementation discovers a semantic requirement that
 ordinary data, machines, traits, domains, ownership, and boundary providers
 cannot express, that demonstrated requirement may justify new language
 surface. Repeated boilerplate alone does not.
 
 ## Deliberately Deferred Component Work
 
-The component/runtime design still must choose bounded coexistence and
-eviction policy, outbound calls from old continuations, exact liveness-pin
-accounting, artifact linking/admission mechanics, and whether later
-continuation migration is worthwhile. These are component-runtime questions,
-not reasons to restore `Versioned<T>`, `.prev` type paths, or `replace` syntax.
+The remaining representation work includes the artifact and mapping-cohort
+manifest, entry-acquisition algorithm, era-ledger and disposition receipts,
+bounded live-era policy, outbound calls from old continuations, exact
+liveness accounting, and optional continuation migration. These are
+component-runtime questions, not reasons to restore `Versioned<T>`, `.prev`
+type paths, or `replace` syntax.
