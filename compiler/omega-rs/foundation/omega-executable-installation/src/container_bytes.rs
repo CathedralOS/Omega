@@ -1201,7 +1201,7 @@ fn encode_record_at(
     encode_record(destination, layout, values, label)
 }
 
-fn scalar_layout(size: i64, fields: &[(&str, i64, u16)]) -> LayoutPlanReport {
+fn scalar_layout(size: u64, fields: &[(&str, u64, u16)]) -> LayoutPlanReport {
     LayoutPlanReport {
         entries: fields
             .iter()
@@ -1216,7 +1216,7 @@ fn scalar_layout(size: i64, fields: &[(&str, i64, u16)]) -> LayoutPlanReport {
     }
 }
 
-fn scalar_schema(fields: &[(&str, i64, u16)]) -> Vec<ScalarFieldSchema> {
+fn scalar_schema(fields: &[(&str, u64, u16)]) -> Vec<ScalarFieldSchema> {
     fields
         .iter()
         .map(|(field, _, width)| {
@@ -1225,7 +1225,7 @@ fn scalar_schema(fields: &[(&str, i64, u16)]) -> Vec<ScalarFieldSchema> {
         .collect()
 }
 
-const HEADER_FIELDS: &[(&str, i64, u16)] = &[
+const HEADER_FIELDS: &[(&str, u64, u16)] = &[
     ("magic", 0, 64),
     ("version", 8, 16),
     ("header_bytes", 10, 16),
@@ -1241,17 +1241,14 @@ const HEADER_FIELDS: &[(&str, i64, u16)] = &[
 ];
 
 fn header_layout() -> LayoutPlanReport {
-    scalar_layout(
-        OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as i64,
-        HEADER_FIELDS,
-    )
+    scalar_layout(OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES, HEADER_FIELDS)
 }
 
 fn header_schema() -> Vec<ScalarFieldSchema> {
     scalar_schema(HEADER_FIELDS)
 }
 
-const SECTION_FIELDS: &[(&str, i64, u16)] = &[
+const SECTION_FIELDS: &[(&str, u64, u16)] = &[
     ("kind", 0, 16),
     ("flags", 2, 16),
     ("reserved", 4, 32),
@@ -1262,7 +1259,7 @@ const SECTION_FIELDS: &[(&str, i64, u16)] = &[
 
 fn section_layout() -> LayoutPlanReport {
     scalar_layout(
-        OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as i64,
+        OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
         SECTION_FIELDS,
     )
 }
@@ -1271,7 +1268,7 @@ fn section_schema() -> Vec<ScalarFieldSchema> {
     scalar_schema(SECTION_FIELDS)
 }
 
-const IDENTITY_FIELDS: &[(&str, i64, u16)] = &[("identity", 0, 64)];
+const IDENTITY_FIELDS: &[(&str, u64, u16)] = &[("identity", 0, 64)];
 
 fn identity_layout() -> LayoutPlanReport {
     scalar_layout(8, IDENTITY_FIELDS)
@@ -1281,7 +1278,7 @@ fn identity_schema() -> Vec<ScalarFieldSchema> {
     scalar_schema(IDENTITY_FIELDS)
 }
 
-const PLACEMENT_FIELDS: &[(&str, i64, u16)] = &[
+const PLACEMENT_FIELDS: &[(&str, u64, u16)] = &[
     ("plan", 0, 64),
     ("range_present", 8, 8),
     ("phase", 9, 8),
@@ -1297,24 +1294,24 @@ const PLACEMENT_FIELDS: &[(&str, i64, u16)] = &[
 ];
 
 fn placement_layout() -> LayoutPlanReport {
-    scalar_layout(PLACEMENT_RECORD_BYTES as i64, PLACEMENT_FIELDS)
+    scalar_layout(PLACEMENT_RECORD_BYTES, PLACEMENT_FIELDS)
 }
 
 fn placement_schema() -> Vec<ScalarFieldSchema> {
     scalar_schema(PLACEMENT_FIELDS)
 }
 
-const ENTRY_FIELDS: &[(&str, i64, u16)] = &[("identity", 0, 64), ("offset", 8, 64)];
+const ENTRY_FIELDS: &[(&str, u64, u16)] = &[("identity", 0, 64), ("offset", 8, 64)];
 
 fn entry_layout() -> LayoutPlanReport {
-    scalar_layout(ENTRY_RECORD_BYTES as i64, ENTRY_FIELDS)
+    scalar_layout(ENTRY_RECORD_BYTES, ENTRY_FIELDS)
 }
 
 fn entry_schema() -> Vec<ScalarFieldSchema> {
     scalar_schema(ENTRY_FIELDS)
 }
 
-const RELOCATION_FIELDS: &[(&str, i64, u16)] = &[
+const RELOCATION_FIELDS: &[(&str, u64, u16)] = &[
     ("kind", 0, 16),
     ("target_kind", 2, 16),
     ("reserved", 4, 32),
@@ -1324,7 +1321,7 @@ const RELOCATION_FIELDS: &[(&str, i64, u16)] = &[
 ];
 
 fn relocation_layout() -> LayoutPlanReport {
-    scalar_layout(RELOCATION_RECORD_BYTES as i64, RELOCATION_FIELDS)
+    scalar_layout(RELOCATION_RECORD_BYTES, RELOCATION_FIELDS)
 }
 
 fn relocation_schema() -> Vec<ScalarFieldSchema> {

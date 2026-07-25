@@ -33,29 +33,29 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 const PILOT: &str = r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
-    key: i64;
-    size: i64 [0..=4096];
-    align: i64 [1..=16];
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
     number: i64;
     kind: FieldKind;
 }
 data Schema {
     fields: [SchemaField; 32];
-    field_count: i64 [0..=32];
+    field_count: u64 [0..=32];
 }
 data FieldPlan {
-    case At(offset: i64);
-    case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64);
-    case Varint(tag: i64);
-    case LengthPrefixed(tag: i64);
+    case At(offset: u64);
+    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
 }
-data FieldEntry { key: i64; placement: FieldPlan; }
+data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan {
     entries: [FieldEntry; 64];
-    entry_count: i64;
-    size_fixed: i64;
+    entry_count: u64;
+    size_fixed: u64;
     size_is_dynamic: bool;
-    align: i64;
+    align: u64;
 }
 
 // The C layout rule as a build-time Omega machine. Scratch accumulators are
@@ -64,12 +64,12 @@ data Plan {
 // ((a - offset % a) % a) so no division is needed.
 data CLayout {
     entries: [FieldEntry; 64];
-    index: i64 in Wrapping;
-    offset: i64 in Wrapping;
-    widest: i64 in Wrapping;
-    fsize: i64 in Wrapping;
-    falign: i64 in Wrapping;
-    pad: i64 in Wrapping;
+    index: u64 in Wrapping;
+    offset: u64 in Wrapping;
+    widest: u64 in Wrapping;
+    fsize: u64 in Wrapping;
+    falign: u64 in Wrapping;
+    pad: u64 in Wrapping;
 }
 machine CLayout::plan(&mut self, schema: Schema) -> Plan {
     self.index = 0;
@@ -78,7 +78,7 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
     transition { _ -> place_loop(schema) }
 
     state place_loop(&mut self, schema: Schema) {
-        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+        transition self.index < 32 && self.index < schema.field_count {
             true -> read_field(schema)
             _ -> done(schema)
         }
@@ -89,7 +89,7 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
         // C rule: round up to the field's alignment, place, advance.
         self.pad = (self.falign - self.offset % self.falign) % self.falign;
         self.offset = self.offset + self.pad;
-        transition self.index >= 0 && self.index < 32 {
+        transition self.index < 32 {
             true -> place_field(schema)
             _ -> done(schema)
         }
@@ -97,7 +97,7 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
     state place_field(&mut self, schema: Schema) {
         self.entries[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
-            placement: FieldPlan::At { offset: self.offset as i64 },
+            placement: FieldPlan::At { offset: self.offset },
         };
         self.offset = self.offset + self.fsize;
         transition self.widest < self.falign {
@@ -118,10 +118,10 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
         self.pad = (self.widest - self.offset % self.widest) % self.widest;
         Plan {
             entries: self.entries,
-            entry_count: schema.field_count as i64,
-            size_fixed: (self.offset + self.pad) as i64,
+            entry_count: schema.field_count,
+            size_fixed: self.offset + self.pad,
             size_is_dynamic: false,
-            align: self.widest as i64,
+            align: self.widest,
         }
     }
 }
@@ -205,16 +205,16 @@ fn effectful_policies_are_rejected_at_the_gate() {
         "effectful-policy",
         r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data FieldPlan { case At(offset: i64); case Skip; }
-data FieldEntry { key: i64; placement: FieldPlan; }
-data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case At(offset: u64); case Skip; }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 boundary trait Console { machine write(code: i64); }
 data Chatty { console: Console; entries: [FieldEntry; 64]; }
 machine Chatty::plan(&mut self, schema: Schema) -> Plan {
     self.console.write(1);
-    Plan { entries: self.entries, entry_count: schema.field_count as i64,
+    Plan { entries: self.entries, entry_count: schema.field_count,
            size_fixed: 0, size_is_dynamic: true, align: 1 }
 }
 data Simple { value: i32; }
@@ -237,16 +237,16 @@ fn overlapping_plans_are_rejected_by_validation() {
         "overlap-policy",
         r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data FieldPlan { case At(offset: i64); case Skip; }
-data FieldEntry { key: i64; placement: FieldPlan; }
-data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case At(offset: u64); case Skip; }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 data Overlapper { entries: [FieldEntry; 64]; }
 machine Overlapper::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 0 } };
-    Plan { entries: self.entries, entry_count: schema.field_count as i64,
+    Plan { entries: self.entries, entry_count: schema.field_count,
            size_fixed: 8, size_is_dynamic: false, align: 1 }
 }
 
@@ -270,14 +270,14 @@ fn name_keyed_fragments_tile_one_logical_field() {
         "fragmented-policy",
         r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan {
-    case At(offset: i64);
-    case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64);
+    case At(offset: u64);
+    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
 }
-data FieldEntry { key: i64; placement: FieldPlan; }
-data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 data SplitAddress { entries: [FieldEntry; 64]; }
 machine SplitAddress::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
@@ -341,11 +341,11 @@ fn bit_placements_use_the_declared_representation_width() {
         "compact-bit-policy",
         r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data FieldPlan { case At(offset: i64); case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64); }
-data FieldEntry { key: i64; placement: FieldPlan; }
-data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case At(offset: u64); case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64); }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 data CompactBits { entries: [FieldEntry; 64]; }
 machine CompactBits::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
@@ -411,11 +411,11 @@ fn compact_bit_placements_still_require_complete_source_tiling() {
         "compact-bit-gap",
         r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data FieldPlan { case At(offset: i64); case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64); }
-data FieldEntry { key: i64; placement: FieldPlan; }
-data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case At(offset: u64); case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64); }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 data TooNarrow { entries: [FieldEntry; 64]; }
 machine TooNarrow::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
@@ -442,11 +442,11 @@ fn fragmented_source_gaps_are_rejected() {
         "fragment-gap-policy",
         r#"
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { key: i64; size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data FieldPlan { case At(offset: i64); case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64); }
-data FieldEntry { key: i64; placement: FieldPlan; }
-data Plan { entries: [FieldEntry; 64]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case At(offset: u64); case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64); }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 data Gap { entries: [FieldEntry; 64]; }
 machine Gap::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::Bits {
@@ -465,6 +465,42 @@ machine Main::main(&mut self) { }
         .expect_err("source gaps must reject");
     assert!(
         error.contains("tile exactly"),
+        "unexpected diagnostic: {error}"
+    );
+}
+
+#[test]
+fn full_width_unsigned_counts_are_not_reinterpreted_as_signed() {
+    let main_path = write_program(
+        "full-width-entry-count",
+        r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case At(offset: u64); }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+data Excess { entries: [FieldEntry; 64]; }
+machine Excess::plan(&mut self, schema: Schema) -> Plan {
+    Plan {
+        entries: self.entries,
+        entry_count: 18446744073709551615,
+        size_fixed: 0,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+data Simple { value: u8; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked =
+        compile_to_checked(&main_path, None).expect("full-width u64 policy should compile");
+    let error = compute_layout_plan(&checked.typed, "Excess::plan", "Simple")
+        .expect_err("a full-width entry count must exceed the plan capacity");
+    assert!(
+        error.contains("entry_count 18446744073709551615 is outside 0..=64"),
         "unexpected diagnostic: {error}"
     );
 }

@@ -1,6 +1,6 @@
 # Design Brief: Programmable Layouts
 
-Current as of 2026-07-18. Layouts and codecs are authored library policies with
+Current as of 2026-07-25. Layouts and codecs are authored library policies with
 machine-checked conformance laws. The compiler owns a small placement vocabulary
 and plan validator; it does not generate arbitrary codecs or import C's type
 system.
@@ -38,6 +38,15 @@ machine CLayout::plan(schema: Schema) -> Plan
 returns a description composed from a closed compiler-known placement
 vocabulary. The compiler validates the result before using it for type layout,
 field projection, recasts, or ABI artifacts.
+
+The live `Schema`/`Plan` ABI uses `u64` for opaque field keys and every
+nonnegative size, alignment, offset, bit width/index, tag, and count. These are
+integer quantities, not addresses, so they do not use `addr`. The one signed
+field is `SchemaField.number`: `i64` deliberately retains `-1` as the explicit
+unnumbered sentinel. Build-time evaluation preserves all 64 value bits, and
+the normalized Rust plan uses the same unsigned geometry; host `usize`
+conversion occurs only at a consuming allocation or slice boundary and is
+checked there.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
@@ -319,22 +328,20 @@ the exact `InstalledCode` state now supplies the private resolver while the
 normalized writer validates its destination and every source before mutation,
 resolves each target once, then writes the exclusive unpublished destination
 directly. Failure produces no publication claim; it does not promise
-transactional restoration after writes begin. A sealed writer preparation now
-owns the exact destination, its initial content, plan, and root set, binds them
-to the installed code and deterministic fingerprints, and lowers to an
-address-free generated machine carrier using only private source-slot indices.
-Foreign entries, placement/root drift, and invalid destination authority reject
-before lowering; numeric entry addresses never become a public API. Target
-lowering owns the private invocation ABI, exact instruction footprint, and
-unsupported-target rejection. Those details are backend evidence rather than
-public layout semantics. A consumer package may use this machinery to build an
-IDT or another hardware-consumed table, but its table-specific preparation,
-population, validation, and installation states remain consumer code rather
-than compiler types.
+transactional restoration after writes begin. The compiler currently stops at
+generic normalized writer actions and direct materialization; it does not
+synthesize a table-specific machine carrier or own a table lifecycle. Lowering
+reusable post-handoff helpers remains L6c work and must keep static helper
+identity separate from invocation evidence such as exact placement, resolver,
+roots, and content. Numeric entry addresses never become a public API. A
+consumer package may use this machinery to build an IDT or another
+hardware-consumed table, but its preparation, population, validation, and
+installation states remain consumer code rather than compiler types.
 
 ## Still open
 
-- final `Schema` reflection and `Plan` source types;
+- extend the live fixed-layout `Schema` reflection and `Plan` vocabulary beyond
+  the current primitive-field slice;
 - exact source types for unions and runtime strides (the fixed-layout fragment
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized

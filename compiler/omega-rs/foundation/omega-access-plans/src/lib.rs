@@ -277,11 +277,6 @@ pub fn validate_access_plan(
     let layout_size = layout.size.ok_or_else(|| {
         AccessPlanDiagnostic("placed access requires a fixed-size layout plan".into())
     })?;
-    let layout_size = u64::try_from(layout_size).map_err(|_| {
-        AccessPlanDiagnostic(format!(
-            "placed access cannot use negative layout size {layout_size}"
-        ))
-    })?;
 
     let mut fields = BTreeSet::new();
     for entry in &plan.entries {
@@ -757,12 +752,7 @@ fn validate_entry_geometry(
     let transfer_bytes = u64::from(access.transfer_width_bits / 8);
     match placements.as_slice() {
         [LayoutPlacementReport::At { offset }] => {
-            let offset = u64::try_from(*offset).map_err(|_| {
-                AccessPlanDiagnostic(format!(
-                    "access field `{}` has negative layout offset {offset}",
-                    access.field
-                ))
-            })?;
+            let offset = *offset;
             validate_transfer_range(access, offset, transfer_bytes, layout_size)?;
             Ok(offset)
         }
@@ -780,7 +770,7 @@ fn validate_entry_geometry(
                         access.field
                     )));
                 };
-                if *container_width != i64::from(access.transfer_width_bits) {
+                if *container_width != u64::from(access.transfer_width_bits) {
                     return Err(AccessPlanDiagnostic(format!(
                         "access field `{}` requests a {}-bit transfer over a {container_width}-bit container",
                         access.field, access.transfer_width_bits
@@ -797,12 +787,6 @@ fn validate_entry_geometry(
                 }
             }
             let container = container.expect("nonempty placements");
-            let container = u64::try_from(container).map_err(|_| {
-                AccessPlanDiagnostic(format!(
-                    "access field `{}` has negative container offset {container}",
-                    access.field
-                ))
-            })?;
             validate_transfer_range(access, container, transfer_bytes, layout_size)?;
             Ok(container)
         }

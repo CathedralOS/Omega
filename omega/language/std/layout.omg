@@ -12,12 +12,10 @@
 // one logical source. Keys are opaque handles copied from SchemaField; the
 // compiler normalizes them back to field names before identity/reporting.
 //
-// COUNT CARRIER NOTE: the normative temporary carrier for nonnegative byte
-// sizes, alignments, offsets, widths, counts, and indices is u64, distinct from
-// addr. The i64 spellings below are compatibility debt from the pilot policy
-// ABI, not a semantic choice; TASKS.md tracks migrating the schema and all
-// compiler consumers together. Signed carriers remain only where a value is
-// genuinely signed or an explicitly retained sentinel requires one.
+// COUNT CARRIERS: nonnegative byte sizes, alignments, offsets, widths, counts,
+// indices, tags, and opaque compiler keys use u64, distinct from addr. Signed
+// carriers remain only where a value is genuinely signed or an explicitly
+// retained sentinel requires one.
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, and the declared identity number (-1 when unnumbered). Ranges
@@ -26,9 +24,9 @@
 // and passed BY VALUE into plan() -- it is never zero-initialized machine
 // state, so the 0-excluding alignment range is sound.)
 data SchemaField {
-    key: i64;
-    size: i64 [0..=4096];
-    align: i64 [1..=16];
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
     number: i64;
     kind: FieldKind;
 }
@@ -47,7 +45,7 @@ data FieldKind {
 
 data Schema {
     fields: [SchemaField; 32];
-    field_count: i64 [0..=32];
+    field_count: u64 [0..=32];
 }
 
 // One field's PLACEMENT -- the closed vocabulary the compiler knows how to
@@ -58,20 +56,20 @@ data Schema {
 // other consumers that understand fragmented geometry. Tagged/wire placements
 // remain consumers of the wire-plan path today.
 data FieldPlan {
-    case At(offset: i64);
+    case At(offset: u64);
     case Bits(
-        container: i64,
-        container_width: i64,
-        destination_lsb: i64,
-        source_lsb: i64,
-        width: i64
+        container: u64,
+        container_width: u64,
+        destination_lsb: u64,
+        source_lsb: u64,
+        width: u64
     );
-    case Varint(tag: i64);
-    case LengthPrefixed(tag: i64);
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
 }
 
 data FieldEntry {
-    key: i64;
+    key: u64;
     placement: FieldPlan;
 }
 
@@ -82,10 +80,10 @@ data FieldEntry {
 // size/alignment before anything trusts the plan.
 data Plan {
     entries: [FieldEntry; 64];
-    entry_count: i64;
-    size_fixed: i64;
+    entry_count: u64;
+    size_fixed: u64;
     size_is_dynamic: bool;
-    align: i64;
+    align: u64;
 }
 
 // The policy interface. plan() declares no effects, so implementations HAVE
