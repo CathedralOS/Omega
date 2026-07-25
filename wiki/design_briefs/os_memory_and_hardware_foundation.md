@@ -968,7 +968,12 @@ on failure and never exposes the resolved entry address. The
 writer now has its own sealed pre-lowering gate: `PreparedIdtWriter` owns the
 exact unpublished destination, normalized plan, and root set after checking
 the installed-artifact resolver, placement phase, mapped/pinned/writable
-authority, and fragment geometry. It also retains the opaque complete
+authority, and fragment geometry. The unpublished destination now owns its
+concrete linear Extent, checks byte length and site base against that range,
+and carries space/rights/provenance/era/lineage into exact publication
+evidence. The mapped/pinned/writable facts remain provider assertions until the
+bootstrap placement provider supplies their concrete receipts. The writer
+also retains the opaque complete
 installed-code lifecycle context through population, and the materialization
 receipt derives from that populated writer rather than restating resolver IDs.
 Its identity binds code, artifact,

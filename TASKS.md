@@ -819,6 +819,11 @@ schemas recover the same instance without publishing policy type identity.
    Prepared and populated writers retain the opaque complete installed-code
    context, and materialization receipts derive from the populated writer;
    colliding installed/artifact IDs cannot swap the resolver realization.
+   `UnpublishedIdtDestination` now owns the concrete linear Extent, validates
+   its byte range and placement base against that authority, and retains the
+   Extent's space/rights/provenance/era/lineage through publication evidence.
+   The mapped/pinned/writable facts are still provider assertions pending the
+   concrete bootstrap placement provider.
    Concrete Cathedral PIC/LAPIC candidate construction may proceed, but
    inserting the plan-driven generated writer/load operations into the initial
    artifact is **OWNER-BLOCKED** on the bootstrap-helper staging question. R10
