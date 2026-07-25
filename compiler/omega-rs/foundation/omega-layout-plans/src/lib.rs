@@ -553,6 +553,96 @@ pub enum PostHandoffWriterSource {
     Resolve(RelocationTarget),
 }
 
+/// `PHWRITR1`: target-neutral packed input ABI for a reusable post-handoff
+/// helper. Word zero is the destination address. The remaining words are
+/// dense source slots assigned by the helper plan. Numeric words stay inside
+/// provider-owned invocation evidence; source code sees neither this context
+/// nor an address-valued writer operation.
+pub const POST_HANDOFF_WRITER_CONTEXT_ABI_V1: u64 = 0x5048_5752_4954_5231;
+pub const POST_HANDOFF_WRITER_DESTINATION_OFFSET: usize = 0;
+pub const POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET: usize = 8;
+pub const POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH: usize = 8;
+
+pub fn post_handoff_writer_context_byte_len(source_slot_count: usize) -> Option<usize> {
+    source_slot_count
+        .checked_mul(POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH)?
+        .checked_add(POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET)
+}
+
+/// One address-free fragment in a reusable generated writer. `source_slot`
+/// indexes the provider-private invocation context. Field names, symbolic
+/// identities, resolved values, and concrete placement are deliberately
+/// absent: none changes the emitted transfer geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GeneratedPostHandoffWriterStep {
+    pub container_byte_offset: u64,
+    pub container_width_bits: u16,
+    pub destination_lsb: u16,
+    pub source_lsb: u16,
+    pub width: u16,
+    pub source_slot: usize,
+}
+
+/// Static normalized plan for one reusable post-handoff helper.
+///
+/// Its fingerprint covers only facts that can change emitted code. Exact
+/// relocation targets, resolved content, placement, resolver authority, and
+/// roots belong to `PostHandoffWriterInvocationPlan` instead.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneratedPostHandoffWriterPlan {
+    context_abi: u64,
+    byte_len: usize,
+    byte_order: ByteOrder,
+    source_slot_count: usize,
+    steps: Vec<GeneratedPostHandoffWriterStep>,
+    fingerprint: u64,
+}
+
+impl GeneratedPostHandoffWriterPlan {
+    pub const fn context_abi(&self) -> u64 {
+        self.context_abi
+    }
+
+    pub const fn byte_len(&self) -> usize {
+        self.byte_len
+    }
+
+    pub const fn byte_order(&self) -> ByteOrder {
+        self.byte_order
+    }
+
+    pub const fn source_slot_count(&self) -> usize {
+        self.source_slot_count
+    }
+
+    pub fn steps(&self) -> &[GeneratedPostHandoffWriterStep] {
+        &self.steps
+    }
+
+    pub const fn fingerprint(&self) -> u64 {
+        self.fingerprint
+    }
+}
+
+/// Exact value bound to one private source slot for one invocation. The target
+/// remains present even for a pre-resolved value so fragmented writes group by
+/// compiler-issued source identity rather than accidentally by equal numeric
+/// content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostHandoffWriterSourceSlot {
+    pub target: RelocationTarget,
+    pub source: PostHandoffWriterSource,
+}
+
+/// Invocation-sensitive half of generated writer lowering. This evidence is
+/// intentionally separate from the reusable helper identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PostHandoffWriterInvocationPlan {
+    pub helper: GeneratedPostHandoffWriterPlan,
+    pub placement: PlacementConstraints,
+    pub sources: Vec<PostHandoffWriterSourceSlot>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostHandoffWriterStep {
     pub write: MaterializationWrite,
@@ -571,6 +661,81 @@ pub struct PostHandoffWriterPlan {
 }
 
 impl PostHandoffWriterPlan {
+    /// Derive one reusable address-free helper plus exact invocation evidence.
+    /// Source slots follow first target occurrence and are dense. Repeated
+    /// fragments of one symbolic target therefore consume one once-resolved
+    /// word even when the concrete address or artifact realization changes.
+    pub fn lower_reusable_helper(
+        &self,
+    ) -> Result<PostHandoffWriterInvocationPlan, MaterializationDiagnostic> {
+        if self.steps.is_empty() {
+            return Err(MaterializationDiagnostic(
+                "post-handoff writer helper requires at least one fragment".into(),
+            ));
+        }
+
+        let mut sources = Vec::<PostHandoffWriterSourceSlot>::new();
+        let mut steps = Vec::with_capacity(self.steps.len());
+        for step in &self.steps {
+            if let PostHandoffWriterSource::Resolve(target) = step.source
+                && target != step.write.target
+            {
+                return Err(MaterializationDiagnostic(format!(
+                    "post-handoff writer source {target:?} does not match write target {:?}",
+                    step.write.target
+                )));
+            }
+            validate_write(self.byte_len, &step.write)?;
+
+            let source_slot = if let Some(index) = sources
+                .iter()
+                .position(|source| source.target == step.write.target)
+            {
+                if sources[index].source != step.source {
+                    return Err(MaterializationDiagnostic(format!(
+                        "post-handoff writer target {:?} has inconsistent invocation values across fragments",
+                        step.write.target
+                    )));
+                }
+                index
+            } else {
+                let index = sources.len();
+                sources.push(PostHandoffWriterSourceSlot {
+                    target: step.write.target,
+                    source: step.source,
+                });
+                index
+            };
+            steps.push(GeneratedPostHandoffWriterStep {
+                container_byte_offset: step.write.container_byte_offset,
+                container_width_bits: step.write.container_width_bits,
+                destination_lsb: step.write.destination_lsb,
+                source_lsb: step.write.source_lsb,
+                width: step.write.width,
+                source_slot,
+            });
+        }
+
+        let helper = GeneratedPostHandoffWriterPlan {
+            context_abi: POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
+            byte_len: self.byte_len,
+            byte_order: self.byte_order,
+            source_slot_count: sources.len(),
+            fingerprint: generated_post_handoff_writer_fingerprint(
+                self.byte_len,
+                self.byte_order,
+                sources.len(),
+                &steps,
+            ),
+            steps,
+        };
+        Ok(PostHandoffWriterInvocationPlan {
+            helper,
+            placement: self.placement,
+            sources,
+        })
+    }
+
     /// Validate the complete direct-destination program without resolving a
     /// symbolic address or mutating the destination. Provider preparation
     /// uses this pass to bind one exact checked writer before any numeric
@@ -587,6 +752,7 @@ impl PostHandoffWriterPlan {
                 self.byte_len, destination_len
             )));
         }
+        let mut sources = Vec::<PostHandoffWriterSourceSlot>::new();
         for step in &self.steps {
             if let PostHandoffWriterSource::Resolve(target) = step.source
                 && target != step.write.target
@@ -597,6 +763,22 @@ impl PostHandoffWriterPlan {
                 )));
             }
             validate_write(self.byte_len, &step.write)?;
+            if let Some(source) = sources
+                .iter()
+                .find(|source| source.target == step.write.target)
+            {
+                if source.source != step.source {
+                    return Err(MaterializationDiagnostic(format!(
+                        "post-handoff writer target {:?} has inconsistent invocation values across fragments",
+                        step.write.target
+                    )));
+                }
+            } else {
+                sources.push(PostHandoffWriterSourceSlot {
+                    target: step.write.target,
+                    source: step.source,
+                });
+            }
         }
         Ok(())
     }
@@ -647,6 +829,40 @@ impl PostHandoffWriterPlan {
         }
         Ok(())
     }
+}
+
+fn generated_post_handoff_writer_fingerprint(
+    byte_len: usize,
+    byte_order: ByteOrder,
+    source_slot_count: usize,
+    steps: &[GeneratedPostHandoffWriterStep],
+) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_fingerprint_bytes(&mut hash, b"omega.post-handoff-writer.v1");
+    hash_fingerprint_u64(&mut hash, POST_HANDOFF_WRITER_CONTEXT_ABI_V1);
+    hash_fingerprint_u64(&mut hash, byte_len as u64);
+    hash_fingerprint_byte(
+        &mut hash,
+        match byte_order {
+            ByteOrder::LittleEndian => 0,
+            ByteOrder::BigEndian => 1,
+        },
+    );
+    hash_fingerprint_u64(&mut hash, source_slot_count as u64);
+    hash_fingerprint_u64(&mut hash, steps.len() as u64);
+    for step in steps {
+        for value in [
+            step.container_byte_offset,
+            u64::from(step.container_width_bits),
+            u64::from(step.destination_lsb),
+            u64::from(step.source_lsb),
+            u64::from(step.width),
+            step.source_slot as u64,
+        ] {
+            hash_fingerprint_u64(&mut hash, value);
+        }
+    }
+    if hash == 0 { 1 } else { hash }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1645,6 +1861,123 @@ mod tests {
         assert_eq!(resolutions, 1, "three fragments share one resolution");
         assert_eq!(&bytes[0..4], &[0x88, 0x77, 0x66, 0x55]);
         assert_eq!(&bytes[8..12], &[0x44, 0x33, 0x22, 0x11]);
+    }
+
+    #[test]
+    fn reusable_writer_helper_separates_static_geometry_from_invocation_evidence() {
+        let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+        let plan = derive_symbolic_materialization(
+            &split_layout(),
+            &[symbolic],
+            MaterializationContext {
+                consumption: ConsumptionInstant::AfterOmegaHandoff,
+                byte_order: ByteOrder::LittleEndian,
+                native_pointer_relocation_bits: None,
+                placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            },
+            |_| None,
+        )
+        .expect("symbolic materialization");
+        let writer = plan
+            .derive_post_handoff_writer()
+            .expect("post-handoff writer");
+        let lowering = writer
+            .lower_reusable_helper()
+            .expect("address-free reusable helper");
+
+        assert_eq!(
+            lowering.helper.context_abi(),
+            POST_HANDOFF_WRITER_CONTEXT_ABI_V1
+        );
+        assert_eq!(lowering.helper.source_slot_count(), 1);
+        assert_eq!(lowering.sources.len(), 1);
+        assert_eq!(lowering.sources[0].target, entry());
+        assert_eq!(
+            lowering.sources[0].source,
+            PostHandoffWriterSource::Resolve(entry())
+        );
+        assert!(
+            lowering
+                .helper
+                .steps()
+                .iter()
+                .all(|step| step.source_slot == 0),
+            "all three fragments of one symbolic target share one private slot"
+        );
+        assert_eq!(post_handoff_writer_context_byte_len(1), Some(16));
+
+        let replacement = RelocationTarget::Entry(
+            EntryStubId::from_normalized_identity(0x66bb).expect("replacement entry"),
+        );
+        let mut rebound = writer.clone();
+        for step in &mut rebound.steps {
+            step.write.target = replacement;
+            step.source = PostHandoffWriterSource::Resolve(replacement);
+        }
+        rebound.placement =
+            PlacementConstraints::new(None, 16, PlacementPhase::PostHandoff, None, None)
+                .expect("stronger invocation placement");
+        let rebound = rebound
+            .lower_reusable_helper()
+            .expect("same reusable geometry");
+
+        assert_eq!(
+            rebound.helper.fingerprint(),
+            lowering.helper.fingerprint(),
+            "target identity and concrete placement are invocation evidence"
+        );
+        assert_eq!(rebound.helper, lowering.helper);
+        assert_ne!(rebound.sources, lowering.sources);
+        assert_ne!(rebound.placement, lowering.placement);
+    }
+
+    #[test]
+    fn reusable_writer_helper_rejects_inconsistent_values_for_one_target() {
+        let write = MaterializationWrite {
+            field: "address".into(),
+            target: entry(),
+            container_byte_offset: 0,
+            container_width_bits: 64,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 32,
+        };
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![
+                PostHandoffWriterStep {
+                    write: write.clone(),
+                    source: PostHandoffWriterSource::Resolved(1),
+                },
+                PostHandoffWriterStep {
+                    write: MaterializationWrite {
+                        destination_lsb: 32,
+                        source_lsb: 32,
+                        ..write
+                    },
+                    source: PostHandoffWriterSource::Resolved(2),
+                },
+            ],
+        };
+
+        let error = writer
+            .lower_reusable_helper()
+            .expect_err("one symbolic source cannot change between fragments");
+        assert!(error.0.contains("inconsistent invocation values"));
+        let error = writer
+            .validate(
+                8,
+                PlacementSite {
+                    base_address: 0,
+                    phase: PlacementPhase::PostHandoff,
+                    machine_regime: None,
+                    installation_scope: None,
+                },
+            )
+            .expect_err("direct execution validates the same source invariant");
+        assert!(error.0.contains("inconsistent invocation values"));
     }
 
     #[test]

@@ -1,5 +1,6 @@
 pub mod encoding;
 mod entry;
+mod generated_writer;
 pub mod operands;
 mod selection;
 pub mod widths;
@@ -14,6 +15,9 @@ pub use entry::{
     derive_boundary_exit_result_register_footprint, derive_boundary_place_guard_footprint,
     derive_boundary_runtime_text_guard_footprint, derive_boundary_runtime_value_guard_footprint,
     derive_boundary_static_guard_footprint,
+};
+pub use generated_writer::{
+    LoweredPostHandoffWriter, LoweredPostHandoffWriterHelper, lower_post_handoff_writer_helper,
 };
 pub use operands::*;
 pub use selection::build_instruction_plan;

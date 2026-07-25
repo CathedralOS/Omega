@@ -17,6 +17,7 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" }
 omega-layout = { path = "../omega-layout" }
+omega-layout-plans = { path = "../../foundation/omega-layout-plans" }
 omega-object-file = { path = "../object/omega-object-file" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-abi = { path = "../../foundation/omega-runtime-abi" }

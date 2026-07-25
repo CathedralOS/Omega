@@ -323,7 +323,14 @@ validates the concrete placement, resolves repeated fragments of one target
 once, validates all writes before mutation, and writes directly into the
 exclusive unpublished destination. A failed fill produces no publication
 claim and the destination remains unpublishable; no full-table staging
-allocation is required. Lowering that program to target-machine code remains.
+allocation is required. The same normalized program now derives one
+address-free reusable helper shape plus separate invocation evidence. Dense
+private source slots are assigned by first symbolic-target occurrence, so
+repeated fragments resolve once without putting target identity or numeric
+content into helper identity. Exact checked encoders are live on x86-64 and
+AArch64; each revalidates complete fragment/container/context geometry,
+publishes its exact register/state footprint, and fingerprints emitted bytes
+separately from the target-neutral helper plan.
 The object/image substrate no longer assumes relocation sites are text:
 section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
@@ -339,15 +346,17 @@ the exact `InstalledCode` state now supplies the private resolver while the
 normalized writer validates its destination and every source before mutation,
 resolves each target once, then writes the exclusive unpublished destination
 directly. Failure produces no publication claim; it does not promise
-transactional restoration after writes begin. The compiler currently stops at
-generic normalized writer actions and direct materialization; it does not
-synthesize a table-specific machine carrier or own a table lifecycle. Lowering
-reusable post-handoff helpers remains L6c work and must keep static helper
-identity separate from invocation evidence such as exact placement, resolver,
-roots, and content. Numeric entry addresses never become a public API. A
-consumer package may use this machinery to build an IDT or another
-hardware-consumed table, but its preparation, population, validation, and
-installation states remain consumer code rather than compiler types.
+transactional restoration after writes begin. The compiler does not synthesize
+a table-specific machine carrier or own a table lifecycle. Reusable
+post-handoff helpers now lower from generic writer geometry on both target
+families, with normalized plan identity and emitted-byte identity explicitly
+separate from invocation evidence such as exact placement, resolver, roots,
+and content. Carrying those helper bytes and their exact footprint through
+provider invocation and final artifacts remains L6c work. Numeric entry
+addresses never become a public API. A consumer package may use this machinery
+to build an IDT or another hardware-consumed table, but its preparation,
+population, validation, and installation states remain consumer code rather
+than compiler types.
 
 ## Still open
 

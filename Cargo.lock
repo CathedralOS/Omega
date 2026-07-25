@@ -555,6 +555,7 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-layout",
+ "omega-layout-plans",
  "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-abi",
@@ -589,6 +590,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-core",
+ "omega-layout-plans",
  "omega-target-operations",
 ]
 
@@ -598,6 +600,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-core",
+ "omega-layout-plans",
  "omega-target-operations",
 ]
 
