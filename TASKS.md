@@ -1870,7 +1870,9 @@ stronger operations it needs instead of citing machine parameters generally.
   or unreferenced trailing bytes, nonzero reserved fields, identity drift,
   malformed fixed records, and unknown required sections before admission.
   Unknown optional sections remain informational with zero admission
-  authority. The post-decode closed
+  authority; their trace identities are normalizer-derived from section kind
+  plus exact opaque bytes rather than trusted from the directory. The
+  post-decode closed
   relocation validator is
   now live for absolute-64, x86 relative-32, and AArch64 page/page-offset/
   branch relocations: it applies a configured count bound, canonicalizes

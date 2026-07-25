@@ -27,6 +27,21 @@ const SECTION_ENTRIES: u16 = 6;
 const SECTION_PROOF: u16 = 7;
 const SECTION_INFORMATIONAL: u16 = 8;
 
+pub fn normalized_informational_section_identity(kind: u16, payload: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in b"omega.executable-container.information.v1"
+        .iter()
+        .copied()
+        .chain(kind.to_le_bytes())
+        .chain((payload.len() as u64).to_le_bytes())
+        .chain(payload.iter().copied())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    if hash == 0 { 1 } else { hash }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct WireSection {
     kind: u16,
@@ -534,6 +549,21 @@ pub fn decode_executable_container(
                 "unknown required artifact section {}",
                 section.identity
             )));
+        }
+        if section.kind >= SECTION_INFORMATIONAL {
+            let payload = checked_slice(
+                bytes,
+                section.offset,
+                section.length,
+                "informational section payload",
+            )?;
+            let normalized = normalized_informational_section_identity(section.kind, payload);
+            if section.identity != normalized {
+                return Err(InstallationDiagnostic(format!(
+                    "informational artifact section kind {} identity does not match its exact opaque bytes",
+                    section.kind
+                )));
+            }
         }
         wire_sections.push(section);
     }
@@ -1504,6 +1534,45 @@ mod tests {
         bytes
     }
 
+    fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8> {
+        let old_section_count = 7_usize;
+        let inserted_directory_offset = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
+            + old_section_count * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize;
+        bytes.splice(
+            inserted_directory_offset..inserted_directory_offset,
+            std::iter::repeat_n(0, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize),
+        );
+        for index in 0..old_section_count {
+            let record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
+                + index * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize;
+            let offset = u64::from_le_bytes(bytes[record + 16..record + 24].try_into().unwrap());
+            bytes[record + 16..record + 24].copy_from_slice(
+                &(offset + OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES).to_le_bytes(),
+            );
+        }
+        let payload_offset = bytes.len() as u64;
+        bytes.extend_from_slice(payload);
+        bytes[14..16].copy_from_slice(&8_u16.to_le_bytes());
+        let total_length = bytes.len() as u64;
+        bytes[24..32].copy_from_slice(&total_length.to_le_bytes());
+        let identity = normalized_informational_section_identity(kind, payload);
+        write_record(
+            &mut bytes[inserted_directory_offset
+                ..inserted_directory_offset
+                    + OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize],
+            section_layout(),
+            &[
+                ("kind", 16, u64::from(kind)),
+                ("flags", 16, 0),
+                ("reserved", 32, 0),
+                ("identity", 64, identity),
+                ("offset", 64, payload_offset),
+                ("length", 64, payload.len() as u64),
+            ],
+        );
+        bytes
+    }
+
     #[test]
     fn canonical_bytes_decode_through_layouts_into_validated_candidate() {
         let bytes = canonical_bytes();
@@ -1523,6 +1592,29 @@ mod tests {
         assert_eq!(decoded.artifact(), source.artifact());
         assert_eq!(decoded.proof(), source.proof());
         assert_eq!(decoded.proof_payload(), source.proof_payload());
+    }
+
+    #[test]
+    fn optional_section_trace_identity_is_derived_from_exact_opaque_bytes() {
+        let known = add_optional_section(canonical_bytes(), SECTION_INFORMATIONAL, b"debug");
+        let decoded = decode_executable_container(&known, limits()).expect("known information");
+        assert_eq!(
+            decoded.informational_sections()[0].normalized_identity(),
+            normalized_informational_section_identity(SECTION_INFORMATIONAL, b"debug")
+        );
+
+        let unknown = add_optional_section(canonical_bytes(), 99, b"future");
+        let decoded = decode_executable_container(&unknown, limits()).expect("unknown information");
+        assert_eq!(
+            decoded.unknown_informational_sections(),
+            &[normalized_informational_section_identity(99, b"future")]
+        );
+
+        let mut substituted = known;
+        *substituted.last_mut().expect("payload byte") ^= 1;
+        let error =
+            decode_executable_container(&substituted, limits()).expect_err("identity replay");
+        assert!(error.0.contains("does not match its exact opaque bytes"));
     }
 
     #[test]
