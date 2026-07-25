@@ -376,9 +376,15 @@ different target algebra: one admitted semantic memory-class fact selects
 the policy pins the TTBR lower/upper half plus 32–48-bit physical-address
 width. It emits four-level 4 KiB stage-1 tables and reaches the identical
 generated-construction receipt without treating AArch64 flags as x86 flags.
-Huge pages, PAT/LA57, AArch64 blocks/LPA2/dirty state, imported scanners,
-control operations, and source-visible opaque carriers remain implementation
-work over the same lifecycle.
+The first x86 imported-table validator is live over the inverse scalar consumer.
+Every entry must round-trip through the exact normalized geometry with
+unsupported/reserved bits zero, and the complete bytes must equal the canonical
+hierarchy derived independently from the exact draft before an `ImportedScan`
+construction receipt exists. V1 intentionally rejects alternative allocation,
+aliases, huge pages, and hardware-mutated accessed/dirty state rather than
+asserting an unproved equivalence. Huge pages, PAT/LA57, AArch64 blocks/LPA2/
+dirty state, the AArch64 scanner, control operations, and source-visible opaque
+carriers remain implementation work over the same lifecycle.
 
 Retirement closes the conservation loop. Beginning removal captures table
 storage and starts unmapping every active mapping. Nothing is returned until one
