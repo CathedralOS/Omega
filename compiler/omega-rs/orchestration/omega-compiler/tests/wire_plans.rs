@@ -55,3 +55,46 @@ machine Main::main(&mut self) { }
         ]
     );
 }
+
+#[test]
+fn full_width_unsigned_policy_tags_are_not_reinterpreted_as_signed() {
+    let main_path = write_program(
+        "full-width-tag",
+        r#"
+data Packet { 1: value: u8; }
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan { case Varint(tag: u64); case LengthPrefixed(tag: u64); }
+data Plan { fields: [FieldPlan; 32]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+
+data CompactBinary { fields: [FieldPlan; 32]; }
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.fields[0] = FieldPlan::Varint { tag: 18446744073709551615 };
+    Plan {
+        fields: self.fields,
+        entry_count: schema.field_count,
+        size_fixed: 0,
+        size_is_dynamic: true,
+        align: 1,
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let diagnostics = compile_to_checked(&main_path, None)
+        .expect_err("a full-width authored tag must disagree with schema tag 1");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        rendered.contains("tag: 18446744073709551615"),
+        "unexpected diagnostic: {rendered}"
+    );
+}

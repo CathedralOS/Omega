@@ -35,7 +35,7 @@ const WIRE_GRAMMAR_POLICY: &str = "CompactBinary::plan";
 /// A schema field's shape fact, mirrored to the std `FieldKind` cases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FieldShape {
-    Scalar { byte_size: i64 },
+    Scalar { byte_size: u64 },
     Text,
     Nested,
     Repeated,
@@ -112,10 +112,12 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
         let mut derived: Vec<WirePlacement> = fields
             .iter()
             .map(|&(number, shape)| {
+                let tag = u64::try_from(number)
+                    .expect("classifiable wire fields have nonnegative identity numbers");
                 if shape.is_varint() {
-                    WirePlacement::Varint { tag: number }
+                    WirePlacement::Varint { tag }
                 } else {
-                    WirePlacement::LengthPrefixed { tag: number }
+                    WirePlacement::LengthPrefixed { tag }
                 }
             })
             .collect();
@@ -186,8 +188,8 @@ fn evaluate_wire_policy(
 /// varint encoding does not depend on it). Non-scalars report 8,
 /// preserving the prior `_ => 8` fallback. Sizes come from the single source of
 /// truth on `PrimitiveType`.
-fn primitive_wire_size(primitive: PrimitiveType) -> i64 {
-    primitive.scalar_byte_size().unwrap_or(8) as i64
+fn primitive_wire_size(primitive: PrimitiveType) -> u64 {
+    primitive.scalar_byte_size().unwrap_or(8) as u64
 }
 
 /// Materialize the schema's facts as the std `Schema` value: field
@@ -206,8 +208,8 @@ fn build_wire_schema_value(fields: &[(i64, FieldShape)]) -> BuildTimeValue {
         cells.push(BuildTimeValue::Struct {
             type_name: "SchemaField".to_owned(),
             fields: vec![
-                ("size".to_owned(), BuildTimeValue::Int(size)),
-                ("align".to_owned(), BuildTimeValue::Int(size.max(1))),
+                ("size".to_owned(), BuildTimeValue::Int(size as i64)),
+                ("align".to_owned(), BuildTimeValue::Int(size.max(1) as i64)),
                 ("number".to_owned(), BuildTimeValue::Int(number)),
                 (
                     "kind".to_owned(),
@@ -256,7 +258,8 @@ fn extract_wire_placements(
     let BuildTimeValue::Int(entry_count) = field("entry_count")? else {
         return Err(fail("entry_count is not an integer".to_owned()));
     };
-    if *entry_count != field_count as i64 {
+    let entry_count = *entry_count as u64;
+    if entry_count != field_count as u64 {
         return Err(fail(format!(
             "entry_count is {entry_count}, but the schema has {field_count} fields"
         )));
@@ -269,9 +272,9 @@ fn extract_wire_placements(
     fn case_name(variant: &str) -> &str {
         variant.rsplit("::").next().unwrap_or(variant)
     }
-    let tag_of = |payload: &[(String, BuildTimeValue)]| -> Result<i64, String> {
+    let tag_of = |payload: &[(String, BuildTimeValue)]| -> Result<u64, String> {
         match payload.iter().find(|(name, _)| name == "tag") {
-            Some((_, BuildTimeValue::Int(tag))) => Ok(*tag),
+            Some((_, BuildTimeValue::Int(tag))) => Ok(*tag as u64),
             other => Err(fail(format!("placement carries no integer tag: {other:?}"))),
         }
     };

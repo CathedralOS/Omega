@@ -288,7 +288,9 @@ pub(super) fn select_wire_decode_call(
                 .zip(fields.iter())
                 .all(|(placement, field)| {
                     let field_is_varint = matches!(field.content, WireReadContent::Scalar { .. });
-                    placement.tag() == field.number
+                    placement.tag()
+                        == u64::try_from(field.number)
+                            .expect("wire collection rejects negative field numbers")
                         && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
                 });
         if !agrees {
@@ -301,8 +303,10 @@ pub(super) fn select_wire_decode_call(
         let tag = plan
             .and_then(|placements| placements.get(field_index))
             .map(|placement| placement.tag())
-            .unwrap_or(field.number);
-        for byte in wire_varint_bytes(tag as u64) {
+            .unwrap_or_else(|| {
+                u64::try_from(field.number).expect("wire collection rejects negative field numbers")
+            });
+        for byte in wire_varint_bytes(tag) {
             push(expected_byte_kind(byte));
         }
         match &field.content {
@@ -343,7 +347,9 @@ pub(super) fn select_wire_decode_call(
                             .iter()
                             .zip(children.iter())
                             .all(|(placement, child)| {
-                                placement.tag() == child.number
+                                placement.tag()
+                                    == u64::try_from(child.number)
+                                        .expect("wire collection rejects negative field numbers")
                                     && matches!(placement, WirePlacement::Varint { .. })
                             });
                     if !agrees {
@@ -388,8 +394,11 @@ pub(super) fn select_wire_decode_call(
                     let child_tag = child_plan
                         .and_then(|placements| placements.get(child_index))
                         .map(|placement| placement.tag())
-                        .unwrap_or(child.number);
-                    for byte in wire_varint_bytes(child_tag as u64) {
+                        .unwrap_or_else(|| {
+                            u64::try_from(child.number)
+                                .expect("wire collection rejects negative field numbers")
+                        });
+                    for byte in wire_varint_bytes(child_tag) {
                         push(expected_byte_kind(byte));
                     }
                     let WireReadContent::Scalar {

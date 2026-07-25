@@ -281,8 +281,9 @@ move it to a convenience library.
   resource provisioning remain consumer/runtime work.
 - Continue migrating compiler-facing policy schemas so nonnegative byte sizes,
   lengths, counts, and indices use `u64`, matching the retired-`usize` ruling.
-  The Layout and Calling source ABIs plus their normalized compiler reports are
-  complete; audit the remaining policy families. Keep signed carriers only for
+  The Layout and Calling source ABIs plus normalized wire-policy placements are
+  complete; audit the remaining policy families. Wire declaration identity
+  numbers remain under owner question #11. Keep signed carriers only for
   genuinely signed offsets/addends or explicit sentinel encodings; `addr`
   remains address bits, never a count.
 - Implement serialized capability attenuation/revocation.

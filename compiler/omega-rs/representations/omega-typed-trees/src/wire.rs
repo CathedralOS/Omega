@@ -11,8 +11,8 @@ use omega_core::symbols::SymbolHandle;
 /// stored SORTED BY TAG (the codec emits in field-number order).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WirePlacement {
-    Varint { tag: i64 },
-    LengthPrefixed { tag: i64 },
+    Varint { tag: u64 },
+    LengthPrefixed { tag: u64 },
 }
 
 impl Default for WirePlacement {
@@ -24,7 +24,7 @@ impl Default for WirePlacement {
 }
 
 impl WirePlacement {
-    pub fn tag(self) -> i64 {
+    pub fn tag(self) -> u64 {
         match self {
             Self::Varint { tag } | Self::LengthPrefixed { tag } => tag,
         }
