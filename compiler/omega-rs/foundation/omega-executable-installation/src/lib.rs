@@ -840,8 +840,8 @@ impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
             .field("destination_len", &self.destination_len)
             .field("source_slot_count", &self.invocation.sources.len())
             .field(
-                "normalized_helper_fingerprint",
-                &format_args!("{:016x}", self.invocation.helper.fingerprint()),
+                "normalized_fragment_fingerprint",
+                &format_args!("{:016x}", self.invocation.fragment.fingerprint()),
             )
             .field("fingerprint", &format_args!("{:016x}", self.fingerprint))
             .finish()
@@ -870,15 +870,15 @@ impl ResolvedPostHandoffEntryWriterContext {
     }
 
     pub const fn context_abi(&self) -> u64 {
-        self.invocation.helper.context_abi()
+        self.invocation.fragment.context_abi()
     }
 
-    pub const fn normalized_helper_fingerprint(&self) -> u64 {
-        self.invocation.helper.fingerprint()
+    pub const fn normalized_fragment_fingerprint(&self) -> u64 {
+        self.invocation.fragment.fingerprint()
     }
 
     /// Report whether this opaque, once-resolved context is the invocation
-    /// sibling of one exact reusable helper plan. Numeric packed words remain
+    /// sibling of one exact reusable fragment plan. Numeric packed words remain
     /// inaccessible.
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
         self.invocation == *invocation
@@ -938,7 +938,7 @@ impl InstalledCode {
         destination_len: usize,
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
-        let invocation = plan.lower_reusable_helper()?;
+        let invocation = plan.lower_reusable_fragment()?;
         self.validate_post_handoff_entry_writer_invocation(
             plan,
             &invocation,
@@ -994,7 +994,7 @@ impl InstalledCode {
         destination_len: usize,
         destination_site: PlacementSite,
     ) -> Result<ResolvedPostHandoffEntryWriterContext, MaterializationDiagnostic> {
-        let invocation = plan.lower_reusable_helper()?;
+        let invocation = plan.lower_reusable_fragment()?;
         self.validate_post_handoff_entry_writer_invocation(
             plan,
             &invocation,
@@ -1044,7 +1044,7 @@ impl InstalledCode {
         destination: &mut [u8],
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
-        let invocation = plan.lower_reusable_helper()?;
+        let invocation = plan.lower_reusable_fragment()?;
         if context.installed_code != self.identity
             || context.artifact != self.artifact()
             || context.destination_site != destination_site
@@ -1140,7 +1140,7 @@ fn fingerprint_post_handoff_entry_writer_context(
     mix(artifact.normalized_identity());
     mix(destination_site.base_address);
     mix(destination_len as u64);
-    mix(invocation.helper.fingerprint());
+    mix(invocation.fragment.fingerprint());
     mix(invocation.sources.len() as u64);
     for PostHandoffWriterSourceSlot { target, source } in &invocation.sources {
         match target {
@@ -1916,12 +1916,12 @@ mod tests {
         assert_eq!(context.packed_byte_len(), 16);
         assert_eq!(context.context_abi(), POST_HANDOFF_WRITER_CONTEXT_ABI_V1);
         let invocation = checked_writer
-            .lower_reusable_helper()
-            .expect("checked writer has one reusable helper");
+            .lower_reusable_fragment()
+            .expect("checked writer has one reusable fragment");
         assert!(context.binds_invocation(&invocation));
         assert_eq!(
-            context.normalized_helper_fingerprint(),
-            invocation.helper.fingerprint()
+            context.normalized_fragment_fingerprint(),
+            invocation.fragment.fingerprint()
         );
         assert_ne!(context.fingerprint(), 0);
         let context_debug = format!("{context:?}");
@@ -2028,8 +2028,8 @@ mod tests {
         assert!(
             context.binds_invocation(
                 &writer
-                    .lower_reusable_helper()
-                    .expect("target-indexed helper invocation")
+                    .lower_reusable_fragment()
+                    .expect("target-indexed fragment invocation")
             )
         );
         let mut destination = [0; 16];

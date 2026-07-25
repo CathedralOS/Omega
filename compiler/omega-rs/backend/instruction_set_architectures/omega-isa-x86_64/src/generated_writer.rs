@@ -1,13 +1,13 @@
 //! Reusable post-handoff writer lowering for x86-64.
 //!
-//! The input is the target-neutral, address-free helper plan derived from a
+//! The input is the target-neutral, address-free fragment plan derived from a
 //! validated `PostHandoffWriterPlan`. R10 receives the provider-private packed
 //! context pointer; no destination or symbolic address is embedded in code.
 
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
 use omega_layout_plans::{
-    ByteOrder, GeneratedPostHandoffWriterPlan, GeneratedPostHandoffWriterStep,
+    ByteOrder, GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,
     POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET, post_handoff_writer_context_byte_len,
 };
@@ -31,7 +31,7 @@ pub fn generated_post_handoff_writer_additional_machine_state() -> MachineStateS
 
 pub fn generated_post_handoff_writer_width(
     pointer_register: MachineRegister,
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
 ) -> Result<usize, Diagnostic> {
     Ok(encode_generated_post_handoff_writer_bytes(pointer_register, plan)?.len())
 }
@@ -41,7 +41,7 @@ pub fn generated_post_handoff_writer_width(
 /// returned.
 pub fn encode_generated_post_handoff_writer_bytes(
     pointer_register: MachineRegister,
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_generated_post_handoff_writer(plan)?;
 
@@ -103,7 +103,7 @@ pub fn encode_generated_post_handoff_writer_bytes(
 }
 
 fn validate_generated_post_handoff_writer(
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
 ) -> Result<(), Diagnostic> {
     if plan.context_abi() != POST_HANDOFF_WRITER_CONTEXT_ABI_V1 {
         return Err(Diagnostic::error(format!(
@@ -120,7 +120,7 @@ fn validate_generated_post_handoff_writer(
 }
 
 fn validate_common_geometry(
-    plan: &GeneratedPostHandoffWriterPlan,
+    plan: &GeneratedPostHandoffWriterFragmentPlan,
     maximum_context_width: usize,
 ) -> Result<(), Diagnostic> {
     if plan.steps().is_empty() || plan.source_slot_count() == 0 {
@@ -242,7 +242,7 @@ mod tests {
         PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
     };
 
-    fn helper() -> GeneratedPostHandoffWriterPlan {
+    fn fragment() -> GeneratedPostHandoffWriterFragmentPlan {
         let target = RelocationTarget::Entry(
             EntryStubId::from_normalized_identity(7).expect("entry identity"),
         );
@@ -277,20 +277,20 @@ mod tests {
                 },
             ],
         }
-        .lower_reusable_helper()
-        .expect("reusable helper")
-        .helper
+        .lower_reusable_fragment()
+        .expect("reusable fragment")
+        .fragment
     }
 
     #[test]
     fn generated_writer_emits_complete_fragment_program() {
-        let helper = helper();
-        let bytes = encode_generated_post_handoff_writer_bytes(MachineRegister::X86Rdi, &helper)
+        let fragment = fragment();
+        let bytes = encode_generated_post_handoff_writer_bytes(MachineRegister::X86Rdi, &fragment)
             .expect("x86-64 writer");
         assert!(!bytes.is_empty());
         assert_eq!(
             bytes.len(),
-            generated_post_handoff_writer_width(MachineRegister::X86Rdi, &helper)
+            generated_post_handoff_writer_width(MachineRegister::X86Rdi, &fragment)
                 .expect("matching width")
         );
         assert_eq!(post_handoff_writer_context_byte_len(1), Some(16));
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn generated_writer_rejects_non_gpr_context_register() {
         let error =
-            encode_generated_post_handoff_writer_bytes(MachineRegister::Aarch64X(0), &helper())
+            encode_generated_post_handoff_writer_bytes(MachineRegister::Aarch64X(0), &fragment())
                 .expect_err("wrong architecture register");
         assert!(error.message.contains("cannot arrive"));
     }

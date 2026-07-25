@@ -324,18 +324,19 @@ once, validates all writes before mutation, and writes directly into the
 exclusive unpublished destination. A failed fill produces no publication
 claim and the destination remains unpublishable; no full-table staging
 allocation is required. The same normalized program now derives one
-address-free reusable helper shape plus separate invocation evidence. Dense
+address-free reusable fragment shape plus separate invocation evidence. Dense
 private source slots are assigned by first symbolic-target occurrence, so
 repeated fragments resolve once without putting target identity or numeric
-content into helper identity. Exact checked encoders are live on x86-64 and
+content into fragment identity. Exact checked encoders are live on x86-64 and
 AArch64; each revalidates complete fragment/container/context geometry,
 publishes its exact register/state footprint, and fingerprints emitted bytes
-separately from the target-neutral helper plan. Provider preparation now pairs
-those exact bytes and footprint with an opaque once-resolved invocation
-context, rejects target/installed-artifact drift, and checks that both halves
-bind the same normalized helper. Context slots follow symbolic target identity,
-not numeric equality, so distinct admitted entries that select one address
-still retain the helper's exact dense-slot ABI.
+separately from the target-neutral fragment plan. Provider preparation now pairs
+an already-lowered AOT fragment and exact footprint with an opaque once-resolved
+invocation context, rejects target/installed-artifact drift, and checks that
+both halves bind the same normalized fragment. It never generates host code
+after installation. Context slots follow symbolic target identity, not numeric
+equality, so distinct admitted entries that select one address still retain
+the fragment's exact dense-slot ABI.
 The object/image substrate no longer assumes relocation sites are text:
 section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
@@ -353,15 +354,20 @@ resolves each target once, then writes the exclusive unpublished destination
 directly. Failure produces no publication claim; it does not promise
 transactional restoration after writes begin. The compiler does not synthesize
 a table-specific machine carrier or own a table lifecycle. Reusable
-post-handoff helpers now lower from generic writer geometry on both target
+post-handoff fragments now lower from generic writer geometry on both target
 families, with normalized plan identity and emitted-byte identity explicitly
 separate from invocation evidence such as exact placement, resolver, roots,
-and content. A single checked provider-preparation seam binds the helper bytes,
+and content. A single checked provider-preparation seam binds the fragment bytes,
 exact footprint, architecture, installed entry resolver, and opaque packed
 context without returning numeric entry or destination addresses from the
-preparation gate. Carrying that prepared binding through final executable
-artifacts and helper installation remains L6c work. A consumer package may use
-this machinery to build an IDT or another hardware-consumed table, but its
+preparation gate. Generated writer bytes are inline AOT fragments, not
+independently callable runtime helpers: they deliberately carry no return
+sequence, and provider preparation consumes rather than generates them.
+Carrying the immutable fragment, exact footprint, and symbolic invocation plan
+through final artifacts remains L6c work. Connecting that final placed fragment
+to source provider code then depends on P1's runtime sealed-handle
+representation and L4/L5 materialization establishment. A consumer package may
+use this machinery to build an IDT or another hardware-consumed table, but its
 preparation, population, validation, and installation states remain consumer
 code rather than compiler types.
 

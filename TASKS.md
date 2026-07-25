@@ -93,9 +93,11 @@ with different access plans; an unplanned offset or illegal RMW cannot compile.
 
 - Carry symbolic data/entry sources and placement constraints through final
   artifacts.
-- Carry each prepared post-handoff provider binding (reusable helper bytes and
-  exact footprint plus its opaque exact invocation context) through executable
-  artifacts and helper installation.
+- Carry immutable AOT post-handoff fragment bytes, exact footprint, and their
+  symbolic invocation plan through final executable artifacts.
+- Connect the final placed fragment to source-level provider invocation after
+  P1 supplies runtime sealed handles and L4/L5 supplies materialization
+  establishment. Provider preparation must not generate host code.
 - Keep loader-consumed fields within native relocation vocabulary.
 - Bind validation to final bytes and exact placement; compact fingerprints are
   report/cache identities, never authority.

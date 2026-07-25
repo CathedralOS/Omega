@@ -554,8 +554,8 @@ pub enum PostHandoffWriterSource {
 }
 
 /// `PHWRITR1`: target-neutral packed input ABI for a reusable post-handoff
-/// helper. Word zero is the destination address. The remaining words are
-/// dense source slots assigned by the helper plan. Numeric words stay inside
+/// fragment. Word zero is the destination address. The remaining words are
+/// dense source slots assigned by the fragment plan. Numeric words stay inside
 /// provider-owned invocation evidence; source code sees neither this context
 /// nor an address-valued writer operation.
 pub const POST_HANDOFF_WRITER_CONTEXT_ABI_V1: u64 = 0x5048_5752_4954_5231;
@@ -583,13 +583,13 @@ pub struct GeneratedPostHandoffWriterStep {
     pub source_slot: usize,
 }
 
-/// Static normalized plan for one reusable post-handoff helper.
+/// Static normalized plan for one reusable post-handoff fragment.
 ///
 /// Its fingerprint covers only facts that can change emitted code. Exact
 /// relocation targets, resolved content, placement, resolver authority, and
 /// roots belong to `PostHandoffWriterInvocationPlan` instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GeneratedPostHandoffWriterPlan {
+pub struct GeneratedPostHandoffWriterFragmentPlan {
     context_abi: u64,
     byte_len: usize,
     byte_order: ByteOrder,
@@ -598,7 +598,7 @@ pub struct GeneratedPostHandoffWriterPlan {
     fingerprint: u64,
 }
 
-impl GeneratedPostHandoffWriterPlan {
+impl GeneratedPostHandoffWriterFragmentPlan {
     pub const fn context_abi(&self) -> u64 {
         self.context_abi
     }
@@ -635,10 +635,10 @@ pub struct PostHandoffWriterSourceSlot {
 }
 
 /// Invocation-sensitive half of generated writer lowering. This evidence is
-/// intentionally separate from the reusable helper identity.
+/// intentionally separate from the reusable fragment identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PostHandoffWriterInvocationPlan {
-    pub helper: GeneratedPostHandoffWriterPlan,
+    pub fragment: GeneratedPostHandoffWriterFragmentPlan,
     pub placement: PlacementConstraints,
     pub sources: Vec<PostHandoffWriterSourceSlot>,
 }
@@ -661,16 +661,16 @@ pub struct PostHandoffWriterPlan {
 }
 
 impl PostHandoffWriterPlan {
-    /// Derive one reusable address-free helper plus exact invocation evidence.
+    /// Derive one reusable address-free fragment plus exact invocation evidence.
     /// Source slots follow first target occurrence and are dense. Repeated
     /// fragments of one symbolic target therefore consume one once-resolved
     /// word even when the concrete address or artifact realization changes.
-    pub fn lower_reusable_helper(
+    pub fn lower_reusable_fragment(
         &self,
     ) -> Result<PostHandoffWriterInvocationPlan, MaterializationDiagnostic> {
         if self.steps.is_empty() {
             return Err(MaterializationDiagnostic(
-                "post-handoff writer helper requires at least one fragment".into(),
+                "post-handoff writer requires at least one fragment".into(),
             ));
         }
 
@@ -716,7 +716,7 @@ impl PostHandoffWriterPlan {
             });
         }
 
-        let helper = GeneratedPostHandoffWriterPlan {
+        let fragment = GeneratedPostHandoffWriterFragmentPlan {
             context_abi: POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
             byte_len: self.byte_len,
             byte_order: self.byte_order,
@@ -730,7 +730,7 @@ impl PostHandoffWriterPlan {
             steps,
         };
         Ok(PostHandoffWriterInvocationPlan {
-            helper,
+            fragment,
             placement: self.placement,
             sources,
         })
@@ -1864,7 +1864,7 @@ mod tests {
     }
 
     #[test]
-    fn reusable_writer_helper_separates_static_geometry_from_invocation_evidence() {
+    fn reusable_writer_fragment_separates_static_geometry_from_invocation_evidence() {
         let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
         let plan = derive_symbolic_materialization(
             &split_layout(),
@@ -1882,14 +1882,14 @@ mod tests {
             .derive_post_handoff_writer()
             .expect("post-handoff writer");
         let lowering = writer
-            .lower_reusable_helper()
-            .expect("address-free reusable helper");
+            .lower_reusable_fragment()
+            .expect("address-free reusable fragment");
 
         assert_eq!(
-            lowering.helper.context_abi(),
+            lowering.fragment.context_abi(),
             POST_HANDOFF_WRITER_CONTEXT_ABI_V1
         );
-        assert_eq!(lowering.helper.source_slot_count(), 1);
+        assert_eq!(lowering.fragment.source_slot_count(), 1);
         assert_eq!(lowering.sources.len(), 1);
         assert_eq!(lowering.sources[0].target, entry());
         assert_eq!(
@@ -1898,7 +1898,7 @@ mod tests {
         );
         assert!(
             lowering
-                .helper
+                .fragment
                 .steps()
                 .iter()
                 .all(|step| step.source_slot == 0),
@@ -1918,21 +1918,21 @@ mod tests {
             PlacementConstraints::new(None, 16, PlacementPhase::PostHandoff, None, None)
                 .expect("stronger invocation placement");
         let rebound = rebound
-            .lower_reusable_helper()
+            .lower_reusable_fragment()
             .expect("same reusable geometry");
 
         assert_eq!(
-            rebound.helper.fingerprint(),
-            lowering.helper.fingerprint(),
+            rebound.fragment.fingerprint(),
+            lowering.fragment.fingerprint(),
             "target identity and concrete placement are invocation evidence"
         );
-        assert_eq!(rebound.helper, lowering.helper);
+        assert_eq!(rebound.fragment, lowering.fragment);
         assert_ne!(rebound.sources, lowering.sources);
         assert_ne!(rebound.placement, lowering.placement);
     }
 
     #[test]
-    fn reusable_writer_helper_rejects_inconsistent_values_for_one_target() {
+    fn reusable_writer_fragment_rejects_inconsistent_values_for_one_target() {
         let write = MaterializationWrite {
             field: "address".into(),
             target: entry(),
@@ -1963,7 +1963,7 @@ mod tests {
         };
 
         let error = writer
-            .lower_reusable_helper()
+            .lower_reusable_fragment()
             .expect_err("one symbolic source cannot change between fragments");
         assert!(error.0.contains("inconsistent invocation values"));
         let error = writer

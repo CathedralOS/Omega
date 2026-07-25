@@ -1,4 +1,4 @@
-//! Target lowering for reusable post-handoff writer helpers.
+//! Target lowering for reusable post-handoff writer fragments.
 //!
 //! This seam consumes only normalized layout-writer geometry. Consumer
 //! semantics, symbolic identities, exact placement, resolver authority, and
@@ -11,24 +11,60 @@ use omega_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan}
 use omega_target::{Architecture, NativeTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoweredPostHandoffWriterHelper {
-    pub target: NativeTarget,
-    pub pointer_register: MachineRegister,
-    pub normalized_plan_fingerprint: u64,
-    pub emitted_bytes_fingerprint: u64,
-    pub bytes: Vec<u8>,
-    pub footprint: StateFootprintEvidence,
+pub struct LoweredPostHandoffWriterFragment {
+    target: NativeTarget,
+    pointer_register: MachineRegister,
+    normalized_plan_fingerprint: u64,
+    emitted_bytes_fingerprint: u64,
+    bytes: Vec<u8>,
+    footprint: StateFootprintEvidence,
+}
+
+impl LoweredPostHandoffWriterFragment {
+    pub const fn target(&self) -> NativeTarget {
+        self.target
+    }
+
+    pub const fn pointer_register(&self) -> MachineRegister {
+        self.pointer_register
+    }
+
+    pub const fn normalized_plan_fingerprint(&self) -> u64 {
+        self.normalized_plan_fingerprint
+    }
+
+    pub const fn emitted_bytes_fingerprint(&self) -> u64 {
+        self.emitted_bytes_fingerprint
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn footprint(&self) -> &StateFootprintEvidence {
+        &self.footprint
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPostHandoffWriter {
-    pub helper: LoweredPostHandoffWriterHelper,
-    pub invocation: PostHandoffWriterInvocationPlan,
+    fragment: LoweredPostHandoffWriterFragment,
+    invocation: PostHandoffWriterInvocationPlan,
 }
 
-/// One exact provider invocation paired with the reusable helper bytes that
+impl LoweredPostHandoffWriter {
+    pub const fn fragment(&self) -> &LoweredPostHandoffWriterFragment {
+        &self.fragment
+    }
+
+    pub const fn invocation(&self) -> &PostHandoffWriterInvocationPlan {
+        &self.invocation
+    }
+}
+
+/// One exact provider invocation paired with the reusable fragment bytes that
 /// consume it. The installed-code resolver owns the sealed packed words;
-/// helper code, target identity, and exact footprint remain inspectable final
+/// fragment code, target identity, and exact footprint remain inspectable final
 /// artifact inputs without returning destination or entry addresses.
 #[derive(Debug, PartialEq, Eq)]
 pub struct PreparedPostHandoffEntryWriterInvocation {
@@ -47,23 +83,23 @@ impl PreparedPostHandoffEntryWriterInvocation {
 }
 
 /// Lower one validated post-handoff writer into architecture-specific code.
-/// The reusable helper identity and emitted bytes exclude invocation evidence;
+/// The reusable fragment identity and emitted bytes exclude invocation evidence;
 /// the returned sibling retains exact targets and placement for provider
 /// preparation.
-pub fn lower_post_handoff_writer_helper(
+pub fn lower_post_handoff_writer_fragment(
     target: NativeTarget,
     pointer_register: MachineRegister,
     writer: &PostHandoffWriterPlan,
 ) -> Result<LoweredPostHandoffWriter, Diagnostic> {
     let invocation = writer
-        .lower_reusable_helper()
+        .lower_reusable_fragment()
         .map_err(|error| Diagnostic::error(error.0))?;
-    let normalized_plan_fingerprint = invocation.helper.fingerprint();
+    let normalized_plan_fingerprint = invocation.fragment.fingerprint();
     let (bytes, footprint) = match target.architecture {
         Architecture::X86_64 => (
             omega_isa_x86_64::encode_generated_post_handoff_writer_bytes(
                 pointer_register,
-                &invocation.helper,
+                &invocation.fragment,
             )?,
             StateFootprintEvidence::new(
                 omega_isa_x86_64::generated_post_handoff_writer_clobbers(),
@@ -73,7 +109,7 @@ pub fn lower_post_handoff_writer_helper(
         Architecture::Aarch64 => (
             omega_isa_aarch64::encode_generated_post_handoff_writer_bytes(
                 pointer_register,
-                &invocation.helper,
+                &invocation.fragment,
             )?,
             StateFootprintEvidence::new(
                 omega_isa_aarch64::generated_post_handoff_writer_clobbers(),
@@ -84,7 +120,7 @@ pub fn lower_post_handoff_writer_helper(
     let emitted_bytes_fingerprint =
         emitted_writer_fingerprint(target.architecture, normalized_plan_fingerprint, &bytes);
     Ok(LoweredPostHandoffWriter {
-        helper: LoweredPostHandoffWriterHelper {
+        fragment: LoweredPostHandoffWriterFragment {
             target,
             pointer_register,
             normalized_plan_fingerprint,
@@ -96,31 +132,30 @@ pub fn lower_post_handoff_writer_helper(
     })
 }
 
-/// Lower and populate one writer as a single checked provider preparation
-/// step. This rejects target/installed-artifact drift and proves that the
-/// opaque packed context is the invocation sibling of the exact normalized
-/// helper whose bytes and footprint will enter the final artifact.
-pub fn prepare_post_handoff_entry_writer_invocation(
-    target: NativeTarget,
-    pointer_register: MachineRegister,
+/// Bind one already-lowered AOT writer fragment to its provider-populated
+/// invocation context. Provider preparation never generates host code. This
+/// rejects target/installed-artifact drift and proves that the opaque packed
+/// context is the invocation sibling of the exact normalized fragment whose
+/// bytes and footprint entered the final artifact.
+pub fn bind_post_handoff_entry_writer_invocation(
+    lowered: LoweredPostHandoffWriter,
     installed: &InstalledCode,
     writer: &PostHandoffWriterPlan,
     destination_len: usize,
     destination_site: omega_layout_plans::PlacementSite,
 ) -> Result<PreparedPostHandoffEntryWriterInvocation, Diagnostic> {
-    if installed.architecture() != target.architecture {
+    if installed.architecture() != lowered.fragment.target.architecture {
         return Err(Diagnostic::error(format!(
             "post-handoff writer target architecture {:?} does not match installed artifact architecture {:?}",
-            target.architecture,
+            lowered.fragment.target.architecture,
             installed.architecture()
         )));
     }
-    let lowered = lower_post_handoff_writer_helper(target, pointer_register, writer)?;
     let context = installed
         .populate_post_handoff_entry_writer_context(writer, destination_len, destination_site)
         .map_err(|error| Diagnostic::error(error.0))?;
     if !context.binds_invocation(&lowered.invocation)
-        || context.normalized_helper_fingerprint() != lowered.helper.normalized_plan_fingerprint
+        || context.normalized_fragment_fingerprint() != lowered.fragment.normalized_plan_fingerprint
     {
         return Err(Diagnostic::error(
             "provider context does not bind the exact lowered post-handoff writer invocation",
@@ -195,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn one_generic_helper_shape_lowers_entry_and_data_sources_on_both_targets() {
+    fn one_generic_fragment_shape_lowers_entry_and_data_sources_on_both_targets() {
         let entry =
             RelocationTarget::Entry(EntryStubId::from_normalized_identity(7).expect("entry"));
         let data = RelocationTarget::Data(DataSymbolId::from_normalized_identity(9).expect("data"));
@@ -204,56 +239,57 @@ mod tests {
             (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
             (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
         ] {
-            let entry_lowered = lower_post_handoff_writer_helper(target, pointer, &writer(entry))
-                .expect("entry helper");
-            let data_lowered = lower_post_handoff_writer_helper(target, pointer, &writer(data))
-                .expect("data helper");
+            let entry_lowered = lower_post_handoff_writer_fragment(target, pointer, &writer(entry))
+                .expect("entry fragment");
+            let data_lowered = lower_post_handoff_writer_fragment(target, pointer, &writer(data))
+                .expect("data fragment");
 
-            assert!(!entry_lowered.helper.bytes.is_empty());
+            assert!(!entry_lowered.fragment().bytes().is_empty());
             assert_eq!(
-                entry_lowered.helper.bytes, data_lowered.helper.bytes,
+                entry_lowered.fragment().bytes(),
+                data_lowered.fragment().bytes(),
                 "source kind and identity are invocation evidence, not emitted geometry"
             );
             assert_eq!(
-                entry_lowered.helper.normalized_plan_fingerprint,
-                data_lowered.helper.normalized_plan_fingerprint
+                entry_lowered.fragment().normalized_plan_fingerprint(),
+                data_lowered.fragment().normalized_plan_fingerprint()
             );
             assert_eq!(
-                entry_lowered.helper.emitted_bytes_fingerprint,
-                data_lowered.helper.emitted_bytes_fingerprint
+                entry_lowered.fragment().emitted_bytes_fingerprint(),
+                data_lowered.fragment().emitted_bytes_fingerprint()
             );
             assert_ne!(
-                entry_lowered.invocation.sources,
-                data_lowered.invocation.sources
+                entry_lowered.invocation().sources,
+                data_lowered.invocation().sources
             );
         }
     }
 
     #[test]
-    fn architecture_specific_bytes_retain_one_normalized_helper_identity() {
+    fn architecture_specific_bytes_retain_one_normalized_fragment_identity() {
         let target =
             RelocationTarget::Entry(EntryStubId::from_normalized_identity(7).expect("entry"));
-        let x86 = lower_post_handoff_writer_helper(
+        let x86 = lower_post_handoff_writer_fragment(
             NativeTarget::linux_x64(),
             MachineRegister::X86Rdi,
             &writer(target),
         )
-        .expect("x86 helper");
-        let arm = lower_post_handoff_writer_helper(
+        .expect("x86 fragment");
+        let arm = lower_post_handoff_writer_fragment(
             NativeTarget::linux_arm64(),
             MachineRegister::Aarch64X(0),
             &writer(target),
         )
-        .expect("AArch64 helper");
+        .expect("AArch64 fragment");
 
         assert_eq!(
-            x86.helper.normalized_plan_fingerprint,
-            arm.helper.normalized_plan_fingerprint
+            x86.fragment().normalized_plan_fingerprint(),
+            arm.fragment().normalized_plan_fingerprint()
         );
-        assert_ne!(x86.helper.bytes, arm.helper.bytes);
+        assert_ne!(x86.fragment().bytes(), arm.fragment().bytes());
         assert_ne!(
-            x86.helper.emitted_bytes_fingerprint,
-            arm.helper.emitted_bytes_fingerprint
+            x86.fragment().emitted_bytes_fingerprint(),
+            arm.fragment().emitted_bytes_fingerprint()
         );
     }
 }
