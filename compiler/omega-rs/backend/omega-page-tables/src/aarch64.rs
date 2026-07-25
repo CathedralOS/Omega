@@ -4,6 +4,10 @@ use omega_extents::{
     AddressSpaceId, ExtentRightId, ExtentRights, PageTableConstructionEvidence,
     PageTableConstructionReceipt, PageTableConstructionReceiptId, PageTableDraft, PageTablePlanId,
 };
+use omega_layout_plans::{
+    ByteOrder, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
+    materialize_scalar_layout_into, normalized_layout_plan_fingerprint,
+};
 
 use crate::PageTableMaterializationDiagnostic;
 
@@ -232,6 +236,7 @@ pub struct Aarch64PageTablePolicy {
     max_table_pages: usize,
     max_leaf_entries: usize,
     rights: Aarch64PageRights,
+    descriptor_layout: LayoutPlanReport,
 }
 
 impl Aarch64PageTablePolicy {
@@ -243,6 +248,29 @@ impl Aarch64PageTablePolicy {
         max_table_pages: usize,
         max_leaf_entries: usize,
         rights: Aarch64PageRights,
+    ) -> Result<Self, PageTableMaterializationDiagnostic> {
+        Self::from_validated_layout(
+            physical_space,
+            virtual_space,
+            translation_base,
+            physical_address_bits,
+            max_table_pages,
+            max_leaf_entries,
+            rights,
+            canonical_aarch64_4k_descriptor_layout(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_validated_layout(
+        physical_space: AddressSpaceId,
+        virtual_space: AddressSpaceId,
+        translation_base: Aarch64TranslationBase,
+        physical_address_bits: u8,
+        max_table_pages: usize,
+        max_leaf_entries: usize,
+        rights: Aarch64PageRights,
+        descriptor_layout: LayoutPlanReport,
     ) -> Result<Self, PageTableMaterializationDiagnostic> {
         if physical_space == virtual_space {
             return Err(PageTableMaterializationDiagnostic(
@@ -259,6 +287,7 @@ impl Aarch64PageTablePolicy {
                 "AArch64 page-table bounds must be nonzero".into(),
             ));
         }
+        require_exact_descriptor_layout(&descriptor_layout)?;
         Ok(Self {
             physical_space,
             virtual_space,
@@ -267,7 +296,18 @@ impl Aarch64PageTablePolicy {
             max_table_pages,
             max_leaf_entries,
             rights,
+            descriptor_layout,
         })
+    }
+
+    pub const fn descriptor_layout(&self) -> &LayoutPlanReport {
+        &self.descriptor_layout
+    }
+
+    /// Report/cache identity only. Exact normalized layout comparison, not this
+    /// compact fingerprint, controls admission.
+    pub fn descriptor_layout_identity(&self) -> u64 {
+        normalized_layout_plan_fingerprint(&self.descriptor_layout)
     }
 }
 
@@ -390,6 +430,7 @@ pub fn materialize_aarch64_4k_page_table(
                 storage_page_count,
                 policy.max_table_pages,
                 address_mask,
+                &policy.descriptor_layout,
             )?;
         }
         let leaf_index = indices[3];
@@ -399,7 +440,11 @@ pub fn materialize_aarch64_4k_page_table(
                 leaf.virtual_address
             )));
         }
-        tables[table][leaf_index] = (leaf.physical_address & address_mask) | leaf.flags;
+        tables[table][leaf_index] = materialize_page_descriptor(
+            &policy.descriptor_layout,
+            leaf.physical_address,
+            leaf.flags,
+        )?;
     }
 
     let mut bytes = vec![0u8; storage_length];
@@ -543,6 +588,7 @@ fn ensure_child_table(
     storage_page_count: usize,
     max_table_pages: usize,
     address_mask: u64,
+    layout: &LayoutPlanReport,
 ) -> Result<usize, PageTableMaterializationDiagnostic> {
     if let Some(child) = children.get(&(parent, slot)).copied() {
         return Ok(child);
@@ -565,8 +611,129 @@ fn ensure_child_table(
     }
     tables.push([0; AARCH64_ENTRIES_PER_TABLE]);
     children.insert((parent, slot), child);
-    tables[parent][slot] = child_address | VALID_PAGE_OR_TABLE;
+    tables[parent][slot] = materialize_page_descriptor(layout, child_address, VALID_PAGE_OR_TABLE)?;
     Ok(child)
+}
+
+/// Canonical AArch64 stage-1 descriptor geometry for the v1 4 KiB granule.
+///
+/// An Omega-authored target policy may produce these named fields in another
+/// declaration order, but its exact normalized geometry must equal this
+/// hardware contract. LPA2 and block descriptors require distinct policies.
+pub fn canonical_aarch64_4k_descriptor_layout() -> LayoutPlanReport {
+    LayoutPlanReport {
+        entries: vec![
+            bit_field("valid", 0),
+            bit_field("table_or_page", 1),
+            bits_field("attribute_index", 2, 3),
+            bits_field("access_permission", 6, 2),
+            bits_field("shareability", 8, 2),
+            bit_field("access_flag", 10),
+            bit_field("not_global", 11),
+            bits_field("output_address", 12, 36),
+            bit_field("privileged_execute_never", 53),
+            bit_field("unprivileged_execute_never", 54),
+        ],
+        offsets: None,
+        size: Some(8),
+        align: 8,
+    }
+}
+
+fn bit_field(field: &str, destination_lsb: i64) -> LayoutFieldEntryReport {
+    bits_field(field, destination_lsb, 1)
+}
+
+fn bits_field(field: &str, destination_lsb: i64, width: i64) -> LayoutFieldEntryReport {
+    LayoutFieldEntryReport {
+        field: field.into(),
+        placement: LayoutPlacementReport::Bits {
+            container: 0,
+            container_width: 64,
+            destination_lsb,
+            source_lsb: 0,
+            width,
+        },
+    }
+}
+
+fn require_exact_descriptor_layout(
+    layout: &LayoutPlanReport,
+) -> Result<(), PageTableMaterializationDiagnostic> {
+    if normalized_layout(layout) != normalized_layout(&canonical_aarch64_4k_descriptor_layout()) {
+        return Err(PageTableMaterializationDiagnostic(
+            "layout does not exactly match AArch64 v1 4 KiB page-descriptor geometry".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn normalized_layout(
+    layout: &LayoutPlanReport,
+) -> (Option<i64>, i64, Vec<(String, LayoutPlacementReport)>) {
+    let mut entries = layout
+        .entries
+        .iter()
+        .map(|entry| (entry.field.clone(), entry.placement))
+        .collect::<Vec<_>>();
+    entries.sort_unstable_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then_with(|| placement_key(left.1).cmp(&placement_key(right.1)))
+    });
+    (layout.size, layout.align, entries)
+}
+
+fn placement_key(placement: LayoutPlacementReport) -> (u8, i64, i64, i64, i64, i64) {
+    match placement {
+        LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
+        LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } => (
+            1,
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        ),
+    }
+}
+
+fn materialize_page_descriptor(
+    layout: &LayoutPlanReport,
+    physical_address: u64,
+    flags: u64,
+) -> Result<u64, PageTableMaterializationDiagnostic> {
+    let fields = [
+        scalar("valid", 1, u64::from(flags & 1 != 0))?,
+        scalar("table_or_page", 1, (flags >> 1) & 1)?,
+        scalar("attribute_index", 3, (flags >> 2) & 0b111)?,
+        scalar("access_permission", 2, (flags >> 6) & 0b11)?,
+        scalar("shareability", 2, (flags >> 8) & 0b11)?,
+        scalar("access_flag", 1, (flags >> 10) & 1)?,
+        scalar("not_global", 1, (flags >> 11) & 1)?,
+        scalar("output_address", 36, physical_address >> 12)?,
+        scalar("privileged_execute_never", 1, (flags >> 53) & 1)?,
+        scalar("unprivileged_execute_never", 1, (flags >> 54) & 1)?,
+    ];
+    let mut bytes = [0_u8; size_of::<u64>()];
+    materialize_scalar_layout_into(layout, &fields, ByteOrder::LittleEndian, &mut bytes)
+        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))?;
+    Ok(u64::from_le_bytes(bytes))
+}
+
+fn scalar(
+    field: &str,
+    width_bits: u16,
+    value: u64,
+) -> Result<ScalarFieldValue, PageTableMaterializationDiagnostic> {
+    ScalarFieldValue::new(field, width_bits, value)
+        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))
 }
 
 fn contains(rights: &ExtentRights, identity: ExtentRightId) -> bool {
@@ -646,8 +813,8 @@ mod tests {
             }
         }
 
-        fn policy(&self, base: Aarch64TranslationBase) -> Aarch64PageTablePolicy {
-            let page_rights = Aarch64PageRights::new(
+        fn page_rights(&self) -> Aarch64PageRights {
+            Aarch64PageRights::new(
                 self.readable,
                 self.writable,
                 self.executable,
@@ -661,7 +828,10 @@ mod tests {
                 ],
                 ExtentRights::default(),
             )
-            .expect("page rights");
+            .expect("page rights")
+        }
+
+        fn policy(&self, base: Aarch64TranslationBase) -> Aarch64PageTablePolicy {
             Aarch64PageTablePolicy::new(
                 self.physical,
                 self.virtual_,
@@ -669,7 +839,7 @@ mod tests {
                 48,
                 16,
                 1024,
-                page_rights,
+                self.page_rights(),
             )
             .expect("page-table policy")
         }
@@ -911,5 +1081,50 @@ mod tests {
             PageTableConstructionEvidence::Generated
         );
         assert_eq!(installable.bytes().len(), 4 * AARCH64_PAGE_BYTES as usize);
+    }
+
+    #[test]
+    fn normalized_descriptor_layout_accepts_reordering_and_rejects_shifted_hardware_bits() {
+        let fixture = Fixture::new();
+        let mut reordered = canonical_aarch64_4k_descriptor_layout();
+        reordered.entries.reverse();
+        let policy = Aarch64PageTablePolicy::from_validated_layout(
+            fixture.physical,
+            fixture.virtual_,
+            Aarch64TranslationBase::Lower,
+            48,
+            16,
+            1024,
+            fixture.page_rights(),
+            reordered,
+        )
+        .expect("authored order is normalized away");
+        assert_ne!(policy.descriptor_layout_identity(), 0);
+
+        let mut shifted = canonical_aarch64_4k_descriptor_layout();
+        shifted
+            .entries
+            .iter_mut()
+            .find(|entry| entry.field == "access_flag")
+            .expect("access-flag field")
+            .placement = LayoutPlacementReport::Bits {
+            container: 0,
+            container_width: 64,
+            destination_lsb: 9,
+            source_lsb: 0,
+            width: 1,
+        };
+        let error = Aarch64PageTablePolicy::from_validated_layout(
+            fixture.physical,
+            fixture.virtual_,
+            Aarch64TranslationBase::Lower,
+            48,
+            16,
+            1024,
+            fixture.page_rights(),
+            shifted,
+        )
+        .expect_err("shifted hardware bit must reject");
+        assert!(error.0.contains("exactly match"));
     }
 }
