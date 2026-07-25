@@ -21,6 +21,24 @@ pub(in crate::aarch64) fn encode_add_x_immediate(
     ))
 }
 
+pub(in crate::aarch64) fn encode_sub_x_immediate(
+    destination_register: u8,
+    source_register: u8,
+    value: usize,
+) -> Result<[u8; 4], Diagnostic> {
+    if value > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot subtract immediate `{value}` yet"
+        )));
+    }
+    Ok(encode_instruction(
+        0xD1000000
+            | ((value as u32) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    ))
+}
+
 pub(in crate::aarch64) fn append_add_x_constant(
     bytes: &mut Vec<u8>,
     destination_register: u8,

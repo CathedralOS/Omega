@@ -281,7 +281,7 @@ impl Eq for MappedExtent<'_> {}
 /// Linear pending state after structural mapping validation but before any
 /// translated access is exposed.
 ///
-/// The provider may now edit page tables, issue required ordering operations,
+/// The provider may now establish target translations and ordering operations,
 /// and establish target-specific activation facts. Only an exact receipt can
 /// turn this state into `MappedExtent`; a structurally valid mapping candidate
 /// is never itself evidence that hardware translations exist.
@@ -302,10 +302,6 @@ impl<'source> PendingMap<'source> {
 
     pub fn receipt_context(&self) -> MappingReceiptContext {
         MappingReceiptContext(self.mapping.evidence.clone())
-    }
-
-    pub(crate) const fn mapped_extent(&self) -> &Extent {
-        &self.mapping.mapped
     }
 
     /// Provider-side source address data for deriving target translation

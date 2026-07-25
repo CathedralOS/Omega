@@ -1814,6 +1814,84 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     Ok(bytes)
 }
 
+/// Linux `clock_gettime(clock_id, &timespec)` composite lowering. The Omega
+/// operation returns nanoseconds, while the kernel writes two signed 64-bit
+/// fields into caller storage and returns a status in RAX. This sequence owns
+/// a 16-byte temporary, traps on a non-zero status (the clock id and pointer
+/// are compiler-controlled), combines the fields, and stores the semantic
+/// result. No `timespec` representation escapes into Omega's ABI.
+pub fn encode_linux_timespec_syscall<T: InstructionOperandLike>(
+    operands: &[T],
+    syscall_number: u32,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
+    number_register: MachineRegister,
+    supervisor_call: u16,
+) -> Result<(Vec<u8>, X86_64RelocationSite), Diagnostic> {
+    let [result, clock_id] = operands else {
+        return Err(Diagnostic::error(
+            "X86_64 Linux timespec lowering requires [result place, clock id]",
+        ));
+    };
+    let Some((_, result_offset, result_width)) = result.runtime_scalar_integer() else {
+        return Err(Diagnostic::error(
+            "X86_64 Linux timespec result did not lower to runtime scalar storage",
+        ));
+    };
+    if result_width != 8 {
+        return Err(Diagnostic::error(
+            "X86_64 Linux timespec result must be an eight-byte nanosecond value",
+        ));
+    }
+    let Some(clock_id) = clock_id.immediate_integer() else {
+        return Err(Diagnostic::error(
+            "X86_64 Linux timespec clock id must be a plan-injected immediate",
+        ));
+    };
+    if argument_registers != [MachineRegister::X86Rdi, MachineRegister::X86Rsi]
+        || result_register != MachineRegister::X86Rax
+        || number_register != MachineRegister::X86Rax
+        || supervisor_call != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "X86_64 Linux timespec encoder cannot realize parameters={argument_registers:?}, \
+             result={result_register:?}, number={number_register:?}, immediate={supervisor_call}"
+        )));
+    }
+
+    let mut bytes = Vec::with_capacity(80);
+    bytes.extend([0x48, 0x83, 0xec, 0x10]); // sub rsp, 16
+    bytes.extend([0x48, 0xbf]); // mov rdi, imm64
+    bytes.extend((clock_id as u64).to_le_bytes());
+    bytes.extend([0x48, 0x8d, 0x34, 0x24]); // lea rsi, [rsp]
+    bytes.extend([0x48, 0xb8]); // mov rax, syscall_number
+    bytes.extend(u64::from(syscall_number).to_le_bytes());
+    bytes.extend([0x0f, 0x05]); // syscall
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    bytes.extend([0x74, 0x02]); // jz success
+    bytes.extend([0x0f, 0x0b]); // ud2: fixed-input syscall failure
+    bytes.extend([0x48, 0x8b, 0x04, 0x24]); // mov rax, [rsp]
+    bytes.extend([0x48, 0x69, 0xc0]); // imul rax, rax, 1_000_000_000
+    bytes.extend(1_000_000_000_i32.to_le_bytes());
+    bytes.extend([0x48, 0x03, 0x44, 0x24, 0x08]); // add rax, [rsp+8]
+    bytes.extend([0x48, 0x83, 0xc4, 0x10]); // add rsp, 16
+
+    let result_relocation_byte_offset = bytes.len() + 2;
+    append_mov_r11_imm64(&mut bytes, 0); // relocated result-region base
+    bytes.extend([0x49, 0x89, 0x83]); // mov [r11 + disp32], rax
+    bytes.extend(disp32(result_offset)?.to_le_bytes());
+
+    Ok((
+        bytes,
+        X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: result_relocation_byte_offset,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        },
+    ))
+}
+
 fn append_load_r11_qword_from_r11(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
@@ -1929,6 +2007,44 @@ mod syscall_plan_register_tests {
         assert_eq!(&bytes[10..13], &[0x49, 0x8b, 0x83]);
         assert_eq!(&bytes[17..20], &[0x48, 0x89, 0xc7]);
         assert!(!bytes.windows(2).any(|window| window == [0x49, 0xbf]));
+    }
+
+    #[test]
+    fn linux_timespec_syscall_owns_the_composite_temporary_and_result_site() {
+        let operands = [
+            TargetInstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 24,
+                    byte_count: 8,
+                },
+            },
+            TargetInstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(1),
+            },
+        ];
+        let (bytes, site) = encode_linux_timespec_syscall(
+            &operands,
+            228,
+            &[MachineRegister::X86Rdi, MachineRegister::X86Rsi],
+            MachineRegister::X86Rax,
+            MachineRegister::X86Rax,
+            0,
+        )
+        .expect("clock_gettime composite lowering");
+
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 0x10]);
+        assert!(bytes.windows(2).any(|window| window == [0x0f, 0x05]));
+        assert!(bytes.windows(2).any(|window| window == [0x0f, 0x0b]));
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| { window == 1_000_000_000_i32.to_le_bytes().as_slice() })
+        );
+        assert_eq!(site.operand_index, Some(0));
+        assert_eq!(site.kind, X86_64RelocationSiteKind::Absolute64);
+        assert_eq!(&bytes[site.byte_offset..site.byte_offset + 8], &[0; 8]);
+        assert_eq!(&bytes[bytes.len() - 4..], &24i32.to_le_bytes());
     }
 }
 
@@ -6221,7 +6337,7 @@ const CONSTANT_RESULT_WIDTH: usize = 27;
 /// call at all — materialize the immediate in RAX and run the standard
 /// result store tail. operands[0] = the result place, operands[1] = the
 /// constant as an immediate operand.
-fn encode_constant_result<T: InstructionOperandLike>(
+pub fn encode_constant_result<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     let Some((_, byte_offset, byte_count)) = operands

@@ -12,7 +12,20 @@ pub(super) fn encode_host_operation(
     operands: &[InstructionOperand],
 ) -> Result<Vec<u8>, Diagnostic> {
     let binding = host_binding(input, operation_key);
+    if binding.is_none() && operation_key.lowers_to_constant_result() {
+        return architecture::encode_constant_host_result(input.target.architecture, operands);
+    }
     match binding.map(|binding| &binding.mechanism) {
+        Some(HostBindingMechanism::Syscall { number, .. })
+            if operation_key.uses_linux_timespec_result() =>
+        {
+            architecture::encode_linux_timespec_syscall_with_plan(
+                input.target.architecture,
+                operands,
+                *number,
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+            )
+        }
         Some(HostBindingMechanism::Syscall { number, .. }) => {
             architecture::encode_syscall_sequence_with_plan(
                 input.target.architecture,

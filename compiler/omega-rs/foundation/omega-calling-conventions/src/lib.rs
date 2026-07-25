@@ -5,6 +5,7 @@ mod windows;
 pub use darwin::{
     DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,
 };
+pub use linux::linux_clock_gettime_syscall_number;
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanDiagnostic, BoundaryPlanResult, CallPlan, CallSignature,
     CallingPolicy, CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation,
@@ -84,16 +85,11 @@ impl HostOperationKey {
         )
     }
 
-    /// Whether this op lowers to a PER-TARGET CONSTANT result on the AARCH64
-    /// targets (no call at all: `PlatformCallData::ConstantResult` rows).
-    /// The aarch64 routing and width/relocation planners key their bespoke
-    /// no-call layout on this; x86_64 keys per-op in its own match (where
-    /// `monotonic_ticks_per_second` IS a call -- windows QPF). ⚠️ CAVEAT:
-    /// this is target-truth ONLY because aarch64 == darwin today (POSIX
-    /// frequency is the constant 10^9; linux_arm64 Clock rows are absent by
-    /// design). If linux_arm64 ever binds a CALL-shaped frequency, the
-    /// routing must become PlatformCallData-driven instead of keyed here
-    /// (noted in TASKS.md).
+    /// Whether this semantic operation may be supplied by a per-target
+    /// constant-result row. Emission treats it as a no-call operation only
+    /// when the selected target has no external binding for the key: Windows
+    /// therefore keeps QPF as a call, while Linux/Darwin use 10^9. The
+    /// lowering row remains the source of the concrete constant.
     pub fn lowers_to_constant_result(self) -> bool {
         matches!(
             (self.capability, self.operation),
@@ -148,6 +144,19 @@ impl HostOperationKey {
                 HostOperation::MonotonicTicks
                     | HostOperation::MonotonicTicksPerSecond
                     | HostOperation::WallClockRaw
+            )
+    }
+
+    /// Whether a Linux syscall binding returns a semantic nanosecond clock
+    /// value through a caller-owned `timespec` rather than directly in the
+    /// syscall result register. The composite lowering owns the temporary,
+    /// traps on the impossible fixed-input syscall failure, and combines
+    /// `tv_sec * 1_000_000_000 + tv_nsec` before storing the Omega result.
+    pub fn uses_linux_timespec_result(self) -> bool {
+        matches!(self.capability, HostCapability::Clock)
+            && matches!(
+                self.operation,
+                HostOperation::MonotonicTicks | HostOperation::WallClockRaw
             )
     }
 
@@ -1001,6 +1010,14 @@ pub enum PlatformCallData {
     ConstantArgument {
         value: i64,
     },
+    /// Linux `clock_gettime(clock_id, &timespec)`: selection carries the
+    /// semantic result place plus this injected clock id; target emission
+    /// owns the 16-byte temporary and combines its two signed 64-bit fields
+    /// into the nanosecond result. This is deliberately distinct from
+    /// `ConstantArgument`, whose callee returns the semantic value directly.
+    TimespecResult {
+        clock_id: i64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1394,8 +1411,8 @@ pub fn host_operation_fixed_leading_immediate(
 mod binding_plan_tests {
     use super::{
         CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow,
-        HostBindingMechanism, ValueShape, build_host_abi_plan,
-        evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
+        HostBindingMechanism, HostCapability, HostOperation, PlatformCallData, ValueShape,
+        build_host_abi_plan, evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
     };
     use omega_target::NativeTarget;
 
@@ -1435,6 +1452,70 @@ mod binding_plan_tests {
             .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
             .expect("Linux syscall plan");
         assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
+    }
+
+    #[test]
+    fn linux_clock_rows_bind_exact_timespec_syscalls_and_constants() {
+        for (target, expected_number, expected_policy) in [
+            (
+                NativeTarget::linux_x64(),
+                228,
+                CallingPolicy::LinuxSyscallX86_64,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                113,
+                CallingPolicy::LinuxSyscallAarch64,
+            ),
+        ] {
+            let plan = build_host_abi_plan(target);
+            let (_, binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == HostCapability::Clock
+                        && binding.operation_key.operation == HostOperation::MonotonicTicks
+                })
+                .expect("Linux monotonic clock binding");
+            assert!(matches!(
+                binding.mechanism,
+                HostBindingMechanism::Syscall {
+                    number,
+                    ref name,
+                    ..
+                } if number == expected_number && name.as_ref() == "clock_gettime"
+            ));
+            let boundary = binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("clock_gettime carries its exact external signature");
+            assert_eq!(boundary.call.policy, expected_policy);
+            assert_eq!(boundary.call.parameters.len(), 2);
+            assert!(boundary.call.result.is_some());
+
+            let monotonic = plan
+                .platform_call_lowerings
+                .iter()
+                .find(|(_, row)| row.state.as_ref() == "monotonic_ticks")
+                .map(|(_, row)| row)
+                .expect("monotonic lowering");
+            assert_eq!(
+                monotonic.data,
+                PlatformCallData::TimespecResult { clock_id: 1 }
+            );
+            let frequency = plan
+                .platform_call_lowerings
+                .iter()
+                .find(|(_, row)| row.state.as_ref() == "monotonic_ticks_per_second")
+                .map(|(_, row)| row)
+                .expect("frequency lowering");
+            assert_eq!(
+                frequency.data,
+                PlatformCallData::ConstantResult {
+                    value: 1_000_000_000
+                }
+            );
+        }
     }
 
     #[test]

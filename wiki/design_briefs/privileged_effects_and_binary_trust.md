@@ -28,7 +28,7 @@ Do not create one catch-all `Privileged` service. At minimum:
 - `Mmio`: volatile access to mapped device memory.
 
 These services have different enforcement substrates. Port I/O can be mediated
-by hardware permission maps; MMIO authority can be represented by page-table
+by hardware permission maps; MMIO authority can be represented by admitted
 mapping capabilities; machine-control operations generally require execution
 inside the trusted kernel/boot domain.
 

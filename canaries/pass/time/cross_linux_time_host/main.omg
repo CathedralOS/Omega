@@ -1,0 +1,52 @@
+// Linux std::time structural canary. Both clock reads lower through the
+// platform-owned clock_gettime timespec adapter; calibration values are
+// target constants. Native execution remains gated on a real Linux host.
+use omega::language::std::time_host;
+use omega::language::std::console;
+
+data Main {
+    host: TimeHost;
+    console: Console;
+    monotonic: u64;
+    frequency: u64;
+    wall: u64;
+    wall_units: u64;
+    wall_offset: u64;
+    unix_seconds: u64;
+}
+
+machine Main::main(&mut self) {
+    self.monotonic = self.host.monotonic_ticks();
+    self.frequency = self.host.monotonic_ticks_per_second();
+    self.wall = self.host.wall_clock_raw();
+    self.wall_units = self.host.wall_clock_units_per_second();
+    self.wall_offset = self.host.wall_clock_epoch_offset_seconds();
+    transition self.monotonic > 0 {
+        true -> check_frequency()
+        false -> fail_monotonic()
+    }
+    state check_frequency(&mut self) {
+        transition self.frequency == 1000000000 {
+            true -> check_wall_units()
+            false -> fail_frequency()
+        }
+    }
+    state check_wall_units(&mut self) {
+        transition self.wall_units == 1000000000 && self.wall_offset == 0 {
+            true -> check_wall()
+            false -> fail_wall_units()
+        }
+    }
+    state check_wall(&mut self) {
+        self.unix_seconds = self.wall / 1000000000;
+        transition self.unix_seconds > 1767225600 && self.unix_seconds < 3350000000 {
+            true -> good()
+            false -> fail_wall()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_monotonic(&mut self) { self.console.exit_process(1); }
+    state fail_frequency(&mut self) { self.console.exit_process(2); }
+    state fail_wall_units(&mut self) { self.console.exit_process(3); }
+    state fail_wall(&mut self) { self.console.exit_process(4); }
+}

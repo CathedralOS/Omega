@@ -370,6 +370,10 @@ pub(super) fn select_host_operation_operands(
                         operand(result),
                         operand(InstructionOperandKind::ImmediateInteger(value)),
                     ]),
+                    PlatformCallData::TimespecResult { clock_id } => operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::ImmediateInteger(clock_id)),
+                    ]),
                     _ => operands.insert_many([operand(result)]),
                 },
                 None => HandleSpan::empty(),

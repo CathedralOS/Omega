@@ -83,7 +83,7 @@ rights. Metadata capacity is explicit.
 
 ## Placed hardware storage
 
-MMIO, page tables, descriptor tables, framebuffers, DMA buffers, and shared IPC
+MMIO, descriptor tables, framebuffers, DMA buffers, and shared IPC
 pages use the same composition:
 
 ```text
@@ -97,8 +97,9 @@ reach. There is no general `Mmio<T>` magic wrapper and no public arbitrary-offse
 volatile primitive.
 
 Device-specific operations such as W1C remain library machines over private
-field access. Page-table mapping additionally requires frame authority and
-establishes an `Installable` domain before checked installation. DMA lends
+field access. Address-translation policy and table construction belong to the
+OS package, which composes generic extent, mapping, layout, and checked-assembly
+contracts. DMA lends
 extents to an invisible borrower represented by a linear completion token.
 
 ## Checked assembly
@@ -282,7 +283,7 @@ distinct linear obligations with opposite lifecycle roles. V1 completes
 visibility inside the loader; it exposes no asynchronous token without a real
 provider customer.
 
-Every executable page-table mapping and relevant checked-assembly operation
+Every executable mapping and relevant checked-assembly operation
 requires admitted-artifact provenance. There is no `ExecutableMemory`
 capability, JIT path, self-modifying code, or alternate raw-byte route.
 Component-slot binding is a later logical dispatch/versioning operation, not

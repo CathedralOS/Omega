@@ -49,6 +49,16 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
     authored_import: bool,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
+    if operand_index == 0
+        && target.object_format != omega_target::ObjectFormat::Coff
+        && operation_key.is_some_and(HostOperationKey::lowers_to_constant_result)
+    {
+        return selected_text_offset
+            + match target.architecture {
+                Architecture::Aarch64 => 16,
+                Architecture::X86_64 => 12,
+            };
+    }
     if target.architecture == Architecture::X86_64
         && field_model_shape.is_none()
         && authored_import
@@ -151,6 +161,23 @@ fn data_address_relocation_offset_with_plan(
     authored_import: bool,
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
+    if is_syscall
+        && operand_index == 0
+        && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_result)
+    {
+        let number = omega_calling_conventions::linux_clock_gettime_syscall_number(architecture);
+        if let Ok(byte_offset) =
+            omega_instruction_selection::linux_timespec_result_relocation_byte_offset(
+                architecture,
+                operands,
+                number,
+                authoritative_plan,
+            )
+        {
+            return selected_text_offset + byte_offset;
+        }
+    }
+
     // A field-model call marshals args like an import, then reads the callee
     // from the receiver (This-call) or from the dispatch-only table pointer
     // (service table) -- each shape has its own fixup layout.
