@@ -537,6 +537,7 @@ pub fn decode_executable_container(
         }
         wire_sections.push(section);
     }
+    validate_payload_tiling(&wire_sections, directory_end, total_length)?;
 
     let code_section = only_wire_section(&wire_sections, SECTION_CODE, "code")?;
     let relocation_section = only_wire_section(&wire_sections, SECTION_RELOCATIONS, "relocations")?;
@@ -729,6 +730,44 @@ fn only_wire_section(
         )));
     }
     Ok(matching[0])
+}
+
+fn validate_payload_tiling(
+    sections: &[WireSection],
+    payload_start: u64,
+    total_length: u64,
+) -> Result<(), InstallationDiagnostic> {
+    let mut ranges = sections
+        .iter()
+        .map(|section| {
+            section
+                .offset
+                .checked_add(section.length)
+                .map(|end| (section.offset, end))
+                .ok_or_else(|| InstallationDiagnostic("artifact section range overflows".into()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    ranges.sort_unstable();
+    let mut cursor = payload_start;
+    for (start, end) in ranges {
+        if start != cursor {
+            let relation = if start < cursor {
+                "overlaps"
+            } else {
+                "leaves a gap after"
+            };
+            return Err(InstallationDiagnostic(format!(
+                "artifact section at {start}..{end} {relation} canonical payload cursor {cursor}"
+            )));
+        }
+        cursor = end;
+    }
+    if cursor != total_length {
+        return Err(InstallationDiagnostic(format!(
+            "artifact sections end at {cursor}, leaving unreferenced bytes before declared length {total_length}"
+        )));
+    }
+    Ok(())
 }
 
 fn decode_identity_payload<T>(
@@ -1505,6 +1544,25 @@ mod tests {
         reserved[13] = 1;
         let error = decode_executable_container(&reserved, limits()).expect_err("reserved");
         assert!(error.0.contains("reserved0"));
+    }
+
+    #[test]
+    fn payload_gaps_and_unreferenced_trailing_bytes_reject() {
+        let mut gap = canonical_bytes();
+        let code_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize;
+        let code_offset =
+            u64::from_le_bytes(gap[code_record + 16..code_record + 24].try_into().unwrap());
+        gap[code_record + 16..code_record + 24].copy_from_slice(&(code_offset + 1).to_le_bytes());
+        gap[code_record + 24..code_record + 32].copy_from_slice(&63_u64.to_le_bytes());
+        let error = decode_executable_container(&gap, limits()).expect_err("payload gap");
+        assert!(error.0.contains("leaves a gap"));
+
+        let mut trailing = canonical_bytes();
+        let proof_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 6 * 32;
+        trailing[proof_record + 24..proof_record + 32].copy_from_slice(&63_u64.to_le_bytes());
+        let error =
+            decode_executable_container(&trailing, limits()).expect_err("unreferenced trailing");
+        assert!(error.0.contains("unreferenced bytes"));
     }
 
     #[test]
