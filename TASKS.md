@@ -1783,8 +1783,13 @@ stronger operations it needs instead of citing machine parameters generally.
   policy; unknown rights and unenforceable NX reject. Intermediate permissions
   monotonically cover their descendants, unused storage remains zero, and the
   result is inert exact bytes plus plan/content report facts—never translation
-  or installation authority. The matching AArch64 stage-1 writer is live for
-  four-level 4 KiB tables in either admitted TTBR address half. Its distinct
+  or installation authority. Both x86 hierarchy pointers and leaves now pass
+  through the ordinary named-field scalar-layout consumer. The target policy
+  retains the exact normalized hardware geometry: declaration reordering is
+  harmless, while a shifted or substituted bit placement rejects without
+  authorizing through the compact layout fingerprint. The matching AArch64
+  stage-1 writer is live for four-level 4 KiB tables in either admitted TTBR
+  address half. Its distinct
   policy maps exactly one semantic memory-class fact to `AttrIndx` plus
   shareability, maps ordinary rights to AP/nG/PXN/UXN, enforces the configured
   32–48-bit output-address width, and enters the same generated-construction

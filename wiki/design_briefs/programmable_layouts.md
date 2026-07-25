@@ -287,6 +287,11 @@ foundation path. The first complete x86-64 table consumer now lives in
 derives four-level 4 KiB table bytes from the normalized pending mappings, and
 fails closed on unknown or unrepresentable policy facts. It remains a target
 consumer of plans, not a second layout mechanism or a source-visible raw writer.
+Hierarchy pointers and leaves both pass through the ordinary named-field scalar
+materializer. The provider retains and compares the exact normalized x86
+geometry: declaration order normalizes away, but shifted hardware bits reject;
+the compact layout fingerprint remains report/cache identity and never
+authorizes materialization.
 The AArch64 sibling uses the same normalized mappings and construction
 lifecycle while retaining its independent descriptor algebra: semantic memory
 class selects `AttrIndx`/shareability and access rights select AP/nG/PXN/UXN.
