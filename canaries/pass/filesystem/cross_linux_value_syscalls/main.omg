@@ -13,6 +13,7 @@ data Main {
     count: i64;
     capacity: u64;
     buffer: [u8; 64];
+    metadata: [u8; 144];
 }
 
 machine Main::main(&mut self) {
@@ -30,7 +31,11 @@ machine Main::main(&mut self) {
     }
     state open_hostname(&mut self) {
         self.fd = self.fs.open("/etc/hostname", 0);
-        transition self.fd >= 0 { true -> read_hostname() _ -> fail_open() }
+        transition self.fd >= 0 { true -> stat_hostname() _ -> fail_open() }
+    }
+    state stat_hostname(&mut self) {
+        self.rc = self.fs.read_file_metadata(self.fd, &mut self.metadata);
+        transition self.rc == 0 { true -> read_hostname() _ -> fail_stat() }
     }
     state read_hostname(&mut self) {
         self.capacity = 64;
@@ -46,4 +51,5 @@ machine Main::main(&mut self) {
     state fail_write(&mut self) { self.console.exit_process(2); }
     state fail_open(&mut self) { self.console.exit_process(3); }
     state fail_read(&mut self) { self.console.exit_process(4); }
+    state fail_stat(&mut self) { self.console.exit_process(5); }
 }

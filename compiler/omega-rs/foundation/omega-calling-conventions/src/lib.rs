@@ -1567,17 +1567,19 @@ mod binding_plan_tests {
 
     #[test]
     fn linux_filesystem_rows_bind_value_syscalls_and_openat_adapters() {
-        for (target, expected_openat, expected_close, expected_policy) in [
+        for (target, expected_openat, expected_close, expected_fstat, expected_policy) in [
             (
                 NativeTarget::linux_x64(),
                 257,
                 3,
+                5,
                 CallingPolicy::LinuxSyscallX86_64,
             ),
             (
                 NativeTarget::linux_arm64(),
                 56,
                 57,
+                80,
                 CallingPolicy::LinuxSyscallAarch64,
             ),
         ] {
@@ -1586,6 +1588,7 @@ mod binding_plan_tests {
                 (HostOperation::Open, expected_openat, 3),
                 (HostOperation::OpenCreate, expected_openat, 4),
                 (HostOperation::Close, expected_close, 1),
+                (HostOperation::FStat, expected_fstat, 2),
             ] {
                 let (_, binding) = plan
                     .bindings
