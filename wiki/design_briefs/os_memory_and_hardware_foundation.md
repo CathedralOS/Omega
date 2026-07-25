@@ -903,14 +903,17 @@ nesting policies, optional acknowledgement policy, WCSU size/alignment, and
 component-version pins. Installation consumes owner-scoped slot authority and
 an admission that retains the complete validated root and selected provider
 execution alongside its report identities, installed code, artifact, slot,
-owner, and receipts. Compact FNV identities therefore cannot replay acceptance
-across acknowledgement, component-pin, trust-receipt, entry, or resource
-drift. Installation also proves that the selected entry belongs to that
-admitted artifact; no numeric entry address enters the ledger.
+owner, and receipts. The admission also retains the opaque complete
+installed-code lifecycle context. Compact FNV identities therefore cannot
+replay acceptance across acknowledgement, component-pin, trust-receipt, entry,
+final-byte realization, or resource drift. Installation also proves that the
+selected entry belongs to that admitted artifact; no numeric entry address
+enters the ledger.
 
 The installed-root handle borrows the linear installed-code claim. Code
 retirement therefore cannot recover ownership while hardware may still enter
-it. Removal is the opposite-facing gate: the provider's exact receipt must
+it. Removal is the opposite-facing gate: the provider receipt derives from the
+live borrowed root handle, binds that exact installed-code context, and must
 establish both that the slot no longer makes the entry reachable and that old
 executions are quiescent before the slot authority is returned. Failure returns
 all consumed values. The live ledger also owns a deterministic report

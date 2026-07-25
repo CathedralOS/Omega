@@ -782,9 +782,13 @@ schemas recover the same instance without publishing policy type identity.
    three independent realizations into root admission. It retains the complete
    `ValidatedExternalRoot`, and slot admission retains both that exact root and
    its provider execution rather than authorizing through partial FNV
-   restatements; acknowledgement, component-pin, trust-receipt, entry, or
-   resource drift rejects even if a compact identity collides. Execution/plan
-   identities remain report keys in the ledger fingerprint and manifest. The
+   restatements. It now also retains the opaque complete installed-code
+   lifecycle context, and root removal receipts derive from the live borrowed
+   root handle; colliding installed/artifact IDs cannot substitute a different
+   final-byte realization at either lifecycle edge. Acknowledgement,
+   component-pin, trust-receipt, entry, code, or resource drift rejects even if
+   a compact identity collides. Execution/plan/code identities remain report
+   keys in the ledger fingerprint and manifest. The
    compiler now retains the exact validated
    selected `ProviderPlan` set through `CheckedTrees`, in canonical order with
    both per-plan and whole-selection identities. An external-root candidate now
