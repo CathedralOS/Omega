@@ -766,9 +766,12 @@ execution, Omega linear integration, and live replacement remain.
 `CodePlacement` now consumes the existing placement-plan vocabulary rather
 than duplicating it. The one-shot authority carries normalized range,
 alignment, phase, machine-regime, and installation-scope constraints plus the
-provider's concrete site. Claiming the Extent checks its actual base and length
-against that site and runs the shared `PlacementConstraints` validator before
-materialization. A caller cannot substitute a friendlier placement hint.
+provider's concrete site. It is minted from and retains the destination
+Extent's exact range, address space, rights, provenance, mapping era, and
+authority lineage. Claiming the Extent checks that complete authority evidence,
+then runs the shared `PlacementConstraints` validator before materialization.
+A caller cannot substitute either a friendlier placement hint or a
+same-address Extent from another authority lineage.
 
 The normalized retirement path is live as well. It consumes one exact
 `InstalledCode`; both retirement authority and provider receipt retain the

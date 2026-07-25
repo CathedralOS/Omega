@@ -321,13 +321,37 @@ pub enum InstallationAudience {
 }
 
 /// One-shot authority over an exact W+NX destination.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CodePlacementExtentEvidence {
+    base: u64,
+    length: u64,
+    address_space: AddressSpaceId,
+    rights: ExtentRights,
+    provenance: ExtentProvenanceId,
+    era: omega_extents::MappingEraId,
+    lineage: omega_extents::ExtentLineageId,
+}
+
+impl CodePlacementExtentEvidence {
+    fn from_extent(extent: &Extent) -> Self {
+        Self {
+            base: extent.base(),
+            length: extent.length(),
+            address_space: extent.address_space(),
+            rights: extent.rights().clone(),
+            provenance: extent.provenance(),
+            era: extent.era(),
+            lineage: extent.lineage_root(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct CodePlacementAuthority {
     placement: CodePlacementId,
     scope: InstallationScopeId,
     audience: InstallationAudience,
-    address_space: AddressSpaceId,
-    provenance: ExtentProvenanceId,
+    extent: CodePlacementExtentEvidence,
     required_rights: ExtentRights,
     constraints: PlacementConstraints,
     site: PlacementSite,
@@ -339,8 +363,7 @@ impl CodePlacementAuthority {
         placement: CodePlacementId,
         scope: InstallationScopeId,
         audience: InstallationAudience,
-        address_space: AddressSpaceId,
-        provenance: ExtentProvenanceId,
+        extent: &Extent,
         required_rights: ExtentRights,
         constraints: PlacementConstraints,
         site: PlacementSite,
@@ -349,8 +372,7 @@ impl CodePlacementAuthority {
             placement,
             scope,
             audience,
-            address_space,
-            provenance,
+            extent: CodePlacementExtentEvidence::from_extent(extent),
             required_rights,
             constraints,
             site,
@@ -358,10 +380,11 @@ impl CodePlacementAuthority {
     }
 
     pub fn claim(self, extent: Extent) -> Result<CodePlacement, Box<PlacementClaimError>> {
-        let mismatch = if extent.address_space() != self.address_space {
-            Some("extent address space does not match code-placement authority".into())
-        } else if extent.provenance() != self.provenance {
-            Some("extent provenance does not match code-placement authority".into())
+        let mismatch = if CodePlacementExtentEvidence::from_extent(&extent) != self.extent {
+            Some(
+                "extent does not match the exact range, space, rights, provenance, era, and lineage bound by code-placement authority"
+                    .into(),
+            )
         } else if !extent.rights().contains(&self.required_rights) {
             Some("extent lacks rights required by code-placement authority".into())
         } else if self.site.base_address != extent.base() {
@@ -1377,23 +1400,29 @@ mod tests {
         .expect("placement extent")
     }
 
-    fn placement_authority(placement: u64, base: u64) -> CodePlacementAuthority {
-        placement_authority_with_constraints(placement, base, artifact_placement_constraints())
+    fn placement_authority(placement: u64, base: u64, length: u64) -> CodePlacementAuthority {
+        placement_authority_with_constraints(
+            placement,
+            base,
+            length,
+            artifact_placement_constraints(),
+        )
     }
 
     fn placement_authority_with_constraints(
         placement: u64,
         base: u64,
+        length: u64,
         constraints: PlacementConstraints,
     ) -> CodePlacementAuthority {
         let scope = ArtifactInstallationScopeId::from_normalized_identity(61)
             .expect("artifact installation scope");
+        let extent = placement_extent(placement, base, length);
         CodePlacementAuthority::from_admitted_provider(
             id(placement, CodePlacementId::from_normalized_identity),
             id(61, InstallationScopeId::from_normalized_identity),
             InstallationAudience::FutureFetcher,
-            extent_id(50, AddressSpaceId::from_normalized_identity),
-            extent_id(52, ExtentProvenanceId::from_normalized_identity),
+            &extent,
             rights(&[51]),
             constraints,
             PlacementSite {
@@ -1432,7 +1461,7 @@ mod tests {
     }
 
     fn frozen(admitted: &AdmittedArtifact, placement_identity: u64, base: u64) -> FrozenPlacement {
-        let placement = placement_authority(placement_identity, base)
+        let placement = placement_authority(placement_identity, base, 4096)
             .claim(placement_extent(placement_identity, base, 4096))
             .expect("placement");
         let materialized = materialize_admitted_artifact(admitted, &placement, |_| None)
@@ -1491,7 +1520,7 @@ mod tests {
             }],
         );
         let admitted = admit(&candidate);
-        let placement = placement_authority(100, 0x1000)
+        let placement = placement_authority(100, 0x1000, 4096)
             .claim(placement_extent(100, 0x1000, 4096))
             .expect("placement");
 
@@ -1536,7 +1565,7 @@ mod tests {
             }],
         );
         let admitted = admit(&candidate);
-        let placement = placement_authority(101, 0x1000)
+        let placement = placement_authority(101, 0x1000, 4096)
             .claim(placement_extent(101, 0x1000, 4096))
             .expect("placement");
         let materialized = materialize_admitted_artifact(&admitted, &placement, |_| Some(0x1010))
@@ -1595,7 +1624,7 @@ mod tests {
             ],
         );
         let admitted = admit(&candidate);
-        let placement = placement_authority(102, 0x1000)
+        let placement = placement_authority(102, 0x1000, 4096)
             .claim(placement_extent(102, 0x1000, 4096))
             .expect("placement");
         let materialized = materialize_admitted_artifact(&admitted, &placement, |_| Some(0x3456))
@@ -1668,7 +1697,7 @@ mod tests {
     fn materialization_cannot_substitute_another_artifact() {
         let first = admit(&artifact(1));
         let second = admit(&artifact(2));
-        let placement = placement_authority(101, 0x2000)
+        let placement = placement_authority(101, 0x2000, 4096)
             .claim(placement_extent(101, 0x2000, 4096))
             .expect("placement");
         let first_materialized = materialize_admitted_artifact(&first, &placement, |_| None)
@@ -1694,7 +1723,7 @@ mod tests {
     fn canonical_materializer_output_cannot_substitute_another_artifact() {
         let first = admit(&artifact(1));
         let second = admit(&artifact(2));
-        let placement = placement_authority(111, 0x9000)
+        let placement = placement_authority(111, 0x9000, 4096)
             .claim(placement_extent(111, 0x9000, 4096))
             .expect("placement");
         let materialized = materialize_admitted_artifact(&second, &placement, |_| None)
@@ -1921,7 +1950,7 @@ mod tests {
     #[test]
     fn materialization_uses_admitted_artifact_size_not_a_caller_hint() {
         let admitted = admit(&artifact(1));
-        let placement = placement_authority(105, 0x5000)
+        let placement = placement_authority(105, 0x5000, 32)
             .claim(placement_extent(105, 0x5000, 32))
             .expect("qualified but undersized destination");
         let error = materialize_admitted_artifact(&admitted, &placement, |_| None)
@@ -1935,7 +1964,7 @@ mod tests {
         let substituted =
             PlacementConstraints::new(None, 1, PlacementPhase::PostHandoff, None, None)
                 .expect("weaker substituted constraints");
-        let placement = placement_authority_with_constraints(109, 0x8000, substituted)
+        let placement = placement_authority_with_constraints(109, 0x8000, 4096, substituted)
             .claim(placement_extent(109, 0x8000, 4096))
             .expect("substituted constraints independently accept the site");
         let error = materialize_admitted_artifact(&admitted, &placement, |_| None)
@@ -1954,12 +1983,40 @@ mod tests {
         )
         .mint(0x6000, 4096)
         .expect("placement extent without required rights");
-        let error = placement_authority(106, 0x6000)
+        let error = placement_authority(106, 0x6000, 4096)
             .claim(extent)
             .expect_err("missing placement right");
-        assert!(error.diagnostic().0.contains("lacks rights"));
+        assert!(error.diagnostic().0.contains("exact range"));
         let (_authority, extent) = (*error).into_parts();
         assert_eq!(extent.base(), 0x6000);
+    }
+
+    #[test]
+    fn placement_authority_rejects_same_address_from_another_lineage() {
+        let admitted_extent = placement_extent(116, 0xe000, 4096);
+        let substituted_extent = placement_extent(117, 0xe000, 4096);
+        let authority = CodePlacementAuthority::from_admitted_provider(
+            id(116, CodePlacementId::from_normalized_identity),
+            id(61, InstallationScopeId::from_normalized_identity),
+            InstallationAudience::FutureFetcher,
+            &admitted_extent,
+            rights(&[51]),
+            artifact_placement_constraints(),
+            PlacementSite {
+                base_address: 0xe000,
+                phase: PlacementPhase::PostHandoff,
+                machine_regime: None,
+                installation_scope: Some(
+                    ArtifactInstallationScopeId::from_normalized_identity(61)
+                        .expect("installation scope"),
+                ),
+            },
+        );
+
+        let error = authority
+            .claim(substituted_extent)
+            .expect_err("same address and rights do not imply the same range authority");
+        assert!(error.diagnostic().0.contains("lineage"));
     }
 
     #[test]
@@ -2002,7 +2059,7 @@ mod tests {
 
     #[test]
     fn placement_claim_validates_actual_extent_site_against_plan_constraints() {
-        let error = placement_authority(108, 0x7101)
+        let error = placement_authority(108, 0x7101, 4096)
             .claim(placement_extent(108, 0x7101, 4096))
             .expect_err("misaligned site rejects before materialization");
         assert!(error.diagnostic().0.contains("not aligned"));

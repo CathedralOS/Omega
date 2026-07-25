@@ -3605,8 +3605,7 @@ mod tests {
             install_id(100, CodePlacementId::from_normalized_identity),
             install_id(61, InstallationScopeId::from_normalized_identity),
             InstallationAudience::FutureFetcher,
-            extent_id(50, AddressSpaceId::from_normalized_identity),
-            extent_id(52, ExtentProvenanceId::from_normalized_identity),
+            &extent,
             rights,
             constraints(),
             PlacementSite {
