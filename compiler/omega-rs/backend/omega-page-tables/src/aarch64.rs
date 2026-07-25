@@ -6,68 +6,127 @@ use omega_extents::{
 };
 
 use crate::PageTableMaterializationDiagnostic;
-use omega_layout_plans::{
-    ByteOrder, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
-    materialize_scalar_layout_into, normalized_layout_plan_fingerprint,
-};
 
-pub const X86_64_PAGE_BYTES: u64 = 4096;
-pub const X86_64_ENTRIES_PER_TABLE: usize = 512;
+pub const AARCH64_PAGE_BYTES: u64 = 4096;
+pub const AARCH64_ENTRIES_PER_TABLE: usize = 512;
 
-const PRESENT: u64 = 1 << 0;
-const WRITABLE: u64 = 1 << 1;
-const USER: u64 = 1 << 2;
-const WRITE_THROUGH: u64 = 1 << 3;
-const CACHE_DISABLE: u64 = 1 << 4;
-const GLOBAL: u64 = 1 << 8;
-const NO_EXECUTE: u64 = 1 << 63;
+const VALID_PAGE_OR_TABLE: u64 = 0b11;
+const ACCESS_PERMISSION_USER: u64 = 1 << 6;
+const ACCESS_PERMISSION_READ_ONLY: u64 = 1 << 7;
+const ACCESS_FLAG: u64 = 1 << 10;
+const NOT_GLOBAL: u64 = 1 << 11;
+const PRIVILEGED_EXECUTE_NEVER: u64 = 1 << 53;
+const UNPRIVILEGED_EXECUTE_NEVER: u64 = 1 << 54;
 
-/// Provider-owned mapping between semantic Extent rights and x86-64 PTE bits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Aarch64TranslationBase {
+    Lower,
+    Upper,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Aarch64Shareability {
+    NonShareable,
+    OuterShareable,
+    InnerShareable,
+}
+
+impl Aarch64Shareability {
+    const fn descriptor_bits(self) -> u64 {
+        match self {
+            Self::NonShareable => 0,
+            Self::OuterShareable => 0b10 << 8,
+            Self::InnerShareable => 0b11 << 8,
+        }
+    }
+}
+
+/// One provider-admitted semantic memory class and its MAIR selector.
 ///
-/// Rights are grant-established facts. Naming an identity here does not mint
-/// it; the materializer only observes rights already retained by each pending
-/// mapping. Extra orthogonal facts must be admitted explicitly as `unencoded`
-/// rather than being silently discarded.
+/// The right is established on the mapping by its grant. The materializer only
+/// translates that existing fact into `AttrIndx` and shareability bits; it
+/// cannot establish a cacheability or device-memory claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Aarch64MemoryClass {
+    right: ExtentRightId,
+    attribute_index: u8,
+    shareability: Aarch64Shareability,
+}
+
+impl Aarch64MemoryClass {
+    pub fn new(
+        right: ExtentRightId,
+        attribute_index: u8,
+        shareability: Aarch64Shareability,
+    ) -> Result<Self, PageTableMaterializationDiagnostic> {
+        if attribute_index > 7 {
+            return Err(PageTableMaterializationDiagnostic(
+                "AArch64 MAIR attribute index must fit three bits".into(),
+            ));
+        }
+        Ok(Self {
+            right,
+            attribute_index,
+            shareability,
+        })
+    }
+
+    pub const fn right(self) -> ExtentRightId {
+        self.right
+    }
+
+    pub const fn attribute_index(self) -> u8 {
+        self.attribute_index
+    }
+
+    pub const fn shareability(self) -> Aarch64Shareability {
+        self.shareability
+    }
+}
+
+/// Provider-owned mapping between semantic Extent rights and AArch64 stage-1
+/// page-descriptor facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64PageRights {
+pub struct Aarch64PageRights {
     readable: ExtentRightId,
     writable: ExtentRightId,
     executable: ExtentRightId,
     user: Option<ExtentRightId>,
     global: Option<ExtentRightId>,
-    write_through: Option<ExtentRightId>,
-    cache_disable: Option<ExtentRightId>,
+    memory_classes: Vec<Aarch64MemoryClass>,
     unencoded: ExtentRights,
 }
 
-impl X86_64PageRights {
-    #[allow(clippy::too_many_arguments)]
+impl Aarch64PageRights {
     pub fn new(
         readable: ExtentRightId,
         writable: ExtentRightId,
         executable: ExtentRightId,
         user: Option<ExtentRightId>,
         global: Option<ExtentRightId>,
-        write_through: Option<ExtentRightId>,
-        cache_disable: Option<ExtentRightId>,
+        memory_classes: Vec<Aarch64MemoryClass>,
         unencoded: ExtentRights,
     ) -> Result<Self, PageTableMaterializationDiagnostic> {
-        let encoded = [
+        if memory_classes.is_empty() {
+            return Err(PageTableMaterializationDiagnostic(
+                "AArch64 page policy requires at least one admitted memory class".into(),
+            ));
+        }
+        let role_rights = [
             Some(readable),
             Some(writable),
             Some(executable),
             user,
             global,
-            write_through,
-            cache_disable,
         ]
         .into_iter()
         .flatten()
+        .chain(memory_classes.iter().map(|class| class.right))
         .collect::<Vec<_>>();
-        let distinct = encoded.iter().copied().collect::<BTreeSet<_>>();
-        if distinct.len() != encoded.len() {
+        let distinct = role_rights.iter().copied().collect::<BTreeSet<_>>();
+        if distinct.len() != role_rights.len() {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 page-right roles must use distinct normalized identities".into(),
+                "AArch64 page-right roles and memory classes must use distinct identities".into(),
             ));
         }
         if unencoded
@@ -75,7 +134,7 @@ impl X86_64PageRights {
             .any(|identity| distinct.contains(&identity))
         {
             return Err(PageTableMaterializationDiagnostic(
-                "an x86-64 page right cannot be both encoded and unencoded".into(),
+                "an AArch64 page right cannot be both encoded and unencoded".into(),
             ));
         }
         Ok(Self {
@@ -84,8 +143,7 @@ impl X86_64PageRights {
             executable,
             user,
             global,
-            write_through,
-            cache_disable,
+            memory_classes,
             unencoded,
         })
     }
@@ -97,23 +155,18 @@ impl X86_64PageRights {
             Some(self.executable),
             self.user,
             self.global,
-            self.write_through,
-            self.cache_disable,
         ]
         .into_iter()
         .flatten()
+        .chain(self.memory_classes.iter().map(|class| class.right))
         .chain(self.unencoded.identities())
         .collect()
     }
 
-    fn leaf_flags(
-        &self,
-        rights: &ExtentRights,
-        nx_supported: bool,
-    ) -> Result<u64, PageTableMaterializationDiagnostic> {
-        if !rights.contains(&ExtentRights::from_normalized_identities([self.readable])) {
+    fn leaf_flags(&self, rights: &ExtentRights) -> Result<u64, PageTableMaterializationDiagnostic> {
+        if !contains(rights, self.readable) {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 present mappings require the admitted readable right".into(),
+                "AArch64 valid mappings require the admitted readable right".into(),
             ));
         }
         let known = self.known_rights();
@@ -122,135 +175,104 @@ impl X86_64PageRights {
             .find(|identity| !known.contains(identity))
         {
             return Err(PageTableMaterializationDiagnostic(format!(
-                "mapped right {} has no admitted x86-64 PTE meaning",
+                "mapped right {} has no admitted AArch64 descriptor meaning",
                 unknown.normalized_identity()
             )));
         }
-
-        let has = |identity: ExtentRightId| {
-            rights.contains(&ExtentRights::from_normalized_identities([identity]))
+        let classes = self
+            .memory_classes
+            .iter()
+            .copied()
+            .filter(|class| contains(rights, class.right))
+            .collect::<Vec<_>>();
+        let [memory_class] = classes.as_slice() else {
+            return Err(PageTableMaterializationDiagnostic(format!(
+                "AArch64 mapping requires exactly one admitted memory class, found {}",
+                classes.len()
+            )));
         };
-        let optional = |identity: Option<ExtentRightId>| identity.is_some_and(has);
-        let mut flags = PRESENT;
-        if has(self.writable) {
-            flags |= WRITABLE;
+
+        let user = self.user.is_some_and(|right| contains(rights, right));
+        let writable = contains(rights, self.writable);
+        let executable = contains(rights, self.executable);
+        let global = self.global.is_some_and(|right| contains(rights, right));
+
+        let mut flags = VALID_PAGE_OR_TABLE
+            | ACCESS_FLAG
+            | (u64::from(memory_class.attribute_index) << 2)
+            | memory_class.shareability.descriptor_bits();
+        if user {
+            flags |= ACCESS_PERMISSION_USER;
         }
-        if optional(self.user) {
-            flags |= USER;
+        if !writable {
+            flags |= ACCESS_PERMISSION_READ_ONLY;
         }
-        if optional(self.global) {
-            flags |= GLOBAL;
+        if !global {
+            flags |= NOT_GLOBAL;
         }
-        if optional(self.write_through) {
-            flags |= WRITE_THROUGH;
-        }
-        if optional(self.cache_disable) {
-            flags |= CACHE_DISABLE;
-        }
-        if !has(self.executable) {
-            if !nx_supported {
-                return Err(PageTableMaterializationDiagnostic(
-                    "target cannot enforce a non-executable mapping without NX support".into(),
-                ));
+        match (executable, user) {
+            (true, true) => flags |= PRIVILEGED_EXECUTE_NEVER,
+            (true, false) => flags |= UNPRIVILEGED_EXECUTE_NEVER,
+            (false, _) => {
+                flags |= PRIVILEGED_EXECUTE_NEVER | UNPRIVILEGED_EXECUTE_NEVER;
             }
-            flags |= NO_EXECUTE;
         }
         Ok(flags)
     }
 }
 
-/// Closed provider policy for the first x86-64 four-level, 4 KiB-page writer.
+/// Closed provider policy for a four-level, 4 KiB-granule AArch64 stage-1
+/// translation table.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X86_64PageTablePolicy {
+pub struct Aarch64PageTablePolicy {
     physical_space: AddressSpaceId,
     virtual_space: AddressSpaceId,
+    translation_base: Aarch64TranslationBase,
     physical_address_bits: u8,
-    nx_supported: bool,
     max_table_pages: usize,
     max_leaf_entries: usize,
-    rights: X86_64PageRights,
-    leaf_layout: LayoutPlanReport,
+    rights: Aarch64PageRights,
 }
 
-impl X86_64PageTablePolicy {
+impl Aarch64PageTablePolicy {
     pub fn new(
         physical_space: AddressSpaceId,
         virtual_space: AddressSpaceId,
+        translation_base: Aarch64TranslationBase,
         physical_address_bits: u8,
-        nx_supported: bool,
         max_table_pages: usize,
         max_leaf_entries: usize,
-        rights: X86_64PageRights,
-    ) -> Result<Self, PageTableMaterializationDiagnostic> {
-        Self::from_validated_layout(
-            physical_space,
-            virtual_space,
-            physical_address_bits,
-            nx_supported,
-            max_table_pages,
-            max_leaf_entries,
-            rights,
-            canonical_x86_64_4k_leaf_layout(),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_validated_layout(
-        physical_space: AddressSpaceId,
-        virtual_space: AddressSpaceId,
-        physical_address_bits: u8,
-        nx_supported: bool,
-        max_table_pages: usize,
-        max_leaf_entries: usize,
-        rights: X86_64PageRights,
-        leaf_layout: LayoutPlanReport,
+        rights: Aarch64PageRights,
     ) -> Result<Self, PageTableMaterializationDiagnostic> {
         if physical_space == virtual_space {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 physical and virtual address spaces must be distinct".into(),
+                "AArch64 physical and virtual address spaces must be distinct".into(),
             ));
         }
-        if !(32..=52).contains(&physical_address_bits) {
+        if !(32..=48).contains(&physical_address_bits) {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 physical-address width must be between 32 and 52 bits".into(),
+                "v1 AArch64 page tables support 32 through 48 physical-address bits".into(),
             ));
         }
         if max_table_pages == 0 || max_leaf_entries == 0 {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 page-table bounds must be nonzero".into(),
+                "AArch64 page-table bounds must be nonzero".into(),
             ));
         }
-        require_exact_leaf_layout(&leaf_layout)?;
         Ok(Self {
             physical_space,
             virtual_space,
+            translation_base,
             physical_address_bits,
-            nx_supported,
             max_table_pages,
             max_leaf_entries,
             rights,
-            leaf_layout,
         })
-    }
-
-    pub const fn leaf_layout(&self) -> &LayoutPlanReport {
-        &self.leaf_layout
-    }
-
-    /// Report/cache identity only. Exact layout comparison, not this compact
-    /// fingerprint, controls admission.
-    pub fn leaf_layout_identity(&self) -> u64 {
-        normalized_layout_plan_fingerprint(&self.leaf_layout)
     }
 }
 
-/// Inert exact bytes for one normalized x86-64 page-table draft.
-///
-/// This value grants neither page-table-control authority nor active mappings.
-/// The admitted provider may use the bytes to mint the separately checked
-/// construction receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MaterializedX86_64PageTable {
+pub struct MaterializedAarch64PageTable {
     plan: PageTablePlanId,
     root_physical_address: u64,
     table_page_count: usize,
@@ -259,7 +281,7 @@ pub struct MaterializedX86_64PageTable {
     bytes: Vec<u8>,
 }
 
-impl MaterializedX86_64PageTable {
+impl MaterializedAarch64PageTable {
     pub const fn plan(&self) -> PageTablePlanId {
         self.plan
     }
@@ -288,9 +310,6 @@ impl MaterializedX86_64PageTable {
         self.bytes
     }
 
-    /// Converts these exact generated bytes into the ordinary page-table
-    /// construction receipt for the same draft. This consumes the inert image;
-    /// installation remains a separate provider-controlled transition.
     pub fn into_construction_receipt(
         self,
         identity: PageTableConstructionReceiptId,
@@ -301,7 +320,7 @@ impl MaterializedX86_64PageTable {
             || self.bytes.len() as u64 != draft.storage_length()
         {
             return Err(PageTableMaterializationDiagnostic(
-                "materialized x86-64 bytes do not bind the supplied page-table draft".into(),
+                "materialized AArch64 bytes do not bind the supplied page-table draft".into(),
             ));
         }
         Ok(PageTableConstructionReceipt::from_admitted_provider(
@@ -321,22 +340,19 @@ struct LeafPage {
     flags: u64,
 }
 
-/// Materializes a complete four-level x86-64 table using only 4 KiB leaves.
-///
-/// Table pages are allocated deterministically from the beginning of the
-/// draft's exact physical storage extent. The returned byte vector covers that
-/// entire extent and leaves all unused bytes zero. Huge pages, five-level
-/// paging, PAT selection, and runtime installation are deliberately separate
-/// provider work.
-pub fn materialize_x86_64_4k_page_table(
+/// Materializes one complete four-level AArch64 stage-1 table with 4 KiB
+/// leaves. Table pages come only from the beginning of the exact draft storage
+/// extent. Block descriptors, 52-bit/LPA2 encodings, contiguous hints, dirty
+/// state, and installation into TTBR0/TTBR1 remain separate provider work.
+pub fn materialize_aarch64_4k_page_table(
     draft: &PageTableDraft<'_>,
-    policy: &X86_64PageTablePolicy,
-) -> Result<MaterializedX86_64PageTable, PageTableMaterializationDiagnostic> {
+    policy: &Aarch64PageTablePolicy,
+) -> Result<MaterializedAarch64PageTable, PageTableMaterializationDiagnostic> {
     validate_storage(draft, policy)?;
     let leaves = collect_leaves(draft, policy)?;
 
     let storage_page_count =
-        usize::try_from(draft.storage_length() / X86_64_PAGE_BYTES).map_err(|_| {
+        usize::try_from(draft.storage_length() / AARCH64_PAGE_BYTES).map_err(|_| {
             PageTableMaterializationDiagnostic(
                 "page-table storage page count does not fit the provider host".into(),
             )
@@ -352,13 +368,11 @@ pub fn materialize_x86_64_4k_page_table(
             "page-table storage length does not fit the provider host".into(),
         )
     })?;
-
     let address_mask = physical_address_mask(policy.physical_address_bits);
-    let mut tables = vec![[0u64; X86_64_ENTRIES_PER_TABLE]];
+    let mut tables = vec![[0u64; AARCH64_ENTRIES_PER_TABLE]];
     let mut children = BTreeMap::<(usize, usize), usize>::new();
 
     for leaf in &leaves {
-        let writable_user = leaf.flags & (WRITABLE | USER);
         let indices = [
             ((leaf.virtual_address >> 39) & 0x1ff) as usize,
             ((leaf.virtual_address >> 30) & 0x1ff) as usize,
@@ -372,12 +386,10 @@ pub fn materialize_x86_64_4k_page_table(
                 &mut children,
                 table,
                 index,
-                writable_user,
                 draft.storage_base(),
                 storage_page_count,
                 policy.max_table_pages,
                 address_mask,
-                &policy.leaf_layout,
             )?;
         }
         let leaf_index = indices[3];
@@ -387,14 +399,13 @@ pub fn materialize_x86_64_4k_page_table(
                 leaf.virtual_address
             )));
         }
-        tables[table][leaf_index] =
-            materialize_page_entry(&policy.leaf_layout, leaf.physical_address, leaf.flags)?;
+        tables[table][leaf_index] = (leaf.physical_address & address_mask) | leaf.flags;
     }
 
     let mut bytes = vec![0u8; storage_length];
     for (table_index, table) in tables.iter().enumerate() {
         let table_offset = table_index
-            .checked_mul(X86_64_PAGE_BYTES as usize)
+            .checked_mul(AARCH64_PAGE_BYTES as usize)
             .ok_or_else(|| {
                 PageTableMaterializationDiagnostic("page-table byte offset overflows".into())
             })?;
@@ -404,7 +415,7 @@ pub fn materialize_x86_64_4k_page_table(
         }
     }
 
-    Ok(MaterializedX86_64PageTable {
+    Ok(MaterializedAarch64PageTable {
         plan: draft.plan_identity(),
         root_physical_address: draft.storage_base(),
         table_page_count: tables.len(),
@@ -416,19 +427,19 @@ pub fn materialize_x86_64_4k_page_table(
 
 fn validate_storage(
     draft: &PageTableDraft<'_>,
-    policy: &X86_64PageTablePolicy,
+    policy: &Aarch64PageTablePolicy,
 ) -> Result<(), PageTableMaterializationDiagnostic> {
     if draft.storage_address_space() != policy.physical_space {
         return Err(PageTableMaterializationDiagnostic(
-            "x86-64 page-table storage must be in the admitted physical address space".into(),
+            "AArch64 page-table storage must be in the admitted physical address space".into(),
         ));
     }
-    if draft.storage_length() < X86_64_PAGE_BYTES
-        || !draft.storage_length().is_multiple_of(X86_64_PAGE_BYTES)
-        || !draft.storage_base().is_multiple_of(X86_64_PAGE_BYTES)
+    if draft.storage_length() < AARCH64_PAGE_BYTES
+        || !draft.storage_length().is_multiple_of(AARCH64_PAGE_BYTES)
+        || !draft.storage_base().is_multiple_of(AARCH64_PAGE_BYTES)
     {
         return Err(PageTableMaterializationDiagnostic(
-            "x86-64 page-table storage must be a nonempty whole number of aligned 4 KiB pages"
+            "AArch64 page-table storage must be a nonempty whole number of aligned 4 KiB pages"
                 .into(),
         ));
     }
@@ -448,7 +459,7 @@ fn validate_storage(
 
 fn collect_leaves(
     draft: &PageTableDraft<'_>,
-    policy: &X86_64PageTablePolicy,
+    policy: &Aarch64PageTablePolicy,
 ) -> Result<Vec<LeafPage>, PageTableMaterializationDiagnostic> {
     let mut leaves = Vec::new();
     for mapping in draft.mappings() {
@@ -456,17 +467,20 @@ fn collect_leaves(
             || mapping.destination_address_space() != policy.virtual_space
         {
             return Err(PageTableMaterializationDiagnostic(
-                "pending mapping uses an address space outside the x86-64 page-table policy".into(),
+                "pending mapping uses an address space outside the AArch64 page-table policy"
+                    .into(),
             ));
         }
         if mapping.source_length() != mapping.destination_length()
             || mapping.source_length() == 0
-            || !mapping.source_length().is_multiple_of(X86_64_PAGE_BYTES)
-            || !mapping.source_base().is_multiple_of(X86_64_PAGE_BYTES)
-            || !mapping.destination_base().is_multiple_of(X86_64_PAGE_BYTES)
+            || !mapping.source_length().is_multiple_of(AARCH64_PAGE_BYTES)
+            || !mapping.source_base().is_multiple_of(AARCH64_PAGE_BYTES)
+            || !mapping
+                .destination_base()
+                .is_multiple_of(AARCH64_PAGE_BYTES)
         {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 mappings require equal, nonempty, 4 KiB-aligned whole-page ranges".into(),
+                "AArch64 mappings require equal, nonempty, 4 KiB-aligned whole-page ranges".into(),
             ));
         }
         let last_virtual = mapping
@@ -475,9 +489,11 @@ fn collect_leaves(
             .ok_or_else(|| {
                 PageTableMaterializationDiagnostic("mapped virtual range overflows".into())
             })?;
-        if !is_canonical_48(mapping.destination_base()) || !is_canonical_48(last_virtual) {
+        if !address_matches_translation_base(mapping.destination_base(), policy.translation_base)
+            || !address_matches_translation_base(last_virtual, policy.translation_base)
+        {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 mapping contains a noncanonical 48-bit virtual address".into(),
+                "AArch64 mapping lies outside the admitted 48-bit TTBR address half".into(),
             ));
         }
         let last_physical = mapping
@@ -488,14 +504,12 @@ fn collect_leaves(
             })?;
         if last_physical > physical_address_mask(policy.physical_address_bits) {
             return Err(PageTableMaterializationDiagnostic(
-                "x86-64 mapping lies outside the admitted physical-address width".into(),
+                "AArch64 mapping lies outside the admitted physical-address width".into(),
             ));
         }
-        let flags = policy
-            .rights
-            .leaf_flags(mapping.mapped_rights(), policy.nx_supported)?;
+        let flags = policy.rights.leaf_flags(mapping.mapped_rights())?;
         let page_count =
-            usize::try_from(mapping.source_length() / X86_64_PAGE_BYTES).map_err(|_| {
+            usize::try_from(mapping.source_length() / AARCH64_PAGE_BYTES).map_err(|_| {
                 PageTableMaterializationDiagnostic(
                     "mapping page count does not fit the provider host".into(),
                 )
@@ -507,7 +521,7 @@ fn collect_leaves(
             )));
         }
         for page in 0..page_count {
-            let offset = (page as u64) * X86_64_PAGE_BYTES;
+            let offset = (page as u64) * AARCH64_PAGE_BYTES;
             leaves.push(LeafPage {
                 virtual_address: mapping.destination_base() + offset,
                 physical_address: mapping.source_base() + offset,
@@ -521,29 +535,26 @@ fn collect_leaves(
 
 #[allow(clippy::too_many_arguments)]
 fn ensure_child_table(
-    tables: &mut Vec<[u64; X86_64_ENTRIES_PER_TABLE]>,
+    tables: &mut Vec<[u64; AARCH64_ENTRIES_PER_TABLE]>,
     children: &mut BTreeMap<(usize, usize), usize>,
     parent: usize,
     slot: usize,
-    propagated_flags: u64,
     storage_base: u64,
     storage_page_count: usize,
     max_table_pages: usize,
     address_mask: u64,
-    layout: &LayoutPlanReport,
 ) -> Result<usize, PageTableMaterializationDiagnostic> {
     if let Some(child) = children.get(&(parent, slot)).copied() {
-        tables[parent][slot] |= propagated_flags;
         return Ok(child);
     }
     let child = tables.len();
     if child >= storage_page_count || child >= max_table_pages {
         return Err(PageTableMaterializationDiagnostic(
-            "x86-64 page-table storage cannot hold the required hierarchy".into(),
+            "AArch64 page-table storage cannot hold the required hierarchy".into(),
         ));
     }
     let child_address = storage_base
-        .checked_add((child as u64) * X86_64_PAGE_BYTES)
+        .checked_add((child as u64) * AARCH64_PAGE_BYTES)
         .ok_or_else(|| {
             PageTableMaterializationDiagnostic("child page-table address overflows".into())
         })?;
@@ -552,149 +563,30 @@ fn ensure_child_table(
             "child page-table address exceeds admitted physical width".into(),
         ));
     }
-    tables.push([0; X86_64_ENTRIES_PER_TABLE]);
+    tables.push([0; AARCH64_ENTRIES_PER_TABLE]);
     children.insert((parent, slot), child);
-    tables[parent][slot] =
-        materialize_page_entry(layout, child_address, PRESENT | propagated_flags)?;
+    tables[parent][slot] = child_address | VALID_PAGE_OR_TABLE;
     Ok(child)
 }
 
-/// Canonical x86-64 4 KiB page-entry geometry. An Omega-authored target policy
-/// may produce the entries in another declaration order, but its exact
-/// normalized geometry must equal this hardware contract.
-pub fn canonical_x86_64_4k_leaf_layout() -> LayoutPlanReport {
-    LayoutPlanReport {
-        entries: vec![
-            bit_field("present", 0),
-            bit_field("writable", 1),
-            bit_field("user", 2),
-            bit_field("write_through", 3),
-            bit_field("cache_disable", 4),
-            bit_field("global", 8),
-            LayoutFieldEntryReport {
-                field: "frame_number".into(),
-                placement: LayoutPlacementReport::Bits {
-                    container: 0,
-                    container_width: 64,
-                    destination_lsb: 12,
-                    source_lsb: 0,
-                    width: 40,
-                },
-            },
-            bit_field("no_execute", 63),
-        ],
-        offsets: None,
-        size: Some(8),
-        align: 8,
-    }
-}
-
-fn bit_field(field: &str, destination_lsb: i64) -> LayoutFieldEntryReport {
-    LayoutFieldEntryReport {
-        field: field.into(),
-        placement: LayoutPlacementReport::Bits {
-            container: 0,
-            container_width: 64,
-            destination_lsb,
-            source_lsb: 0,
-            width: 1,
-        },
-    }
-}
-
-fn require_exact_leaf_layout(
-    layout: &LayoutPlanReport,
-) -> Result<(), PageTableMaterializationDiagnostic> {
-    if normalized_layout(layout) != normalized_layout(&canonical_x86_64_4k_leaf_layout()) {
-        return Err(PageTableMaterializationDiagnostic(
-            "layout does not exactly match x86-64 4 KiB page-entry geometry".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn normalized_layout(
-    layout: &LayoutPlanReport,
-) -> (Option<i64>, i64, Vec<(String, LayoutPlacementReport)>) {
-    let mut entries = layout
-        .entries
-        .iter()
-        .map(|entry| (entry.field.clone(), entry.placement))
-        .collect::<Vec<_>>();
-    entries.sort_unstable_by(|left, right| {
-        left.0
-            .cmp(&right.0)
-            .then_with(|| placement_key(left.1).cmp(&placement_key(right.1)))
-    });
-    (layout.size, layout.align, entries)
-}
-
-fn placement_key(placement: LayoutPlacementReport) -> (u8, i64, i64, i64, i64, i64) {
-    match placement {
-        LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
-        LayoutPlacementReport::Bits {
-            container,
-            container_width,
-            destination_lsb,
-            source_lsb,
-            width,
-        } => (
-            1,
-            container,
-            container_width,
-            destination_lsb,
-            source_lsb,
-            width,
-        ),
-    }
-}
-
-fn materialize_page_entry(
-    layout: &LayoutPlanReport,
-    physical_address: u64,
-    flags: u64,
-) -> Result<u64, PageTableMaterializationDiagnostic> {
-    let fields = [
-        scalar("present", 1, u64::from(flags & PRESENT != 0))?,
-        scalar("writable", 1, u64::from(flags & WRITABLE != 0))?,
-        scalar("user", 1, u64::from(flags & USER != 0))?,
-        scalar("write_through", 1, u64::from(flags & WRITE_THROUGH != 0))?,
-        scalar("cache_disable", 1, u64::from(flags & CACHE_DISABLE != 0))?,
-        scalar("global", 1, u64::from(flags & GLOBAL != 0))?,
-        scalar("frame_number", 40, physical_address >> 12)?,
-        scalar("no_execute", 1, u64::from(flags & NO_EXECUTE != 0))?,
-    ];
-    let mut bytes = [0_u8; size_of::<u64>()];
-    materialize_scalar_layout_into(layout, &fields, ByteOrder::LittleEndian, &mut bytes)
-        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))?;
-    Ok(u64::from_le_bytes(bytes))
-}
-
-fn scalar(
-    field: &str,
-    width_bits: u16,
-    value: u64,
-) -> Result<ScalarFieldValue, PageTableMaterializationDiagnostic> {
-    ScalarFieldValue::new(field, width_bits, value)
-        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))
+fn contains(rights: &ExtentRights, identity: ExtentRightId) -> bool {
+    rights.contains(&ExtentRights::from_normalized_identities([identity]))
 }
 
 const fn physical_address_mask(bits: u8) -> u64 {
     ((1u64 << bits) - 1) & !0xfff
 }
 
-const fn is_canonical_48(address: u64) -> bool {
-    let high = address >> 48;
-    if address & (1 << 47) == 0 {
-        high == 0
-    } else {
-        high == 0xffff
+const fn address_matches_translation_base(address: u64, base: Aarch64TranslationBase) -> bool {
+    match base {
+        Aarch64TranslationBase::Lower => address >> 48 == 0,
+        Aarch64TranslationBase::Upper => address >> 48 == 0xffff,
     }
 }
 
 fn fingerprint_bytes(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in b"omega.x86-64-page-table.v1".iter().chain(bytes) {
+    for byte in b"omega.aarch64-page-table.v1".iter().chain(bytes) {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -732,6 +624,9 @@ mod tests {
         writable: ExtentRightId,
         executable: ExtentRightId,
         user: ExtentRightId,
+        global: ExtentRightId,
+        normal: ExtentRightId,
+        device: ExtentRightId,
     }
 
     impl Fixture {
@@ -745,29 +640,36 @@ mod tests {
                 writable: right(11),
                 executable: right(12),
                 user: right(13),
+                global: right(14),
+                normal: right(15),
+                device: right(16),
             }
         }
 
-        fn policy(&self, nx_supported: bool) -> X86_64PageTablePolicy {
-            let right_policy = X86_64PageRights::new(
+        fn policy(&self, base: Aarch64TranslationBase) -> Aarch64PageTablePolicy {
+            let page_rights = Aarch64PageRights::new(
                 self.readable,
                 self.writable,
                 self.executable,
                 Some(self.user),
-                None,
-                None,
-                None,
+                Some(self.global),
+                vec![
+                    Aarch64MemoryClass::new(self.normal, 3, Aarch64Shareability::InnerShareable)
+                        .expect("normal memory"),
+                    Aarch64MemoryClass::new(self.device, 0, Aarch64Shareability::OuterShareable)
+                        .expect("device memory"),
+                ],
                 ExtentRights::default(),
             )
-            .expect("rights policy");
-            X86_64PageTablePolicy::new(
+            .expect("page rights");
+            Aarch64PageTablePolicy::new(
                 self.physical,
                 self.virtual_,
+                base,
                 48,
-                nx_supported,
                 16,
                 1024,
-                right_policy,
+                page_rights,
             )
             .expect("page-table policy")
         }
@@ -785,7 +687,7 @@ mod tests {
                 self.storage_provenance,
                 id(1, MappingEraId::from_normalized_identity),
             )
-            .mint(0x1000_0000, storage_pages * X86_64_PAGE_BYTES)
+            .mint(0x1000_0000, storage_pages * AARCH64_PAGE_BYTES)
             .expect("storage");
             let table_grant = PageTableGrant::from_admitted_provider(
                 id(21, PageTableGrantId::from_normalized_identity),
@@ -793,8 +695,8 @@ mod tests {
                 self.storage_provenance,
                 rights(&[11]),
                 self.virtual_,
-                X86_64_PAGE_BYTES,
-                X86_64_PAGE_BYTES,
+                AARCH64_PAGE_BYTES,
+                AARCH64_PAGE_BYTES,
                 PageTableRetirementObligations::default(),
             )
             .expect("page-table grant");
@@ -812,7 +714,7 @@ mod tests {
                 id(24, ExtentProvenanceId::from_normalized_identity),
                 id(2, MappingEraId::from_normalized_identity),
             )
-            .mint(0x20_0000, X86_64_PAGE_BYTES)
+            .mint(0x20_0000, AARCH64_PAGE_BYTES)
             .expect("source");
             let destination = ExtentRootGrant::from_admitted_provider(
                 id(25, ExtentLineageId::from_normalized_identity),
@@ -821,7 +723,7 @@ mod tests {
                 id(26, ExtentProvenanceId::from_normalized_identity),
                 id(3, MappingEraId::from_normalized_identity),
             )
-            .mint(destination_base, X86_64_PAGE_BYTES)
+            .mint(destination_base, AARCH64_PAGE_BYTES)
             .expect("destination");
             let map_grant = MappingGrant::from_admitted_provider(
                 id(27, MappingGrantId::from_normalized_identity),
@@ -849,60 +751,139 @@ mod tests {
     }
 
     fn entry(bytes: &[u8], table: usize, slot: usize) -> u64 {
-        let offset = table * X86_64_PAGE_BYTES as usize + slot * size_of::<u64>();
+        let offset = table * AARCH64_PAGE_BYTES as usize + slot * size_of::<u64>();
         u64::from_le_bytes(bytes[offset..offset + 8].try_into().expect("entry bytes"))
     }
 
     #[test]
-    fn materializes_upper_half_mapping_with_exact_hierarchy_and_nx() {
+    fn materializes_lower_user_rw_normal_mapping() {
         let fixture = Fixture::new();
-        let virtual_address = 0xffff_8000_0000_1000;
         let draft = fixture.draft(
-            virtual_address,
+            0x4000,
             ExtentRights::from_normalized_identities([
                 fixture.readable,
                 fixture.writable,
                 fixture.user,
+                fixture.normal,
             ]),
             4,
         );
-        let image =
-            materialize_x86_64_4k_page_table(&draft, &fixture.policy(true)).expect("materialize");
+        let image = materialize_aarch64_4k_page_table(
+            &draft,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+        )
+        .expect("materialize");
 
         assert_eq!(image.plan(), draft.plan_identity());
         assert_eq!(image.root_physical_address(), 0x1000_0000);
         assert_eq!(image.table_page_count(), 4);
         assert_eq!(image.leaf_entry_count(), 1);
         assert_eq!(
-            entry(image.bytes(), 0, 256),
-            0x1000_1000 | PRESENT | WRITABLE | USER
+            entry(image.bytes(), 0, 0),
+            0x1000_1000 | VALID_PAGE_OR_TABLE
         );
         assert_eq!(
             entry(image.bytes(), 1, 0),
-            0x1000_2000 | PRESENT | WRITABLE | USER
+            0x1000_2000 | VALID_PAGE_OR_TABLE
         );
         assert_eq!(
             entry(image.bytes(), 2, 0),
-            0x1000_3000 | PRESENT | WRITABLE | USER
+            0x1000_3000 | VALID_PAGE_OR_TABLE
         );
-        assert_eq!(
-            entry(image.bytes(), 3, 1),
-            0x20_0000 | PRESENT | WRITABLE | USER | NO_EXECUTE
-        );
+        let expected = 0x20_0000
+            | VALID_PAGE_OR_TABLE
+            | (3 << 2)
+            | ACCESS_PERMISSION_USER
+            | Aarch64Shareability::InnerShareable.descriptor_bits()
+            | ACCESS_FLAG
+            | NOT_GLOBAL
+            | PRIVILEGED_EXECUTE_NEVER
+            | UNPRIVILEGED_EXECUTE_NEVER;
+        assert_eq!(entry(image.bytes(), 3, 4), expected);
         assert_ne!(image.content_fingerprint(), 0);
     }
 
     #[test]
-    fn executable_leaf_omits_nx() {
+    fn materializes_upper_privileged_read_only_executable_device_mapping() {
         let fixture = Fixture::new();
         let draft = fixture.draft(
-            0x4000,
-            ExtentRights::from_normalized_identities([fixture.readable, fixture.executable]),
+            0xffff_8000_0000_1000,
+            ExtentRights::from_normalized_identities([
+                fixture.readable,
+                fixture.executable,
+                fixture.global,
+                fixture.device,
+            ]),
             4,
         );
-        let image =
-            materialize_x86_64_4k_page_table(&draft, &fixture.policy(true)).expect("materialize");
-        assert_eq!(entry(image.bytes(), 3, 4), 0x20_0000 | PRESENT);
+        let image = materialize_aarch64_4k_page_table(
+            &draft,
+            &fixture.policy(Aarch64TranslationBase::Upper),
+        )
+        .expect("materialize");
+        let expected = 0x20_0000
+            | VALID_PAGE_OR_TABLE
+            | ACCESS_PERMISSION_READ_ONLY
+            | Aarch64Shareability::OuterShareable.descriptor_bits()
+            | ACCESS_FLAG
+            | UNPRIVILEGED_EXECUTE_NEVER;
+        assert_eq!(entry(image.bytes(), 3, 1), expected);
+    }
+
+    #[test]
+    fn translation_half_memory_class_and_unknown_rights_fail_closed() {
+        let fixture = Fixture::new();
+        let lower = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable, fixture.normal]),
+            4,
+        );
+        let error = materialize_aarch64_4k_page_table(
+            &lower,
+            &fixture.policy(Aarch64TranslationBase::Upper),
+        )
+        .expect_err("wrong TTBR half");
+        assert!(error.0.contains("TTBR"));
+
+        let no_class = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable]),
+            4,
+        );
+        let error = materialize_aarch64_4k_page_table(
+            &no_class,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+        )
+        .expect_err("memory class required");
+        assert!(error.0.contains("exactly one"));
+
+        let two_classes = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([
+                fixture.readable,
+                fixture.normal,
+                fixture.device,
+            ]),
+            4,
+        );
+        let error = materialize_aarch64_4k_page_table(
+            &two_classes,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+        )
+        .expect_err("one memory class");
+        assert!(error.0.contains("found 2"));
+
+        let unknown = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable, fixture.normal, right(99)]),
+            4,
+        );
+        let error = materialize_aarch64_4k_page_table(
+            &unknown,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+        )
+        .expect_err("unknown descriptor right");
+        assert!(error.0.contains("has no admitted"));
     }
 
     #[test]
@@ -910,11 +891,14 @@ mod tests {
         let fixture = Fixture::new();
         let draft = fixture.draft(
             0x4000,
-            ExtentRights::from_normalized_identities([fixture.readable]),
+            ExtentRights::from_normalized_identities([fixture.readable, fixture.normal]),
             4,
         );
-        let image =
-            materialize_x86_64_4k_page_table(&draft, &fixture.policy(true)).expect("materialize");
+        let image = materialize_aarch64_4k_page_table(
+            &draft,
+            &fixture.policy(Aarch64TranslationBase::Lower),
+        )
+        .expect("materialize");
         let receipt = image
             .into_construction_receipt(
                 id(29, PageTableConstructionReceiptId::from_normalized_identity),
@@ -926,55 +910,6 @@ mod tests {
             installable.evidence(),
             PageTableConstructionEvidence::Generated
         );
-        assert_eq!(installable.bytes().len(), 4 * X86_64_PAGE_BYTES as usize);
-    }
-
-    #[test]
-    fn non_executable_mapping_rejects_without_nx_support() {
-        let fixture = Fixture::new();
-        let draft = fixture.draft(
-            0x4000,
-            ExtentRights::from_normalized_identities([fixture.readable]),
-            4,
-        );
-        let error = materialize_x86_64_4k_page_table(&draft, &fixture.policy(false))
-            .expect_err("NX must be enforceable");
-        assert!(error.0.contains("without NX"));
-    }
-
-    #[test]
-    fn hierarchy_capacity_and_unknown_rights_fail_closed() {
-        let fixture = Fixture::new();
-        let too_small = fixture.draft(
-            0x4000,
-            ExtentRights::from_normalized_identities([fixture.readable]),
-            3,
-        );
-        let error = materialize_x86_64_4k_page_table(&too_small, &fixture.policy(true))
-            .expect_err("four-level hierarchy needs four pages");
-        assert!(error.0.contains("cannot hold"));
-
-        let unknown = right(99);
-        let draft = fixture.draft(
-            0x4000,
-            ExtentRights::from_normalized_identities([fixture.readable, unknown]),
-            4,
-        );
-        let error = materialize_x86_64_4k_page_table(&draft, &fixture.policy(true))
-            .expect_err("unknown PTE meaning");
-        assert!(error.0.contains("has no admitted"));
-    }
-
-    #[test]
-    fn noncanonical_destination_rejects() {
-        let fixture = Fixture::new();
-        let draft = fixture.draft(
-            0x0000_8000_0000_0000,
-            ExtentRights::from_normalized_identities([fixture.readable]),
-            4,
-        );
-        let error = materialize_x86_64_4k_page_table(&draft, &fixture.policy(true))
-            .expect_err("canonical virtual address");
-        assert!(error.0.contains("noncanonical"));
+        assert_eq!(installable.bytes().len(), 4 * AARCH64_PAGE_BYTES as usize);
     }
 }

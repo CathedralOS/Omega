@@ -287,6 +287,10 @@ foundation path. The first complete x86-64 table consumer now lives in
 derives four-level 4 KiB table bytes from the normalized pending mappings, and
 fails closed on unknown or unrepresentable policy facts. It remains a target
 consumer of plans, not a second layout mechanism or a source-visible raw writer.
+The AArch64 sibling uses the same normalized mappings and construction
+lifecycle while retaining its independent descriptor algebra: semantic memory
+class selects `AttrIndx`/shareability and access rights select AP/nG/PXN/UXN.
+No common "page flags" sum erases the target distinction.
 The inverse scalar decoder consumes compiler-materialized
 field widths and the same named geometry, reconstructs complete logical
 fields, and rejects incomplete or overlapping source fragments. Decoding

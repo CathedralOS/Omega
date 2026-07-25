@@ -1783,10 +1783,15 @@ stronger operations it needs instead of citing machine parameters generally.
   policy; unknown rights and unenforceable NX reject. Intermediate permissions
   monotonically cover their descendants, unused storage remains zero, and the
   result is inert exact bytes plus plan/content report facts—never translation
-  or installation authority. Add huge-page/PAT/LA57 policies only for real
-  target customers, build the AArch64 writer, connect imported-table scanning,
-  and implement page-table-control execution/effects and Cathedral's concrete
-  CR3 activation as ordinary engineering. Connecting
+  or installation authority. The matching AArch64 stage-1 writer is live for
+  four-level 4 KiB tables in either admitted TTBR address half. Its distinct
+  policy maps exactly one semantic memory-class fact to `AttrIndx` plus
+  shareability, maps ordinary rights to AP/nG/PXN/UXN, enforces the configured
+  32–48-bit output-address width, and enters the same generated-construction
+  receipt lifecycle. Add huge-page/PAT/LA57 or AArch64 block/LPA2/dirty-state
+  policies only for real target customers, connect imported-table scanning,
+  and implement page-table-control execution/effects plus Cathedral's concrete
+  CR3/TTBR activation as ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
