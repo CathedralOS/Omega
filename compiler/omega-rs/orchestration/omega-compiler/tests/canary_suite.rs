@@ -2844,8 +2844,9 @@ fn cross_darwin_time_host_compiles() {
 #[test]
 fn cross_linux_time_host_compiles_on_both_architectures() {
     // Linux std::time structural slice: clock_gettime writes a two-word
-    // timespec, so target emission must own the temporary, validate status,
-    // combine seconds/nanoseconds, and relocate the final Omega result.
+    // timespec and nanosleep consumes one, so target emission must own both
+    // temporary shapes, combine seconds/nanoseconds for reads, convert
+    // milliseconds for sleep, and relocate the semantic Omega operands.
     // Compile-only here; runtime confirmation remains gated on Linux hosts.
     let canary = pass_canary("time/cross_linux_time_host");
     for target in ["linux_x64", "linux_arm64"] {

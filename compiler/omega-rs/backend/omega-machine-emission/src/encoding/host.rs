@@ -26,6 +26,16 @@ pub(super) fn encode_host_operation(
                 binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             )
         }
+        Some(HostBindingMechanism::Syscall { number, .. })
+            if operation_key.uses_linux_timespec_argument() =>
+        {
+            architecture::encode_linux_timespec_argument_syscall_with_plan(
+                input.target.architecture,
+                operands,
+                *number,
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+            )
+        }
         Some(HostBindingMechanism::Syscall { number, .. }) => {
             architecture::encode_syscall_sequence_with_plan(
                 input.target.architecture,

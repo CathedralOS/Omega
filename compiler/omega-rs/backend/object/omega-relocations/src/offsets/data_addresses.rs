@@ -177,6 +177,22 @@ fn data_address_relocation_offset_with_plan(
             return selected_text_offset + byte_offset;
         }
     }
+    if is_syscall
+        && operand_index == 0
+        && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_argument)
+    {
+        let number = omega_calling_conventions::linux_nanosleep_syscall_number(architecture);
+        if let Ok(Some(byte_offset)) =
+            omega_instruction_selection::linux_timespec_argument_relocation_byte_offset(
+                architecture,
+                operands,
+                number,
+                authoritative_plan,
+            )
+        {
+            return selected_text_offset + byte_offset;
+        }
+    }
 
     // A field-model call marshals args like an import, then reads the callee
     // from the receiver (This-call) or from the dispatch-only table pointer

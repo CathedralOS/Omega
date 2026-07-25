@@ -119,6 +119,18 @@ fn machine_instruction_width(
                         binding.and_then(omega_calling_conventions::HostBinding::call_plan),
                     )
                 }
+                Some(HostBindingMechanism::Syscall { number, .. })
+                    if host_operation
+                        .operation_key
+                        .uses_linux_timespec_argument() =>
+                {
+                    omega_instruction_selection::linux_timespec_argument_syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                    )
+                }
                 Some(HostBindingMechanism::Syscall { number, .. }) => {
                     syscall_sequence_width_with_plan(
                         input.target.architecture,

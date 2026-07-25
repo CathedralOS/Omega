@@ -1892,6 +1892,89 @@ pub fn encode_linux_timespec_syscall<T: InstructionOperandLike>(
     ))
 }
 
+/// Linux `nanosleep(&timespec, NULL)` adapter for Omega's millisecond sleep
+/// operation. The private two-word request lives on the stack. EINTR remains
+/// the platform provider's ordinary early-return behavior, matching the
+/// existing Darwin poll adapter; no unbounded retry loop is hidden here.
+pub fn encode_linux_timespec_argument_syscall<T: InstructionOperandLike>(
+    operands: &[T],
+    syscall_number: u32,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
+    number_register: MachineRegister,
+    supervisor_call: u16,
+) -> Result<(Vec<u8>, Option<X86_64RelocationSite>), Diagnostic> {
+    let [milliseconds] = operands else {
+        return Err(Diagnostic::error(
+            "X86_64 Linux timespec-argument lowering requires one millisecond operand",
+        ));
+    };
+    if argument_registers != [MachineRegister::X86Rdi, MachineRegister::X86Rsi]
+        || result_register != MachineRegister::X86Rax
+        || number_register != MachineRegister::X86Rax
+        || supervisor_call != 0
+    {
+        return Err(Diagnostic::error(format!(
+            "X86_64 Linux timespec-argument encoder cannot realize \
+             parameters={argument_registers:?}, result={result_register:?}, \
+             number={number_register:?}, immediate={supervisor_call}"
+        )));
+    }
+
+    let mut bytes = Vec::with_capacity(96);
+    bytes.extend([0x48, 0x83, 0xec, 0x10]); // sub rsp, 16
+    let relocation =
+        if let Some((_, byte_offset, byte_count)) = milliseconds.runtime_scalar_integer() {
+            let relocation_byte_offset = bytes.len() + 2;
+            append_mov_r11_imm64(&mut bytes, 0);
+            match byte_count {
+                4 => bytes.extend([0x41, 0x8b, 0x83]), // mov eax, [r11+disp32]
+                8 => bytes.extend([0x49, 0x8b, 0x83]), // mov rax, [r11+disp32]
+                other => {
+                    return Err(Diagnostic::error(format!(
+                        "X86_64 Linux sleep milliseconds must be 4 or 8 bytes, got {other}"
+                    )));
+                }
+            }
+            bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            Some(X86_64RelocationSite {
+                operand_index: Some(0),
+                byte_offset: relocation_byte_offset,
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            })
+        } else if let Some(value) = milliseconds.immediate_integer() {
+            if value < 0 {
+                return Err(Diagnostic::error(
+                    "X86_64 Linux sleep milliseconds cannot be negative",
+                ));
+            }
+            bytes.extend([0x48, 0xb8]);
+            bytes.extend((value as u64).to_le_bytes());
+            None
+        } else {
+            return Err(Diagnostic::error(
+                "X86_64 Linux sleep milliseconds must be an immediate or runtime scalar",
+            ));
+        };
+
+    bytes.extend([0x31, 0xd2]); // xor edx, edx
+    bytes.extend([0xb9]);
+    bytes.extend(1000_u32.to_le_bytes()); // mov ecx, 1000
+    bytes.extend([0x48, 0xf7, 0xf1]); // div rcx: rax=seconds, rdx=millisecond remainder
+    bytes.extend([0x48, 0x89, 0x04, 0x24]); // mov [rsp], rax
+    bytes.extend([0x48, 0x69, 0xd2]);
+    bytes.extend(1_000_000_i32.to_le_bytes()); // imul rdx, rdx, 1_000_000
+    bytes.extend([0x48, 0x89, 0x54, 0x24, 0x08]); // mov [rsp+8], rdx
+    bytes.extend([0x48, 0x8d, 0x3c, 0x24]); // lea rdi, [rsp]
+    bytes.extend([0x31, 0xf6]); // xor esi, esi
+    bytes.extend([0x48, 0xb8]);
+    bytes.extend(u64::from(syscall_number).to_le_bytes());
+    bytes.extend([0x0f, 0x05]);
+    bytes.extend([0x48, 0x83, 0xc4, 0x10]); // add rsp, 16
+    Ok((bytes, relocation))
+}
+
 fn append_load_r11_qword_from_r11(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
@@ -2045,6 +2128,37 @@ mod syscall_plan_register_tests {
         assert_eq!(site.kind, X86_64RelocationSiteKind::Absolute64);
         assert_eq!(&bytes[site.byte_offset..site.byte_offset + 8], &[0; 8]);
         assert_eq!(&bytes[bytes.len() - 4..], &24i32.to_le_bytes());
+    }
+
+    #[test]
+    fn linux_sleep_materializes_a_private_timespec_from_milliseconds() {
+        let operands = [TargetInstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 32,
+                byte_count: 4,
+            },
+        }];
+        let (bytes, site) = encode_linux_timespec_argument_syscall(
+            &operands,
+            35,
+            &[MachineRegister::X86Rdi, MachineRegister::X86Rsi],
+            MachineRegister::X86Rax,
+            MachineRegister::X86Rax,
+            0,
+        )
+        .expect("nanosleep composite lowering");
+
+        let site = site.expect("runtime milliseconds need one region relocation");
+        assert_eq!(site.operand_index, Some(0));
+        assert_eq!(&bytes[site.byte_offset..site.byte_offset + 8], &[0; 8]);
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| { window == 1_000_000_i32.to_le_bytes().as_slice() })
+        );
+        assert!(bytes.windows(2).any(|window| window == [0x0f, 0x05]));
+        assert_eq!(&bytes[bytes.len() - 4..], &[0x48, 0x83, 0xc4, 0x10]);
     }
 }
 

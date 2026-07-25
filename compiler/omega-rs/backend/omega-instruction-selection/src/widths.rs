@@ -385,6 +385,22 @@ pub fn linux_timespec_syscall_sequence_width_with_plan<T: InstructionOperandLike
     .unwrap_or(0)
 }
 
+pub fn linux_timespec_argument_syscall_sequence_width_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    crate::encode_linux_timespec_argument_syscall_with_plan(
+        architecture,
+        operands,
+        syscall_number,
+        authoritative_plan,
+    )
+    .map(|bytes| bytes.len())
+    .unwrap_or(0)
+}
+
 pub fn constant_host_result_sequence_width<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],

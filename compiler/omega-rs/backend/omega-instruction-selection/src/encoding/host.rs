@@ -1261,6 +1261,76 @@ pub fn linux_timespec_result_relocation_byte_offset<T: InstructionOperandLike>(
     .map(|(_, byte_offset)| byte_offset)
 }
 
+fn encode_linux_timespec_argument_syscall_with_site<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(Vec<u8>, Option<usize>), Diagnostic> {
+    if operands.len() != 1 {
+        return Err(Diagnostic::error(
+            "Linux timespec-argument lowering requires one semantic millisecond argument",
+        ));
+    }
+    let registers =
+        normalized_syscall_registers_with_plan(architecture, 2, true, authoritative_plan)?;
+    let result_register = registers.required_result()?;
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_linux_timespec_argument_syscall(
+            &operands
+                .iter()
+                .map(aarch64_call_operand)
+                .collect::<Vec<_>>(),
+            syscall_number,
+            &registers.parameters,
+            result_register,
+            registers.number,
+            registers.immediate,
+        ),
+        Architecture::X86_64 => {
+            let (bytes, site) = x86_64::encode_linux_timespec_argument_syscall(
+                operands,
+                syscall_number,
+                &registers.parameters,
+                result_register,
+                registers.number,
+                registers.immediate,
+            )?;
+            Ok((bytes, site.map(|site| site.byte_offset)))
+        }
+    }
+}
+
+pub fn encode_linux_timespec_argument_syscall_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_linux_timespec_argument_syscall_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        authoritative_plan,
+    )
+    .map(|(bytes, _)| bytes)
+}
+
+pub fn linux_timespec_argument_relocation_byte_offset<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Option<usize>, Diagnostic> {
+    encode_linux_timespec_argument_syscall_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        authoritative_plan,
+    )
+    .map(|(_, byte_offset)| byte_offset)
+}
+
 pub fn encode_constant_host_result<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],

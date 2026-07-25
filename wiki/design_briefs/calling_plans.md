@@ -638,6 +638,12 @@ traps if the fixed valid inputs nevertheless return an error, and computes
 from that exact sequence on x86-64 and AArch64. The internal `timespec` never
 becomes a universal language representation, and calibration values remain
 per-target constant-result rows with no call boundary.
+Linux `nanosleep` uses the symmetric argument adapter: the semantic operation
+continues to accept one millisecond scalar while its retained boundary plan is
+the real two-pointer syscall signature. Target emission converts milliseconds
+to a private two-word request, passes a null remainder pointer, and derives
+width plus operand relocation from that same sequence. An interrupted sleep
+returns early rather than hiding an unbounded retry loop inside the provider.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still

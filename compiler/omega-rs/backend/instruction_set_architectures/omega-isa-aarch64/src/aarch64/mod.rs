@@ -1214,6 +1214,81 @@ pub fn encode_linux_timespec_syscall(
     Ok((bytes, result_relocation_byte_offset))
 }
 
+/// AArch64 Linux `nanosleep(&timespec, NULL)` adapter. Returns the bytes and
+/// the optional ADRP byte offset for a runtime millisecond operand.
+pub fn encode_linux_timespec_argument_syscall(
+    operands: &[Aarch64CallOperand],
+    syscall_number: u32,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
+    number_register: MachineRegister,
+    supervisor_call: u16,
+) -> Result<(Vec<u8>, Option<usize>), Diagnostic> {
+    let [milliseconds] = operands else {
+        return Err(Diagnostic::error(
+            "AArch64 Linux timespec-argument lowering requires one millisecond operand",
+        ));
+    };
+    if argument_registers != [MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1)]
+        || result_register != MachineRegister::Aarch64X(0)
+        || number_register != MachineRegister::Aarch64X(8)
+    {
+        return Err(Diagnostic::error(format!(
+            "AArch64 Linux timespec-argument encoder cannot realize \
+             parameters={argument_registers:?}, result={result_register:?}, \
+             number={number_register:?}"
+        )));
+    }
+
+    let mut bytes = Vec::with_capacity(96);
+    bytes.extend(encode_sub_x_immediate(31, 31, 16)?);
+    let relocation = match *milliseconds {
+        RuntimeScalarInteger {
+            byte_offset,
+            byte_count,
+        } if matches!(byte_count, 4 | 8) => {
+            let site = bytes.len();
+            bytes.extend(encode_adrp_placeholder(2));
+            bytes.extend(encode_add_page_offset_placeholder(2));
+            append_load_data_from_x_offset(&mut bytes, 2, 2, byte_offset, byte_count, 8)?;
+            Some(site)
+        }
+        ImmediateInteger(value) if value >= 0 => {
+            append_unsigned_immediate(&mut bytes, 2, value as u64);
+            None
+        }
+        RuntimeScalarInteger { byte_count, .. } => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 Linux sleep milliseconds must be 4 or 8 bytes, got {byte_count}"
+            )));
+        }
+        ImmediateInteger(_) => {
+            return Err(Diagnostic::error(
+                "AArch64 Linux sleep milliseconds cannot be negative",
+            ));
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "AArch64 Linux sleep milliseconds must be an immediate or runtime scalar",
+            ));
+        }
+    };
+
+    append_unsigned_immediate(&mut bytes, 3, 1000);
+    bytes.extend(encode_udiv_x_register(0, 2, 3));
+    bytes.extend(encode_msub_x_register(4, 0, 3, 2));
+    append_unsigned_immediate(&mut bytes, 5, 1_000_000);
+    bytes.extend(encode_mul_x_register(4, 4, 5));
+    bytes.extend(encode_store_x_to_x(0, 31, 0)?);
+    bytes.extend(encode_store_x_to_x(4, 31, 8)?);
+    bytes.extend(encode_add_x_immediate(0, 31, 0)?); // x0 = &request
+    append_unsigned_immediate(&mut bytes, 1, 0); // x1 = NULL remainder
+    append_unsigned_immediate(&mut bytes, 8, u64::from(syscall_number));
+    bytes.extend(encode_svc(supervisor_call));
+    bytes.extend(encode_add_x_immediate(31, 31, 16)?);
+    Ok((bytes, relocation))
+}
+
 fn append_syscall_operands(
     bytes: &mut Vec<u8>,
     operands: impl Iterator<Item = Aarch64CallOperand>,
@@ -1413,6 +1488,40 @@ mod syscall_plan_register_tests {
         assert_eq!(
             &bytes[result_site + 4..result_site + 8],
             &encode_add_page_offset_placeholder(16)
+        );
+    }
+
+    #[test]
+    fn linux_sleep_materializes_a_private_timespec_from_milliseconds() {
+        let operands = [Aarch64CallOperand::RuntimeScalarInteger {
+            byte_offset: 32,
+            byte_count: 4,
+        }];
+        let (bytes, site) = encode_linux_timespec_argument_syscall(
+            &operands,
+            101,
+            &[MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1)],
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(8),
+            0,
+        )
+        .expect("nanosleep composite lowering");
+
+        let site = site.expect("runtime milliseconds need one page relocation");
+        assert_eq!(&bytes[site..site + 4], &encode_adrp_placeholder(2));
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_udiv_x_register(0, 2, 3).as_slice())
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_svc(0).as_slice())
+        );
+        assert_eq!(
+            &bytes[bytes.len() - 4..],
+            &encode_add_x_immediate(31, 31, 16).unwrap()
         );
     }
 }
