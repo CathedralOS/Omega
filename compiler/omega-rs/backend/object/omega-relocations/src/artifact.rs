@@ -126,8 +126,9 @@ mod tests {
     use omega_executable_installation::{
         ArtifactContentId, ArtifactEntry, ArtifactId, ContainerLimits, ContainerSection,
         ContainerSectionKind, DecodedArtifactContainer, EntrySetId, MachineContractSetId,
-        MachineFootprintId, OMEGA_EXECUTABLE_CONTAINER_VERSION, PlacementPlanId, ProofPayloadId,
-        RelocationSetId, normalized_decoded_content_identity, validate_decoded_container,
+        MachineFootprintId, OMEGA_EXECUTABLE_CONTAINER_VERSION, PlacementPlanId, RelocationSetId,
+        normalized_decoded_content_identity, normalized_proof_payload_identity,
+        validate_decoded_container,
     };
     use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
     use omega_target::NativeTarget;
@@ -146,6 +147,8 @@ mod tests {
         let entry = EntryStubId::from_normalized_identity(9).expect("normalized entry identity");
         let target = RelocationTarget::Entry(entry);
         let relocations = id(6, RelocationSetId::from_normalized_identity);
+        let proof = vec![0xa5; 64];
+        let proof_payload = normalized_proof_payload_identity(&proof);
         let mut decoded = DecodedArtifactContainer {
             format_version: OMEGA_EXECUTABLE_CONTAINER_VERSION,
             total_length: 400,
@@ -167,8 +170,8 @@ mod tests {
                 target,
                 addend,
             }],
-            proof_payload: id(7, ProofPayloadId::from_normalized_identity),
-            proof: vec![0xa5; 64],
+            proof_payload,
+            proof,
             sections: vec![
                 ContainerSection {
                     kind: ContainerSectionKind::Code,
@@ -213,10 +216,7 @@ mod tests {
                     length: 16,
                 },
                 ContainerSection {
-                    kind: ContainerSectionKind::Proof(id(
-                        7,
-                        ProofPayloadId::from_normalized_identity,
-                    )),
+                    kind: ContainerSectionKind::Proof(proof_payload),
                     offset: 336,
                     length: 64,
                 },

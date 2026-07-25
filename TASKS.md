@@ -1918,7 +1918,9 @@ stronger operations it needs instead of citing machine parameters generally.
   The checked-container admission gate now retains the exact immutable
   validated artifact rather than treating compact FNV identities as collision-
   resistant evidence, and separately retains both the proof-payload identity
-  and its exact identity-invisible bytes. Acceptance cannot replay across
+  and its exact identity-invisible bytes. The normalizer derives that proof
+  identity from the bytes rather than trusting a decoder/provider restatement.
+  Acceptance cannot replay across
   byte/content/contracts/footprint/placement/entry/proof drift even when a
   compact proof identity collides, while informational sections remain
   incapable of contributing admission authority.
