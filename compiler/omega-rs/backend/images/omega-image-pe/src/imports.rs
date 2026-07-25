@@ -13,9 +13,9 @@ use omega_image::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportThunk {
     pub(crate) symbol: String,
-    /// Library the import's binding named; empty = per-target catalog lookup
-    /// (the historical path for populate-table rows written before the
-    /// library rode the binding).
+    /// Library named by the external binding. Empty requests the compiler's
+    /// target import catalog for legacy built-in imports; no authored provider
+    /// row or ambient library guess is reconstructed here.
     pub(crate) library: String,
     pub(crate) text_offset: usize,
 }

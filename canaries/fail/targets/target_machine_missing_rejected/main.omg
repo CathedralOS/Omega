@@ -5,9 +5,9 @@
 // portable-contract surface; a SINGLE foreign implementer is that target's
 // paradigm internal and filters silently instead (see
 // pass/targets/single_target_internal_machine_skipped). `demo_target`/
-// `demo_target2` resolve to no real target, so both implementations are inert
-// on every host (the provides wrong-target discipline, which is also what
-// makes this canary host-portable).
+// `demo_target2` resolve to no real target, so both target-scoped machines are
+// inert on every host. That target-selection discipline makes this canary
+// host-portable.
 use omega::language::std::console;
 
 data Helper { seed: i32; }

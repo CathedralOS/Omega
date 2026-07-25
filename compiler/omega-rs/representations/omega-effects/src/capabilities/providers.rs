@@ -161,10 +161,10 @@ fn apply_operator_to_providers(
     // `contract_ref`: the bound operator's contract obligation. The operator's
     // `requires`/`ensures` clause IS the governing contract, referenced by the
     // operator's qualified name. Falls back to a declared boundary level.
-    if provider.contract_ref.is_none() {
-        if let Some(reference) = operator_contract_ref(syntax, operator, contracts) {
-            provider.contract_ref = Some(reference);
-        }
+    if provider.contract_ref.is_none()
+        && let Some(reference) = operator_contract_ref(syntax, operator, contracts)
+    {
+        provider.contract_ref = Some(reference);
     }
 
     // Host-ABI authority is categorical provider metadata. Pure-compute

@@ -7,8 +7,9 @@
 // (native only; the interpreter evaluates the AST, and a plain machine masked it
 // via const-propagation of an adjacent write). Now `fixed_indexed_target_path_in_table`
 // const-folds a binary index, so `4 + 1` resolves to a fixed element like `5`.
-// This is the shape the fs per-target stat decode hits: after the provides
-// substitution `stat_buf[FilesystemHost::ST_*_OFF + k]` is `stat_buf[24 + 0]`.
+// This is the shape the former offset-based fs stat decoder used to hit:
+// `stat_buf[24 + 0]`. The live filesystem path now projects through a checked
+// target-authored `StatLayout`; this canary remains about constant indexing.
 // fill(): buf[5]=99, returns buf[4 + 1]=buf[5]=99.
 // Expected exit: 99
 use omega::language::std::console;

@@ -4,8 +4,9 @@
 //! remaining built-in platform-lowering tables. CONSTRUCTION IS FREE: any code can build a plan; PRV2
 //! validates coverage/signatures/identity, PRV3 admits semantic claims
 //! through the chapter-10 grant/receipt carrier and selects by a
-//! slot-owner capability, PRV4 relocates the built-in populate tables into
-//! ordinary std target packages. Trust classification is ADMISSION OUTPUT,
+//! slot-owner capability. PRV4 retired authored `provides`/populate tables:
+//! ordinary target packages now own checked adapters and `via Binding` leaves.
+//! Trust classification is ADMISSION OUTPUT,
 //! never author-selected plan data -- which is why no trust field exists
 //! on these types.
 

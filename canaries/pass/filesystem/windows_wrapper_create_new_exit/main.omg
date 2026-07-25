@@ -1,13 +1,13 @@
 // RUN CANARY (exit 70) -- create_new UNFENCED on windows_x64 (portable-values
 // payoff, 2026-07-08). Previously fenced: the wrapper composed DARWIN flag
 // words and darwin O_CREAT (0x200) is msvcrt O_TRUNC, so create_new/open_with
-// would silently TRUNCATE. Now the wrapper composes the SELECTED TARGET's flag
-// values from the FilesystemHost provides rows, so on windows it emits msvcrt
-// O_CREAT (0x100) | O_EXCL (0x400). Discriminating: the SECOND create_new on an
+// would silently TRUNCATE. Now the selected Windows adapter encodes semantic
+// `OpenOptions` to msvcrt O_CREAT (0x100) | O_EXCL (0x400). Discriminating: the
+// SECOND create_new on an
 // existing file must return Error{AlreadyExists} (proves O_EXCL took effect and
 // the first call did NOT truncate) -- the exact data-loss hazard the fence
 // guarded. Windows-gated, DIFFERENTIAL: the interpreter decodes the HOST's
-// flag numerology (host_open_flags, mirroring the provides values), so interp
+// flag numerology through the same target adapter contract, so interpreter
 // and native agree -- and the differential is the drift guard on that mirror.
 // exits: 70 ok; 71 create_new not Ok; 72 close nonzero; 73 second create_new
 // not Error; 74 kind not AlreadyExists.
