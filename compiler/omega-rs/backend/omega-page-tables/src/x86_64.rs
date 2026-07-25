@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_extents::{
-    AddressSpaceId, ExtentRightId, ExtentRights, PageTableConstructionEvidence,
-    PageTableConstructionReceipt, PageTableConstructionReceiptId, PageTableDraft, PageTablePlanId,
+    AddressSpaceId, ExtentRightId, ExtentRights, InstallablePageTable, MappingId,
+    MappingReceiptContext, PageTableConstructionEvidence, PageTableConstructionReceipt,
+    PageTableConstructionReceiptId, PageTableDraft, PageTableInstallationContext,
+    PageTableInstallationReceipt, PageTableInstallationReceiptId, PageTablePlanId,
+    TranslationActivationFactId, TranslationActivationReceipt,
 };
 
 use crate::PageTableMaterializationDiagnostic;
@@ -171,6 +174,182 @@ pub struct X86_64PageTablePolicy {
     max_leaf_entries: usize,
     rights: X86_64PageRights,
     leaf_layout: LayoutPlanReport,
+}
+
+/// Exact provider-side plan for activating one installable table through CR3.
+///
+/// This is inert data inside the trusted provider layer. It exposes the CR3
+/// operand for checked instruction execution, but the operand is not authority:
+/// the complete page-table and mapping contexts remain sealed alongside it and
+/// must match the provider's completion evidence before installation can
+/// establish mapped access.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64Cr3ActivationPlan {
+    context: PageTableInstallationContext,
+    root_physical_address: u64,
+    mappings: Vec<(MappingId, MappingReceiptContext)>,
+}
+
+impl X86_64Cr3ActivationPlan {
+    pub const fn root_physical_address(&self) -> u64 {
+        self.root_physical_address
+    }
+
+    pub fn mapping_count(&self) -> usize {
+        self.mappings.len()
+    }
+}
+
+/// Provider observation after the checked CR3 write completed.
+///
+/// Construction is intentionally named as an admitted-provider boundary.
+/// Ordinary Omega code cannot construct this carrier; the eventual source
+/// wrapper must be an opaque boundary value, not a record containing a raw
+/// address and boolean.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64Cr3ActivationReceipt {
+    context: PageTableInstallationContext,
+    observed_cr3: u64,
+    active: bool,
+    mapping_facts: BTreeMap<MappingId, BTreeSet<TranslationActivationFactId>>,
+}
+
+impl X86_64Cr3ActivationReceipt {
+    pub fn from_admitted_provider(
+        plan: &X86_64Cr3ActivationPlan,
+        observed_cr3: u64,
+        active: bool,
+        mapping_facts: impl IntoIterator<
+            Item = (
+                MappingId,
+                impl IntoIterator<Item = TranslationActivationFactId>,
+            ),
+        >,
+    ) -> Result<Self, PageTableMaterializationDiagnostic> {
+        let mut normalized = BTreeMap::new();
+        for (mapping, facts) in mapping_facts {
+            if normalized
+                .insert(mapping, facts.into_iter().collect())
+                .is_some()
+            {
+                return Err(PageTableMaterializationDiagnostic(
+                    "x86-64 CR3 activation evidence repeats a mapping".into(),
+                ));
+            }
+        }
+        Ok(Self {
+            context: plan.context.clone(),
+            observed_cr3,
+            active,
+            mapping_facts: normalized,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct X86_64Cr3ActivationError {
+    plan: X86_64Cr3ActivationPlan,
+    receipt: X86_64Cr3ActivationReceipt,
+    diagnostic: PageTableMaterializationDiagnostic,
+}
+
+impl X86_64Cr3ActivationError {
+    pub const fn diagnostic(&self) -> &PageTableMaterializationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (X86_64Cr3ActivationPlan, X86_64Cr3ActivationReceipt) {
+        (self.plan, self.receipt)
+    }
+}
+
+/// Prepare the exact CR3 operand and opaque receipt context for one table.
+///
+/// V1 uses PCID zero and therefore requires all low twelve bits to be clear.
+/// Numeric address validity alone is never sufficient: the returned plan is
+/// bound to the installable table's exact construction and mapping evidence.
+pub fn prepare_x86_64_cr3_activation(
+    table: &InstallablePageTable<'_>,
+    policy: &X86_64PageTablePolicy,
+) -> Result<X86_64Cr3ActivationPlan, PageTableMaterializationDiagnostic> {
+    let root = table.storage_base();
+    if !root.is_multiple_of(X86_64_PAGE_BYTES) {
+        return Err(PageTableMaterializationDiagnostic(
+            "x86-64 CR3 root must be aligned to one 4 KiB table page".into(),
+        ));
+    }
+    if root & !physical_address_mask(policy.physical_address_bits) != 0 {
+        return Err(PageTableMaterializationDiagnostic(
+            "x86-64 CR3 root exceeds the admitted physical-address width".into(),
+        ));
+    }
+    Ok(X86_64Cr3ActivationPlan {
+        context: table.installation_context(),
+        root_physical_address: root,
+        mappings: table.mapping_receipt_contexts().collect(),
+    })
+}
+
+/// Convert exact post-write provider evidence into the existing installation
+/// receipt. Failed validation returns both inert inputs unchanged.
+pub fn complete_x86_64_cr3_activation(
+    plan: X86_64Cr3ActivationPlan,
+    receipt: X86_64Cr3ActivationReceipt,
+    identity: PageTableInstallationReceiptId,
+) -> Result<PageTableInstallationReceipt, Box<X86_64Cr3ActivationError>> {
+    let expected_mappings = plan
+        .mappings
+        .iter()
+        .map(|(mapping, _)| *mapping)
+        .collect::<BTreeSet<_>>();
+    let actual_mappings = receipt
+        .mapping_facts
+        .keys()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mismatch = if receipt.context != plan.context {
+        Some("x86-64 CR3 receipt names a different installation context")
+    } else if !receipt.active {
+        Some("x86-64 CR3 receipt does not establish an active table")
+    } else if receipt.observed_cr3 != plan.root_physical_address {
+        Some("x86-64 CR3 receipt observed a different table root")
+    } else if actual_mappings != expected_mappings {
+        Some("x86-64 CR3 receipt does not cover the exact pending mapping set")
+    } else {
+        None
+    };
+    if let Some(message) = mismatch {
+        return Err(Box::new(X86_64Cr3ActivationError {
+            plan,
+            receipt,
+            diagnostic: PageTableMaterializationDiagnostic(message.into()),
+        }));
+    }
+
+    let activations = plan
+        .mappings
+        .iter()
+        .map(|(mapping, context)| {
+            let facts = receipt
+                .mapping_facts
+                .get(mapping)
+                .expect("exact mapping sets were validated")
+                .iter()
+                .copied();
+            (
+                *mapping,
+                TranslationActivationReceipt::from_admitted_provider(context, true, facts),
+            )
+        })
+        .collect::<Vec<_>>();
+    PageTableInstallationReceipt::from_admitted_provider(identity, &plan.context, true, activations)
+        .map_err(|diagnostic| {
+            Box::new(X86_64Cr3ActivationError {
+                plan,
+                receipt,
+                diagnostic: PageTableMaterializationDiagnostic(diagnostic.0),
+            })
+        })
 }
 
 impl X86_64PageTablePolicy {
@@ -1082,6 +1261,78 @@ mod tests {
             PageTableConstructionEvidence::Generated
         );
         assert_eq!(installable.bytes().len(), 4 * X86_64_PAGE_BYTES as usize);
+    }
+
+    #[test]
+    fn cr3_activation_binds_observed_root_and_exact_mapping_set() {
+        let fixture = Fixture::new();
+        let draft = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable]),
+            4,
+        );
+        let policy = fixture.policy(true);
+        let image = materialize_x86_64_4k_page_table(&draft, &policy).expect("materialized table");
+        let construction = image
+            .into_construction_receipt(
+                id(29, PageTableConstructionReceiptId::from_normalized_identity),
+                &draft,
+            )
+            .expect("construction receipt");
+        let installable = draft.finish(construction).expect("installable table");
+
+        let plan = prepare_x86_64_cr3_activation(&installable, &policy).expect("CR3 plan");
+        assert_eq!(plan.root_physical_address(), 0x1000_0000);
+        assert_eq!(plan.mapping_count(), 1);
+        let mapping = id(28, MappingId::from_normalized_identity);
+
+        let wrong_root = X86_64Cr3ActivationReceipt::from_admitted_provider(
+            &plan,
+            plan.root_physical_address() + X86_64_PAGE_BYTES,
+            true,
+            [(mapping, std::iter::empty())],
+        )
+        .expect("provider receipt");
+        let error = complete_x86_64_cr3_activation(
+            plan,
+            wrong_root,
+            id(30, PageTableInstallationReceiptId::from_normalized_identity),
+        )
+        .expect_err("another CR3 root cannot activate this table");
+        assert!(error.diagnostic().0.contains("different table root"));
+        let (plan, _) = error.into_parts();
+
+        let missing_mapping = X86_64Cr3ActivationReceipt::from_admitted_provider(
+            &plan,
+            plan.root_physical_address(),
+            true,
+            std::iter::empty::<(MappingId, [TranslationActivationFactId; 0])>(),
+        )
+        .expect("provider receipt");
+        let error = complete_x86_64_cr3_activation(
+            plan,
+            missing_mapping,
+            id(30, PageTableInstallationReceiptId::from_normalized_identity),
+        )
+        .expect_err("partial activation cannot establish mapped access");
+        assert!(error.diagnostic().0.contains("exact pending mapping set"));
+        let (plan, _) = error.into_parts();
+
+        let receipt = X86_64Cr3ActivationReceipt::from_admitted_provider(
+            &plan,
+            plan.root_physical_address(),
+            true,
+            [(mapping, std::iter::empty())],
+        )
+        .expect("provider receipt");
+        let installation = complete_x86_64_cr3_activation(
+            plan,
+            receipt,
+            id(30, PageTableInstallationReceiptId::from_normalized_identity),
+        )
+        .expect("exact installation receipt");
+        let installed = installable.install(installation).expect("installed table");
+        assert!(installed.mapping(mapping).is_some());
     }
 
     #[test]

@@ -414,6 +414,14 @@ impl<'source> InstallablePageTable<'source> {
         &self.bytes
     }
 
+    /// Inert provider-side address of the exact table storage retained by this
+    /// installable value. The number grants no translation or control
+    /// authority; target activation providers use it only while also binding
+    /// the complete opaque installation context.
+    pub const fn storage_base(&self) -> u64 {
+        self.storage.base()
+    }
+
     pub const fn evidence(&self) -> PageTableConstructionEvidence {
         self.evidence
     }
@@ -423,6 +431,18 @@ impl<'source> InstallablePageTable<'source> {
     /// mapping authority.
     pub fn mapping_receipt_context(&self, mapping: MappingId) -> Option<MappingReceiptContext> {
         self.mappings.get(&mapping).map(PendingMap::receipt_context)
+    }
+
+    /// Exact mapping contexts consumed by a target activation provider.
+    ///
+    /// These are opaque receipt inputs, not mapped extents: enumerating them
+    /// neither exposes range authority nor completes any pending mapping.
+    pub fn mapping_receipt_contexts(
+        &self,
+    ) -> impl Iterator<Item = (MappingId, MappingReceiptContext)> + '_ {
+        self.mappings
+            .iter()
+            .map(|(identity, mapping)| (*identity, mapping.receipt_context()))
     }
 
     pub fn installation_context(&self) -> PageTableInstallationContext {
