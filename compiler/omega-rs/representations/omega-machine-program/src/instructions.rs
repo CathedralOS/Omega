@@ -36,6 +36,7 @@ pub enum MachineInstructionKind {
     RuntimeTextLiteralAppendToRuntimePointee,
     RuntimeTextLiteralAppendToRuntimeFrameIndexed,
     RuntimeMachineIntegerWrite,
+    RuntimeStorageBitFieldWrite,
     RuntimePointeeIntegerWrite,
     RuntimeStorageBinaryWrite,
     RuntimeStorageConvert,

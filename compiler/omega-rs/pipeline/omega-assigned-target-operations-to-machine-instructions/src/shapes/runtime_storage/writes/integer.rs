@@ -12,6 +12,9 @@ pub(super) fn selected_integer_write_kind(
         SelectedInstructionKind::WritePlaceInteger {
             value, byte_size, ..
         } => Some(runtime_storage_integer_write_kind(0, *byte_size, *value)),
+        SelectedInstructionKind::WriteStorageBitField { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageBitFieldWrite)
+        }
         _ => None,
     }
 }

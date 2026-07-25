@@ -27,11 +27,12 @@
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_layout_plans::LayoutPlacementReport;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};
 use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use omega_typed_trees::{PlanLaidLayout, TypedTrees};
+use omega_typed_trees::{PlanLaidBitField, PlanLaidBitFragment, PlanLaidLayout, TypedTrees};
 use std::collections::{HashMap, HashSet};
 
 /// One plan-laid instantiation discovered by the desugar: the synthesized
@@ -288,31 +289,120 @@ pub(crate) fn compute_plan_laid_layouts(
             .find(|data| data.name.as_str() == record.schema_data)
             .map(|data| typed.data_members(data).len())
             .unwrap_or(0);
-        let Some(offsets) = report.offsets.as_ref() else {
-            return Err(vec![Diagnostic::error(format!(
-                "plan-laid value type `{}`: policy `{}` uses fragmented or non-byte \
-                 placements; an ordinary value type requires exactly one `At` placement \
-                 for each of its {field_count} fields",
-                record.synthetic_name, record.policy_machine
-            ))]);
-        };
-        debug_assert_eq!(offsets.len(), field_count);
+        let schema_fields = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == record.schema_data)
+            .map(|data| {
+                typed
+                    .data_members(data)
+                    .iter()
+                    .filter_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(field) => {
+                            Some(field.name.as_str().to_owned())
+                        }
+                        omega_typed_trees::data::DataMember::Variant(_) => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        debug_assert_eq!(schema_fields.len(), field_count);
+
+        let mut offsets = vec![None; field_count];
+        let mut bit_fields = Vec::<PlanLaidBitField>::new();
+        for (field_index, field_name) in schema_fields.iter().enumerate() {
+            let field_entries = report
+                .entries
+                .iter()
+                .filter(|entry| entry.field == *field_name)
+                .collect::<Vec<_>>();
+            match field_entries.as_slice() {
+                [entry] if matches!(entry.placement, LayoutPlacementReport::At { .. }) => {
+                    let LayoutPlacementReport::At { offset } = entry.placement else {
+                        unreachable!()
+                    };
+                    offsets[field_index] = Some(usize::try_from(offset).map_err(|_| {
+                        vec![Diagnostic::error(format!(
+                            "plan-laid value type `{}`: byte offset {offset} cannot be represented on this compiler host",
+                            record.synthetic_name
+                        ))]
+                    })?);
+                }
+                entries
+                    if entries.iter().all(|entry| {
+                        matches!(entry.placement, LayoutPlacementReport::Bits { .. })
+                    }) =>
+                {
+                    let mut fragments = Vec::with_capacity(entries.len());
+                    for entry in entries {
+                        let LayoutPlacementReport::Bits {
+                            container,
+                            container_width,
+                            destination_lsb,
+                            source_lsb,
+                            width,
+                        } = entry.placement
+                        else {
+                            unreachable!()
+                        };
+                        let fragment = PlanLaidBitFragment {
+                            container_byte_offset: usize::try_from(container).map_err(|_| {
+                                vec![Diagnostic::error(format!(
+                                    "plan-laid value type `{}`: bit-container offset {container} cannot be represented on this compiler host",
+                                    record.synthetic_name
+                                ))]
+                            })?,
+                            container_width_bits: u16::try_from(container_width).map_err(|_| {
+                                vec![Diagnostic::error(format!(
+                                    "plan-laid value type `{}`: bit-container width {container_width} exceeds the backend width vocabulary",
+                                    record.synthetic_name
+                                ))]
+                            })?,
+                            destination_lsb: u16::try_from(destination_lsb).map_err(|_| {
+                                vec![Diagnostic::error(format!(
+                                    "plan-laid value type `{}`: destination bit {destination_lsb} exceeds the backend width vocabulary",
+                                    record.synthetic_name
+                                ))]
+                            })?,
+                            source_lsb: u16::try_from(source_lsb).map_err(|_| {
+                                vec![Diagnostic::error(format!(
+                                    "plan-laid value type `{}`: source bit {source_lsb} exceeds the backend width vocabulary",
+                                    record.synthetic_name
+                                ))]
+                            })?,
+                            width: u16::try_from(width).map_err(|_| {
+                                vec![Diagnostic::error(format!(
+                                    "plan-laid value type `{}`: fragment width {width} exceeds the backend width vocabulary",
+                                    record.synthetic_name
+                                ))]
+                            })?,
+                        };
+                        offsets[field_index].get_or_insert(fragment.container_byte_offset);
+                        fragments.push(fragment);
+                    }
+                    bit_fields.push(PlanLaidBitField {
+                        field_index,
+                        fragments,
+                    });
+                }
+                _ => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "plan-laid value type `{}`: field `{field_name}` does not have one \
+                         byte placement or a completely tiled bit-fragment placement",
+                        record.synthetic_name
+                    ))]);
+                }
+            }
+        }
 
         // Normalized plans retain target-independent u64 geometry. This
         // consumer needs host-sized layout indices, so narrow only here and
         // reject rather than panicking on a narrower compiler host.
         let offsets = offsets
             .iter()
-            .map(|&offset| {
-                usize::try_from(offset).map_err(|_| {
-                    Diagnostic::error(format!(
-                        "plan-laid value type `{}`: byte offset {offset} cannot be represented on this compiler host",
-                        record.synthetic_name
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|diagnostic| vec![diagnostic])?;
+            .copied()
+            .collect::<Option<Vec<_>>>()
+            .expect("validated plan supplies every field");
         let size = usize::try_from(size).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "plan-laid value type `{}`: fixed size {size} cannot be represented on this compiler host",
@@ -328,6 +418,7 @@ pub(crate) fn compute_plan_laid_layouts(
         layouts.push(PlanLaidLayout {
             data_name: record.synthetic_name.clone(),
             offsets,
+            bit_fields,
             size,
             align,
         });

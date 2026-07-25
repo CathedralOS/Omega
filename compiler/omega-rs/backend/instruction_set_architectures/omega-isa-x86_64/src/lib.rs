@@ -7849,6 +7849,133 @@ pub fn encode_runtime_machine_integer_write(
     place_copy::encode_place_integer_write(&target, value, byte_size).map(|(bytes, _)| bytes)
 }
 
+fn bit_fragment_container_bytes(
+    fragment: &omega_target_operations::RuntimeBitFieldFragment,
+) -> Result<usize, Diagnostic> {
+    match fragment.container_width_bits {
+        8 => Ok(1),
+        16 => Ok(2),
+        32 => Ok(4),
+        64 => Ok(8),
+        width => Err(Diagnostic::error(format!(
+            "X86_64 bit-field container width `{width}` is not 8, 16, 32, or 64"
+        ))),
+    }
+}
+
+fn bit_width_mask(width: u16) -> Result<u64, Diagnostic> {
+    match width {
+        1..=63 => Ok((1_u64 << width) - 1),
+        64 => Ok(u64::MAX),
+        _ => Err(Diagnostic::error("X86_64 bit-field width must be 1..=64")),
+    }
+}
+
+pub fn runtime_storage_bit_field_write_width(
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+) -> Result<usize, Diagnostic> {
+    let mut width = 10;
+    for fragment in fragments {
+        let container_bytes = bit_fragment_container_bytes(fragment)?;
+        width +=
+            unsigned_load_width(container_bytes) + 10 + 3 + 10 + 3 + store_width(container_bytes);
+    }
+    Ok(width)
+}
+
+pub fn encode_runtime_storage_bit_field_write(
+    base_byte_offset: usize,
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if fragments.is_empty() {
+        return Err(Diagnostic::error(
+            "X86_64 bit-field write requires at least one fragment",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(runtime_storage_bit_field_write_width(fragments)?);
+    append_mov_r15_imm64(&mut bytes, 0);
+    for fragment in fragments {
+        let container_bytes = bit_fragment_container_bytes(fragment)?;
+        let destination_mask = bit_width_mask(fragment.width)?
+            .checked_shl(u32::from(fragment.destination_lsb))
+            .ok_or_else(|| {
+                Diagnostic::error("X86_64 bit-field destination mask overflows 64 bits")
+            })?;
+        let source_bits = (value as u64)
+            .checked_shr(u32::from(fragment.source_lsb))
+            .unwrap_or(0)
+            & bit_width_mask(fragment.width)?;
+        let inserted = source_bits
+            .checked_shl(u32::from(fragment.destination_lsb))
+            .ok_or_else(|| Diagnostic::error("X86_64 bit-field value overflows 64 bits"))?;
+        let offset = base_byte_offset
+            .checked_add(fragment.container_byte_offset)
+            .ok_or_else(|| Diagnostic::error("X86_64 bit-field offset overflows"))?;
+        append_load_reg_from_r15(&mut bytes, Reg64::R11, offset, container_bytes)?;
+        append_mov_rax_imm64(&mut bytes, !destination_mask);
+        bytes.extend([0x49, 0x21, 0xc3]); // and r11, rax
+        append_mov_rax_imm64(&mut bytes, inserted);
+        bytes.extend([0x49, 0x09, 0xc3]); // or r11, rax
+        append_store_r11_to_r15_width(&mut bytes, offset, container_bytes)?;
+    }
+    Ok(bytes)
+}
+
+fn runtime_bit_field_operand_width(
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+) -> Result<usize, Diagnostic> {
+    let mut width = 13; // mov r15,imm64 + xor destination,destination
+    for fragment in fragments {
+        let container_bytes = bit_fragment_container_bytes(fragment)?;
+        width += unsigned_load_width(container_bytes)
+            + usize::from(fragment.destination_lsb != 0) * 4
+            + 10
+            + 3
+            + usize::from(fragment.source_lsb != 0) * 4
+            + 3;
+    }
+    Ok(width)
+}
+
+fn append_runtime_bit_field_operand(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    base_byte_offset: usize,
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+) -> Result<(), Diagnostic> {
+    if fragments.is_empty() {
+        return Err(Diagnostic::error(
+            "X86_64 bit-field operand requires at least one fragment",
+        ));
+    }
+    append_mov_r15_imm64(bytes, 0);
+    match destination {
+        Reg64::R10 => bytes.extend([0x4d, 0x31, 0xd2]), // xor r10,r10
+        Reg64::R11 => bytes.extend([0x4d, 0x31, 0xdb]), // xor r11,r11
+    }
+    for fragment in fragments {
+        let container_bytes = bit_fragment_container_bytes(fragment)?;
+        let offset = base_byte_offset
+            .checked_add(fragment.container_byte_offset)
+            .ok_or_else(|| Diagnostic::error("X86_64 bit-field offset overflows"))?;
+        append_load_rax_from_r15_width(bytes, offset, container_bytes)?;
+        if fragment.destination_lsb != 0 {
+            bytes.extend([0x48, 0xc1, 0xe8, fragment.destination_lsb as u8]); // shr rax, imm8
+        }
+        append_mov_rcx_imm64(bytes, bit_width_mask(fragment.width)?);
+        bytes.extend([0x48, 0x21, 0xc8]); // and rax, rcx
+        if fragment.source_lsb != 0 {
+            bytes.extend([0x48, 0xc1, 0xe0, fragment.source_lsb as u8]); // shl rax, imm8
+        }
+        match destination {
+            Reg64::R10 => bytes.extend([0x49, 0x09, 0xc2]), // or r10,rax
+            Reg64::R11 => bytes.extend([0x49, 0x09, 0xc3]), // or r11,rax
+        }
+    }
+    Ok(())
+}
+
 pub fn runtime_machine_indexed_integer_write_width(
     index_region: omega_target_operations::RuntimeStorageRegion,
     index_byte_size: usize,
@@ -12992,6 +13119,8 @@ pub fn runtime_value_operand_width(
         10
     } else if let Some((_, _, byte_size)) = runtime_value_operands.storage(operand) {
         10 + load_width(byte_size)
+    } else if let Some((_, _, _, fragments)) = runtime_value_operands.bit_field(operand) {
+        runtime_bit_field_operand_width(&fragments).unwrap_or(0)
     } else if let Some((_, _, byte_size)) = runtime_value_operands.pointee(operand) {
         // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7) + load dest,[rax+field].
         // A 16-bit load has the extra 0x66 operand-size prefix.
@@ -13176,6 +13305,10 @@ fn append_runtime_value_operand(
     } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
         append_mov_r15_imm64(bytes, 0);
         append_load_reg_from_r15(bytes, destination, byte_offset, byte_size)
+    } else if let Some((_, base_byte_offset, _, fragments)) =
+        runtime_value_operands.bit_field(operand)
+    {
+        append_runtime_bit_field_operand(bytes, destination, base_byte_offset, &fragments)
     } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
         runtime_value_operands.pointee(operand)
     {
@@ -14836,9 +14969,51 @@ fn append_load_r11_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
+fn append_load_rax_from_r15_width(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match byte_size {
+        1 => bytes.extend([0x41, 0x0f, 0xb6, 0x87]),
+        2 => bytes.extend([0x41, 0x0f, 0xb7, 0x87]),
+        4 => bytes.extend([0x41, 0x8b, 0x87]),
+        8 => bytes.extend([0x49, 0x8b, 0x87]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte bit containers"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_store_r11_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x89, 0x9f]); // mov [r15 + disp32], r11
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_store_r11_to_r15_width(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match byte_size {
+        1 => bytes.extend([0x45, 0x88, 0x9f]),
+        2 => bytes.extend([0x66, 0x45, 0x89, 0x9f]),
+        4 => bytes.extend([0x45, 0x89, 0x9f]),
+        8 => bytes.extend([0x4d, 0x89, 0x9f]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot store {byte_size}-byte bit containers"
+            )));
+        }
+    }
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }

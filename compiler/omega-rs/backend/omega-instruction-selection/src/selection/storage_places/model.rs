@@ -8,6 +8,14 @@ pub(in crate::selection) struct RuntimeStoragePlace {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::selection) struct RuntimeBitFieldPlace {
+    pub(in crate::selection) region: RuntimeStorageRegion,
+    pub(in crate::selection) base_byte_offset: usize,
+    pub(in crate::selection) value_byte_count: usize,
+    pub(in crate::selection) fragments: Vec<omega_layout::BitFieldFragment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeFrameIndexedTarget {
     pub(in crate::selection) descriptor_offset: usize,
     pub(in crate::selection) index_region: RuntimeStorageRegion,

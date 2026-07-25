@@ -447,6 +447,12 @@ pub enum TargetOperationKind {
         value: i64,
         byte_size: usize,
     },
+    WriteStorageBitField {
+        region: RuntimeStorageRegion,
+        base_byte_offset: usize,
+        fragments: Vec<omega_abstract_operations::RuntimeBitFieldFragment>,
+        value: i64,
+    },
 
     /// Binary rung 2a: `place = left OP right` -- the six Write*Binary
     /// variants collapse onto this one. Field semantics mirror the retired
