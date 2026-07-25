@@ -968,7 +968,10 @@ on failure and never exposes the resolved entry address. The
 writer now has its own sealed pre-lowering gate: `PreparedIdtWriter` owns the
 exact unpublished destination, normalized plan, and root set after checking
 the installed-artifact resolver, placement phase, mapped/pinned/writable
-authority, and fragment geometry. Its identity binds code, artifact,
+authority, and fragment geometry. It also retains the opaque complete
+installed-code lifecycle context through population, and the materialization
+receipt derives from that populated writer rather than restating resolver IDs.
+Its identity binds code, artifact,
 destination and initial content, plan, placement, and roots. Compiler lowering
 preserves those facts and address-free fragment geometry in a generated-only
 target/machine carrier whose source operands are private context-slot indices;

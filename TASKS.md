@@ -816,6 +816,9 @@ schemas recover the same instance without publishing policy type identity.
    constructed until that exact root/ledger/control gate succeeds. The sealed
    writer preparation and address-free generated machine carrier now likewise
    prevent a swapped plan/destination/resolver from reaching code generation.
+   Prepared and populated writers retain the opaque complete installed-code
+   context, and materialization receipts derive from the populated writer;
+   colliding installed/artifact IDs cannot swap the resolver realization.
    Concrete Cathedral PIC/LAPIC candidate construction may proceed, but
    inserting the plan-driven generated writer/load operations into the initial
    artifact is **OWNER-BLOCKED** on the bootstrap-helper staging question. R10
