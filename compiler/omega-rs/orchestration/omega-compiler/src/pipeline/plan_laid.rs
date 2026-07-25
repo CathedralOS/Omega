@@ -298,18 +298,38 @@ pub(crate) fn compute_plan_laid_layouts(
         };
         debug_assert_eq!(offsets.len(), field_count);
 
-        // Plan validation already proved offsets non-negative, the size
-        // covering every field, and the alignment a positive power of two.
+        // Normalized plans retain target-independent u64 geometry. This
+        // consumer needs host-sized layout indices, so narrow only here and
+        // reject rather than panicking on a narrower compiler host.
+        let offsets = offsets
+            .iter()
+            .map(|&offset| {
+                usize::try_from(offset).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "plan-laid value type `{}`: byte offset {offset} cannot be represented on this compiler host",
+                        record.synthetic_name
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let size = usize::try_from(size).map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "plan-laid value type `{}`: fixed size {size} cannot be represented on this compiler host",
+                record.synthetic_name
+            ))]
+        })?;
+        let align = usize::try_from(report.align).map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "plan-laid value type `{}`: alignment {} cannot be represented on this compiler host",
+                record.synthetic_name, report.align
+            ))]
+        })?;
         layouts.push(PlanLaidLayout {
             data_name: record.synthetic_name.clone(),
-            offsets: offsets
-                .iter()
-                .map(|&offset| {
-                    usize::try_from(offset).expect("validated plan offsets are non-negative")
-                })
-                .collect(),
-            size: usize::try_from(size).expect("validated fixed sizes are non-negative"),
-            align: usize::try_from(report.align).expect("validated alignments are positive"),
+            offsets,
+            size,
+            align,
         });
     }
 

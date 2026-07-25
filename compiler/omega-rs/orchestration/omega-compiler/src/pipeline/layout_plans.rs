@@ -19,10 +19,10 @@ const PLAN_ENTRY_CAPACITY: usize = 64;
 #[derive(Debug, Clone)]
 struct SchemaFieldInfo {
     name: String,
-    key: i64,
-    size: i64,
-    align: i64,
-    source_bits: i64,
+    key: u64,
+    size: u64,
+    align: u64,
+    source_bits: u64,
 }
 
 pub fn compute_layout_plan(
@@ -112,8 +112,8 @@ fn declared_source_bits(
     typed: &TypedTrees,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     primitive: PrimitiveType,
-    byte_size: i64,
-) -> i64 {
+    byte_size: u64,
+) -> u64 {
     if primitive == PrimitiveType::Bool {
         return 1;
     }
@@ -125,10 +125,10 @@ fn declared_source_bits(
         return byte_size * 8;
     }
     let maximum = range.maximum as u64;
-    i64::from((u64::BITS - maximum.leading_zeros()).max(1))
+    u64::from((u64::BITS - maximum.leading_zeros()).max(1))
 }
 
-fn primitive_byte_size(primitive: PrimitiveType) -> Option<i64> {
+fn primitive_byte_size(primitive: PrimitiveType) -> Option<u64> {
     Some(match primitive {
         PrimitiveType::I8 | PrimitiveType::U8 | PrimitiveType::Bool => 1,
         PrimitiveType::I16 | PrimitiveType::U16 => 2,
@@ -138,15 +138,14 @@ fn primitive_byte_size(primitive: PrimitiveType) -> Option<i64> {
     })
 }
 
-fn field_key(schema: &str, field: &str) -> i64 {
+fn field_key(schema: &str, field: &str) -> u64 {
     // Stable FNV-1a. Zero remains the unused-tail sentinel.
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in schema.bytes().chain([b':', b':']).chain(field.bytes()) {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    let key = hash as i64;
-    if key == 0 { 1 } else { key }
+    if hash == 0 { 1 } else { hash }
 }
 
 fn build_schema_value(schema_fields: &[SchemaFieldInfo]) -> BuildTimeValue {
@@ -159,9 +158,9 @@ fn build_schema_value(schema_fields: &[SchemaFieldInfo]) -> BuildTimeValue {
         fields.push(BuildTimeValue::Struct {
             type_name: "SchemaField".to_owned(),
             fields: vec![
-                ("key".to_owned(), BuildTimeValue::Int(key)),
-                ("size".to_owned(), BuildTimeValue::Int(size)),
-                ("align".to_owned(), BuildTimeValue::Int(align)),
+                ("key".to_owned(), BuildTimeValue::Int(key as i64)),
+                ("size".to_owned(), BuildTimeValue::Int(size as i64)),
+                ("align".to_owned(), BuildTimeValue::Int(align as i64)),
                 ("number".to_owned(), BuildTimeValue::Int(-1)),
                 (
                     "kind".to_owned(),
@@ -202,28 +201,31 @@ fn validate_plan(
             .map(|(_, value)| value)
             .ok_or_else(|| fail(format!("the plan carries no `{name}` field")))
     };
-    let int_field = |name: &str| -> Result<i64, String> {
+    // Build-time integer values preserve the declared scalar's bits in an
+    // `i64` carrier. Decode u64 policy fields by bits, not by sign.
+    let uint_field = |name: &str| -> Result<u64, String> {
         match field(name)? {
-            BuildTimeValue::Int(value) => Ok(*value),
+            BuildTimeValue::Int(value) => Ok(*value as u64),
             other => Err(fail(format!(
                 "plan field `{name}` is not an integer: {other:?}"
             ))),
         }
     };
 
-    let entry_count = int_field("entry_count")?;
-    if entry_count < 0 || entry_count as usize > PLAN_ENTRY_CAPACITY {
+    let entry_count = uint_field("entry_count")?;
+    if entry_count > PLAN_ENTRY_CAPACITY as u64 {
         return Err(fail(format!(
             "entry_count {entry_count} is outside 0..={PLAN_ENTRY_CAPACITY}"
         )));
     }
+    let entry_count = entry_count as usize;
     let size_is_dynamic = match field("size_is_dynamic")? {
         BuildTimeValue::Bool(value) => *value,
         other => return Err(fail(format!("size_is_dynamic is not a bool: {other:?}"))),
     };
-    let size_fixed = int_field("size_fixed")?;
-    let align = int_field("align")?;
-    if align < 1 || (align & (align - 1)) != 0 {
+    let size_fixed = uint_field("size_fixed")?;
+    let align = uint_field("align")?;
+    if align == 0 || !align.is_power_of_two() {
         return Err(fail(format!(
             "alignment {align} is not a positive power of two"
         )));
@@ -233,7 +235,7 @@ fn validate_plan(
             "plan `entries` is not an array of FieldEntry values".to_owned(),
         ));
     };
-    if entry_count as usize > entry_cells.len() {
+    if entry_count > entry_cells.len() {
         return Err(fail(format!(
             "entry_count is {entry_count}, but the plan carries only {} entries",
             entry_cells.len()
@@ -241,30 +243,30 @@ fn validate_plan(
     }
 
     let case_name = |variant: &str| variant.rsplit("::").next().unwrap_or(variant).to_owned();
-    let lookup = |key: i64| schema_fields.iter().position(|field| field.key == key);
-    let payload_int = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<i64, String> {
+    let lookup = |key: u64| schema_fields.iter().position(|field| field.key == key);
+    let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
         match payload.iter().find(|(field, _)| field == name) {
-            Some((_, BuildTimeValue::Int(value))) => Ok(*value),
+            Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
             other => Err(fail(format!(
                 "placement carries no integer `{name}`: {other:?}"
             ))),
         }
     };
 
-    let mut entries = Vec::with_capacity(entry_count as usize);
-    let mut source_spans: Vec<Vec<(i64, i64)>> = vec![Vec::new(); schema_fields.len()];
-    let mut destination_spans: Vec<(i64, i64, String)> = Vec::new();
+    let mut entries = Vec::with_capacity(entry_count);
+    let mut source_spans: Vec<Vec<(u64, u64)>> = vec![Vec::new(); schema_fields.len()];
+    let mut destination_spans: Vec<(u64, u64, String)> = Vec::new();
     let mut offsets_by_field = vec![None; schema_fields.len()];
     let mut kinds_by_field: Vec<Option<&'static str>> = vec![None; schema_fields.len()];
 
-    for entry_index in 0..entry_count as usize {
+    for entry_index in 0..entry_count {
         let Some(BuildTimeValue::Struct { fields, .. }) = entry_cells.get(entry_index) else {
             return Err(fail(format!(
                 "entry {entry_index} is missing or not a FieldEntry"
             )));
         };
         let key = match fields.iter().find(|(name, _)| name == "key") {
-            Some((_, BuildTimeValue::Int(key))) => *key,
+            Some((_, BuildTimeValue::Int(key))) => *key as u64,
             other => {
                 return Err(fail(format!(
                     "entry {entry_index} has no integer key: {other:?}"
@@ -296,13 +298,7 @@ fn validate_plan(
                         schema_field.name
                     )));
                 }
-                let offset = payload_int(payload, "offset")?;
-                if offset < 0 {
-                    return Err(fail(format!(
-                        "field `{}` is placed at negative offset {offset}",
-                        schema_field.name
-                    )));
-                }
+                let offset = payload_uint(payload, "offset")?;
                 if offset % schema_field.align != 0 {
                     return Err(fail(format!(
                         "field `{}` at offset {offset} violates its alignment {}",
@@ -333,17 +329,12 @@ fn validate_plan(
                     )));
                 }
                 kinds_by_field[field_index] = Some("Bits");
-                let container = payload_int(payload, "container")?;
-                let container_width = payload_int(payload, "container_width")?;
-                let destination_lsb = payload_int(payload, "destination_lsb")?;
-                let source_lsb = payload_int(payload, "source_lsb")?;
-                let width = payload_int(payload, "width")?;
-                if container < 0
-                    || container_width <= 0
-                    || destination_lsb < 0
-                    || source_lsb < 0
-                    || width <= 0
-                {
+                let container = payload_uint(payload, "container")?;
+                let container_width = payload_uint(payload, "container_width")?;
+                let destination_lsb = payload_uint(payload, "destination_lsb")?;
+                let source_lsb = payload_uint(payload, "source_lsb")?;
+                let width = payload_uint(payload, "width")?;
+                if container_width == 0 || width == 0 {
                     return Err(fail(format!(
                         "field `{}` has a non-positive or negative bit-fragment component",
                         schema_field.name
@@ -439,9 +430,6 @@ fn validate_plan(
         }
     }
     if !size_is_dynamic {
-        if size_fixed < 0 {
-            return Err(fail(format!("fixed size {size_fixed} is negative")));
-        }
         if let Some((_, end, field_name)) = destination_spans.last() {
             let size_bits = size_fixed
                 .checked_mul(8)

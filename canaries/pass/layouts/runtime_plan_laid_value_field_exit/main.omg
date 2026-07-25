@@ -13,29 +13,29 @@ use omega::language::std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
-    key: i64;
-    size: i64 [0..=4096];
-    align: i64 [1..=16];
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
     number: i64;
     kind: FieldKind;
 }
 data Schema {
     fields: [SchemaField; 32];
-    field_count: i64 [0..=32];
+    field_count: u64 [0..=32];
 }
 data FieldPlan {
-    case At(offset: i64);
-    case Bits(container: i64, container_width: i64, destination_lsb: i64, source_lsb: i64, width: i64);
-    case Varint(tag: i64);
-    case LengthPrefixed(tag: i64);
+    case At(offset: u64);
+    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
 }
-data FieldEntry { key: i64; placement: FieldPlan; }
+data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan {
     entries: [FieldEntry; 64];
-    entry_count: i64;
-    size_fixed: i64;
+    entry_count: u64;
+    size_fixed: u64;
     size_is_dynamic: bool;
-    align: i64;
+    align: u64;
 }
 
 // The spread policy: field i lives at byte i*16. Scratch arithmetic is
@@ -44,22 +44,22 @@ data Plan {
 // runtime-indexed write is a known gap.
 data Spread16 {
     entries: [FieldEntry; 64];
-    index: i64 in Wrapping;
-    slot: i64 in Wrapping;
+    index: u64 in Wrapping;
+    slot: u64 in Wrapping;
 }
 machine Spread16::plan(&mut self, schema: Schema) -> Plan {
     self.index = 0;
     transition { _ -> fill_loop(schema) }
 
     state fill_loop(&mut self, schema: Schema) {
-        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+        transition self.index < 32 && self.index < schema.field_count {
             true -> place_field(schema)
             _ -> done(schema)
         }
     }
     state place_field(&mut self, schema: Schema) {
         self.slot = self.index * 16;
-        transition self.index >= 0 && self.index < 32 {
+        transition self.index < 32 {
             true -> write_field(schema)
             _ -> done(schema)
         }
@@ -67,7 +67,7 @@ machine Spread16::plan(&mut self, schema: Schema) -> Plan {
     state write_field(&mut self, schema: Schema) {
         self.entries[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
-            placement: FieldPlan::At { offset: self.slot as i64 },
+            placement: FieldPlan::At { offset: self.slot },
         };
         self.index = self.index + 1;
         transition { _ -> fill_loop(schema) }
@@ -75,8 +75,8 @@ machine Spread16::plan(&mut self, schema: Schema) -> Plan {
     state done(&mut self, schema: Schema) -> Plan {
         Plan {
             entries: self.entries,
-            entry_count: schema.field_count as i64,
-            size_fixed: (schema.field_count * 16) as i64,
+            entry_count: schema.field_count,
+            size_fixed: schema.field_count * 16,
             size_is_dynamic: false,
             align: 16,
         }

@@ -7,14 +7,14 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutPlacementReport {
     At {
-        offset: i64,
+        offset: u64,
     },
     Bits {
-        container: i64,
-        container_width: i64,
-        destination_lsb: i64,
-        source_lsb: i64,
-        width: i64,
+        container: u64,
+        container_width: u64,
+        destination_lsb: u64,
+        source_lsb: u64,
+        width: u64,
     },
 }
 
@@ -32,9 +32,9 @@ pub struct LayoutPlanReport {
     pub entries: Vec<LayoutFieldEntryReport>,
     /// Declaration-order offsets when every field has one fixed `At`
     /// placement. Fragmented plans deliberately have no such projection.
-    pub offsets: Option<Vec<i64>>,
-    pub size: Option<i64>,
-    pub align: i64,
+    pub offsets: Option<Vec<u64>>,
+    pub size: Option<u64>,
+    pub align: u64,
 }
 
 /// Deterministic semantic identity of one validated layout plan.
@@ -53,9 +53,12 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
     });
 
     let mut hash = 0xcbf29ce484222325u64;
-    hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v1");
-    hash_fingerprint_i64(&mut hash, layout.size.unwrap_or(-1));
-    hash_fingerprint_i64(&mut hash, layout.align);
+    hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v2");
+    hash_fingerprint_byte(&mut hash, u8::from(layout.size.is_some()));
+    if let Some(size) = layout.size {
+        hash_fingerprint_u64(&mut hash, size);
+    }
+    hash_fingerprint_u64(&mut hash, layout.align);
     hash_fingerprint_u64(&mut hash, entries.len() as u64);
     for entry in entries {
         hash_fingerprint_u64(&mut hash, entry.field.len() as u64);
@@ -63,7 +66,7 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
         match entry.placement {
             LayoutPlacementReport::At { offset } => {
                 hash_fingerprint_byte(&mut hash, 0);
-                hash_fingerprint_i64(&mut hash, offset);
+                hash_fingerprint_u64(&mut hash, offset);
             }
             LayoutPlacementReport::Bits {
                 container,
@@ -80,7 +83,7 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
                     source_lsb,
                     width,
                 ] {
-                    hash_fingerprint_i64(&mut hash, value);
+                    hash_fingerprint_u64(&mut hash, value);
                 }
             }
         }
@@ -88,7 +91,7 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
     if hash == 0 { 1 } else { hash }
 }
 
-fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, i64, i64, i64, i64, i64) {
+fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, u64, u64, u64, u64, u64) {
     match *placement {
         LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
         LayoutPlacementReport::Bits {
@@ -106,10 +109,6 @@ fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, i64, i64, i64, 
             width,
         ),
     }
-}
-
-fn hash_fingerprint_i64(hash: &mut u64, value: i64) {
-    hash_fingerprint_bytes(hash, &value.to_le_bytes());
 }
 
 fn hash_fingerprint_u64(hash: &mut u64, value: u64) {
@@ -424,14 +423,9 @@ impl PlacementConstraints {
 
     fn joined_with_layout(
         mut self,
-        layout_alignment: i64,
+        layout_alignment: u64,
         byte_len: usize,
     ) -> Result<Self, MaterializationDiagnostic> {
-        let layout_alignment = u64::try_from(layout_alignment).map_err(|_| {
-            MaterializationDiagnostic(format!(
-                "layout alignment {layout_alignment} is not positive"
-            ))
-        })?;
         if layout_alignment == 0 {
             return Err(MaterializationDiagnostic(
                 "layout alignment must be nonzero".into(),
@@ -1029,10 +1023,10 @@ fn write_from_entry(
     let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
         LayoutPlacementReport::At { offset } => (
             offset,
-            i64::from(symbolic.width_bits),
+            u64::from(symbolic.width_bits),
             0,
             0,
-            i64::from(symbolic.width_bits),
+            u64::from(symbolic.width_bits),
         ),
         LayoutPlacementReport::Bits {
             container,
@@ -1048,14 +1042,7 @@ fn write_from_entry(
             width,
         ),
     };
-    if container < 0
-        || container_width <= 0
-        || container_width > 64
-        || container_width % 8 != 0
-        || destination_lsb < 0
-        || source_lsb < 0
-        || width <= 0
-    {
+    if container_width == 0 || container_width > 64 || container_width % 8 != 0 || width == 0 {
         return Err(MaterializationDiagnostic(format!(
             "symbolic field `{}` uses a materializer-incompatible placement",
             symbolic.field
@@ -1064,7 +1051,7 @@ fn write_from_entry(
     let source_end = source_lsb
         .checked_add(width)
         .ok_or_else(|| MaterializationDiagnostic("symbolic source bit range overflows".into()))?;
-    if source_end > i64::from(symbolic.width_bits) {
+    if source_end > u64::from(symbolic.width_bits) {
         return Err(MaterializationDiagnostic(format!(
             "symbolic field `{}` placement reads through bit {source_end}, past its {}-bit source",
             symbolic.field, symbolic.width_bits
@@ -1082,7 +1069,7 @@ fn write_from_entry(
     Ok(MaterializationWrite {
         field: symbolic.field.clone(),
         target: symbolic.target,
-        container_byte_offset: u64::try_from(container).expect("non-negative container"),
+        container_byte_offset: container,
         container_width_bits: u16::try_from(container_width)
             .expect("validated materializer container width"),
         destination_lsb: u16::try_from(destination_lsb).expect("validated destination bit index"),
@@ -1141,10 +1128,10 @@ fn scalar_fragment(
     let (container, container_width, destination_lsb, source_lsb, width) = match entry.placement {
         LayoutPlacementReport::At { offset } => (
             offset,
-            i64::from(source_width_bits),
+            u64::from(source_width_bits),
             0,
             0,
-            i64::from(source_width_bits),
+            u64::from(source_width_bits),
         ),
         LayoutPlacementReport::Bits {
             container,
@@ -1160,14 +1147,7 @@ fn scalar_fragment(
             width,
         ),
     };
-    if container < 0
-        || container_width <= 0
-        || container_width > 64
-        || container_width % 8 != 0
-        || destination_lsb < 0
-        || source_lsb < 0
-        || width <= 0
-    {
+    if container_width == 0 || container_width > 64 || container_width % 8 != 0 || width == 0 {
         return Err(MaterializationDiagnostic(format!(
             "scalar field `{}` uses a materializer-incompatible placement",
             entry.field
@@ -1176,7 +1156,7 @@ fn scalar_fragment(
     let source_end = source_lsb
         .checked_add(width)
         .ok_or_else(|| MaterializationDiagnostic("scalar source bit range overflows".into()))?;
-    if source_end > i64::from(source_width_bits) {
+    if source_end > u64::from(source_width_bits) {
         return Err(MaterializationDiagnostic(format!(
             "scalar field `{}` placement reads through bit {source_end}, past its {}-bit source",
             entry.field, source_width_bits
@@ -1193,7 +1173,7 @@ fn scalar_fragment(
     }
 
     Ok(ScalarFragment {
-        container_byte_offset: u64::try_from(container).expect("non-negative container"),
+        container_byte_offset: container,
         container_width_bits: u16::try_from(container_width)
             .expect("validated materializer container width"),
         destination_lsb: u16::try_from(destination_lsb).expect("validated destination bit index"),
@@ -1448,6 +1428,25 @@ mod tests {
         assert_ne!(
             normalized_layout_plan_fingerprint(&forward),
             normalized_layout_plan_fingerprint(&shifted)
+        );
+    }
+
+    #[test]
+    fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
+        let dynamic = LayoutPlanReport {
+            entries: Vec::new(),
+            offsets: Some(Vec::new()),
+            size: None,
+            align: 1,
+        };
+        let fixed = LayoutPlanReport {
+            size: Some(u64::MAX),
+            ..dynamic.clone()
+        };
+
+        assert_ne!(
+            normalized_layout_plan_fingerprint(&dynamic),
+            normalized_layout_plan_fingerprint(&fixed)
         );
     }
 
