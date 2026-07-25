@@ -12,6 +12,33 @@ work takes priority, with Cathedral vertical slices used as acceptance tests.
 Fetch `main` before taking a compiler task and avoid a lane whose newest commit
 is already changing the same subsystem.
 
+### Ownership firewall
+
+Omega owns language semantics and general compiler machinery. Target backends
+own unavoidable ISA, ABI, object-format, and relocation encoding. Cathedral
+owns OS data structures, policies, protocols, and lifecycle.
+
+Do not implement an OS subsystem in Rust inside the Omega compiler merely
+because the source-language path is incomplete. When a Cathedral slice cannot
+be expressed, identify and implement the missing general primitive—or mark the
+slice blocked on that primitive. Page tables, descriptor tables, schedulers,
+process tables, timer queues, and drivers remain Cathedral/package code.
+Compiler validation or code generation may consume general plans; it must not
+acquire customer-shaped semantic types, lifecycle states, writers, scanners, or
+receipts.
+
+**Immediate ownership cleanup.** The page-table specialization has been
+removed. Apply the same boundary to the existing IDT specialization before
+extending it: keep the general external-root ledger, entry identities,
+fragmented materialization, checked `lidt` instruction contract, and provider
+admission; remove or migrate compiler-owned `PreparedIdtWriter`,
+`PopulatedIdtWriter`, `MaterializedIdt`, `PreparedIdtLoad`, `InstalledIdt`, and
+IDT-specific grants/receipts into Cathedral package code. Any task below that
+appears to request more compiler-owned IDT lifecycle machinery is superseded by
+this cleanup. If the Cathedral implementation cannot yet express the lifecycle,
+record the missing general Omega primitive rather than restoring the Rust
+specialization.
+
 ## Immediate queue
 
 ### Checked assembly, inbound entry plans, and the Cathedral timer
@@ -1744,6 +1771,22 @@ stronger operations it needs instead of citing machine parameters generally.
   in Cathedral or another target package. Such packages may compose the
   generic pieces but must not promote their translation model back into
   compiler-owned semantics.
+  **Cathedral address-translation vertical slice:** retain the existing
+  `source/drivers/facts/x86_page_table_entry.omg` policy in Cathedral and build
+  the hierarchy, validation states, installation protocol, and teardown there.
+  The honest prerequisites are:
+  1. source-visible generic layout validation/materialization into exclusively
+     held storage, without a raw-offset writer;
+  2. source-visible placed access backed by an `Extent` loan;
+  3. the provider-backed runtime representation for opaque linear `Extent`
+     (`OWNER_QUESTIONS.md` #8), replacing Cathedral's temporary plain record;
+     and
+  4. checked target operations for activation and invalidation. Structured x86
+     CR3 read/write is live; further TLB operations are catalog engineering.
+  These are language/compiler primitives and provider wiring, not permission to
+  recreate `omega-page-tables` or any compiler-owned page-table model. A fixed
+  bootstrap table may use pre-reserved storage; dynamic hierarchy allocation
+  additionally waits on the ordinary Arena/Allocation path.
 - **L6b — AccessPlan and placed views.** The separate normalized validator is
   live: name-keyed entries pin exact transfer width, stable/external/atomic
   observation, ordinary and atomic permissions, exported versus
@@ -2269,8 +2312,13 @@ stronger operations it needs instead of citing machine parameters generally.
   was also run under WSL/Ubuntu on 2026-07-24 and returned the expected
   real-clock result. The matching `nanosleep` adapter now converts Omega's
   millisecond scalar into a compiler-owned private `timespec` on both targets;
-  its structural canary shares the real WSL run. Remaining platform work is
-  native AArch64 confirmation and Linux filesystem rows; these are
+  its structural canary shares the real WSL run. Linux now also has the
+  general value-returning syscall path plus the first filesystem row family:
+  open/open-create through an injected `AT_FDCWD` `openat`, read/write,
+  positioned I/O, close, seek, descriptor permission/truncation/sync/dup/flock,
+  and descriptor ownership. A two-target canary compiles that path and its
+  x86-64 image runs under WSL. Remaining platform work is native AArch64
+  confirmation and the Linux path/stat/directory/errno adapters; these are
   engineering/platform gates, not language-design blockers.
 - **macOS/x86 and other unavailable hosts.** Keep target emission structurally
   pinned; do not claim runtime verification without the host.
