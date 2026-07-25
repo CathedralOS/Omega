@@ -206,8 +206,8 @@ era rather than replaying an old provenance edge.
 
 This is normalized provider accounting, not a second source-visible task or
 lease type. Connecting it to `Task<T>` awaits the ordinary selected
-task-runtime slot and opaque runtime representation; those owner questions are
-tracked separately.
+task-runtime realization plus the source spelling for the settled opaque
+runtime representation; those owner questions are tracked separately.
 
 ## Storage policies are provider/library choices
 
@@ -325,10 +325,12 @@ checked behavior-publication decision recorded in `OWNER_QUESTIONS.md`; the
 current provider spine selects realizations of boundary-trait requirements,
 while `TaskRuntime` is opaque boundary data and has no checked surface for the
 capacity, preemption, migration, storage, cancellation, or inline-completion
-statement. Its runtime representation is separately owner-blocked by the
-general opaque `boundary data` representation question. Dispatch and
-transactional start follow those decisions. No task-runtime `slot` construct is
-implied.
+statement. Its runtime representation is separately surface-blocked by the
+remaining owner questions in
+[`opaque_runtime_representation.md`](opaque_runtime_representation.md);
+`TaskRuntime` is the first likely sealed-handle customer. Dispatch and
+transactional start follow those decisions. No task-runtime `slot` construct
+is implied.
 
 ## Acceptance register
 
@@ -381,12 +383,12 @@ implied.
    provider-plan receipt binds the complete behavior statement and provenance
    stays outside identity. Unresolved artifacts fail visibly as
    `pending_provider`. Provider selection/receipt wiring is owner-blocked on the
-   task-runtime provider-slot/behavior-publication question; executable dispatch
-   also awaits the general opaque-runtime representation decision. After those
-   are settled, add transactional `start`/`try_start` ownership.
+   task-runtime provider/behavior-publication question; executable dispatch
+   also awaits opaque-representation syntax and sealed-handle lowering. After
+   those surfaces are settled, add transactional `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
-   to selected runtime values and source `Task<T>` after the runtime-slot and
-   opaque-carrier decisions land. The ledger already prevents premature
+   to selected runtime values and source `Task<T>` after provider selection and
+   opaque-carrier spelling land. The ledger already prevents premature
    close/reclaim and preserves a claim on failed settlement.
 6. Implement continuation/frame lowering and a first provider; an inline
    provider is valid only where the pinned contract permits inline completion.

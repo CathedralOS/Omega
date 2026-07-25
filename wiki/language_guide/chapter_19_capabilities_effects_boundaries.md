@@ -882,6 +882,28 @@ boundary providers. Safe source should generally work through owners and views, 
 language still needs a browsable place to audit names such as pointer offset,
 read/write, and pointer-range construction.
 
+### Opaque runtime boundary values
+
+`boundary data` does not imply erasure. Its closed representation property is
+`Erased | Runtime::Inline(LayoutPlan) |
+Runtime::SealedHandle(HandlePlan)`. The type owner pins that property; a
+provider cannot rewrite the carrier ABI. See
+[`opaque_runtime_representation.md`](../design_briefs/opaque_runtime_representation.md).
+
+The compiler exposes `pack(carrier)` only inside declared introduction
+implementations and exposes immutable carrier projection only to the
+declaration's representation implementation. `pack` takes no authority
+parameter. Each introduction carries entitlement through its ordinary
+signature: a consumed parent, source borrow, admitted root grant, mapping
+receipt, or registered backing entry. Domain `MintAuthority<D>` establishes a
+semantic qualification and remains a different operation.
+
+Checked contracts prove structural conservation over published observations.
+Provider receipts establish facts Omega cannot prove, such as firmware having
+transferred a physical range. Construction and qualification may compose in one
+provider operation, but no bare unqualified authority value escapes between
+them.
+
 ## Boundary Primitive Registry
 
 Compiler/runtime boundary providers are tracked, not free-floating names. The
@@ -988,7 +1010,8 @@ or unusual hardware. Doing so explicitly expands the boundary base.
 
 Compiler artifacts should list imported libraries, syscall surfaces, the
 registered boundary providers used, inferred authority flow, direct/transitive
-host calls, and unchecked policies.
+host calls, unchecked policies, and runtime opaque representation/introduction
+contracts.
 
 Example shape:
 
@@ -1034,6 +1057,12 @@ registered boundary providers used:
   omega_darwin_libsystem_write      category HostAbiCall  -> DarwinLibSystem.write
   omega_core_slice_index            category SliceIndexing -> Slice::index
 
+opaque runtime values:
+  Extent  Inline(ExtentCarrierLayout)  introductions [root, split, loan]
+
+transitive authority admission:
+  RootExtentGrant via omega::platform::boot
+
 target image imports:
   Kernel32.dll!ReadFile
   libSystem.B.dylib!_write
@@ -1043,6 +1072,12 @@ The "registered boundary providers used" list is the audit artifact for the
 boundary registry: every entry resolves to a `BoundaryProvider` record, and a
 binding that names no registered provider is rejected before this report is
 emitted.
+
+The complete manifest is machine-readable. Human package diffs collapse
+low-severity checked tokens and elevate transitive changes in authority,
+admitted providers, mutable representation access, sealed-handle backing, or
+revocation/generation machinery. Admission compares the final artifact's
+transitive reachable-authority set, not only direct dependencies.
 
 A build with proofs or contracts disabled should be stamped loudly rather than
 silently behaving like a normal safe build.
