@@ -1191,6 +1191,99 @@ pub fn encode_syscall_sequence_with_plan<T: InstructionOperandLike>(
     }
 }
 
+fn encode_value_syscall_sequence_with_site<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
+    let Some((_, arguments)) = operands.split_first() else {
+        return Err(Diagnostic::error(
+            "value-returning syscall has no result storage operand",
+        ));
+    };
+    let registers = normalized_syscall_registers_with_plan(
+        architecture,
+        arguments.len(),
+        true,
+        authoritative_plan,
+    )?;
+    let result_register = registers.required_result()?;
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_value_syscall_sequence(
+            &operands
+                .iter()
+                .map(aarch64_call_operand)
+                .collect::<Vec<_>>(),
+            syscall_number,
+            &registers.parameters,
+            result_register,
+            registers.number,
+            registers.immediate,
+        ),
+        Architecture::X86_64 => x86_64::encode_value_syscall_sequence(
+            operands,
+            syscall_number,
+            &registers.parameters,
+            result_register,
+            registers.number,
+            registers.immediate,
+        ),
+    }
+}
+
+pub fn encode_value_syscall_sequence_with_plan<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_value_syscall_sequence_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        authoritative_plan,
+    )
+    .map(|(bytes, _)| bytes)
+}
+
+pub fn value_syscall_relocation_byte_offset<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    operand_index: usize,
+    syscall_number: u32,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<usize, Diagnostic> {
+    let (_, result_site) = encode_value_syscall_sequence_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        authoritative_plan,
+    )?;
+    if operand_index == 0 {
+        return Ok(result_site);
+    }
+    let arguments = operands.get(1..).ok_or_else(|| {
+        Diagnostic::error("value-returning syscall has no argument operand range")
+    })?;
+    let argument_index = operand_index - 1;
+    if argument_index >= arguments.len() {
+        return Err(Diagnostic::error(
+            "value-returning syscall relocation operand is out of range",
+        ));
+    }
+    Ok(match architecture {
+        Architecture::Aarch64 => arguments
+            .iter()
+            .take(argument_index)
+            .map(|operand| crate::operand_width(architecture, operand))
+            .sum(),
+        Architecture::X86_64 => {
+            x86_64::syscall_data_relocation_byte_offset(arguments, argument_index)
+        }
+    })
+}
+
 fn encode_linux_timespec_syscall_with_site<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
@@ -1677,6 +1770,52 @@ mod syscall_plan_contract_tests {
                 Some(&aarch64_plan),
             )
         );
+    }
+
+    #[test]
+    fn value_syscall_relocations_distinguish_result_from_arguments() {
+        let operands = [
+            TargetInstructionOperand {
+                kind: TargetInstructionOperandKind::RuntimeScalarInteger {
+                    region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 8,
+                    byte_count: 4,
+                },
+            },
+            TargetInstructionOperand {
+                kind: TargetInstructionOperandKind::RuntimeStorageAddress {
+                    region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 32,
+                },
+            },
+        ];
+
+        for (architecture, number) in [(Architecture::X86_64, 3), (Architecture::Aarch64, 57)] {
+            let bytes =
+                encode_value_syscall_sequence_with_plan(architecture, &operands, number, None)
+                    .expect("value-returning syscall");
+            let result_site =
+                value_syscall_relocation_byte_offset(architecture, &operands, 0, number, None)
+                    .expect("result relocation");
+            let argument_site =
+                value_syscall_relocation_byte_offset(architecture, &operands, 1, number, None)
+                    .expect("argument relocation");
+            assert!(result_site > argument_site);
+            match architecture {
+                Architecture::X86_64 => {
+                    assert_eq!(&bytes[result_site..result_site + 8], &[0; 8]);
+                    assert_eq!(&bytes[argument_site..argument_site + 8], &[0; 8]);
+                }
+                Architecture::Aarch64 => {
+                    assert!(result_site + 8 <= bytes.len());
+                    assert!(argument_site + 8 <= bytes.len());
+                    assert_ne!(
+                        &bytes[result_site..result_site + 8],
+                        &bytes[argument_site..argument_site + 8]
+                    );
+                }
+            }
+        }
     }
 }
 

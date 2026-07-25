@@ -1,0 +1,49 @@
+// Linux raw-filesystem syscall slice. Both targets lower the semantic
+// open/open_create operations through openat(AT_FDCWD, ...), then preserve
+// value-returning read/write/close results through the normalized syscall plan.
+// Expected native exit: 70.
+use omega::language::std::filesystem_host;
+use omega::language::std::console;
+
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    fd: i32;
+    rc: i32;
+    count: i64;
+    capacity: u64;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
+    // four-argument openat adapter without leaving a filesystem artifact.
+    self.fd = self.fs.open_create("/dev/null", 65, 438);
+    transition self.fd >= 0 { true -> write_null() _ -> fail_open_create() }
+    state write_null(&mut self) {
+        self.count = self.fs.write(self.fd, "omega-linux\n");
+        self.rc = self.fs.close(self.fd);
+        transition self.count == 12 && self.rc == 0 {
+            true -> open_hostname()
+            false -> fail_write()
+        }
+    }
+    state open_hostname(&mut self) {
+        self.fd = self.fs.open("/etc/hostname", 0);
+        transition self.fd >= 0 { true -> read_hostname() _ -> fail_open() }
+    }
+    state read_hostname(&mut self) {
+        self.capacity = 64;
+        self.count = self.fs.read(self.fd, &mut self.buffer, self.capacity);
+        self.rc = self.fs.close(self.fd);
+        transition self.count > 0 && self.rc == 0 {
+            true -> good()
+            false -> fail_read()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_open_create(&mut self) { self.console.exit_process(1); }
+    state fail_write(&mut self) { self.console.exit_process(2); }
+    state fail_open(&mut self) { self.console.exit_process(3); }
+    state fail_read(&mut self) { self.console.exit_process(4); }
+}

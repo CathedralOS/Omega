@@ -193,6 +193,22 @@ fn data_address_relocation_offset_with_plan(
             return selected_text_offset + byte_offset;
         }
     }
+    if is_syscall
+        && operation_key.is_some_and(HostOperationKey::returns_value)
+        // Linux syscall numbers fit one normalized immediate chunk on AArch64;
+        // zero therefore has the same instruction width while avoiding a
+        // second syscall-number table in the relocation planner.
+        && let Ok(byte_offset) =
+            omega_instruction_selection::value_syscall_relocation_byte_offset(
+                architecture,
+                operands,
+                operand_index,
+                0,
+                authoritative_plan,
+            )
+    {
+        return selected_text_offset + byte_offset;
+    }
 
     // A field-model call marshals args like an import, then reads the callee
     // from the receiver (This-call) or from the dispatch-only table pointer

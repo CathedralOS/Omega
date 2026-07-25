@@ -1073,9 +1073,15 @@ pub(super) fn select_host_operation_operands(
             let second =
                 scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
             match (result, path, second) {
-                (Some(result), Some(path), Some(second)) => {
-                    operands.insert_many([operand(result), operand(path), operand(second)])
-                }
+                (Some(result), Some(path), Some(second)) => match host_call.data {
+                    PlatformCallData::ConstantArgument { value } => operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::ImmediateInteger(value)),
+                        operand(path),
+                        operand(second),
+                    ]),
+                    _ => operands.insert_many([operand(result), operand(path), operand(second)]),
+                },
                 _ => HandleSpan::empty(),
             }
         }
@@ -1247,12 +1253,21 @@ pub(super) fn select_host_operation_operands(
             let gid =
                 scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, path, uid, gid) {
-                (Some(result), Some(path), Some(uid), Some(gid)) => operands.insert_many([
-                    operand(result),
-                    operand(path),
-                    operand(uid),
-                    operand(gid),
-                ]),
+                (Some(result), Some(path), Some(uid), Some(gid)) => match host_call.data {
+                    PlatformCallData::ConstantArgument { value } => operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::ImmediateInteger(value)),
+                        operand(path),
+                        operand(uid),
+                        operand(gid),
+                    ]),
+                    _ => operands.insert_many([
+                        operand(result),
+                        operand(path),
+                        operand(uid),
+                        operand(gid),
+                    ]),
+                },
                 _ => HandleSpan::empty(),
             }
         }

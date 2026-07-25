@@ -36,6 +36,14 @@ pub(super) fn encode_host_operation(
                 binding.and_then(omega_calling_conventions::HostBinding::call_plan),
             )
         }
+        Some(HostBindingMechanism::Syscall { number, .. }) if operation_key.returns_value() => {
+            architecture::encode_value_syscall_sequence_with_plan(
+                input.target.architecture,
+                operands,
+                *number,
+                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+            )
+        }
         Some(HostBindingMechanism::Syscall { number, .. }) => {
             architecture::encode_syscall_sequence_with_plan(
                 input.target.architecture,

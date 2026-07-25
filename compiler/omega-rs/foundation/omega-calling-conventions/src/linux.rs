@@ -9,6 +9,17 @@ use omega_target::Architecture;
 struct LinuxSyscallNumbers {
     read: u32,
     write: u32,
+    close: u32,
+    pread64: u32,
+    pwrite64: u32,
+    lseek: u32,
+    dup: u32,
+    flock: u32,
+    fsync: u32,
+    ftruncate: u32,
+    fchmod: u32,
+    fchown: u32,
+    openat: u32,
     exit_group: u32,
     clock_gettime: u32,
     nanosleep: u32,
@@ -43,6 +54,141 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "sleep",
             "nanosleep",
             syscall_numbers.nanosleep,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "open",
+            "openat",
+            syscall_numbers.openat,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "open_create",
+            "openat",
+            syscall_numbers.openat,
+            4,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "openat",
+            "openat",
+            syscall_numbers.openat,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "read",
+            "read",
+            syscall_numbers.read,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "write",
+            "write",
+            syscall_numbers.write,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "pread",
+            "pread64",
+            syscall_numbers.pread64,
+            4,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "pwrite",
+            "pwrite64",
+            syscall_numbers.pwrite64,
+            4,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "close",
+            "close",
+            syscall_numbers.close,
+            1,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "lseek",
+            "lseek",
+            syscall_numbers.lseek,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "fchmod",
+            "fchmod",
+            syscall_numbers.fchmod,
+            2,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "ftruncate",
+            "ftruncate",
+            syscall_numbers.ftruncate,
+            2,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "fsync",
+            "fsync",
+            syscall_numbers.fsync,
+            1,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "dup",
+            "dup",
+            syscall_numbers.dup,
+            1,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "flock",
+            "flock",
+            syscall_numbers.flock,
+            2,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "fchown",
+            "fchown",
+            syscall_numbers.fchown,
+            3,
             &policy,
             plan.target.architecture,
         ),
@@ -165,6 +311,44 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Clock", "sleep")],
         PlatformCallData::TimespecArgument,
     );
+    for (method, operation) in [
+        ("read", "read"),
+        ("write", "write"),
+        ("read_at", "pread"),
+        ("write_at", "pwrite"),
+        ("close", "close"),
+        ("seek", "lseek"),
+        ("open_at", "openat"),
+        ("set_file_permissions", "fchmod"),
+        ("set_len", "ftruncate"),
+        ("sync", "fsync"),
+        ("sync_data", "fsync"),
+        ("duplicate", "dup"),
+        ("lock_file", "flock"),
+        ("change_file_owner", "fchown"),
+    ] {
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            method,
+            [host_operation("Filesystem", operation)],
+            PlatformCallData::None,
+        );
+    }
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "open",
+        [host_operation("Filesystem", "open")],
+        PlatformCallData::ConstantArgument { value: -100 },
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "open_create",
+        [host_operation("Filesystem", "open_create")],
+        PlatformCallData::ConstantArgument { value: -100 },
+    );
 }
 
 fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
@@ -172,6 +356,17 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
         Architecture::Aarch64 => LinuxSyscallNumbers {
             read: 63,
             write: 64,
+            close: 57,
+            pread64: 67,
+            pwrite64: 68,
+            lseek: 62,
+            dup: 23,
+            flock: 32,
+            fsync: 82,
+            ftruncate: 46,
+            fchmod: 52,
+            fchown: 55,
+            openat: 56,
             exit_group: 94,
             clock_gettime: 113,
             nanosleep: 101,
@@ -179,6 +374,17 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
         Architecture::X86_64 => LinuxSyscallNumbers {
             read: 0,
             write: 1,
+            close: 3,
+            pread64: 17,
+            pwrite64: 18,
+            lseek: 8,
+            dup: 32,
+            flock: 73,
+            fsync: 74,
+            ftruncate: 77,
+            fchmod: 91,
+            fchown: 93,
+            openat: 257,
             exit_group: 231,
             clock_gettime: 228,
             nanosleep: 35,
@@ -250,6 +456,41 @@ fn linux_timespec_syscall(
         .clone();
     HostBinding {
         operation_key: crate::HostOperationKey::from_names("Clock", operation),
+        mechanism: HostBindingMechanism::Syscall {
+            name: name.into(),
+            number,
+            number_register: 8,
+            supervisor_call: 0,
+        },
+        boundary_policy: std::sync::Arc::clone(policy),
+        boundary_entry_plan: Some(boundary_entry_plan),
+    }
+}
+
+fn linux_value_syscall(
+    capability: &str,
+    operation: &str,
+    name: &str,
+    number: u32,
+    parameter_count: usize,
+    policy: &std::sync::Arc<str>,
+    architecture: Architecture,
+) -> HostBinding {
+    let calling_policy = match architecture {
+        Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+        Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+    };
+    let word = ValueShape::integer(8, 8);
+    let signature = CallSignature {
+        parameters: vec![word; parameter_count],
+        result: Some(word),
+    };
+    let boundary_entry_plan = evaluate_ordinary_boundary_entry_plan(calling_policy, &signature)
+        .expect("the built-in Linux value syscall signature must have a syscall plan")
+        .plan()
+        .clone();
+    HostBinding {
+        operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Syscall {
             name: name.into(),
             number,

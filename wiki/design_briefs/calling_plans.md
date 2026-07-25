@@ -645,6 +645,18 @@ to a private two-word request, passes a null remainder pointer, and derives
 width plus operand relocation from that same sequence. An interrupted sleep
 returns early rather than hiding an unbounded retry loop inside the provider.
 
+Value-returning Linux syscalls now use one general companion path rather than
+being forced through the non-returning console encoder. The leading Omega
+result place is excluded from the syscall parameters, the retained plan
+selects the exact argument/result registers, and target emission stores the
+kernel result only after the supervisor call. Width and every argument/result
+relocation consume that same sequence. The first filesystem rows use this path
+for `read`, `write`, positioned I/O, descriptor lifecycle, seeking, sync,
+permissions, duplication, locking, ownership, and truncation on both x86-64
+and AArch64. Semantic `open` and `open_create` remain common while the Linux
+target injects `AT_FDCWD` and lowers both through the architecture's `openat`;
+that compatibility argument is plan data, not public filesystem ABI.
+
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still
 publish only its contract fingerprint. Outbound binding construction projects

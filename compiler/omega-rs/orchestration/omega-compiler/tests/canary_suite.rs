@@ -2871,6 +2871,32 @@ fn cross_linux_time_host_compiles_on_both_architectures() {
 }
 
 #[test]
+fn cross_linux_value_syscalls_compile_on_both_architectures() {
+    let canary = pass_canary("filesystem/cross_linux_value_syscalls");
+    for target in ["linux_x64", "linux_arm64"] {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-linux-value-syscalls-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("Linux value-syscall cross-compile failed for {target}: {diagnostics:#?}")
+        });
+        assert!(
+            build_dir.join("omega-program").exists(),
+            "{target} should emit an ELF image"
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_checked_time_arith_exit_canary_runs() {
     // std::time rung 6 slice 3: Instant + SystemTime checked_add/
     // checked_subtract, exact values. 8 legs: carry/borrow Ok arms (non-ZII),

@@ -1690,6 +1690,7 @@ fn syscall_arg_operand_width<T: InstructionOperandLike>(operand: &T) -> usize {
     } else if operand.runtime_string_pointer().is_some()
         || operand.runtime_string_length().is_some()
         || operand.runtime_scalar_integer().is_some()
+        || operand.runtime_storage_address().is_some()
     {
         // mov r11,imm64 (10) + mov rax,[r11+disp] (7) + mov arg,rax (3)
         SYSCALL_ARG_MOV_WIDTH + 7 + 3
@@ -1790,6 +1791,11 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             append_mov_r11_imm64(&mut bytes, 0); // relocated region base
             append_load_rax_from_r11(&mut bytes, byte_offset)?; // rax = scalar value
             append_mov_syscall_arg_from_rax(&mut bytes, register)?;
+        } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+            append_mov_r11_imm64(&mut bytes, 0); // relocated region base
+            bytes.extend([0x49, 0x8d, 0x83]); // lea rax, [r11+disp32]
+            bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            append_mov_syscall_arg_from_rax(&mut bytes, register)?;
         } else {
             let opcode = syscall_arg_mov_imm64_opcode(register)?;
             let value = if let Some(value) = operand.immediate_integer() {
@@ -1812,6 +1818,55 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     bytes.extend([0x0f, 0x05]); // syscall
     debug_assert_eq!(bytes.len(), syscall_sequence_width(operands));
     Ok(bytes)
+}
+
+/// A value-returning Linux syscall. `operands[0]` is the Omega result place;
+/// only the remaining operands are marshalled as syscall arguments.
+pub fn encode_value_syscall_sequence<T: InstructionOperandLike>(
+    operands: &[T],
+    syscall_number: u32,
+    argument_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
+    let Some((result, arguments)) = operands.split_first() else {
+        return Err(Diagnostic::error(
+            "X86_64 value-returning syscall has no result storage operand",
+        ));
+    };
+    if result_register != MachineRegister::X86Rax {
+        return Err(Diagnostic::error(format!(
+            "X86_64 value-returning syscall cannot realize result register {result_register:?}"
+        )));
+    }
+    let Some((_, byte_offset, byte_count)) = result.runtime_scalar_integer() else {
+        return Err(Diagnostic::error(
+            "X86_64 value-returning syscall result did not lower to runtime scalar storage",
+        ));
+    };
+    let mut bytes = encode_syscall_sequence(
+        arguments,
+        syscall_number,
+        argument_registers,
+        number_register,
+        supervisor_call,
+    )?;
+    let result_relocation_byte_offset = bytes.len() + 2;
+    append_mov_r11_imm64(&mut bytes, 0);
+    match byte_count {
+        1 => bytes.extend([0x41, 0x88, 0x83]), // mov [r11+disp32], al
+        2 => bytes.extend([0x66, 0x41, 0x89, 0x83]), // mov [r11+disp32], ax
+        4 => bytes.extend([0x41, 0x89, 0x83]), // mov [r11+disp32], eax
+        8 => bytes.extend([0x49, 0x89, 0x83]), // mov [r11+disp32], rax
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 value-returning syscall cannot store a {other}-byte result"
+            )));
+        }
+    }
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    Ok((bytes, result_relocation_byte_offset))
 }
 
 /// Linux `clock_gettime(clock_id, &timespec)` composite lowering. The Omega
@@ -2159,6 +2214,35 @@ mod syscall_plan_register_tests {
         );
         assert!(bytes.windows(2).any(|window| window == [0x0f, 0x05]));
         assert_eq!(&bytes[bytes.len() - 4..], &[0x48, 0x83, 0xc4, 0x10]);
+    }
+
+    #[test]
+    fn linux_value_syscall_stores_rax_after_marshalling_only_arguments() {
+        let operands = [
+            TargetInstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 24,
+                    byte_count: 4,
+                },
+            },
+            TargetInstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(7),
+            },
+        ];
+        let (bytes, result_site) = encode_value_syscall_sequence(
+            &operands,
+            3,
+            &[MachineRegister::X86Rdi],
+            MachineRegister::X86Rax,
+            MachineRegister::X86Rax,
+            0,
+        )
+        .expect("value-returning close syscall");
+
+        assert_eq!(&bytes[result_site..result_site + 8], &[0; 8]);
+        assert_eq!(&bytes[bytes.len() - 4..], &24_i32.to_le_bytes());
+        assert!(bytes.windows(2).any(|window| window == [0x0f, 0x05]));
     }
 }
 

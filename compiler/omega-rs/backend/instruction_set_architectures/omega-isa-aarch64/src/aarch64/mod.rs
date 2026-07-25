@@ -1155,6 +1155,49 @@ pub fn encode_syscall_sequence_from_operands(
     Ok(bytes)
 }
 
+/// A value-returning Linux syscall. The first operand is the Omega result
+/// place; only the remaining operands are marshalled as syscall parameters.
+pub fn encode_value_syscall_sequence(
+    operands: &[Aarch64CallOperand],
+    syscall_number: u32,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
+    number_register: MachineRegister,
+    supervisor_call: u16,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
+    let Some((result, arguments)) = operands.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning syscall has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning syscall result did not lower to runtime scalar storage",
+        ));
+    };
+    let MachineRegister::Aarch64X(result_register) = result_register else {
+        return Err(Diagnostic::error(format!(
+            "AArch64 value-returning syscall selected non-GPR result {result_register:?}"
+        )));
+    };
+    let mut bytes = encode_syscall_sequence_from_operands(
+        arguments.iter().copied(),
+        syscall_number,
+        argument_registers,
+        number_register,
+        supervisor_call,
+    )?;
+    let result_relocation_byte_offset = bytes.len();
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_store_data_to_x_offset(&mut bytes, result_register, 16, byte_offset, byte_count, 17)?;
+    Ok((bytes, result_relocation_byte_offset))
+}
+
 /// AArch64 Linux `clock_gettime(clock_id, &timespec)` composite lowering.
 /// Returns the bytes and the byte offset of the result-region ADRP pair.
 pub fn encode_linux_timespec_syscall(
@@ -1522,6 +1565,40 @@ mod syscall_plan_register_tests {
         assert_eq!(
             &bytes[bytes.len() - 4..],
             &encode_add_x_immediate(31, 31, 16).unwrap()
+        );
+    }
+
+    #[test]
+    fn linux_value_syscall_stores_x0_after_marshalling_only_arguments() {
+        let operands = [
+            Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 24,
+                byte_count: 4,
+            },
+            Aarch64CallOperand::ImmediateInteger(7),
+        ];
+        let (bytes, result_site) = encode_value_syscall_sequence(
+            &operands,
+            57,
+            &[MachineRegister::Aarch64X(0)],
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(8),
+            0,
+        )
+        .expect("value-returning close syscall");
+
+        assert_eq!(
+            &bytes[result_site..result_site + 4],
+            &encode_adrp_placeholder(16)
+        );
+        assert_eq!(
+            &bytes[result_site + 4..result_site + 8],
+            &encode_add_page_offset_placeholder(16)
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_svc(0).as_slice())
         );
     }
 }
