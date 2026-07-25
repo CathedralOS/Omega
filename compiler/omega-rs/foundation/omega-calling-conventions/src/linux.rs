@@ -19,6 +19,7 @@ struct LinuxSyscallNumbers {
     ftruncate: u32,
     fchmod: u32,
     fchown: u32,
+    fstat: u32,
     openat: u32,
     exit_group: u32,
     clock_gettime: u32,
@@ -192,6 +193,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             &policy,
             plan.target.architecture,
         ),
+        linux_value_syscall(
+            "Filesystem",
+            "fstat",
+            "fstat",
+            syscall_numbers.fstat,
+            2,
+            &policy,
+            plan.target.architecture,
+        ),
     ]);
 
     insert_platform_lowering(
@@ -326,6 +336,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         ("duplicate", "dup"),
         ("lock_file", "flock"),
         ("change_file_owner", "fchown"),
+        ("read_file_metadata", "fstat"),
     ] {
         insert_platform_lowering(
             plan,
@@ -366,6 +377,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             ftruncate: 46,
             fchmod: 52,
             fchown: 55,
+            fstat: 80,
             openat: 56,
             exit_group: 94,
             clock_gettime: 113,
@@ -384,6 +396,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             ftruncate: 77,
             fchmod: 91,
             fchown: 93,
+            fstat: 5,
             openat: 257,
             exit_group: 231,
             clock_gettime: 228,

@@ -652,10 +652,13 @@ selects the exact argument/result registers, and target emission stores the
 kernel result only after the supervisor call. Width and every argument/result
 relocation consume that same sequence. The first filesystem rows use this path
 for `read`, `write`, positioned I/O, descriptor lifecycle, seeking, sync,
-permissions, duplication, locking, ownership, and truncation on both x86-64
-and AArch64. Semantic `open` and `open_create` remain common while the Linux
-target injects `AT_FDCWD` and lowers both through the architecture's `openat`;
-that compatibility argument is plan data, not public filesystem ABI.
+permissions, duplication, locking, ownership, truncation, and descriptor
+metadata (`fstat`) on both x86-64 and AArch64. Semantic `open` and
+`open_create` remain common while the Linux target injects `AT_FDCWD` and
+lowers both through the architecture's `openat`; that compatibility argument
+is plan data, not public filesystem ABI. Path-based metadata, directory, and
+failure-code adaptation remain explicit engineering work rather than a reason
+to add hidden libc state to the syscall path.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still
