@@ -363,7 +363,12 @@ misaligned or unequal ranges, exhausted table/leaf bounds, semantic rights with
 no admitted PTE meaning, and non-executable mappings when NX cannot be enforced.
 The semantic-right map is provider-owned policy: naming a right does not
 establish it, and unknown rights are never silently discarded. Its output is
-only inert bytes plus plan/content report facts. The separate construction
+only inert bytes plus plan/content report facts. The writer does not own a
+parallel bit-patching path: hierarchy pointers and leaves both pass named
+values through the exact normalized x86 entry layout and the ordinary scalar
+materializer. Reordered policy declarations normalize identically, while any
+shifted hardware field rejects through exact geometry comparison rather than a
+compact-fingerprint authorization. The separate construction
 receipt still establishes `Installable`, and the separate page-table-control
 provider still activates it. The AArch64 sibling consumes the same draft but a
 different target algebra: one admitted semantic memory-class fact selects

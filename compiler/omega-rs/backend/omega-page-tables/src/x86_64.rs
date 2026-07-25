@@ -977,4 +977,59 @@ mod tests {
             .expect_err("canonical virtual address");
         assert!(error.0.contains("noncanonical"));
     }
+
+    #[test]
+    fn normalized_leaf_layout_accepts_reordering_and_rejects_shifted_hardware_bits() {
+        let fixture = Fixture::new();
+        let rights = X86_64PageRights::new(
+            fixture.readable,
+            fixture.writable,
+            fixture.executable,
+            Some(fixture.user),
+            None,
+            None,
+            None,
+            ExtentRights::default(),
+        )
+        .expect("rights policy");
+        let mut reordered = canonical_x86_64_4k_leaf_layout();
+        reordered.entries.reverse();
+        X86_64PageTablePolicy::from_validated_layout(
+            fixture.physical,
+            fixture.virtual_,
+            48,
+            true,
+            16,
+            1024,
+            rights.clone(),
+            reordered,
+        )
+        .expect("authored order is normalized away");
+
+        let mut shifted = canonical_x86_64_4k_leaf_layout();
+        shifted
+            .entries
+            .iter_mut()
+            .find(|entry| entry.field == "writable")
+            .expect("writable field")
+            .placement = LayoutPlacementReport::Bits {
+            container: 0,
+            container_width: 64,
+            destination_lsb: 9,
+            source_lsb: 0,
+            width: 1,
+        };
+        let error = X86_64PageTablePolicy::from_validated_layout(
+            fixture.physical,
+            fixture.virtual_,
+            48,
+            true,
+            16,
+            1024,
+            rights,
+            shifted,
+        )
+        .expect_err("shifted hardware bit must reject");
+        assert!(error.0.contains("exactly match"));
+    }
 }
