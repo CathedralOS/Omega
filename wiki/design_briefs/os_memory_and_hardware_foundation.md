@@ -365,9 +365,15 @@ The semantic-right map is provider-owned policy: naming a right does not
 establish it, and unknown rights are never silently discarded. Its output is
 only inert bytes plus plan/content report facts. The separate construction
 receipt still establishes `Installable`, and the separate page-table-control
-provider still activates it. Huge pages, PAT/LA57, the AArch64 writer, imported
-scanners, control operations, and source-visible opaque carriers remain
-implementation work over the same lifecycle.
+provider still activates it. The AArch64 sibling consumes the same draft but a
+different target algebra: one admitted semantic memory-class fact selects
+`AttrIndx` and shareability, ordinary mapped rights select AP/nG/PXN/UXN, and
+the policy pins the TTBR lower/upper half plus 32–48-bit physical-address
+width. It emits four-level 4 KiB stage-1 tables and reaches the identical
+generated-construction receipt without treating AArch64 flags as x86 flags.
+Huge pages, PAT/LA57, AArch64 blocks/LPA2/dirty state, imported scanners,
+control operations, and source-visible opaque carriers remain implementation
+work over the same lifecycle.
 
 Retirement closes the conservation loop. Beginning removal captures table
 storage and starts unmapping every active mapping. Nothing is returned until one

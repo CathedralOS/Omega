@@ -5,6 +5,12 @@ use omega_extents::{
     PageTableConstructionReceipt, PageTableConstructionReceiptId, PageTableDraft, PageTablePlanId,
 };
 
+use crate::PageTableMaterializationDiagnostic;
+use omega_layout_plans::{
+    ByteOrder, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, ScalarFieldValue,
+    materialize_scalar_layout_into, normalized_layout_plan_fingerprint,
+};
+
 pub const X86_64_PAGE_BYTES: u64 = 4096;
 pub const X86_64_ENTRIES_PER_TABLE: usize = 512;
 
@@ -163,6 +169,7 @@ pub struct X86_64PageTablePolicy {
     max_table_pages: usize,
     max_leaf_entries: usize,
     rights: X86_64PageRights,
+    leaf_layout: LayoutPlanReport,
 }
 
 impl X86_64PageTablePolicy {
@@ -174,6 +181,29 @@ impl X86_64PageTablePolicy {
         max_table_pages: usize,
         max_leaf_entries: usize,
         rights: X86_64PageRights,
+    ) -> Result<Self, PageTableMaterializationDiagnostic> {
+        Self::from_validated_layout(
+            physical_space,
+            virtual_space,
+            physical_address_bits,
+            nx_supported,
+            max_table_pages,
+            max_leaf_entries,
+            rights,
+            canonical_x86_64_4k_leaf_layout(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_validated_layout(
+        physical_space: AddressSpaceId,
+        virtual_space: AddressSpaceId,
+        physical_address_bits: u8,
+        nx_supported: bool,
+        max_table_pages: usize,
+        max_leaf_entries: usize,
+        rights: X86_64PageRights,
+        leaf_layout: LayoutPlanReport,
     ) -> Result<Self, PageTableMaterializationDiagnostic> {
         if physical_space == virtual_space {
             return Err(PageTableMaterializationDiagnostic(
@@ -190,6 +220,7 @@ impl X86_64PageTablePolicy {
                 "x86-64 page-table bounds must be nonzero".into(),
             ));
         }
+        require_exact_leaf_layout(&leaf_layout)?;
         Ok(Self {
             physical_space,
             virtual_space,
@@ -198,7 +229,18 @@ impl X86_64PageTablePolicy {
             max_table_pages,
             max_leaf_entries,
             rights,
+            leaf_layout,
         })
+    }
+
+    pub const fn leaf_layout(&self) -> &LayoutPlanReport {
+        &self.leaf_layout
+    }
+
+    /// Report/cache identity only. Exact layout comparison, not this compact
+    /// fingerprint, controls admission.
+    pub fn leaf_layout_identity(&self) -> u64 {
+        normalized_layout_plan_fingerprint(&self.leaf_layout)
     }
 }
 
@@ -272,17 +314,6 @@ impl MaterializedX86_64PageTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageTableMaterializationDiagnostic(pub String);
-
-impl std::fmt::Display for PageTableMaterializationDiagnostic {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for PageTableMaterializationDiagnostic {}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LeafPage {
     virtual_address: u64,
@@ -346,6 +377,7 @@ pub fn materialize_x86_64_4k_page_table(
                 storage_page_count,
                 policy.max_table_pages,
                 address_mask,
+                &policy.leaf_layout,
             )?;
         }
         let leaf_index = indices[3];
@@ -355,7 +387,8 @@ pub fn materialize_x86_64_4k_page_table(
                 leaf.virtual_address
             )));
         }
-        tables[table][leaf_index] = (leaf.physical_address & address_mask) | leaf.flags;
+        tables[table][leaf_index] =
+            materialize_page_entry(&policy.leaf_layout, leaf.physical_address, leaf.flags)?;
     }
 
     let mut bytes = vec![0u8; storage_length];
@@ -497,6 +530,7 @@ fn ensure_child_table(
     storage_page_count: usize,
     max_table_pages: usize,
     address_mask: u64,
+    layout: &LayoutPlanReport,
 ) -> Result<usize, PageTableMaterializationDiagnostic> {
     if let Some(child) = children.get(&(parent, slot)).copied() {
         tables[parent][slot] |= propagated_flags;
@@ -520,8 +554,129 @@ fn ensure_child_table(
     }
     tables.push([0; X86_64_ENTRIES_PER_TABLE]);
     children.insert((parent, slot), child);
-    tables[parent][slot] = child_address | PRESENT | propagated_flags;
+    tables[parent][slot] =
+        materialize_page_entry(layout, child_address, PRESENT | propagated_flags)?;
     Ok(child)
+}
+
+/// Canonical x86-64 4 KiB page-entry geometry. An Omega-authored target policy
+/// may produce the entries in another declaration order, but its exact
+/// normalized geometry must equal this hardware contract.
+pub fn canonical_x86_64_4k_leaf_layout() -> LayoutPlanReport {
+    LayoutPlanReport {
+        entries: vec![
+            bit_field("present", 0),
+            bit_field("writable", 1),
+            bit_field("user", 2),
+            bit_field("write_through", 3),
+            bit_field("cache_disable", 4),
+            bit_field("global", 8),
+            LayoutFieldEntryReport {
+                field: "frame_number".into(),
+                placement: LayoutPlacementReport::Bits {
+                    container: 0,
+                    container_width: 64,
+                    destination_lsb: 12,
+                    source_lsb: 0,
+                    width: 40,
+                },
+            },
+            bit_field("no_execute", 63),
+        ],
+        offsets: None,
+        size: Some(8),
+        align: 8,
+    }
+}
+
+fn bit_field(field: &str, destination_lsb: i64) -> LayoutFieldEntryReport {
+    LayoutFieldEntryReport {
+        field: field.into(),
+        placement: LayoutPlacementReport::Bits {
+            container: 0,
+            container_width: 64,
+            destination_lsb,
+            source_lsb: 0,
+            width: 1,
+        },
+    }
+}
+
+fn require_exact_leaf_layout(
+    layout: &LayoutPlanReport,
+) -> Result<(), PageTableMaterializationDiagnostic> {
+    if normalized_layout(layout) != normalized_layout(&canonical_x86_64_4k_leaf_layout()) {
+        return Err(PageTableMaterializationDiagnostic(
+            "layout does not exactly match x86-64 4 KiB page-entry geometry".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn normalized_layout(
+    layout: &LayoutPlanReport,
+) -> (Option<i64>, i64, Vec<(String, LayoutPlacementReport)>) {
+    let mut entries = layout
+        .entries
+        .iter()
+        .map(|entry| (entry.field.clone(), entry.placement))
+        .collect::<Vec<_>>();
+    entries.sort_unstable_by(|left, right| {
+        left.0
+            .cmp(&right.0)
+            .then_with(|| placement_key(left.1).cmp(&placement_key(right.1)))
+    });
+    (layout.size, layout.align, entries)
+}
+
+fn placement_key(placement: LayoutPlacementReport) -> (u8, i64, i64, i64, i64, i64) {
+    match placement {
+        LayoutPlacementReport::At { offset } => (0, offset, 0, 0, 0, 0),
+        LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } => (
+            1,
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        ),
+    }
+}
+
+fn materialize_page_entry(
+    layout: &LayoutPlanReport,
+    physical_address: u64,
+    flags: u64,
+) -> Result<u64, PageTableMaterializationDiagnostic> {
+    let fields = [
+        scalar("present", 1, u64::from(flags & PRESENT != 0))?,
+        scalar("writable", 1, u64::from(flags & WRITABLE != 0))?,
+        scalar("user", 1, u64::from(flags & USER != 0))?,
+        scalar("write_through", 1, u64::from(flags & WRITE_THROUGH != 0))?,
+        scalar("cache_disable", 1, u64::from(flags & CACHE_DISABLE != 0))?,
+        scalar("global", 1, u64::from(flags & GLOBAL != 0))?,
+        scalar("frame_number", 40, physical_address >> 12)?,
+        scalar("no_execute", 1, u64::from(flags & NO_EXECUTE != 0))?,
+    ];
+    let mut bytes = [0_u8; size_of::<u64>()];
+    materialize_scalar_layout_into(layout, &fields, ByteOrder::LittleEndian, &mut bytes)
+        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))?;
+    Ok(u64::from_le_bytes(bytes))
+}
+
+fn scalar(
+    field: &str,
+    width_bits: u16,
+    value: u64,
+) -> Result<ScalarFieldValue, PageTableMaterializationDiagnostic> {
+    ScalarFieldValue::new(field, width_bits, value)
+        .map_err(|diagnostic| PageTableMaterializationDiagnostic(diagnostic.0))
 }
 
 const fn physical_address_mask(bits: u8) -> u64 {
