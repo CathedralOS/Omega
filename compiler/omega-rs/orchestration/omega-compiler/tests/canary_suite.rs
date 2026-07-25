@@ -35243,6 +35243,34 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
     let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["windows_x64", "linux_arm64"] {
+        let cross_dir = std::env::temp_dir().join(format!(
+            "omega-wire-policy-nested-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cross_dir);
+        let source_dir = cross_dir.join("src");
+        let cross_build_dir = cross_dir.join("build");
+        fs::create_dir_all(&source_dir).expect("create wire-policy cross-target source");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy nested wire-policy canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write wire-policy cross-target manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(cross_build_dir),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("nested wire policy should cross-compile for {target}: {diagnostics:?}")
+        });
+        let _ = fs::remove_dir_all(&cross_dir);
+    }
 }
 
 #[cfg(windows)]

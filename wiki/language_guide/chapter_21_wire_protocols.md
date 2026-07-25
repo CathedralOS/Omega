@@ -294,6 +294,14 @@ the message's fields may reflect a partial or garbage decode (no rollback),
 but every byte read is bounds-checked against the buffer's compile-time
 length, so a failed decode never reads out of bounds.
 
+The build-time grammar-policy ABI uses `u64` for nonnegative sizes,
+alignments, plan counts, placement geometry, and encoded tags. The normalized
+`WirePlacement` retains tags as `u64` through both encoder and decoder
+selection. Declaration identity numbers remain the schema-level carrier
+governed by the open family/evolution contract in owner question #11; the
+current strict codec rejects a negative identity before deriving its unsigned
+wire tag.
+
 A NESTED MESSAGE field — a field whose type is another schema, like
 `1: header: RoomHeader;` — rides as its tag varint, then a byte-LENGTH
 varint, then the sub-message's fields (tag + value pairs) WITHOUT an era
