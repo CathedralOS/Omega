@@ -2257,6 +2257,7 @@ impl UnpublishedIdtDestination {
 pub struct PreparedIdtWriter {
     identity: IdtWriterPreparationId,
     installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     writer_fingerprint: u64,
     placement_fingerprint: u64,
@@ -2525,6 +2526,7 @@ pub fn prepare_idt_writer(
     Ok(PreparedIdtWriter {
         identity: IdtWriterPreparationId(identity),
         installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         writer_fingerprint,
         placement_fingerprint,
@@ -2565,6 +2567,7 @@ pub fn populate_idt_writer_context(
         }))
     };
     if prepared.installed_code != installed_code.identity()
+        || prepared.installed_code_context != installed_code.receipt_context()
         || prepared.artifact != installed_code.artifact()
     {
         return reject(
@@ -2614,6 +2617,8 @@ pub fn populate_idt_writer_context(
 pub struct IdtMaterializationReceipt {
     identity: IdtMaterializationReceiptId,
     installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    writer_context: IdtWriterContextId,
     artifact: ArtifactId,
     destination: IdtDestinationId,
     content: Vec<u8>,
@@ -2625,9 +2630,7 @@ pub struct IdtMaterializationReceipt {
 impl IdtMaterializationReceipt {
     pub fn from_provider(
         identity: IdtMaterializationReceiptId,
-        installed_code: InstalledCodeId,
-        artifact: ArtifactId,
-        destination: IdtDestinationId,
+        populated: &PopulatedIdtWriter,
         content: impl Into<Vec<u8>>,
         software_fault_free: bool,
         remains_unpublished: bool,
@@ -2635,9 +2638,11 @@ impl IdtMaterializationReceipt {
         let content = content.into();
         Self {
             identity,
-            installed_code,
-            artifact,
-            destination,
+            installed_code: populated.prepared.installed_code,
+            installed_code_context: populated.prepared.installed_code_context.clone(),
+            writer_context: populated.identity,
+            artifact: populated.prepared.artifact,
+            destination: populated.prepared.destination.identity,
             content_fingerprint: fingerprint_bytes(&content),
             content,
             software_fault_free,
@@ -2739,6 +2744,7 @@ pub fn materialize_idt(
         }))
     };
     if populated.prepared.installed_code != installed_code.identity()
+        || populated.prepared.installed_code_context != installed_code.receipt_context()
         || populated.prepared.artifact != installed_code.artifact()
     {
         return reject(
@@ -2750,6 +2756,8 @@ pub fn materialize_idt(
         );
     }
     if receipt.installed_code != installed_code.identity()
+        || receipt.installed_code_context != installed_code.receipt_context()
+        || receipt.writer_context != populated.identity
         || receipt.artifact != installed_code.artifact()
         || receipt.destination != populated.prepared.destination.identity
         || !receipt.software_fault_free
@@ -4802,15 +4810,6 @@ mod tests {
         expected[..8].copy_from_slice(&0x1010_u64.to_le_bytes());
         let mut wrong_expected = expected.clone();
         wrong_expected[0] ^= 1;
-        let bad_materialization_receipt = IdtMaterializationReceipt::from_provider(
-            root_id(201, IdtMaterializationReceiptId::from_normalized_identity),
-            code.identity(),
-            code.artifact(),
-            destination_id,
-            wrong_expected,
-            true,
-            true,
-        );
         let prepared = prepare_idt_writer(
             &code,
             UnpublishedIdtDestination::from_provider(
@@ -4844,6 +4843,11 @@ mod tests {
                 source_slot: 0,
             }]
         );
+        let colliding_code = installed_code_with_fill(1, entry, 0xcc);
+        let context_error = populate_idt_writer_context(&colliding_code, prepared)
+            .expect_err("colliding code IDs cannot populate another realization's context");
+        assert!(context_error.diagnostic().0.contains("exact prepared"));
+        let prepared = context_error.into_prepared();
         let foreign_code = installed_code(2, entry);
         let context_error = populate_idt_writer_context(&foreign_code, prepared)
             .expect_err("another installed realization cannot populate the private context");
@@ -4856,6 +4860,13 @@ mod tests {
         assert_eq!(populated.source_slot_count(), 1);
         assert_eq!(populated.packed_context_byte_len(), 16);
         assert!(!format!("{populated:?}").contains("packed_words"));
+        let bad_materialization_receipt = IdtMaterializationReceipt::from_provider(
+            root_id(201, IdtMaterializationReceiptId::from_normalized_identity),
+            &populated,
+            wrong_expected,
+            true,
+            true,
+        );
         let error = materialize_idt(
             root_id(200, MaterializedIdtId::from_normalized_identity),
             &code,
@@ -4868,9 +4879,7 @@ mod tests {
         assert_eq!(retry_populated.prepared.destination.bytes, expected);
         let materialization_receipt = IdtMaterializationReceipt::from_provider(
             root_id(210, IdtMaterializationReceiptId::from_normalized_identity),
-            code.identity(),
-            code.artifact(),
-            destination_id,
+            &retry_populated,
             expected.clone(),
             true,
             true,
