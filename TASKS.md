@@ -1794,9 +1794,15 @@ stronger operations it needs instead of citing machine parameters generally.
   shareability, maps ordinary rights to AP/nG/PXN/UXN, enforces the configured
   32–48-bit output-address width, and enters the same generated-construction
   receipt lifecycle. Add huge-page/PAT/LA57 or AArch64 block/LPA2/dirty-state
-  policies only for real target customers, connect imported-table scanning,
-  and implement page-table-control execution/effects plus Cathedral's concrete
-  CR3/TTBR activation as ordinary engineering. Connecting
+  policies only for real target customers. The first x86 imported-table scanner
+  is live and born strict: every entry must round-trip through the same named
+  scalar layout with all unsupported bits zero, and the complete image must
+  equal the deterministic hierarchy for the exact draft before it can mint an
+  `ImportedScan` construction receipt. This deliberately rejects alternate
+  hierarchy allocation, aliases, huge pages, and hardware-mutated accessed/
+  dirty state until those policies have explicit contracts. Add the AArch64
+  scanner, then implement page-table-control execution/effects plus Cathedral's
+  concrete CR3/TTBR activation as ordinary engineering. Connecting
   this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
   establishment, storage, calling conventions, and source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
