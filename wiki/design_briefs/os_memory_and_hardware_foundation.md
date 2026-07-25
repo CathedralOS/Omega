@@ -68,6 +68,16 @@ The public carrier is one opaque linear declaration with no public constructor:
 boundary data Extent [linear];
 ```
 
+Its settled runtime direction is an inline opaque carrier citing an unpublished
+ordinary layout, likely base `addr` plus `u64` length. The compiler sees that
+carrier for storage and ABI but ordinary source cannot name or construct it.
+Type-owned introduction operations receive compiler-scoped `pack(carrier)`;
+the pack operation itself takes no authority. Root grants, consumed parents,
+storage borrows, and mapping receipts are the entitlement inputs of the
+enclosing introduction. Immutable owner-side projection implements published
+observations such as `range()`; mutable representation projection is absent by
+default.
+
 This source carrier is live in `omega::language::core::extent`, together with
 the ordinary debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's
 stage-1 `Arena` now returns and reclaims `Extent`; it never accepts a bare
@@ -82,7 +92,7 @@ An operation requiring `Physical` statically rejects an extent carrying only
 derivation may establish them, but address bits and structural observation
 never do.
 
-An extent records privately at least:
+An extent's semantic record binds at least:
 
 - base and length;
 - address-space identity (physical, virtual, I/O, or provider-defined);
@@ -91,12 +101,19 @@ An extent records privately at least:
 - lifetime or mapping era; and
 - ownership sufficient to split, attenuate, borrow, release, or revoke it.
 
+Only base and `u64` length are expected to require inline bits initially.
+Space, rights, provenance, and era normally remain sealed facts or receipts;
+lineage becomes runtime state only if static origin identity cannot survive a
+required storage/component crossing.
+
 Admitted suppliers mint root extents: boot handoff, an address-space mapper, a
 parent allocator's backing store, or a device provider. Ordinary checked code
 may derive children but never mint fresh authority. Bare `addr` values never do.
 
 Splitting consumes one owned extent and returns disjoint owned children whose
-ranges exactly cover it. Attenuation may only remove rights. Merge consumes
+ranges exactly cover it. Linearity bounds consumption; ordinary postconditions
+over the published `range()` observation prove that production conserves
+geometry. Attenuation may only remove rights. Merge consumes
 contiguous compatible descendants of the same authority origin; numeric
 adjacency alone is insufficient because adjacent ranges may have different
 grants, rights, provenance, or eras. The ordinary case is rejoining what one
@@ -114,11 +131,13 @@ space, provenance, era, and lineage identities are normalized; rights are an
 open set of normalized identities rather than a compiler-blessed enumeration;
 and split, attenuation, sibling merge, and bounded shared/exclusive loans are
 validated. Failed consuming operations return every input authority. The
-opaque Omega `[linear]` declaration and normalized Rust carrier are both live,
-but their runtime representation/admission bridge remains owner-blocked: all
-`boundary data` is layoutless today, which is correct for proof-only carriers
-but insufficient for a value that must cross calls and occupy storage. Sealed
-domain facts, provider mapping, and reclamation also remain.
+opaque Omega `[linear]` declaration and normalized Rust carrier are both live.
+The runtime architecture is settled by
+[`opaque_runtime_representation.md`](opaque_runtime_representation.md):
+Extent selects inline runtime representation, while exact clause spelling,
+generated introduction/projection hooks, and whether lineage needs runtime bits
+remain owner-blocked. All `boundary data` is still layoutless in the compiler
+today. Sealed domain facts, provider mapping, and reclamation also remain.
 
 ### Mapping and reclamation
 

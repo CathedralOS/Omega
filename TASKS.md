@@ -36,7 +36,9 @@ scanners, or receipts.
 
 ### P1 — Runtime representation for opaque boundary values
 
-**OWNER-BLOCKED: `OWNER_QUESTIONS.md` #8.**
+**SURFACE-BLOCKED: `OWNER_QUESTIONS.md` #8.** The architecture is settled in
+`wiki/design_briefs/opaque_runtime_representation.md`; exact declaration and
+generated-hook spelling remains.
 
 `boundary data` is correctly non-constructible, but runtime values currently
 have no admitted storage/passing representation. This blocks honest source
@@ -45,15 +47,25 @@ tokens, and similar provider-minted authority.
 
 After the owner ruling:
 
-- implement the normalized representation plan and ABI/storage lowering;
-- make provider minting the only introduction path;
-- preserve linearity, carry policy, identity, and lookup/consumption receipts;
-- distinguish erased proof-only values from runtime sealed handles; and
+- implement `Erased | Runtime::Inline(LayoutPlan) |
+  Runtime::SealedHandle(HandlePlan)`, with empty inline carriers normalizing to
+  runtime zero-sized values;
+- generate scoped `pack(carrier)` and immutable carrier projection only for
+  declared introduction/representation implementations;
+- make introduction entitlement explicit in ordinary inputs and contracts;
+- connect checked conservation, provider receipts, linearity, carry policy,
+  identity, and handle lookup/consumption;
+- forbid implicit equality, ordering, hashing, display, serialization,
+  reflection, cloning, and mutable carrier projection;
+- emit normalized representation and published-introduction manifests for
+  contract identity and transitive package admission; and
 - migrate Cathedral's temporary plain `Extent` record.
 
 Acceptance: an opaque linear `Extent` can cross a checked call and occupy
 storage without exposing a constructor, public fields, or forgeable numeric
-handle.
+handle; split conservation rejects duplicate packing; a runtime zero-sized
+mask guard preserves prior state in nested behavioral canaries; and a package
+authority expansion is visible at final-artifact admission.
 
 ### P2 — Source-visible materialization and placed access
 
@@ -322,7 +334,7 @@ blocked work.
 | #4 quotient convergence | N6/`Real` quotient packaging |
 | #5 compiler-run Omega | richer build-time policies and generators |
 | #6 suspending direct-call spelling | explicit suspension call surface |
-| #8 opaque runtime boundary data | `Extent`, pointer, task-runtime, and linear provider values |
+| #8 opaque runtime boundary-data surface | representation spelling, introduction hooks, Extent lineage, and sealed handles |
 | #9 task-runtime provider publication | task admission/dispatch |
 | #10 primitive float requirement family | float-format providers |
 | #11 wire family/presence/evolution | remaining wire runtime |

@@ -123,6 +123,28 @@ Omega does not add an “implementation dependency” escape hatch for calling
 private machines. That natural wall preserves real component and quiescence
 boundaries.
 
+### Runtime opacity is not field privacy
+
+`boundary data` may carry an unpublished inline carrier or a sealed provider
+handle at runtime. That mechanism exists for externally realized,
+provider-minted, or authority-bearing values; it is not ordinary
+encapsulation. See
+[`opaque_runtime_representation.md`](../design_briefs/opaque_runtime_representation.md).
+
+Use the narrow mechanism for the actual job:
+
+- state a structural invariant for checked correctness;
+- require a sealed qualification for an unforgeable semantic claim;
+- retain custody behind a provider boundary for confidentiality; and
+- accept transparent published fields for ordinary implementation data.
+
+Tooling may warn when runtime opaque data has no external realization,
+provider-owned backing, sealed introduction, authority-bearing introduction
+input, or comparable semantic justification. Package admission may reject that
+pattern by policy. The warning is not a soundness rule: a library-issued
+reservation or session can be a legitimate authority value without an OS or
+hardware provider.
+
 ## Name Resolution
 
 Names resolve in this order:

@@ -15,6 +15,9 @@ lowers?"
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
   migration from lossy booleans/bitsets to the settled domain, machine,
   multiplicity, effect-row, and termination-plan semantic forms.
+- [Opaque Runtime Representation](../design_briefs/opaque_runtime_representation.md):
+  closed erased/inline/sealed-handle carriers, scoped introduction and
+  projection, and package-admission reporting for provider-minted values.
 
 ## Architecture Rule
 

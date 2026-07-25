@@ -255,48 +255,36 @@ classic reference is Waldo et al., *A Note on Distributed Computing*.
 
 ## 8. How does opaque runtime `boundary data` acquire a representation?
 
-`boundary data` correctly has no public fields or constructor. It currently also
-has no backend layout at all: layout planning skips every
-`DataSupplyMode::BoundaryOpaque` declaration. That is sufficient for proof-only
-symbols such as `Real`, but not for runtime provider-minted values such as
-`Extent`, `Ptr<T>`, `TaskRuntime`, `InterruptMaskGuard`, or
-`InterruptAcknowledgement`. Those values must cross calls, occupy storage, obey
-linearity/carry rules, and preserve a provider-owned identity without exposing
-forgeable representation.
+The architecture is settled in
+`wiki/design_briefs/opaque_runtime_representation.md`. Representation is the
+closed compiler property `Erased | Runtime::Inline(LayoutPlan) |
+Runtime::SealedHandle(HandlePlan)`, omission fails closed to `Erased`, and an
+empty inline carrier normalizes to a runtime zero-sized result. Representation
+is not an authored policy machine. The type owner pins it; providers own
+backing and supply entitlement to type-owned introductions.
 
-The normalized Rust `omega-extents` carrier and the opaque Omega `Extent`
-declaration therefore do not yet meet. Cathedral cannot replace its temporary
-plain extent record honestly until the source/runtime boundary says what value
-the provider returns and how that value is stored and passed.
+The compiler generates `pack(carrier)` only inside declared introduction
+implementations plus immutable carrier projection in the declaration's
+representation-implementation scope. `pack` has no authority parameter. Each
+introduction's ordinary signature and contract carry the actual entitlement:
+parent authority, source borrow, admitted root grant, mapping receipt, or
+registered handle backing. Conservation is an ordinary postcondition over
+published observations; external origin claims use provider admission and
+receipts. Mutable projection is opt-in, and opaque types derive no carrier-based
+equality, ordering, hashing, display, serialization, reflection, or cloning.
 
-Decide:
+This question is now limited to source and normalized-plan representation:
 
-- the declaration spelling selecting the compiler-known `Erased`, `Inline`,
-  or `SealedHandle` carrier class, with omission failing closed to `Erased`;
-- the closed validation rules for each class, including when a genuinely
-  zero-sized runtime result is legal rather than assumed;
-- how the normalized class and any inline `LayoutPlan` enter `Calling<C>`,
-  storage layout, artifact identity, and component compatibility without
-  granting source construction or field access;
-- which facts need runtime bits and which remain static qualification,
-  admission, or audit facts;
-- where provider-owned backing state lives for a sealed handle and when aliases
-  invisible to the checker require a generation/revocation check;
-- how moves, borrows, linear consumption, carry policy, suspension, and
-  destruction operate on either runtime class; and
-- whether `Ptr<T>` needs validation semantics beyond `Inline(LayoutPlan)`, while
-  ensuring no raw numeric address becomes authority.
+- the exact representation-clause spelling;
+- how introduction implementations are designated;
+- the names and scoping of generated pack and immutable projection;
+- the closed `HandlePlan` vocabulary;
+- whether Extent lineage remains static through all required crossings; and
+- when `SealedHandle` implementation enters staging.
 
-Recommendation: make representation class a small compiler-defined declaration
-property, not an open user-authored policy machine. `Erased` is proof-only;
-`Inline` exposes a validated ABI/layout to the toolchain while remaining opaque
-to ordinary source; `SealedHandle` names provider-owned backing state. Native
-pointer and descriptor shapes are ordinary inline layouts unless they require
-distinct validation semantics. The type owner pins the carrier class; a
-selected provider owns minting and backing state, not the carrier ABI. Runtime
-generation checks substitute only for static alias guarantees the checker
-cannot make. Do not infer representation from names, default every opaque value
-to a pointer, or let arbitrary layout bytes self-assert authority.
+Do not reopen provider-selected representation, package membership as mint
+authority, a universal pointer-sized fallback, a public integer cast, mutable
+projection by default, or a separate zero-sized source case.
 
 ## 9. How does a task-runtime provider publish checked behavior?
 

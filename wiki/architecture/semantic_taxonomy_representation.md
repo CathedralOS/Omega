@@ -88,6 +88,34 @@ homes.
 
 ## Target representations
 
+### Opaque runtime data
+
+Retire the assumption that every `DataSupplyMode::BoundaryOpaque` declaration
+is layoutless. Preserve one closed normalized property through every tree and
+artifact layer:
+
+```text
+OpaqueRepresentation {
+    Erased,
+    RuntimeInline { normalized_layout },
+    RuntimeSealedHandle { normalized_handle_plan },
+}
+```
+
+An empty inline layout normalizes to a runtime zero-sized outcome rather than a
+separate authored case. The normalized representation and published
+introduction contracts enter public compatibility identity; carrier bodies,
+generated packing/projection implementation, and proof evidence remain private.
+
+The compiler also records declared introduction implementations and generates
+scoped `pack(carrier)` plus immutable representation projection. `pack` carries
+no authority input: the enclosing introduction's signature and contract own
+entitlement and conservation. Domain mint authority remains a separate semantic
+qualification mechanism.
+
+See
+[`../design_briefs/opaque_runtime_representation.md`](../design_briefs/opaque_runtime_representation.md).
+
 ### Domain theory
 
 Introduce a shared semantic domain model used by symbol-resolved, typed, and
