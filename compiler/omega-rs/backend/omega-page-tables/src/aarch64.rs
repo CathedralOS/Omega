@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_extents::{
-    AddressSpaceId, ExtentRightId, ExtentRights, PageTableConstructionEvidence,
-    PageTableConstructionReceipt, PageTableConstructionReceiptId, PageTableDraft, PageTablePlanId,
+    AddressSpaceId, ExtentRightId, ExtentRights, InstallablePageTable, MappingId,
+    MappingReceiptContext, PageTableConstructionEvidence, PageTableConstructionReceipt,
+    PageTableConstructionReceiptId, PageTableDraft, PageTableInstallationContext,
+    PageTableInstallationReceipt, PageTableInstallationReceiptId, PageTablePlanId,
+    TranslationActivationFactId, TranslationActivationReceipt,
 };
 use omega_layout_plans::{
     ByteOrder, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, ScalarFieldSchema,
@@ -238,6 +241,189 @@ pub struct Aarch64PageTablePolicy {
     max_leaf_entries: usize,
     rights: Aarch64PageRights,
     descriptor_layout: LayoutPlanReport,
+}
+
+/// Exact provider-side plan for activating one installable stage-1 table
+/// through TTBR0_EL1 or TTBR1_EL1.
+///
+/// V1 fixes ASID to zero and CnP to false, so the register operand is exactly
+/// the aligned root address. The operand remains inert numeric data; the plan
+/// also retains the complete opaque page-table and mapping contexts that later
+/// provider evidence must match.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Aarch64TtbrActivationPlan {
+    context: PageTableInstallationContext,
+    translation_base: Aarch64TranslationBase,
+    register_value: u64,
+    mappings: Vec<(MappingId, MappingReceiptContext)>,
+}
+
+impl Aarch64TtbrActivationPlan {
+    pub const fn translation_base(&self) -> Aarch64TranslationBase {
+        self.translation_base
+    }
+
+    pub const fn register_value(&self) -> u64 {
+        self.register_value
+    }
+
+    pub fn mapping_count(&self) -> usize {
+        self.mappings.len()
+    }
+}
+
+/// Provider observation after the target TTBR write and required translation
+/// synchronization completed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Aarch64TtbrActivationReceipt {
+    context: PageTableInstallationContext,
+    observed_translation_base: Aarch64TranslationBase,
+    observed_register_value: u64,
+    synchronization_complete: bool,
+    active: bool,
+    mapping_facts: BTreeMap<MappingId, BTreeSet<TranslationActivationFactId>>,
+}
+
+impl Aarch64TtbrActivationReceipt {
+    pub fn from_admitted_provider(
+        plan: &Aarch64TtbrActivationPlan,
+        observed_translation_base: Aarch64TranslationBase,
+        observed_register_value: u64,
+        synchronization_complete: bool,
+        active: bool,
+        mapping_facts: impl IntoIterator<
+            Item = (
+                MappingId,
+                impl IntoIterator<Item = TranslationActivationFactId>,
+            ),
+        >,
+    ) -> Result<Self, PageTableMaterializationDiagnostic> {
+        let mut normalized = BTreeMap::new();
+        for (mapping, facts) in mapping_facts {
+            if normalized
+                .insert(mapping, facts.into_iter().collect())
+                .is_some()
+            {
+                return Err(PageTableMaterializationDiagnostic(
+                    "AArch64 TTBR activation evidence repeats a mapping".into(),
+                ));
+            }
+        }
+        Ok(Self {
+            context: plan.context.clone(),
+            observed_translation_base,
+            observed_register_value,
+            synchronization_complete,
+            active,
+            mapping_facts: normalized,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct Aarch64TtbrActivationError {
+    plan: Aarch64TtbrActivationPlan,
+    receipt: Aarch64TtbrActivationReceipt,
+    diagnostic: PageTableMaterializationDiagnostic,
+}
+
+impl Aarch64TtbrActivationError {
+    pub const fn diagnostic(&self) -> &PageTableMaterializationDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (Aarch64TtbrActivationPlan, Aarch64TtbrActivationReceipt) {
+        (self.plan, self.receipt)
+    }
+}
+
+pub fn prepare_aarch64_ttbr_activation(
+    table: &InstallablePageTable<'_>,
+    policy: &Aarch64PageTablePolicy,
+) -> Result<Aarch64TtbrActivationPlan, PageTableMaterializationDiagnostic> {
+    let root = table.storage_base();
+    if !root.is_multiple_of(AARCH64_PAGE_BYTES) {
+        return Err(PageTableMaterializationDiagnostic(
+            "AArch64 TTBR root must be aligned to one 4 KiB table page".into(),
+        ));
+    }
+    if root & !physical_address_mask(policy.physical_address_bits) != 0 {
+        return Err(PageTableMaterializationDiagnostic(
+            "AArch64 TTBR root exceeds the admitted physical-address width".into(),
+        ));
+    }
+    Ok(Aarch64TtbrActivationPlan {
+        context: table.installation_context(),
+        translation_base: policy.translation_base,
+        register_value: root,
+        mappings: table.mapping_receipt_contexts().collect(),
+    })
+}
+
+/// Convert exact post-write and post-synchronization provider evidence into
+/// the existing installation receipt. Failure returns both inert inputs.
+pub fn complete_aarch64_ttbr_activation(
+    plan: Aarch64TtbrActivationPlan,
+    receipt: Aarch64TtbrActivationReceipt,
+    identity: PageTableInstallationReceiptId,
+) -> Result<PageTableInstallationReceipt, Box<Aarch64TtbrActivationError>> {
+    let expected_mappings = plan
+        .mappings
+        .iter()
+        .map(|(mapping, _)| *mapping)
+        .collect::<BTreeSet<_>>();
+    let actual_mappings = receipt
+        .mapping_facts
+        .keys()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mismatch = if receipt.context != plan.context {
+        Some("AArch64 TTBR receipt names a different installation context")
+    } else if receipt.observed_translation_base != plan.translation_base {
+        Some("AArch64 TTBR receipt observed the wrong translation base")
+    } else if receipt.observed_register_value != plan.register_value {
+        Some("AArch64 TTBR receipt observed a different table root")
+    } else if !receipt.synchronization_complete {
+        Some("AArch64 TTBR receipt lacks completed translation synchronization")
+    } else if !receipt.active {
+        Some("AArch64 TTBR receipt does not establish an active table")
+    } else if actual_mappings != expected_mappings {
+        Some("AArch64 TTBR receipt does not cover the exact pending mapping set")
+    } else {
+        None
+    };
+    if let Some(message) = mismatch {
+        return Err(Box::new(Aarch64TtbrActivationError {
+            plan,
+            receipt,
+            diagnostic: PageTableMaterializationDiagnostic(message.into()),
+        }));
+    }
+
+    let activations = plan
+        .mappings
+        .iter()
+        .map(|(mapping, context)| {
+            let facts = receipt
+                .mapping_facts
+                .get(mapping)
+                .expect("exact mapping sets were validated")
+                .iter()
+                .copied();
+            (
+                *mapping,
+                TranslationActivationReceipt::from_admitted_provider(context, true, facts),
+            )
+        })
+        .collect::<Vec<_>>();
+    PageTableInstallationReceipt::from_admitted_provider(identity, &plan.context, true, activations)
+        .map_err(|diagnostic| {
+            Box::new(Aarch64TtbrActivationError {
+                plan,
+                receipt,
+                diagnostic: PageTableMaterializationDiagnostic(diagnostic.0),
+            })
+        })
 }
 
 impl Aarch64PageTablePolicy {
@@ -1238,6 +1424,85 @@ mod tests {
             PageTableConstructionEvidence::Generated
         );
         assert_eq!(installable.bytes().len(), 4 * AARCH64_PAGE_BYTES as usize);
+    }
+
+    #[test]
+    fn ttbr_activation_binds_register_sync_and_exact_mapping_set() {
+        let fixture = Fixture::new();
+        let draft = fixture.draft(
+            0x4000,
+            ExtentRights::from_normalized_identities([fixture.readable, fixture.normal]),
+            4,
+        );
+        let policy = fixture.policy(Aarch64TranslationBase::Lower);
+        let image = materialize_aarch64_4k_page_table(&draft, &policy).expect("materialized table");
+        let construction = image
+            .into_construction_receipt(
+                id(29, PageTableConstructionReceiptId::from_normalized_identity),
+                &draft,
+            )
+            .expect("construction receipt");
+        let installable = draft.finish(construction).expect("installable table");
+
+        let plan = prepare_aarch64_ttbr_activation(&installable, &policy).expect("TTBR plan");
+        assert_eq!(plan.translation_base(), Aarch64TranslationBase::Lower);
+        assert_eq!(plan.register_value(), 0x1000_0000);
+        assert_eq!(plan.mapping_count(), 1);
+        let mapping = id(28, MappingId::from_normalized_identity);
+
+        let unsynchronized = Aarch64TtbrActivationReceipt::from_admitted_provider(
+            &plan,
+            Aarch64TranslationBase::Lower,
+            plan.register_value(),
+            false,
+            true,
+            [(mapping, std::iter::empty())],
+        )
+        .expect("provider receipt");
+        let error = complete_aarch64_ttbr_activation(
+            plan,
+            unsynchronized,
+            id(30, PageTableInstallationReceiptId::from_normalized_identity),
+        )
+        .expect_err("unsynchronized TTBR write cannot establish mappings");
+        assert!(error.diagnostic().0.contains("synchronization"));
+        let (plan, _) = error.into_parts();
+
+        let wrong_base = Aarch64TtbrActivationReceipt::from_admitted_provider(
+            &plan,
+            Aarch64TranslationBase::Upper,
+            plan.register_value(),
+            true,
+            true,
+            [(mapping, std::iter::empty())],
+        )
+        .expect("provider receipt");
+        let error = complete_aarch64_ttbr_activation(
+            plan,
+            wrong_base,
+            id(30, PageTableInstallationReceiptId::from_normalized_identity),
+        )
+        .expect_err("TTBR1 cannot substitute for a TTBR0 plan");
+        assert!(error.diagnostic().0.contains("wrong translation base"));
+        let (plan, _) = error.into_parts();
+
+        let receipt = Aarch64TtbrActivationReceipt::from_admitted_provider(
+            &plan,
+            plan.translation_base(),
+            plan.register_value(),
+            true,
+            true,
+            [(mapping, std::iter::empty())],
+        )
+        .expect("provider receipt");
+        let installation = complete_aarch64_ttbr_activation(
+            plan,
+            receipt,
+            id(30, PageTableInstallationReceiptId::from_normalized_identity),
+        )
+        .expect("exact installation receipt");
+        let installed = installable.install(installation).expect("installed table");
+        assert!(installed.mapping(mapping).is_some());
     }
 
     #[test]
