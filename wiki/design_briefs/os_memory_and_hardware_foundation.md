@@ -751,7 +751,12 @@ The final certificate can be constructed only from the exact frozen carrier it
 claims to validate and retains the complete artifact and byte snapshot plus
 placement and realized footprint. Compact artifact/final-byte IDs remain report
 keys, never collision-resistant authorization. Installation consumes an
-authority scoped to that artifact, admission, placement, scope, and audience.
+authority scoped to the complete validated placement: canonical artifact,
+frozen bytes, realized footprint, validation result, placement geometry,
+Extent space/rights/provenance/era/lineage, constraints, scope, and audience.
+The provider's installation receipt retains the same exact evidence; compact
+artifact, placement, and validation IDs remain report keys rather than
+authorization surrogates.
 Synchronous visibility and
 `HardwareEnforced | ConventionOnly | Unsupported` W^X reporting are checked.
 Failed linear transitions return their inputs. Schema byte decode, actual PCC
@@ -766,12 +771,14 @@ against that site and runs the shared `PlacementConstraints` validator before
 materialization. A caller cannot substitute a friendlier placement hint.
 
 The normalized retirement path is live as well. It consumes one exact
-`InstalledCode` plus authority scoped to its artifact, placement, and scope;
-visibility evidence cannot satisfy it. The provider receipt must separately
-establish executor quiescence, removal of execute permission, restoration of
-write authority, and every open target completion fact. Only then does the
-placement return to W+NX for a later admitted artifact. The runtime
-quiescence/provider implementation and component-slot orchestration remain.
+`InstalledCode`; both retirement authority and provider receipt retain the
+complete installed realization, including its validated artifact/bytes,
+placement authority, validation result, and W^X fact. Visibility evidence
+cannot satisfy it. The provider receipt must separately establish executor
+quiescence, removal of execute permission, restoration of write authority, and
+every open target completion fact. Only then does the placement return to W+NX
+for a later admitted artifact. The runtime quiescence/provider implementation
+and component-slot orchestration remain.
 
 This invariant covers every route to execute permission. Correct-by-construction
 page-table APIs require admitted-artifact provenance before deriving an
