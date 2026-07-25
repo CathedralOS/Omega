@@ -258,6 +258,8 @@ impl<'source> PageTableDraft<'source> {
             Some("page-table construction receipt names a different normalized plan")
         } else if receipt.plan_evidence != plan_evidence {
             Some("page-table construction receipt does not bind the exact canonical plan")
+        } else if receipt.bytes.len() as u64 != self.storage.length() {
+            Some("page-table construction receipt does not cover the exact table storage")
         } else if !receipt.complete {
             Some("page-table construction receipt does not establish complete table bytes")
         } else {
@@ -278,6 +280,7 @@ impl<'source> PageTableDraft<'source> {
             plan,
             plan_evidence,
             content: receipt.content,
+            bytes: receipt.bytes,
             evidence: receipt.evidence,
             construction_receipt: receipt.identity,
             storage: self.storage,
@@ -302,6 +305,7 @@ pub struct PageTableConstructionReceipt {
     plan: PageTablePlanId,
     plan_evidence: Vec<u64>,
     content: PageTableContentId,
+    bytes: Vec<u8>,
     evidence: PageTableConstructionEvidence,
     complete: bool,
 }
@@ -311,6 +315,7 @@ impl PageTableConstructionReceipt {
         identity: PageTableConstructionReceiptId,
         draft: &PageTableDraft<'_>,
         content: PageTableContentId,
+        bytes: Vec<u8>,
         evidence: PageTableConstructionEvidence,
         complete: bool,
     ) -> Self {
@@ -321,6 +326,7 @@ impl PageTableConstructionReceipt {
             plan: draft.plan_identity(),
             plan_evidence: normalized_plan_evidence(draft),
             content,
+            bytes,
             evidence,
             complete,
         }
@@ -338,6 +344,7 @@ pub struct InstallablePageTable<'source> {
     plan: PageTablePlanId,
     plan_evidence: Vec<u64>,
     content: PageTableContentId,
+    bytes: Vec<u8>,
     evidence: PageTableConstructionEvidence,
     construction_receipt: PageTableConstructionReceiptId,
     storage: Extent,
@@ -380,6 +387,7 @@ pub struct PageTableInstallationContext {
     plan: PageTablePlanId,
     plan_evidence: Vec<u64>,
     content: PageTableContentId,
+    bytes: Vec<u8>,
     construction_evidence: PageTableConstructionEvidence,
     construction_receipt: PageTableConstructionReceiptId,
     storage: PageTableStorageEvidence,
@@ -397,6 +405,10 @@ impl<'source> InstallablePageTable<'source> {
 
     pub const fn content(&self) -> PageTableContentId {
         self.content
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
     }
 
     pub const fn evidence(&self) -> PageTableConstructionEvidence {
@@ -417,6 +429,7 @@ impl<'source> InstallablePageTable<'source> {
             plan: self.plan,
             plan_evidence: self.plan_evidence.clone(),
             content: self.content,
+            bytes: self.bytes.clone(),
             construction_evidence: self.evidence,
             construction_receipt: self.construction_receipt,
             storage: PageTableStorageEvidence::from_extent(&self.storage),
@@ -482,6 +495,7 @@ impl<'source> InstallablePageTable<'source> {
             grant,
             plan: self.plan,
             content: self.content,
+            bytes: self.bytes,
             installation_receipt: receipt.identity,
             installation_context,
             retirement_obligations,
@@ -530,6 +544,7 @@ pub struct InstalledPageTable<'source> {
     grant: PageTableGrantId,
     plan: PageTablePlanId,
     content: PageTableContentId,
+    bytes: Vec<u8>,
     installation_receipt: PageTableInstallationReceiptId,
     installation_context: PageTableInstallationContext,
     retirement_obligations: PageTableRetirementObligations,
@@ -552,6 +567,10 @@ impl<'source> InstalledPageTable<'source> {
 
     pub const fn content(&self) -> PageTableContentId {
         self.content
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
     }
 
     pub const fn installation_receipt(&self) -> PageTableInstallationReceiptId {
@@ -1067,6 +1086,7 @@ mod tests {
             id(60, PageTableConstructionReceiptId::from_normalized_identity),
             draft,
             id(61, PageTableContentId::from_normalized_identity),
+            vec![0xa5; 4096],
             PageTableConstructionEvidence::Generated,
             complete,
         )
@@ -1210,6 +1230,30 @@ mod tests {
     }
 
     #[test]
+    fn installation_receipt_retains_exact_table_bytes_beyond_content_id() {
+        let first_draft = draft();
+        let first_receipt = construction_receipt(&first_draft, true);
+        let first = first_draft
+            .finish(first_receipt)
+            .expect("first installable table");
+
+        let second_draft = draft();
+        let mut second_receipt = construction_receipt(&second_draft, true);
+        second_receipt.bytes[0] ^= 1;
+        let second = second_draft
+            .finish(second_receipt)
+            .expect("same compact content identity with different exact bytes");
+        assert_eq!(first.content(), second.content());
+        assert_ne!(first.bytes(), second.bytes());
+
+        let receipt = installation_receipt(&first, true, []);
+        let error = second
+            .install(receipt)
+            .expect_err("compact content identity cannot substitute different table bytes");
+        assert!(error.diagnostic().0.contains("exact installable table"));
+    }
+
+    #[test]
     fn construction_rejects_overlaps_and_returns_the_pending_authority() {
         let mut draft = draft();
         draft
@@ -1235,6 +1279,7 @@ mod tests {
             id(60, PageTableConstructionReceiptId::from_normalized_identity),
             &draft,
             id(61, PageTableContentId::from_normalized_identity),
+            vec![0x5a; 4096],
             PageTableConstructionEvidence::ImportedScan,
             true,
         );
