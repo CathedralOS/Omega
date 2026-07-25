@@ -696,6 +696,17 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 value: *value,
                 byte_size: *byte_size,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteStorageBitField {
+                region,
+                base_byte_offset,
+                fragments,
+                value,
+            } => Self::WriteStorageBitField {
+                region: *region,
+                base_byte_offset: *base_byte_offset,
+                fragments: fragments.clone(),
+                value: *value,
+            },
             omega_abstract_operations::AbstractOperationKind::WritePlaceBinary {
                 target,
                 byte_size,

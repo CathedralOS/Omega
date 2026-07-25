@@ -63,7 +63,9 @@ impl OperationSemanticQuery for AbstractOperationKind {
 
             Self::CopyPlaces { .. } => AbstractOperationDomain::RuntimeCopy,
 
-            Self::WritePlaceInteger { .. } => AbstractOperationDomain::RuntimeWrite,
+            Self::WritePlaceInteger { .. } | Self::WriteStorageBitField { .. } => {
+                AbstractOperationDomain::RuntimeWrite
+            }
 
             Self::WritePlaceBinary { .. } => AbstractOperationDomain::RuntimeWrite,
             Self::WritePlaceString { .. } => AbstractOperationDomain::RuntimeWrite,

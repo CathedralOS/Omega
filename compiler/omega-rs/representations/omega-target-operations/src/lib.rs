@@ -17,5 +17,6 @@ pub use instruction::{
 };
 pub use omega_abstract_operations::{
     BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
-    PLACE_MAX_STEPS, Place, PlaceStep, StateGuardLowering, StateGuardOperator,
+    PLACE_MAX_STEPS, Place, PlaceStep, RuntimeBitFieldFragment, StateGuardLowering,
+    StateGuardOperator,
 };

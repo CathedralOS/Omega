@@ -19,9 +19,9 @@ pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationDomain, AbstractOperationKind,
     AbstractValueOperand, AbstractValueOperandHandle, FunctionInstructionPlan, InstructionOperand,
-    InstructionOperandKind, PLACE_MAX_STEPS, Place, PlaceStep, RuntimeStorageRegion,
-    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
-    ValueOperand, ValueOperandHandle,
+    InstructionOperandKind, PLACE_MAX_STEPS, Place, PlaceStep, RuntimeBitFieldFragment,
+    RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
+    SelectedInstructionKind, ValueOperand, ValueOperandHandle,
 };
 pub use ownership::{
     AbstractOwnershipSummary, AbstractPermissionEvent, AbstractPermissionRealization,

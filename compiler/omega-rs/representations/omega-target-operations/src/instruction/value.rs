@@ -19,6 +19,15 @@ pub trait RuntimeValueOperandSource {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(RuntimeStorageRegion, usize, usize)>;
+    fn bit_field(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        Vec<omega_abstract_operations::RuntimeBitFieldFragment>,
+    )>;
     fn pointee(&self, handle: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)>;
     fn frame_indexed(
         &self,
@@ -140,6 +149,31 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 byte_offset,
                 byte_size,
             } => Some((*region, *byte_offset, *byte_size)),
+            _ => None,
+        }
+    }
+
+    fn bit_field(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        Vec<omega_abstract_operations::RuntimeBitFieldFragment>,
+    )> {
+        match self.get(handle) {
+            RuntimeValueOperand::BitField {
+                region,
+                base_byte_offset,
+                value_byte_size,
+                fragments,
+            } => Some((
+                *region,
+                *base_byte_offset,
+                *value_byte_size,
+                fragments.clone(),
+            )),
             _ => None,
         }
     }
