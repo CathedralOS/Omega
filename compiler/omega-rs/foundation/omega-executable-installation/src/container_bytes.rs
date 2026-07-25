@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use omega_layout_plans::{
     ArtifactInstallationScopeId, ByteOrder, DataSymbolId, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MachineRegimeId, PlacementAddressRange,
-    PlacementConstraints, PlacementPhase, ScalarFieldSchema, decode_scalar_layout,
+    PlacementConstraints, PlacementPhase, ScalarFieldSchema, ScalarFieldValue,
+    decode_scalar_layout, materialize_scalar_layout_into,
 };
 
 use super::*;
@@ -33,6 +34,356 @@ struct WireSection {
     identity: u64,
     offset: u64,
     length: u64,
+}
+
+/// Emits the canonical Omega-native byte container for one compiler-produced
+/// artifact candidate and exact proof payload.
+///
+/// The encoder publishes no optional informational sections and derives the
+/// proof identity from the exact bytes. Before returning, it routes its own
+/// output through the hostile-input decoder and semantic validator. An encoder
+/// bug therefore fails closed instead of producing a container that a later
+/// loader interprets differently.
+pub fn encode_executable_container(
+    artifact: &Artifact,
+    proof: &[u8],
+    limits: ContainerLimits,
+) -> Result<Vec<u8>, InstallationDiagnostic> {
+    if proof.is_empty() {
+        return Err(InstallationDiagnostic(
+            "artifact proof section cannot be empty".into(),
+        ));
+    }
+    let section_count = 7_u64;
+    if limits.max_sections < section_count as usize {
+        return Err(InstallationDiagnostic(format!(
+            "canonical executable container needs {section_count} sections, configured bound is {}",
+            limits.max_sections
+        )));
+    }
+    if artifact.0.relocations.len() > limits.max_relocations {
+        return Err(InstallationDiagnostic(format!(
+            "artifact contains {} relocations, exceeding configured bound {}",
+            artifact.0.relocations.len(),
+            limits.max_relocations
+        )));
+    }
+
+    let directory_end = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES
+        .checked_add(
+            section_count
+                .checked_mul(OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES)
+                .ok_or_else(|| {
+                    InstallationDiagnostic("artifact section directory overflows".into())
+                })?,
+        )
+        .ok_or_else(|| {
+            InstallationDiagnostic("artifact section directory range overflows".into())
+        })?;
+    let relocation_length = RELOCATION_COUNT_BYTES
+        .checked_add(
+            (artifact.0.relocations.len() as u64)
+                .checked_mul(RELOCATION_RECORD_BYTES)
+                .ok_or_else(|| {
+                    InstallationDiagnostic("artifact relocation payload length overflows".into())
+                })?,
+        )
+        .ok_or_else(|| InstallationDiagnostic("artifact relocation section overflows".into()))?;
+    let entry_length = (artifact.0.entries.len() as u64)
+        .checked_mul(ENTRY_RECORD_BYTES)
+        .ok_or_else(|| InstallationDiagnostic("artifact entry payload length overflows".into()))?;
+    let proof_length = u64::try_from(proof.len())
+        .map_err(|_| InstallationDiagnostic("artifact proof length is not representable".into()))?;
+
+    let payload_lengths = [
+        artifact.0.byte_length,
+        relocation_length,
+        8,
+        8,
+        PLACEMENT_RECORD_BYTES,
+        entry_length,
+        proof_length,
+    ];
+    if let Some(length) = payload_lengths
+        .iter()
+        .copied()
+        .find(|length| *length == 0 || *length > limits.max_section_bytes)
+    {
+        return Err(InstallationDiagnostic(format!(
+            "canonical artifact section length {length} is empty or exceeds configured bound {}",
+            limits.max_section_bytes
+        )));
+    }
+
+    let mut offsets = Vec::with_capacity(payload_lengths.len());
+    let mut cursor = directory_end;
+    for length in payload_lengths {
+        offsets.push(cursor);
+        cursor = cursor
+            .checked_add(length)
+            .ok_or_else(|| InstallationDiagnostic("artifact container length overflows".into()))?;
+    }
+    let total_length = cursor;
+    if total_length > limits.max_total_bytes {
+        return Err(InstallationDiagnostic(format!(
+            "canonical artifact container needs {total_length} bytes, configured bound is {}",
+            limits.max_total_bytes
+        )));
+    }
+    let total_host_length = usize::try_from(total_length).map_err(|_| {
+        InstallationDiagnostic("artifact container length does not fit this compiler host".into())
+    })?;
+    let mut bytes = vec![0_u8; total_host_length];
+
+    encode_record(
+        &mut bytes[..OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize],
+        header_layout(),
+        &[
+            (
+                "magic",
+                64,
+                u64::from_le_bytes(OMEGA_EXECUTABLE_CONTAINER_MAGIC),
+            ),
+            ("version", 16, u64::from(OMEGA_EXECUTABLE_CONTAINER_VERSION)),
+            ("header_bytes", 16, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES),
+            (
+                "architecture",
+                8,
+                match artifact.0.architecture {
+                    Architecture::Aarch64 => 1,
+                    Architecture::X86_64 => 2,
+                },
+            ),
+            ("reserved0", 8, 0),
+            ("section_count", 16, section_count),
+            (
+                "directory_offset",
+                64,
+                OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES,
+            ),
+            ("total_length", 64, total_length),
+            ("artifact", 64, artifact.0.identity.normalized_identity()),
+            ("content", 64, artifact.0.content.normalized_identity()),
+            ("reserved1", 64, 0),
+            ("reserved2", 64, 0),
+        ],
+        "container header",
+    )?;
+
+    let proof_identity = normalized_proof_payload_identity(proof);
+    let sections = [
+        (SECTION_CODE, 1, 0, offsets[0], payload_lengths[0]),
+        (
+            SECTION_RELOCATIONS,
+            1,
+            artifact.0.relocation_set.normalized_identity(),
+            offsets[1],
+            payload_lengths[1],
+        ),
+        (
+            SECTION_CONTRACTS,
+            1,
+            artifact.0.contracts.normalized_identity(),
+            offsets[2],
+            payload_lengths[2],
+        ),
+        (
+            SECTION_FOOTPRINT,
+            1,
+            artifact.0.declared_footprint.normalized_identity(),
+            offsets[3],
+            payload_lengths[3],
+        ),
+        (
+            SECTION_PLACEMENT,
+            1,
+            artifact.0.placement_plan.normalized_identity(),
+            offsets[4],
+            payload_lengths[4],
+        ),
+        (
+            SECTION_ENTRIES,
+            1,
+            artifact.0.entry_set.normalized_identity(),
+            offsets[5],
+            payload_lengths[5],
+        ),
+        (SECTION_PROOF, 1, 0, offsets[6], payload_lengths[6]),
+    ];
+    for (index, (kind, flags, identity, offset, length)) in sections.iter().enumerate() {
+        let record_offset = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES
+            + index as u64 * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES;
+        encode_record_at(
+            &mut bytes,
+            record_offset,
+            OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
+            section_layout(),
+            &[
+                ("kind", 16, u64::from(*kind)),
+                ("flags", 16, *flags),
+                ("reserved", 32, 0),
+                ("identity", 64, *identity),
+                ("offset", 64, *offset),
+                ("length", 64, *length),
+            ],
+            "artifact section record",
+        )?;
+    }
+
+    checked_slice_mut(
+        &mut bytes,
+        offsets[0],
+        payload_lengths[0],
+        "artifact code section",
+    )?
+    .copy_from_slice(&artifact.0.code);
+    encode_record_at(
+        &mut bytes,
+        offsets[1],
+        RELOCATION_COUNT_BYTES,
+        identity_layout(),
+        &[("identity", 64, artifact.0.relocations.len() as u64)],
+        "relocation count",
+    )?;
+    for (index, relocation) in artifact.0.relocations.iter().enumerate() {
+        let offset = offsets[1]
+            .checked_add(RELOCATION_COUNT_BYTES)
+            .and_then(|start| {
+                (index as u64)
+                    .checked_mul(RELOCATION_RECORD_BYTES)
+                    .and_then(|delta| start.checked_add(delta))
+            })
+            .ok_or_else(|| {
+                InstallationDiagnostic("artifact relocation-record offset overflows".into())
+            })?;
+        let (target_kind, target) = match relocation.target {
+            RelocationTarget::Entry(identity) => (1, identity.normalized_identity()),
+            RelocationTarget::Data(identity) => (2, identity.normalized_identity()),
+        };
+        encode_record_at(
+            &mut bytes,
+            offset,
+            RELOCATION_RECORD_BYTES,
+            relocation_layout(),
+            &[
+                (
+                    "kind",
+                    16,
+                    match relocation.kind {
+                        ArtifactRelocationKind::Absolute64 => 1,
+                        ArtifactRelocationKind::X86Relative32 => 2,
+                        ArtifactRelocationKind::Aarch64Page21 => 3,
+                        ArtifactRelocationKind::Aarch64PageOffset12 => 4,
+                        ArtifactRelocationKind::Aarch64Branch26 => 5,
+                    },
+                ),
+                ("target_kind", 16, target_kind),
+                ("reserved", 32, 0),
+                ("destination", 64, relocation.destination_offset),
+                ("target", 64, target),
+                ("addend", 64, relocation.addend as u64),
+            ],
+            "artifact relocation record",
+        )?;
+    }
+    encode_record_at(
+        &mut bytes,
+        offsets[2],
+        8,
+        identity_layout(),
+        &[("identity", 64, artifact.0.contracts.normalized_identity())],
+        "contract section",
+    )?;
+    encode_record_at(
+        &mut bytes,
+        offsets[3],
+        8,
+        identity_layout(),
+        &[(
+            "identity",
+            64,
+            artifact.0.declared_footprint.normalized_identity(),
+        )],
+        "footprint section",
+    )?;
+    let constraints = artifact.0.placement_constraints;
+    let (range_present, range_start, range_end) = constraints
+        .permitted_range()
+        .map(|range| (1, range.start_inclusive(), range.end_exclusive()))
+        .unwrap_or((0, 0, 0));
+    let (regime_present, regime) = constraints
+        .machine_regime()
+        .map(|regime| (1, regime.normalized_identity()))
+        .unwrap_or((0, 0));
+    let (scope_present, scope) = constraints
+        .installation_scope()
+        .map(|scope| (1, scope.normalized_identity()))
+        .unwrap_or((0, 0));
+    encode_record_at(
+        &mut bytes,
+        offsets[4],
+        PLACEMENT_RECORD_BYTES,
+        placement_layout(),
+        &[
+            ("plan", 64, artifact.0.placement_plan.normalized_identity()),
+            ("range_present", 8, range_present),
+            (
+                "phase",
+                8,
+                match constraints.phase() {
+                    PlacementPhase::Build => 1,
+                    PlacementPhase::Load => 2,
+                    PlacementPhase::PostHandoff => 3,
+                },
+            ),
+            ("regime_present", 8, regime_present),
+            ("scope_present", 8, scope_present),
+            ("reserved0", 32, 0),
+            ("range_start", 64, range_start),
+            ("range_end", 64, range_end),
+            ("alignment", 64, constraints.alignment()),
+            ("regime", 64, regime),
+            ("scope", 64, scope),
+            ("reserved1", 64, 0),
+        ],
+        "placement section",
+    )?;
+    for (index, entry) in artifact.0.entries.iter().enumerate() {
+        let offset = offsets[5]
+            .checked_add(index as u64 * ENTRY_RECORD_BYTES)
+            .ok_or_else(|| {
+                InstallationDiagnostic("artifact entry-record offset overflows".into())
+            })?;
+        encode_record_at(
+            &mut bytes,
+            offset,
+            ENTRY_RECORD_BYTES,
+            entry_layout(),
+            &[
+                ("identity", 64, entry.identity().normalized_identity()),
+                ("offset", 64, entry.code_offset()),
+            ],
+            "artifact entry record",
+        )?;
+    }
+    checked_slice_mut(
+        &mut bytes,
+        offsets[6],
+        payload_lengths[6],
+        "artifact proof section",
+    )?
+    .copy_from_slice(proof);
+
+    let checked = decode_executable_container(&bytes, limits)?;
+    if checked.artifact() != artifact
+        || checked.proof_payload() != proof_identity
+        || checked.proof() != proof
+    {
+        return Err(InstallationDiagnostic(
+            "canonical executable-container encoder self-check disagrees with its input".into(),
+        ));
+    }
+    Ok(bytes)
 }
 
 /// Decodes and validates one canonical Omega-native executable container.
@@ -707,6 +1058,28 @@ fn checked_slice<'a>(
     })
 }
 
+fn checked_slice_mut<'a>(
+    bytes: &'a mut [u8],
+    offset: u64,
+    length: u64,
+    label: &str,
+) -> Result<&'a mut [u8], InstallationDiagnostic> {
+    let end = offset
+        .checked_add(length)
+        .ok_or_else(|| InstallationDiagnostic(format!("{label} range overflows")))?;
+    let start = usize::try_from(offset)
+        .map_err(|_| InstallationDiagnostic(format!("{label} offset is not host-sized")))?;
+    let end = usize::try_from(end)
+        .map_err(|_| InstallationDiagnostic(format!("{label} end is not host-sized")))?;
+    let input_len = bytes.len();
+    bytes.get_mut(start..end).ok_or_else(|| {
+        InstallationDiagnostic(format!(
+            "{label} {offset}..{} exceeds {input_len}-byte output",
+            offset.saturating_add(length)
+        ))
+    })
+}
+
 fn require_zero(label: &str, value: u64) -> Result<(), InstallationDiagnostic> {
     if value != 0 {
         return Err(InstallationDiagnostic(format!(
@@ -728,6 +1101,35 @@ fn decode_record(
         .into_iter()
         .map(|value| (value.field, value.value))
         .collect())
+}
+
+fn encode_record(
+    destination: &mut [u8],
+    layout: LayoutPlanReport,
+    values: &[(&str, u16, u64)],
+    label: &str,
+) -> Result<(), InstallationDiagnostic> {
+    let values = values
+        .iter()
+        .map(|(field, width, value)| {
+            ScalarFieldValue::new(*field, *width, *value)
+                .map_err(|error| InstallationDiagnostic(format!("{label}: {}", error.0)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    materialize_scalar_layout_into(&layout, &values, ByteOrder::LittleEndian, destination)
+        .map_err(|error| InstallationDiagnostic(format!("{label}: {}", error.0)))
+}
+
+fn encode_record_at(
+    bytes: &mut [u8],
+    offset: u64,
+    length: u64,
+    layout: LayoutPlanReport,
+    values: &[(&str, u16, u64)],
+    label: &str,
+) -> Result<(), InstallationDiagnostic> {
+    let destination = checked_slice_mut(bytes, offset, length, label)?;
+    encode_record(destination, layout, values, label)
 }
 
 fn scalar_layout(size: i64, fields: &[(&str, i64, u16)]) -> LayoutPlanReport {
@@ -863,7 +1265,6 @@ fn relocation_schema() -> Vec<ScalarFieldSchema> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_layout_plans::{ScalarFieldValue, materialize_scalar_layout_into};
 
     fn limits() -> ContainerLimits {
         ContainerLimits {
@@ -875,13 +1276,7 @@ mod tests {
     }
 
     fn write_record(destination: &mut [u8], layout: LayoutPlanReport, values: &[(&str, u16, u64)]) {
-        let values = values
-            .iter()
-            .map(|(field, width, value)| {
-                ScalarFieldValue::new(*field, *width, *value).expect("test field")
-            })
-            .collect::<Vec<_>>();
-        materialize_scalar_layout_into(&layout, &values, ByteOrder::LittleEndian, destination)
+        encode_record(destination, layout, values, "test record")
             .expect("test record materializes");
     }
 
@@ -1078,6 +1473,17 @@ mod tests {
         assert_eq!(decoded.artifact().entries()[0].code_offset(), 16);
         assert_eq!(decoded.relocations()[0].addend, -4);
         assert_eq!(decoded.proof(), vec![0xa5; 64]);
+    }
+
+    #[test]
+    fn canonical_encoder_round_trips_the_exact_validated_artifact_and_proof() {
+        let source = decode_executable_container(&canonical_bytes(), limits()).expect("source");
+        let encoded = encode_executable_container(source.artifact(), source.proof(), limits())
+            .expect("encode");
+        let decoded = decode_executable_container(&encoded, limits()).expect("round trip");
+        assert_eq!(decoded.artifact(), source.artifact());
+        assert_eq!(decoded.proof(), source.proof());
+        assert_eq!(decoded.proof_payload(), source.proof_payload());
     }
 
     #[test]
