@@ -337,7 +337,9 @@ mapping set. It retains the exact full table-byte snapshot as well as the
 complete canonical storage/mapping evidence rather than authorizing through
 compact `PageTablePlanId` or `PageTableContentId` identities; an equal
 report/cache identity cannot replay acceptance across exact-plan or exact-byte
-drift. Installation is separate: it must bind that same construction receipt
+drift. The normalizer derives `PageTableContentId` from that exact snapshot;
+providers cannot restate an identity over different bytes. Installation is
+separate: it must bind that same construction receipt
 and byte snapshot, establish the table active, and supply
 the exact activation receipt for every pending mapping. Each receipt is derived
 from the opaque exact mapping context rather than caller-restated identifiers.
