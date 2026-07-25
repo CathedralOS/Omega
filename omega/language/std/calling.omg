@@ -8,10 +8,8 @@
 // data declaration. ValuePlacement uses the separate classified ABI shape the
 // policy chooses after inspecting that graph.
 //
-// COUNT CARRIER NOTE: byte sizes, alignments, counts, indices, and nonnegative
-// stack offsets normatively use u64, never addr. Their i64 spelling in this
-// pilot schema is migration debt that must move with compiler consumers as one
-// compatibility change; it is not a precedent for signed sizes.
+// COUNT CARRIERS: byte sizes, alignments, counts, indices, register ordinals,
+// immediates, and nonnegative stack offsets use u64, never addr.
 
 domain [u8; 256]::Utf8 {
     valid_utf8(self);
@@ -26,25 +24,25 @@ data ValueClass {
     case Integer;
     case Float;
     case Reference;
-    case FixedArray(element: i64, length: i64);
-    case Record(first_field: i64, field_count: i64);
+    case FixedArray(element: u64, length: u64);
+    case Record(first_field: u64, field_count: u64);
 }
 
 data ValueShape {
     class: ValueClass;
-    byte_size: i64;
-    alignment: i64;
+    byte_size: u64;
+    alignment: u64;
 }
 
 data ValueField {
-    shape: i64;
-    byte_offset: i64;
+    shape: u64;
+    byte_offset: u64;
 }
 
 data AbiValueClass {
     case Integer;
     case Float;
-    case HomogeneousFloatAggregate(members: i64);
+    case HomogeneousFloatAggregate(members: u64);
     case SystemVAggregate(
         first: SystemVEightbyteClass,
         second: SystemVEightbyteClass
@@ -53,19 +51,19 @@ data AbiValueClass {
 
 data AbiValueShape {
     class: AbiValueClass;
-    byte_size: i64;
-    alignment: i64;
+    byte_size: u64;
+    alignment: u64;
 }
 
 data BoundarySignature {
     shapes: [ValueShape; 256];
-    shape_count: i64 [0..=256];
+    shape_count: u64 [0..=256];
     fields: [ValueField; 256];
-    field_count: i64 [0..=256];
-    parameters: [i64; 32];
-    parameter_count: i64 [0..=32];
+    field_count: u64 [0..=256];
+    parameters: [u64; 32];
+    parameter_count: u64 [0..=32];
     has_result: bool;
-    result: i64;
+    result: u64;
 }
 
 data MachineRegister {
@@ -85,41 +83,41 @@ data MachineRegister {
     case X86R13;
     case X86R14;
     case X86R15;
-    case X86Xmm(index: i64);
-    case Aarch64X(index: i64);
-    case Aarch64V(index: i64);
+    case X86Xmm(index: u64);
+    case Aarch64X(index: u64);
+    case Aarch64V(index: u64);
 }
 
 data IndirectPointerLocation {
     case Register(register: MachineRegister);
-    case Stack(stack_byte_offset: i64, alignment: i64);
+    case Stack(stack_byte_offset: u64, alignment: u64);
 }
 
 data ValueLocation {
     case Register(
         register: MachineRegister,
-        value_byte_offset: i64,
-        byte_size: i64
+        value_byte_offset: u64,
+        byte_size: u64
     );
     case Stack(
-        stack_byte_offset: i64,
-        value_byte_offset: i64,
-        byte_size: i64,
-        alignment: i64
+        stack_byte_offset: u64,
+        value_byte_offset: u64,
+        byte_size: u64,
+        alignment: u64
     );
     case Indirect(
         pointer: IndirectPointerLocation,
         has_copy: bool,
-        copy_stack_byte_offset: i64,
-        byte_size: i64,
-        alignment: i64
+        copy_stack_byte_offset: u64,
+        byte_size: u64,
+        alignment: u64
     );
 }
 
 data ValuePlacement {
     shape: AbiValueShape;
     locations: [ValueLocation; 16];
-    location_count: i64 [0..=16];
+    location_count: u64 [0..=16];
 }
 
 data CallingConvention {
@@ -132,14 +130,14 @@ data CallingConvention {
 
 data RegisterSet {
     registers: [MachineRegister; 64];
-    register_count: i64 [0..=64];
+    register_count: u64 [0..=64];
 }
 
 data EntryControl {
     case CallReturn;
     case SupervisorCall(
         number_register: MachineRegister,
-        immediate: i64
+        immediate: u64
     );
     case InterruptReturn;
 }
@@ -147,18 +145,18 @@ data EntryControl {
 data CallPlan {
     convention: CallingConvention;
     parameters: [ValuePlacement; 32];
-    parameter_count: i64 [0..=32];
+    parameter_count: u64 [0..=32];
     has_result: bool;
     result: ValuePlacement;
     ordinary_clobbers: RegisterSet;
-    stack_alignment: i64;
-    shadow_bytes: i64;
+    stack_alignment: u64;
+    shadow_bytes: u64;
     entry_control: EntryControl;
 }
 
 data MachineRegime {
     case X86Long64;
-    case Aarch64A64(exception_level: i64);
+    case Aarch64A64(exception_level: u64);
 }
 
 data MachineStateSet {
@@ -175,14 +173,14 @@ data MachineStateSet {
 
 data EntryStack {
     case Interrupted;
-    case Dedicated(class: i64);
+    case Dedicated(class: u64);
     case ProviderSelected;
 }
 
 data Preemption {
     case NotApplicable;
     case Masked;
-    case Nestable(maximum_depth: i64);
+    case Nestable(maximum_depth: u64);
     case ProviderDefined;
 }
 

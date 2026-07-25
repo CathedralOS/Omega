@@ -226,6 +226,41 @@ fn source_policy_rejection_preserves_the_authored_reason() {
 }
 
 #[test]
+fn full_width_unsigned_calling_values_are_not_reinterpreted_as_signed() {
+    let source = r#"
+use omega::language::std::calling;
+
+data FullWidthPolicy { }
+machine FullWidthPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    let mut output: BoundaryEntryPlan;
+    output.call.stack_alignment = 18446744073709551615;
+    BoundaryPlanResult::Accepted { plan: output }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#;
+    let main_path = write_program("full-width-value", source);
+    let checked =
+        compile_to_checked(&main_path, None).expect("full-width u64 policy should compile");
+    let error = evaluate_calling_policy_plan(
+        &checked.typed,
+        "FullWidthPolicy::plan",
+        &CallSignature::default(),
+    )
+    .expect_err("the normalized u16 alignment must reject a full-width source value");
+
+    assert!(
+        error.contains("stack_alignment 18446744073709551615 is outside u16 range"),
+        "unexpected diagnostic: {error}"
+    );
+}
+
+#[test]
 fn rejected_calling_relationship_is_a_compile_diagnostic() {
     let source = POLICY.replace("machine tick();", "machine tick() -> i64;");
     let main_path = write_program("relationship-rejected", &source);
@@ -367,63 +402,63 @@ machine RecursiveShapePolicy::plan(
         _ -> wrong()
     }
 
-    state bytes(signature: BoundarySignature, root: i64) -> BoundaryPlanResult {
+    state bytes(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].class {
             ValueClass::FixedArray { element, length } -> bytes_array(signature, root, element, length)
             _ -> wrong()
         }
     }
 
-    state bytes_array(signature: BoundarySignature, root: i64, element: i64, length: i64) -> BoundaryPlanResult {
+    state bytes_array(signature: BoundarySignature, root: u64, element: u64, length: u64) -> BoundaryPlanResult {
         transition length == 16 && signature.shapes[root].byte_size == 16 && signature.shapes[root].alignment == 1 {
             true -> bytes_element(signature, element)
             _ -> wrong()
         }
     }
 
-    state bytes_element(signature: BoundarySignature, element: i64) -> BoundaryPlanResult {
+    state bytes_element(signature: BoundarySignature, element: u64) -> BoundaryPlanResult {
         transition signature.shapes[element].class {
             ValueClass::Integer -> pairs(signature, signature.parameters[1])
             _ -> wrong()
         }
     }
 
-    state pairs(signature: BoundarySignature, root: i64) -> BoundaryPlanResult {
+    state pairs(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].class {
             ValueClass::FixedArray { element, length } -> pair_array(signature, root, element, length)
             _ -> wrong()
         }
     }
 
-    state pair_array(signature: BoundarySignature, root: i64, element: i64, length: i64) -> BoundaryPlanResult {
+    state pair_array(signature: BoundarySignature, root: u64, element: u64, length: u64) -> BoundaryPlanResult {
         transition length == 2 && signature.shapes[root].byte_size == 16 && signature.shapes[root].alignment == 4 {
             true -> pair_record(signature, element)
             _ -> wrong()
         }
     }
 
-    state pair_record(signature: BoundarySignature, root: i64) -> BoundaryPlanResult {
+    state pair_record(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
         transition signature.shapes[root].class {
             ValueClass::Record { first_field, field_count } -> pair_fields(signature, first_field, field_count)
             _ -> wrong()
         }
     }
 
-    state pair_fields(signature: BoundarySignature, first: i64, count: i64) -> BoundaryPlanResult {
+    state pair_fields(signature: BoundarySignature, first: u64, count: u64) -> BoundaryPlanResult {
         transition count == 2 && signature.fields[first].byte_offset == 0 && signature.fields[first + 1].byte_offset == 4 {
             true -> first_float(signature, signature.fields[first].shape, signature.fields[first + 1].shape)
             _ -> wrong()
         }
     }
 
-    state first_float(signature: BoundarySignature, first: i64, second: i64) -> BoundaryPlanResult {
+    state first_float(signature: BoundarySignature, first: u64, second: u64) -> BoundaryPlanResult {
         transition signature.shapes[first].class {
             ValueClass::Float -> second_float(signature, second)
             _ -> wrong()
         }
     }
 
-    state second_float(signature: BoundarySignature, second: i64) -> BoundaryPlanResult {
+    state second_float(signature: BoundarySignature, second: u64) -> BoundaryPlanResult {
         transition signature.shapes[second].class {
             ValueClass::Float -> observed()
             _ -> wrong()

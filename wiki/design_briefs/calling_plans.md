@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-07-23. Boundary conventions are normalized policy artifacts;
+Current as of 2026-07-25. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
@@ -8,6 +8,13 @@ policy evaluators, recursive public fixed-array/record signature graphs, direct
 source-policy evaluation, concrete and generic `Calling<C>` discovery,
 publication of the evaluated identity, and relationship-span diagnostics are
 implemented. Authoritative lowering remains.
+
+The live source policy ABI uses `u64` for every nonnegative size, alignment,
+count, graph index, register ordinal, immediate, stack offset, stack class, and
+preemption depth. These are integer quantities rather than addresses, so they
+do not use `addr`. Build-time evaluation preserves the complete 64-bit source
+value; normalization narrows to the closed compiler model's `u8`/`u16`/`u32`
+fields only with explicit range checks.
 
 ## One boundary entry plan, two independent facets
 
