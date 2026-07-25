@@ -224,7 +224,7 @@ effects happen to be implemented. See
 - Task-runtime activation planning, linear lifecycle claims, provider
   provenance, and transactional start; see
   [Task Runtime And Lifecycle](task_runtime_and_lifecycle.md).
-- Component coexistence, import-slot refinement, and continuation migration.
+- Component coexistence, requirement-binding refinement, and continuation migration.
 
 Termination and progress are now settled by frozen decision 23; see
 [Termination, Ranking, And Progress](termination_ranking_and_progress.md).

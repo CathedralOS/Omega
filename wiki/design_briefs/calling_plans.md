@@ -364,34 +364,33 @@ component-version identities. Its stack, structural-work, and machine-state
 columns independently retain their ceilings, realized facts, and validation
 receipts. Fixed-work provider summaries compose transitively and fail closed on
 missing summaries, recursion, invalid multiplicity, or arithmetic overflow.
-Installation consumes an owner-scoped slot and returns a linear handle borrowing
-the installed-code claim; removal returns the slot only after exact
-unreachability and quiescence evidence. Artifact-wide WCSU composition is live:
-provider-local demands and the exact nesting relation produce sealed per-root
-and per-domain maxima, same-stack fault paths add with alignment, and installed
-roots must agree on the complete composition fingerprint. Cycles, missing
-endpoints, unknown nested provider-selected stacks, overflow, and active
-dedicated-class re-entry reject. A sealed provider-execution binding joins the
-normalized selected provider plan, exact entry/boundary/effects, and all three
-resource realizations into admission; it cannot be replayed after realization
-drift, and its identity is reportable. The IDT publication gate additionally
-requires every symbolic writer entry target to have an exact ledger record and
-live handle before a content/ledger-bound successful publication receipt can
-produce `InstalledIdt`; that value retains the handles. Exact validated
-compiler-selected plans now survive checked lowering in one canonical fact
-set. External-root candidates now bind the exact retained plan identity before
-validation; normalized root identity covers it, execution inherits it rather
-than accepting a second plan input, and the compiler's slot bridge rejects a
-missing or ambiguous retained selection. Concrete Cathedral construction,
-checked-Omega writer lowering, and provider-specific checked
-`lidt` execution remain. The normalized materializer already writes only an
-exclusive mapped/pinned/writable unpublished destination through the exact
-installed-code resolver, derives final-byte identity itself, and rejects a
-receipt that drifts from code, artifact, destination, bytes, or the
-software-fault-free verdict. The live ledger's deterministic fingerprint and
-`omega-artifacts`
-`external_roots.json` projection report these facts and the complete boundary
-plan without leaking numeric entry addresses or private ranking/codegen proofs.
+Installation consumes consumer-supplied publication authority and returns a
+linear installed-root handle borrowing the installed-code claim; removal
+returns that authority only after exact unreachability and any required
+quiescence evidence. Artifact-wide WCSU composition is live: provider-local
+demands and the exact nesting relation produce sealed per-root and per-domain
+maxima, same-stack paths add with alignment, and installed roots must agree on
+the complete composition fingerprint. Cycles, missing endpoints, unknown
+nested provider-selected stacks, overflow, and active dedicated-class re-entry
+reject.
+
+A sealed provider-execution binding joins the normalized selected provider
+plan, exact entry/boundary/effects, and all three resource realizations into
+admission; it cannot be replayed after realization drift, and its identity is
+reportable. Exact validated compiler-selected plans survive checked lowering
+in one canonical fact set. External-root candidates bind the retained plan
+identity before validation; normalized root identity covers it, and execution
+inherits it rather than accepting a second plan input. The ledger's
+deterministic fingerprint and the `omega-artifacts` `external_roots.json`
+projection report these facts and the complete boundary plan without leaking
+numeric entry addresses or private ranking/codegen proofs.
+
+Hardware-table construction and publication are consumer policy. Omega supplies
+generic symbolic materialization, checked instruction contracts, root
+accounting, and validation hooks; an OS package supplies its table schema,
+publication authority, installation lifecycle, and device protocol. The
+compiler must not grow IDT-, vector-, PIC-, LAPIC-, or timer-shaped lifecycle
+types merely because an OS uses those generic pieces.
 
 The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,
@@ -401,20 +400,13 @@ realized facts, and validation receipts; private rankings and codegen proofs sta
 behind the evidence firewall. Structural work proves only a finite admitted
 operation path, not target WCET.
 
-Cathedral's first x86 policy is fixed: distinct ISTs for double fault, NMI, and
-machine check; one shared, non-reentrant per-CPU IST stack class for maskable
-external roots; IF clear until deriver-owned exit; save-all GPRs with a final
-transitive no-SIMD/x87 check; and a protocol-neutral linear acknowledgement. The
-timer hard root is acyclic fixed work and hands off through a preallocated
-coalescing wake to an ordinary timer-service task.
-
-The source-to-checked acceptance path now pins that control-state half directly.
-An authored `Calling<C>` policy publishes `InterruptReturn`, a dedicated stack
-class, masked preemption, and the exact saved/restored state set; its canonical
+The source-to-checked acceptance path pins the control-state half directly. An
+authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,
+preemption behavior, and the exact saved/restored state set; its canonical
 fingerprint is retained unchanged by the boundary service schema, selected
-timer-provider plan, and external-root bridge. The remaining work is concrete
-PIC/LAPIC execution and generated-stub emission, not recovery of the plan from
-backend defaults.
+provider plan, and external-root bridge. Which interrupt classes, stacks,
+masking policy, acknowledgement protocol, and hard-root work profile an OS
+chooses is outside this brief.
 
 ## Compiler-owned pieces
 

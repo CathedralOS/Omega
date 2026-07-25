@@ -323,17 +323,14 @@ transactional restoration after writes begin. A sealed writer preparation now
 owns the exact destination, its initial content, plan, and root set, binds them
 to the installed code and deterministic fingerprints, and lowers to an
 address-free generated machine carrier using only private source-slot indices.
-Foreign entries,
-placement/root drift, and invalid destination authority reject before lowering;
-numeric entry addresses never become a public API. The packed private
-`IDTWRIT1` context ABI is pinned as an R10-addressed destination pointer plus
-dense u64 source slots; exact x86 emission/width and the RAX/RCX/RDX/R10/R11 plus
-Flags footprint are live, with unsupported ABI/architecture/slot/geometry
-combinations rejected before emission. A non-clonable opaque populated seal now
-binds the exact destination word and once-resolved dense source words, exposes
-only identity/fingerprint/geometry, and is required by lowering and
-materialization. A validated private-pointer invocation plan now supplies the
-exact register copied into R10; concrete provider insertion/execution remains.
+Foreign entries, placement/root drift, and invalid destination authority reject
+before lowering; numeric entry addresses never become a public API. Target
+lowering owns the private invocation ABI, exact instruction footprint, and
+unsupported-target rejection. Those details are backend evidence rather than
+public layout semantics. A consumer package may use this machinery to build an
+IDT or another hardware-consumed table, but its table-specific preparation,
+population, validation, and installation states remain consumer code rather
+than compiler types.
 
 ## Still open
 

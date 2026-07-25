@@ -91,6 +91,38 @@ pub machine Player::take_damage(
 Visibility is a source-level API boundary. It does not bypass proof,
 ownership, or boundary checks.
 
+### Public data shape
+
+V1 has no field-level `private`, `hidden`, `readonly`, or constructor-privacy
+surface. Publishing a structural `data` declaration publishes its field names
+and shape to packages allowed to name it. Those packages may read, construct,
+and update the value subject to ordinary borrow rules, field types, domains,
+invariants, and qualification requirements.
+
+This is deliberate:
+
+- confidentiality comes from custody behind an opaque/provider-owned carrier,
+  not from pretending in-process bytes are secret;
+- unforgeable authority comes from sealed introduction or provider minting, not
+  from a hidden record literal;
+- construction and mutation preserve the declaration's checked invariants; and
+- ABI stability comes from normalized boundary/component representation plans,
+  not from source visibility.
+
+Structural access never manufactures a sealed qualification. A public range
+record may be freely assembled; an authority *about* that range remains
+provider-minted and cannot be forged by placing the two beside each other.
+When an invariant is not structurally expressible, useful operations require a
+sealed qualification such as `Tree in Valid`; hiding fields is not evidence
+that the invariant holds.
+
+Changing a published source shape changes the pinned package identity and
+causes dependents to rebuild or fail loudly. It does not silently alter an ABI.
+Behavior that is not declared `pub` remains unnameable outside the package;
+Omega does not add an “implementation dependency” escape hatch for calling
+private machines. That natural wall preserves real component and quiescence
+boundaries.
+
 ## Name Resolution
 
 Names resolve in this order:

@@ -116,9 +116,10 @@ well; diagnostics retain the normalized call path. This admission consumes
 the same canonical rows as all other service-reach checks; no lowercase/u64
 projection remains.
 
-Authority remains orthogonal: the same catalog entry independently carries
-`MachineOwner`, `IdtControl`, or no authority, and listing a service row cannot
-discharge it. Cathedral's UEFI source now names firmware boundary reach as
+Authority remains orthogonal: each catalog entry independently requires its
+machine or consumer-defined publication authority, or no authority at all, and
+listing a service row cannot discharge it. Cathedral's UEFI source now names
+firmware boundary reach as
 `SimpleTextOutput`/`BootServices` and direct instruction reach as
 `PortIo`/`MachineControl`, rather than collapsing either into `device_io`.
 
@@ -135,12 +136,13 @@ itself claim that a new paging or execution regime is valid; provider-level
 facts must discharge those transitions.
 
 `lidt` is now a contracted but deriver-only x86 operation. It requires the
-distinct `IdtControl` authority, consumes a private `IdtDescriptor` place
-through scratch R10, declares that exact clobber, and has the pinned
+consumer-defined CPU/table publication authority, consumes an exact descriptor
+place through scratch R10, declares that exact clobber, and has the pinned
 `41 0f 01 1a` (`lidt [r10]`) encoding. User assembly rejects before operand
-lowering. Only the installed-IDT provider may issue it after content-bound
-materialization and root-record preparation; the catalog entry therefore does
-not reopen a raw table-installation escape.
+lowering. Only an admitted consumer provider may issue it after its own
+content-bound materialization and root-record preparation; the catalog entry
+therefore does not reopen a raw table-installation escape or define the
+consumer's lifecycle types.
 
 ## Still open
 

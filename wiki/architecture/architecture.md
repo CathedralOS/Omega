@@ -29,7 +29,7 @@ prover may gate legality, discharge obligations, or enable erasure and
 optimization; it may never redefine a published identity.
 
 This applies uniformly to normalized domain/type identity (decision 19),
-machine/import-slot contract identity (decision 20), and effect-row identity
+machine/requirement-binding contract identity (decision 20), and effect-row identity
 (decision 22). Decision 23 applies the same law to termination contracts while
 placing ranking witnesses behind an implementation-evidence firewall. Solver
 timeouts, tactic selection, path-sensitive discoveries,

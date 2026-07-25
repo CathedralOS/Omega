@@ -351,11 +351,12 @@ are rejected. Prebuilt foreign code enters through provider admission instead.
 
 The catalog distinguishes user-available checked instructions from deriver-only
 entry/exit operations such as `iretq` or `sysret`; user code cannot manufacture
-an unmodeled control exit. The x86 `lidt` operation is likewise contracted but
-deriver-only: it requires distinct `IdtControl`, reads the private descriptor
-through scratch R10 with that exact clobber, and lowers to pinned `lidt [r10]`
-bytes only for the installed-table provider. Regime-changing instructions state
-their transition directly: require regime R, establish regime R'.
+an unmodeled control exit. The x86 `lidt` operation is likewise contracted and
+provider-only: its contract requires consumer-supplied CPU/table publication
+authority and records the exact descriptor read, scratch clobber, control-state
+change, and service reach. The compiler owns that target instruction contract;
+it does not own the consumer's IDT lifecycle type. Regime-changing instructions
+state their transition directly: require regime R, establish regime R'.
 
 The former `Binding::Instruction` duplication is retired; parsed checked
 assembly is the only source-level instruction surface.
@@ -564,30 +565,19 @@ pipeline remains engineering work.
 
 ### Generated hardware-table materialization
 
-A post-handoff hardware-table writer is a compiler-generated checked Omega
-machine, not a public escape hatch and not an admitted opaque callback. It
-receives exactly:
+Omega supplies a general way to derive a checked writer from a normalized
+layout and sealed symbolic sources. The generated machine receives one exact
+mapped/pinned/writable unpublished placement plus a resolver restricted to the
+admitted artifact. It writes directly into the unpublished destination.
+Failure establishes no consumer value, so partial bytes cannot become
+hardware-visible merely because they occupy memory. This is atomic
+*publication*, not transactional restoration of the destination.
 
-- one exclusive unpublished placement proven mapped, pinned, writable, and
-  large/aligned enough for the normalized table plan; and
-- one sealed resolver restricted to symbolic targets in the exact admitted
-  artifact/root set.
-
-It writes directly into the unpublished destination. Atomicity here means
-atomic *publication*, not transactional restoration of the destination bytes:
-if resolution, writing, or validation fails, no established materialization
-claim is minted and the partially filled placement can never be published.
-Consequently the design requires neither a full-table staging allocation nor a
-public numeric-address operation.
-
-The completed bytes are validated against the normalized layout and
-hardware-table policy before the writer produces a content-bound linear
-materialization claim such as `MaterializedIdt`. Structural layout validity is
-not hardware-table admissibility. An openly authored layout may describe odd
-bytes in storage the author already controls; only the target validator can
-establish that an IDT has the exact admitted roots, selectors, gate kinds,
-privilege levels, IST assignments, reserved bits, and canonical base/limit
-required by the selected platform policy.
+Structural layout validity is not hardware-table admissibility. The consuming
+package owns the semantic validator and the established value that results.
+For an IDT, Cathedral checks admitted roots, selectors, gate kinds, privilege
+levels, IST assignments, reserved bits, and canonical base/limit. Another
+consumer supplies different rules without extending Omega's compiler.
 
 The first post-firmware writer also carries a software-fault-free bootstrap
 certificate. That certificate is a conjunction of existing obligations:
@@ -598,30 +588,18 @@ instruction path. It excludes deterministic software faults under those
 facts; NMI, machine check, and physical failure remain explicit boot-envelope
 assumptions rather than falsely proved guarantees.
 
-Materialization and installation deliberately remain separate authorities and
-produce separate receipts:
+Materialization and installation remain separate authorities and produce
+separate receipts. The materializer reaches only destination writing and the
+sealed resolver; it cannot publish a hardware table. The consumer's installer
+cannot manufacture bytes; it accepts only the consumer-established table value
+and separate publication authority. It records external roots before invoking
+the relevant checked instruction, so there is no reachable-but-unreported
+root.
 
-```text
-exclusive unpublished mapped placement + sealed exact-artifact resolver
-    -- generated writer + final table validation -->
-MaterializedIdt + materialization receipt
-
-MaterializedIdt + IdtControl
-    -- prepare root records + visibility + checked lidt -->
-InstalledIdt + installation receipt
-```
-
-The materializer reaches only the destination write and sealed resolver. It
-cannot execute `lidt`. The installer cannot manufacture table contents; it
-accepts only an established materialization claim. Root records are prepared
-and committed to the report before `lidt` makes their entries hardware-
-reachable, then finalized as installed with the publication receipt. There is
-never a reachable-but-unreported root.
-
-`MaterializedIdt` and executable `ValidatedPlacement` reuse establishment,
-content binding, and linear consumption as shared infrastructure, but they are
-not one generic type or one algebra. One qualifies a hardware-consumed data
-table; the other qualifies executable code placement.
+Hardware-table materialization and executable placement reuse establishment,
+content binding, and linear consumption as shared infrastructure. They remain
+different consumer algebras and do not justify one compiler-owned generic
+typestate ladder.
 
 There is no general `ExecutableMemory` capability, arbitrary byte-to-code
 conversion, JIT facility, or self-modifying-code path. Executable eligibility
@@ -714,7 +692,7 @@ cannot satisfy it. The provider receipt must separately establish executor
 quiescence, removal of execute permission, restoration of write authority, and
 every open target completion fact. Only then does the placement return to W+NX
 for a later admitted artifact. The runtime quiescence/provider implementation
-and component-slot orchestration remain.
+and replaceable requirement binding remain separate work.
 
 This invariant covers every route to execute permission. Translation providers
 require admitted-artifact provenance before deriving an executable mapping,
@@ -727,8 +705,8 @@ W^X transition, cache maintenance, ordering, and instruction-fetch
 synchronization through one contracted provider operation. Its authority is
 scoped to the admitted artifact identity, `CodePlacement`, and audience.
 `CodePlacement` composes existing physical/virtual `Extent` authority and
-placement constraints; it is not a component dispatch slot or a new parallel
-authority family. Component-slot binding happens later and separately. AP
+placement constraints; it is not a replaceable dispatch binding or a new
+parallel authority family. Requirement binding happens later and separately. AP
 bringup installs a compiler-produced low-memory trampoline and
 then invokes a target boot protocol; it does not generate host code at runtime.
 
@@ -832,13 +810,13 @@ The ledger closes three whole-program holes:
 - dynamic install, replacement, and removal are checked against version pins
   and quiescence.
 
-The normalized foundation is live in `omega-external-roots`. A validated root
+The general normalized root foundation is live in `omega-external-roots`. A validated root
 binds one compiler-issued entry identity to the complete evaluated
 `BoundaryEntryPlan`, an open effect/receipt set, provider identity, stack and
 nesting policies, optional acknowledgement policy, WCSU size/alignment, and
-component-version pins. Installation consumes owner-scoped slot authority and
+component-era pins. Installation consumes owner-scoped entry authority and
 an admission that retains the complete validated root and selected provider
-execution alongside its report identities, installed code, artifact, slot,
+execution alongside its report identities, installed code, artifact, entry,
 owner, and receipts. The admission also retains the opaque complete
 installed-code lifecycle context. Compact FNV identities therefore cannot
 replay acceptance across acknowledgement, component-pin, trust-receipt, entry,
@@ -861,7 +839,7 @@ from those live opaque carriers and retain the same complete invocation
 evidence; compact control, guard, acknowledgement, and invocation IDs cannot
 settle debt from another root. The live ledger also owns a deterministic report
 fingerprint that binds each normalized root contract to its exact installed
-code, artifact, slot, owner, and admission. `omega-artifacts` writes this live
+code, artifact, entry, owner, and admission. `omega-artifacts` writes this live
 state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,
 provider/effect/trust identities, the three resource columns, nesting and
 acknowledgement policy, and component pins are machine-readable, while friendly
@@ -876,6 +854,15 @@ already active dedicated class fail closed. Every installed root in a ledger
 must bind the same exact canonical nesting relation and provider-summary set.
 The sealed stack and work realizations retain those complete inputs; compact
 composition fingerprints are report keys, not admission evidence.
+
+The current Rust implementation also contains IDT-named writer, table, load,
+grant, and receipt states. They are implementation debt, not part of this
+language architecture. Cathedral owns its IDT schema, writer lifecycle, and
+installation protocol. The compiler keeps only generic plan validation,
+symbolic/fragment materialization, external-root analysis, provider admission,
+and checked instruction contracts. `TASKS.md` P0 tracks removing the
+customer-shaped specialization.
+
 Machine-state admission checks the final footprint against the `StatePlan`;
 canonical fixed-work provider summaries compose transitively while rejecting
 missing callees, cycles, zero invocation bounds, overflow, and excess demand. The report is
@@ -884,86 +871,41 @@ image build. A sealed provider-execution binding now joins the normalized
 selected provider-plan identity, exact entry and boundary, effects, and the
 three independent resource realizations at root admission. It is identity-bound
 into the ledger/report and cannot be replayed after entry or realization drift.
-The normalized IDT publication gate is live as well: a materialized table's
-symbolic writer targets must exactly match its root bindings; publication
-requires those live handles and exact ledger records plus a content- and
-ledger-bound success receipt; and the installed table retains the handles. Its
-materialization path now validates and resolves every symbolic write before
-writing the mapped/pinned/writable unpublished destination directly, computes
-the resulting content identity, and checks an exact code/artifact/destination/
-final-byte receipt plus the software-fault-free verdict. The receipt retains
-the complete resulting bytes instead of authorizing through their FNV
-fingerprint. Publication preparation and its receipt likewise retain an exact
-snapshot of the materialized destination/site, bytes, writer, root bindings,
-and construction receipt; compact content or ledger fingerprints remain report
-keys and cannot hide substituted table policy. It returns every linear input
-on failure and never exposes the resolved entry address. The
-writer now has its own sealed pre-lowering gate: `PreparedIdtWriter` owns the
-exact unpublished destination, normalized plan, and root set after checking
-the installed-artifact resolver, placement phase, mapped/pinned/writable
-authority, and fragment geometry. The unpublished destination now owns its
-concrete active `MappedExtent`, not a bare Extent plus a claimed mapping
-boolean. It checks byte length and site base against that mapping and carries
-the exact mapping/grant identity plus space/rights/provenance/era/lineage into
-publication evidence. Pin admission binds those complete facts, while the
-provider-selected writable right must actually occur in the mapping's
-grant-established right set. The bootstrap placement provider still establishes
-the active translation and the distinct pin receipt. The writer
-also retains the opaque complete
-installed-code lifecycle context through population, and the materialization
-receipt derives from that populated writer rather than restating resolver IDs.
-Its identity binds code, artifact,
-destination and initial content, plan, placement, and roots. Compiler lowering
-preserves those facts and address-free fragment geometry in a generated-only
-target/machine carrier whose source operands are private context-slot indices;
-the packed private `IDTWRIT1` ABI is now pinned as an R10-addressed destination
-pointer followed by dense u64 source slots. Exact x86 encoding and width are
-live with the derived RAX/RCX/RDX/R10/R11 plus Flags footprint, while AArch64,
-unknown ABI versions, invalid slots, and unrepresentable geometry reject before
-emission. The compiler now retains the exact validated selected provider-plan
-set through checked lowering, with canonical per-plan and whole-selection
-identities. Root candidates now carry the selected plan identity before
-validation, normalized root identity covers it, and `ProviderExecution`
-inherits it from that root;
-the compiler's boundary-slot bridge consumes only the retained selection and
-rejects missing or ambiguous matches. Provider-private population of the
-writer context from the exact installed resolver is now live: a non-clonable
-opaque seal binds the exact
-destination/source words and their fingerprint, is required by lowering and
-materialization, and never exposes those words through diagnostics or public
-accessors. Generated helper lowering now accepts only a validated concrete
-one-private-pointer call/return plan, retains its exact register placement, and
-emits the register-to-R10 move before either the writer or `lidt [r10]` body.
-The complete derived register/state footprint must fit that same plan, so IDTR
-control-state mutation requires an explicitly privileged ceiling.
-The load preparation owns the exact private packed ten-byte x86 descriptor and
-publishes only its content-bound fingerprint. Inserting and executing those
-helpers remains, as does concrete Cathedral PIC/LAPIC candidate construction.
-The deriver-only catalog contract, exact x86 encoding, and source-rejection
-rail are live.
-Provider-neutral acceptance canaries instantiate the timer as one root plus
-fixed one-shot acknowledgement, clock-capture, coalescing-wake, and return
-leaves and derive Cathedral's shared-IRQ stack peak as the maximum maskable root
-plus its permitted current-stack fatal-fault path.
+IDT construction is an acceptance customer for these generic mechanisms, not
+another Omega subsystem. Cathedral composes an exclusively held mapped
+placement, fragmented layout/materialization plan, sealed admitted-artifact
+resolver, established table value, root records, checked `lidt`, and its own
+installation receipts. Omega must not define the IDT writer/table/load
+typestate, private context ABI, vector policy, or PIC/LAPIC realization.
+
+The general materializer validates and resolves every symbolic write before
+directly writing the unpublished destination. It exposes no numeric entry
+address or arbitrary-offset writer. Generic checked target lowering retains
+the complete plan, placement, source identities, final-content validation, and
+derived machine-state footprint; compact fingerprints remain report/cache
+identities rather than authority.
 
 ### Installed-root resource contract
 
-Every installed root carries three independent ceiling/realization/evidence
-triples:
+Every installed root carries three independent
+policy-or-provision/realization/evidence triples:
 
-| column | public/admission ceiling | realized artifact fact | private evidence |
+| column | policy or installed provision | realized artifact fact | private evidence |
 | --- | --- | --- | --- |
-| stack | permitted stack demand and stack domain | WCSU bytes/alignment plus composed nesting demand | frame/place liveness and WCSU derivation |
-| structural work | permitted hard-root work profile | composed fixed-work demand | acyclic CFG, ranking bounds, callee summaries, and codegen certificate |
+| stack | selected stack domain and provision; optional fixed policy ceiling | WCSU bytes/alignment plus composed nesting demand | frame/place liveness and WCSU derivation |
+| structural work | installed execution budget; optional fixed policy ceiling | composed fixed-work demand | acyclic CFG, ranking bounds, callee summaries, and codegen certificate |
 | machine state | `StatePlan` permitted state and save/restore commitment | emitted transitive footprint and clobbers | instruction selection, allocation, and footprint derivation |
 
-The ledger and its report retain each ceiling, realized fact, and validation
-receipt. They never retain private ranking witnesses or codegen proof internals.
+The ledger and its report retain each applicable policy ceiling, installed
+provision, realized fact, and validation receipt. They never retain private
+ranking witnesses or codegen proof internals.
 Sharing this record shape does not fuse the three algebras or their identity
 rules: the evaluated `StatePlan` is published boundary identity, while stack and
-work figures are provisioning/admission facts. A legal evidence swap revalidates
-one realization only. A changed realized demand changes the artifact/report; it
-does not change the requirement while it still refines the same ceiling.
+work figures normally belong to candidate admission and current provisioning.
+A fixed stack/work ceiling enters requirement identity only when policy
+deliberately promises replacement without reprovisioning. Otherwise a changed
+realized demand changes the candidate artifact/report and requires fresh
+provisioning; it does not change the semantic requirement.
 
 Structural work is not WCET. V1 proves that a hard root has no
 workload-dependent unbounded path under its admitted provider summaries. Exact
@@ -982,10 +924,11 @@ The IDT is consequently a first serious customer, not a special construct:
    class, acknowledgement protocol, and service/suspension/blocking ceilings;
 4. build/provider selection chooses a satisfying handler;
 5. the materializer resolves its sealed entry-stub identity into gate bits;
-6. a generated checked writer validates the unpublished table and produces a
-   content-bound `MaterializedIdt`;
-7. a separate checked `lidt` installer requires `IdtControl`, records roots
-   before hardware reachability, and produces `InstalledIdt`; and
+6. Cathedral's checked writer validates the unpublished table and establishes
+   a content-bound materialized-table fact;
+7. Cathedral's separate installer presents that fact and its CPU/table
+   publication authority, records roots before hardware reachability, and
+   executes checked `lidt`; and
 8. a linear acknowledgement token forces exactly-once completion.
 
 The source obligation contract is live in
@@ -997,8 +940,8 @@ different: restoring the prior CPU interrupt mask reaches `machine_control`,
 while acknowledging the interrupt source reaches `device_io`. Ordinary
 opacity and linearity reject construction, forgotten settlement, and double
 completion; no interrupt-specific cleanup or implicit drop rule exists.
-The normalized installed-root entry path now supplies provider minting and
-settlement: its receipt binds the exact root/slot/code/provider execution,
+The normalized installed-root entry path supplies provider minting and
+settlement: its receipt binds the exact root/entry/code/provider execution,
 invocation, initial mask state, and acknowledgement policy. Replayed
 invocation or acknowledgement identities reject, nested saved-mask guards
 restore only the newest exact prior state, active entries pin root retirement,
@@ -1006,70 +949,19 @@ and deriver-owned exit requires the entry mask state plus the exact completed
 acknowledgement. The concrete Cathedral PIC/LAPIC entry implementation remains
 to execute those admitted transitions.
 
-### Cathedral's initial x86 interrupt profile
+### OS interrupt policies are consumer-owned
 
-Cathedral owns the concrete policy; Omega represents and validates it without an
-interrupt machine species.
+Omega validates whichever root, stack, nesting, acknowledgement, and
+machine-state policy a target package supplies. It does not choose exception
+coverage, IST assignments, interrupt-gate masking, PIC versus LAPIC, timer
+handoff, or fatal-fault policy. Cathedral's current choices live in Cathedral's
+hardware-foundation and boot documents.
 
-- Before enabling the timer, every architecturally defined exception vector has
-  at least a generated diagnostic/fatal entry. Double fault, NMI, and machine
-  check use distinct per-CPU IST stacks. This turns early handler bugs into
-  attributable failures instead of an unhandled double fault and triple-fault
-  reset.
-- One additional per-CPU IST stack class is shared by all maskable external
-  roots. The timer is its first customer. Every such root uses an interrupt
-  gate, keeps IF clear for the complete handler, forbids body-authored `sti`,
-  and returns only through the deriver-owned exit. Maskable roots therefore do
-  not nest on the shared stack.
-- Cathedral authors the WCSU analysis class and hardware IST index as one pure
-  policy record so the ledger and IDT/TSS materializer cannot drift. Its first
-  profile assigns double fault, NMI, and machine check to dedicated classes and
-  ISTs 1/2/3, and the shared maskable-IRQ class to 4. This record grants neither
-  stack storage nor installation authority. Cathedral's core policy composes
-  the three fault vectors and remapped legacy-timer vector with those exact
-  records; root admission and gate materialization must consume that
-  composition rather than pairing vectors and ISTs independently.
-- Synchronous faults remain possible with IF clear. In v1, a fault raised while
-  a hard external root is live is fatal; ordinary current-stack fault handlers
-  contribute their bounded frame demand to the external-IRQ stack peak.
-  Double fault, NMI, and machine check switch stacks and are accounted in their
-  own domains. The ledger records the actual architecture nesting relation
-  rather than relying on a simplified exception cartoon.
-- The first stub saves all ordinary GPRs. Final placed code for the handler and
-  every transitive callee must be SIMD/x87-free; the coarse forbidden-state
-  check is correctness-bearing, while footprint-minimal GPR saves are a later
-  optimization.
-- The handler receives a protocol-neutral linear acknowledgement. PIC, LAPIC,
-  and x2APIC providers may realize `complete` differently without changing the
-  handler requirement.
-- The hard timer root performs only fixed work: acknowledge, capture time, set
-  one preallocated per-CPU coalescing wake state, and return. It never drains
-  application timer registrations. An ordinary suspend-allowed timer-service
-  task reads the clock, drains due deadlines in batches, wakes their endpoints,
-  and reprograms the next one-shot deadline.
-- PIT plus remapped 8259 PIC is the first QEMU/PC bring-up provider. LAPIC
-  one-shot timing is the production multicore/tickless provider. Cathedral's
-  pure `local_apic` facts now name the architectural xAPIC MMIO offsets,
-  x2APIC MSRs, EOI value, LVT timer fields, divider encodings, and optional
-  TSC-deadline identities without granting MMIO/MSR authority or inventing a
-  universal timer frequency. Checked Cathedral x2APIC helpers now configure
-  one-shot/divide-by-16 mode, arm/stop the timer, and issue EOI through
-  `wrmsr`; the instruction contracts retain `MachineControl` reach. They
-  cannot enable x2APIC/IF or publish a root. Platform
-  enumeration/calibration, admitted-mode establishment, and installed-root
-  integration remain. The provider migration does not change the root
-  contract.
-
-The shared external-IRQ stack is backed by statically reserved storage, which
-may itself be provisioned from an Arena at boot. Its bound is the maximum
-maskable-root WCSU plus the maximum permitted current-stack fatal-fault term,
-not the number of interrupts received. Sequential interrupts reuse the same
-bytes.
-
-Static IDT construction does not require a source-visible first-class entry
-reference. The selected plan can retain the entry identity privately. Reified
-entry references remain deferred until dynamic callback registration supplies a
-real source-level customer.
+The reusable acceptance conditions remain here: every hardware-reachable entry
+is recorded before publication; WCSU composes over the supplied nesting graph;
+final machine-state use fits `StatePlan`; acknowledgement and mask restoration
+obligations settle exactly once; and static construction may retain sealed entry
+identity without exposing a source-level numeric code address.
 
 ## Carry contracts and runtimes
 
@@ -1146,10 +1038,10 @@ scheduler-switch suppression are different linear tokens: the former defers
 delivery; the latter prevents an Omega activation switch but cannot prevent a
 host kernel from preempting its thread.
 
-The Cathedral reference profile should begin with safe-point scheduling and
-stable continuation storage. The language representation keeps the axes
-independent so a stricter admitted asynchronous runtime does not require a
-redesign.
+Cathedral currently chooses safe-point scheduling and stable continuation
+storage in its own hardware/runtime profile. The language representation keeps
+the axes independent so Cathedral or another runtime may admit a stricter
+asynchronous provider without redesigning Omega.
 
 Local checking, runtime admission, and future temporal verification are three
 consumers of the same facts. Local checking combines canonical liveness with
@@ -1158,94 +1050,19 @@ selected runtime. A future TLA-style layer adds interleavings, protocol state,
 and liveness hypotheses; it consumes normalized policy and provenance rather
 than re-reading source attributes.
 
-## Implementation order
+## Implementation status and ownership
 
-Ordinary generic trait-parent composition for `Calling<C>` is implemented. The
-compiler also has the first normalized `CallPlan + StatePlan` model, built-in
-evaluators for the currently supported x86-64/AArch64 host and syscall
-policies, deterministic contract fingerprints, and a separate validated
-footprint-evidence carrier. Concrete and generic `Calling<C>` relationships
-are discovered, their policy machines are evaluated through the build-time
-interpreter, accepted results are validated and canonicalized, and the
-complete plan is retained through checked lowering. Authoritative stub
-derivation, state-ceiling-aware codegen, final footprint validation, and the
-settled concrete interrupt policy's implementation remain. Remaining order:
+`TASKS.md` owns the current implementation sequence. The language/compiler
+lanes are the checked-assembly catalog, opaque runtime representation, generic
+layout/materialization, `AccessPlan` projection, evaluated entry plans, final
+machine-state validation, external loans, carry/runtime admission, and
+relocatable admitted artifacts.
 
-1. Complete the checked-assembly instruction-contract catalog needed by the
-   entry provider. No raw-byte shortcut.
-2. Derive sealed data/entry identities from selected compiler artifacts,
-   propagate normalized placement constraints through artifact construction,
-   and emit the derived post-handoff writer program as a compiler-generated
-   checked Omega machine. Give it only an exclusive unpublished mapped/pinned/
-   writable placement and the sealed exact-artifact resolver; write the
-   destination directly and mint no result after partial failure. Validate the
-   final table and software-fault-free bootstrap conjunction before producing
-   the materialization claim. Keep the `IdtControl` installer and its receipt
-   separate, with root-record-before-`lidt` publication. Name-keyed
-   fragment placement, exact tiling, phase-aware action derivation,
-   fixed-address resolution, early-consumption rejection, section-qualified
-   absolute data relocation/rebasing, concrete-site validation, and the atomic
-   provider-resolved writer program are already live. Decoded placement
-   constraints are bound into artifact admission and rechecked against the exact
-   claimed placement before materialization, preventing a provider from
-   substituting a weaker range/alignment/phase/regime/scope record behind the
-   admitted plan identity. Native symbolic actions
-   lower with tagged materialization origin rather than pretending those sites
-   came from an instruction. Canonical executable-container v2 now requires a
-   validated entry-set section, binds that set's identity into admission, and
-   lets only an admitted artifact select sealed `EntryStubId` targets present
-   in the set. The exact installed-code state now privately resolves those
-   entries against its placement while executing an atomic-publication
-   post-handoff writer. The sealed preparation and address-free generated
-   target/machine carrier are live: exact code/artifact/destination/plan/
-   placement/initial-content/root fingerprints and fragment geometry survive
-   lowering, while resolved values remain provider-private source slots;
-   foreign entries and data symbols reject before publication, without a
-   source-visible numeric-address operation. The packed `IDTWRIT1` context ABI,
-   exact x86 writer bytes/width, and RAX/RCX/RDX/R10/R11 plus Flags footprint are
-   pinned and emitted. Opaque context population from the exact installed
-   resolver is live and required before lowering/materialization; normalized
-   private-pointer placement now materializes R10 for both helpers, while
-   concrete insertion/execution remains.
-3. Connect the implemented normalized `Extent` conservation/mapping model to
-   the Omega linear carrier and sealed facts, then implement provider execution
-   and source APIs. Root admission, split/merge/attenuation, borrow polarity,
-   owned-versus-borrowed source custody, destination consumption, and
-   receipt-gated translation reclamation are already checked.
-4. Connect the implemented normalized `AccessPlan`/Extent join and sealed
-   field-operation values to Omega-authored policies and source projections,
-   then lower exact external/atomic primitives. Geometry, provenance, space,
-   rights, size, static reach, and loan-derived borrow polarity are already
-   checked.
-5. Finish migrating lowering to the retained normalized boundary plan, derive
-   inbound entry/exit stubs, constrain codegen by the selected `StatePlan`, emit
-   footprint evidence, and validate final artifacts. Source policy evaluation,
-   structured rejection, accepted-plan canonicalization, and evaluated-plan
-   contract identity are complete.
-6. Connect the live placement constraints to admitted-artifact validation and
-   scoped executable installation.
-7. The first timer's acyclic fixed-work acknowledgement, clock-capture,
-   coalescing-wake, and return summaries are instantiated in the implemented
-   structural-work composition model. The acceptance canary pins five
-   normalized nodes, one-shot edges, order-independent composition, and
-   missing/recursive-provider rejection.
-8. Drive the ledger's provider-execution binding from compiler-selected plans
-   and Cathedral's concrete providers. Materialize the complete exception IDT,
-   provision the dedicated fault and shared maskable-IRQ IST stack classes,
-   connect the generated checked `lidt` carrier to private-descriptor address
-   materialization, and validate the final no-SIMD/save-all-GPR entry stubs. The
-   normalized execution binding, direct-destination materialization receipt,
-   record-before-publish IDT gate, sealed prepared-load proof, exact x86
-   emission/footprint carrier, artifact-wide WCSU composition, and first
-   Cathedral IRQ/fatal-fault acceptance rail are already live.
-9. Build the PIT/PIC timer top half and its coalescing handoff to an ordinary
-   timer-service task; then add the LAPIC one-shot provider without changing the
-   root requirement.
-10. Connect the implemented normalized external-loan proxy to Omega linearity
-   and permission-context events, then build the DMA/hostile-IPC vertical
-   slices. Exact per-transfer borrower reach and completion/provider receipts
-   are already enforced by the foundation carrier.
-11. Add carry/runtime admission and the Arena-backed Cathedral task profile.
+Cathedral owns page-table hierarchy and teardown, IDT/TSS schema and lifecycle,
+exception/IST policy, PIC/LAPIC providers, timer top and bottom halves, DMA
+protocols, hostile-IPC mapping policy, and task-runtime provisioning. Those
+customers are acceptance tests for the generic machinery, never compiler
+implementation phases.
 
 ## Gauntlet
 
@@ -1268,10 +1085,10 @@ veneer/thunk that introduces a register class forbidden by the root's
 must also reject merging numerically adjacent ranges from different authority
 origins and reject ordinary non-atomic writes through two shared projections.
 IDT tests must show that an open-authored `Layout` or `Calling<C>` policy can
-produce only a candidate plan: it cannot mint the sealed resolver,
-`MaterializedIdt`, or `IdtControl`; cannot publish a structurally valid but
-semantically inadmissible table; and cannot hide installer reach behind a
-wrapper or direct checked assembly.
+produce only a candidate plan: it cannot mint the sealed resolver, Cathedral's
+materialized-table fact, or Cathedral's CPU/table publication authority; cannot
+publish a structurally valid but semantically inadmissible table; and cannot
+hide installer reach behind a wrapper or direct checked assembly.
 
 ## Open decisions
 

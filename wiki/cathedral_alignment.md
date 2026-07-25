@@ -41,21 +41,25 @@ implementation work. Each one gets more expensive to retrofit every month.
    Omega has no builtin `Versioned<T>` or `replace` DSL. Historical wire shapes
    are immutable ordinary data, sum envelopes, format metadata, and checked
    conversion machines. Live replacement instead anchors on normalized
-   machine-contract identity and is a Cathedral/component package over pinned
-   imports, liveness pins, admitted runtime operations, and ordinary phase
-   machines. Component artifact/linking mechanics, outbound calls from old
-   continuations, budgets, and eviction remain Cathedral design work.
+   requirement/artifact identity and is Cathedral orchestration over
+   requirement bindings, liveness pins, admitted runtime operations, and
+   ordinary phase machines. Omega owns the generic artifact/contract substrate;
+   Cathedral owns deployment selection, resource provisioning,
+   drain/coexistence policy, migration scheduling, and reclamation. Artifact
+   encoding and runtime representation remain open.
 
 4. **Separate compilation and a component artifact model** (ABSENT). Omega is
    a whole-program compiler emitting one image; the runtime model is a single
    global frame region with absolute offsets and one fused dispatch loop.
-   Cathedral requires components that are compiled, signed, shipped, loaded,
-   and **hot-swapped independently** (hermetic static linking per component,
-   machines as swap points, content-addressed code dedup). Nobody needs to
+   Cathedral requires selected provider realizations that are compiled, signed,
+   shipped, loaded, and **hot-swapped independently**. A component is the
+   realization plus its compiler-validated code/state/resource closure; it is
+   not intrinsically a package. Nobody needs to
    build the loader today — but every codegen decision that assumes
    whole-program-with-absolute-addresses deepens the eventual rework. Worth an
    explicit architecture note: which backend layers are allowed to assume
-   whole-program, and which must stay relocatable/per-component.
+   whole-program, and which must stay relocatable/per-component. An initial
+   package-shaped-closure restriction is valid only as a monotone staging fence.
 
    **Companion — the build & package model, SETTLED
    (`design_briefs/build_and_package_model.md`, 2026-07-02).** The per-package
@@ -208,13 +212,13 @@ None block current compiler development; all should stay visible.
   revocability across IPC/reboot/network (Cathedral's #1 flagged gap).
   Depends on ordinary numbered schemas/layout policies + the capability runtime
   story; there is no `wire data` declaration species.
-- **TBD: quiescence proofs** under interrupts, timers, async work, hardware
-  (the hot-swap precondition). Depends on the concurrency model.
-- **TBD: borrows as swap back-pressure** — borrow checker refusing to let a
-  borrow outlive a machine swap point; cross-IPC borrows.
-- **TBD: multi-version concurrency mode** — old + new machine versions
-  running simultaneously with versioned dispatch (when quiescence is
-  impractical).
+- **DECIDED semantics, representation pending: replacement accounting.** A
+  replaceable provider realization owns a closed code/state/resource graph.
+  Every old-era activation, borrow, continuation, registration, authority, and
+  hardware claim receives a drain/coexist/migrate/cancel/redirect/acknowledged-
+  transfer disposition before its lifetime cohort is reclaimed. Cathedral owns
+  the era ledger, drain policy, peak provisioning, and device quiescence;
+  artifact/binding/receipt encoding remains.
 - **TBD: operation-capabilities for secrets** (`Capability<SignWithKey(K)>`)
   and **purpose-tagged authority** (`Capability<Read<X>, Purpose<Y>>`) —
   likely generics + domains, may need no new core feature; prove it.

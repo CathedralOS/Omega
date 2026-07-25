@@ -42,7 +42,7 @@ act the compiler does not invent.
 Inference does not publish a promise. An exported concrete machine that omits
 bare `terminates;` publishes no termination guarantee even when its current
 body is acyclic. Local direct calls may use the exact checked summary; calls
-through a trait, import slot, or exported contract use only the authored or
+through a trait requirement or exported contract use only the authored or
 inherited guarantee. Refactoring a body therefore cannot silently change what
 external callers may assume.
 
@@ -106,7 +106,7 @@ Visual artifact status (2026-07-17): `05_machine_contracts.json` serializes
 that split explicitly. Each machine has an authored `contract` object
 (fingerprint, supply, canonical service-reach and operational ceilings,
 published termination) and a sibling `implementation` object (checked summary
-and private normalized ranking witness). Import-slot and component tooling can
+and private normalized ranking witness). Requirement-binding and component tooling can
 pin the former without parsing or accidentally incorporating proof-local
 material from the latter. Proof-cache storage and complete Merkle-key mechanics
 remain deferred to the dedicated theoretical proof-caching brief.
@@ -204,7 +204,7 @@ subjects, selected view, rank range, SCC mapping, and proof certificate.
 
 Changing a provider from `Nat::Descending` to
 `Nat::IncreasingTo(limit)` revalidates that provider and changes its proof
-cache key. It does not change an import slot, a caller contract ID, or trigger
+cache key. It does not change a requirement binding, a caller contract ID, or trigger
 contract-driven recompilation of dependents. If an API deliberately publishes
 a complexity or resource bound, that belongs in a resource/`ensures`
 contract, not in the hidden ranking witness.
@@ -226,7 +226,7 @@ contract, not in the hidden ranking witness.
    premises; the effect row alone cannot invent them.
 9. An ungranted provider cannot self-assert a sealed progress profile.
 10. Swapping a provider's valid ranking witness revalidates that provider only;
-    caller and slot contract identities remain unchanged.
+    caller and requirement contract identities remain unchanged.
 
 ## Migration ruling
 

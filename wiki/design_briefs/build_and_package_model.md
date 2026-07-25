@@ -137,8 +137,17 @@ The package is the dependency-reach boundary:
 - a subsystem requiring a meaningfully different reach set is a separate
   package rather than a hidden nested manifest.
 
-Machines remain the behavioral/hot-swap units inside that package. Package and
-component identity are related but not conflated.
+Packages normally compose statically and may optimize across package edges.
+They are not ABI or replacement boundaries merely because they are packages.
+A build may select a provider realization for independent deployment; the
+component is that realization plus its compiler-validated owned closure.
+
+The first implementation may accept only closures coinciding with one package.
+That is an implementation restriction, not the semantic definition of
+component. A concrete-machine call crossing a selected replaceable closure
+rejects; a replaceable crossing names an ordinary requirement. The same
+requirement may be statically selected and inlined in another build. No
+hot-swap call syntax or `slot` keyword is implied.
 
 ## Workspace composition
 

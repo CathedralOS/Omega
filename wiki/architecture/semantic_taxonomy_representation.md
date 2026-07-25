@@ -303,7 +303,7 @@ omission normalizes to published `NoGuarantee`; only local checked consumers
 may exploit the tighter `checked_summary`.
 
 The guarantee and explicit premises participate in published machine-contract
-and import-slot identity. `RankingWitness` does not: it feeds checker legality,
+and external requirement-binding identity. `RankingWitness` does not: it feeds checker legality,
 proof-cache identity, diagnostics, and provider-local revalidation. Stable
 canonical defaults elaborate immediately to an explicit `ranking_view_id`;
 the checker never selects a noncanonical view heuristically.
@@ -556,13 +556,13 @@ service reach.
   `DomainDefinition` shape.
 - Linear `Task<T>`, transactions, or dependent-linear buffers must not grow on
   move/drop-only ownership summaries.
-- Component import slots and hot-swap manifests must not pin a body hash or
+- Component requirement bindings and hot-swap manifests must not pin a body hash or
   flat service row in place of normalized machine contract identity.
 - Ranking subjects, views, ranges, SCC mapping, and certificates must not enter
   published machine-contract identity.
 - Service-row and operational-ceiling identity must not depend on prover
   strength, provider selection, or a legacy numeric bit.
-- Import slots pin authored normalized service and operational ceilings;
+- External requirement bindings pin authored normalized service and operational ceilings;
   provider admission compares each axis independently and never consults a
   global import scan.
 
@@ -577,7 +577,7 @@ service reach.
 - A requirement's termination guarantee can be inherited while its checked
   implementation carries a private ranking witness.
 - Replacing one valid ranking witness with another revalidates only the
-  provider/proof artifact and leaves caller/import-slot contract identity
+  provider/proof artifact and leaves caller/requirement contract identity
   unchanged.
 - Runtime lowering may reject a non-tail ranked cycle while proof-time
   evaluation consumes the same checked machine and witness.

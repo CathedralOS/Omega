@@ -1,5 +1,11 @@
 # Session Review — 2026-06-12 Autonomous Execution Sweep
 
+> Historical review only. Its S1–S6 “package = component” proposal was
+> superseded on 2026-07-24 by
+> [`design_briefs/separate_compilation.md`](design_briefs/separate_compilation.md):
+> packages are source/dependency units; replaceable components are selected
+> provider-realization closures.
+
 Read this first. It captures (1) decisions I made WITHOUT you that you should
 sanity-check, and (2) decisions still BLOCKING that only you can make. The
 factual landing record is in TASKS.md; the per-feature detail is in the

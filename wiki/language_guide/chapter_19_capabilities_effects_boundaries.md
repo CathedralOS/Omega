@@ -708,9 +708,11 @@ hardware callbacks can launder reach out of the report.
 
 Policy approval still does not manufacture authority. Admission must supply the
 actual scoped capability, and the operation additionally requires its sealed
-qualified input. For example, an IDT installer needs both CPU-scoped
-`IdtControl` and a content-bound `MaterializedIdt`; the former cannot create
-table bytes and the latter cannot execute `lidt`. The complete defense is:
+qualified input. For example, an OS IDT installer needs both CPU-scoped
+publication authority and a content-bound table value defined by that OS; the
+former cannot create table bytes and the latter cannot execute `lidt`. These
+are consumer-defined values satisfying a general checked-instruction contract,
+not compiler-owned IDT typestates. The complete defense is:
 
 ```text
 compiler-derived reach

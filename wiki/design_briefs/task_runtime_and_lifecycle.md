@@ -321,13 +321,14 @@ collisions cannot substitute a different runtime contract or activation plan.
 The artifact reports `pending_provider` until compiler provider selection
 supplies that exact receipt. `TaskRuntime` provider-plan selection/wiring is
 owner-blocked on the
-provider-slot and checked behavior-publication decision recorded in
-`OWNER_QUESTIONS.md`; the current provider spine selects boundary-trait slots,
+checked behavior-publication decision recorded in `OWNER_QUESTIONS.md`; the
+current provider spine selects realizations of boundary-trait requirements,
 while `TaskRuntime` is opaque boundary data and has no checked surface for the
 capacity, preemption, migration, storage, cancellation, or inline-completion
 statement. Its runtime representation is separately owner-blocked by the
 general opaque `boundary data` representation question. Dispatch and
-transactional start follow those decisions.
+transactional start follow those decisions. No task-runtime `slot` construct is
+implied.
 
 ## Acceptance register
 

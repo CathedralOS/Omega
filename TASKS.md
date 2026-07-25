@@ -118,6 +118,9 @@ with different access plans; an unplanned offset or illegal RMW cannot compile.
 - Carry symbolic data/entry sources and placement constraints through final
   artifacts.
 - Lower post-handoff writer plans generically into checked target code.
+- Separate reusable generated-helper identity (static normalized plan and
+  emitted bytes) from invocation evidence (exact placement, resolver, roots,
+  and content), without any IDT-specific compiler carrier.
 - Keep loader-consumed fields within native relocation vocabulary.
 - Bind validation to final bytes and exact placement; compact fingerprints are
   report/cache identities, never authority.
@@ -293,8 +296,19 @@ move it to a convenience library.
   pinned by existing generic machinery.
 - Dynamic traits are owner-blocked on #1.
 - Extend compiler-run Omega/build-time evaluation after owner question #5.
-- Implement separate compilation, pinned component contracts, and hot-swap
-  quiescence without new replacement syntax.
+- Implement separate compilation and replaceable-realization artifacts without
+  new replacement syntax. A component is a selected provider realization plus
+  its compiler-validated code/state/resource closure, not a package. Calls
+  crossing that closure name requirements; concrete calls remain internal.
+  Keep candidate resource demand separate from stable semantic identity unless
+  policy explicitly fixes a budget. Emit target/runtime stack-provision needs,
+  mapping lifetime cohorts, and two-sided import/export validation. Runtime
+  binding-era algorithms, drain/coexistence policy, migration scheduling, and
+  resource provisioning remain consumer/runtime work.
+- Migrate compiler-facing policy schemas so nonnegative byte sizes, lengths,
+  counts, and indices use `u64`, matching the retired-`usize` ruling. Keep
+  signed carriers only for genuinely signed offsets/addends or explicit
+  sentinel encodings; `addr` remains address bits, never a count.
 - Implement serialized capability attenuation/revocation.
 - Portable atomic fences are owner-blocked on #13.
 - Foreign retained-pointer lifetimes are owner-blocked on #14.
@@ -335,7 +349,6 @@ blocked work.
 | #4 quotient convergence | N6/`Real` quotient packaging |
 | #5 compiler-run Omega | richer build-time policies and generators |
 | #6 suspending direct-call spelling | explicit suspension call surface |
-| #7 bootstrap helper staging | generic prebuilt-helper/template staging; remove IDT-specific framing during P0 |
 | #8 opaque runtime boundary data | `Extent`, pointer, task-runtime, and linear provider values |
 | #9 task-runtime provider publication | task admission/dispatch |
 | #10 primitive float requirement family | float-format providers |
@@ -351,8 +364,10 @@ blocked work.
 
 - **Termination firewall:** cyclic components strictly decrease one joint rank;
   private witnesses never enter public contract identity.
-- **Contract-axis split:** service reach, suspension, blocking, termination,
-  mutation, trust, and resource ceilings admit independently.
+- **Contract/admission split:** service reach, suspension, blocking,
+  termination, mutation, and trust normalize independently. Candidate resource
+  demand and installed provision admit separately; a fixed resource ceiling is
+  contract identity only when policy deliberately publishes one.
 - **Units:** after #16, implement two units in one dimension with explicit
   conversion, generic preservation, and operator coherence.
 - **OS gauntlet:** UART/MMIO, Cathedral-owned address translation, DMA,

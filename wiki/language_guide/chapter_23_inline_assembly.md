@@ -14,9 +14,11 @@ newlines are not grammar; empty blocks and a control transfer followed by
 another instruction reject.
 Catalogued entry/exit operations such as `iretq` and `eret` and the x86 IDT
 load operation `lidt` refuse as **deriver only** rather than falling through an
-unknown-mnemonic path. `lidt` has a real closed contract—distinct `IdtControl`,
-a private `IdtDescriptor` place lowered through scratch R10, and that exact
-clobber—but only the content/ledger-bound installed-IDT provider may consume it.
+unknown-mnemonic path. `lidt` has a real closed contract: consumer-supplied
+CPU/table publication authority, an exact descriptor place, and the realized
+scratch clobber. Only an admitted provider holding the consumer-established
+table and root records may consume it. Omega owns this instruction contract,
+not an IDT lifecycle or IDT-specific public carrier.
 Returns, calls, and indirect branches refuse as hidden exits, while recognized
 load/store spellings refuse until they carry structured provenance and
 permission contracts.
