@@ -1256,7 +1256,7 @@ fn decode_call_plan(value: &BuildTimeValue) -> Result<CallPlan, String> {
     let fields = struct_parts(value, "CallPlan")?;
     let parameters = decode_counted_array(
         field(fields, "parameters", "CallPlan")?,
-        int(
+        uint(
             field(fields, "parameter_count", "CallPlan")?,
             "parameter_count",
         )?,
@@ -1301,7 +1301,7 @@ fn decode_value_placement(value: &BuildTimeValue) -> Result<ValuePlacement, Stri
         shape: decode_value_shape(field(fields, "shape", "ValuePlacement")?)?,
         locations: decode_counted_array(
             field(fields, "locations", "ValuePlacement")?,
-            int(
+            uint(
                 field(fields, "location_count", "ValuePlacement")?,
                 "location_count",
             )?,
@@ -1434,7 +1434,7 @@ fn decode_register_set(value: &BuildTimeValue) -> Result<RegisterSet, String> {
     let fields = struct_parts(value, "RegisterSet")?;
     Ok(RegisterSet::new(decode_counted_array(
         field(fields, "registers", "RegisterSet")?,
-        int(
+        uint(
             field(fields, "register_count", "RegisterSet")?,
             "register_count",
         )?,
@@ -1581,24 +1581,25 @@ fn decode_preemption(value: &BuildTimeValue) -> Result<Preemption, String> {
 
 fn decode_counted_array<T>(
     value: &BuildTimeValue,
-    count: i64,
+    count: u64,
     capacity: usize,
     context: &str,
     decode: impl Fn(&BuildTimeValue) -> Result<T, String>,
 ) -> Result<Vec<T>, String> {
-    if count < 0 || count as usize > capacity {
+    if count > capacity as u64 {
         return Err(format!("{context} count {count} is outside 0..={capacity}"));
     }
+    let count = count as usize;
     let BuildTimeValue::Array(values) = value else {
         return Err(format!("{context} is not an array"));
     };
-    if count as usize > values.len() {
+    if count > values.len() {
         return Err(format!(
             "{context} count is {count}, but the value carries only {} cells",
             values.len()
         ));
     }
-    values[..count as usize].iter().map(decode).collect()
+    values[..count].iter().map(decode).collect()
 }
 
 fn struct_parts<'a>(
@@ -1636,9 +1637,11 @@ fn field<'a>(
         .ok_or_else(|| format!("{context} carries no `{name}` field"))
 }
 
-fn int(value: &BuildTimeValue, context: &str) -> Result<i64, String> {
+fn uint(value: &BuildTimeValue, context: &str) -> Result<u64, String> {
     match value {
-        BuildTimeValue::Int(value) => Ok(*value),
+        // Build-time integers retain the declared u64 value's exact bits in
+        // the evaluator's i64 carrier.
+        BuildTimeValue::Int(value) => Ok(*value as u64),
         other => Err(format!("{context} is not an integer: {other:?}")),
     }
 }
@@ -1658,15 +1661,18 @@ fn text<'a>(value: &'a BuildTimeValue, context: &str) -> Result<&'a [u8], String
 }
 
 fn u8_value(value: &BuildTimeValue, context: &str) -> Result<u8, String> {
-    u8::try_from(int(value, context)?).map_err(|_| format!("{context} is outside u8 range"))
+    let value = uint(value, context)?;
+    u8::try_from(value).map_err(|_| format!("{context} {value} is outside u8 range"))
 }
 
 fn u16_value(value: &BuildTimeValue, context: &str) -> Result<u16, String> {
-    u16::try_from(int(value, context)?).map_err(|_| format!("{context} is outside u16 range"))
+    let value = uint(value, context)?;
+    u16::try_from(value).map_err(|_| format!("{context} {value} is outside u16 range"))
 }
 
 fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
-    u32::try_from(int(value, context)?).map_err(|_| format!("{context} is outside u32 range"))
+    let value = uint(value, context)?;
+    u32::try_from(value).map_err(|_| format!("{context} {value} is outside u32 range"))
 }
 
 #[cfg(test)]

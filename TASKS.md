@@ -281,10 +281,10 @@ move it to a convenience library.
   resource provisioning remain consumer/runtime work.
 - Continue migrating compiler-facing policy schemas so nonnegative byte sizes,
   lengths, counts, and indices use `u64`, matching the retired-`usize` ruling.
-  The Layout `Schema`/`Plan` ABI and normalized compiler reports are complete;
-  audit the remaining policy families. Keep signed carriers only for genuinely
-  signed offsets/addends or explicit sentinel encodings; `addr` remains
-  address bits, never a count.
+  The Layout and Calling source ABIs plus their normalized compiler reports are
+  complete; audit the remaining policy families. Keep signed carriers only for
+  genuinely signed offsets/addends or explicit sentinel encodings; `addr`
+  remains address bits, never a count.
 - Implement serialized capability attenuation/revocation.
 - Portable atomic fences are owner-blocked on #13.
 - Foreign retained-pointer lifetimes are owner-blocked on #14.
