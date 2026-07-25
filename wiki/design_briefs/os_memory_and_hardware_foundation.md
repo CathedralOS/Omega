@@ -389,17 +389,20 @@ dirty state rather than asserting an unproved equivalence. Huge pages, PAT/
 LA57, and AArch64 blocks/LPA2/dirty state remain target-policy work over the
 same lifecycle.
 
-The first control-operation seam is live for x86-64 without exposing raw
-installation authority. A provider derives one inert CR3 activation plan from
-an `InstallablePageTable`; the plan pins the PCID-zero root operand plus the
-exact opaque construction and pending-mapping contexts. After checked CR3
-execution, provider evidence must report that same observed root and cover
-exactly those mappings before it can become the ordinary
+The target control-operation seams are live without exposing raw installation
+authority. An x86-64 provider derives one inert PCID-zero CR3 activation plan
+from an `InstallablePageTable`. Its AArch64 sibling selects TTBR0_EL1 or
+TTBR1_EL1 from the admitted lower/upper translation half and, in v1, fixes ASID
+to zero and CnP to false. Both plans pin the exact root operand plus the opaque
+construction and pending-mapping contexts. After checked register execution,
+provider evidence must report that same target register/value, cover exactly
+those mappings, and on AArch64 establish completion of the required
+translation synchronization before it can become the ordinary
 `PageTableInstallationReceipt`. A numeric root alone can therefore neither
-activate mappings nor mint access. The source-level checked-assembly wrapper,
-Cathedral wiring, and AArch64 TTBR/barrier sibling remain fenced on the opaque
-runtime boundary-carrier representation; they must not substitute a forgeable
-record or pointer-sized handle.
+activate mappings nor mint access. The source-level checked-assembly/system-
+register wrappers and Cathedral wiring remain fenced on the opaque runtime
+boundary-carrier representation; they must not substitute a forgeable record
+or pointer-sized handle.
 
 Retirement closes the conservation loop. Beginning removal captures table
 storage and starts unmapping every active mapping. Nothing is returned until one

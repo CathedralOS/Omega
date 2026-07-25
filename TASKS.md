@@ -1805,16 +1805,19 @@ stronger operations it needs instead of citing machine parameters generally.
   before it can mint an `ImportedScan` construction receipt. This deliberately
   rejects alternate hierarchy allocation, aliases, huge pages, and
   hardware-mutated accessed/dirty state until those policies have explicit
-  contracts. The first x86-64 activation seam is live: it derives the exact
-  PCID-zero CR3 operand only from an `InstallablePageTable`, retains the
-  complete opaque installation/mapping contexts, and turns post-write provider
-  evidence into the existing installation receipt only when the observed CR3
-  root and mapping set match exactly. A bare physical address remains inert.
-  Implement the checked `asm { write cr3, ... }` provider and the AArch64
-  TTBR/barrier sibling once their source-visible opaque carriers can cross the
-  provider boundary. Connecting this model to the source-visible opaque Omega
-  `[linear]` carrier, sealed fact establishment, storage, calling conventions,
-  Cathedral activation, and source APIs is
+  contracts. Target activation seams are live for x86-64 and AArch64. The x86
+  plan derives the exact PCID-zero CR3 operand; the AArch64 plan derives the
+  ASID-zero/CnP-false TTBR0_EL1 or TTBR1_EL1 operand from the admitted
+  translation half and separately requires completed translation
+  synchronization. Both start only from an `InstallablePageTable`, retain the
+  complete opaque installation/mapping contexts, and turn post-write provider
+  evidence into the existing installation receipt only when the observed
+  register value and exact mapping set match. A bare physical address remains
+  inert. Implement the checked system-register/barrier providers once their
+  source-visible opaque carriers can cross the provider boundary. Connecting
+  this model to the source-visible opaque Omega `[linear]` carrier, sealed fact
+  establishment, storage, calling conventions, Cathedral activation, and
+  source APIs is
   **OWNER-BLOCKED (#8)** on the runtime representation plan for opaque
   `boundary data`; do not substitute a forgeable plain record or a universal
   pointer-sized handle.
