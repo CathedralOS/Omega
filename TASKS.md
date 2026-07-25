@@ -1942,9 +1942,14 @@ stronger operations it needs instead of citing machine parameters generally.
   The inverse compiler-side encoder now emits the canonical seven-section
   semantic container through the same scalar-layout records, checks all
   configured size/count bounds before allocation, and self-decodes before
-  returning bytes so producer/consumer schema drift fails closed. Connect that
-  encoder to final compiler artifact packaging and the target firmware
-  envelope without introducing another executable format.
+  returning bytes so producer/consumer schema drift fails closed. The ordinary
+  `ArtifactWriter` now owns the packaging seam: it accepts only an already-
+  normalized `Artifact` plus proof bytes, invokes that encoder, and atomically
+  installs the canonical container. Raw native images and arbitrary byte
+  buffers cannot enter this path. Connect the compiler's retained semantic
+  code/relocation/contract/footprint/placement/entry facts to that writer, then
+  wrap its result in the target firmware envelope without introducing another
+  executable format.
   Entry/section order, proof evidence, and informational sections remain identity-invisible.
   Implement the actual trusted/PCC and final-footprint validators,
   destination write/freeze and

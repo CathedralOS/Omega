@@ -13,11 +13,11 @@ omega-backend-report-types = { path = "../../foundation/omega-backend-report-typ
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-external-roots = { path = "../../foundation/omega-external-roots" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-target = { path = "../../foundation/omega-target" }
 
 [dev-dependencies]
-omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-layout-plans = { path = "../../foundation/omega-layout-plans" }
 serde_json = "1.0"
