@@ -248,7 +248,7 @@ create a future, or change synchronous/direct invocation.
 Calling `M(args)` still runs `M` in the current activation; `runtime.start<M>`
 still creates another activation. A genuinely non-suspending API must expose a
 narrower checked contract, commonly through a `try_` operation, rather than
-promising that one invocation of a suspension-capable slot happens not to park.
+promising that one invocation of a suspension-capable requirement happens not to park.
 This follows the distributed-systems lesson that local and latency-bearing
 operations should not be made syntactically indistinguishable; the closest
 classic reference is Waldo et al., *A Note on Distributed Computing*.
@@ -448,7 +448,7 @@ Decide:
   inside the admitted foreign binding, including callback-specific context,
   lifetime, thread, and reentrancy contracts; and
 - which object-safety/descriptor machinery may be shared with question 1
-  without making an external callback merely a `dyn Trait` table slot or
+  without making an external callback merely a `dyn Trait` descriptor entry or
   erasing the internal-versus-external calling distinction.
 
 Recommendation: derive an opaque, non-forgeable entry reference only from an
