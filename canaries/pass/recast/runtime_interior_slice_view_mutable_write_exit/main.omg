@@ -1,0 +1,68 @@
+// RUN CANARY (exit 70) + interpreter differential. Interior unsized slices
+// consume every byte after their proven start. The first view has a runtime
+// byte offset, so its descriptor length is `8 - k`; the second begins at a
+// literal offset and tiles the remaining eight bytes as two four-byte records.
+// Both descriptors retain the backing address through state forwarding and
+// mutable projected writes.
+use omega::language::std::console;
+
+data Pair {
+    low: u16;
+    high: u16;
+}
+
+data Main {
+    console: Console;
+    tail_bytes: [u8; 8];
+    pair_bytes: [u8; 12];
+    k: u32 [0..=4];
+    exact: u32 [4..=4];
+}
+
+machine Main::main(&mut self) {
+    self.k = 3;
+    self.exact = 4;
+    let tail: &mut [u8] = &mut self.tail_bytes[self.k] as &mut [u8];
+    transition tail.len > 4 {
+        true -> write_tail(tail)
+        _ -> bad_tail_length()
+    }
+
+    state write_tail(&mut self, tail: &mut [u8]) {
+    tail[4] = 9;
+    transition tail.len == 5 && self.tail_bytes[7] == 9 {
+        true -> pair_view()
+        _ -> bad_tail_write()
+    }
+    }
+
+    state pair_view(&mut self) {
+    let pairs: &mut [Pair] =
+        &mut self.pair_bytes[self.exact] as &mut [Pair];
+    transition pairs.len > 1 {
+        true -> write_pairs(pairs)
+        _ -> bad_pair_length()
+    }
+    }
+
+    state write_pairs(&mut self, pairs: &mut [Pair]) {
+    pairs[0].low = 0x0201;
+    pairs[0].high = 0x0403;
+    pairs[1].low = 0x0605;
+    pairs[1].high = 0x0807;
+    transition pairs.len == 2
+        && self.pair_bytes[4] == 1 && self.pair_bytes[5] == 2
+        && self.pair_bytes[6] == 3 && self.pair_bytes[7] == 4
+        && self.pair_bytes[8] == 5 && self.pair_bytes[9] == 6
+        && self.pair_bytes[10] == 7 && self.pair_bytes[11] == 8 {
+        true -> good()
+        _ -> bad_pair_write()
+    }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_tail_length(&mut self) { self.console.exit_process(71); }
+    state bad_tail_write(&mut self) { self.console.exit_process(72); }
+    state bad_pair_length(&mut self) { self.console.exit_process(73); }
+    state bad_pair_write(&mut self) { self.console.exit_process(74); }
+}

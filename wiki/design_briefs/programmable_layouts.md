@@ -243,7 +243,13 @@ recursive leaf judgment: a typed fixed array may be viewed as an unsized slice
 of a differently named record when every repeated element preserves layout
 geometry and facts. Shared range weakening and mutable exact equivalence are
 live through padded element strides on both native targets and the interpreter;
-a single mismatched nested leaf representation set rejects.
+a single mismatched nested leaf representation set rejects. Interior unsized
+slices consume every byte after a proven start. A runtime offset may establish
+a byte-element tail, while multi-byte and aggregate elements require an exact
+offset so divisibility is static; an upper bound alone does not prove
+congruence. Native descriptors compute the dynamic tail length from the
+declared byte-region capacity and preserve mutable address identity through
+state forwarding.
 
 ## Policy selection
 

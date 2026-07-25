@@ -1114,38 +1114,17 @@ fn select_runtime_straight_line_local_initializer_write(
     if let ExpressionNode::Cast(cast) = expressions.expression(recast_initializer)
         && cast.form.is_recast()
     {
-        if let Some(place) = resolve_runtime_storage_place_in_table(
+        if emit_runtime_frame_slot_slice_descriptor_write_in_table(
             input,
             expansion.dispatch_index,
             operation.source_key,
+            operation.statement_index,
             expressions,
-            cast.value,
-        ) && let Some(element_count) =
-            crate::selection::runtime_dispatch::recast_slice_element_count(
-                input,
-                cast.target_type,
-                place.byte_count,
-            )
-        {
-            selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::write_place_address_direct(
-                    place.region,
-                    place.byte_offset,
-                    slot.byte_offset + input.runtime_abi.slice_descriptor().ptr_offset(),
-                ),
-                source_key: operation.source_key,
-                source_statement: operation.statement_index,
-            });
-            selected_instructions.push(SelectedInstruction {
-                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
-                    RuntimeStorageRegion::RuntimeFrame,
-                    slot.byte_offset + input.runtime_abi.slice_descriptor().len_offset(),
-                    element_count as i64,
-                    input.runtime_abi.slice_descriptor().len_size(),
-                ),
-                source_key: operation.source_key,
-                source_statement: operation.statement_index,
-            });
+            slot,
+            recast_initializer,
+            runtime_value_operands,
+            selected_instructions,
+        ) {
             return;
         }
         // Mutable recasts always carry the backing ADDRESS. Unlike a shared
