@@ -728,9 +728,10 @@ This normalized ladder is live in `omega-executable-installation`. Canonically
 decoded artifacts are immutable and reusable; exact admission evidence checks
 the complete immutable artifact rather than relying on compact FNV identities
 as collision-resistant authority before establishing executable qualification.
-Admission from a validated container also binds the exact proof payload
-independently of content identity, so verifier acceptance cannot be replayed
-across byte, proof, or semantic-container drift;
+Admission from a validated container also binds the proof-payload identity and
+the exact proof bytes independently of content identity, so verifier acceptance
+cannot be replayed across byte, proof, or semantic-container drift even if a
+compact proof identity collides;
 informational sections remain excluded from the gate. This is the substitution-
 safe verifier seam, not an implementation of the PCC verifier itself. A
 one-shot authority claims an Extent-backed

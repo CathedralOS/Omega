@@ -109,6 +109,9 @@ pub struct DecodedArtifactContainer {
     pub relocation_set: RelocationSetId,
     pub relocations: Vec<DecodedArtifactRelocation>,
     pub proof_payload: ProofPayloadId,
+    /// Exact identity-invisible proof bytes. Admission binds these bytes even
+    /// though executable-content identity deliberately excludes them.
+    pub proof: Vec<u8>,
     pub sections: Vec<ContainerSection>,
 }
 
@@ -116,6 +119,7 @@ pub struct DecodedArtifactContainer {
 pub struct ValidatedArtifactContainer {
     artifact: Artifact,
     proof_payload: ProofPayloadId,
+    proof: Vec<u8>,
     informational_sections: Vec<InformationalSectionId>,
     unknown_informational_sections: Vec<u64>,
 }
@@ -139,6 +143,10 @@ impl ValidatedArtifactContainer {
         self.proof_payload
     }
 
+    pub fn proof(&self) -> &[u8] {
+        &self.proof
+    }
+
     pub fn informational_sections(&self) -> &[InformationalSectionId] {
         &self.informational_sections
     }
@@ -156,6 +164,7 @@ pub struct ValidatedContainerAdmissionEvidence {
     receipt: AdmissionReceiptId,
     artifact: Artifact,
     proof_payload: ProofPayloadId,
+    proof: Vec<u8>,
     accepted: bool,
 }
 
@@ -169,6 +178,7 @@ impl ValidatedContainerAdmissionEvidence {
             receipt,
             artifact: container.artifact.clone(),
             proof_payload: container.proof_payload,
+            proof: container.proof.clone(),
             accepted,
         }
     }
@@ -185,6 +195,11 @@ pub fn admit_validated_container(
     if evidence.proof_payload != container.proof_payload {
         return Err(InstallationDiagnostic(
             "artifact admission evidence names a different proof payload".into(),
+        ));
+    }
+    if evidence.proof != container.proof {
+        return Err(InstallationDiagnostic(
+            "artifact admission evidence names different exact proof bytes".into(),
         ));
     }
     if evidence.artifact != container.artifact {
@@ -325,6 +340,11 @@ pub fn validate_decoded_container(
             ContainerSectionKind::Proof(identity) => {
                 proof += 1;
                 require_identity("proof", identity, decoded.proof_payload)?;
+                if section.length != decoded.proof.len() as u64 {
+                    return Err(InstallationDiagnostic(
+                        "proof section length does not match exact decoded proof bytes".into(),
+                    ));
+                }
             }
             ContainerSectionKind::Informational(identity) => informational.push(identity),
             ContainerSectionKind::Unknown { identity, required } => {
@@ -404,6 +424,7 @@ pub fn validate_decoded_container(
     Ok(ValidatedArtifactContainer {
         artifact,
         proof_payload: decoded.proof_payload,
+        proof: decoded.proof,
         informational_sections: informational,
         unknown_informational_sections: unknown_informational,
     })
@@ -676,6 +697,7 @@ mod tests {
                 addend: -4,
             }],
             proof_payload: proof,
+            proof: vec![0xa5; 64],
             sections: vec![
                 ContainerSection {
                     kind: ContainerSectionKind::Code,
@@ -726,6 +748,7 @@ mod tests {
         assert_eq!(container.artifact().architecture(), Architecture::X86_64);
         assert_eq!(container.artifact().byte_length(), 64);
         assert_eq!(container.artifact().code(), &[0x90; 64]);
+        assert_eq!(container.proof(), &[0xa5; 64]);
         assert_eq!(container.artifact().entries().len(), 1);
         assert_eq!(container.artifact().entries()[0].identity(), entry);
         assert_eq!(container.artifact().entries()[0].code_offset(), 16);
@@ -775,6 +798,24 @@ mod tests {
         let error = admit_validated_container(&container, replay)
             .expect_err("acceptance for another proof payload must not replay");
         assert!(error.0.contains("different proof payload"));
+
+        let mut changed_bytes = decoded();
+        changed_bytes.proof[0] ^= 1;
+        let changed_bytes =
+            validate_decoded_container(changed_bytes, limits()).expect("changed proof bytes");
+        assert_eq!(
+            changed_bytes.artifact().content(),
+            container.artifact().content(),
+            "proof evidence remains outside executable promise identity"
+        );
+        let replay = ValidatedContainerAdmissionEvidence::from_validator(
+            id(72, AdmissionReceiptId::from_normalized_identity),
+            &changed_bytes,
+            true,
+        );
+        let error = admit_validated_container(&container, replay)
+            .expect_err("acceptance for different proof bytes must not replay");
+        assert!(error.0.contains("different exact proof bytes"));
     }
 
     #[test]
