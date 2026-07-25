@@ -217,12 +217,45 @@ impl MappingSource<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct DestinationRestoration {
     rights: ExtentRights,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
 }
+
+/// Exact inert facts behind one pending or active translation.
+///
+/// This is deliberately not source-visible mapping authority. Provider
+/// receipts retain it so compact mapping/grant IDs cannot authorize another
+/// range, authority lineage, custody mode, or grant after a collision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MappingEvidence {
+    identity: MappingId,
+    grant: MappingGrant,
+    source_mode: MappingSourceMode,
+    source_base: u64,
+    source_length: u64,
+    source_space: AddressSpaceId,
+    source_rights: ExtentRights,
+    source_provenance: ExtentProvenanceId,
+    source_era: MappingEraId,
+    source_lineage: ExtentLineageId,
+    mapped_base: u64,
+    mapped_length: u64,
+    mapped_space: AddressSpaceId,
+    mapped_rights: ExtentRights,
+    mapped_provenance: ExtentProvenanceId,
+    mapped_era: MappingEraId,
+    mapped_lineage: ExtentLineageId,
+    destination: DestinationRestoration,
+}
+
+/// Reusable opaque provider context for minting activation or release
+/// receipts for one exact mapping. It contains no authority and exposes no
+/// address fields.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MappingReceiptContext(MappingEvidence);
 
 /// One active mapping. It owns the destination virtual-range authority and
 /// either owns or borrow-carries its source as declared by the grant.
@@ -230,6 +263,7 @@ struct DestinationRestoration {
 pub struct MappedExtent<'source> {
     identity: MappingId,
     grant: MappingGrantId,
+    evidence: MappingEvidence,
     mapped: Extent,
     source: MappingSource<'source>,
     destination: DestinationRestoration,
@@ -256,6 +290,10 @@ impl<'source> PendingMap<'source> {
 
     pub const fn grant(&self) -> MappingGrantId {
         self.mapping.grant
+    }
+
+    pub fn receipt_context(&self) -> MappingReceiptContext {
+        MappingReceiptContext(self.mapping.evidence.clone())
     }
 
     pub(crate) const fn mapped_extent(&self) -> &Extent {
@@ -342,10 +380,8 @@ impl<'source> PendingMap<'source> {
         &self,
         receipt: &TranslationActivationReceipt,
     ) -> Result<(), ExtentDiagnostic> {
-        let mismatch = if receipt.mapping != self.mapping.identity {
-            Some("translation-activation receipt names a different mapping")
-        } else if receipt.grant != self.mapping.grant {
-            Some("translation-activation receipt names a different mapping grant")
+        let mismatch = if receipt.mapping != self.mapping.evidence {
+            Some("translation-activation receipt does not bind the exact pending mapping")
         } else if !receipt.translations_installed {
             Some("translation-activation receipt does not establish installed translations")
         } else if !self.map_obligations.0.is_subset(&receipt.established_facts) {
@@ -378,22 +414,19 @@ impl<'source> PendingMap<'source> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TranslationActivationReceipt {
-    mapping: MappingId,
-    grant: MappingGrantId,
+    mapping: MappingEvidence,
     translations_installed: bool,
     established_facts: BTreeSet<TranslationActivationFactId>,
 }
 
 impl TranslationActivationReceipt {
     pub fn from_admitted_provider(
-        mapping: MappingId,
-        grant: MappingGrantId,
+        context: &MappingReceiptContext,
         translations_installed: bool,
         established_facts: impl IntoIterator<Item = TranslationActivationFactId>,
     ) -> Self {
         Self {
-            mapping,
-            grant,
+            mapping: context.0.clone(),
             translations_installed,
             established_facts: established_facts.into_iter().collect(),
         }
@@ -567,10 +600,31 @@ fn map_with_source<'source>(
         era: grant.mapped_era,
         ..destination
     };
+    let evidence = MappingEvidence {
+        identity,
+        grant: grant.clone(),
+        source_mode: source.mode(),
+        source_base: source.base(),
+        source_length: source.length(),
+        source_space: source.address_space(),
+        source_rights: source.rights().clone(),
+        source_provenance: source.provenance(),
+        source_era: source.era(),
+        source_lineage: source.lineage_root(),
+        mapped_base: mapped.base(),
+        mapped_length: mapped.length(),
+        mapped_space: mapped.address_space(),
+        mapped_rights: mapped.rights().clone(),
+        mapped_provenance: mapped.provenance(),
+        mapped_era: mapped.era(),
+        mapped_lineage: mapped.lineage_root(),
+        destination: destination_restoration.clone(),
+    };
     Ok(PendingMap {
         mapping: MappedExtent {
             identity,
             grant: grant.identity,
+            evidence,
             mapped,
             source,
             destination: destination_restoration,
@@ -634,14 +688,16 @@ impl<'source> PendingUnmap<'source> {
         self.mapping.identity
     }
 
+    pub fn receipt_context(&self) -> MappingReceiptContext {
+        MappingReceiptContext(self.mapping.evidence.clone())
+    }
+
     pub(crate) fn validate_release_receipt(
         &self,
         receipt: &TranslationReleaseReceipt,
     ) -> Result<(), ExtentDiagnostic> {
-        let mismatch = if receipt.mapping != self.mapping.identity {
-            Some("translation-release receipt names a different mapping")
-        } else if receipt.grant != self.mapping.grant {
-            Some("translation-release receipt names a different mapping grant")
+        let mismatch = if receipt.mapping != self.mapping.evidence {
+            Some("translation-release receipt does not bind the exact pending mapping")
         } else if !receipt.translations_released {
             Some("translation-release receipt does not release stale translations")
         } else if !self
@@ -698,22 +754,19 @@ impl<'source> PendingUnmap<'source> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TranslationReleaseReceipt {
-    mapping: MappingId,
-    grant: MappingGrantId,
+    mapping: MappingEvidence,
     translations_released: bool,
     established_facts: BTreeSet<TranslationCompletionFactId>,
 }
 
 impl TranslationReleaseReceipt {
     pub fn from_admitted_provider(
-        mapping: MappingId,
-        grant: MappingGrantId,
+        context: &MappingReceiptContext,
         translations_released: bool,
         established_facts: impl IntoIterator<Item = TranslationCompletionFactId>,
     ) -> Self {
         Self {
-            mapping,
-            grant,
+            mapping: context.0.clone(),
             translations_released,
             established_facts: established_facts.into_iter().collect(),
         }
@@ -827,19 +880,17 @@ mod tests {
         extent(2, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200])
     }
 
-    fn release(mapping: MappingId) -> TranslationReleaseReceipt {
+    fn release(pending: &PendingUnmap<'_>) -> TranslationReleaseReceipt {
         TranslationReleaseReceipt::from_admitted_provider(
-            mapping,
-            id(40, MappingGrantId::from_normalized_identity),
+            &pending.receipt_context(),
             true,
             [translation_fact(700)],
         )
     }
 
-    fn activate(mapping: MappingId) -> TranslationActivationReceipt {
+    fn activate(pending: &PendingMap<'_>) -> TranslationActivationReceipt {
         TranslationActivationReceipt::from_admitted_provider(
-            mapping,
-            id(40, MappingGrantId::from_normalized_identity),
+            &pending.receipt_context(),
             true,
             [activation_fact(600)],
         )
@@ -855,54 +906,52 @@ mod tests {
             &mapping_grant(MappingSourceMode::Owned),
         )
         .expect("owned map candidate");
+        let mut wrong_mapping = TranslationActivationReceipt::from_admitted_provider(
+            &pending.receipt_context(),
+            true,
+            [activation_fact(600)],
+        );
+        wrong_mapping.mapping.identity = mapping_id(999);
         let error = pending
-            .complete(TranslationActivationReceipt::from_admitted_provider(
-                mapping_id(999),
-                id(40, MappingGrantId::from_normalized_identity),
-                true,
-                [activation_fact(600)],
-            ))
+            .complete(wrong_mapping)
             .expect_err("receipt for another mapping");
-        assert!(error.diagnostic().0.contains("different mapping"));
+        assert!(error.diagnostic().0.contains("exact pending mapping"));
         let (pending, _) = (*error).into_parts();
+        let inactive = TranslationActivationReceipt::from_admitted_provider(
+            &pending.receipt_context(),
+            false,
+            [activation_fact(600)],
+        );
         let error = pending
-            .complete(TranslationActivationReceipt::from_admitted_provider(
-                mapping_identity,
-                id(40, MappingGrantId::from_normalized_identity),
-                false,
-                [activation_fact(600)],
-            ))
+            .complete(inactive)
             .expect_err("translations not installed");
         assert!(error.diagnostic().0.contains("does not establish"));
         let (pending, _) = (*error).into_parts();
+        let incomplete = TranslationActivationReceipt::from_admitted_provider(
+            &pending.receipt_context(),
+            true,
+            [],
+        );
         let error = pending
-            .complete(TranslationActivationReceipt::from_admitted_provider(
-                mapping_identity,
-                id(40, MappingGrantId::from_normalized_identity),
-                true,
-                [],
-            ))
+            .complete(incomplete)
             .expect_err("installation fact missing");
         assert!(error.diagnostic().0.contains("lacks"));
         let (pending, _) = (*error).into_parts();
-        let mapping = pending
-            .complete(activate(mapping_identity))
-            .expect("translations installed");
+        let receipt = activate(&pending);
+        let mapping = pending.complete(receipt).expect("translations installed");
         assert_eq!(mapping.rights(), &rights(&[300]));
 
         let pending = mapping.begin_unmap();
+        let incomplete =
+            TranslationReleaseReceipt::from_admitted_provider(&pending.receipt_context(), true, []);
         let error = pending
-            .complete(TranslationReleaseReceipt::from_admitted_provider(
-                mapping_identity,
-                id(40, MappingGrantId::from_normalized_identity),
-                true,
-                [],
-            ))
+            .complete(incomplete)
             .expect_err("shootdown fact missing");
         assert!(error.diagnostic().0.contains("lacks"));
         let (pending, _) = (*error).into_parts();
+        let receipt = release(&pending);
         let (destination, source) = pending
-            .complete(release(mapping_identity))
+            .complete(receipt)
             .expect("translations released")
             .into_parts();
         assert_eq!(destination.rights(), &rights(&[200]));
@@ -916,24 +965,43 @@ mod tests {
     fn borrowed_mapping_retains_source_loan_and_shared_polarity() {
         let source = source();
         let source_loan = source.loan(0, 0x1000).expect("shared source");
-        let mut mapping = map_borrowed(
+        let pending = map_borrowed(
             source_loan,
             destination(),
             mapping_id(51),
             &mapping_grant(MappingSourceMode::BorrowedShared),
         )
-        .expect("borrowed map candidate")
-        .complete(activate(mapping_id(51)))
-        .expect("translations installed");
+        .expect("borrowed map candidate");
+        let receipt = activate(&pending);
+        let mut mapping = pending.complete(receipt).expect("translations installed");
         assert!(mapping.loan(0, 16).is_ok());
         assert!(mapping.loan_mut(0, 16).is_err());
-        let (destination, owned_source) = mapping
-            .begin_unmap()
-            .complete(release(mapping_id(51)))
+        let pending = mapping.begin_unmap();
+        let receipt = release(&pending);
+        let (destination, owned_source) = pending
+            .complete(receipt)
             .expect("translations released")
             .into_parts();
         assert!(owned_source.is_none());
         assert_eq!(destination.base(), 0xffff_8000_0000_0000);
+    }
+
+    #[test]
+    fn translation_receipts_cannot_replay_after_authority_lineage_drift() {
+        let grant = mapping_grant(MappingSourceMode::Owned);
+        let first = map_owned(source(), destination(), mapping_id(53), &grant)
+            .expect("first pending mapping");
+        let receipt = activate(&first);
+
+        let drifted_source = extent(9, 0x1000, 0x1000, 10, 20, &[100]);
+        let drifted_destination = extent(10, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200]);
+        let drifted = map_owned(drifted_source, drifted_destination, mapping_id(53), &grant)
+            .expect("same compact IDs with different authority lineages");
+
+        let error = drifted
+            .complete(receipt)
+            .expect_err("activation receipt cannot replay across exact authority drift");
+        assert!(error.diagnostic().0.contains("exact pending mapping"));
     }
 
     #[test]

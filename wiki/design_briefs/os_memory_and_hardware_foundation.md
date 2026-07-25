@@ -307,6 +307,12 @@ range and custody mode, its space/provenance/era/lineage/rights, the mapped
 destination, and the destination authority that teardown will restore.
 A caller-chosen mapping name therefore cannot make two different physical
 frames—or two different reclamation outcomes—look like one plan.
+Translation activation and release receipts do not restate compact mapping and
+grant IDs. The pending mapping derives an opaque exact context containing the
+complete admitted grant, source custody and authority, mapped authority, and
+destination-restoration authority. Page-table providers receipt that context,
+so an identity collision cannot replay installation or shootdown evidence after
+range, rights, provenance, era, or lineage drift.
 
 Cathedral's first concrete x86-64 entry schema now uses the same programmable
 layout path as every other dictated structure. Ordinary `bool` and
@@ -330,9 +336,11 @@ must bind the table, grant, normalized plan, final content identity, and complet
 mapping set. The receipt is minted from and retains the complete canonical
 storage/mapping evidence rather than authorizing through compact
 `PageTablePlanId` FNV identity; an equal report/cache identity cannot replay
-acceptance across exact-plan drift. Installation is separate: it must bind that same construction
-receipt and content, establish the table active, and supply the exact activation
-receipt for every pending mapping. Only then do `MappedExtent` values expose
+acceptance across exact-plan drift. Installation is separate: it must bind that
+same construction receipt and content, establish the table active, and supply
+the exact activation receipt for every pending mapping. Each receipt is derived
+from the opaque exact mapping context rather than caller-restated identifiers.
+Only then do `MappedExtent` values expose
 loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,
 or a receipt for another table cannot mint active address authority. Target
 entry writers can inspect borrowed, inert projections of the draft's exact

@@ -359,6 +359,13 @@ impl<'source> InstallablePageTable<'source> {
         self.evidence
     }
 
+    /// Exact opaque mapping context used by the target provider when it
+    /// receipts one installed translation. This exposes no range fields or
+    /// mapping authority.
+    pub fn mapping_receipt_context(&self, mapping: MappingId) -> Option<MappingReceiptContext> {
+        self.mappings.get(&mapping).map(PendingMap::receipt_context)
+    }
+
     pub fn install(
         self,
         mut receipt: PageTableInstallationReceipt,
@@ -557,6 +564,14 @@ pub struct PendingPageTableRemoval<'source> {
 impl<'source> PendingPageTableRemoval<'source> {
     pub const fn identity(&self) -> PageTableId {
         self.identity
+    }
+
+    /// Exact opaque context required to receipt release of one stale
+    /// translation before its source/destination authority can be reclaimed.
+    pub fn mapping_receipt_context(&self, mapping: MappingId) -> Option<MappingReceiptContext> {
+        self.mappings
+            .get(&mapping)
+            .map(PendingUnmap::receipt_context)
     }
 
     pub fn complete(
@@ -983,10 +998,12 @@ mod tests {
         .expect("pending mapping with exact authority")
     }
 
-    fn activation(identity: u64) -> TranslationActivationReceipt {
+    fn activation(table: &InstallablePageTable<'_>, identity: u64) -> TranslationActivationReceipt {
+        let mapping = id(identity, MappingId::from_normalized_identity);
         TranslationActivationReceipt::from_admitted_provider(
-            id(identity, MappingId::from_normalized_identity),
-            id(40, MappingGrantId::from_normalized_identity),
+            &table
+                .mapping_receipt_context(mapping)
+                .expect("mapping activation context"),
             true,
             [id(
                 25,
@@ -995,10 +1012,12 @@ mod tests {
         )
     }
 
-    fn release(identity: u64) -> TranslationReleaseReceipt {
+    fn release(table: &PendingPageTableRemoval<'_>, identity: u64) -> TranslationReleaseReceipt {
+        let mapping = id(identity, MappingId::from_normalized_identity);
         TranslationReleaseReceipt::from_admitted_provider(
-            id(identity, MappingId::from_normalized_identity),
-            id(40, MappingGrantId::from_normalized_identity),
+            &table
+                .mapping_receipt_context(mapping)
+                .expect("mapping release context"),
             true,
             [id(
                 26,
@@ -1069,7 +1088,10 @@ mod tests {
         let inactive = installation_receipt(
             &installable,
             false,
-            [(id(51, MappingId::from_normalized_identity), activation(51))],
+            [(
+                id(51, MappingId::from_normalized_identity),
+                activation(&installable, 51),
+            )],
         );
         let error = installable
             .install(inactive)
@@ -1080,7 +1102,10 @@ mod tests {
         let incomplete = installation_receipt(
             &installable,
             true,
-            [(id(51, MappingId::from_normalized_identity), activation(51))],
+            [(
+                id(51, MappingId::from_normalized_identity),
+                activation(&installable, 51),
+            )],
         );
         let error = installable
             .install(incomplete)
@@ -1092,8 +1117,14 @@ mod tests {
             &installable,
             true,
             [
-                (id(51, MappingId::from_normalized_identity), activation(51)),
-                (id(52, MappingId::from_normalized_identity), activation(52)),
+                (
+                    id(51, MappingId::from_normalized_identity),
+                    activation(&installable, 51),
+                ),
+                (
+                    id(52, MappingId::from_normalized_identity),
+                    activation(&installable, 52),
+                ),
             ],
         );
         let installed = installable.install(receipt).expect("installed page table");
@@ -1371,7 +1402,10 @@ mod tests {
         let installation = installation_receipt(
             &installable,
             true,
-            [(id(51, MappingId::from_normalized_identity), activation(51))],
+            [(
+                id(51, MappingId::from_normalized_identity),
+                activation(&installable, 51),
+            )],
         );
         let installed = installable.install(installation).expect("installed");
         let pending = installed.begin_removal();
@@ -1385,7 +1419,10 @@ mod tests {
             pending.installation_receipt,
             false,
             [id(90, PageTableRetirementFactId::from_normalized_identity)],
-            [(id(51, MappingId::from_normalized_identity), release(51))],
+            [(
+                id(51, MappingId::from_normalized_identity),
+                release(&pending, 51),
+            )],
         )
         .expect("inactive-negative receipt");
         let error = pending
@@ -1403,7 +1440,10 @@ mod tests {
             pending.installation_receipt,
             true,
             [],
-            [(id(51, MappingId::from_normalized_identity), release(51))],
+            [(
+                id(51, MappingId::from_normalized_identity),
+                release(&pending, 51),
+            )],
         )
         .expect("missing-fact receipt");
         let error = pending
@@ -1439,7 +1479,10 @@ mod tests {
             pending.installation_receipt,
             true,
             [id(90, PageTableRetirementFactId::from_normalized_identity)],
-            [(id(51, MappingId::from_normalized_identity), release(51))],
+            [(
+                id(51, MappingId::from_normalized_identity),
+                release(&pending, 51),
+            )],
         )
         .expect("exact removal receipt");
         let removed = pending.complete(receipt).expect("removed table");
