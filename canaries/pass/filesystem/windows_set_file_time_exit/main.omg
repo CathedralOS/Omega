@@ -63,7 +63,7 @@ machine Main::main(&mut self) {
         transition self.rc64 == 0 { true -> decode() _ -> bad(74) }
     }
     state decode(&mut self) {
-        // windows `_stat64` st_mtime @40 (the ST_MTIME_OFF provides row).
+        // Windows `_stat64` st_mtime @40, pinned by the target StatLayout.
         self.mtime = (self.stat_buf[40] as i64)
             | ((self.stat_buf[41] as i64) << 8)
             | ((self.stat_buf[42] as i64) << 16)

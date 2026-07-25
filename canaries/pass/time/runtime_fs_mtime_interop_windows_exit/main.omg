@@ -1,7 +1,7 @@
 // fs <-> time INTEROP, the WINDOWS leg (TASKS Windows session; the darwin
 // twin is runtime_fs_mtime_system_time_interop_exit): a real file's
-// metadata mtime, decoded at the windows `_stat64` offset (st_mtime,
-// i64 @40 -- the ST_MTIME_OFF provides row), bridges through
+// metadata mtime, decoded at the Windows `_stat64` offset selected by the
+// checked target StatLayout (st_mtime, i64 @40), bridges through
 // SystemTime::from_unix_seconds and compares against
 // Time::system_time_now(): now.duration_since(modified) must be Ok (a
 // just-created file is never in the future), the gap must be sane, and
@@ -10,7 +10,7 @@
 //
 // ENGINE-AGNOSTIC assertions so BOTH engines exit 70 on a windows host:
 // the interpreter's virtual fs stamps mtime = 10^9 (2001) at the HOST
-// layout's offset (windows = 40, mirroring the provides row) and its
+// layout's offset (Windows = 40, matching that target policy) and its
 // virtual wall clock reads 2026-01-01, so the gap is ~790M seconds;
 // native's gap is ~0. Both are Ok, < 10^9 seconds, with mtime >= 10^9.
 // The decode offset is WINDOWS' `_stat64`, so the canary is
