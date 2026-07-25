@@ -6,6 +6,7 @@
 
 use omega_calling_conventions::{MachineRegister, StateFootprintEvidence};
 use omega_core::diagnostics::Diagnostic;
+use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
 use omega_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 use omega_target::{Architecture, NativeTarget};
 
@@ -23,6 +24,26 @@ pub struct LoweredPostHandoffWriterHelper {
 pub struct LoweredPostHandoffWriter {
     pub helper: LoweredPostHandoffWriterHelper,
     pub invocation: PostHandoffWriterInvocationPlan,
+}
+
+/// One exact provider invocation paired with the reusable helper bytes that
+/// consume it. The installed-code resolver owns the sealed packed words;
+/// helper code, target identity, and exact footprint remain inspectable final
+/// artifact inputs without returning destination or entry addresses.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PreparedPostHandoffEntryWriterInvocation {
+    lowered: LoweredPostHandoffWriter,
+    context: ResolvedPostHandoffEntryWriterContext,
+}
+
+impl PreparedPostHandoffEntryWriterInvocation {
+    pub const fn lowered(&self) -> &LoweredPostHandoffWriter {
+        &self.lowered
+    }
+
+    pub const fn context(&self) -> &ResolvedPostHandoffEntryWriterContext {
+        &self.context
+    }
 }
 
 /// Lower one validated post-handoff writer into architecture-specific code.
@@ -73,6 +94,39 @@ pub fn lower_post_handoff_writer_helper(
         },
         invocation,
     })
+}
+
+/// Lower and populate one writer as a single checked provider preparation
+/// step. This rejects target/installed-artifact drift and proves that the
+/// opaque packed context is the invocation sibling of the exact normalized
+/// helper whose bytes and footprint will enter the final artifact.
+pub fn prepare_post_handoff_entry_writer_invocation(
+    target: NativeTarget,
+    pointer_register: MachineRegister,
+    installed: &InstalledCode,
+    writer: &PostHandoffWriterPlan,
+    destination_len: usize,
+    destination_site: omega_layout_plans::PlacementSite,
+) -> Result<PreparedPostHandoffEntryWriterInvocation, Diagnostic> {
+    if installed.architecture() != target.architecture {
+        return Err(Diagnostic::error(format!(
+            "post-handoff writer target architecture {:?} does not match installed artifact architecture {:?}",
+            target.architecture,
+            installed.architecture()
+        )));
+    }
+    let lowered = lower_post_handoff_writer_helper(target, pointer_register, writer)?;
+    let context = installed
+        .populate_post_handoff_entry_writer_context(writer, destination_len, destination_site)
+        .map_err(|error| Diagnostic::error(error.0))?;
+    if !context.binds_invocation(&lowered.invocation)
+        || context.normalized_helper_fingerprint() != lowered.helper.normalized_plan_fingerprint
+    {
+        return Err(Diagnostic::error(
+            "provider context does not bind the exact lowered post-handoff writer invocation",
+        ));
+    }
+    Ok(PreparedPostHandoffEntryWriterInvocation { lowered, context })
 }
 
 fn emitted_writer_fingerprint(

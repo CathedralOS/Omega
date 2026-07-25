@@ -17,7 +17,9 @@ pub use entry::{
     derive_boundary_static_guard_footprint,
 };
 pub use generated_writer::{
-    LoweredPostHandoffWriter, LoweredPostHandoffWriterHelper, lower_post_handoff_writer_helper,
+    LoweredPostHandoffWriter, LoweredPostHandoffWriterHelper,
+    PreparedPostHandoffEntryWriterInvocation, lower_post_handoff_writer_helper,
+    prepare_post_handoff_entry_writer_invocation,
 };
 pub use operands::*;
 pub use selection::build_instruction_plan;
