@@ -1,0 +1,11 @@
+// FAIL CANARY: an upper bound proves the footprint but not divisibility. With
+// k in 0..=2, an eight-byte region may leave seven bytes after the runtime
+// start, so it cannot establish a complete slice of two-byte elements.
+data Main {
+    bytes: [u8; 8];
+    k: u32 [0..=2];
+}
+
+machine Main::main(&mut self) {
+    let words: &[u16] = &self.bytes[self.k] as &[u16];
+}

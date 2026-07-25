@@ -452,6 +452,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("recast/runtime_record_array_view_mutable_write_exit", 70),
     ("recast/runtime_fixed_array_view_mutable_write_exit", 70),
     ("recast/runtime_slice_view_mutable_write_exit", 70),
+    ("recast/runtime_interior_slice_view_mutable_write_exit", 70),
     (
         "recast/runtime_aggregate_slice_representation_recast_exit",
         70,

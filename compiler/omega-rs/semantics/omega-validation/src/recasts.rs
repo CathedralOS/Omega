@@ -27,8 +27,10 @@
 //!   bit-reinterprets both sides of the alias or assembles/writes the complete
 //!   little-endian byte-region footprint.
 //! - **Fenced (deeper byte-view rung, L4/L5):** remaining dynamically-sized
-//!   shapes beyond complete-source unsized slices (byte-granular tiling over
-//!   plan-laid layouts), interior recasts into and non-let positions.
+//!   shapes beyond complete-source and proven interior unsized slices
+//!   (byte-granular tiling over plan-laid layouts), and recasts in non-let
+//!   positions. A runtime interior byte offset cannot establish multi-byte
+//!   element tiling until its congruence is proved; an exact offset can.
 //! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
 //!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
 //!   MINT's job (fallible, case-returning), never a recast's.
@@ -678,6 +680,75 @@ fn judge_slice_recast(
     }
 
     let source = strip_mutable(program, cast.value);
+    let Some(element_representation) = mutable_type_representation(program, element_type) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{context}: slice target `{target_label}` needs a fixed-layout element type"
+        )));
+        return;
+    };
+
+    // An interior slice starts at one byte of a proven `[u8; N]` region and
+    // consumes every remaining byte. This is the dynamically-sized companion
+    // to the fixed aggregate/scalar interior rungs: raw bytes may establish
+    // only recursively fact-free, exactly tiled element representations.
+    let interior = interior_byte_region_source(program, machine, state, source);
+    if let InteriorByteRegion::OffsetUnproven {
+        offset_display,
+        region_length,
+    } = &interior
+    {
+        push_offset_unproven(diagnostics, context, offset_display, *region_length);
+        return;
+    }
+    if let InteriorByteRegion::Bounded {
+        offset,
+        region_length,
+    } = interior
+    {
+        let target_tiled = representation_is_exactly_tiled(&element_representation);
+        let target_fact_free =
+            record_view_type_is_fact_free(program, element_type, &mut HashSet::new());
+        if !target_tiled || !target_fact_free {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: interior slice recast `{target_label}` requires a recursively \
+                 fact-free element whose scalar leaves exactly tile its byte stride; raw \
+                 storage cannot establish element facts or implicit padding"
+            )));
+            return;
+        }
+        if offset > region_length {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: interior slice recast starts at byte {offset}, past the \
+                 {region_length}-byte source region"
+            )));
+            return;
+        }
+        let exact_offset = exact_interior_byte_region_offset(program, machine, state, source);
+        if let Some(exact_offset) = exact_offset {
+            let remaining = region_length - exact_offset;
+            if remaining < 0
+                || element_representation.size == 0
+                || remaining as usize % element_representation.size != 0
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{context}: interior slice target `{target_label}` does not exactly tile \
+                     the {remaining} bytes remaining at offset {exact_offset} with {}-byte \
+                     elements",
+                    element_representation.size,
+                )));
+            }
+        } else if element_representation.size != 1 {
+            diagnostics.push(Diagnostic::error(format!(
+                "{context}: cannot prove exact tiling for interior slice `{target_label}`: \
+                 the runtime byte offset may leave a remainder for {}-byte elements; use a \
+                 statically exact offset or validate the dynamic region before establishing \
+                 the typed slice",
+                element_representation.size,
+            )));
+        }
+        return;
+    }
+
     let Some(source_type) =
         crate::places::declared_place_type_raw(program, machine, Some(state), source)
     else {
@@ -690,12 +761,6 @@ fn judge_slice_recast(
         diagnostics.push(Diagnostic::error(format!(
             "{context}: slice recast source `{}` has no fixed representation",
             program.display_type_reference(source_type)
-        )));
-        return;
-    };
-    let Some(element_representation) = mutable_type_representation(program, element_type) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "{context}: slice target `{target_label}` needs a fixed-layout element type"
         )));
         return;
     };
@@ -746,6 +811,31 @@ fn judge_slice_recast(
             },
         )));
     }
+}
+
+/// Exact value of an interior byte offset when its syntax or declared range
+/// pins one value. A mere upper bound is sufficient for fixed-footprint views,
+/// but an unsized slice with multi-byte elements additionally owes divisibility
+/// of the complete remaining region; an interval cannot prove that congruence.
+fn exact_interior_byte_region_offset(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    source: ExpressionHandle,
+) -> Option<i64> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
+        return None;
+    };
+    if let ExpressionNode::Integer(literal) = program.expression_table.expression(indexed.index) {
+        return literal.value_i64().filter(|offset| *offset >= 0);
+    }
+    let type_reference =
+        crate::places::declared_place_type_raw(program, machine, Some(state), indexed.index)?;
+    let interval = crate::arithmetic_domains::range_constraint_interval(program, type_reference)?;
+    let (Some(low), Some(high)) = (interval.low(), interval.high()) else {
+        return None;
+    };
+    (low == high && low >= 0).then_some(low)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,0 +1,9 @@
+// FAIL CANARY: even a literal interior offset cannot turn arbitrary raw bits
+// into established bool values.
+data Main {
+    bytes: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    let flags: &[bool] = &self.bytes[0] as &[bool];
+}

@@ -591,6 +591,223 @@ fn emit_runtime_descriptor_subslice(
     }
 }
 
+/// Materialize an interior recast descriptor:
+///
+/// `let tail: &mut [T] = &mut bytes[offset] as &mut [T];`
+///
+/// Validation has proved that `bytes` is a fixed byte array, the offset is in
+/// bounds, every remaining byte is consumed, and the target element carries no
+/// facts raw storage could mint. Selection therefore owns only the normalized
+/// descriptor arithmetic:
+///
+/// `ptr = address(bytes[offset])`
+/// `len = (byte_capacity - offset) / size_of(T)`
+#[allow(clippy::too_many_arguments)]
+fn emit_interior_recast_slice_descriptor_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let cast = match expressions.expression(value) {
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => cast,
+        ExpressionNode::Mutable(inner) => match expressions.expression(*inner) {
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => cast,
+            _ => return false,
+        },
+        _ => return false,
+    };
+    let omega_checked_trees::types::TypeReferenceNode::Slice { element_type } = input
+        .program
+        .type_reference_table
+        .type_reference(cast.target_type)
+    else {
+        return false;
+    };
+    let ExpressionNode::Indexed(indexed) = expressions.expression(cast.value) else {
+        return false;
+    };
+    if matches!(
+        expressions.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ) {
+        return false;
+    }
+
+    let Some(byte_capacity) = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        indexed.collection,
+    ) else {
+        return false;
+    };
+    let Some(collection) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        indexed.collection,
+    ) else {
+        return false;
+    };
+    if byte_capacity == 0
+        || collection.byte_count % byte_capacity != 0
+        || collection.byte_count / byte_capacity != 1
+    {
+        return false;
+    }
+    let Ok(element_layout) =
+        omega_layout::layout_type_reference(input.program, input.target, *element_type)
+    else {
+        return false;
+    };
+    let target_stride = element_layout.size;
+    if target_stride == 0 {
+        return false;
+    }
+    let offset = if let ExpressionNode::Integer(value) = expressions.expression(indexed.index) {
+        let Some(offset) = value
+            .value_i64()
+            .and_then(|offset| usize::try_from(offset).ok())
+        else {
+            return false;
+        };
+        SubsliceBound::Literal(offset)
+    } else {
+        let Some(offset) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            indexed.index,
+        ) else {
+            return false;
+        };
+        if !matches!(
+            offset.region,
+            RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+        ) || !matches!(offset.byte_count, 1 | 2 | 4 | 8)
+        {
+            return false;
+        }
+        SubsliceBound::Slot(offset)
+    };
+
+    let descriptor = input.runtime_abi.slice_descriptor();
+    let ptr_target = slot.byte_offset + descriptor.ptr_offset();
+    match &offset {
+        SubsliceBound::Literal(offset) => {
+            let Some(source_offset) = collection.byte_offset.checked_add(*offset) else {
+                return false;
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind: crate::selection::runtime_dispatch::write_place_address_direct(
+                    collection.region,
+                    source_offset,
+                    ptr_target,
+                ),
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+        }
+        SubsliceBound::Slot(offset) => {
+            selected_instructions.push(SelectedInstruction {
+                kind: crate::selection::runtime_dispatch::write_place_address_region_indexed(
+                    collection.region,
+                    collection.byte_offset,
+                    offset.region,
+                    offset.byte_offset,
+                    offset.byte_count,
+                    1,
+                    0,
+                    ptr_target,
+                ),
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+        }
+    }
+
+    let len_target = slot.byte_offset + descriptor.len_offset();
+    let len_size = descriptor.len_size();
+    match offset {
+        SubsliceBound::Literal(offset) => {
+            let Some(remaining) = byte_capacity.checked_sub(offset) else {
+                return false;
+            };
+            if remaining % target_stride != 0 {
+                return false;
+            }
+            selected_instructions.push(SelectedInstruction {
+                kind: crate::selection::runtime_dispatch::write_place_integer_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    len_target,
+                    (remaining / target_stride) as i64,
+                    len_size,
+                ),
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+        }
+        SubsliceBound::Slot(offset) => {
+            let left =
+                runtime_value_operands.insert(RuntimeValueOperand::Immediate(byte_capacity as i64));
+            let right = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                region: offset.region,
+                byte_offset: offset.byte_offset,
+                byte_size: offset.byte_count,
+            });
+            selected_instructions.push(SelectedInstruction {
+                kind: crate::selection::runtime_dispatch::write_place_binary_direct(
+                    RuntimeStorageRegion::RuntimeFrame,
+                    len_target,
+                    len_size,
+                    left,
+                    StateGuardOperator::Subtract,
+                    right,
+                    false,
+                    omega_core::arithmetic::ArithmeticDomain::Exact,
+                    false,
+                ),
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            if target_stride > 1 {
+                let left = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: len_target,
+                    byte_size: len_size,
+                });
+                let right = runtime_value_operands
+                    .insert(RuntimeValueOperand::Immediate(target_stride as i64));
+                selected_instructions.push(SelectedInstruction {
+                    kind: crate::selection::runtime_dispatch::write_place_binary_direct(
+                        RuntimeStorageRegion::RuntimeFrame,
+                        len_target,
+                        len_size,
+                        left,
+                        StateGuardOperator::DivideUnsigned,
+                        right,
+                        false,
+                        omega_core::arithmetic::ArithmeticDomain::Exact,
+                        false,
+                    ),
+                    source_key: value_source_key,
+                    source_statement: statement_index,
+                });
+            }
+        }
+    }
+    true
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -633,6 +850,20 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             });
             return true;
         }
+    }
+
+    if emit_interior_recast_slice_descriptor_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        slot,
+        value,
+        runtime_value_operands,
+        selected_instructions,
+    ) {
+        return true;
     }
 
     if emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(

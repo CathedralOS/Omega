@@ -374,6 +374,16 @@ interval by exposing the same bytes through an unconstrained equal-width
 carrier. Cross-carrier mutable equivalence remains fenced, because a numeric
 interval is not an enumeration of IEEE bit patterns.
 
+An interior slice recast starts at a proven index in a fixed byte array and
+consumes the complete remaining region. Its descriptor is
+`{ pointer = &bytes[offset], length = (capacity - offset) / element_size }`.
+Raw targets remain recursively fact-free and exactly tiled. A runtime offset is
+therefore sufficient for byte elements; a multi-byte or aggregate element
+requires a statically exact offset unless the proof system can establish the
+needed congruence. Merely proving the footprint is in bounds is not enough.
+Both native backends and the interpreter preserve this tail descriptor through
+mutable state forwarding.
+
 The same judgment applies to scalar aliases. `bool` has the exact established
 representation set `{0,1}`: it may be viewed through a shared unconstrained byte
 because that forgets a fact, and a typed `u8 [0..=1]` may be shared or mutably

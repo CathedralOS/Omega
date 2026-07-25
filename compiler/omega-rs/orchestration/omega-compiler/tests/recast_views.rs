@@ -253,6 +253,36 @@ fn slice_recast_execution_tiling_and_fact_fences() {
 }
 
 #[test]
+fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
+    let canary = "recast/runtime_interior_slice_view_mutable_write_exit";
+    assert_exit_70(canary, "interior-slice-mutable-view");
+
+    let main = repo_root()
+        .join("canaries/pass")
+        .join(canary)
+        .join("main.omg");
+    let checked = compile_to_checked(&main, None).expect("interior slice recast should compile");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "the interpreter must preserve interior slice length and write-through: {interpreted:?}"
+    );
+
+    compile_for_cross_targets(canary, "interior-slice-mutable-view");
+
+    let non_tiling = fail_diagnostics("recast/interior_slice_runtime_offset_non_tiling");
+    assert!(
+        non_tiling.contains("cannot prove exact tiling for interior slice"),
+        "runtime-offset tiling produced the wrong diagnostic:\n{non_tiling}"
+    );
+    let facted = fail_diagnostics("recast/interior_slice_fact_fenced");
+    assert!(
+        facted.contains("raw storage cannot establish element facts"),
+        "interior raw bytes must not establish slice element facts:\n{facted}"
+    );
+}
+
+#[test]
 fn aggregate_slice_recasts_compose_leaf_representation_sets() {
     let canary = "recast/runtime_aggregate_slice_representation_recast_exit";
     assert_exit_70(canary, "aggregate-slice-representation-recast");

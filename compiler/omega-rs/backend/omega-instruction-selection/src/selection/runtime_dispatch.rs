@@ -1135,6 +1135,34 @@ pub(crate) fn write_place_address_base_indexed(
     }
 }
 
+pub(crate) fn write_place_address_region_indexed(
+    base_region: RuntimeStorageRegion,
+    base_byte_offset: usize,
+    index_region: RuntimeStorageRegion,
+    index_offset: usize,
+    index_byte_size: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> SelectedInstructionKind {
+    SelectedInstructionKind::WritePlaceAddress {
+        source: omega_abstract_operations::Place::at(base_region, base_byte_offset)
+            .with_step(omega_abstract_operations::PlaceStep::ScaledIndex {
+                index_region,
+                index_offset,
+                index_byte_size,
+                element_byte_size,
+            })
+            .and_then(|place| {
+                place.with_step(omega_abstract_operations::PlaceStep::ConstOffset(
+                    field_byte_offset,
+                ))
+            })
+            .expect("a region-indexed place is three steps, within PLACE_MAX_STEPS"),
+        target_offset,
+    }
+}
+
 pub(crate) fn write_place_address_machine_indexed(
     base_byte_offset: usize,
     index_region: RuntimeStorageRegion,
@@ -3060,36 +3088,17 @@ fn select_runtime_dispatch_local_initializer_write(
         expressions.expression(recast_initializer)
         && cast.form.is_recast()
     {
-        if let Some(place) =
-            crate::selection::storage_places::resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index,
-                resolved_initializer_source_key,
-                expressions,
-                cast.value,
-            )
-            && let Some(element_count) =
-                recast_slice_element_count(input, cast.target_type, place.byte_count)
-        {
-            selected_instructions.push(SelectedInstruction {
-                kind: write_place_address_direct(
-                    place.region,
-                    place.byte_offset,
-                    slot.byte_offset + input.runtime_abi.slice_descriptor().ptr_offset(),
-                ),
-                source_key,
-                source_statement: statement_index,
-            });
-            selected_instructions.push(SelectedInstruction {
-                kind: write_place_integer_direct(
-                    RuntimeStorageRegion::RuntimeFrame,
-                    slot.byte_offset + input.runtime_abi.slice_descriptor().len_offset(),
-                    element_count as i64,
-                    input.runtime_abi.slice_descriptor().len_size(),
-                ),
-                source_key,
-                source_statement: statement_index,
-            });
+        if writes::emit_runtime_frame_slot_slice_descriptor_write_in_table(
+            input,
+            dispatch_index,
+            resolved_initializer_source_key,
+            statement_index,
+            expressions,
+            slot,
+            recast_initializer,
+            runtime_value_operands,
+            selected_instructions,
+        ) {
             return;
         }
         // A MUTABLE recast must retain ADDRESS identity even when its referee
