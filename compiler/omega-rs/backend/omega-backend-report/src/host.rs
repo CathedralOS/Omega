@@ -189,6 +189,9 @@ fn write_platform_call_lowering(
         PlatformCallData::ConstantArgument { value } => {
             output.push_str(&format!(" data constant_argument value={value}"))
         }
+        PlatformCallData::TimespecResult { clock_id } => {
+            output.push_str(&format!(" data timespec_result clock_id={clock_id}"))
+        }
     }
     output.push('\n');
 }

@@ -83,7 +83,7 @@ register into an exact writable `u64` destination. `write_cr0`/`write_cr3`/
 Every form is x86-only, carries `MachineControl`, requires `MachineOwner`, and
 declares the scratch registers used to materialize or store its value. These
 operations expose register value flow only: broader regime transitions and
-page-table installation invariants remain obligations of the provider that
+address-translation invariants remain obligations of the provider that
 uses them.
 
 The same `where` surface accepts boolean `requires` and `ensures` facts:
@@ -232,7 +232,7 @@ contracted sequences. Public APIs should expose the semantic operation; checked
 provider implementations own the instruction sequence. Assembly cannot create
 an executable mapping from ordinary bytes: relevant instructions require the
 same admitted-artifact provenance, scoped installation authority, and reach as
-the page-table/provider path.
+any other address-translation provider path.
 
 ## Required initial catalogs
 

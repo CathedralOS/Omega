@@ -280,35 +280,13 @@ types continue to require one fixed `At` entry per field. A target-neutral
 ordinary-scalar consumer now takes only named values and this validated plan:
 there is no caller-supplied offset, every planned field must be supplied
 exactly once, widths and fragments are rechecked, padding/reserved bits start
-at zero, and the destination changes only after complete validation. A packed
-x86-64 page-table word and a compiler-evaluated compact-bit policy pin the
-foundation path. The first complete x86-64 table consumer now lives in
-`omega-page-tables`: it maps admitted Extent rights to that entry vocabulary,
-derives four-level 4 KiB table bytes from the normalized pending mappings, and
-fails closed on unknown or unrepresentable policy facts. It remains a target
-consumer of plans, not a second layout mechanism or a source-visible raw writer.
-Hierarchy pointers and leaves both pass through the ordinary named-field scalar
-materializer. The provider retains and compares the exact normalized x86
-geometry: declaration order normalizes away, but shifted hardware bits reject;
-the compact layout fingerprint remains report/cache identity and never
-authorizes materialization.
-The AArch64 sibling uses the same normalized mappings, named-field scalar
-consumer, and construction lifecycle while retaining its independent descriptor
-algebra: semantic memory class selects `AttrIndx`/shareability and access rights
-select AP/nG/PXN/UXN. Hierarchy pointers and leaves both use its exact normalized
-AArch64 geometry; declaration order is irrelevant, shifted hardware bits reject,
-and the compact fingerprint remains report/cache identity only. No common "page
-flags" sum erases the target distinction.
-The inverse scalar decoder consumes compiler-materialized
+at zero, and the destination changes only after complete validation. A
+compiler-evaluated compact-bit policy pins this generic path without naming a
+target subsystem. Target and OS packages consume plans; the compiler does not
+own their table hierarchy, flags, or lifecycle. The inverse scalar decoder consumes compiler-materialized
 field widths and the same named geometry, reconstructs complete logical
 fields, and rejects incomplete or overlapping source fragments. Decoding
-establishes no domain, trust, or authority fact. Strict x86-64 and AArch64
-imported-table validators now apply it entry by entry, reject any reserved or
-unsupported bit that cannot round-trip through the normalized target plan, and
-require the complete image to equal the deterministic hierarchy for the exact
-pending mapping set before minting the separate `ImportedScan` construction
-receipt. This v1 profile does not mistake decoding for establishment or claim
-equivalence for alternate hierarchy allocation. Source establishment remains
+establishes no domain, trust, or authority fact. Source establishment remains
 separate work.
 Step 8 now also has a normalized symbolic foundation: sealed
 `Data(DataSymbolId) | Entry(EntryStubId)` source

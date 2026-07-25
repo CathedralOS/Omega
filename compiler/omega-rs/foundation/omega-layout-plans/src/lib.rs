@@ -1452,11 +1452,11 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_scalar_materializer_packs_a_page_table_word() {
+    fn ordinary_scalar_materializer_packs_a_fragmented_control_word() {
         let layout = LayoutPlanReport {
             entries: vec![
                 LayoutFieldEntryReport {
-                    field: "present".into(),
+                    field: "enabled".into(),
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1466,7 +1466,7 @@ mod tests {
                     },
                 },
                 LayoutFieldEntryReport {
-                    field: "writable".into(),
+                    field: "mode".into(),
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1476,7 +1476,7 @@ mod tests {
                     },
                 },
                 LayoutFieldEntryReport {
-                    field: "frame_number".into(),
+                    field: "payload".into(),
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1486,7 +1486,7 @@ mod tests {
                     },
                 },
                 LayoutFieldEntryReport {
-                    field: "no_execute".into(),
+                    field: "high_guard".into(),
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1501,10 +1501,10 @@ mod tests {
             align: 8,
         };
         let values = [
-            ScalarFieldValue::new("present", 1, 1).expect("present"),
-            ScalarFieldValue::new("writable", 1, 1).expect("writable"),
-            ScalarFieldValue::new("frame_number", 40, 0x12345).expect("frame"),
-            ScalarFieldValue::new("no_execute", 1, 1).expect("NX"),
+            ScalarFieldValue::new("enabled", 1, 1).expect("enabled"),
+            ScalarFieldValue::new("mode", 1, 1).expect("mode"),
+            ScalarFieldValue::new("payload", 40, 0x12345).expect("payload"),
+            ScalarFieldValue::new("high_guard", 1, 1).expect("high guard"),
         ];
         let mut bytes = [0xa5_u8; 8];
         materialize_scalar_layout_into(&layout, &values, ByteOrder::LittleEndian, &mut bytes)
@@ -1518,23 +1518,23 @@ mod tests {
         let decoded = decode_scalar_layout(
             &layout,
             &[
-                ScalarFieldSchema::new("present", 1).expect("present"),
-                ScalarFieldSchema::new("writable", 1).expect("writable"),
-                ScalarFieldSchema::new("frame_number", 40).expect("frame"),
-                ScalarFieldSchema::new("no_execute", 1).expect("NX"),
+                ScalarFieldSchema::new("enabled", 1).expect("enabled"),
+                ScalarFieldSchema::new("mode", 1).expect("mode"),
+                ScalarFieldSchema::new("payload", 40).expect("payload"),
+                ScalarFieldSchema::new("high_guard", 1).expect("high guard"),
             ],
             ByteOrder::LittleEndian,
             &bytes,
         )
-        .expect("the same plan decodes imported table bytes");
+        .expect("the same plan decodes the materialized bytes");
         let values = decoded
             .iter()
             .map(|field| (field.field.as_str(), field.value))
             .collect::<std::collections::BTreeMap<_, _>>();
-        assert_eq!(values["present"], 1);
-        assert_eq!(values["writable"], 1);
-        assert_eq!(values["frame_number"], 0x12345);
-        assert_eq!(values["no_execute"], 1);
+        assert_eq!(values["enabled"], 1);
+        assert_eq!(values["mode"], 1);
+        assert_eq!(values["payload"], 0x12345);
+        assert_eq!(values["high_guard"], 1);
     }
 
     #[test]

@@ -115,7 +115,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    materialization; external-root reporting; DMA external loans; and carry /
    runtime admission. No interrupt DSL, volatile qualifier, raw instruction
    binding, or parallel trust system. The next vertical slice is the x86 IDT
-   and timer; placed views, page tables, DMA, hostile IPC, and AP bringup form
+   and timer; placed views, address translation, DMA, hostile IPC, and AP bringup form
    the wider gauntlet. Value-side carry is settled as a compiler-built-in
    four-axis product with structural derivation and sealed per-mint facts.
    Suspension is checked locally against effects; CPU/thread/address demands

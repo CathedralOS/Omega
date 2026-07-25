@@ -1155,6 +1155,65 @@ pub fn encode_syscall_sequence_from_operands(
     Ok(bytes)
 }
 
+/// AArch64 Linux `clock_gettime(clock_id, &timespec)` composite lowering.
+/// Returns the bytes and the byte offset of the result-region ADRP pair.
+pub fn encode_linux_timespec_syscall(
+    operands: &[Aarch64CallOperand],
+    syscall_number: u32,
+    argument_registers: &[MachineRegister],
+    result_register: MachineRegister,
+    number_register: MachineRegister,
+    supervisor_call: u16,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
+    let [
+        RuntimeScalarInteger {
+            byte_offset,
+            byte_count,
+        },
+        ImmediateInteger(clock_id),
+    ] = operands
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 Linux timespec lowering requires [runtime result, immediate clock id]",
+        ));
+    };
+    if *byte_count != 8 {
+        return Err(Diagnostic::error(
+            "AArch64 Linux timespec result must be an eight-byte nanosecond value",
+        ));
+    }
+    if argument_registers != [MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1)]
+        || result_register != MachineRegister::Aarch64X(0)
+        || number_register != MachineRegister::Aarch64X(8)
+    {
+        return Err(Diagnostic::error(format!(
+            "AArch64 Linux timespec encoder cannot realize parameters={argument_registers:?}, \
+             result={result_register:?}, number={number_register:?}"
+        )));
+    }
+
+    let mut bytes = Vec::with_capacity(80);
+    bytes.extend(encode_sub_x_immediate(31, 31, 16)?); // sub sp, sp, #16
+    append_immediate(&mut bytes, 0, *clock_id)?;
+    bytes.extend(encode_add_x_immediate(1, 31, 0)?); // x1 = sp
+    append_unsigned_immediate(&mut bytes, 8, u64::from(syscall_number));
+    bytes.extend(encode_svc(supervisor_call));
+    bytes.extend(encode_cbz_x(0, 8)?);
+    bytes.extend(encode_brk(0)); // fixed-input syscall failure
+    bytes.extend(encode_load_x_from_x(0, 31, 0)?); // tv_sec
+    append_unsigned_immediate(&mut bytes, 2, 1_000_000_000);
+    bytes.extend(encode_mul_x_register(0, 0, 2));
+    bytes.extend(encode_load_x_from_x(1, 31, 8)?); // tv_nsec
+    bytes.extend(encode_add_x_register(0, 0, 1));
+    bytes.extend(encode_add_x_immediate(31, 31, 16)?); // add sp, sp, #16
+
+    let result_relocation_byte_offset = bytes.len();
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_store_data_to_x_offset(&mut bytes, 0, 16, *byte_offset, *byte_count, 17)?;
+    Ok((bytes, result_relocation_byte_offset))
+}
+
 fn append_syscall_operands(
     bytes: &mut Vec<u8>,
     operands: impl Iterator<Item = Aarch64CallOperand>,
@@ -1314,6 +1373,46 @@ mod syscall_plan_register_tests {
                 .windows(4)
                 .any(|window| window == 0x8b0c_000cu32.to_le_bytes()),
             "the address add must remain in plan-selected x12"
+        );
+    }
+
+    #[test]
+    fn linux_timespec_syscall_owns_the_composite_temporary_and_result_site() {
+        let operands = [
+            Aarch64CallOperand::RuntimeScalarInteger {
+                byte_offset: 24,
+                byte_count: 8,
+            },
+            Aarch64CallOperand::ImmediateInteger(1),
+        ];
+        let (bytes, result_site) = encode_linux_timespec_syscall(
+            &operands,
+            113,
+            &[MachineRegister::Aarch64X(0), MachineRegister::Aarch64X(1)],
+            MachineRegister::Aarch64X(0),
+            MachineRegister::Aarch64X(8),
+            0,
+        )
+        .expect("clock_gettime composite lowering");
+
+        assert_eq!(&bytes[..4], &encode_sub_x_immediate(31, 31, 16).unwrap());
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_svc(0).as_slice())
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == encode_brk(0).as_slice())
+        );
+        assert_eq!(
+            &bytes[result_site..result_site + 4],
+            &encode_adrp_placeholder(16)
+        );
+        assert_eq!(
+            &bytes[result_site + 4..result_site + 8],
+            &encode_add_page_offset_placeholder(16)
         );
     }
 }

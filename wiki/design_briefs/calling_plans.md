@@ -627,6 +627,18 @@ encoder rechecks the word signature and syscall contract, then uses the exact
 parameter registers, number register, and supervisor-call immediate on x86-64
 or AArch64; layout measures those same emitted bytes.
 
+Compatibility providers may adapt a syscall's concrete result shape without
+publishing it as Omega ABI. Linux `clock_gettime` is the first composite
+customer: its retained boundary plan is the real two-word syscall signature
+(`clockid_t`, caller-owned `timespec*`, status result), while the semantic
+`Clock` operation remains argument-free and returns nanoseconds. Selection
+injects the plan-owned clock id; target emission owns the 16-byte temporary,
+traps if the fixed valid inputs nevertheless return an error, and computes
+`tv_sec * 1_000_000_000 + tv_nsec`. Width and result relocation are derived
+from that exact sequence on x86-64 and AArch64. The internal `timespec` never
+becomes a universal language representation, and calibration values remain
+per-target constant-result rows with no call boundary.
+
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still
 publish only its contract fingerprint. Outbound binding construction projects

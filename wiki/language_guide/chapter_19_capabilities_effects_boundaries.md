@@ -584,8 +584,8 @@ trust model applies unchanged -- a boundary is where proved Omega code accepts
 declared, audited guarantees it cannot itself verify -- but the guarantees are
 now hardware claims rather than OS claims:
 
-- "after writing this value to the translation-base register, the mapping
-  described by this page-table value is active" (an MMU provider),
+- "after this admitted translation provider completes, the named mappings are
+  active" (an MMU provider),
 - "this MSR read returns the current value of register X" (a register
   provider),
 - "stores to this physical range reach device Y in program order" (an MMIO
@@ -669,8 +669,8 @@ transplanted to different bytes.
 
 The installation provider alone performs the target-specific permission
 transition, cache maintenance, ordering, and visibility work. Checked assembly
-and page-table APIs emit the same admitted-artifact and installation-authority
-obligations; neither is a raw bypass. A future fetcher requires visibility
+and installation providers emit the same admitted-artifact and
+installation-authority obligations; neither is a raw bypass. A future fetcher requires visibility
 before entry, while replacement of possibly running code separately requires
 quiescence before retirement.
 
@@ -695,7 +695,7 @@ mandatory source semantics.
 Package policy is an outer admission gate over compiler-derived reach, not the
 only protection around privileged operations. A normal hosted/application
 profile should reject roots whose transitive reach includes platform services
-such as interrupt-table control, page-table installation, raw device control,
+such as interrupt-table control, address-translation control, raw device control,
 or admitted-artifact installation. Kernel and firmware profiles may grant a
 small audited provider set instead.
 

@@ -5,7 +5,7 @@ are settled enough to guide implementation. Exact source types, several plan
 vocabularies, and backend validators remain open and are listed explicitly
 below.
 
-This brief is the common foundation for MMIO, page tables, DMA, shared-memory
+This brief is the common foundation for MMIO, DMA, shared-memory
 IPC, descriptor tables, interrupt entry, admitted executable installation, and
 early multicore boot. These are not separate language features.
 
@@ -33,7 +33,7 @@ status.
 | Piece | Meaning | Primary customers |
 |---|---|---|
 | `Extent` capability | authority over one concrete address range with rights, provenance, address space, and lifetime | mappings, MMIO, DMA, IPC, allocators |
-| `LayoutPlan` | physical geometry: offsets, alignment, overlays, bit and fragment placement, endianness | foreign records, IDT/GDT, page tables, protocols |
+| `LayoutPlan` | physical geometry: offsets, alignment, overlays, bit and fragment placement, endianness | foreign records, descriptor tables, protocols |
 | `AccessPlan` | permitted primitive access: read/write/atomic, width, observation, ordering contract, RMW permission, service reach | MMIO and shared storage views |
 | placed view | a checked `Extent + LayoutPlan + AccessPlan` interpretation | registers, framebuffers, IPC pages |
 | parsed checked assembly | target instructions whose contracts emit effects, authority, clobbers, state changes, and exits | control registers, port I/O, fences, mode changes |
@@ -156,7 +156,7 @@ blocking ceiling, so an interrupt root cannot hide an illegal wait.
 V1 has no per-access generation probe. Reclamation requires exclusive ownership
 back and therefore no live in-language views. Forced asynchronous revocation of
 unreclaimed loans is deferred to provider quiescence/lifecycle machinery when a
-customer requires it; page-table edits, shootdowns, and process teardown remain
+customer requires it; translation edits, shootdowns, and process teardown remain
 ordinary runtime provider work.
 
 The provider-neutral mapping lifecycle is live in `omega-extents`. An admitted
@@ -171,7 +171,7 @@ translations were installed, and discharge every activation fact before
 loans. `begin_unmap` retains every authority until another exact provider
 receipt establishes that stale translations are released and all target
 completion facts hold; only then are the destination and any owned source
-returned. Provider page-table operations, suspension/blocking ceilings, sealed
+returned. Provider translation operations, suspension/blocking ceilings, sealed
 source-domain facts, and automatic destination allocation remain.
 
 Zero-filled storage does not establish a linear extent and creates no
@@ -286,134 +286,15 @@ The extent's provenance gates construction of an access capability. The
 accessor's normalized contract statically pins service reach. Runtime
 provenance never changes a machine's effect row.
 
-## Page tables, IPC, and DMA
+## IPC and DMA
 
-Page tables use a hybrid correct-by-construction path. Mapping operations
-require frame/mapping authority and preserve provenance incrementally;
-`finish()` establishes an `Installable` domain; installation accepts only that
-domain. Imported tables may instead be scanned once to establish the same fact.
-This avoids rescanning every locally-built table without trusting arbitrary
-address bits.
-
-That provider-neutral lifecycle is live in `omega-extents`. A reusable admitted
-grant pins the table-storage space, provenance, open-set rights, minimum bytes,
-alignment, and mapped address space. Construction owns the concrete table
-storage plus sealed pending mappings; it rejects duplicate identities,
-overlapping virtual ranges, and mappings into the wrong space without losing
-their authority. The normalized plan identity binds the storage's space,
-provenance, mapping era, lineage, geometry, and rights plus the canonical
-mapping set. For every mapping that identity includes the concrete source
-range and custody mode, its space/provenance/era/lineage/rights, the mapped
-destination, and the destination authority that teardown will restore.
-A caller-chosen mapping name therefore cannot make two different physical
-frames—or two different reclamation outcomes—look like one plan.
-Translation activation and release receipts do not restate compact mapping and
-grant IDs. The pending mapping derives an opaque exact context containing the
-complete admitted grant, source custody and authority, mapped authority, and
-destination-restoration authority. Page-table providers receipt that context,
-so an identity collision cannot replay installation or shootdown evidence after
-range, rights, provenance, era, or lineage drift.
-
-Cathedral's first concrete x86-64 entry schema now uses the same programmable
-layout path as every other dictated structure. Ordinary `bool` and
-range-constrained integer fields tile the complete 64-bit paging word; the
-40-bit page-frame number represents address bits 12 through 51 under the
-52-bit architectural envelope. The provider derives that number from an
-aligned physical `addr` while holding frame/mapping authority. The layout
-describes bits only and cannot turn an address into authority or install a
-translation. The target-neutral scalar materializer can now turn the complete
-named field set into the packed word through that validated geometry. It has no
-raw-offset input, zeros reserved/padding bits, validates all fragments before
-committing bytes, and still grants no frame, mapping, or installation authority.
-The inverse scalar decoder lets a one-time imported-table scanner recover those
-same named logical values without a target-private offset parser. Its result is
-ordinary data only; the scanner must still validate mapping provenance and mint
-the exact construction receipt before the table becomes `Installable`.
-
-Generated construction and a one-time imported-table scan are two evidence
-routes to the same `InstallablePageTable` state. In either case an exact receipt
-must bind the table, grant, normalized plan, final content identity, and complete
-mapping set. It retains the exact full table-byte snapshot as well as the
-complete canonical storage/mapping evidence rather than authorizing through
-compact `PageTablePlanId` or `PageTableContentId` identities; an equal
-report/cache identity cannot replay acceptance across exact-plan or exact-byte
-drift. The normalizer derives `PageTableContentId` from that exact snapshot;
-providers cannot restate an identity over different bytes. Installation is
-separate: it must bind that same construction receipt
-and byte snapshot, establish the table active, and supply
-the exact activation receipt for every pending mapping. Each receipt is derived
-from the opaque exact mapping context rather than caller-restated identifiers.
-The table installation receipt likewise derives from one opaque context
-retaining the exact admitted grant, canonical plan evidence, construction
-route, storage authority, and mapping-context set. Retirement carries that
-same context plus the exact installation receipt. Compact table, plan, content,
-or receipt IDs therefore cannot authorize another installable or installed
-table after storage-authority drift. Only then do `MappedExtent` values expose
-loans. Thus arbitrary page-table bytes, a merely structural mapping candidate,
-or a receipt for another table cannot mint active address authority. Target
-entry writers can inspect borrowed, inert projections of the draft's exact
-table-storage destination and every pending source/destination mapping fact
-without borrowing, consuming, splitting, completing, or releasing authority.
-The first concrete writer now consumes exactly those projections. The
-`omega-page-tables` x86-64 policy expands each normalized mapping into 4 KiB
-leaves, allocates the four-level hierarchy deterministically from the beginning
-of the draft's physical storage extent, and emits one exact zero-filled storage
-image. It rejects noncanonical virtual addresses, address-width overflow,
-misaligned or unequal ranges, exhausted table/leaf bounds, semantic rights with
-no admitted PTE meaning, and non-executable mappings when NX cannot be enforced.
-The semantic-right map is provider-owned policy: naming a right does not
-establish it, and unknown rights are never silently discarded. Its output is
-only inert bytes plus plan/content report facts. The writer does not own a
-parallel bit-patching path: hierarchy pointers and leaves both pass named
-values through the exact normalized x86 entry layout and the ordinary scalar
-materializer. Reordered policy declarations normalize identically, while any
-shifted hardware field rejects through exact geometry comparison rather than a
-compact-fingerprint authorization. The separate construction
-receipt still establishes `Installable`, and the separate page-table-control
-provider still activates it. The AArch64 sibling consumes the same draft but a
-different target algebra: one admitted semantic memory-class fact selects
-`AttrIndx` and shareability, ordinary mapped rights select AP/nG/PXN/UXN, and
-the policy pins the TTBR lower/upper half plus 32–48-bit physical-address
-width. Its hierarchy pointers and leaves also pass named values through the
-ordinary scalar materializer, but against an exact AArch64 descriptor layout;
-declaration order normalizes away and shifted hardware geometry rejects. It
-emits four-level 4 KiB stage-1 tables and reaches the identical
-generated-construction receipt without treating AArch64 flags as x86 flags.
-Strict x86-64 and AArch64 imported-table validators are live over the inverse
-scalar consumer. Every entry must round-trip through its target's exact
-normalized geometry with unsupported/reserved bits zero, and the complete bytes
-must equal the canonical hierarchy derived independently from the exact draft
-before an `ImportedScan` construction receipt exists. V1 intentionally rejects
-alternative allocation, aliases, huge pages, and hardware-mutated accessed/
-dirty state rather than asserting an unproved equivalence. Huge pages, PAT/
-LA57, and AArch64 blocks/LPA2/dirty state remain target-policy work over the
-same lifecycle.
-
-The target control-operation seams are live without exposing raw installation
-authority. An x86-64 provider derives one inert PCID-zero CR3 activation plan
-from an `InstallablePageTable`. Its AArch64 sibling selects TTBR0_EL1 or
-TTBR1_EL1 from the admitted lower/upper translation half and, in v1, fixes ASID
-to zero and CnP to false. Both plans pin the exact root operand plus the opaque
-construction and pending-mapping contexts. After checked register execution,
-provider evidence must report that same target register/value, cover exactly
-those mappings, and on AArch64 establish completion of the required
-translation synchronization before it can become the ordinary
-`PageTableInstallationReceipt`. A numeric root alone can therefore neither
-activate mappings nor mint access. The source-level checked-assembly/system-
-register wrappers and Cathedral wiring remain fenced on the opaque runtime
-boundary-carrier representation; they must not substitute a forgeable record
-or pointer-sized handle.
-
-Retirement closes the conservation loop. Beginning removal captures table
-storage and starts unmapping every active mapping. Nothing is returned until one
-exact receipt binds the installed table, plan, content, and installation
-receipt; establishes that the table is inactive; discharges the grant's open
-retirement facts (including target all-core/quiescence facts); and supplies
-each mapping's exact translation-release receipt. A failed or partial removal
-returns the pending state unchanged. Successful removal returns table storage,
-each destination range, and every owned physical source together, so no
-authority is leaked or recreated by teardown.
-
+Omega's responsibility stops at general range authority, mapping
+conservation, programmable layouts/materializers, provider admission, and
+checked instruction contracts. Address-translation tables, their hierarchy,
+entry policies, construction lifecycle, scanners, and activation protocol are
+OS implementation details. Cathedral or another OS package may build them from
+these primitives; they are not language concepts or compiler-owned target
+subsystems.
 Shared-memory IPC and MMIO share external mutability, not an observation model.
 For proved or mutually trusted peers, an atomic protocol may return a linear
 lease whose borrow exposes stable payload bytes until explicit `release`.
@@ -835,9 +716,9 @@ every open target completion fact. Only then does the placement return to W+NX
 for a later admitted artifact. The runtime quiescence/provider implementation
 and component-slot orchestration remain.
 
-This invariant covers every route to execute permission. Correct-by-construction
-page-table APIs require admitted-artifact provenance before deriving an
-executable mapping, and checked assembly emits the same installation authority
+This invariant covers every route to execute permission. Translation providers
+require admitted-artifact provenance before deriving an executable mapping,
+and checked assembly emits the same installation authority
 and reach obligations rather than exposing a back door. Device firmware and
 GPU/NIC programs are device-provider uploads, not host executable artifacts.
 
@@ -1372,7 +1253,7 @@ The foundation is not complete because this brief says so. It earns confidence
 when the same pieces implement, without new customer-shaped syntax:
 
 1. UART MMIO with read-only, write-only, and W1C registers;
-2. page-table construction and installation;
+2. an OS-package address-translation implementation;
 3. trusted and hostile shared-page IPC;
 4. zero-copy DMA with completion and revocation;
 5. IDT, timer interrupt, nesting, and acknowledgement;

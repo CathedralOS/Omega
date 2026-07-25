@@ -101,63 +101,83 @@ fn machine_instruction_width(
             .instruction_operands(host_operation.operands)
             .unwrap_or(&[]);
         let binding = host_binding(input, host_operation.operation_key);
-        let width = match binding.map(|binding| &binding.mechanism) {
-            Some(HostBindingMechanism::Syscall { number, .. }) => syscall_sequence_width_with_plan(
+        let width = if binding.is_none() && host_operation.operation_key.lowers_to_constant_result()
+        {
+            omega_instruction_selection::constant_host_result_sequence_width(
                 input.target.architecture,
                 operands,
-                *number,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-            ),
-            Some(HostBindingMechanism::VtableSlot { index }) => {
-                vtable_call_sequence_width_with_plan(
+            )
+        } else {
+            match binding.map(|binding| &binding.mechanism) {
+                Some(HostBindingMechanism::Syscall { number, .. })
+                    if host_operation.operation_key.uses_linux_timespec_result() =>
+                {
+                    omega_instruction_selection::linux_timespec_syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                    )
+                }
+                Some(HostBindingMechanism::Syscall { number, .. }) => {
+                    syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                    )
+                }
+                Some(HostBindingMechanism::VtableSlot { index }) => {
+                    vtable_call_sequence_width_with_plan(
+                        input.target,
+                        operands,
+                        *index,
+                        false,
+                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                    )
+                }
+                // A call with MORE operands than the method's declared parameters
+                // carries a prepended RESULT place (`let status = ...`). The
+                // AArch64 field offset is retained here so an unencodable load
+                // fails layout instead of being sized through slot zero.
+                Some(HostBindingMechanism::VtableField {
+                    byte_offset,
+                    parameter_count,
+                    ..
+                }) => vtable_call_sequence_width_at_offset_with_plan(
                     input.target,
                     operands,
-                    *index,
-                    false,
+                    *byte_offset,
+                    operands.len() > *parameter_count,
                     binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                )
-            }
-            // A call with MORE operands than the method's declared parameters
-            // carries a prepended RESULT place (`let status = ...`). The
-            // AArch64 field offset is retained here so an unencodable load
-            // fails layout instead of being sized through slot zero.
-            Some(HostBindingMechanism::VtableField {
-                byte_offset,
-                parameter_count,
-                ..
-            }) => vtable_call_sequence_width_at_offset_with_plan(
-                input.target,
-                operands,
-                *byte_offset,
-                operands.len() > *parameter_count,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-            ),
-            Some(HostBindingMechanism::TableFunction {
-                byte_offset,
-                parameter_count,
-                ..
-            }) => table_function_call_sequence_width_with_plan(
-                input.target,
-                operands,
-                *byte_offset,
-                operands.len() > *parameter_count,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-            ),
-            Some(HostBindingMechanism::Import { .. })
-                if matches!(
-                    host_operation.operation_key.capability,
-                    omega_calling_conventions::HostCapability::Custom(_)
-                        | omega_calling_conventions::HostCapability::Unknown
-                ) =>
-            {
-                authored_import_call_sequence_width(
+                ),
+                Some(HostBindingMechanism::TableFunction {
+                    byte_offset,
+                    parameter_count,
+                    ..
+                }) => table_function_call_sequence_width_with_plan(
                     input.target,
-                    host_operation.operation_key,
                     operands,
+                    *byte_offset,
+                    operands.len() > *parameter_count,
                     binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                )
+                ),
+                Some(HostBindingMechanism::Import { .. })
+                    if matches!(
+                        host_operation.operation_key.capability,
+                        omega_calling_conventions::HostCapability::Custom(_)
+                            | omega_calling_conventions::HostCapability::Unknown
+                    ) =>
+                {
+                    authored_import_call_sequence_width(
+                        input.target,
+                        host_operation.operation_key,
+                        operands,
+                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                    )
+                }
+                _ => host_call_sequence_width(input.target, host_operation.operation_key, operands),
             }
-            _ => host_call_sequence_width(input.target, host_operation.operation_key, operands),
         };
         // A host call is never legitimately empty: a zero width means the
         // encoder rejected the operands (e.g. an argument that failed to

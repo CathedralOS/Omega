@@ -27,7 +27,8 @@ pub(crate) fn collect_host_call_runtime_text(
         | PlatformCallData::SingleByteRead
         | PlatformCallData::SingleByteWrite
         | PlatformCallData::ConstantResult { .. }
-        | PlatformCallData::ConstantArgument { .. } => {}
+        | PlatformCallData::ConstantArgument { .. }
+        | PlatformCallData::TimespecResult { .. } => {}
     }
 }
 

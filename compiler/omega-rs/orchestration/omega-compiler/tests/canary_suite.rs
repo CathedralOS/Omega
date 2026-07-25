@@ -2842,6 +2842,34 @@ fn cross_darwin_time_host_compiles() {
 }
 
 #[test]
+fn cross_linux_time_host_compiles_on_both_architectures() {
+    // Linux std::time structural slice: clock_gettime writes a two-word
+    // timespec, so target emission must own the temporary, validate status,
+    // combine seconds/nanoseconds, and relocate the final Omega result.
+    // Compile-only here; runtime confirmation remains gated on Linux hosts.
+    let canary = pass_canary("time/cross_linux_time_host");
+    for target in ["linux_x64", "linux_arm64"] {
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-linux-time-{target}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("Linux time-host cross-compile failed for {target}: {diagnostics:#?}")
+        });
+        assert!(
+            build_dir.join("omega-program").exists(),
+            "{target} should emit an ELF image"
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_checked_time_arith_exit_canary_runs() {
     // std::time rung 6 slice 3: Instant + SystemTime checked_add/
     // checked_subtract, exact values. 8 legs: carry/borrow Ok arms (non-ZII),
