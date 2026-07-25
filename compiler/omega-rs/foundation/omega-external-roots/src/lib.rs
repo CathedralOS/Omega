@@ -15,7 +15,9 @@ use omega_calling_conventions::{
     validate_state_footprint,
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
-use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
+use omega_executable_installation::{
+    InstalledCode, InstalledCodeContext, ResolvedPostHandoffEntryWriterContext,
+};
 use omega_layout_plans::{
     ByteOrder, EntryStubId, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
     PostHandoffWriterSource, RelocationTarget,
@@ -1143,6 +1145,7 @@ pub struct RootAdmission {
     provider_exit_assurance_fingerprint: u64,
     provider_plan: ProviderPlanId,
     installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     slot: RootSlotId,
     owner: RootSlotOwnerId,
@@ -1175,6 +1178,7 @@ impl RootAdmission {
             provider_exit_assurance_fingerprint: execution.exit_assurance_fingerprint,
             provider_plan: execution.provider_plan,
             installed_code: installed_code.identity(),
+            installed_code_context: installed_code.receipt_context(),
             artifact: installed_code.artifact(),
             slot: slot.slot,
             owner: slot.owner,
@@ -1887,6 +1891,7 @@ impl InstalledRootLedger {
                 != admission.provider_execution_fingerprint
             || admission.root_identity != root.normalized_identity
             || admission.installed_code != installed_code.identity()
+            || admission.installed_code_context != installed_code.receipt_context()
             || admission.artifact != installed_code.artifact()
             || admission.slot != slot.slot
             || admission.owner != slot.owner
@@ -1948,6 +1953,7 @@ impl InstalledRootLedger {
         let matches = receipt.root == root.root
             && receipt.slot == root.slot
             && receipt.installed_code == root.installed_code.identity()
+            && receipt.installed_code_context == root.installed_code.receipt_context()
             && receipt.entry_unreachable
             && receipt.executions_quiesced
             && !self
@@ -1979,24 +1985,24 @@ pub struct RootRemovalReceipt {
     root: ExternalRootId,
     slot: RootSlotId,
     installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
     entry_unreachable: bool,
     executions_quiesced: bool,
 }
 
 impl RootRemovalReceipt {
-    pub const fn from_provider(
+    pub fn from_provider(
         identity: RootRemovalReceiptId,
-        root: ExternalRootId,
-        slot: RootSlotId,
-        installed_code: InstalledCodeId,
+        root: &InstalledExternalRoot<'_>,
         entry_unreachable: bool,
         executions_quiesced: bool,
     ) -> Self {
         Self {
             identity,
-            root,
-            slot,
-            installed_code,
+            root: root.root,
+            slot: root.slot,
+            installed_code: root.installed_code.identity(),
+            installed_code_context: root.installed_code.receipt_context(),
             entry_unreachable,
             executions_quiesced,
         }
@@ -3481,6 +3487,14 @@ mod tests {
     }
 
     fn installed_code(artifact_identity: u64, entry: EntryStubId) -> InstalledCode {
+        installed_code_with_fill(artifact_identity, entry, 0)
+    }
+
+    fn installed_code_with_fill(
+        artifact_identity: u64,
+        entry: EntryStubId,
+        fill: u8,
+    ) -> InstalledCode {
         let artifact = Artifact::from_canonical_decode(
             install_id(artifact_identity, ArtifactId::from_normalized_identity),
             install_id(
@@ -3488,7 +3502,7 @@ mod tests {
                 ArtifactContentId::from_normalized_identity,
             ),
             omega_target::Architecture::X86_64,
-            vec![0; 64],
+            vec![fill; 64],
             install_id(30, MachineContractSetId::from_normalized_identity),
             install_id(31, MachineFootprintId::from_normalized_identity),
             install_id(32, PlacementPlanId::from_normalized_identity),
@@ -4039,18 +4053,14 @@ mod tests {
             )
             .expect_err("an admitted invocation cannot be replayed");
         assert!(replay.diagnostic().0.contains("replays an invocation"));
+        let removal_receipt = RootRemovalReceipt::from_provider(
+            root_id(104, RootRemovalReceiptId::from_normalized_identity),
+            &installed,
+            true,
+            true,
+        );
         let removal = ledger
-            .remove(
-                installed,
-                RootRemovalReceipt::from_provider(
-                    root_id(104, RootRemovalReceiptId::from_normalized_identity),
-                    root_id(1, ExternalRootId::from_normalized_identity),
-                    root_id(20, RootSlotId::from_normalized_identity),
-                    code.identity(),
-                    true,
-                    true,
-                ),
-            )
+            .remove(installed, removal_receipt)
             .expect_err("an active interrupt pins root retirement");
         assert!(removal.diagnostic().0.contains("quiescence"));
         let (installed, _) = removal.into_parts();
@@ -4097,18 +4107,14 @@ mod tests {
                 .0
                 .contains("replays an invocation")
         );
+        let removal_receipt = RootRemovalReceipt::from_provider(
+            root_id(105, RootRemovalReceiptId::from_normalized_identity),
+            &installed,
+            true,
+            true,
+        );
         ledger
-            .remove(
-                installed,
-                RootRemovalReceipt::from_provider(
-                    root_id(105, RootRemovalReceiptId::from_normalized_identity),
-                    root_id(1, ExternalRootId::from_normalized_identity),
-                    root_id(20, RootSlotId::from_normalized_identity),
-                    code.identity(),
-                    true,
-                    true,
-                ),
-            )
+            .remove(installed, removal_receipt)
             .expect("settled interrupt permits exact root retirement");
     }
 
@@ -4267,9 +4273,7 @@ mod tests {
         let root_slot = installed.slot();
         let receipt = RootRemovalReceipt::from_provider(
             root_id(23, RootRemovalReceiptId::from_normalized_identity),
-            root_identity,
-            root_slot,
-            installed.installed_code(),
+            &installed,
             true,
             true,
         );
@@ -4277,6 +4281,85 @@ mod tests {
         assert_eq!(returned.slot(), root_slot);
         assert!(ledger.record(root_identity).is_none());
         assert_ne!(ledger.report_fingerprint(), installed_report_fingerprint);
+    }
+
+    #[test]
+    fn root_admission_cannot_substitute_colliding_installed_code() {
+        let entry = entry_id(1001);
+        let admitted_code = installed_code_with_fill(1, entry, 0x90);
+        let substituted_code = installed_code_with_fill(1, entry, 0xcc);
+        assert_eq!(admitted_code.identity(), substituted_code.identity());
+        assert_eq!(admitted_code.artifact(), substituted_code.artifact());
+
+        let validated = validate_external_root(candidate(entry), &boundary()).expect("root plan");
+        let authority = slot();
+        let execution = provider_execution(&validated);
+        let admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &validated,
+            &execution,
+            &admitted_code,
+            &authority,
+            validated.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("root admission");
+
+        let error = InstalledRootLedger::default()
+            .install(&substituted_code, validated, authority, admission)
+            .expect_err("compact installed/artifact IDs cannot substitute exact code");
+        assert!(error.diagnostic().0.contains("exact root, code"));
+    }
+
+    #[test]
+    fn root_removal_receipt_cannot_substitute_colliding_installed_code() {
+        let entry = entry_id(1001);
+        let first_code = installed_code_with_fill(1, entry, 0x90);
+        let second_code = installed_code_with_fill(1, entry, 0xcc);
+        let first_root =
+            validate_external_root(candidate(entry), &boundary()).expect("first root plan");
+        let second_root = first_root.clone();
+        let first_execution = provider_execution(&first_root);
+        let second_execution = provider_execution(&second_root);
+        let first_slot = slot();
+        let second_slot = slot();
+        let first_admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &first_root,
+            &first_execution,
+            &first_code,
+            &first_slot,
+            first_root.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("first admission");
+        let second_admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &second_root,
+            &second_execution,
+            &second_code,
+            &second_slot,
+            second_root.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("second admission");
+
+        let mut first_ledger = InstalledRootLedger::default();
+        let first_installed = first_ledger
+            .install(&first_code, first_root, first_slot, first_admission)
+            .expect("first installed root");
+        let mut second_ledger = InstalledRootLedger::default();
+        let second_installed = second_ledger
+            .install(&second_code, second_root, second_slot, second_admission)
+            .expect("second installed root");
+        let substituted_receipt = RootRemovalReceipt::from_provider(
+            root_id(23, RootRemovalReceiptId::from_normalized_identity),
+            &second_installed,
+            true,
+            true,
+        );
+
+        let error = first_ledger
+            .remove(first_installed, substituted_receipt)
+            .expect_err("root removal must bind exact installed code");
+        assert!(error.diagnostic().0.contains("exact-slot"));
     }
 
     #[test]
@@ -4769,9 +4852,7 @@ mod tests {
             .expect("installed external root");
         let receipt = RootRemovalReceipt::from_provider(
             root_id(23, RootRemovalReceiptId::from_normalized_identity),
-            installed.root(),
-            installed.slot(),
-            installed.installed_code(),
+            &installed,
             true,
             false,
         );
