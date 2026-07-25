@@ -916,7 +916,11 @@ it. Removal is the opposite-facing gate: the provider receipt derives from the
 live borrowed root handle, binds that exact installed-code context, and must
 establish both that the slot no longer makes the entry reachable and that old
 executions are quiescent before the slot authority is returned. Failure returns
-all consumed values. The live ledger also owns a deterministic report
+all consumed values. The live ledger separately retains the complete installed
+root evidence. Interrupt-entry receipts derive from the live borrowed root
+handle and bind that exact root, provider execution, and installed-code
+context, so colliding report IDs cannot mint an invocation or its linear
+obligations. The live ledger also owns a deterministic report
 fingerprint that binds each normalized root contract to its exact installed
 code, artifact, slot, owner, and admission. `omega-artifacts` writes this live
 state as `external_roots.json`: the complete evaluated `CallPlan + StatePlan`,

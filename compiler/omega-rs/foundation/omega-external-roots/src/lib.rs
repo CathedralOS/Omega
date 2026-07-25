@@ -1227,12 +1227,22 @@ pub struct InstalledRootRecord {
 /// Linear liveness pin for one installed external root. Borrowing the code is
 /// intentional: retirement needs ownership of `InstalledCode`, which cannot
 /// be recovered until every root handle has been removed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InstalledRootEvidence {
+    root: ValidatedExternalRoot,
+    provider_execution: ProviderExecution,
+    installed_code: InstalledCodeContext,
+    slot: RootSlotId,
+    owner: RootSlotOwnerId,
+}
+
 #[derive(Debug)]
 pub struct InstalledExternalRoot<'code> {
     root: ExternalRootId,
     slot: RootSlotId,
     owner: RootSlotOwnerId,
     installed_code: &'code InstalledCode,
+    evidence: InstalledRootEvidence,
 }
 
 impl InstalledExternalRoot<'_> {
@@ -1255,6 +1265,7 @@ impl InstalledExternalRoot<'_> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct InterruptEntryReceipt {
     identity: InterruptEntryReceiptId,
+    installed_root: InstalledRootEvidence,
     root: ExternalRootId,
     slot: RootSlotId,
     installed_code: InstalledCodeId,
@@ -1267,13 +1278,9 @@ pub struct InterruptEntryReceipt {
 }
 
 impl InterruptEntryReceipt {
-    #[allow(clippy::too_many_arguments)]
-    pub const fn from_provider(
+    pub fn from_provider(
         identity: InterruptEntryReceiptId,
-        root: ExternalRootId,
-        slot: RootSlotId,
-        installed_code: InstalledCodeId,
-        provider_execution: ProviderExecutionId,
+        root: &InstalledExternalRoot<'_>,
         invocation: InterruptInvocationId,
         mask_control: InterruptMaskControlId,
         initial_mask_state: InterruptMaskStateId,
@@ -1282,10 +1289,11 @@ impl InterruptEntryReceipt {
     ) -> Self {
         Self {
             identity,
-            root,
-            slot,
-            installed_code,
-            provider_execution,
+            installed_root: root.evidence.clone(),
+            root: root.root,
+            slot: root.slot,
+            installed_code: root.installed_code.identity(),
+            provider_execution: root.evidence.provider_execution.identity,
             invocation,
             mask_control,
             initial_mask_state,
@@ -1305,6 +1313,7 @@ impl InterruptEntryReceipt {
 #[derive(Debug, PartialEq, Eq)]
 pub struct PendingInterruptExit {
     entry_receipt: InterruptEntryReceiptId,
+    installed_root: InstalledRootEvidence,
     root: ExternalRootId,
     installed_code: InstalledCodeId,
     provider_execution: ProviderExecutionId,
@@ -1612,6 +1621,7 @@ pub struct CompletedInterruptEntry {
 #[derive(Debug, Default)]
 pub struct InstalledRootLedger {
     roots: BTreeMap<ExternalRootId, InstalledRootRecord>,
+    root_evidence: BTreeMap<ExternalRootId, InstalledRootEvidence>,
     slots: BTreeSet<RootSlotId>,
     active_interrupts: BTreeSet<(ExternalRootId, InterruptInvocationId)>,
     entered_interrupts: BTreeSet<(ProviderExecutionId, InterruptInvocationId)>,
@@ -1656,6 +1666,9 @@ impl InstalledRootLedger {
         };
         let exact_root = root.slot == record.slot
             && root.installed_code.identity() == record.installed_code
+            && self.root_evidence.get(&root.root).is_some_and(|evidence| {
+                evidence == &root.evidence && evidence == &receipt.installed_root
+            })
             && receipt.root == record.root
             && receipt.slot == record.slot
             && receipt.installed_code == record.installed_code
@@ -1707,6 +1720,7 @@ impl InstalledRootLedger {
         Ok(InterruptEntryObligations {
             pending_exit: PendingInterruptExit {
                 entry_receipt: receipt.identity,
+                installed_root: receipt.installed_root,
                 root: record.root,
                 installed_code: record.installed_code,
                 provider_execution: record.provider_execution,
@@ -1756,6 +1770,10 @@ impl InstalledRootLedger {
             record.installed_code == pending.installed_code
                 && record.provider_execution == pending.provider_execution
                 && record.acknowledgement_policy == pending.acknowledgement_policy
+                && self
+                    .root_evidence
+                    .get(&pending.root)
+                    .is_some_and(|evidence| evidence == &pending.installed_root)
         });
         let control_matches = control.root == pending.root
             && control.invocation == pending.invocation
@@ -1908,6 +1926,13 @@ impl InstalledRootLedger {
             );
         }
 
+        let installed_root_evidence = InstalledRootEvidence {
+            root: root.clone(),
+            provider_execution: admission.provider_execution_evidence.clone(),
+            installed_code: installed_code.receipt_context(),
+            slot: slot.slot,
+            owner: slot.owner,
+        };
         let record = InstalledRootRecord {
             root: root.candidate.identity,
             normalized_root_identity: root.normalized_identity,
@@ -1939,8 +1964,11 @@ impl InstalledRootLedger {
             slot: record.slot,
             owner: record.owner,
             installed_code,
+            evidence: installed_root_evidence.clone(),
         };
         self.slots.insert(record.slot);
+        self.root_evidence
+            .insert(record.root, installed_root_evidence);
         self.roots.insert(record.root, record);
         Ok(handle)
     }
@@ -1953,7 +1981,11 @@ impl InstalledRootLedger {
         let matches = receipt.root == root.root
             && receipt.slot == root.slot
             && receipt.installed_code == root.installed_code.identity()
-            && receipt.installed_code_context == root.installed_code.receipt_context()
+            && receipt.installed_root == root.evidence
+            && self
+                .root_evidence
+                .get(&root.root)
+                .is_some_and(|evidence| evidence == &root.evidence)
             && receipt.entry_unreachable
             && receipt.executions_quiesced
             && !self
@@ -1971,6 +2003,7 @@ impl InstalledRootLedger {
             }));
         }
         self.roots.remove(&root.root);
+        self.root_evidence.remove(&root.root);
         self.slots.remove(&root.slot);
         Ok(RootSlotAuthority {
             slot: root.slot,
@@ -1982,10 +2015,10 @@ impl InstalledRootLedger {
 #[derive(Debug)]
 pub struct RootRemovalReceipt {
     identity: RootRemovalReceiptId,
+    installed_root: InstalledRootEvidence,
     root: ExternalRootId,
     slot: RootSlotId,
     installed_code: InstalledCodeId,
-    installed_code_context: InstalledCodeContext,
     entry_unreachable: bool,
     executions_quiesced: bool,
 }
@@ -1999,10 +2032,10 @@ impl RootRemovalReceipt {
     ) -> Self {
         Self {
             identity,
+            installed_root: root.evidence.clone(),
             root: root.root,
             slot: root.slot,
             installed_code: root.installed_code.identity(),
-            installed_code_context: root.installed_code.receipt_context(),
             entry_unreachable,
             executions_quiesced,
         }
@@ -3811,10 +3844,7 @@ mod tests {
                 60 + invocation,
                 InterruptEntryReceiptId::from_normalized_identity,
             ),
-            root.root(),
-            root.slot(),
-            root.installed_code(),
-            root_id(54, ProviderExecutionId::from_normalized_identity),
+            root,
             root_id(invocation, InterruptInvocationId::from_normalized_identity),
             root_id(
                 70 + invocation,
@@ -4153,6 +4183,55 @@ mod tests {
         ledger
             .finish_interrupt_entry(pending, control, None)
             .expect("exception exit with restored mask and no acknowledgement debt");
+    }
+
+    #[test]
+    fn interrupt_entry_receipt_cannot_substitute_colliding_installed_root() {
+        let entry = entry_id(1001);
+        let first_code = installed_code_with_fill(1, entry, 0x90);
+        let second_code = installed_code_with_fill(1, entry, 0xcc);
+        let boundary = interrupt_boundary();
+        let first_root = validate_external_root(interrupt_candidate(entry), &boundary)
+            .expect("first interrupt root");
+        let second_root = first_root.clone();
+        let first_execution = provider_execution(&first_root);
+        let second_execution = provider_execution(&second_root);
+        let first_slot = slot();
+        let second_slot = slot();
+        let first_admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &first_root,
+            &first_execution,
+            &first_code,
+            &first_slot,
+            first_root.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("first admission");
+        let second_admission = RootAdmission::from_admitted_provider(
+            root_id(22, RootAdmissionId::from_normalized_identity),
+            &second_root,
+            &second_execution,
+            &second_code,
+            &second_slot,
+            second_root.candidate().trust_receipts.iter().copied(),
+        )
+        .expect("second admission");
+
+        let mut first_ledger = InstalledRootLedger::default();
+        let first_installed = first_ledger
+            .install(&first_code, first_root, first_slot, first_admission)
+            .expect("first installed interrupt root");
+        let mut second_ledger = InstalledRootLedger::default();
+        let second_installed = second_ledger
+            .install(&second_code, second_root, second_slot, second_admission)
+            .expect("second installed interrupt root");
+        let substituted_receipt =
+            interrupt_entry_receipt(&second_installed, 120, Some(7), Some(121));
+
+        let error = first_ledger
+            .begin_interrupt_entry(&first_installed, substituted_receipt)
+            .expect_err("entry receipt must bind exact installed-root evidence");
+        assert!(error.diagnostic().0.contains("exact installed"));
     }
 
     #[test]

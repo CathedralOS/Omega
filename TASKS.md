@@ -785,7 +785,10 @@ schemas recover the same instance without publishing policy type identity.
    restatements. It now also retains the opaque complete installed-code
    lifecycle context, and root removal receipts derive from the live borrowed
    root handle; colliding installed/artifact IDs cannot substitute a different
-   final-byte realization at either lifecycle edge. Acknowledgement,
+   final-byte realization at either lifecycle edge. The ledger separately
+   retains the complete installed-root evidence and interrupt-entry receipts
+   derive from the live handle, so the same substitution cannot mint an
+   invocation or its opaque linear obligations. Acknowledgement,
    component-pin, trust-receipt, entry, code, or resource drift rejects even if
    a compact identity collides. Execution/plan/code identities remain report
    keys in the ledger fingerprint and manifest. The
