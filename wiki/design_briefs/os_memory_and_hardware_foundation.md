@@ -969,13 +969,13 @@ writer now has its own sealed pre-lowering gate: `PreparedIdtWriter` owns the
 exact unpublished destination, normalized plan, and root set after checking
 the installed-artifact resolver, placement phase, mapped/pinned/writable
 authority, and fragment geometry. The unpublished destination now owns its
-concrete linear Extent, checks byte length and site base against that range,
-and carries space/rights/provenance/era/lineage into exact publication
-evidence. Loose mapped/pinned/writable booleans are gone: exact mapping and pin
-receipt identities bind the complete Extent, while the provider-selected
-writable right must actually occur in its grant-established right set. Those
-facts remain provider-established until the bootstrap placement provider
-supplies their concrete receipts. The writer
+concrete active `MappedExtent`, not a bare Extent plus a claimed mapping
+boolean. It checks byte length and site base against that mapping and carries
+the exact mapping/grant identity plus space/rights/provenance/era/lineage into
+publication evidence. Pin admission binds those complete facts, while the
+provider-selected writable right must actually occur in the mapping's
+grant-established right set. The bootstrap placement provider still establishes
+the active translation and the distinct pin receipt. The writer
 also retains the opaque complete
 installed-code lifecycle context through population, and the materialization
 receipt derives from that populated writer rather than restating resolver IDs.
