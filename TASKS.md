@@ -819,15 +819,15 @@ schemas recover the same instance without publishing policy type identity.
    Prepared and populated writers retain the opaque complete installed-code
    context, and materialization receipts derive from the populated writer;
    colliding installed/artifact IDs cannot swap the resolver realization.
-   `UnpublishedIdtDestination` now owns the concrete linear Extent, validates
-   its byte range and placement base against that authority, and retains the
-   Extent's space/rights/provenance/era/lineage through publication evidence.
-   Loose mapped/pinned/writable booleans are gone. Destination admission now
-   binds exact mapping and pin receipt identities to that complete Extent, and
-   independently checks the provider-selected writable right against the
-   Extent's grant-established rights; equal numeric geometry from another
-   lineage cannot replay admission. The concrete bootstrap placement provider
-   still has to produce those receipts.
+   `UnpublishedIdtDestination` now owns the concrete active `MappedExtent`,
+   rather than a bare Extent plus a provider-asserted mapping boolean. It
+   validates byte range and placement base against that mapping and retains its
+   exact mapping/grant identity plus space/rights/provenance/era/lineage through
+   publication evidence. Pin admission binds those complete mapping facts, and
+   the provider-selected writable right must occur in the mapping's
+   grant-established rights; equal numeric geometry from another lineage cannot
+   replay admission. The concrete bootstrap placement provider still has to
+   establish the active mapping and pin receipt.
    Concrete Cathedral PIC/LAPIC candidate construction may proceed, but
    inserting the plan-driven generated writer/load operations into the initial
    artifact is **OWNER-BLOCKED** on the bootstrap-helper staging question. R10

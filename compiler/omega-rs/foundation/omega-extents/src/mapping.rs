@@ -270,6 +270,14 @@ pub struct MappedExtent<'source> {
     unmap_obligations: TranslationReleaseObligations,
 }
 
+impl PartialEq for MappedExtent<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.evidence == other.evidence
+    }
+}
+
+impl Eq for MappedExtent<'_> {}
+
 /// Linear pending state after structural mapping validation but before any
 /// translated access is exposed.
 ///
@@ -469,6 +477,22 @@ impl<'source> MappedExtent<'source> {
 
     pub const fn rights(&self) -> &ExtentRights {
         self.mapped.rights()
+    }
+
+    pub const fn address_space(&self) -> AddressSpaceId {
+        self.mapped.address_space()
+    }
+
+    pub const fn provenance(&self) -> ExtentProvenanceId {
+        self.mapped.provenance()
+    }
+
+    pub const fn era(&self) -> MappingEraId {
+        self.mapped.era()
+    }
+
+    pub const fn lineage_root(&self) -> ExtentLineageId {
+        self.mapped.lineage_root()
     }
 
     pub fn loan(&self, offset: u64, length: u64) -> Result<ExtentLoan<'_>, ExtentDiagnostic> {

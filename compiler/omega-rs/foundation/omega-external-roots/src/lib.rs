@@ -19,8 +19,8 @@ use omega_executable_installation::{
     InstalledCode, InstalledCodeContext, ResolvedPostHandoffEntryWriterContext,
 };
 use omega_extents::{
-    AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
-    MappingEraId,
+    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights, MappedExtent,
+    MappingEraId, MappingGrantId, MappingId,
 };
 use omega_layout_plans::{
     ByteOrder, EntryStubId, PlacementPhase, PlacementSite, PostHandoffWriterPlan,
@@ -83,10 +83,6 @@ normalized_id!(
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(MaterializedIdtId, "materialized IDT");
 normalized_id!(IdtDestinationId, "IDT destination");
-normalized_id!(
-    IdtDestinationMappingReceiptId,
-    "IDT destination mapping receipt"
-);
 normalized_id!(IdtDestinationPinReceiptId, "IDT destination pin receipt");
 normalized_id!(IdtWriterPreparationId, "IDT writer preparation");
 normalized_id!(IdtWriterContextId, "IDT writer context");
@@ -2226,7 +2222,7 @@ pub struct IdtRootBinding {
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnpublishedIdtDestination {
     identity: IdtDestinationId,
-    extent: Extent,
+    mapping: MappedExtent<'static>,
     bytes: Vec<u8>,
     site: PlacementSite,
     admission: IdtDestinationAdmission,
@@ -2235,30 +2231,30 @@ pub struct UnpublishedIdtDestination {
 impl UnpublishedIdtDestination {
     pub fn from_provider(
         identity: IdtDestinationId,
-        extent: Extent,
+        mapping: MappedExtent<'static>,
         bytes: Vec<u8>,
         site: PlacementSite,
         admission: IdtDestinationAdmission,
     ) -> Result<Self, Box<IdtDestinationCreationError>> {
         let mismatch = if !admission.accepted {
             Some("IDT destination admission was not accepted")
-        } else if !admission.matches_extent(&extent) {
-            Some("IDT destination admission does not bind the exact Extent")
-        } else if !extent
+        } else if !admission.matches_mapping(&mapping) {
+            Some("IDT destination admission does not bind the exact active mapping")
+        } else if !mapping
             .rights()
             .contains(&ExtentRights::from_normalized_identities([
                 admission.writable_right
             ]))
         {
-            Some("IDT destination Extent lacks the admitted writable right")
-        } else if site.base_address != extent.base() || bytes.len() as u64 > extent.length() {
-            Some("IDT destination bytes/site do not fit the exact owned Extent")
+            Some("IDT destination mapping lacks the admitted writable right")
+        } else if site.base_address != mapping.base() || bytes.len() as u64 > mapping.length() {
+            Some("IDT destination bytes/site do not fit the exact active mapping")
         } else {
             None
         };
         if let Some(message) = mismatch {
             return Err(Box::new(IdtDestinationCreationError {
-                extent,
+                mapping,
                 bytes,
                 site,
                 admission,
@@ -2267,7 +2263,7 @@ impl UnpublishedIdtDestination {
         }
         Ok(Self {
             identity,
-            extent,
+            mapping,
             bytes,
             site,
             admission,
@@ -2289,8 +2285,9 @@ impl UnpublishedIdtDestination {
 /// provenance, rights, or mapping-era drift.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdtDestinationAdmission {
-    mapping_receipt: IdtDestinationMappingReceiptId,
     pin_receipt: IdtDestinationPinReceiptId,
+    mapping: MappingId,
+    mapping_grant: MappingGrantId,
     base: u64,
     length: u64,
     address_space: AddressSpaceId,
@@ -2304,41 +2301,43 @@ pub struct IdtDestinationAdmission {
 
 impl IdtDestinationAdmission {
     pub fn from_admitted_provider(
-        mapping_receipt: IdtDestinationMappingReceiptId,
         pin_receipt: IdtDestinationPinReceiptId,
-        extent: &Extent,
+        mapping: &MappedExtent<'_>,
         writable_right: ExtentRightId,
         accepted: bool,
     ) -> Self {
         Self {
-            mapping_receipt,
             pin_receipt,
-            base: extent.base(),
-            length: extent.length(),
-            address_space: extent.address_space(),
-            rights: extent.rights().clone(),
-            provenance: extent.provenance(),
-            era: extent.era(),
-            lineage: extent.lineage_root(),
+            mapping: mapping.identity(),
+            mapping_grant: mapping.grant(),
+            base: mapping.base(),
+            length: mapping.length(),
+            address_space: mapping.address_space(),
+            rights: mapping.rights().clone(),
+            provenance: mapping.provenance(),
+            era: mapping.era(),
+            lineage: mapping.lineage_root(),
             writable_right,
             accepted,
         }
     }
 
-    fn matches_extent(&self, extent: &Extent) -> bool {
-        self.base == extent.base()
-            && self.length == extent.length()
-            && self.address_space == extent.address_space()
-            && self.rights == *extent.rights()
-            && self.provenance == extent.provenance()
-            && self.era == extent.era()
-            && self.lineage == extent.lineage_root()
+    fn matches_mapping(&self, mapping: &MappedExtent<'_>) -> bool {
+        self.mapping == mapping.identity()
+            && self.mapping_grant == mapping.grant()
+            && self.base == mapping.base()
+            && self.length == mapping.length()
+            && self.address_space == mapping.address_space()
+            && self.rights == *mapping.rights()
+            && self.provenance == mapping.provenance()
+            && self.era == mapping.era()
+            && self.lineage == mapping.lineage_root()
     }
 }
 
 #[derive(Debug)]
 pub struct IdtDestinationCreationError {
-    extent: Extent,
+    mapping: MappedExtent<'static>,
     bytes: Vec<u8>,
     site: PlacementSite,
     admission: IdtDestinationAdmission,
@@ -2350,8 +2349,15 @@ impl IdtDestinationCreationError {
         &self.diagnostic
     }
 
-    pub fn into_parts(self) -> (Extent, Vec<u8>, PlacementSite, IdtDestinationAdmission) {
-        (self.extent, self.bytes, self.site, self.admission)
+    pub fn into_parts(
+        self,
+    ) -> (
+        MappedExtent<'static>,
+        Vec<u8>,
+        PlacementSite,
+        IdtDestinationAdmission,
+    ) {
+        (self.mapping, self.bytes, self.site, self.admission)
     }
 }
 
@@ -2373,13 +2379,13 @@ impl IdtDestinationEvidence {
     fn from_destination(destination: &UnpublishedIdtDestination) -> Self {
         Self {
             identity: destination.identity,
-            base: destination.extent.base(),
-            length: destination.extent.length(),
-            address_space: destination.extent.address_space(),
-            rights: destination.extent.rights().clone(),
-            provenance: destination.extent.provenance(),
-            era: destination.extent.era(),
-            lineage: destination.extent.lineage_root(),
+            base: destination.mapping.base(),
+            length: destination.mapping.length(),
+            address_space: destination.mapping.address_space(),
+            rights: destination.mapping.rights().clone(),
+            provenance: destination.mapping.provenance(),
+            era: destination.mapping.era(),
+            lineage: destination.mapping.lineage_root(),
             site: destination.site,
             admission: destination.admission.clone(),
         }
@@ -2622,12 +2628,12 @@ pub fn prepare_idt_writer(
         Ok(roots) => roots,
         Err(diagnostic) => return reject(diagnostic, destination, writer, bindings),
     };
-    if destination.site.base_address != destination.extent.base()
-        || destination.bytes.len() as u64 > destination.extent.length()
+    if destination.site.base_address != destination.mapping.base()
+        || destination.bytes.len() as u64 > destination.mapping.length()
     {
         return reject(
             ExternalRootDiagnostic(
-                "IDT writer destination bytes/site do not fit the exact owned Extent".into(),
+                "IDT writer destination bytes/site do not fit the exact active mapping".into(),
             ),
             destination,
             writer,
@@ -3660,7 +3666,9 @@ mod tests {
     };
     use omega_extents::{
         AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
-        ExtentRights, ExtentRootGrant, MappingEraId,
+        ExtentRights, ExtentRootGrant, MappedExtent, MappingEraId, MappingGrant, MappingGrantId,
+        MappingId, MappingSourceMode, TranslationActivationReceipt, TranslationInstallObligations,
+        TranslationReleaseObligations, map_owned,
     };
     use omega_layout_plans::{
         ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementAddressRange,
@@ -3701,7 +3709,7 @@ mod tests {
         .expect("placement constraints")
     }
 
-    fn idt_destination_extent(lineage: u64, base: u64, length: u64) -> Extent {
+    fn idt_destination_extent(lineage: u64, base: u64, length: u64) -> omega_extents::Extent {
         ExtentRootGrant::from_admitted_provider(
             extent_id(lineage, ExtentLineageId::from_normalized_identity),
             extent_id(50, AddressSpaceId::from_normalized_identity),
@@ -3716,6 +3724,45 @@ mod tests {
         .expect("IDT destination Extent")
     }
 
+    fn idt_destination_mapping(lineage: u64, base: u64, length: u64) -> MappedExtent<'static> {
+        let source = ExtentRootGrant::from_admitted_provider(
+            extent_id(lineage + 100_000, ExtentLineageId::from_normalized_identity),
+            extent_id(49, AddressSpaceId::from_normalized_identity),
+            ExtentRights::from_normalized_identities([idt_writable_right()]),
+            extent_id(42, ExtentProvenanceId::from_normalized_identity),
+            extent_id(43, MappingEraId::from_normalized_identity),
+        )
+        .mint(0x80_0000 + lineage * 0x1000, length)
+        .expect("IDT source Extent");
+        let destination = idt_destination_extent(lineage, base, length);
+        let grant = MappingGrant::from_admitted_provider(
+            extent_id(lineage + 30_000, MappingGrantId::from_normalized_identity),
+            MappingSourceMode::Owned,
+            source.address_space(),
+            destination.address_space(),
+            source.rights().clone(),
+            destination.rights().clone(),
+            ExtentRights::from_normalized_identities([idt_writable_right()]),
+            destination.provenance(),
+            destination.era(),
+            TranslationInstallObligations::default(),
+            TranslationReleaseObligations::default(),
+        );
+        let pending = map_owned(
+            source,
+            destination,
+            extent_id(lineage + 40_000, MappingId::from_normalized_identity),
+            &grant,
+        )
+        .expect("structurally valid IDT mapping");
+        let receipt = TranslationActivationReceipt::from_admitted_provider(
+            &pending.receipt_context(),
+            true,
+            [],
+        );
+        pending.complete(receipt).expect("active IDT mapping")
+    }
+
     fn idt_writable_right() -> ExtentRightId {
         extent_id(51, ExtentRightId::from_normalized_identity)
     }
@@ -3728,21 +3775,17 @@ mod tests {
         bytes: Vec<u8>,
         site: PlacementSite,
     ) -> UnpublishedIdtDestination {
-        let extent = idt_destination_extent(lineage, base, length);
+        let mapping = idt_destination_mapping(lineage, base, length);
         let admission = IdtDestinationAdmission::from_admitted_provider(
-            root_id(
-                lineage + 10_000,
-                IdtDestinationMappingReceiptId::from_normalized_identity,
-            ),
             root_id(
                 lineage + 20_000,
                 IdtDestinationPinReceiptId::from_normalized_identity,
             ),
-            &extent,
+            &mapping,
             idt_writable_right(),
             true,
         );
-        UnpublishedIdtDestination::from_provider(identity, extent, bytes, site, admission)
+        UnpublishedIdtDestination::from_provider(identity, mapping, bytes, site, admission)
             .expect("admitted IDT destination")
     }
 
@@ -4946,26 +4989,27 @@ mod tests {
                 .contains("exact installed artifact")
         );
 
-        let admitted_extent = idt_destination_extent(305, 0x1000, 16);
+        let admitted_mapping = idt_destination_mapping(305, 0x1000, 16);
         let exact_admission = IdtDestinationAdmission::from_admitted_provider(
-            root_id(
-                10_305,
-                IdtDestinationMappingReceiptId::from_normalized_identity,
-            ),
             root_id(20_305, IdtDestinationPinReceiptId::from_normalized_identity),
-            &admitted_extent,
+            &admitted_mapping,
             idt_writable_right(),
             true,
         );
         let extent_mismatch = UnpublishedIdtDestination::from_provider(
             destination_id,
-            idt_destination_extent(306, 0x1000, 16),
+            idt_destination_mapping(306, 0x1000, 16),
             vec![0_u8; 16],
             site,
             exact_admission,
         )
-        .expect_err("equal geometry cannot substitute another owned Extent");
-        assert!(extent_mismatch.diagnostic().0.contains("exact Extent"));
+        .expect_err("equal geometry cannot substitute another active mapping");
+        assert!(
+            extent_mismatch
+                .diagnostic()
+                .0
+                .contains("exact active mapping")
+        );
 
         let wrong_phase_error = prepare_idt_writer(
             &code,
@@ -4986,20 +5030,16 @@ mod tests {
         .expect_err("placement phase drift cannot enter checked writer lowering");
         assert!(wrong_phase_error.diagnostic().0.contains("placement phase"));
 
-        let non_writable_extent = idt_destination_extent(302, 0x1000, 16);
+        let non_writable_mapping = idt_destination_mapping(302, 0x1000, 16);
         let writable_admission = IdtDestinationAdmission::from_admitted_provider(
-            root_id(
-                10_302,
-                IdtDestinationMappingReceiptId::from_normalized_identity,
-            ),
             root_id(20_302, IdtDestinationPinReceiptId::from_normalized_identity),
-            &non_writable_extent,
+            &non_writable_mapping,
             extent_id(999, ExtentRightId::from_normalized_identity),
             true,
         );
         let writable_error = UnpublishedIdtDestination::from_provider(
             destination_id,
-            non_writable_extent,
+            non_writable_mapping,
             vec![0_u8; 16],
             site,
             writable_admission,
