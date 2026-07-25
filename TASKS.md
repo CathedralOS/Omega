@@ -1914,6 +1914,11 @@ stronger operations it needs instead of citing machine parameters generally.
   for reuse only after a receipt bound to that complete installed
   realization. PE/COFF remains only a firmware envelope; no arbitrary
   byte-to-code path exists.
+  Code-placement authority itself is now minted from the concrete destination
+  Extent and retains its exact range, space, rights, provenance, mapping era,
+  and authority lineage. A same-address Extent from another lineage cannot
+  satisfy it; placement IDs and numeric geometry are not destination
+  authority.
 - **Wire runtime.** Scalar decode now establishes destination range facts
   instead of rejecting ranged fields: each call binds the normalized inclusive
   interval from the actual value declaration across plain, nested, and repeated
