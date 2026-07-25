@@ -93,8 +93,9 @@ with different access plans; an unplanned offset or illegal RMW cannot compile.
 
 - Carry symbolic data/entry sources and placement constraints through final
   artifacts.
-- Connect the reusable x86-64/AArch64 post-handoff helper bytes and exact
-  footprint to provider invocation and final artifacts.
+- Carry each prepared post-handoff provider binding (reusable helper bytes and
+  exact footprint plus its opaque exact invocation context) through executable
+  artifacts and helper installation.
 - Keep loader-consumed fields within native relocation vocabulary.
 - Bind validation to final bytes and exact placement; compact fingerprints are
   report/cache identities, never authority.

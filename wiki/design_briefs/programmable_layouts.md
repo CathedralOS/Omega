@@ -330,7 +330,12 @@ repeated fragments resolve once without putting target identity or numeric
 content into helper identity. Exact checked encoders are live on x86-64 and
 AArch64; each revalidates complete fragment/container/context geometry,
 publishes its exact register/state footprint, and fingerprints emitted bytes
-separately from the target-neutral helper plan.
+separately from the target-neutral helper plan. Provider preparation now pairs
+those exact bytes and footprint with an opaque once-resolved invocation
+context, rejects target/installed-artifact drift, and checks that both halves
+bind the same normalized helper. Context slots follow symbolic target identity,
+not numeric equality, so distinct admitted entries that select one address
+still retain the helper's exact dense-slot ABI.
 The object/image substrate no longer assumes relocation sites are text:
 section-qualified generic `Absolute64` relocations can patch initialized data,
 including PE base-rebase records. Materialized-data origin/provenance must get
@@ -351,12 +356,14 @@ a table-specific machine carrier or own a table lifecycle. Reusable
 post-handoff helpers now lower from generic writer geometry on both target
 families, with normalized plan identity and emitted-byte identity explicitly
 separate from invocation evidence such as exact placement, resolver, roots,
-and content. Carrying those helper bytes and their exact footprint through
-provider invocation and final artifacts remains L6c work. Numeric entry
-addresses never become a public API. A consumer package may use this machinery
-to build an IDT or another hardware-consumed table, but its preparation,
-population, validation, and installation states remain consumer code rather
-than compiler types.
+and content. A single checked provider-preparation seam binds the helper bytes,
+exact footprint, architecture, installed entry resolver, and opaque packed
+context without returning numeric entry or destination addresses from the
+preparation gate. Carrying that prepared binding through final executable
+artifacts and helper installation remains L6c work. A consumer package may use
+this machinery to build an IDT or another hardware-consumed table, but its
+preparation, population, validation, and installation states remain consumer
+code rather than compiler types.
 
 ## Still open
 

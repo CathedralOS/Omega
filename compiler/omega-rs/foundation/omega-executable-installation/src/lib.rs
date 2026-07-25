@@ -8,8 +8,9 @@ use std::sync::Arc;
 
 use omega_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
 use omega_layout_plans::{
-    EntryStubId, MaterializationDiagnostic, PlacementConstraints, PlacementSite,
-    PostHandoffWriterPlan, PostHandoffWriterSource, RelocationTarget,
+    EntryStubId, MaterializationDiagnostic, POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
+    PlacementConstraints, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
+    PostHandoffWriterSource, PostHandoffWriterSourceSlot, RelocationTarget,
 };
 use omega_target::Architecture;
 
@@ -825,8 +826,7 @@ pub struct ResolvedPostHandoffEntryWriterContext {
     artifact: ArtifactId,
     destination_site: PlacementSite,
     destination_len: usize,
-    writer: PostHandoffWriterPlan,
-    sources: Vec<PostHandoffWriterSource>,
+    invocation: PostHandoffWriterInvocationPlan,
     packed_words: Vec<u64>,
     fingerprint: u64,
 }
@@ -838,7 +838,11 @@ impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
             .field("installed_code", &self.installed_code)
             .field("artifact", &self.artifact)
             .field("destination_len", &self.destination_len)
-            .field("source_slot_count", &self.sources.len())
+            .field("source_slot_count", &self.invocation.sources.len())
+            .field(
+                "normalized_helper_fingerprint",
+                &format_args!("{:016x}", self.invocation.helper.fingerprint()),
+            )
             .field("fingerprint", &format_args!("{:016x}", self.fingerprint))
             .finish()
     }
@@ -854,7 +858,7 @@ impl ResolvedPostHandoffEntryWriterContext {
     }
 
     pub const fn source_slot_count(&self) -> usize {
-        self.sources.len()
+        self.invocation.sources.len()
     }
 
     pub const fn packed_byte_len(&self) -> usize {
@@ -863,6 +867,21 @@ impl ResolvedPostHandoffEntryWriterContext {
 
     pub const fn fingerprint(&self) -> u64 {
         self.fingerprint
+    }
+
+    pub const fn context_abi(&self) -> u64 {
+        self.invocation.helper.context_abi()
+    }
+
+    pub const fn normalized_helper_fingerprint(&self) -> u64 {
+        self.invocation.helper.fingerprint()
+    }
+
+    /// Report whether this opaque, once-resolved context is the invocation
+    /// sibling of one exact reusable helper plan. Numeric packed words remain
+    /// inaccessible.
+    pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
+        self.invocation == *invocation
     }
 }
 
@@ -873,6 +892,10 @@ impl InstalledCode {
 
     pub fn artifact(&self) -> ArtifactId {
         self.validated.frozen.artifact.artifact.0.identity
+    }
+
+    pub fn architecture(&self) -> Architecture {
+        self.validated.frozen.artifact.artifact.0.architecture
     }
 
     pub const fn placement(&self) -> CodePlacementId {
@@ -915,29 +938,45 @@ impl InstalledCode {
         destination_len: usize,
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
+        let invocation = plan.lower_reusable_helper()?;
+        self.validate_post_handoff_entry_writer_invocation(
+            plan,
+            &invocation,
+            destination_len,
+            destination_site,
+        )
+    }
+
+    fn validate_post_handoff_entry_writer_invocation(
+        &self,
+        plan: &PostHandoffWriterPlan,
+        invocation: &PostHandoffWriterInvocationPlan,
+        destination_len: usize,
+        destination_site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
         plan.validate(destination_len, destination_site)?;
-        for step in &plan.steps {
-            match step.source {
+        for slot in &invocation.sources {
+            match slot.source {
                 PostHandoffWriterSource::Resolve(target) => {
-                    if !self.contains_entry_target(target) {
+                    if target != slot.target || !self.contains_entry_target(target) {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff writer target {target:?} is not an admitted entry in the exact installed artifact"
                         )));
                     }
                 }
-                PostHandoffWriterSource::Resolved(value) => match step.write.target {
+                PostHandoffWriterSource::Resolved(value) => match slot.target {
                     RelocationTarget::Entry(_)
-                        if self.resolve_entry_target(step.write.target) == Some(value) => {}
+                        if self.resolve_entry_target(slot.target) == Some(value) => {}
                     RelocationTarget::Entry(_) => {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff writer pre-resolved entry {:?} does not match the exact installed realization",
-                            step.write.target
+                            slot.target
                         )));
                     }
                     RelocationTarget::Data(_) => {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff entry writer target {:?} is not an admitted entry in the exact installed artifact",
-                            step.write.target
+                            slot.target
                         )));
                     }
                 },
@@ -955,21 +994,21 @@ impl InstalledCode {
         destination_len: usize,
         destination_site: PlacementSite,
     ) -> Result<ResolvedPostHandoffEntryWriterContext, MaterializationDiagnostic> {
-        self.validate_post_handoff_entry_writer(plan, destination_len, destination_site)?;
+        let invocation = plan.lower_reusable_helper()?;
+        self.validate_post_handoff_entry_writer_invocation(
+            plan,
+            &invocation,
+            destination_len,
+            destination_site,
+        )?;
 
-        let mut sources = Vec::new();
-        for step in &plan.steps {
-            if !sources.contains(&step.source) {
-                sources.push(step.source);
-            }
-        }
-        let mut packed_words = Vec::with_capacity(sources.len() + 1);
+        let mut packed_words = Vec::with_capacity(invocation.sources.len() + 1);
         packed_words.push(destination_site.base_address);
-        for source in &sources {
-            packed_words.push(match source {
-                PostHandoffWriterSource::Resolved(value) => *value,
+        for slot in &invocation.sources {
+            packed_words.push(match slot.source {
+                PostHandoffWriterSource::Resolved(value) => value,
                 PostHandoffWriterSource::Resolve(target) => {
-                    self.resolve_entry_target(*target).ok_or_else(|| {
+                    self.resolve_entry_target(target).ok_or_else(|| {
                         MaterializationDiagnostic(format!(
                             "post-handoff writer could not populate symbolic target {target:?}"
                         ))
@@ -982,7 +1021,7 @@ impl InstalledCode {
             self.artifact(),
             destination_site,
             destination_len,
-            &sources,
+            &invocation,
             &packed_words,
         );
         Ok(ResolvedPostHandoffEntryWriterContext {
@@ -990,8 +1029,7 @@ impl InstalledCode {
             artifact: self.artifact(),
             destination_site,
             destination_len,
-            writer: plan.clone(),
-            sources,
+            invocation,
             packed_words,
             fingerprint,
         })
@@ -1006,13 +1044,15 @@ impl InstalledCode {
         destination: &mut [u8],
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
+        let invocation = plan.lower_reusable_helper()?;
         if context.installed_code != self.identity
             || context.artifact != self.artifact()
             || context.destination_site != destination_site
             || context.destination_len != destination.len()
-            || context.writer != *plan
+            || context.invocation != invocation
+            || context.context_abi() != POST_HANDOFF_WRITER_CONTEXT_ABI_V1
             || context.packed_words.first().copied() != Some(destination_site.base_address)
-            || context.packed_words.len() != context.sources.len() + 1
+            || context.packed_words.len() != context.invocation.sources.len() + 1
         {
             return Err(MaterializationDiagnostic(
                 "populated post-handoff writer context does not bind the exact installed code, plan, destination, and packed geometry"
@@ -1022,11 +1062,14 @@ impl InstalledCode {
         self.validate_post_handoff_entry_writer(plan, destination.len(), destination_site)?;
         plan.execute(destination, destination_site, |target| {
             context
+                .invocation
                 .sources
                 .iter()
                 .zip(&context.packed_words[1..])
-                .find_map(|(source, value)| {
-                    (*source == PostHandoffWriterSource::Resolve(target)).then_some(*value)
+                .find_map(|(slot, value)| {
+                    (slot.target == target
+                        && slot.source == PostHandoffWriterSource::Resolve(target))
+                    .then_some(*value)
                 })
         })
     }
@@ -1085,7 +1128,7 @@ fn fingerprint_post_handoff_entry_writer_context(
     artifact: ArtifactId,
     destination_site: PlacementSite,
     destination_len: usize,
-    sources: &[PostHandoffWriterSource],
+    invocation: &PostHandoffWriterInvocationPlan,
     packed_words: &[u64],
 ) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
@@ -1097,16 +1140,27 @@ fn fingerprint_post_handoff_entry_writer_context(
     mix(artifact.normalized_identity());
     mix(destination_site.base_address);
     mix(destination_len as u64);
-    mix(sources.len() as u64);
-    for source in sources {
-        match source {
-            PostHandoffWriterSource::Resolved(_) => mix(1),
-            PostHandoffWriterSource::Resolve(RelocationTarget::Entry(entry)) => {
+    mix(invocation.helper.fingerprint());
+    mix(invocation.sources.len() as u64);
+    for PostHandoffWriterSourceSlot { target, source } in &invocation.sources {
+        match target {
+            RelocationTarget::Entry(entry) => {
+                mix(1);
+                mix(entry.normalized_identity());
+            }
+            RelocationTarget::Data(data) => {
                 mix(2);
+                mix(data.normalized_identity());
+            }
+        }
+        match source {
+            PostHandoffWriterSource::Resolved(_) => mix(3),
+            PostHandoffWriterSource::Resolve(RelocationTarget::Entry(entry)) => {
+                mix(4);
                 mix(entry.normalized_identity());
             }
             PostHandoffWriterSource::Resolve(RelocationTarget::Data(data)) => {
-                mix(3);
+                mix(5);
                 mix(data.normalized_identity());
             }
         }
@@ -1860,6 +1914,15 @@ mod tests {
         assert_eq!(context.artifact(), installed.artifact());
         assert_eq!(context.source_slot_count(), 1);
         assert_eq!(context.packed_byte_len(), 16);
+        assert_eq!(context.context_abi(), POST_HANDOFF_WRITER_CONTEXT_ABI_V1);
+        let invocation = checked_writer
+            .lower_reusable_helper()
+            .expect("checked writer has one reusable helper");
+        assert!(context.binds_invocation(&invocation));
+        assert_eq!(
+            context.normalized_helper_fingerprint(),
+            invocation.helper.fingerprint()
+        );
         assert_ne!(context.fingerprint(), 0);
         let context_debug = format!("{context:?}");
         assert!(!context_debug.contains("packed_words"));
@@ -1904,6 +1967,88 @@ mod tests {
             .expect_err("pre-resolved address from another realization must reject");
         assert!(error.0.contains("exact installed realization"));
         assert_eq!(unchanged, [0xa5; 8]);
+    }
+
+    #[test]
+    fn provider_context_slots_follow_symbolic_targets_not_equal_addresses() {
+        let first = entry_id(2001);
+        let second = entry_id(2002);
+        let candidate = Artifact::from_canonical_decode(
+            id(1001, ArtifactId::from_normalized_identity),
+            id(1011, ArtifactContentId::from_normalized_identity),
+            Architecture::X86_64,
+            vec![0; 64],
+            id(30, MachineContractSetId::from_normalized_identity),
+            id(31, MachineFootprintId::from_normalized_identity),
+            id(32, PlacementPlanId::from_normalized_identity),
+            artifact_placement_constraints(),
+            id(33, EntrySetId::from_normalized_identity),
+            vec![
+                ArtifactEntry::from_canonical_decode(first, 16),
+                ArtifactEntry::from_canonical_decode(second, 16),
+            ],
+            id(34, RelocationSetId::from_normalized_identity),
+            Vec::new(),
+        )
+        .expect("two symbolic entries may select one code address");
+        let admitted = admit(&candidate);
+        let installed = installed_code(&admitted, 111, 0x8000);
+        let first = RelocationTarget::Entry(first);
+        let second = RelocationTarget::Entry(second);
+        let step = |target, container_byte_offset| PostHandoffWriterStep {
+            write: MaterializationWrite {
+                field: "address".into(),
+                target,
+                container_byte_offset,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 64,
+            },
+            source: PostHandoffWriterSource::Resolve(target),
+        };
+        let writer = PostHandoffWriterPlan {
+            byte_len: 16,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![step(first, 0), step(second, 8)],
+        };
+        let destination_site = PlacementSite {
+            base_address: 0x9000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+
+        let context = installed
+            .populate_post_handoff_entry_writer_context(&writer, 16, destination_site)
+            .expect("equal addresses retain two target-indexed slots");
+        assert_eq!(context.source_slot_count(), 2);
+        assert_eq!(context.packed_byte_len(), 24);
+        assert!(
+            context.binds_invocation(
+                &writer
+                    .lower_reusable_helper()
+                    .expect("target-indexed helper invocation")
+            )
+        );
+        let mut destination = [0; 16];
+        installed
+            .execute_populated_post_handoff_entry_writer(
+                &context,
+                &writer,
+                &mut destination,
+                destination_site,
+            )
+            .expect("both symbolic slots execute");
+        assert_eq!(
+            u64::from_le_bytes(destination[0..8].try_into().unwrap()),
+            0x8010
+        );
+        assert_eq!(
+            u64::from_le_bytes(destination[8..16].try_into().unwrap()),
+            0x8010
+        );
     }
 
     #[test]

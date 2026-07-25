@@ -552,6 +552,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
+ "omega-executable-installation",
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-layout",
