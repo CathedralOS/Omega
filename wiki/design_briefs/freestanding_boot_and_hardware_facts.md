@@ -310,12 +310,14 @@ small:
   admission candidate exists.
 
 Every count and byte range is bounded and checked before slicing. Sections
-cannot overlap the canonical header/directory prefix or one another, payload
-identities must match their directory entries, and the exact input length must
-match the header. The semantic validator then enforces one exact copy of every
-semantic section and derives the normalized executable-content and proof
-identities. The result is an immutable admission candidate, never executable
-eligibility.
+cannot overlap the canonical header/directory prefix or one another. Their
+sorted ranges must tile every byte after the directory exactly, so gaps and
+unreferenced trailing bytes cannot become an identity-invisible smuggling
+channel. Payload identities must match their directory entries, and the exact
+input length must match the header. The semantic validator then enforces one
+exact copy of every semantic section and derives the normalized executable-
+content and proof identities. The result is an immutable admission candidate,
+never executable eligibility.
 
 The inverse compiler-side encoder is live over the same layout records. It
 emits only the seven required semantic sections in canonical order, derives the
