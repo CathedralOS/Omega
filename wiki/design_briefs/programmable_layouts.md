@@ -365,8 +365,8 @@ independently callable runtime helpers: they deliberately carry no return
 sequence, and provider preparation consumes rather than generates them.
 Carrying the immutable fragment, exact footprint, and symbolic invocation plan
 through final artifacts remains L6c work. Connecting that final placed fragment
-to source provider code then depends on P1's runtime sealed-handle
-representation and L4/L5 materialization establishment. A consumer package may
+to source provider code then depends on P1's authority-value/provider-key
+evidence and L4/L5 materialization establishment. A consumer package may
 use this machinery to build an IDT or another hardware-consumed table, but its
 preparation, population, validation, and installation states remain consumer
 code rather than compiler types.

@@ -273,12 +273,13 @@ stable versus externally-changing observation, generic RMW permission, and the
 statically pinned boundary-service reach. Combining these plans would pollute
 wire formats with device semantics and hardware layouts with codec semantics.
 
-`Extent` is one opaque linear carrier. Address space, rights, provenance, and
-mapping era are sealed domain facts, not nominal extent families or generic
-parameters. Root authority is provider-minted; checked code may split,
-attenuate, borrow, and merge only by conservation. Split consumes its parent.
-Merge requires contiguous compatible descendants of the same private authority
-origin; numeric adjacency never manufactures a combined grant.
+`Extent` is one transparent linear carrier containing base `addr` and `u64`
+length. Address space, rights, provenance, and mapping era are domain facts on
+that carrier. An admitted provider receipt originates root authority for
+domains that permit boundary evidence; checked code splits, attenuates,
+borrows, and merges claims through validated conservation. Split consumes its
+parent. Merge requires contiguous compatible descendants of the same authority
+origin; numeric adjacency alone does not establish a combined grant.
 
 An external borrower such as a DMA agent receives only a loan of that carrier,
 never ambient numeric-address authority. Transfer start requires provider

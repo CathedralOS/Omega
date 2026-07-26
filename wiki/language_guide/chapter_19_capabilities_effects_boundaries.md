@@ -2,9 +2,8 @@
 
 Omega should model host and compiler boundaries explicitly.
 
-> **Service and operational contracts revised 2026-07-23 (decision 22 split
-> amendment; authoritative
-> record: [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
+> **Current service and operational contract model
+> ([effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
 > `effects` contains boundary-service reach only. Independent `suspends` and
 > `blocks` clauses publish operational may-ceilings; `terminates` remains a
 > separate positive progress guarantee. Authority remains capability values, trust remains
@@ -22,10 +21,20 @@ not Omega code.
 
 ## Boundary Surfaces
 
-`boundary` marks a surface where ordinary Omega proof stops and an audited
-provider begins. There is no separate top-level root declaration: the boundary
-is carried by the construct that crosses the edge, such as an operator,
-library entry, authority contract, trait, or target policy.
+`boundary` marks a declaration that participates in an audited crossing. The
+declared kind identifies what crosses:
+
+| Declaration | Crossing concern |
+|---|---|
+| boundary machine/operator | control, calling, effects, and guarantees |
+| boundary trait | service requirement and provider realization |
+| boundary data | representation |
+| boundary domain | predicate evidence |
+
+Supply determines how the crossing is justified: a checked body, requirement,
+selected provider, compiler lowering, or accepted declaration. Direction comes
+from parameter/result use and provider selection rather than from the
+`boundary` modifier.
 
 Core operators keep their public contracts visible while primitive lowering
 stays behind the compiler/runtime boundary. A core operator carries a fixed
@@ -56,7 +65,7 @@ Working interpretation:
 - `boundary operator` says implementation lowering is accepted from the
   compiler/runtime provider for that operator.
 - The boundary report records boundary operators, library/authority boundary
-  clauses, target policies, and unchecked policies.
+  clauses, target policies, and accepted policies.
 - Every boundary implementation binding references a registered
   `BoundaryProvider` (see "Boundary Primitive Registry"). Ordinary application
   code cannot mint new host/compiler providers as a proof escape hatch.
@@ -68,23 +77,22 @@ or codegen mechanism used after the contract is proved.
 
 ## Boundary Traits
 
-A boundary trait names callable behavior whose implementation crosses out of
-proved Omega code. It is still a trait: callers see machine signatures,
-requirements, guarantees, and effects. What makes it a boundary is that the
-implementation is accepted through a host package, target binding, firmware
-surface, dynamic loader, or other boundary edge.
+A boundary trait names callable behavior whose realization is selected at a
+crossing. It is still a trait: callers see machine signatures, requirements,
+guarantees, and effects. The selected realization may be checked Omega code or
+an implementation accepted through a host package, target binding, firmware
+surface, dynamic loader, or other provider edge.
 
 `boundary` is not a synonym for "has effects." These are separate axes:
 
 - `effects` names what externally visible behavior class can happen.
 - `export` names what symbols belong to an artifact/API surface.
-- `boundary` names where ordinary Omega proof stops and boundary provider
-  guarantees begin.
+- `boundary` names the crossing whose supply, contracts, and receipts are
+  represented explicitly.
 
 Ordinary Omega code can have effects if it calls lower boundary surfaces. It is
-still proved Omega code. Boundary code is different: the compiler accepts its
-declared guarantees from a configured boundary provider because the implementation is
-not available as normal Omega source.
+still proved Omega code. An accepted provider supplies guarantees through a
+receipt when its implementation is unavailable as checked Omega source.
 
 ```omega
 boundary trait Readable {
@@ -150,7 +158,7 @@ has no quantitative service members: heap/region bounds use capability contracts
 task and version capacity use their own declared budgets.
 
 The complete laws, algebra, identity rule, tests, and deferred spaces are in
-the decision-22 brief.
+the service/operation contract brief.
 
 ## Service Identities And Inference
 
@@ -882,27 +890,30 @@ boundary providers. Safe source should generally work through owners and views, 
 language still needs a browsable place to audit names such as pointer offset,
 read/write, and pointer-range construction.
 
-### Opaque runtime boundary values
+### Boundary evidence and authority values
 
-`boundary data` does not imply erasure. Its closed representation property is
-`Erased | Runtime::Inline(LayoutPlan) |
-Runtime::SealedHandle(HandlePlan)`. The type owner pins that property; a
-provider cannot rewrite the carrier ABI. See
-[`opaque_runtime_representation.md`](../design_briefs/opaque_runtime_representation.md).
+Runtime authority values are ordinary data with compiler-tracked domain facts.
+Their fields carry runtime geometry, saved state, or provider keys. Domain
+membership carries validation, provenance, rights, and authority without
+adding a runtime tag.
 
-The compiler exposes `pack(carrier)` only inside declared introduction
-implementations and exposes immutable carrier projection only to the
-declaration's representation implementation. `pack` takes no authority
-parameter. Each introduction carries entitlement through its ordinary
-signature: a consumed parent, source borrow, admitted root grant, mapping
-receipt, or registered backing entry. Domain `MintAuthority<D>` establishes a
-semantic qualification and remains a different operation.
+A `boundary domain` permits an admitted provider receipt to originate its
+predicate membership. A boundary signature identifies the exact subject and
+fact; provider selection and admission identify the accepted evidence source.
+Checked implementations still prove their guarantees, and checked resource
+transformations preserve or divide existing claims through normalized outcome
+mappings.
 
-Checked contracts prove structural conservation over published observations.
-Provider receipts establish facts Omega cannot prove, such as firmware having
-transferred a physical range. Construction and qualification may compose in one
-provider operation, but no bare unqualified authority value escapes between
-them.
+For example, an admitted platform provider may return an ordinary linear
+`Extent { base: addr, length: u64 } in Extent::Granted & Extent::Physical`.
+Reconstructing those fields produces an unqualified Extent. Split consumes the
+qualified parent, proves its range partition in ordinary postconditions, and
+transfers the parent claim into its children.
+
+Semantic `MintAuthority<D>` remains the delegation mechanism for an authored
+interpretation. Boundary predicate evidence and semantic qualification occupy
+independent domain facets. See
+[`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 ## Boundary Primitive Registry
 
@@ -1010,8 +1021,7 @@ or unusual hardware. Doing so explicitly expands the boundary base.
 
 Compiler artifacts should list imported libraries, syscall surfaces, the
 registered boundary providers used, inferred authority flow, direct/transitive
-host calls, unchecked policies, and runtime opaque representation/introduction
-contracts.
+host calls, accepted policies, and domain-evidence origins.
 
 Example shape:
 
@@ -1057,11 +1067,17 @@ registered boundary providers used:
   omega_darwin_libsystem_write      category HostAbiCall  -> DarwinLibSystem.write
   omega_core_slice_index            category SliceIndexing -> Slice::index
 
-opaque runtime values:
-  Extent  Inline(ExtentCarrierLayout)  introductions [root, split, loan]
+domain evidence:
+  Extent::Granted
+    subject Extent
+    origin accepted
+    provider omega::platform::boot::memory_map
+    receipt firmware_memory_handoff
 
-transitive authority admission:
-  RootExtentGrant via omega::platform::boot
+resource transformations:
+  Extent::split
+    consumes parent origin
+    produces left/right descendants
 
 target image imports:
   Kernel32.dll!ReadFile
@@ -1075,8 +1091,8 @@ emitted.
 
 The complete manifest is machine-readable. Human package diffs collapse
 low-severity checked tokens and elevate transitive changes in authority,
-admitted providers, mutable representation access, sealed-handle backing, or
-revocation/generation machinery. Admission compares the final artifact's
+admitted providers, boundary-evidence permission, or revocation/generation
+machinery. Admission compares the final artifact's
 transitive reachable-authority set, not only direct dependencies.
 
 A build with proofs or contracts disabled should be stamped loudly rather than

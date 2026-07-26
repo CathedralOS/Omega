@@ -17,9 +17,9 @@
 // `Allocation` boundary-provider category, introduces arena-bound
 // `Allocation<T>`, and makes `Vec<'a, T>` borrow that storage.
 //
-// `size`/`align` are byte COUNTS (u64). The returned opaque Extent remembers
-// the selected address and grant metadata privately; reclaiming consumes that
-// exact authority instead of accepting a caller-fabricated address. The typed
+// `size`/`align` are byte COUNTS (u64). The returned Extent carries its selected
+// geometry in ordinary fields and its grant metadata in domain evidence;
+// reclaiming consumes that exact qualified authority. The typed
 // `Allocation<T>` story sits ABOVE this boundary.
 
 use omega::language::core::extent;

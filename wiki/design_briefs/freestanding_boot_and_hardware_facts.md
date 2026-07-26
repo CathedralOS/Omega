@@ -138,12 +138,12 @@ a Cathedral acceptance slice that composes the common pieces:
    reachability; and
 9. a linear acknowledgement token for exactly-once EOI.
 
-The generic obligations are distinct opaque linear values with consuming
+The generic obligations are distinct linear data values with consuming
 settlement operations: restoring prior CPU interrupt state is not the same
 fact as acknowledging a device. Their normalized provider mint and entry
 settlement are recorded in the installed-root ledger. An exact entry receipt
 binds the installed root, selected provider execution, invocation, and
-acknowledgement policy before the opaque values exist; replay rejects; nested
+acknowledgement policy before the values exist; replay rejects; nested
 saved-state guards restore exact prior states in LIFO order; and exit requires
 all obligations selected by the admitted plan to be settled. The concrete
 types, PIC/LAPIC protocol, timer source, vector policy, and transition machines

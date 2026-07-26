@@ -3,8 +3,8 @@
 A domain is a zero-cost semantic theory attached to a value's unchanged
 carrier.
 
-> **Two FACETS (settled 2026-07-18, frozen decision 19; record:
-> [domain_facets_and_qualification.md](../design_briefs/domain_facets_and_qualification.md)).**
+> **Current facet model
+> ([domain_facets_and_qualification.md](../design_briefs/domain_facets_and_qualification.md)).**
 > A domain has two independently governed facets:
 >
 > - a **predicate facet** — propositions about a value, resource, or current
@@ -26,7 +26,7 @@ object model. Attaching, proving, selecting, or forgetting a domain never
 changes representation or adds runtime metadata; validation and conversion
 remain ordinary operations and may perform runtime work.
 
-> **Every data type has a DEFAULT DOMAIN (settled 2026-07-05).** The invariants a
+> **Every data type has a DEFAULT DOMAIN.** The invariants a
 > `data` type "always has" are its default domain — the one domain that is always in
 > scope for the value and travels with it everywhere, so it need not be named or
 > tracked. Named domains like `Player::New` or `Quantity::Additive` are **subdomains**
@@ -36,7 +36,7 @@ remain ordinary operations and may perform runtime work.
 > single-field constraints are standing invariants of the default domain; cross-field
 > invariants live there too, with stores the checker cannot prove domain-preserving
 > carried as [invariant windows](chapter_11_invariant_windows.md) until the next
-> consumption point (settled 2026-07-17). The first implementation slices now
+> consumption point. The first implementation slices now
 > cover declaration clauses, exact construction gates, range sugar, propagated
 > zero-validity, standing scalar bounds, direct/nested/indexed windows, and
 > witness-pinning loans, flow-proven local construction, and byte-predicate
@@ -185,19 +185,22 @@ runtime, and both are ordinary contracted calls — never hidden inside `as`.
 
 ### Introduction Authority
 
-Semantic introduction is **sealed by default**: only the owning package, or
+Semantic introduction is owner-controlled by default: the owning package and
 holders of an exported, attenuable `MintAuthority<D>` (contract-visible,
-proof-erased), may qualify a value into the domain. Open introduction is a
-one-line opt-in at the declaration site — the right posture for units, where
-qualifying your own measurement is an ordinary authorial commitment:
+proof-erased) may qualify a value into the domain. Open introduction is an
+explicit declaration-site policy for meanings such as units, where qualifying
+one's own measurement is an ordinary authorial commitment:
 
 ```omega
-domain f64::Km { introduction open; }
-domain Quantity::Torque { introduction sealed; }
-```
+domain f64::Km {
+    semantic;
+    introduction open;
+}
 
-A forgotten annotation must never become an ambient authority leak, so the
-dangerous case is the default and the harmless case requests openness once.
+domain Quantity::Torque {
+    semantic;
+}
+```
 
 Predicate facets need no introduction policy — facts are proved, not
 authorized. But provability is scoped by **body visibility**: a predicate
@@ -206,6 +209,47 @@ unfolded by outsiders' flow or `as`; outsiders establish or propagate it only
 through owner-exported evidence — a transformer's postcondition
 (`sanitize_sql -> Bytes in SanitizedForSQL`) or an exported decision
 procedure's true-arm. The owner chooses the evidence surface.
+
+### Abstract predicates and boundary evidence
+
+A bodyless predicate names a fact whose membership cannot be unfolded from its
+carrier:
+
+```omega
+pub domain Reservation::Issued;
+```
+
+Checked code establishes such a fact by transferring existing evidence through
+a validated resource transformation. A result qualification or `ensures`
+clause is the obligation to produce that evidence; it is not evidence by
+itself.
+
+Some facts originate at a crossing where Omega cannot prove the external
+event. A boundary domain permits an admitted provider receipt to establish
+predicate membership:
+
+```omega
+pub boundary domain Extent::Granted;
+```
+
+Boundary evidence is additive. Internal checked operations may preserve,
+validate, or transfer the same fact. An accepted origin names the exact domain
+and subject in a boundary signature, and the selected provider's receipt enters
+the trust report. A domain without boundary evidence permission cannot be
+originated by an accepted guarantee.
+
+This yields four predicate-evidence profiles:
+
+| Body | Boundary evidence | Establishment |
+|---|---|---|
+| present | absent | checked proof |
+| present | permitted | checked proof or admitted assertion |
+| bodyless | absent | checked evidence/resource transformation |
+| bodyless | permitted | checked transformation or admitted root |
+
+Predicate evidence remains proof-erased. Runtime data discovered at the
+boundary, such as the base and length of a firmware memory-map entry, stays in
+the carrier; membership itself adds no tag.
 
 ### Weakening
 
@@ -654,10 +698,10 @@ operator syntax.
 Not every domain needs this power — a predicate-only domain supplies no
 operator meanings at all. The earlier open question of whether arithmetic
 policies belong in a separate evaluation-mode concept is resolved by the
-facet model (frozen decision 19): `Wrapping`, `Saturating`, and `Trapping`
+facet model: `Wrapping`, `Saturating`, and `Trapping`
 are semantic-only domains — the compiler-blessed closed subset, special only
-because primitive arithmetic needs direct lowering. Decision 17 is unchanged
-and conforms. The important point stands: domain-sensitive operators are
+because primitive arithmetic needs direct lowering. Their direct lowering
+conforms to the facet model. Domain-sensitive operators are
 resolved from static binding-site selections, not from runtime type mutation
 and not from the flow-fact environment.
 
@@ -975,9 +1019,12 @@ Working interpretation:
   `requires`) participate in operator resolution; flow-established membership
   never does. Competing meanings for the same spelling are a compile error,
   never ranked.
-- Semantic introduction is sealed by default; `introduction open` is the
-  declaration-site opt-in; exported `MintAuthority<D>` delegates sealed
-  introduction.
+- A bodyless predicate is established through existing evidence or a checked
+  resource transformation. `boundary domain` additionally permits an admitted
+  receipt to originate membership.
+- Semantic introduction is owner-controlled by omission; `introduction open`
+  is the declaration-site opt-in; exported `MintAuthority<D>` delegates
+  semantic qualification.
 - Predicate facets erase completely from ordinary runtime code unless a
   diagnostic build explicitly asks for checks. Semantic facets add no runtime
   metadata but reach codegen through operator selection.

@@ -109,7 +109,7 @@ implementation work. Each one gets more expensive to retrofit every month.
 7. **Freestanding target + OS memory/hardware foundation** (BOOT CORE PARTIAL;
    reusable primitives designed, engineering incomplete). Cathedral M1/M2 and
    M3 serial prove typed UEFI entry, firmware-table calls, the runtime-stride
-   memory-map walk, `ExitBootServices`, first physical-Extent mint, port I/O, and `hlt`.
+   memory-map walk, `ExitBootServices`, first admitted physical Extent, port I/O, and `hlt`.
    The remaining foundation is now factored generically in
    `design_briefs/os_memory_and_hardware_foundation.md`: inert `addr` values;
    concrete-range `Extent` authority distinct from allocator `Arena`;
@@ -117,8 +117,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    parsed checked asm; independent `CallPlan + StatePlan` (normalized compiler
    model and initial x86-64/AArch64 evaluators implemented); symbolic
    materialization; external-root reporting; DMA external loans; and carry /
-   runtime admission. No interrupt DSL, volatile qualifier, raw instruction
-   binding, or parallel trust system. The next vertical slice is the x86 IDT
+   runtime admission. The next vertical slice is the x86 IDT
    and timer; placed views, address translation, DMA, hostile IPC, and AP bringup form
    the wider gauntlet. Value-side carry is settled as a compiler-built-in
    four-axis product with structural derivation and sealed per-mint facts.
@@ -137,7 +136,8 @@ implementation work. Each one gets more expensive to retrofit every month.
 ## The boot ladder — UEFI/QEMU (status 2026-07-18)
 
 The Omega-emitted UEFI application now boots under QEMU/OVMF, owns the final
-memory map, exits firmware, mints its first physical Extent, writes through its own
+memory map, exits firmware, receives its first physical Extent under an admitted
+handoff receipt, writes through its own
 16550 serial path, and idles with `hlt`. Harness:
 `qemu-system-x86_64 -bios OVMF.fd -drive
 format=raw,file=fat:rw:dir` — OVMF loads `\EFI\BOOT\BOOTX64.EFI` and calls
@@ -148,7 +148,7 @@ in RDX; no reset-vector path is involved.
 PE32+ EFI application emission, and runtime table-function calls serve.
 
 **Milestone 2 — own the machine** (`GetMemoryMap` → `ExitBootServices` →
-first physical-`Extent` mint): COMPLETE with positive firmware-return evidence and a
+first admitted physical `Extent`): COMPLETE with positive firmware-return evidence and a
 98-descriptor runtime-stride walk.
 
 **Milestone 3 — alive after firmware dies:** serial + idle COMPLETE; timer tick

@@ -88,33 +88,27 @@ homes.
 
 ## Target representations
 
-### Opaque runtime data
+### Authority values and proof-boundary data
 
-Retire the assumption that every `DataSupplyMode::BoundaryOpaque` declaration
-is layoutless. Preserve one closed normalized property through every tree and
-artifact layer:
+Authority-bearing runtime values use ordinary data layout. Their normalized
+type representation derives from published fields, while domain facts carry
+authority, validation, provenance, and rights without runtime metadata.
+Provider-owned backing may be addressed by an ordinary key field whose
+operations remain behind the provider boundary.
 
-```text
-OpaqueRepresentation {
-    Erased,
-    RuntimeInline { normalized_layout },
-    RuntimeSealedHandle { normalized_handle_plan },
-}
-```
+`DataSupplyMode::BoundaryOpaque` remains the representation mode for
+proof-boundary data whose carrier is supplied by admission, such as abstract
+`Real`. Runtime authority declarations migrate from that mode to ordinary data
+as bodyless predicates, boundary-domain evidence, and resource-frontier
+transformations land.
 
-An empty inline layout normalizes to a runtime zero-sized outcome rather than a
-separate authored case. The normalized representation and published
-introduction contracts enter public compatibility identity; carrier bodies,
-generated packing/projection implementation, and proof evidence remain private.
-
-The compiler also records declared introduction implementations and generates
-scoped `pack(carrier)` plus immutable representation projection. `pack` carries
-no authority input: the enclosing introduction's signature and contract own
-entitlement and conservation. Domain mint authority remains a separate semantic
-qualification mechanism.
+The compiler records whether each domain fact originated through checked proof,
+validation, resource transfer, or accepted boundary evidence. Boundary-domain
+permission contributes to trust identity; private proof and transformation
+witnesses remain implementation evidence.
 
 See
-[`../design_briefs/opaque_runtime_representation.md`](../design_briefs/opaque_runtime_representation.md).
+[`../design_briefs/authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 ### Domain theory
 
@@ -202,8 +196,9 @@ CarryPolicy {
 
 This is not ordinary `omega::core` data. Source `[carry(...)]`, transparent
 structural derivation, and sealed per-mint domain facts all lower into this one
-representation. Opaque omission produces the strict policy; opaque authored
-relaxation remains an inert claim until validation/admission grants it.
+representation. Authority values whose facts originate at a boundary require a
+fail-closed default contract; its exact join with structural derivation and
+per-mint grants is tracked as an owner question.
 Permission entries retain any provenance anchor needed to interpret `Origin`
 or `Stable`. Aggregates share a field traversal with other properties but each
 axis owns its composition algebra.
@@ -381,7 +376,7 @@ machine-contract or result-type identity.
 
 Implementation status (TR2/TR3, 2026-07-21): core owns the source-visible
 `[linear] Task<T>` claim carrier plus `TaskOutcome<T>`,
-`StartOutcome<T, Arguments>`, and the opaque generic `TaskRuntime::start` /
+`StartOutcome<T, Arguments>`, and the generic `TaskRuntime::start` /
 `try_start` boundary surface. Symbol-keyed generic substitution preserves
 conditional payload debt, with pass and scope-loss canaries covering returned
 linear results and rejected linear argument bundles.

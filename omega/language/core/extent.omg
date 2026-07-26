@@ -1,14 +1,17 @@
 // Core concrete-range authority.
 //
-// An `addr` is only a number. `Extent` is the opaque, provider-minted
-// authority over one particular range, including its bounds, address-space
-// identity, rights, provenance, and lifetime/era. Ordinary Omega code may
-// move or borrow that authority, but cannot inspect its representation or
-// construct a root grant from address bits.
+// An `addr` is only a number. `Extent` is linear data carrying runtime base and
+// `u64` length. Domain evidence states its grant, address space, rights,
+// provenance, and lifetime/era. Reconstructing the geometry does not establish
+// those facts.
 //
-// The carrier is linear because losing an owned range may lose reclamation
+// The value is linear because losing an owned range may lose reclamation
 // debt or another exclusive authority. Zero-filled storage does not establish
 // an `Extent`; APIs that need an honest zero/empty state use `ExtentSlot`.
+//
+// The declaration below is the current compiler compatibility spelling.
+// Migration to ordinary data follows bodyless/boundary-domain evidence and
+// resource-frontier outcome mappings.
 
 boundary data Extent [linear];
 

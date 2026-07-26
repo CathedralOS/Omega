@@ -1,10 +1,8 @@
 # Design Brief: Domain Facets And Semantic Qualification
 
-Settled 2026-07-18 (frozen decision 19). This brief is the
-authoritative record of the domains settlement: the facet model, the
-qualification/weakening/authority laws, operator coherence, and the staged
-units model. Chapter 8 carries the language-guide surface; this brief carries
-the laws and their rationale.
+Current design as of 2026-07-25. This brief records the facet model,
+qualification and weakening, predicate evidence, operator coherence, and the
+staged units model. Chapter 8 carries the language-guide surface.
 
 ## The model
 
@@ -29,8 +27,8 @@ There is no separate "vocabulary" construct: an operator set is the emergent
 family of `operator ... spelling` declarations whose signatures reference a
 domain. Arithmetic policies (`Wrapping`, `Saturating`, `Trapping`) are the
 compiler-blessed closed subset of semantic facets — special only because
-primitive arithmetic needs direct lowering (decision 17 is unchanged and
-conforms).
+primitive arithmetic needs direct lowering. Their direct lowering conforms to
+the facet model.
 
 ## The five transitions
 
@@ -86,13 +84,12 @@ normalized theory (proof-caching discipline) merely detects staleness and
 forces rechecking — hashing cannot replace sealing or coherence, particularly
 across separately compiled packages.
 
-**Introduction authority.** Semantic introduction is **sealed by default**:
-only the owning package, or holders of an exported, attenuable
-`MintAuthority<D>` (contract-visible, proof-erased), may qualify. Open
-introduction is a one-line opt-in at the declaration site (`introduction
-open`) — the right posture for units, where qualifying one's own measurement
-is an ordinary authorial commitment. A forgotten annotation must never become
-an ambient authority leak.
+**Introduction authority.** Semantic introduction is owner-controlled by
+omission. The owning package and holders of an exported, attenuable
+`MintAuthority<D>` (contract-visible, proof-erased) may qualify. Open
+introduction is an explicit declaration-site policy (`introduction open`) for
+meanings such as units, where qualifying one's own measurement is an ordinary
+authorial commitment.
 
 **Predicate evidence.** Predicates need no introduction policy — facts are
 proved, not authorized. But provability is scoped by **body visibility**: a
@@ -102,12 +99,23 @@ only through owner-exported evidence — a transformer's postcondition
 (`sanitize_sql -> Bytes in SanitizedForSQL`) or an exported decision
 procedure's true-arm. The owner chooses the evidence surface.
 
-**Progress-profile customer.** An opaque progress profile is a semantic domain
-over a boundary-provider capability (`domain Scheduler::WeakFair {
-introduction sealed; }`). It classifies the provider commitment, not an
-execution result. Admission/grants authorize qualification; flow never invents
-it. V1 profiles supply no operators and entail no other profile, so no new
-`profile` declaration or checker role is required.
+A bodyless predicate is an abstract fact. Its membership arrives through
+existing evidence or a checked resource transformation rather than unfolding a
+carrier predicate. A `boundary domain` additionally permits an admitted
+provider receipt to originate membership. This permission is additive:
+checked proof, validation, propagation, and resource transfer remain available
+according to the predicate's body and contracts.
+
+An accepted boundary guarantee may establish predicate membership only when
+the domain permits boundary evidence. The signature names the exact fact and
+subject; provider selection and its receipt name the accepted evidence source.
+This permission participates in domain trust identity and artifact reporting.
+
+**Progress-profile customer.** A progress profile is a semantic domain over a
+boundary-provider capability (`domain Scheduler::WeakFair { semantic; }`). It
+classifies the provider commitment rather than an execution result.
+Admission/grants authorize qualification; flow carries only its predicate
+facts. V1 profiles supply no operators and entail no other profile.
 
 > Facts may be established by anyone possessing sufficient proof; modules
 > control the premises and evidence for abstract facts. Commitments may be
@@ -115,7 +123,7 @@ it. V1 profiles supply no operators and entail no other profile, so no new
 > policy.
 
 **Propagation.** Refinement facts drop freely and flow through contracts (the
-decision-18 fact catalog). Certified arithmetic policies weaken implicitly
+normalized fact catalog). Certified arithmetic policies weaken implicitly
 where their denotation and operation-agreement obligations have been
 discharged — sound because the exact-loud default reinstates obligations on
 the far side. Units and kinds never weaken silently; crossing a carrier-only
@@ -233,9 +241,9 @@ calendar arithmetic are explicitly out of the dimensional algebra.
   separate coherence regime).
 - General open-family linking (consent/linking mechanisms beyond the
   designated-owner rule).
-- Surface grammar: `introduction open / sealed(Authority)`, the mint-authority
-  passing spelling (`as Torque using authority` sketch), `weakens_to`
-  certificate blocks.
+- Surface grammar: explicit facet authorship, bodyless predicates,
+  `boundary domain`, open semantic introduction, mint-authority passing, and
+  `weakens_to` certificate blocks.
 
 ## Provenance
 
@@ -253,9 +261,9 @@ vocabularies, hidden policy polymorphism, runtime tags of any kind.
 ## Cross-references
 
 Chapter 8 (surface), chapter 16 (validation as fallible call), chapter 22 +
-whole_program_assumptions.md (swap boundaries), decision 17 (arithmetic
-domains — unchanged, conforms), decision 18 (fact catalog — carries predicate
-facets), proof_caching.md (certificate hashing discipline),
+whole_program_assumptions.md (swap boundaries), the primitive-arithmetic
+domain model, the normalized fact catalog, proof_caching.md (certificate
+hashing discipline),
 proof_engine_north_star.md (schema-decided vs certificate-proved is the
 automation-plus-kernel pattern; domains-over-carriers is the named
 substrate investment), architecture/semantic_taxonomy_representation.md

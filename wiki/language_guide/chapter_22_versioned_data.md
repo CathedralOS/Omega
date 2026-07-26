@@ -53,19 +53,17 @@ binaries form an open world. A format package must therefore choose an unknown
 era policy at its decode boundary: reject, preserve opaque bytes, negotiate, or
 another explicitly contracted policy. The language cannot infer that policy.
 
-After validation, a sealed provenance domain can distinguish a decoded
+After validation, an abstract provenance domain can distinguish a decoded
 envelope from arbitrary test data:
 
 ```omega
-domain CounterDiskKnown::Decoded {
-    introduction sealed;
-}
+pub domain CounterDiskKnown::Decoded;
 ```
 
-The format package owns the evidence surface. Tests may construct historical
-shapes directly; trusted consumers may require `CounterDiskKnown in Decoded`.
-The security boundary is validated provenance, not an inability to construct
-ordinary data.
+The format package's checked validator establishes the fact. Tests may
+construct historical shapes directly; trusted consumers may require
+`CounterDiskKnown in Decoded`. The security boundary is validated provenance,
+not an inability to construct ordinary data.
 
 Exhaustive matching makes adding a known era loud. A package that needs the
 stronger rule "every known era has an explicit route to the runtime shape" may

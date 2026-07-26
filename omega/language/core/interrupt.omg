@@ -6,8 +6,11 @@
 // unconditional `enable` operation. An acknowledgement is minted by an inbound
 // interrupt provider and must be completed exactly once.
 //
-// Both carriers are opaque and linear. Ordinary code can receive, move, and
-// consume them, but zero-fill or record construction cannot mint either fact.
+// Both obligations are linear data. Boundary evidence establishes the live
+// obligation; the mask guard carries the exact prior state, while an
+// acknowledgement carries any source/provider identity its protocol needs.
+// The declarations below retain the compiler's current boundary-data spelling
+// until ordinary authority-value domains land.
 
 use omega::language::core::assembly;
 

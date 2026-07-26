@@ -44,12 +44,10 @@ status.
 | external loan | a linear token standing in for a borrower the checker cannot observe | DMA and device ownership transfer |
 | carry/runtime contracts | value demands joined with scheduler/storage behavior at admission | suspension, migration, CPU/thread affinity, address stability |
 
-These pieces reuse existing declaration forms: `data`, `machine`, `trait`,
-`domain`, `boundary`, ordinary contracts, linearity, capabilities, and plan
-policies. No interrupt DSL, `volatile` qualifier, external-satisfier keyword,
-instruction-wrapper keyword, or parallel admission system is introduced.
+These pieces compose `data`, `machine`, `trait`, `domain`, `boundary`, ordinary
+contracts, linearity, capabilities, and plan policies.
 
-## Extents are not allocators
+## Extent and Arena
 
 `Arena` is bounded allocation authority: it permits drawing storage from a
 resource under capacity and lifetime rules. A borrow-backed Arena is affine; an
@@ -62,58 +60,59 @@ A placed view instead needs authority over an
 already-existing range that was not allocated by the program, such as a UART
 register block. That is an `Extent`.
 
-The public carrier is one opaque linear declaration with no public constructor:
+The public carrier is ordinary linear data:
 
 ```omega
-boundary data Extent [linear];
+data Extent [linear] {
+    base: addr;
+    length: u64;
+}
+
+pub boundary domain Extent::Granted;
 ```
 
-Its settled runtime direction is an inline opaque carrier citing an unpublished
-ordinary layout, likely base `addr` plus `u64` length. The compiler sees that
-carrier for storage and ABI but ordinary source cannot name or construct it.
-Type-owned introduction operations receive compiler-scoped `pack(carrier)`;
-the pack operation itself takes no authority. Root grants, consumed parents,
-storage borrows, and mapping receipts are the entitlement inputs of the
-enclosing introduction. Immutable owner-side projection implements published
-observations such as `range()`; mutable representation projection is absent by
-default.
+The fields carry runtime geometry. `Extent::Granted` states that the geometry
+descends from a live admitted or checked authority claim. Constructing the same
+fields creates an unqualified linear value. Operations that consume range
+authority require `Granted`, so a fabricated or dequalified Extent has no legal
+resource consumer.
 
-This source carrier is live in `omega::language::core::extent`, together with
-the ordinary debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's
-stage-1 `Arena` now returns and reclaims `Extent`; it never accepts a bare
-caller-fabricated address as allocation authority.
+The staged source declaration remains in `omega::language::core::extent`
+together with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge.
+Core's stage-1 `Arena` returns and reclaims qualified Extents.
 
-Address space, rights, provenance, and mapping era are sealed domain facts on
-that carrier, not nominal carrier types or generic parameters. Physical,
-virtual, I/O-port, and provider-defined spaces share the same range algebra.
-An operation requiring `Physical` statically rejects an extent carrying only
-`Virtual`; unproven facts gate rather than cast. Rights such as `Readable` and
-`Writable` are grant-established facts: provider evidence or a conservative
-derivation may establish them, but address bits and structural observation
-never do.
+Address space, rights, provenance, and mapping era are domain facts on the
+carrier. Physical, virtual, I/O-port, and provider-defined spaces share the
+same range algebra. An operation requiring `Physical` accepts evidence for that
+space; an extent carrying `Virtual` does not meet the requirement. Rights such
+as `Readable` and `Writable` originate from admitted provider evidence or
+checked conservative derivation.
 
 An extent's semantic record binds at least:
 
-- base and length;
-- address-space identity (physical, virtual, I/O, or provider-defined);
-- read/write/execute or more specific rights;
+- runtime base and `u64` length;
+- address-space facts (physical, virtual, I/O, or provider-defined);
+- read/write/execute or more specific rights facts;
 - minting provenance, parent grant, and authority-origin/split ancestry;
 - lifetime or mapping era; and
 - ownership sufficient to split, attenuate, borrow, release, or revoke it.
 
-Only base and `u64` length are expected to require inline bits initially.
-Space, rights, provenance, and era normally remain sealed facts or receipts;
-lineage becomes runtime state only if static origin identity cannot survive a
-required storage/component crossing.
+Base and length occupy runtime bits. Space, rights, provenance, and era remain
+compiler facts or receipts while their provenance survives the required
+storage/component crossings. A provider-owned table may back a visible handle
+when operations need dynamic lookup or revocation; its key remains an ordinary
+field.
 
-Admitted suppliers mint root extents: boot handoff, an address-space mapper, a
-parent allocator's backing store, or a device provider. Ordinary checked code
-may derive children but never mint fresh authority. Bare `addr` values never do.
+Admitted suppliers originate root Extents through boundary-domain evidence:
+boot handoff, an address-space mapper, a parent allocator's backing store, or a
+device provider. Checked code derives children through resource transformations
+whose outcome mappings conserve the parent claim.
 
-Splitting consumes one owned extent and returns disjoint owned children whose
-ranges exactly cover it. Linearity bounds consumption; ordinary postconditions
-over the published `range()` observation prove that production conserves
-geometry. Attenuation may only remove rights. Merge consumes
+Splitting consumes one owned qualified extent and returns disjoint owned
+children whose ranges exactly cover it. Linearity bounds consumption; ordinary
+postconditions over `base` and `length` prove the geometry relation while the
+resource-frontier mapping transfers provenance. Attenuation removes rights.
+Merge consumes
 contiguous compatible descendants of the same authority origin; numeric
 adjacency alone is insufficient because adjacent ranges may have different
 grants, rights, provenance, or eras. The ordinary case is rejoining what one
@@ -125,19 +124,16 @@ borrow: shared loans permit only shared operations; exclusive loans permit
 ordinary mutation. Loans are not linear cleanup obligations. The owned extent,
 DMA tokens, shootdown tokens, and similar authority/debt values remain linear.
 
-The normalized conservation model is live in `omega-extents`. Its opaque Rust
-carrier is non-clonable; an admitted one-shot root grant is the only mint;
+The normalized conservation model is live in `omega-extents`. Its Rust carrier
+is non-clonable; an admitted one-shot root receipt establishes the first claim;
 space, provenance, era, and lineage identities are normalized; rights are an
-open set of normalized identities rather than a compiler-blessed enumeration;
-and split, attenuation, sibling merge, and bounded shared/exclusive loans are
-validated. Failed consuming operations return every input authority. The
-opaque Omega `[linear]` declaration and normalized Rust carrier are both live.
-The runtime architecture is settled by
-[`opaque_runtime_representation.md`](opaque_runtime_representation.md):
-Extent selects inline runtime representation, while exact clause spelling,
-generated introduction/projection hooks, and whether lineage needs runtime bits
-remain owner-blocked. All `boundary data` is still layoutless in the compiler
-today. Sealed domain facts, provider mapping, and reclamation also remain.
+open set of normalized identities; and split, attenuation, sibling merge, and
+bounded shared/exclusive loans are validated. Failed consuming operations
+return every input authority.
+
+The source migration depends on bodyless/boundary-domain declarations and
+generic resource-frontier outcome mappings. See
+[`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
 
 ### Mapping and reclamation
 
@@ -153,20 +149,26 @@ borrowed source cannot be reclaimed while the mapping lives. Conceptually:
 
 ```omega
 machine map_owned(source: Extent, destination: Extent) -> Extent
+    requires source in Extent::Granted
     requires source in Extent::Physical
+    requires destination in Extent::Granted
     requires destination in Extent::Virtual
+    ensures result in Extent::Granted
     ensures result in Extent::Virtual
     ensures result in Extent::Mapped;
 
 machine map_borrowed(source: &Extent, destination: Extent) -> Extent
+    requires source in Extent::Granted
     requires source in Extent::Physical
+    requires destination in Extent::Granted
     requires destination in Extent::Virtual
+    ensures result in Extent::Granted
     ensures result in Extent::Virtual
     ensures result in Extent::Mapped;
 ```
 
-The exact overload spelling is engineering; the ownership distinction is law.
-Unmapping consumes the mapped extent, returns the reusable destination range,
+The two contracts preserve the source ownership distinction. Unmapping
+consumes the mapped extent, returns the reusable destination range,
 and either returns an owned source or ends its source loan. On targets requiring
 cross-core invalidation, reuse remains gated by a linear shootdown/quiescence
 token. Its completion operation carries the provider's ordinary suspension or
@@ -952,13 +954,13 @@ The IDT is consequently a first serious customer, not a special construct:
 
 The source obligation contract is live in
 `omega::language::core::interrupt`. `InterruptMaskControl::save_and_mask`
-returns an opaque linear `InterruptMaskGuard`; only consuming `restore` may
-settle it. An independently opaque linear `InterruptAcknowledgement` is
-settled only by consuming `complete`. The two tokens deliberately remain
-different: restoring the prior CPU interrupt mask reaches `machine_control`,
-while acknowledging the interrupt source reaches `device_io`. Ordinary
-opacity and linearity reject construction, forgotten settlement, and double
-completion; no interrupt-specific cleanup or implicit drop rule exists.
+returns a linear `InterruptMaskGuard` carrying the prior mask state; consuming
+`restore` settles it. An independent linear
+`InterruptAcknowledgement` carries any source/provider identity required by its
+completion protocol and is settled by consuming `complete`. Restoring the
+prior CPU interrupt mask reaches `machine_control`, while acknowledging the
+interrupt source reaches `device_io`. Boundary evidence qualifies live
+obligations, and linearity rejects forgotten settlement and double completion.
 The normalized installed-root entry path supplies provider minting and
 settlement: its receipt binds the exact root/entry/code/provider execution,
 invocation, initial mask state, and acknowledgement policy. Replayed
@@ -999,7 +1001,7 @@ The settled type-wide source is one compiler-built-in property over the full
 product:
 
 ```omega
-boundary data PerCpuLease [
+data PerCpuLease [
     linear,
     carry(
         suspension: allowed,
@@ -1007,16 +1009,19 @@ boundary data PerCpuLease [
         thread: any,
         address: movable,
     ),
-];
+] {
+    cpu_key: u64;
+}
 ```
 
 The property lowers directly to normalized compiler IR. It is not ordinary
 `omega::core` data, a trait, or the output of a policy machine: the vocabulary
-is closed because the compiler must interpret every axis. Transparent data
-derives structurally; opaque data with no declaration is maximally strict. An
-opaque declaration is only a claim and remains inert until proved or accepted
-under admission receipt. Constructor `ensures` may establish sealed per-mint
-carry domains, monotonically adding permissions above the type-wide floor.
+is closed because the compiler must interpret every axis. Ordinary data derives
+structurally from its fields and explicit type-wide plan. Constructor
+guarantees may establish per-mint carry facts, monotonically adding permissions
+above the type-wide floor. Boundary-origin authority participates in
+fail-closed carry admission as tracked in the owner question for its default
+contract.
 
 The old `[send]` placeholder is retired. Cross-activation exclusive transfer is
 ordinary ownership plus carry/runtime compatibility; crossing shared references
@@ -1072,7 +1077,7 @@ than re-reading source attributes.
 ## Implementation status and ownership
 
 `TASKS.md` owns the current implementation sequence. The language/compiler
-lanes are the checked-assembly catalog, opaque runtime representation, generic
+lanes are the checked-assembly catalog, authority values and boundary evidence, generic
 layout/materialization, `AccessPlan` projection, evaluated entry plans, final
 machine-state validation, external loans, carry/runtime admission, and
 relocatable admitted artifacts.

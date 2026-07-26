@@ -206,8 +206,9 @@ era rather than replaying an old provenance edge.
 
 This is normalized provider accounting, not a second source-visible task or
 lease type. Connecting it to `Task<T>` awaits the ordinary selected
-task-runtime realization plus the source spelling for the settled opaque
-runtime representation; those owner questions are tracked separately.
+task-runtime realization plus bodyless/boundary-domain evidence for the
+runtime's ordinary authority value; those owner questions are tracked
+separately.
 
 ## Storage policies are provider/library choices
 
@@ -280,20 +281,19 @@ storage lifetime and pinning, aliasing, cancellation paths, and address
 stability are independently required. Borrow/wait-cycle detection is a
 valuable later theorem but not a prerequisite for the conservative task v1.
 
-Carry policy itself is settled independently of that loan subset. Transparent
-data derives a compiler-normalized four-axis policy; opaque data defaults
-strict; type-wide `[carry(...)]` claims require proof/admission; and sealed
-constructor domains may add per-mint permissions. At each crossing, canonical
-place liveness determines which policies constrain the transition. This
-replaces the provisional `[send]` property and any Rust-style `Send`/`Share`
-marker model.
+Carry policy itself is independent of that loan subset. Ordinary data derives a
+compiler-normalized four-axis policy from its fields and explicit type-wide
+contract; constructor guarantees may add per-mint permissions. At each
+crossing, canonical place liveness determines which policies constrain the
+transition. Boundary-origin authority uses the fail-closed default selected by
+its admission contract.
 
 Suspension is enforced locally against possible suspension and cannot be
 narrowed away by runtime selection. The provider-side normalized behavior
 contract instead records preemption granularity, CPU migration/pinning,
 host-thread migration/pinning, and continuation-storage movement. Admission
 joins those three carry demands with behavior. Missing external evidence means
-pessimistic behavior; a receipt may authorize reliance on a narrower opaque
+pessimistic behavior; a receipt may authorize reliance on a narrower provider
 claim but never changes the actual runtime. The contract rides the existing
 provider-plan/admission spine for static and dynamically admitted runtimes.
 
@@ -301,7 +301,7 @@ The normalized runtime join is live in `omega-task-plans`. It selects the
 correct migration-demand envelope from provider preemption granularity, rejects
 missing all-instruction analysis for asynchronous providers, and checks frame
 size/alignment, cancellation, inline completion, CPU/thread affinity, and
-continuation address stability. Its pessimistic opaque-runtime contract admits
+continuation address stability. Its pessimistic provider contract admits
 nothing accidentally. Each validated demand has a normalized identity over all
 of those checked inputs; a successful admission derives its receipt identity
 from the complete demand and complete runtime behavior contract instead of
@@ -320,17 +320,14 @@ Custody and settlement compare that exact evidence; compact fingerprint
 collisions cannot substitute a different runtime contract or activation plan.
 The artifact reports `pending_provider` until compiler provider selection
 supplies that exact receipt. `TaskRuntime` provider-plan selection/wiring is
-owner-blocked on the
-checked behavior-publication decision recorded in `OWNER_QUESTIONS.md`; the
-current provider spine selects realizations of boundary-trait requirements,
-while `TaskRuntime` is opaque boundary data and has no checked surface for the
-capacity, preemption, migration, storage, cancellation, or inline-completion
-statement. Its runtime representation is separately surface-blocked by the
-remaining owner questions in
-[`opaque_runtime_representation.md`](opaque_runtime_representation.md);
-`TaskRuntime` is the first likely sealed-handle customer. Dispatch and
-transactional start follow those decisions. No task-runtime `slot` construct
-is implied.
+owner-blocked on the checked behavior-publication decision recorded in
+`OWNER_QUESTIONS.md`; the current provider spine selects realizations of
+boundary-trait requirements, while `TaskRuntime` has no checked source surface
+for the capacity, preemption, migration, storage, cancellation, or
+inline-completion statement. Its runtime key/state uses ordinary data and
+boundary-domain evidence as specified in
+[`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
+Dispatch and transactional start follow those decisions.
 
 ## Acceptance register
 
@@ -378,17 +375,17 @@ is implied.
    asynchronous preemption. Incomplete type coverage remains absent and fails
    asynchronous admission closed. Every plan requires the cancellation
    support promised by the Task lifecycle.
-4. The opaque core `TaskRuntime` boundary surface, normalized demand/admission
+4. The core `TaskRuntime` boundary surface, normalized demand/admission
    identities, and receipt-qualified runtime behavior are live. The shared
    provider-plan receipt binds the complete behavior statement and provenance
    stays outside identity. Unresolved artifacts fail visibly as
    `pending_provider`. Provider selection/receipt wiring is owner-blocked on the
    task-runtime provider/behavior-publication question; executable dispatch
-   also awaits opaque-representation syntax and sealed-handle lowering. After
-   those surfaces are settled, add transactional `start`/`try_start` ownership.
+   also awaits authority-value domain evidence. After those surfaces are
+   settled, add transactional `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
    to selected runtime values and source `Task<T>` after provider selection and
-   opaque-carrier spelling land. The ledger already prevents premature
+   boundary-domain spelling land. The ledger already prevents premature
    close/reclaim and preserves a claim on failed settlement.
 6. Implement continuation/frame lowering and a first provider; an inline
    provider is valid only where the pinned contract permits inline completion.
