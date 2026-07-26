@@ -29,7 +29,6 @@ declared kind identifies what crosses:
 | boundary machine/operator | control, calling, effects, and guarantees |
 | boundary trait | service requirement and provider realization |
 | boundary data | representation |
-| boundary domain | predicate evidence |
 
 Supply determines how the crossing is justified: a checked body, requirement,
 selected provider, compiler lowering, or accepted declaration. Direction comes
@@ -897,12 +896,12 @@ Their fields carry runtime geometry, saved state, or provider keys. Domain
 membership carries validation, provenance, rights, and authority without
 adding a runtime tag.
 
-A `boundary domain` permits an admitted provider receipt to originate its
-predicate membership. A boundary signature identifies the exact subject and
-fact; provider selection and admission identify the accepted evidence source.
-Checked implementations still prove their guarantees, and checked resource
-transformations preserve or divide existing claims through normalized outcome
-mappings.
+An admitted provider may originate qualification when it satisfies an
+owner-authorized boundary requirement whose signature identifies the exact
+subject and fact. Provider selection and admission identify the accepted
+evidence source in a receipt. Checked implementations still prove their
+guarantees, and checked resource transformations preserve or divide existing
+claims through normalized outcome mappings.
 
 For example, an admitted platform provider may return an ordinary linear
 `Extent { base: addr, length: u64 } in Extent::Granted & Extent::Physical`.
@@ -910,9 +909,10 @@ Reconstructing those fields produces an unqualified Extent. Split consumes the
 qualified parent, proves its range partition in ordinary postconditions, and
 transfers the parent claim into its children.
 
-Semantic `MintAuthority<D>` remains the delegation mechanism for an authored
-interpretation. Boundary predicate evidence and semantic qualification occupy
-independent domain facets. See
+Bodyless qualifications use owner-authorized establishment machines.
+Representation-identical, premise-free establishment may satisfy the core
+qualification requirement and thereby support `as`; conditional establishment
+remains an ordinary named machine. See
 [`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 ## Boundary Primitive Registry

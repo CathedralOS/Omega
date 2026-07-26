@@ -7,9 +7,9 @@ below.
 ## Purpose
 
 Omega represents runtime authority with ordinary data plus compiler-tracked
-facts. The data carries the runtime information an operation needs. Domain
-membership states what authority, provenance, validation, or interpretation
-has been established for that data.
+qualification and provenance. The data carries the runtime information an
+operation needs. Domain membership states what authority, validation,
+interpretation, or historical fact has been established for that data.
 
 For example, a concrete range authority has ordinary runtime geometry:
 
@@ -24,53 +24,44 @@ The fields describe a range. Membership in `Extent::Granted` states that the
 range descends from a live admitted or checked authority claim. Reconstructing
 the same fields creates another value but does not reproduce that membership.
 
-Linearity belongs to the data type. It preserves the outstanding obligation
-even when a predicate fact is forgotten. Operations that release, split, map,
-or otherwise consume authority require the relevant domain membership, so an
-unqualified value has no legal resource consumer.
+Multiplicity belongs to the data type. `Extent` is linear because every owned
+range must eventually be discharged. Its outstanding provenance survives
+qualification forgetting. Operations that release, split, map, or otherwise
+consume authority require the relevant domain membership, so an unqualified
+value has no legal resource consumer.
 
-## Predicate evidence
+## Qualification evidence
 
-A predicate domain has two independent declaration properties:
+A domain may have a predicate body or be bodyless:
 
-- whether membership has a body that checked code can prove; and
-- whether an admitted boundary may originate membership under a receipt.
+- a bodyful qualification is established by proof, including proof guaranteed
+  by a checked validator or accepted under an admitted receipt;
+- a bodyless qualification is established by an owner-authorized machine,
+  propagation, checked transformation, or admitted receipt under an
+  owner-authorized boundary requirement.
 
-The resulting evidence matrix is:
-
-| Predicate body | Boundary evidence | Establishment routes |
-|---|---|---|
-| present | absent | checked proof |
-| present | permitted | checked proof or admitted assertion |
-| abstract | absent | checked evidence/resource transformation |
-| abstract | permitted | checked transformation or admitted root |
-
-The leading source spelling for an abstract predicate is a bodyless domain:
+The source spelling for a bodyless fact is:
 
 ```omega
 pub domain Reservation::Issued;
 ```
 
-The leading spelling that also permits boundary evidence is:
+`Extent::Granted` uses the same declaration shape:
 
 ```omega
-pub boundary domain Extent::Granted;
+pub domain Extent::Granted;
 ```
 
-`boundary` is additive. A checked operation may still derive or transfer the
-fact internally. The modifier permits admission receipts to serve as a root
-evidence source; it does not grant an ordinary `as` operation or change runtime
-representation.
+External origination is authorized by the requirement being satisfied rather
+than by a modifier on the domain. The domain owner publishes the boundary
+requirement whose result names the exact qualified subject. A selected provider
+satisfies that requirement, and admission records its receipt. A third party
+cannot make its own declaration an implicit establishment route for someone
+else's domain.
 
-A boundary machine may originate membership without an internal proof only
-when the domain declaration permits boundary evidence. The exact machine
-signature identifies the subject and fact, provider selection identifies the
-claimant, and admission records the receipt. This gives the domain owner
-fail-closed control over which facts may be rooted in accepted evidence.
-
-Semantic facets remain independent. Authorial commitments such as units or
-arithmetic meanings use their semantic introduction policy; boundary predicate
-evidence does not supply ambient semantic-qualification authority.
+This keeps crossing semantics on machines and requirements. Internal checked
+operations may still transfer the same fact, subject to resource-frontier
+validation.
 
 ## Evidence and guarantees
 
@@ -78,20 +69,21 @@ A qualified result type or `ensures` clause is an obligation on a checked
 implementation. It becomes available to callers only when the implementation
 does one of the following:
 
-- proves the predicate from visible propositions;
+- proves a nonempty domain body from visible propositions;
 - receives the fact from a guard, parameter, or checked callee guarantee;
 - validates runtime input through an ordinary checked machine;
 - transfers an existing resource claim through a checked transformation; or
-- crosses an admitted boundary whose receipt supplies a permitted fact.
+- crosses an admitted boundary satisfying an owner-authorized requirement
+  whose receipt supplies the fact.
 
 These evidence sources feed one membership judgment while retaining their own
 validation rules. Arithmetic proof, resource transfer, and accepted provider
 evidence are not interchangeable.
 
-Predicate bodies may use ordinary declaration visibility. A public body lets
+Domain bodies may use ordinary declaration visibility. A public body lets
 consumers discharge its propositions directly. A body whose supporting
 predicates are not visible outside the package is established externally
-through the package's checked validators and guarantees. An abstract predicate
+through the package's checked validators and guarantees. A bodyless qualification
 has no structural derivation and therefore depends entirely on existing
 evidence, checked resource transformations, or permitted boundary receipts.
 
@@ -99,8 +91,9 @@ evidence, checked resource transformations, or permitted boundary receipts.
 
 Root authority bottoms out at an admitted crossing. A platform memory provider
 may return `Extent in Extent::Granted` together with address-space and rights
-facts. Omega cannot prove that firmware, a hypervisor, or a host OS transferred
-those ranges; provider admission supplies that evidence and records its scope.
+facts through the memory requirement it satisfies. Omega cannot prove that
+firmware, a hypervisor, or a host OS transferred those ranges; provider
+admission supplies that evidence and records its scope.
 
 The root value carries runtime geometry when the platform discovers that
 geometry at runtime. Domain membership itself adds no runtime tag.
@@ -169,11 +162,14 @@ crossing:
 | boundary machine | control, calling, effects, and guarantees |
 | boundary trait | service requirement and provider realization |
 | boundary data | representation supplied at a crossing |
-| boundary domain | evidence admitted at a crossing |
 
 Direction comes from supply and use: a checked body, requirement, selected
 provider, accepted declaration, parameter, or result. The keyword does not
 encode inbound versus outbound traffic.
+
+Evidence crosses in the contracts of boundary machines and requirements. A
+receipt records the exact qualified subject and the owner-authorized
+requirement that licensed the accepted assertion.
 
 Proof-only abstract values such as `Real` continue to use boundary data when
 their representation is supplied by the admitted proof boundary. Runtime
@@ -183,9 +179,9 @@ their fields.
 ## Identity and reporting
 
 Public data shape contributes its ordinary package/type identity. Domain
-identity records whether predicate evidence may originate at a boundary.
-Private proof steps and resource-checker witnesses remain implementation
-evidence.
+identity records its body, semantic contributions, and establishment
+relationships. Private proof steps and resource-checker witnesses remain
+implementation evidence.
 
 Artifacts record each fact origin as checked, transferred, validated, or
 accepted. Accepted origins include the domain, subject type, boundary machine,
@@ -216,9 +212,9 @@ and rejects a transformation whose provenance assignment is ambiguous.
 
 Two general facilities complete this model:
 
-1. The domain surface must author predicate and semantic facets explicitly,
-   including bodyless predicate declarations, boundary-evidence permission,
-   and transparent predicate aliases.
+1. The domain surface must support bodyless declarations, transparent aliases,
+   owner-authorized establishment routes, and receipt-backed guarantees on
+   boundary requirements.
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.
@@ -230,8 +226,8 @@ declarations and compiler metadata while preserving the authority contracts.
 ## Acceptance
 
 - reconstructing an authority carrier does not reproduce its domain facts;
-- an accepted provider cannot originate membership in a domain that does not
-  permit boundary evidence;
+- an accepted provider cannot originate membership without satisfying an
+  owner-authorized requirement that names the exact qualified subject;
 - every accepted fact origin appears with its provider receipt;
 - a checked qualified result is rejected unless proof, existing evidence, or a
   validated resource transformation establishes it;
@@ -240,7 +236,7 @@ declarations and compiler metadata while preserving the authority contracts.
 - accepted resource origins default to strict carry, explicit positive
   permissions relax individual axes, and inherited claims preserve them;
 - a fabricated or dequalified linear Extent has no legal consuming path;
-- predicate facts and runtime authority carriers add no implicit runtime tag;
+- qualification facts and runtime authority carriers add no implicit runtime tag;
   and
 - proof-only boundary data remains representation-free unless its boundary
   contract supplies a representation.

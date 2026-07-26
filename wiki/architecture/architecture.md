@@ -16,7 +16,7 @@ lowers?"
   migration from lossy booleans/bitsets to the settled domain, machine,
   multiplicity, effect-row, and termination-plan semantic forms.
 - [Authority Values And Boundary Evidence](../design_briefs/authority_values_and_boundary_evidence.md):
-  transparent runtime authority carriers, abstract predicate evidence,
+  transparent runtime authority carriers, bodyless qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
 
 ## Architecture Rule

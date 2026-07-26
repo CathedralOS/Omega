@@ -68,7 +68,7 @@ data Extent [linear] {
     length: u64;
 }
 
-pub boundary domain Extent::Granted;
+pub domain Extent::Granted;
 ```
 
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
@@ -76,6 +76,10 @@ descends from a live admitted or checked authority claim. Constructing the same
 fields creates an unqualified linear value. Operations that consume range
 authority require `Granted`, so a fabricated or dequalified Extent has no legal
 resource consumer.
+
+An admitted platform provider originates a root only by satisfying the
+owner-authored memory requirement whose result names
+`Extent in Extent::Granted`; admission records that assertion in its receipt.
 
 The staged source declaration remains in `omega::language::core::extent`
 together with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge.

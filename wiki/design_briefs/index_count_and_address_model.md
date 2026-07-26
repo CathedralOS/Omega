@@ -105,8 +105,8 @@ them (`width(size) <= width(uintptr)`).
 - A narrowing `wide -> narrow` (e.g. `len -> u32`) is allowed **iff it is PROVEN
   that the value fits** the narrow range. This is exactly Decision-17's **Exact**
   case (proven-fits ⇒ no wrap/saturate/trap).
-- The **unproven default must reject**, or force an explicit lossy domain
-  (`as u32 in Wrapping | Saturating | Trapping`). "Allow unless we can prove it is
+- The **unproven default must reject**, or require a named conversion with an
+  explicit `Wrapping | Saturating | Trapping` result policy. "Allow unless we can prove it is
   *too big*" is unsound — it is the open-world bug (§7): absence of a disproof is
   not a proof.
 - A narrowing may *drop* the tighter refinement (a proven-`<= 4` value becomes a

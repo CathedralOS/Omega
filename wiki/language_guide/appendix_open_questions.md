@@ -60,9 +60,9 @@ Last pruned: 2026-07-22.
   already fixed.
 - Decide how much predicate/domain inference to attempt beyond executable
   predicate bodies, explicit evidence, and flow narrowing.
-- Finish decision 19's deferred spaces: external quantity-kind equations,
-  general open-family linking, introduction/mint-authority grammar,
-  `weakens_to` certificate syntax, and affine quantities.
+- Finish the remaining domain spaces: external quantity-kind equations,
+  general open-family linking, `weakens_to` certificate syntax, affine
+  quantities, and the named numeric-conversion library surface.
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

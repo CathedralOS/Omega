@@ -75,7 +75,7 @@ ownership discipline, not a separate mechanism:
 A gated type's un-established storage ([Chapter 7](chapter_7_types_constraints_invariants.md),
 [Chapter 12](chapter_12_dependent_types.md)) is the same state: the domain
 is not yet proven, and nothing may observe the value as the type. The
-construction literal or `as` mint is its closing consumption point.
+construction literal or `as` qualification is its closing consumption point.
 Establishment is monotone **as observed**: a later write may open a window,
 but every consumption point closes it, so no observer ever sees an
 established place fall back.

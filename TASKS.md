@@ -36,34 +36,61 @@ scanners, or receipts.
 
 ### P1 — Authority values and boundary evidence
 
-**DESIGN-BLOCKED: `OWNER_QUESTIONS.md` #3 and #16.** The runtime model is
-specified in
+The runtime model is specified in
 `wiki/design_briefs/authority_values_and_boundary_evidence.md`.
 
-Authority-bearing runtime values use ordinary data fields plus domain facts.
-Implementation work:
+#### P1a — bodyless establishment and admitted roots
 
-- add bodyless predicate declarations and `boundary domain` receipt
-  origination;
+**CLEAR DIRECTION.** Authority-bearing runtime values use ordinary data fields
+plus bodyless domain facts.
+
+- accept equivalent bodyless `domain T::Fact;` and empty-braced declarations;
+- represent predicate bodies, semantic roles, establishment routes, and alias
+  expansion independently instead of projecting a facet pair from body shape;
+- record proof, owner establishment, checked transformation, and admitted
+  receipt as distinct evidence origins;
+- allow admitted qualification only through a provider satisfying an
+  owner-authorized requirement that names the exact qualified subject;
 - implement transparent predicate aliases with expansion before normalization,
   identity, compatibility, and diagnostics;
-- preserve evidence-source identity as checked, transformed, validated, or
-  accepted through artifacts and trust reports;
 - migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
   tokens to ordinary data declarations with their required fields;
-- infer and validate resource-frontier outcome mappings before a checked
-  operation establishes qualified results, rejecting ambiguous mappings;
 - connect provider receipts, linearity, carry policy, and authority-flow
   reporting; and
 - migrate Cathedral's temporary Extent model onto the shared declaration.
 
-Acceptance: reconstructing an authority value's fields does not establish its
-domain facts; admission can originate only domains that permit boundary
-evidence; qualified results require checked evidence or a receipt; split
-conserves one origin and its carry permissions across its children;
-`Carry::Portable` normalizes identically to its four atoms; an accepted claim
-without permission facts rejects disallowed crossings; and authority expansion
-is visible at final-artifact admission.
+Acceptance: reconstructing an authority carrier does not establish its facts;
+an owner machine cannot satisfy a bodyful result without proving its body; an
+admitted provider cannot originate a fact outside an owner-authorized
+requirement; receipts and authority-flow reports identify every accepted
+origin; and Cathedral obtains one qualified root at a time from its admitted
+memory provider without split, merge, or an array of checked claims.
+
+#### P1b — canonical bodyless `as`
+
+**CLEAR DIRECTION.** Add the core representation-qualification requirement
+described in chapter 8. Its conformance validator checks the qualified-type
+delta, unchanged value lineage, domain-owner coherence, termination, and the
+absence of effects, suspension, blocking, mutation, trap, failure, and abort.
+One visible home satisfier enables `as`; ambiguous sites call a named satisfier.
+All uses erase.
+
+Acceptance: a `Km`-style bodyless domain supports `5 as ...` through one home
+satisfier; adding a second makes only the shorthand ambiguous; a bodyful domain
+still requires proof; a transformed or reconstructed return cannot satisfy the
+core requirement; and a third party cannot open another package's domain.
+
+#### P1c — composite resource frontiers
+
+**DESIGN-BLOCKED: `OWNER_QUESTIONS.md` #3.** Implement path-indexed partial
+moves and conserved multi-output transformations when #3 settles. Extent
+split/merge is triggered only when an independently owned subrange must cross
+an ownership boundary; it is not required for the admitted-root, placed-view,
+or borrow-backed Arena slices.
+
+Acceptance: partial moves preserve sibling obligations; a checked split cannot
+duplicate one origin; mapped outputs inherit the correct carry permissions;
+and ambiguous mappings reject.
 
 ### P2 — Source-visible materialization and placed access
 
@@ -82,7 +109,7 @@ References:
   derive public access from validated plans and field identities.
 
 Acceptance: an Omega-authored compact-bit policy validates, materializes, and
-projects a typed value on x86-64 and AArch64; malformed tiling and fact-minting
+projects a typed value on x86-64 and AArch64; malformed tiling and fact establishment
 from raw bytes reject.
 
 #### L6b — `AccessPlan` and placed views
@@ -165,6 +192,24 @@ ceilings, and publication-before-ledger-record all reject.
 
 ## Active compiler lanes
 
+### Domain theory and numeric conversion
+
+- Replace the transitional predicate/semantic facet projection with predicate
+  body, semantic-role, establishment-route, and alias records.
+- Implement the core canonical qualification conformance from P1b.
+- Add role collision/composition tests: `Km & Wrapping` composes;
+  `Wrapping & Trapping` rejects.
+- Define ordinary core numeric conversion machines, with explicit narrowing
+  policy, then migrate width and float/integer conversion away from the legacy
+  `as` spelling.
+- Add one user-authored predicate canary whose body is not a compiler-known
+  byte predicate.
+
+Acceptance: qualification `as` preserves carrier, payload, and runtime work;
+numeric and unit conversions are visible calls; bodyful and bodyless domains
+take their respective proof and establishment routes; and normalized identity
+does not depend on the transitional facet projection.
+
 ### Calling plans and boundary artifacts
 
 #### ENT2c — finish normalized ABI lowering
@@ -234,9 +279,10 @@ current consumers happen to align.
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
   Boundary write-frame spelling is owner-blocked on #15.
-- **DOM1/DOM2/DOM3/DOM5:** authored facets, operator ownership, sealed
-  introduction, weakening certificates, and transparent predicate aliases are
-  owner-blocked on #16's remaining declaration surface.
+- **DOM1/DOM2/DOM3/DOM5:** replace the transitional facet projection with
+  predicate-body, semantic-role, establishment-route, and alias records;
+  implement the canonical core qualification conformance, operator ownership,
+  weakening certificates, and transparent aliases.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration.
@@ -254,12 +300,13 @@ improvements do not change public identity.
   `Carry::Portable` expansion, strict accepted-resource origins, checked-origin
   derivation, permission retention after qualification forgetting, and
   per-axis inheritance through aggregates and inferred claim transformations.
-  This depends on #3/#16 rather than a separate carry decision.
+  Conserved multi-output inheritance depends on #3; admitted-root and
+  one-to-one inheritance follow P1a.
 - **CML4:** finish structural multiplicity migration. Automatic cleanup and
   partial-value semantics are owner-blocked on #2/#3.
 - **TR3–TR8:** finish task activation, custody, continuations, suspension-safe
   loans, and reference packages. Runtime provider publication is owner-blocked
-  on #9; authority-value declarations depend on #16.
+  on #9; authority-value declarations follow P1a.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to qualified `Extent` after P1.
 - Implement owned `Vec<T>` and then `Vec<u8> in Utf8` through ordinary data and
@@ -344,7 +391,6 @@ blocked work.
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
-| #16 authored domain policy | facets, abstract predicates, boundary evidence, predicate aliases, operators, and semantic introduction |
 | #17 authored `AccessPlan` policy | placed views and MMIO projection |
 
 ## Vertical acceptance slices
@@ -355,8 +401,9 @@ blocked work.
   termination, mutation, and trust normalize independently. Candidate resource
   demand and installed provision admit separately; a fixed resource ceiling is
   contract identity only when policy deliberately publishes one.
-- **Units:** after #16, implement two units in one dimension with explicit
-  conversion, generic preservation, and operator coherence.
+- **Units:** implement two units in one dimension with canonical bodyless
+  qualification, explicit conversion, arithmetic-policy composition, generic
+  preservation, and operator coherence.
 - **OS gauntlet:** UART/MMIO, Cathedral-owned address translation, DMA,
   hostile/trusted shared-page IPC, Cathedral-owned exception/timer entry, and
   SMP AP bringup. A new customer-shaped compiler concept fails the slice.

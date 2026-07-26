@@ -224,7 +224,7 @@ logical schema arguments; they do not choose a runtime specialization of the
 relation.
 
 Working rules: the relation must be proven an equivalence (reflexive,
-symmetric, transitive — ordinary lemma obligations); the mint is
+symmetric, transitive — ordinary lemma obligations); quotient formation is
 carrier-only (`seq as Real`; `42 as Real` does not compile — that road
 runs through `Rat` and a constant stream); a machine on the carrier is
 callable on the quotient only when it carries an ordinary structural respect
@@ -353,8 +353,9 @@ terminates by items -> Slice::Length;
 domain [i32]::SortedAscending { sorted(self); }
 ```
 
-The definition is also the decider: an `as` mint runs it (or a loop the
-checker proves refines it) to establish the domain.
+The definition also specifies the decider: a checked validator runs it (or a
+loop the checker proves refines it), and the successful path uses `as` only
+after the predicate is established.
 
 Consuming the fact at an arbitrary index needs one **extraction lemma** per
 predicate — an induction, written once by the predicate's author:
@@ -540,7 +541,7 @@ Working rules:
 Certificates need no construct of their own: a certificate is wire data,
 its checker is a measured machine, its soundness is a theorem
 (`check(c) == true` implies the claim), and establishment is the
-`evaluated` tier — or an `as` mint through a certificate domain
+`evaluated` tier — or a proved `as` qualification through a certificate domain
 (`domain [u8]::ValidCert { check(self); }`), the validated-decode pattern
 of chapter 8 applied to proofs. A build that can afford the check *proves*
 the claim outright; one that cannot accepts the narrow execution claim
