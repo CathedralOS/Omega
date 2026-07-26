@@ -70,25 +70,28 @@ fn lower_case_membership_expression_from_members(
     target
         .expression_table
         .push_name_path_member_symbol(&mut member_symbols, variant_symbol);
-    let case_reference =
+    let case_reference = target
+        .expression_table
+        .insert(typed::expression::ExpressionNode::Name(
+            typed::expression::TableNamePath {
+                members,
+                member_symbols,
+                head_symbol: data_definition.symbol,
+                symbol: variant_symbol,
+            },
+        ));
+
+    Some(
         target
             .expression_table
-            .insert(typed::expression::ExpressionNode::Name(
-                typed::expression::TableNamePath {
-                    members,
-                    member_symbols,
-                    head_symbol: data_definition.symbol,
-                    symbol: variant_symbol,
+            .insert(typed::expression::ExpressionNode::Binary(
+                typed::expression::TableBinaryExpression {
+                    left: value,
+                    operator: typed::expression::BinaryOperator::Equal,
+                    right: case_reference,
                 },
-            ));
-
-    Some(target.expression_table.insert(typed::expression::ExpressionNode::Binary(
-        typed::expression::TableBinaryExpression {
-            left: value,
-            operator: typed::expression::BinaryOperator::Equal,
-            right: case_reference,
-        },
-    )))
+            )),
+    )
 }
 
 pub(super) fn lower_domain_membership_expression(
@@ -158,13 +161,15 @@ pub(super) fn lower_domain_membership_expression(
     };
 
     for fact in lowered_facts {
-        combined = target.expression_table.insert(typed::expression::ExpressionNode::Binary(
-            typed::expression::TableBinaryExpression {
-                left: combined,
-                operator: typed::expression::BinaryOperator::And,
-                right: fact,
-            },
-        ));
+        combined = target
+            .expression_table
+            .insert(typed::expression::ExpressionNode::Binary(
+                typed::expression::TableBinaryExpression {
+                    left: combined,
+                    operator: typed::expression::BinaryOperator::And,
+                    right: fact,
+                },
+            ));
     }
 
     Ok(combined)

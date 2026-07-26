@@ -5,8 +5,7 @@ use omega_symbol_resolved_trees::types::TypeReference;
 
 pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
-    pub(super) type_parameters:
-        &'program [omega_symbol_resolved_trees::data::TypeParameter],
+    pub(super) type_parameters: &'program [omega_symbol_resolved_trees::data::TypeParameter],
     pub(super) attached_data: Option<&'program omega_symbol_resolved_trees::name::DiagnosticName>,
     pub(super) inherited_data_members:
         Option<&'program [omega_symbol_resolved_trees::data::DataMember]>,

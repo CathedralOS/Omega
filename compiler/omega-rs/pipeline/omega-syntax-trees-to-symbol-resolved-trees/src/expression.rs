@@ -1,5 +1,5 @@
-use crate::name::lower_name;
 use crate::lowerer::Lowerer;
+use crate::name::lower_name;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -82,12 +82,11 @@ fn lower_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Cast(cast) => {
             let value = lower_expression_into_table(lowerer, syntax_trees, cast.value)?;
-            let target_type =
-                crate::type_reference::lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    cast.target_type,
-                )?;
+            let target_type = crate::type_reference::lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                cast.target_type,
+            )?;
             let target_type = lowerer
                 .symbol_resolved_trees
                 .tables
@@ -107,7 +106,8 @@ fn lower_expression_node_into_table(
                 .expressions
                 .identifier_path_members(cast.semantic_domain)
             {
-                expression_table(lowerer).push_name_path_member(&mut semantic_domain, lower_name(member));
+                expression_table(lowerer)
+                    .push_name_path_member(&mut semantic_domain, lower_name(member));
             }
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Cast(TableCastExpression {
@@ -149,23 +149,25 @@ fn lower_expression_node_into_table(
                 let zero = expression_table(lowerer).insert(ExpressionNode::Integer(
                     omega_core::literals::IntegerLiteral::zero(),
                 ));
-                let negated = expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: zero,
-                    operator: BinaryOperator::Subtract,
-                    right: x,
-                }));
+                let negated = expression_table(lowerer).insert(ExpressionNode::Binary(
+                    TableBinaryExpression {
+                        left: zero,
+                        operator: BinaryOperator::Subtract,
+                        right: x,
+                    },
+                ));
                 let arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 0, x);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 1, negated);
-                return Ok(
-                    expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
+                return Ok(expression_table(lowerer).insert(ExpressionNode::Call(
+                    TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
                         target: DiagnosticName::new("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments,
-                    })),
-                );
+                    },
+                )));
             }
             // `clamp(x, lo, hi)` desugars to `min(max(x, lo), hi)` -- also
             // pure min/max reuse. Each argument appears EXACTLY ONCE (no
@@ -180,34 +182,36 @@ fn lower_expression_node_into_table(
                     .expressions
                     .expression_handles(call.arguments)
                     .to_vec();
-                let x =
-                    lower_expression_into_table(lowerer, syntax_trees, argument_handles[0])?;
-                let lo =
-                    lower_expression_into_table(lowerer, syntax_trees, argument_handles[1])?;
-                let hi =
-                    lower_expression_into_table(lowerer, syntax_trees, argument_handles[2])?;
+                let x = lower_expression_into_table(lowerer, syntax_trees, argument_handles[0])?;
+                let lo = lower_expression_into_table(lowerer, syntax_trees, argument_handles[1])?;
+                let hi = lower_expression_into_table(lowerer, syntax_trees, argument_handles[2])?;
                 let max_arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(max_arguments, 0, x);
                 expression_table(lowerer).set_expression_handle_at_offset(max_arguments, 1, lo);
-                let max_call = expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
-                    receiver: ExpressionHandle::invalid(),
-                    target_symbol: SymbolHandle::invalid(),
-                    target: DiagnosticName::new("max", call.target.source_span()),
-                    machine_arguments: Box::default(),
-                    arguments: max_arguments,
-                }));
-                let min_arguments = expression_table(lowerer).reserve_expression_handles(2);
-                expression_table(lowerer).set_expression_handle_at_offset(min_arguments, 0, max_call);
-                expression_table(lowerer).set_expression_handle_at_offset(min_arguments, 1, hi);
-                return Ok(
+                let max_call =
                     expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: ExpressionHandle::invalid(),
+                        target_symbol: SymbolHandle::invalid(),
+                        target: DiagnosticName::new("max", call.target.source_span()),
+                        machine_arguments: Box::default(),
+                        arguments: max_arguments,
+                    }));
+                let min_arguments = expression_table(lowerer).reserve_expression_handles(2);
+                expression_table(lowerer).set_expression_handle_at_offset(
+                    min_arguments,
+                    0,
+                    max_call,
+                );
+                expression_table(lowerer).set_expression_handle_at_offset(min_arguments, 1, hi);
+                return Ok(expression_table(lowerer).insert(ExpressionNode::Call(
+                    TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
                         target: DiagnosticName::new("min", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: min_arguments,
-                    })),
-                );
+                    },
+                )));
             }
 
             let receiver = if call.receiver.is_valid() {
@@ -215,7 +219,8 @@ fn lower_expression_node_into_table(
             } else {
                 ExpressionHandle::invalid()
             };
-            let arguments = expression_table(lowerer).reserve_expression_handles(call.arguments.count());
+            let arguments =
+                expression_table(lowerer).reserve_expression_handles(call.arguments.count());
             for (offset, argument) in syntax_trees
                 .expressions
                 .expression_handles(call.arguments)
@@ -288,13 +293,13 @@ fn lower_expression_node_into_table(
             {
                 expression_table(lowerer).push_name_path_member(&mut domain, lower_name(member));
             }
-            Ok(
-                expression_table(lowerer).insert(ExpressionNode::Membership(TableMembershipExpression {
+            Ok(expression_table(lowerer).insert(ExpressionNode::Membership(
+                TableMembershipExpression {
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),
-                })),
-            )
+                },
+            )))
         }
         syntax::expression::ExpressionNode::Member(member) => {
             let receiver = lower_expression_into_table(lowerer, syntax_trees, member.receiver)?;
@@ -329,12 +334,14 @@ fn lower_expression_node_into_table(
             for member in syntax_trees.expressions.identifier_path_members(*path) {
                 expression_table(lowerer).push_name_path_member(&mut members, lower_name(member));
             }
-            Ok(expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
-                members,
-                is_self_value: false,
-                head_symbol: SymbolHandle::invalid(),
-                symbol: SymbolHandle::invalid(),
-            })))
+            Ok(
+                expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    is_self_value: false,
+                    head_symbol: SymbolHandle::invalid(),
+                    symbol: SymbolHandle::invalid(),
+                })),
+            )
         }
         syntax::expression::ExpressionNode::Range(range) => {
             let start = range
@@ -363,12 +370,14 @@ fn lower_expression_node_into_table(
                 &mut members,
                 omega_symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
             );
-            Ok(expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
-                members,
-                is_self_value: true,
-                head_symbol: SymbolHandle::invalid(),
-                symbol: SymbolHandle::invalid(),
-            })))
+            Ok(
+                expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    is_self_value: true,
+                    head_symbol: SymbolHandle::invalid(),
+                    symbol: SymbolHandle::invalid(),
+                })),
+            )
         }
         syntax::expression::ExpressionNode::String(value) => {
             Ok(expression_table(lowerer).insert(ExpressionNode::String(value.clone())))
@@ -383,7 +392,8 @@ fn lower_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
-            let fields = expression_table(lowerer).reserve_struct_fields(struct_literal.fields.count());
+            let fields =
+                expression_table(lowerer).reserve_struct_fields(struct_literal.fields.count());
             for (offset, field) in syntax_trees
                 .expressions
                 .struct_fields(struct_literal.fields)
@@ -405,22 +415,20 @@ fn lower_expression_node_into_table(
             let (type_name, case_name) =
                 lower_struct_literal_shape_names(syntax_trees, struct_literal)?;
             Ok(
-                expression_table(lowerer).insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name,
-                    case_name,
-                    fields,
-                })),
+                expression_table(lowerer).insert(ExpressionNode::StructLiteral(
+                    TableStructLiteral {
+                        type_name,
+                        case_name,
+                        fields,
+                    },
+                )),
             )
         }
     }
 }
 
 fn expression_table(lowerer: &mut Lowerer) -> &mut ExpressionTable {
-    &mut lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
+    &mut lowerer.symbol_resolved_trees.tables.bodies.expressions
 }
 
 /// The lowered `(type_name, case_name)` pair of a brace literal. A two-member

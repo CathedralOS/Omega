@@ -126,16 +126,18 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     self.target(),
                     cast.semantic_domain,
                 );
-                Ok(self.target().insert(typed::expression::ExpressionNode::Cast(
-                    typed::expression::TableCastExpression {
-                        value,
-                        target_type,
-                        target_label,
-                        domain: cast.domain,
-                        semantic_domain,
-                        form: cast.form,
-                    },
-                )))
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Cast(
+                        typed::expression::TableCastExpression {
+                            value,
+                            target_type,
+                            target_label,
+                            domain: cast.domain,
+                            semantic_domain,
+                            form: cast.form,
+                        },
+                    )))
             }
             resolved::expression::ExpressionNode::Call(call) => {
                 if let Some(lowered) = self.try_lower_synthesized_equatable_call(call)? {
@@ -143,28 +145,30 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 }
                 let receiver = self.lower_optional(call.receiver)?;
                 let arguments = self.lower_expression_handle_span(call.arguments)?;
-                Ok(self.target().insert(typed::expression::ExpressionNode::Call(
-                    typed::expression::TableCallExpression {
-                        receiver,
-                        target_symbol: call.target_symbol,
-                        target: lower_name(&call.target),
-                        machine_arguments: call
-                            .machine_arguments
-                            .iter()
-                            .map(|argument| typed::expression::StaticMachineArgument {
-                                path: argument
-                                    .path
-                                    .iter()
-                                    .map(lower_name)
-                                    .collect::<Vec<_>>()
-                                    .into_boxed_slice(),
-                                symbol: argument.symbol,
-                            })
-                            .collect::<Vec<_>>()
-                            .into_boxed_slice(),
-                        arguments,
-                    },
-                )))
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Call(
+                        typed::expression::TableCallExpression {
+                            receiver,
+                            target_symbol: call.target_symbol,
+                            target: lower_name(&call.target),
+                            machine_arguments: call
+                                .machine_arguments
+                                .iter()
+                                .map(|argument| typed::expression::StaticMachineArgument {
+                                    path: argument
+                                        .path
+                                        .iter()
+                                        .map(lower_name)
+                                        .collect::<Vec<_>>()
+                                        .into_boxed_slice(),
+                                    symbol: argument.symbol,
+                                })
+                                .collect::<Vec<_>>()
+                                .into_boxed_slice(),
+                            arguments,
+                        },
+                    )))
             }
             resolved::expression::ExpressionNode::Float(value) => {
                 // The carrier CLONES across layers (spelling + landing ride);
@@ -223,13 +227,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             resolved::expression::ExpressionNode::Range(range) => {
                 let start = self.lower_optional(range.start)?;
                 let end = self.lower_optional(range.end)?;
-                Ok(self.target().insert(typed::expression::ExpressionNode::Range(
-                    typed::expression::TableRangeExpression {
-                        start,
-                        end,
-                        end_inclusive: range.end_inclusive,
-                    },
-                )))
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Range(
+                        typed::expression::TableRangeExpression {
+                            start,
+                            end,
+                            end_inclusive: range.end_inclusive,
+                        },
+                    )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
@@ -252,12 +258,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Unary(unary) => {
                 let operand = self.lower(unary.operand)?;
-                Ok(self.target().insert(typed::expression::ExpressionNode::Unary(
-                    typed::expression::TableUnaryExpression {
-                        operator: lower_unary_operator(unary.operator),
-                        operand,
-                    },
-                )))
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Unary(
+                        typed::expression::TableUnaryExpression {
+                            operator: lower_unary_operator(unary.operator),
+                            operand,
+                        },
+                    )))
             }
         }
     }

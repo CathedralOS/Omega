@@ -1219,9 +1219,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_wr
     // storage leaf, so the ordinary target-descriptor resolver may not reach
     // it. The cast result carries the exact primitive type that the checked
     // assignment stores.
-    .or_else(|| {
-            input.program.primitive_type_reference(cast.target_type)
-    })?;
+    .or_else(|| input.program.primitive_type_reference(cast.target_type))?;
 
     if let Some(target_place) = runtime_indexed_convert_target_place(
         input,

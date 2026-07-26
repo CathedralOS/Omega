@@ -194,15 +194,17 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             let receiver = self.lower(binary.left)?;
             let argument = self.lower(binary.right)?;
             let arguments = self.target().insert_expression_handles(vec![argument]);
-            let call = self.target().insert(typed::expression::ExpressionNode::Call(
-                typed::expression::TableCallExpression {
-                    receiver,
-                    target_symbol: equals_state,
-                    target: typed::name::Identifier::generated_static("equals"),
-                    machine_arguments: Box::default(),
-                    arguments,
-                },
-            ));
+            let call = self
+                .target()
+                .insert(typed::expression::ExpressionNode::Call(
+                    typed::expression::TableCallExpression {
+                        receiver,
+                        target_symbol: equals_state,
+                        target: typed::name::Identifier::generated_static("equals"),
+                        machine_arguments: Box::default(),
+                        arguments,
+                    },
+                ));
             return Ok(Some(self.with_equality_polarity(call, binary.operator)));
         }
 
@@ -759,14 +761,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .push_name_path_member_symbol(&mut member_symbols, data.symbol);
         self.target()
             .push_name_path_member_symbol(&mut member_symbols, variant.symbol);
-        let case_reference = self.target().insert(typed::expression::ExpressionNode::Name(
-            typed::expression::TableNamePath {
-                members,
-                member_symbols,
-                head_symbol: data.symbol,
-                symbol: variant.symbol,
-            },
-        ));
+        let case_reference = self
+            .target()
+            .insert(typed::expression::ExpressionNode::Name(
+                typed::expression::TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: data.symbol,
+                    symbol: variant.symbol,
+                },
+            ));
         self.target()
             .insert(typed::expression::ExpressionNode::Binary(
                 typed::expression::TableBinaryExpression {

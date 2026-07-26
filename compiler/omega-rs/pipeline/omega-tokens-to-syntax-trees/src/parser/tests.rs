@@ -1037,8 +1037,7 @@ fn parses_structural_recast_targets_as_type_references() {
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let parsed =
-        parse_syntax_trees(&tokens).expect("array and slice recast targets should parse");
+    let parsed = parse_syntax_trees(&tokens).expect("array and slice recast targets should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1046,7 +1045,9 @@ fn parses_structural_recast_targets_as_type_references() {
             _ => None,
         })
         .expect("machine root item");
-    let state = parsed.items.state(parsed.items.state_handles(machine.states)[0]);
+    let state = parsed
+        .items
+        .state(parsed.items.state_handles(machine.states)[0]);
     let locals = parsed
         .items
         .statements(state.statements)
@@ -1057,9 +1058,7 @@ fn parses_structural_recast_targets_as_type_references() {
         })
         .collect::<Vec<_>>();
 
-    let ExpressionNode::Cast(fixed) =
-        parsed.expressions.expression(locals[0].initial_value)
-    else {
+    let ExpressionNode::Cast(fixed) = parsed.expressions.expression(locals[0].initial_value) else {
         panic!("fixed-array initializer should be a recast");
     };
     let TypeReferenceNode::FixedArray {
@@ -1074,9 +1073,7 @@ fn parses_structural_recast_targets_as_type_references() {
         TypeReferenceNode::Named(name) if name.as_str() == "u8"
     ));
 
-    let ExpressionNode::Cast(slice) =
-        parsed.expressions.expression(locals[1].initial_value)
-    else {
+    let ExpressionNode::Cast(slice) = parsed.expressions.expression(locals[1].initial_value) else {
         panic!("slice initializer should be a recast");
     };
     let TypeReferenceNode::Slice { element_type } =

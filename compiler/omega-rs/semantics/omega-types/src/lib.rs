@@ -702,6 +702,7 @@ mod tests {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
+            terminates: false,
             terminates_guarantee: false,
             decreases: HandleSpan::empty(),
             decrease_order: HandleSpan::empty(),

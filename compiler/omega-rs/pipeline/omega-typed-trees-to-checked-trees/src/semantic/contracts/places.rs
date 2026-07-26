@@ -62,9 +62,9 @@ fn append_contract_expression_dependency_places(
                 places.push(place);
             }
         }
-        ExpressionNode::Mutable(inner) => append_contract_expression_dependency_places(
-            program, facts, contract, *inner, places,
-        ),
+        ExpressionNode::Mutable(inner) => {
+            append_contract_expression_dependency_places(program, facts, contract, *inner, places)
+        }
         ExpressionNode::Atomic(atomic) => {
             append_contract_expression_dependency_places(
                 program,
@@ -110,11 +110,7 @@ fn append_contract_expression_dependency_places(
             );
             for argument in program.expression_table.expression_handles(call.arguments) {
                 append_contract_expression_dependency_places(
-                    program,
-                    facts,
-                    contract,
-                    *argument,
-                    places,
+                    program, facts, contract, *argument, places,
                 );
             }
         }

@@ -66,7 +66,9 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
             "{} as {}",
             instantiate(cast.value),
             omega_typed_trees::expression::display_name_path(
-                program.expression_table.name_path_members(cast.target_label),
+                program
+                    .expression_table
+                    .name_path_members(cast.target_label),
                 "::",
             )
         ),

@@ -75,19 +75,11 @@ pub(crate) fn lower_proof_facts(
     for fact in syntax_trees.items.proof_facts(facts) {
         let fact = match fact {
             syntax::item::ProofFact::Expression(expression) => {
-                let expression = lower_expression_into_table(
-                    lowerer,
-                    syntax_trees,
-                    *expression,
-                )?;
+                let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
                 ProofFact::Expression(expression)
             }
             syntax::item::ProofFact::Membership(membership) => {
-                let value = lower_expression_into_table(
-                    lowerer,
-                    syntax_trees,
-                    membership.value,
-                )?;
+                let value = lower_expression_into_table(lowerer, syntax_trees, membership.value)?;
                 let mut domain = omega_core::arena::HandleSpan::empty();
                 for member in syntax_trees
                     .items
