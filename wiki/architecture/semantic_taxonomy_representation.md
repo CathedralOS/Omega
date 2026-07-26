@@ -21,22 +21,22 @@ rather than extending old booleans and bitsets by convention.
 `omega-symbol-resolved-trees/src/domain.rs` and
 `omega-typed-trees/src/domain.rs` represent every domain as one
 `DomainDefinition` containing invariant `facts`, `operators`, and an explicit
-normalized predicate/semantic facet pair. The pair represents hybrids without
-duplication and is populated once at syntax-to-resolved lowering, then copied
-to typed trees. They do not yet represent:
+normalized predicate/semantic facet pair. The pair is a transitional
+compatibility projection populated once at syntax-to-resolved lowering and
+copied to typed trees. It does not yet represent:
 
-- authored predicate-versus-semantic facet policy (the compatibility
-  projection classifies factful declarations as hybrids and factless
-  declarations as semantic-only);
-- semantic introduction policy or mint authority;
-- denotation schema;
-- implicit-weakening certificate/sealed theory;
-- the distinction between fact membership and binding-site semantic
-  qualification.
+- an optional predicate body;
+- semantic contributions keyed by compiler-owned roles;
+- owner-authorized establishment relationships;
+- denotation schema and implicit-weakening certificate/sealed theory;
+- the distinction between flow knowledge and binding-site semantic
+  qualification; or
+- evidence-source identity for proof, checked establishment, transformation,
+  and admitted receipt.
 
 `omega-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
 membership, while qualification casts and emitted semantic commitments now
-consult the explicit semantic facet. There is no complete parallel
+consult the explicit semantic facet. There is no complete role-keyed
 semantic-qualification plan yet. Arithmetic policies survive through
 compiler-specific `ArithmeticDomain` paths, which is useful bootstrap behavior
 but not the general domain model.
@@ -99,36 +99,36 @@ operations remain behind the provider boundary.
 `DataSupplyMode::BoundaryOpaque` remains the representation mode for
 proof-boundary data whose carrier is supplied by admission, such as abstract
 `Real`. Runtime authority declarations migrate from that mode to ordinary data
-as bodyless predicates, boundary-domain evidence, and resource-frontier
-transformations land.
+as bodyless establishment, receipt-backed boundary guarantees, and
+resource-frontier transformations land.
 
 The compiler records whether each domain fact originated through checked proof,
-validation, resource transfer, or accepted boundary evidence. Boundary-domain
-permission contributes to trust identity; private proof and transformation
-witnesses remain implementation evidence.
+owner establishment, validation, resource transfer, or accepted boundary
+evidence. The owner-authorized requirement and provider receipt contribute to
+trust identity; private proof and transformation witnesses remain
+implementation evidence.
 
 See
 [`../design_briefs/authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 ### Domain theory
 
-Introduce a shared semantic domain model used by symbol-resolved, typed, and
-checked layers:
+Introduce a shared domain model used by symbol-resolved, typed, and checked
+layers:
 
 ```text
 DomainTheory {
     carrier,
-    predicate: Option<PredicateFacet>,
-    semantic: Option<SemanticFacet>,
+    predicate_body: Option<PredicateBody>,
+    semantic_roles: NormalizedRoleMap,
+    establishment_routes: NormalizedEstablishmentSet,
+    alias_expansion: NormalizedDomainExpression,
 }
-
-PredicateFacet { body/evidence visibility, normalized propositions, ... }
-SemanticFacet  { introduction, denotation, operator theory, weakening, ... }
 ```
 
-This must be a pair of optional facets, not a mutually exclusive enum, because
-hybrids are first-class. Checked types/bindings carry a normalized
-`SemanticDomainId`; flow facts carry predicate membership. The deterministic
+These are independent records rather than a mutually exclusive enum because
+hybrids are first-class. Checked types/bindings carry normalized static
+qualification; flow facts carry proven membership. The deterministic
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
 
@@ -136,11 +136,11 @@ Implementation status (DOM1/STR2, 2026-07-23): core, symbol-resolved, and typed
 layers carry the normalized facet pair. Syntax lowering is the sole legacy
 shape projection; downstream tree propagation copies it verbatim and both
 resolved/typed structural snapshots publish it beside the semantic identity.
-Semantic qualification, commitment collection, introduction-authority lookup,
-and trust publication consume `facets.semantic`, and qualification demands
-proof only when `facets.predicate` is active. Repeated normalized declarations
-compare the pair. Authored source policy, full facet bodies, and the checked
-qualification plan remain.
+Semantic qualification and trust publication currently consume
+`facets.semantic`, and qualification demands proof only when
+`facets.predicate` is active. Repeated normalized declarations compare the
+pair. Role-keyed semantic contributions, bodyless establishment routes,
+receipt origins, and the checked core qualification relationship remain.
 
 Implementation status (DOM1 generic propagation, 2026-07-23): typed
 `TypeConstraintNode::Domain` is a normalized binding-site record, not a bare
@@ -157,15 +157,15 @@ Implementation status (DOM1 per-axis composition, 2026-07-23): a constrained
 type's domain chain is no longer projected to its first member. Predicate
 facets compose conjunctively through implicit parameter requirements, checked
 writes and constructions, entry/read facts, return/parameter implication, and
-post-write re-establishment. Semantic-only members never enter that fact
-lattice; their normalized identities remain on the type for semantic
-qualification consumers. The remaining DOM1 gate is genuinely language
-design: freeze the authored facet declaration/policy surface, then remove the
-factful=hybrid/factless=semantic-only compatibility projection.
+post-write re-establishment. Members without predicate bodies never enter that
+fact lattice; their normalized identities remain on the type for semantic
+qualification consumers. The remaining DOM1 work is to replace the
+factful=hybrid/factless=semantic-only compatibility projection with the
+independent domain-theory records.
 
 Implementation status (DOM2 binding activation, 2026-07-23): checked operator
 selection reads only static binding sources: normalized declared constraints,
-explicit mints, and signature `requires`. The selector has no flow/fact-plan
+explicit qualifications, and signature `requires`. The selector has no flow/fact-plan
 input, so guards, call guarantees, or later prover improvements cannot change
 operator meaning. Operator `requires` clauses remain ordinary flow-sensitive
 proof obligations after selection. Candidate matching now consumes the complete
@@ -554,9 +554,10 @@ service reach.
 ## Staged migration
 
 1. **Inventory and invariants.** Add compile-time tests/snapshots showing where
-   domain facet, supply mode, multiplicity, carry policy, and contract identity
+   domain theory, supply mode, multiplicity, carry policy, and contract identity
    must survive.
-2. **Core semantic enums/IDs.** Land facet pair, introduction policy,
+2. **Core semantic enums/IDs.** Land domain-theory records, establishment-route
+   identity, semantic-role vocabulary,
    multiplicity, carry policy, supply mode, termination guarantee/witness,
   progress-profile ID, service-reach ID/row, suspension plan, blocking plan,
   and other identity handles in the lowest dependency-safe crates. No
@@ -564,12 +565,14 @@ service reach.
 3. **Tree propagation.** Carry the representations through symbol-resolved and
    typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
    re-derivation from body shape/keyword presence.
-4. **Checked plans.** Split predicate facts from semantic qualifications; add
+4. **Checked plans.** Split predicate facts, static semantic roles, and
+  establishment evidence; add
   the place-keyed permission plan, service-reach plan, suspension plan,
   blocking plan, termination plan, and
    normalized machine contracts.
-5. **Validation and resolution.** Enforce facet activation, introduction,
-   operator selection, multiplicity conservation, carry derivation/local
+5. **Validation and resolution.** Enforce predicate proof, owner-authorized
+   establishment, core qualification conformance, role-keyed operator
+   selection, multiplicity conservation, carry derivation/local
   transition legality/runtime refinement, service-row inclusion/propagation,
   suspension/blocking propagation, and
    supply/admission rules.
@@ -582,7 +585,7 @@ service reach.
 
 ## Ordering constraints
 
-- Domain mint/operator-family work must not grow on the undifferentiated
+- Domain qualification/operator-family work must not grow on the undifferentiated
   `DomainDefinition` shape.
 - Linear `Task<T>`, transactions, or dependent-linear buffers must not grow on
   move/drop-only ownership summaries.
@@ -598,11 +601,15 @@ service reach.
 
 ## Acceptance criteria
 
-- No checked-stage query infers predicate-vs-semantic domain behavior by
-  testing whether a domain happens to have facts or operators.
-- A hybrid domain is representable without duplication.
-- Semantic qualification survives generics and containers while predicate
-  facts remain flow facts.
+- No checked-stage query infers predicate bodies, semantic roles, or
+  establishment permission from punctuation, body emptiness, or operator
+  presence.
+- A domain carrying both a predicate body and semantic roles is representable
+  without duplication.
+- Static qualification survives generics and containers while proven
+  predicates remain flow facts.
+- A canonical bodyless qualification conformance is value-identical,
+  terminating, behavior-free, owner-authorized, and erased.
 - Requirement/provider/accepted/checked supply modes survive into artifacts.
 - A requirement's termination guarantee can be inherited while its checked
   implementation carries a private ranking witness.

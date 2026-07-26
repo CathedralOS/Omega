@@ -34,6 +34,13 @@
 > model in `float_semantics.md` (`Saturating` clamps finite overflow,
 > `Trapping` rejects non-finite results, and `Wrapping` is invalid for floats).
 
+> **Qualification follow-up (2026-07-25).** The language model separates
+> unchanged-value domain qualification from numeric conversion. The combined
+> `x as Wider in Policy` implementation remains compatibility syntax while
+> named width/float conversion operations are introduced. Arithmetic policies
+> remain a closed semantic role: attaching one is erased, while conversion and
+> later arithmetic carry runtime work.
+
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
 decision was frozen. Decision text + S1-S4 plan: TASKS.md decision 17; semantics:

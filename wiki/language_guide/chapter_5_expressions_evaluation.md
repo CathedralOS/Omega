@@ -286,6 +286,13 @@ primitive **domain** that defines the behavior:
 - `Trapping`: checks at runtime and traps on overflow — the escape hatch when
   safety cannot be proven and neither wrap nor saturate is wanted.
 
+These three domains occupy one closed **arithmetic-policy semantic role**.
+Exactly one policy may govern an operation. The role composes with independent
+domain roles: `Km & Wrapping` combines dimensional meaning with modular
+overflow, while `Wrapping & Trapping` rejects as two policies for one role.
+Attaching a policy changes no payload and performs no work; the later
+arithmetic operation supplies the wrap, clamp, or trap behavior.
+
 Shift counts follow the same rule (settled 2026-07-18): under Exact, a
 shift's count must be **proven** below the operand width (a literal
 out-of-range shift is an immediate compile error); under `Wrapping` the
@@ -317,10 +324,20 @@ ISA-specific invalid-conversion sentinels are never language-visible.
 Two rules keep it honest:
 
 - **No implicit widening.** `u8 + u8` is a `u8` and must be proven to fit a
-  `u8`; to compute in a wider type, cast explicitly (`a as u16 + b as u16`).
+  `u8`; computing in a wider type uses the explicit widening conversion.
 - **No mixed-domain arithmetic.** An exact value and a `Wrapping` value cannot
-  be combined directly; cross domains with an explicit `as` cast. Explicit
-  always wins.
+  be combined directly; select the intended policy with explicit
+  qualification. Explicit always wins.
+
+> **Conversion migration.** The implemented surface currently uses `as` for
+> numeric width and float-to-integer conversion as well as for unchanged-value
+> domain qualification. The domain model reserves qualification `as` for
+> changing static facts without changing carrier, payload, or runtime work.
+> Width, float/integer, and unit conversion therefore move to named contracted
+> operations. Narrowing names its trapping, saturating, wrapping, or
+> checked-result policy explicitly. Existing examples below retain the
+> compatibility spelling until those core operations and the corpus migration
+> land.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.

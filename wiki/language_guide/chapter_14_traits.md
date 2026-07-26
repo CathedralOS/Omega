@@ -91,6 +91,20 @@ fulfills the matching requirement from `Incrementable`.
 > checked body, or signature → `satisfies` → `via <Binding>;` for an
 > irreducible external realization.
 
+### Core qualification conformance
+
+Chapter 8's canonical bodyless qualification uses one blessed core trait
+relationship between carrier `Self` and qualified type `Q`. It follows the
+ordinary named-satisfier rule: one visible home satisfier enables implicit
+`as`; several require a direct call to the chosen satisfier.
+
+This conformance has an additional closed validator because it licenses erased
+qualification. `Q` must erase to `Self` with one added bodyless domain, the
+returned value must retain the input's dataflow identity, the machine must
+terminate with no operational or abnormal behavior, and establishment must be
+authorized by the domain owner. The satisfier's machine name is ordinary and
+does not participate in recognition.
+
 A satisfying implementation inherits the requirement's authored contracts,
 including `requires`, `ensures`, service-reach ceiling, `suspends`/`blocks`
 ceilings, and bare `terminates` guarantee. A cyclic implementation may add

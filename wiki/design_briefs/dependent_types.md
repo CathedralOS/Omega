@@ -94,14 +94,14 @@ survey is unanimous that nothing more ships anywhere in systems code:
 2. **Relational refinements: ranges/domains/contracts may name in-scope
    atoms.** `i: u64 [0..items.len]`, `requires a.cols == b.rows`. The DBM
    already represents value-vs-value order facts natively; this is surface +
-   atom plumbing, not engine theory. Guard minting extends from
+   atom plumbing, not engine theory. Guard establishment extends from
    value-vs-constant to value-vs-value (the matrix-agreement driver costs
    *only* this).
 3. **Value-parameterized views and wire layouts.** Stored parameters (a field
    sizes a sibling region — the length-prefixed packet; SPARK discriminated
    records since 1983; Linux's `__counted_by` converging on it from below)
    and view parameters (a borrowed byte view carries count/stride fixed at
-   mint — the memory map). Deliberately NOT unified with const generics;
+   establishment — the memory map). Deliberately NOT unified with const generics;
    Rust's const-fragment agony is the counter-example.
 4. **Mutation discipline enforced by borrows.** A witness is frozen while any
    dependent borrow lives (loan on the witness); a witness write the checker
@@ -111,7 +111,7 @@ survey is unanimous that nothing more ships anywhere in systems code:
    (Ada 2005 ultimately *banned* pointers to mutable-discriminant objects); a
    borrow checker plus consumption-point windows gets the same theorem from
    two structural rules.
-5. **Two bridges only: guard mint and `as` mint.** Proven, or explicitly
+5. **Two bridges only: guard establishment and `as` qualification.** Proven, or explicitly
    established at a visible guard/decode, or rejected. No implicit runtime
    checks (§6 decides this fork structurally).
 6. **One nonlinear rule: bounded-product monotonicity** over the canonical
@@ -134,7 +134,7 @@ excluded: Liquid Haskell's evidence is a ~30× annotation reduction
 ~1%), but guard narrowing already delivers the intra-procedural share.
 
 **Delta from today (engineering inventory):** symbolic range endpoints +
-value-vs-value guard mints; the which-case and slice-length fact kinds
+value-vs-value guard establishments; the which-case and slice-length fact kinds
 (decision 18's v1 list — already frozen); loan-on-witness; couplings ride the
 default-domain build-out (settled, unbuilt); the product rule; frames (§5);
 out-params-as-witnesses for boundary ensures (no existential machinery —
@@ -207,7 +207,7 @@ default-domain couplings survive every call unconditionally**, because calls
 and returns are consumption points: a callee cannot return, call onward, or
 hand out a borrow with an open window. A `len` sizing its `payload` crosses an effectful call with
 zero annotations — no surveyed language gets this at this price. Only
-flow-scoped extras (guard narrowings, minted subdomains) die, atom-wise, on
+flow-scoped extras (guard narrowings, established subdomains) die, atom-wise, on
 written places.
 
 The v1 rule: *a call may change exactly what its signature admits — the paths
@@ -277,7 +277,7 @@ theory exists solely to debug system-inserted checks failing far from their
 faults, an apparatus deleted by having no inserted checks. Eiffel is the
 cultural warning (configurable monitoring decays contracts into
 documentation); Ada avoids decay only via the UB cliff. Omega's guards with
-forced false arms + `as` mints are the entire runtime story, composed from
+forced false arms + proved `as` qualifications are the entire runtime story, composed from
 existing parts. The honest costs, stated: engine incompleteness becomes
 user-visible guard friction (mitigate with an obligation catalog — errors
 name the missing fact and the minimal guard), and obligations must float
@@ -299,7 +299,7 @@ Gating resolves the ZII/invariant tension:
 - If zero does not, the type is **gated**: not zero-constructible. Data can
   have non-zero requirements — business logic cannot thrive under a
   zero-init-everything law. The zeroed form exists only as storage and is
-  inaccessible as the type until construction or an `as` mint proves the
+  inaccessible as the type until construction or an `as` qualification proves the
   domain. Establishment is monotone as observed (a later write may open an
   invariant window, but every consumption point closes it, so no observer
   sees a place fall back to hidden) — a cheap one-way fact riding the
@@ -319,7 +319,7 @@ Gating resolves the ZII/invariant tension:
   runtime indices ("elements below `loaded` are established" is a
   quantified fact — the quantifier rung).
 
-Decode mints grant exactly the checked predicates and nothing more —
+Decode establishment grants exactly the checked predicates and nothing more —
 firmware semantic truth is not decodable. Length witnesses at zero mean
 empty (len=0 → nothing to access) for zero-constructible types; gated types
 are never observed zeroed.
@@ -419,7 +419,7 @@ systems fragment never blocks the math rung:
   write every engine rule as a declarative inference rule in the design
   record; "engine accepts" stays a documented under-approximation of
   "derivable", and that rulebook becomes the Stage-3 kernel spec.
-- Scope the `as`-sole-mint doctrine to runtime carrier domains; a
+- Scope qualification `as` to runtime carrier domains; a
   proposition is not a decodable thing.
 - ZII and layout obligations never apply to propositions (a zero-inhabited
   proposition is inconsistency by construction); never write "every value
@@ -444,7 +444,7 @@ freely and never borrowed).
 
 Ordered rungs, each independently shippable, each with its acceptance driver:
 
-- **R1 — Symbolic atoms:** range endpoints and guard mints go value-vs-value
+- **R1 — Symbolic atoms:** range endpoints and guard establishments go value-vs-value
   (`requires a.cols == b.rows`; `i: u64 [0..items.len]` as requires sugar).
   Engine: DBM atoms already relational; plumbing + surface only. Driver:
   matrix agreement.
@@ -465,8 +465,8 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   this normalization, and finer read-consumption precision.
 - **R3 — Bounded-product rule** in the polynomial engine. Drivers: `y*W+x`
   (unblocks the TASKS.md nonlinear-index entry), `i*stride`.
-- **R4 — View parameters + boundary witness mints:** out-params as
-  witnesses, decode-minted subdomains, the recast-borrow obligation wired to
+- **R4 — View parameters + boundary witness establishment:** out-params as
+  witnesses, decode-established subdomains, the recast-borrow obligation wired to
   couplings. Driver: the memory-map walk (rides Cathedral M2's recast).
 - **R5 — Frames:** preserve-unless-written and authored state-level `requires`
   plus arrival facts are live; monotone counter inference crosses disjoint

@@ -77,57 +77,53 @@ selection.
 
 ## 3. How do resource frontiers transform across values?
 
-Omega requires structural linearity: a record, live sum payload, array, or
-generic container cannot erase a contained linear obligation. The current
-whole-place checker can conserve one obligation through a composite, but it
-deliberately rejects extracting one field from a multi-resource linear record.
-Accepting that program requires a semantic decomposition rule, not merely
-recording a field segment: two independently established fields must retain two
-origins, and the remainder must stay live after either field moves.
+The structural frontier is settled. A claim is an identity-bearing entity; its
+canonical path is its current location, and its origin/root lineage is separate
+metadata. Every establishment creates a fresh identity. Moving a path moves
+its claim subtree and leaves siblings live. Construction nests contributed
+claims at field paths; destructuring performs the inverse. Variant claims are
+guarded by the active case. Statically named array indices participate like
+field paths; dynamic-index owned extraction remains a monotone acceptance
+restriction until the checker can prove which element moved.
 
-The same machinery must validate nominal resource transformations. An admitted
-root may establish an abstract authority fact on a value. Checked operations
-then consume, split, retain, borrow, transfer, or discharge that claim across
-different result shapes. A qualified result or `ensures` clause states the
-obligation but does not prove that the transformation conserved it.
+An explicitly `[linear]` declaration contributes one nominal root claim. A
+transparent composite that merely contains affine/linear fields derives their
+child claims without adding another nominal root. Whole-value consumers account
+for every live frontier entry. One-to-one moves, borrows, containment, and
+unambiguous aggregate mappings infer automatically; ambiguous mappings reject.
+Carry inheritance follows each output's mapped origins rather than every
+consumed argument.
+
+The unresolved question is conserved decomposition and recomposition of
+externally rooted claims. A qualified result and geometric postcondition do not
+alone prove that one authority was neither duplicated nor enlarged. Per-output
+relations are insufficient because conservation is irreducibly n-ary.
 
 Decide:
 
-- whether `[linear]` on a composite denotes one nominal claim, the frontier of
-  its contained linear claims, or a nominal claim in addition to those
-  contained claims;
-- whether constructing a composite automatically merges field claims, merely
-  nests them, or requires an explicit resource operation, and the inverse rule
-  for field extraction/destructuring;
-- whether a by-value whole-composite consumer discharges every live component,
-  only a nominal claim, or must expose an outcome mapping for each component;
-- how an outcome mapping names consumed inputs, inherited output origins,
-  discharged claims, retained borrows, and claims transferred across different
-  nominal carriers;
-- how the checker infers the unique claim mapping for accepted roots,
-  one-to-one transfers, conserved splits, loans, and aggregates, and rejects an
-  operation when multiple mappings remain possible;
-- how each inherited output claim preserves its input carry permissions, with
-  combined origins selecting the most restrictive demand per axis;
-- how alternative sum payloads, repeated array elements, generic substitution,
-  and partially moved records identify their live component set at joins; and
-- which stable identity extends `PermissionProvenance` so multiple components
-  established at the same state-entry or statement source cannot collapse into
-  one apparent origin.
+- how a resource owner maps a claim to a compiler-understood footprint without
+  teaching the compiler customer names such as `Extent`, `base`, or `split`;
+- whether the first closed footprint vocabulary is
+  `Indivisible | Interval<Scalar>`, with later counted/set algebras added only
+  for real customers;
+- how the checked rule proves parent footprint equals the separated
+  composition of all children for split and the inverse for merge;
+- how attenuation composes with footprint conservation without restoring
+  discarded rights;
+- which symbolic root-lineage identity survives ordinary calls and storage
+  when fragments must later recombine; and
+- how generic or runtime-sized collections expose separated claims once
+  quantified array reasoning exists.
 
-Recommendation: define a value's permission state as a path-indexed resource
-frontier. A nominal linear leaf contributes one claim; a composite with linear
-children carries those child claims at canonical field/index paths without
-minting an extra claim unless the declaration explicitly opts into a distinct
-nominal protocol. Whole-value moves preserve the frontier, field moves transfer
-the selected subtree and leave siblings live, and whole-value consumers must
-account for every live frontier entry. Give each establishment an event-local
-origin identity rather than using source location alone. Validate an
-operation's inferred normalized outcome mapping against that frontier and
-reject ambiguous mappings; keep
-subject-specific relations such as range partition, containment, or equality
-in ordinary postconditions. Defer dynamic-index owned extraction until the
-index/disjointness proof can name a unique element.
+Recommendation: keep indivisible as the default. Let an owner select a
+compiler-owned footprint algebra and provide a checked projection from its
+carrier into that algebra. The ordinary prover establishes subject arithmetic;
+the resource checker owns separated composition and frontier conservation.
+Owner-originated resources may establish fresh claims under owner-authorized
+machines; admitted/conduit resources may only root through receipts or conserve
+existing origins. Layout plans and ordinary allocator bookkeeping remain
+borrowed geometry and do not require owned split. Defer this algebra until a
+subrange genuinely crosses an ownership boundary.
 
 ## 4. How is quantified convergence packaged as a quotient relation?
 
@@ -550,45 +546,6 @@ machine-contract clause with a comma-separated place list. It says exactly what
 the checker needs and avoids colliding with authority retention. Keep effects,
 resource consumption, foreign retention, and hardware state out of the write
 frame; they already have independent contracts.
-
-## 16. What is the authored domain-policy surface?
-
-Predicate and semantic facets are independent. Predicate membership may come
-from checked proof, checked transformation, validation, or permitted boundary
-evidence. Semantic meaning comes from an authorized binding-site commitment.
-Weakening requires checked agreement, and open operator families need
-deterministic ownership. The normalized compiler model carries the facet pair,
-but the source declarations that author it remain incomplete.
-
-Decide:
-
-- how a domain declares `predicate`, `semantic`, or both facets without
-  inventing a parallel attribute system or silently inferring public semantics
-  from its body;
-- the bodyless predicate spelling for abstract facts whose membership cannot be
-  unfolded from carrier data;
-- the `boundary domain` form that permits admission receipts to originate
-  predicate membership, including its additive interaction with checked
-  derivation and its normalized trust identity;
-- the declaration spelling for sealed-by-default versus open semantic
-  introduction, and how an exported `MintAuthority<D>` is accepted at an
-  explicit qualification site;
-- how an open operator family names its designated dispatch-owner position and
-  how packages opt into that family without ambient candidate search;
-- the source shape of a `weakens_to` certificate, including the denotation and
-  operation-agreement obligations it must prove; and
-- which of these declarations contribute to normalized semantic identity,
-  sealed-theory identity, trust reports, and package coherence.
-
-Recommendation: use ordinary domain declarations for every facet. The leading
-bodyless predicate form is `pub domain T::Fact;`; adding `boundary` permits
-receipt-backed roots without changing internal checked derivation. Require
-semantic content to be authored explicitly, keep semantic introduction
-owner-controlled by omission with one explicit open clause, and pass
-`MintAuthority<D>` as an ordinary capability value at the semantic
-qualification operation. Name one owner position in an open operator-family
-declaration, and make weakening an ordinary checked certificate block whose
-normalized promise, but not private proof steps, enters theory identity.
 
 ## 17. What is the Omega-authored `AccessPlan` policy surface?
 

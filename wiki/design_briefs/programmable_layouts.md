@@ -149,7 +149,7 @@ The concrete conformance proves the trait's agreement laws. Asymmetric schema
 evolution—defaults, retired fields, old-era imports—belongs to the evolution
 layer rather than weakening the codec's law silently.
 
-Validation/minting is exclusive: user code cannot construct a “valid” result
+Validation/establishment is exclusive: user code cannot construct a “valid” result
 whose payload claims a domain it has not proven. A validator may establish the
 domain because its checked contract proves the predicates on the returned view.
 
@@ -216,7 +216,7 @@ established values, so the alias retains facts rather than creating them; the
 live canary covers range-bearing signed/unsigned leaves and `bool` in native and
 interpreter execution. Raw bytes are different. `recast` never establishes
 record facts from unchecked storage; that path remains gated on validation or
-materialization minting the established value. Domain predicates over different
+materialization establishing the typed value. Domain predicates over different
 carriers remain fenced until their representation sets can be proved rather
 than guessed. Float ranges compose by numeric interval inclusion on the same
 float carrier, with exact interval equality required for mutable aliases. The

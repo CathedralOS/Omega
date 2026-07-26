@@ -45,7 +45,7 @@ Working interpretation:
   ranges discharge today.
 - Facts arrive by the same three routes as every other fact: declaration
   (store-enforced at every write), dominating guards (flow-scoped), and `as`
-  mints (chapter 8). Dependency adds no fourth route.
+  qualifications (chapter 8). Dependency adds no fourth route.
 
 ## Dependent Contracts
 
@@ -121,7 +121,7 @@ instantiation-time proof, which is exactly the static lowering rule.
 > - **Zero does not** — the type is **gated**. Data can have non-zero
 >   requirements; such a type is simply not zero-constructible. Its zeroed
 >   form exists only as storage — memory the compiler may still zero-fill —
->   and is inaccessible as the type until construction or an `as` mint
+>   and is inaccessible as the type until construction or an `as` qualification
 >   proves the default domain. Establishment is monotone as observed: a
 >   later write may open an invariant window (chapter 11), but every
 >   consumption point closes it, so no observer sees an established place
@@ -183,7 +183,7 @@ Working rules:
 
 Facts that describe some values of the type rather than all — facts you do
 not want gating every access — remain ordinary subdomains (chapter 8),
-minted and shed as usual.
+established and shed as usual.
 
 ## Static Lowering
 
@@ -219,7 +219,7 @@ When a witness is a runtime value:
 - **Offsets are ordinary arithmetic.** An access strided by a runtime witness
   lowers to a multiply and an add. The proof work is compile-time only.
 - **Obligations discharge against flow facts** — declared couplings,
-  dominating guards, and minted subdomain facts — instead of constants.
+  dominating guards, and established subdomain facts — instead of constants.
 
 Runtime-sized data takes exactly three shapes, permanently: borrowed views
 (`{ptr, len}` over someone else's bytes), fixed-capacity buffers with
@@ -231,7 +231,7 @@ machine-resident storage) is not part of the language: the facts never
 cared where the bytes live, and the one language that shipped inline
 value-dependent layout spent forty years paying for it. The same spelling
 remains legal in wire schemas (chapter 21), where it describes serialized
-bytes; decode mints it into one of the three shapes.
+bytes; decode establishes it in one of the three shapes.
 
 The memory map, end to end:
 
@@ -295,12 +295,12 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
   it — keeps every fact.
 - A place passed by shared borrow is frozen: facts survive.
 - A place passed by exclusive borrow loses its flow-scoped extras
-  (guard-minted narrowings, minted subdomains), atom by atom. Declared
+  (guard-established narrowings, established subdomains), atom by atom. Declared
   ranges, standing couplings, and domain memberships survive every call:
   calls and returns are consumption points (chapter 11), so a callee cannot
   return — or call onward, or hand out a borrow — with an open window.
 - Callee `ensures` adds facts back.
-- Capability effects havoc the facts minted from that capability's boundary.
+- Capability effects havoc the facts established from that capability's boundary.
   Effects frame capability-reachable state only; they never name program
   places.
 
@@ -396,7 +396,7 @@ explicit, both already in the language:
 - **A dominating guard.** `transition i < self.map.count { true -> ... }` —
   the runtime check is the guard, written in your code, with a false arm the
   no-silent-fallthrough rule forces you to handle.
-- **An `as` mint.** A validated decode whose success establishes the domain
+- **An `as` qualification.** A validated decode whose success establishes the domain
   fact once, at the boundary, after which downstream uses are check-free.
 
 ## Scope
@@ -416,8 +416,8 @@ This chapter is intentionally narrow:
 
 - Chapter 7 owns contracts and the default domain; this chapter widens what
   their facts may name.
-- Chapter 8 owns domains and `as` mints; establishing a gated default domain
-  at a boundary decode is an ordinary `as` mint.
+- Chapter 8 owns domains and `as` qualification; establishing a gated default
+  domain at a boundary decode is an ordinary proved qualification.
 - Chapter 11 owns the mutation discipline; a coupling update is an
   invariant window closed at the next consumption point.
 - Chapter 10 owns proof machines and evidence; a dependent contract may cite

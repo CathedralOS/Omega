@@ -109,16 +109,16 @@ CounterMessage::encode(&save, &mut scratch, &mut written);
   the same schemas; a selected provider binding to a foreign symbol implies its format
   (see the extern brief).
 - **Decoding is not a compiler-derived operation.** Turning inbound `&[u8]`
-  into a domain-refined view is domain MINTING, and minting is ordinary
-  user-written code that ends in an `as` the compiler accepts only once every
+  into a domain-refined view is domain establishment, and validation is ordinary
+  user-written code whose successful path ends in an `as` the compiler accepts once every
   invariant is proven (Chapter 8, "Establishing A Domain"). There is no
   compiler-generated `validate` and no built-in verdict type; a program that
   wants `Valid | Invalid` declares that sum type and writes the machine that
   proves the bytes. Inbound bytes carry zero guarantees until such a proof — a
   trust boundary, not a type assertion.
 - OPEN (pending Zach's ruling): whether *encoding* (a value → plain bytes, which
-  mints nothing) is likewise user-written, or may still be a derived conformance.
-  The minting/inbound direction is settled; the outbound direction is not.
+  establishes no domain fact) is likewise user-written, or may still be a derived conformance.
+  The establishment/inbound direction is settled; the outbound direction is not.
 
 ## Durability Is A Plan Grade
 
@@ -239,9 +239,9 @@ STATUS: the first implemented grammar — the **tagged grammar of
 (`OmegaLayout<Schema>`: the schema must be identity-numbered — the packed
 grammar of an unnumbered schema is not implemented; an explicit grammar
 argument rejects, `Derived` being the default and only grammar), and it obeys
-**mints-only** (§ "domain entry"): the domain rides BORROWED VIEWS
-(`&[u8] in OmegaLayout<Schema>`, the validate-mint's result payload — the
-mint itself is up-ladder), never owned storage. Declaring it on a stored
+**qualified-views-only** (§ "domain entry"): the domain rides BORROWED VIEWS
+(`&[u8] in OmegaLayout<Schema>`, the validator's result payload — the
+establishment itself is up-ladder), never owned storage. Declaring it on a stored
 `[u8; N]` is a compile error — a zeroed buffer holds no valid encoding, so a
 declared refinement would be a trivially-claimed membership. You hold the
 VALUE (`save: Save`) and encode at the edge; buffers are plain bytes. A

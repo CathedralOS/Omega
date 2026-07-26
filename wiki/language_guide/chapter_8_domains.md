@@ -3,23 +3,21 @@
 A domain is a zero-cost semantic theory attached to a value's unchanged
 carrier.
 
-> **Current facet model
+> **Current domain model
 > ([domain_facets_and_qualification.md](../design_briefs/domain_facets_and_qualification.md)).**
-> A domain has two independently governed facets:
+> One domain declaration may contribute a predicate body, semantic
+> declarations, owner-authorized establishment routes, and transparent alias
+> expansion. Those aspects share a source name because they compose, but the
+> compiler stores and checks them independently.
 >
-> - a **predicate facet** — propositions about a value, resource, or current
->   program state, established by *proof* (flow-establishable,
->   lattice-composing, freely droppable, fully erased);
-> - a **semantic facet** — an explicitly selected interpretation and operator
->   meaning, introduced by *authorized commitment* (declaration, mint, or
->   signature only; never flow-acquired, never silently dropped; reaches
->   codegen through operator selection).
+> `Utf8` has a predicate body, `Km` contributes denotation and unit
+> operations, `Wrapping` contributes an arithmetic policy, `Percent` may carry
+> both a range predicate and unit meaning, and `Reservation::Issued` is a
+> bodyless historical fact.
 >
-> A domain may carry either facet or both: `Utf8` is predicate-only,
-> `Wrapping` is semantic-only, `Degrees` is both. The governing law:
-> **flow inference may change what is known; only declarations, mints, and
-> signatures change what operations mean.** Prover growth turns rejections
-> into acceptances — it never reinterprets a valid program.
+> Flow inference changes what is known. Static binding qualifications determine
+> which semantic roles participate in operator resolution. Multiplicity
+> governs conservation, and carry governs mobility.
 
 Domains are not runtime tags, wrapper types, hidden storage, or a second
 object model. Attaching, proving, selecting, or forgetting a domain never
@@ -30,7 +28,7 @@ remain ordinary operations and may perform runtime work.
 > `data` type "always has" are its default domain — the one domain that is always in
 > scope for the value and travels with it everywhere, so it need not be named or
 > tracked. Named domains like `Player::New` or `Quantity::Additive` are **subdomains**
-> refining that base with tighter invariants, operators, or facts, selected at a mint
+> refining that base with tighter invariants, operators, or facts, selected at a qualification
 > point (`as`) when provable. This is why a per-field constraint and a domain are the
 > *same* mechanism (see [Chapter 7](chapter_7_types_constraints_invariants.md)):
 > single-field constraints are standing invariants of the default domain; cross-field
@@ -139,117 +137,97 @@ machine Game::start_game(&mut self)
 }
 ```
 
-## Establishing A Domain — `as`, With All Facts Proven
+## Establishing And Qualifying Domains
 
-A value is *in* a domain only where the compiler can prove the domain's
-predicate holds. Membership is a discharged proof obligation, never a runtime
-tag or an unbacked claim. A value comes to carry a domain in exactly three
-ways, and no others:
+A domain body is a proof obligation. Membership may come from a
+compile-time-known value, a dominating guard, a prior contract guarantee, a
+checked validator, or an admitted receipt. The evidence source remains visible
+in checked artifacts where trust or authority depends on it.
 
-- **Constant.** A compile-time-known value whose facts the compiler checks
-  directly: a literal `"hello"` is provably `Utf8`; `0` is provably `[0..=100]`.
-- **Flow.** A dominating guard narrows a value: in the `true` arm of
-  `transition level <= 100`, `level` carries `[0..=100]` (Chapter 9). The guard
-  *is* the proof. **Flow establishes predicate facets only** — a semantic
-  facet is never acquired through control flow.
-- **`as`.** The explicit minter. For a predicate facet, `value as T in D` is
-  licensed **only when the prover discharges every invariant of `D` at that
-  exact point**. If it cannot, it is a compile error — you restructure (add
-  the guards that establish the fact) until the proof exists. For a semantic
-  facet, `as` makes an explicit, authorized commitment (see Introduction
-  Authority below). Minting into a hybrid domain does both at once.
-
-There is no unsafe cast and no "assert, on me" escape. **`as` proves facts
-and declares commitments — it never asserts a fact unproven, and never
-invents a commitment unstated.** A predicate is a fact about the value,
-provable; a semantic qualification is a commitment by the author, not
-falsifiable from the bits (no checker can determine that a raw `1.0` "really
-came from" a kilometre measurement). Diagnostics keep the two failure classes
-separate: *"predicate obligation not discharged"* (a proof is owed) versus
-*"introduction authority unavailable"* (a permission is owed).
-
-### The Five Transitions
-
-| Operation | Representation | Effect | Runtime cost |
-|---|---|---|---|
-| Refinement mint (`as`) | unchanged | certifies already-proved facts | none |
-| Semantic qualification (`as`) | unchanged | makes an explicit, authorized commitment | none |
-| Forgetting | unchanged | discards facts (free) or meaning (per weakening rules) | none |
-| Conversion | may change | preserves denotation across representations | ordinary contracted call |
-| Validation | unchanged | performs work whose postcondition establishes facts | ordinary contracted call |
-
-Forgetting and conversion are different operations: forgetting `raw 1 in Km`
-yields `raw 1` (denotation deliberately discarded); *converting* it yields
-the canonical `1000` in metres. Only conversion and validation may cost at
-runtime, and both are ordinary contracted calls — never hidden inside `as`.
-
-### Introduction Authority
-
-Semantic introduction is owner-controlled by default: the owning package and
-holders of an exported, attenuable `MintAuthority<D>` (contract-visible,
-proof-erased) may qualify a value into the domain. Open introduction is an
-explicit declaration-site policy for meanings such as units, where qualifying
-one's own measurement is an ordinary authorial commitment:
-
-```omega
-domain f64::Km {
-    semantic;
-    introduction open;
-}
-
-domain Quantity::Torque {
-    semantic;
-}
-```
-
-Predicate facets need no introduction policy — facts are proved, not
-authorized. But provability is scoped by **body visibility**: a predicate
-whose body (or named-predicate machines) is package-private cannot be
-unfolded by outsiders' flow or `as`; outsiders establish or propagate it only
-through owner-exported evidence — a transformer's postcondition
-(`sanitize_sql -> Bytes in SanitizedForSQL`) or an exported decision
-procedure's true-arm. The owner chooses the evidence surface.
-
-### Abstract predicates and boundary evidence
-
-A bodyless predicate names a fact whose membership cannot be unfolded from its
+A bodyless domain names a qualification that cannot be derived from its
 carrier:
 
 ```omega
 pub domain Reservation::Issued;
 ```
 
-Checked code establishes such a fact by transferring existing evidence through
-a validated resource transformation. A result qualification or `ensures`
-clause is the obligation to produce that evidence; it is not evidence by
-itself.
+The empty braced form is equivalent. It is not an always-true predicate; an
+explicitly universal predicate writes `true` in its body.
 
-Some facts originate at a crossing where Omega cannot prove the external
-event. A boundary domain permits an admitted provider receipt to establish
-predicate membership:
+Bodyless membership may come from an owner-authorized machine, propagation
+from an existing qualified value, a checked transformation of existing
+evidence, or an admitted provider satisfying an owner-authorized boundary
+requirement. A qualified result type or `ensures` clause is an implementation
+obligation rather than evidence by itself.
 
-```omega
-pub boundary domain Extent::Granted;
-```
+### `as`
 
-Boundary evidence is additive. Internal checked operations may preserve,
-validate, or transfer the same fact. An accepted origin names the exact domain
-and subject in a boundary signature, and the selected provider's receipt enters
-the trust report. A domain without boundary evidence permission cannot be
-originated by an accepted guarantee.
+`as` changes static qualification, never the runtime value:
 
-This yields four predicate-evidence profiles:
+| Axis | Requirement |
+|---|---|
+| carrier type and layout | unchanged |
+| runtime payload value | unchanged |
+| runtime work and control | none |
 
-| Body | Boundary evidence | Establishment |
-|---|---|---|
-| present | absent | checked proof |
-| present | permitted | checked proof or admitted assertion |
-| bodyless | absent | checked evidence/resource transformation |
-| bodyless | permitted | checked transformation or admitted root |
+For a domain with a body, `value as T in D` succeeds only when the prover
+discharges every proposition in that body. `as` never performs validation.
 
-Predicate evidence remains proof-erased. Runtime data discovered at the
-boundary, such as the base and length of a firmware memory-map entry, stays in
-the carrier; membership itself adds no tag.
+For a bodyless domain, `as` is available only through the domain owner's
+canonical core qualification conformance. That conformance is checked
+compile-time evidence and emits no call. A bodyful domain always takes the
+proof route; an establisher cannot bypass its predicate.
+
+Core validates the bodyless qualification relationship between carrier `Self`
+and qualified type `Q`:
+
+- erasing `Q` yields `Self` and adds one normalized qualification;
+- the output retains the input's dataflow identity;
+- the complete contract has no service reach, suspension, blocking, mutation,
+  trap, failure, abort, or other abnormal outcome; and
+- termination is guaranteed.
+
+Only the domain-owning package or its explicit delegate supplies an implicitly
+eligible satisfier. One visible home satisfier enables `as`; several make the
+implicit form ambiguous, and the caller names the intended satisfier machine.
+Machine names such as `new` are library conventions rather than language
+hooks.
+
+Examples:
+
+- `bytes as [u8] in Path` requires a proof of `no_nul(bytes)`;
+- `5 as i32 in Km` may use `Km`'s canonical qualification route;
+- `reservation as Reservation in Issued` fails when issuance requires
+  `BoxOffice` state;
+- `extent as Extent in Granted` fails when authority requires an admitted root
+  or a conserved predecessor; and
+- kilometres-to-metres uses a named conversion because the numeric payload
+  changes.
+
+### Qualification, validation, and conversion
+
+| Operation | Carrier | Payload | Runtime work |
+|---|---|---|---|
+| qualify with `as` | same | same | none |
+| forget qualification | same | same | none |
+| representation recast | changes | same bits under its validated plan | none |
+| validation | same | same | yes |
+| conversion | same or different | may change | ordinary contracted work |
+
+Forgetting `raw 1 in Km` yields raw `1`; converting it to metres yields
+`1000`. Runtime validators and numeric or unit conversions remain ordinary
+machines rather than hidden qualification behavior.
+
+### Evidence and receipts
+
+An admitted boundary may establish a bodyful or bodyless qualification when it
+satisfies an owner-authorized requirement whose signature names that exact
+fact and subject. Provider selection and admission produce the receipt. The
+receipt records external trust; `boundary` remains on the machine or
+requirement where the crossing occurs.
+
+Predicate and authority evidence remains erased. Runtime data discovered at a
+boundary, such as a firmware range's base and length, remains in the carrier.
 
 ### Transparent predicate aliases
 
@@ -333,18 +311,20 @@ machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
 ```
 
 > **Surface status (2026-07-04).** This example illustrates the settled *model*.
-> The explicit `as`-mint to an **arithmetic** domain works today
+> Explicit `as` qualification into an **arithmetic** domain works today
 > (`x as u8 in Saturating`; see `expressions/arithmetic_domain_cast_exit`). The
-> `as`-mint to a **reference/encoding/layout** domain shown here
+> `as` qualification into a **reference/encoding/layout** domain shown here
 > (`bytes as &[u8] in Utf8`) is the recast surface that is **not yet
-> implemented** — it is the pending work in the mint arc (`as` + the
+> implemented** — it is pending on qualification plus the
 > invariant-prover's reach). The shape above is the intended spelling, not
-> currently compilable.
+> currently compilable. Existing arithmetic forms that also change numeric
+> width are compatibility conversion syntax rather than the final
+> qualification model.
 
 The compiler generates none of this — and generates nothing at all for domain
 membership. Its only job is to accept or reject the `as`, by asking whether the
 domain's invariants are proven at that point. The reach of that prover is the
-ceiling on what can be minted: a fact the prover cannot yet discharge (a
+ceiling on what can be qualified: a fact the prover cannot yet discharge (a
 whole-buffer property established across a loop) simply cannot be cast until the
 prover grows to reach it. This is the anti-serde principle at its end — the only
 path from raw bytes to a trusted fact is a proof the machine actually checked.
@@ -578,14 +558,15 @@ the domains must still be distinguishable by mutually exclusive bodies.
 
 ## Domain-Sensitive Operators
 
-Domains are primarily proof facts about values. Omega also allows proven
-domains to participate in operator resolution when the meaning is unique.
+Domains may contribute proof facts and independently contribute semantic
+meaning. Semantic contributions are keyed by compiler-known roles so
+orthogonal meanings compose while competing meanings reject.
 
 The intuition is that operators are shorthand for resolved semantic
-operations. If a value's *declared* semantic facet supplies a `+`, `-`, or
-similar operator meaning, the compiler resolves the operator through that
-domain's operation contract. **Activation is a property of bindings, not of
-values and not of proof state**: a binding declared, minted, or
+operations. If a value's declared qualifications contribute a `+`, `-`, or
+similar operator meaning, the compiler resolves the operator through those
+domain contracts. **Activation is a property of bindings, not of values and
+not of proof state**: a binding declared, explicitly qualified, or
 `requires`-qualified into `Degrees` resolves `+` through Degrees within its
 scope; a plain `i32` binding never does, regardless of what has been proven
 about the value it holds.
@@ -609,15 +590,18 @@ if that meaning is unique.
 
 This stays strict:
 
-- Only binding-site selections (declaration, mint, `requires`) participate in
+- Only binding-site selections (declaration, explicit qualification, `requires`) participate in
   operator resolution; flow-established membership never does.
   `if x in Degrees { x + delta }` proves the range fact — the `+` stays
   ordinary exact addition.
 - Resolution reads the complete static operand-domain tuple and must be
   unambiguous; competing meanings are compile errors, never ranked.
-- Adding a semantic qualification to an operand binding can expose a new
-  ambiguity, which is a loud error; adding flow proof knowledge cannot change
-  operator meaning at all.
+- Semantic contributions in different roles compose. `Km & Wrapping` combines
+  dimensional meaning with overflow behavior. Two contributions to the same
+  role, such as `Wrapping & Trapping`, reject.
+- Adding a qualification to an operand binding can expose a new ambiguity,
+  which is a loud error; adding flow proof knowledge cannot change operator
+  meaning at all.
 - No hidden runtime tag is introduced for dispatch.
 
 This is especially attractive for semantic abstractions such as encoded byte
@@ -665,7 +649,7 @@ Decided model:
 - User/library types can expose ordinary operator definitions when the language
   supports that surface.
 - Domains may provide or select operator meanings when the value's *binding*
-  is declared, minted, or `requires`-qualified into that domain — never from
+  is declared, explicitly qualified, or `requires`-qualified into that domain — never from
   flow-established membership.
 - Resolution must be static and unambiguous, over the complete operand-domain
   tuple. Commutative flips are one-line delegations
@@ -726,15 +710,13 @@ If both domains expose different `+` meanings for the same expression, the
 program must choose a clearer operation or narrow the proof context before using
 operator syntax.
 
-Not every domain needs this power — a predicate-only domain supplies no
-operator meanings at all. The earlier open question of whether arithmetic
-policies belong in a separate evaluation-mode concept is resolved by the
-facet model: `Wrapping`, `Saturating`, and `Trapping`
-are semantic-only domains — the compiler-blessed closed subset, special only
-because primitive arithmetic needs direct lowering. Their direct lowering
-conforms to the facet model. Domain-sensitive operators are
-resolved from static binding-site selections, not from runtime type mutation
-and not from the flow-fact environment.
+Not every domain contributes operator meaning. The initial semantic role
+vocabulary separates denotation/dimension from arithmetic policy.
+`Wrapping`, `Saturating`, and `Trapping` occupy the compiler-owned arithmetic
+policy role because primitive arithmetic needs direct lowering. Unit domains
+occupy the denotation/dimension role. Domain-sensitive operators resolve from
+static binding-site selections, not runtime type mutation or the flow-fact
+environment.
 
 **Normalization is not entailment.** A small deterministic, confluent,
 terminating normalizer owns what a domain expression *is* (canonical
@@ -927,7 +909,7 @@ boundary and the operators.
 > A fixed-capacity byte destination need not claim an encoding domain when its
 > consumer does not require one. Sample “press Enter” scratch fields use raw
 > `[u8; 256]`: the bound is explicit and preserves the former line-read ceiling,
-> while no unused `Utf8` fact is minted merely because the bytes are discarded.
+> while no unused `Utf8` fact is established merely because the bytes are discarded.
 
 ### Establishing the domain: construction, validation, and the wire
 
@@ -1029,8 +1011,9 @@ layout, debugging, host boundaries, and proof obligations honest.
 Working interpretation:
 
 - `domain` is a contextual keyword in declaration position.
-- Domains are type-scoped named proof predicates.
-- Domains classify values that satisfy the type's data and field invariants.
+- Domains are type-scoped named static theories over an unchanged carrier.
+- A domain may contribute a predicate body, semantic roles, establishment
+  routes, and alias expansion.
 - A domain body may not contradict the invariants of the type it classifies.
 - There is no `when` classifier keyword; a domain is only its invariant facts.
 - `Type::A::B` is a sub-domain of `Type::A` — its body auto-includes the parent's
@@ -1048,27 +1031,25 @@ Working interpretation:
   runtime-checkable.
 - A fixed operator spelling is declared with an optional `spelling` clause on a
   named `operator`; domain operators may carry a `spelling`.
-- Semantic facets selected at a binding site (declaration, mint, or
-  `requires`) participate in operator resolution; flow-established membership
-  never does. Competing meanings for the same spelling are a compile error,
-  never ranked.
-- A bodyless predicate is established through existing evidence or a checked
-  resource transformation. `boundary domain` additionally permits an admitted
-  receipt to originate membership.
-- Semantic introduction is owner-controlled by omission; `introduction open`
-  is the declaration-site opt-in; exported `MintAuthority<D>` delegates
-  semantic qualification.
-- Predicate facets erase completely from ordinary runtime code unless a
-  diagnostic build explicitly asks for checks. Semantic facets add no runtime
-  metadata but reach codegen through operator selection.
-- The five transitions are distinct: refinement mint and semantic
-  qualification (representation-identity, free), forgetting
-  (representation-identity, free, explicit for meaning), conversion
-  (denotation-preserving, may change representation, ordinary contracted
-  call), validation (fact-establishing work, ordinary contracted call).
+- Static semantic roles selected at a binding site (declaration, explicit
+  qualification, or `requires`) participate in operator resolution;
+  flow-established knowledge never changes operator meaning.
+- Different semantic roles compose; competing contributions to one role reject.
+- A bodyless domain is established through an owner-authorized machine,
+  existing evidence, a checked transformation, or an admitted receipt under an
+  owner-authorized requirement.
+- `as` proves a body when one exists. For a bodyless domain it consumes one
+  canonical core qualification conformance. Both routes preserve carrier,
+  payload, and runtime work.
+- Multiplicity governs conservation and must-discharge behavior. Carry governs
+  mobility. Neither is inferred from the domain's spelling.
+- Qualification and proof evidence erase from runtime code. Static semantic
+  roles may affect later operator lowering without adding runtime metadata.
+- Qualification, forgetting, recast, validation, and conversion remain
+  distinct according to carrier identity, payload identity, and runtime work.
 
-> **Implementation gate:** the current Rust trees still store facts and
-> operators in one undifferentiated domain record. General domain work must
-> first preserve the two facets and normalized semantic qualification in the
-> IR; see
+> **Implementation gate:** the current Rust trees carry a transitional facet
+> pair and arithmetic-policy special paths. General domain work must preserve
+> predicate bodies, semantic contributions by role, establishment routes, and
+> normalized qualification independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

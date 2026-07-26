@@ -362,7 +362,7 @@ representation; its runtime element count is
 than truncating. Typed shared aliases may weaken facts, while typed mutable
 aliases require bidirectional representation equivalence. Raw bytes can target
 only recursively fact-free elements, so neither an array nor a slice recast can
-mint element facts. These structural views preserve indexed read/write identity
+establish element facts. These structural views preserve indexed read/write identity
 through state forwarding in both native backends and the interpreter. The
 recursive representation judgment also repeats through aggregate slice
 elements: typed fixed arrays and differently named record-element slices may
@@ -391,7 +391,7 @@ because that forgets a fact, and a typed `u8 [0..=1]` may be shared or mutably
 aliased as `bool`. An unconstrained byte or arbitrary byte region cannot be
 viewed as `bool`, and a mutable `bool`/unconstrained-byte alias rejects, because
 either would permit a write that invalidates the other shape. No scalar recast
-is a fact mint. Constant integer ranges compare their canonical
+is fact establishment. Constant integer ranges compare their canonical
 two's-complement bit-pattern sets, merging adjacent or overlapping intervals;
 therefore `i8 [-128..=127]` and unconstrained `u8` may alias mutably, while
 equal-cardinality sets at different bit positions still reject.

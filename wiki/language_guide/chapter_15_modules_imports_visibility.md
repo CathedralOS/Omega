@@ -125,9 +125,10 @@ published geometry or handle bits remain inspectable; reconstructing those
 fields does not reproduce its authority, validation, or provenance facts.
 Checked operations require the qualification they consume.
 
-Boundary evidence lets an admitted provider originate an abstract predicate
-under a receipt. Checked resource transformations preserve or divide that
-evidence while accounting for every linear claim. See
+An admitted provider may originate a bodyless qualification when it satisfies
+an owner-authorized boundary requirement naming the exact subject and fact;
+admission records the receipt. Checked resource transformations preserve or
+divide that evidence while accounting for every linear claim. See
 [`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 Confidential state remains in provider custody. A public value may carry an
