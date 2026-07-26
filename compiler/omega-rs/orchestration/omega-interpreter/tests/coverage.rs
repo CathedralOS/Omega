@@ -273,35 +273,6 @@ machine Main::main(&mut self) {
     assert_eq!(outcome.exit_code, 70);
 }
 
-/// Under `[zero_init]` (zero means empty, frozen decision 8) the ZERO case
-/// (first case) declaring a payload is rejected by validation: the
-/// zero-initialized value must be the empty value, so tag 0 carries no
-/// payload. Without the property the same shape is legal.
-#[test]
-fn zero_case_payload_is_rejected() {
-    frontend_rejects(
-        "case-zero-payload",
-        r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
-
-data Token [zero_init] {
-    case Number(value: i32);
-    case End;
-}
-
-data Main {
-    console: Console;
-}
-
-machine Main::main(&mut self) {
-    self.console.exit_process(0);
-}
-"#,
-    );
-}
-
 /// `Token::Number(5)` against a payload-LESS case parses as a call expression that
 /// resolves to no machine/state -- and since the unresolved-value-call gate landed
 /// (the silent ZII-0 binding is a COMPILE ERROR now), the frontend rejects it
@@ -1090,7 +1061,7 @@ fn filesystem_ergonomic_wrapper_crud() {
     interpret_fs(
         "fs-ergonomic",
         r#"
-data File [copy, zero_init] { fd: i32; }
+data File [copy] { fd: i32; }
 data OpenResult { case Error; case Ok(file: File); }
 data IoResult { case Error; case Ok(count: u64); }
 data UnitResult { case Error; case Ok; }

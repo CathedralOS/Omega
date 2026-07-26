@@ -73,7 +73,11 @@ The current design IS a single-source-of-truth: `canary_suite.rs` is canonical; 
 
 #### A2c. DataProperties Triplication
 
-`DataProperties { copy: bool, zero_init: bool, send: bool }` is declared identically in all three tree IRs:
+At the time of this review,
+`DataProperties { copy: bool, zero_init: bool, send: bool }` was declared
+identically in all three tree IRs. `send` and `zero_init` were subsequently
+retired; the architectural observation about IR-owned duplicated shapes still
+applies:
 
 - `representations/omega-syntax-trees/src/item.rs`
 - `representations/omega-symbol-resolved-trees/src/data.rs`

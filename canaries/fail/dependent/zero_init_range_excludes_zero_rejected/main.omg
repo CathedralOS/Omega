@@ -1,5 +1,0 @@
-// FAIL CANARY. Unlike ordinary gated data, `[zero_init]` explicitly claims the
-// zeroed bytes are a valid empty value, so its field ranges must include zero.
-data Bad [zero_init] { value: i32 [1..=10]; }
-data Main {}
-machine Main::run(&mut self) {}

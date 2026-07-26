@@ -9,7 +9,7 @@
 
 use omega::language::std::console;
 
-data Roots [copy, zero_init] {
+data Roots [copy] {
     n: i32 in Trapping;
     sum: i32 in Trapping;
 }

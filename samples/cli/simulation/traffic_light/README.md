@@ -1,7 +1,7 @@
 # Traffic Light
 
 A traffic-light state machine that cycles through Red → Green → Yellow → Red.
-Showcases `case` member types with `[copy, zero_init]` properties, case-value
+Showcases `case` member types with `[copy]` property, case-value
 dispatch in transitions, and accumulated scalar state across multiple machine
 calls. Runs to exit **70**.
 
@@ -15,7 +15,7 @@ times. After Red→Green→Yellow→Red→Green the advance count is 4 and the p
 is `Green`. A two-level guard ladder checks both conditions before exiting 70.
 
 Features exercised:
-- `data Phase [copy, zero_init] { case Red; case Green; case Yellow; }`
-- `data Light [copy, zero_init]` holding a `Phase` field
+- `data Phase [copy] { case Red; case Green; case Yellow; }`
+- `data Light [copy]` holding a `Phase` field
 - `transition self.light.phase { Phase::Green -> ... _ -> ... }`
 - Repeated `&mut self` method calls accumulating state

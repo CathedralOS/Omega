@@ -33,7 +33,7 @@ data Command {
     case CloseDoor;
 }
 
-data Elevator [copy, zero_init] {
+data Elevator [copy] {
     floor: i32;
     door_open: i32;
     // Ranged + the modular-counter idiom at the increment: Exact-provable, no

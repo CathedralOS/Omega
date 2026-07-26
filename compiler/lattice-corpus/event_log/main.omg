@@ -7,8 +7,8 @@
 // machine calls.
 //
 // Data model:
-//   Stats [copy, zero_init] { deposits: i32 in Saturating; withdrawals: i32 in Saturating; balance: i32 in Saturating; }
-//   Log   [copy, zero_init] { stats: Stats; event_count: i32 in Saturating; }
+//   Stats [copy] { deposits: i32 in Saturating; withdrawals: i32 in Saturating; balance: i32 in Saturating; }
+//   Log   [copy] { stats: Stats; event_count: i32 in Saturating; }
 //
 // Event variants:
 //   Deposit(amount: i32 in Saturating)    -- add to balance, increment deposits
@@ -36,13 +36,13 @@ data Event {
     case Reset;
 }
 
-data Stats [copy, zero_init] {
+data Stats [copy] {
     deposits: i32 in Saturating;
     withdrawals: i32 in Saturating;
     balance: i32 in Saturating;
 }
 
-data Log [copy, zero_init] {
+data Log [copy] {
     stats: Stats;
     event_count: i32 in Saturating;
 }

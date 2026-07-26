@@ -9,7 +9,7 @@
 
 use omega::language::std::console;
 
-data Collatz [copy, zero_init] {
+data Collatz [copy] {
     value: i32 in Trapping;
     steps: i32 in Trapping;
 }

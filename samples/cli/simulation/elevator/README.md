@@ -27,5 +27,5 @@ omega --target windows_x64 --build-dir build samples/elevator/main.omg
 ```
 
 Exercises: case-payload dispatch with payload binding, guard-gated
-conditional self-writes, `[copy, zero_init]` aggregate, multi-layer
+conditional self-writes, `[copy]` aggregate, multi-layer
 state transitions within a dispatched machine.

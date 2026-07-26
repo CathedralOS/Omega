@@ -5,7 +5,7 @@ Scripted binary-search guessing game (no stdin — target is hardcoded).
 ## What it demonstrates
 
 - Integer division (`/`) in a `let`-binding: `mid = (lo + hi) / 2`
-- `[copy, zero_init]` data type holding the search state (`lo`, `hi`, `mid`, `guesses`)
+- `[copy]` data type holding the search state (`lo`, `hi`, `mid`, `guesses`)
 - Sequential calls to the same sub-machine (`step`) that each mutate `lo` or `hi`
 - Reading fields updated by the PREVIOUS sub-machine call at the top of the CURRENT call
 - Three-arm guard dispatch inside `step`: `== target`, `< target`, `_ (> target)`

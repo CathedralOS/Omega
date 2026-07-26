@@ -89,7 +89,6 @@ pub(crate) fn lower_data_definition(
             properties: DataProperties {
                 copy: data_definition.properties.multiplicity
                     == omega_core::semantics::Multiplicity::Unrestricted,
-                zero_init: data_definition.properties.zero_init,
                 carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
@@ -188,7 +187,6 @@ pub(crate) fn lower_type_parameters(
             bounds: DataProperties {
                 copy: parameter.bounds.multiplicity
                     == omega_core::semantics::Multiplicity::Unrestricted,
-                zero_init: parameter.bounds.zero_init,
                 carry: parameter.bounds.carry,
                 multiplicity: parameter.bounds.multiplicity,
             },

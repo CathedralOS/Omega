@@ -54,9 +54,10 @@ before its first read or other consumption point.
 The gate composes structurally through embedded data, fixed-array elements,
 common sum fields, and the payload of the zero-tag (first) case. Establishing a
 nested child contributes to establishing its parent; a debt-free zero case may
-honestly absorb gates carried only by later cases. Explicit `[zero_init]` is a
-stronger promise that zeroed bytes are already an established value, so it is
-rejected when the default domain or any zero-reachable field excludes zero.
+honestly absorb gates carried only by later cases. Whether zero establishes the
+whole value is derived from this structure and cannot be asserted by a type
+property. Semantic emptiness or reset behavior is an ordinary domain fact
+established by authored machines.
 
 ```omega
 data Player {

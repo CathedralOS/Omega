@@ -3,12 +3,13 @@
 Memory layout is part of the contract between Omega, native code, wire formats,
 drivers, inline assembly, and generated machine bytes.
 
-## Zero Is Initialization
+## Zeroed Storage And Establishment
 
-Omega guarantees that the ALL-ZERO BIT PATTERN is a valid inhabitant of every
-`data` type. Reading a zeroed value is never undefined behavior,
-never a trap, and never breaks memory safety. Zero-filling a value's storage is
-a supported way to construct or reset it.
+Omega guarantees that the ALL-ZERO BIT PATTERN is a safe storage state for
+every checked-shape `data` type. It never creates an invalid machine
+representation, undefined behavior, or memory-safety hole. Whether those bytes
+already establish an accessible value of the type is a separate, derived
+judgment.
 
 ```omega
 data Inventory {
@@ -28,58 +29,57 @@ What makes this hold layer by layer:
   live length zero even though its inline capacity is `N`.
 - Case-bearing data (sum and mixed shapes): tag `0` is the first declared
   case, so a zeroed value IS the first case (with zeroed payload if it has
-  one). Making that case the payload-free empty case is the `zero_init`
-  property's rule, not a global one (see
+  one). A payload-bearing first case is ordinary: zero may be `Integer(0)` or
+  another fully established payload value (see
   [Case Members](chapter_1_data_values_literals.md)).
 - Aggregates: zero recursively zeroes every field, so the guarantee composes.
 - The compiler never performs niche-style layout optimization that gives the
   zero pattern a different meaning or makes it unrepresentable.
 
-Invariants and domains describe ESTABLISHED values, not raw storage. A field
-contracted to `1..=100`, or a value inside `Order::Validated`, makes claims
-about values that have passed through the operations that establish those
-facts. A zeroed object has established nothing: it carries no facts, sits
-outside every domain that zero does not satisfy, and cannot be passed where
-those facts are required -- but it is still a memory-safe value, not garbage.
-Proof soundness comes from facts being unestablished on zeroed storage, never
-from pretending the bit pattern cannot exist. A type whose DEFAULT domain
-excludes zero is therefore GATED (settled 2026-07-17): valid as storage, but
-not zero-constructible as a value — access waits on the domain being
-established (see [Chapter 7](chapter_7_types_constraints_invariants.md) and
-[Chapter 12](chapter_12_dependent_types.md)).
+Invariants and domains describe ESTABLISHED values, not raw storage. The
+compiler derives zero establishment by evaluating the default domain at zero
+and recurring through common fields and the first case's payload. A field
+contracted to `1..=100`, a bodyless default fact, or a zero-reachable nested
+type with the same gate prevents establishment. Later sum cases do not matter
+because their payload is inactive at tag zero.
+
+A type whose default domain excludes zero is therefore GATED: all-zero remains
+safe storage, but code cannot observe it as a `T` until construction or
+qualification establishes the missing facts. Proof soundness comes from that
+gate, never from pretending the bits cannot exist. See
+[Chapter 7](chapter_7_types_constraints_invariants.md) and
+[Chapter 12](chapter_12_dependent_types.md).
 
 Data fields have no declaration-site default initializers. Non-zero or
 computed construction belongs in ordinary constructor machines; zero-filling
-continues to mean exactly the all-zero representation.
+continues to mean exactly the all-zero representation. It does not establish
+authority, validation, history, or semantic emptiness.
 
-That is the WHOLE unconditional guarantee: zero is always a valid value. It
-constrains the compiler, never the programmer.
-
-Whether the zero value is also the SEMANTICALLY EMPTY value -- the none-like
-case, the inert object, the thing `memset` legitimately resets to -- is a
-per-type choice, opted into with the `zero_init` property
-([Types, Constraints, And Invariants](chapter_7_types_constraints_invariants.md)):
+Emptiness and reset behavior are ordinary authored semantics. A type that
+needs them publishes a domain and a constructor or reset machine:
 
 ```omega
-data Command [zero_init] {
-    case None;                 // verified: zero case is payload-free, none-like
+data Command {
+    case None;
     case Say(text: [u8; 256]);
+}
+
+pub domain Command::Inert;
+
+pub machine Command::empty() -> command: Command in Command::Inert {
+    Command::None
 }
 ```
 
-A type that does not declare `[zero_init]` may freely put a payload-carrying
-case first or use non-zero constructor behavior; its zeroed value is valid but not
-meaningfully "empty". Systems that adopt zero-is-initialization as a
-convention (the Cathedral OS does, system-wide -- see
-`wiki/cathedral_alignment.md`) require the property on their surface types;
-nothing imposes it on programs that do not care.
+Consumers that genuinely depend on inertness require `Command in
+Command::Inert`. The compiler does not infer that semantic claim from a
+payload-free first case.
 
 ### What a zeroed value is, concretely
 
-Whether or not a type declares `[zero_init]`, a never-written value has
-exact, runtime-verified semantics -- identical in the interpreter and in
-native emission. Each row is pinned by a differential canary, so a
-regression fails the suite rather than shipping:
+A never-written place has exact representation semantics, identical in the
+interpreter and native emission. Observation as `T` additionally requires the
+derived zero-establishment judgment:
 
 | Zeroed value            | Reads as                                            | Pinned by |
 |-------------------------|-----------------------------------------------------|-----------|
@@ -90,9 +90,9 @@ regression fails the suite rather than shipping:
 
 Two consequences worth designing around:
 
-- The first `case` of a sum is its zero-state. Order cases so that the
-  first is the safe "nothing yet" meaning (`[zero_init]` verifies the
-  stronger payload-free form of this).
+- The first `case` of a sum is its zero-representation state. Its zeroed
+  payload must establish if code observes a newly zeroed value, but it need not
+  be payload-free or semantically empty.
 - Reassigning a sum from a longer case to a shorter one leaves the longer
   payload's tail bytes stale in storage. No language surface can observe
   them: destructuring reads only the active case, and synthesized equality

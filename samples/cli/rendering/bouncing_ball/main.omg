@@ -24,7 +24,7 @@
 
 use omega::language::std::console;
 
-data Sim [copy, zero_init] {
+data Sim [copy] {
     pos: i32 in Wrapping;
     vel: i32 in Wrapping;
 }

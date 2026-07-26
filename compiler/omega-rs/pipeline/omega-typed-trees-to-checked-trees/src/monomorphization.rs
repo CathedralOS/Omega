@@ -2210,7 +2210,6 @@ fn encode_data_properties(
     output: &mut Vec<u8>,
 ) {
     output.push(u8::from(properties.copy));
-    output.push(u8::from(properties.zero_init));
     output.push(match properties.multiplicity {
         omega_core::semantics::Multiplicity::Unrestricted => 1,
         omega_core::semantics::Multiplicity::Affine => 2,

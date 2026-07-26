@@ -24,7 +24,7 @@
 
 use omega::language::std::console;
 
-data Floats [copy, zero_init] {
+data Floats [copy] {
     low: f32;
     high: f64;
     sum_f32: f32;

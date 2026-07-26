@@ -20,7 +20,7 @@
 
 use omega::language::std::console;
 
-data Search [copy, zero_init] {
+data Search [copy] {
     lo: i32 in Saturating;
     hi: i32 in Saturating;
     mid: i32 in Saturating;

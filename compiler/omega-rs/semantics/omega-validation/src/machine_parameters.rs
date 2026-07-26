@@ -480,7 +480,6 @@ fn validate_callable_type_parameters(
         match (&required.kind, &actual.kind) {
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
                 if (actual.bounds.copy && !required.bounds.copy)
-                    || (actual.bounds.zero_init && !required.bounds.zero_init)
                     || actual.bounds.carry.is_some() && required.bounds.carry != actual.bounds.carry
                 {
                     diagnostics.push(Diagnostic::error(format!(

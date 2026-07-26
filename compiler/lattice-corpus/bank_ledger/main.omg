@@ -24,7 +24,7 @@
 
 use omega::language::std::console;
 
-data Ledger [copy, zero_init] {
+data Ledger [copy] {
     txns: [i32 in Saturating; 8];
     count: i32 in Saturating;
     balance: i32 in Saturating;

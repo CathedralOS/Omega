@@ -33,7 +33,7 @@ data Command {
     case CloseDoor;
 }
 
-data Elevator [copy, zero_init] {
+data Elevator [copy] {
     floor: i32;
     door_open: i32;
     moves: i32;

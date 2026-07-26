@@ -40,7 +40,7 @@ pub struct QuotientDefinition {
     pub relation_symbol: SymbolHandle,
 }
 
-/// Declared type properties (`data Point [copy, zero_init]`). The spelling
+/// Declared type properties (`data Point [copy]`). The spelling
 /// set is closed at parse time, so only the resolved flags travel here.
 /// STR3: `multiplicity` is the first-class usage model (`[copy]` ->
 /// Unrestricted, ordinary data -> Affine, `[linear]` -> Linear);
@@ -49,7 +49,6 @@ pub struct QuotientDefinition {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
-    pub zero_init: bool,
     pub carry: Option<omega_core::semantics::CarryPolicy>,
     pub multiplicity: omega_core::semantics::Multiplicity,
 }

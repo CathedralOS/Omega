@@ -506,7 +506,7 @@ pub struct ConformanceItem {
 }
 
 /// Declared type properties: lowercase facts in brackets on the data
-/// declaration (`data Point [copy, zero_init]`). The known set is closed;
+/// declaration (`data Point [copy]`). The known set is closed;
 /// unknown names are parse errors, so downstream representations carry the
 /// resolved properties rather than spellings. `sized` is computed from the
 /// shape and may not be declared.
@@ -517,9 +517,6 @@ pub struct DataProperties {
     /// here prevents syntax lowering from reconstructing semantic identity
     /// from compatibility booleans.
     pub multiplicity: omega_core::semantics::Multiplicity,
-    /// Zero means empty: the zeroed value is the type's empty value; owns the
-    /// zero-case-payload-free rule and rejects non-zero field defaults.
-    pub zero_init: bool,
     /// Authored carry-policy floor. Omission remains distinct from an authored
     /// strict policy so transparent derivation and opaque admission can choose
     /// their respective establishment paths later.

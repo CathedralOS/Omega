@@ -20,7 +20,7 @@
 
 use omega::language::std::console;
 
-data Stats [copy, zero_init] {
+data Stats [copy] {
     // Running accumulator for sum and sum-of-squares.
     sum: f64;
     sum_sq_dev: f64;

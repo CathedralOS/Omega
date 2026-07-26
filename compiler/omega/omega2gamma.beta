@@ -2900,7 +2900,7 @@ proc collect_dtypes() {
         skip_ident()
         to tobrace
     }
-    state tobrace {                    ; skip any [copy, zero_init] property bracket
+    state tobrace {                    ; skip any data-property bracket
         to atbrace2 when (cbyte() == '{')
         to done when (cbyte() == 0)
         adv()
@@ -3395,7 +3395,7 @@ proc render_machine(mi) {
 
 ; emit ` (Cons z (Cons z ... Nil))` of `count` zero elements — scalar arrays fill with 0, struct arrays
 ; with the element type's ZERO TUPLE ((Pair 0 0) / (Pair 0 (Pair 0 0))), so field extraction always
-; matches (the zero_init property's meaning-route twin).
+; matches the element type's derived zero representation.
 proc emit_array_zeros(ai, count) {
     write_byte(' ')
     let fc = 0

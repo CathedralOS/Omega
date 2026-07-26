@@ -13,7 +13,7 @@
 
 use omega::language::std::filesystem_host;
 
-data Pair [copy, zero_init] {
+data Pair [copy] {
     a: i64;
     b: i64;
 }

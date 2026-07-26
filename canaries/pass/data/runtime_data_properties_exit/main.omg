@@ -1,18 +1,17 @@
-// Declared type properties (frozen decision 8): `data Point [copy, zero_init]`
-// parses, verifies (all-primitive fields satisfy `copy` structurally; zero
-// defaults satisfy zero-means-empty), and has NO runtime cost -- the program
+// Declared type property: `data Point [copy]` parses, verifies because every
+// field is structurally copyable, and has NO runtime cost -- the program
 // behaves identically to the property-free declaration. Nested propagation:
-// `Holder` declares `[copy, zero_init]` and stores a `Point`, which qualifies
+// `Holder` declares `[copy]` and stores a `Point`, which qualifies
 // only because `Point` declares the properties itself.
 
 use omega::language::std::console;
 
-data Point [copy, zero_init] {
+data Point [copy] {
     x: i32;
     y: i32;
 }
 
-data Holder [copy, zero_init] {
+data Holder [copy] {
     p: Point;
     tag: i32;
 }

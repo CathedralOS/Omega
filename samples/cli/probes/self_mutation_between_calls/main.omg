@@ -45,7 +45,7 @@
 
 use omega::language::std::console;
 
-data State [copy, zero_init] {
+data State [copy] {
     // Wrapping so the value-return arithmetic below (`n * multiplier`,
     // `n + addend`) has a defined overflow domain -- an Exact `n * field` over a
     // full-range param carries a decision-17 overflow obligation at the

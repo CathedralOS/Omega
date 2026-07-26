@@ -10,18 +10,18 @@
 use omega::language::std::console;
 
 // A coin or a button press. `Insert` carries how many cents arrived; `Press`
-// carries which slot was chosen. The first case is the payload-free zero
-// case (ZII), so a zeroed Event is `Idle`.
+// carries which slot was chosen. Tag zero selects the first case, so a zeroed
+// Event has the `Idle` representation.
 data Event {
     case Idle;
     case Insert(cents: i32 in Saturating);
     case Press(slot: i32 in Saturating);
 }
 
-// The running register. `[copy, zero_init]` are verified declared properties:
+// The running register. `[copy]` is a verified declared property:
 // every field is a scalar (copy holds) and zero is the empty machine (no
 // balance, nothing dispensed).
-data Register [copy, zero_init] {
+data Register [copy] {
     balance: i32 in Saturating;
     dispensed: i32 in Saturating;
 }

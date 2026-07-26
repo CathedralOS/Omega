@@ -30,4 +30,4 @@ tracked at `canaries/pending/calls/let_local_passed_to_nested_state_arg_wrong`.
 
 Exercises: `[i32; 8]` fixed array, const-indexed reads/writes in arithmetic
 sum, machine-to-machine call chaining (`withdraw` calls `deposit`),
-`[copy, zero_init]`, multi-level dispatch states.
+`[copy]`, multi-level dispatch states.

@@ -45,7 +45,7 @@
 
 use omega::language::std::console;
 
-data State [copy, zero_init] {
+data State [copy] {
     multiplier: i32;
     addend: i32;
 }

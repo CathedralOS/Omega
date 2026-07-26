@@ -84,7 +84,7 @@ Last pruned: 2026-07-22.
   relation between case-union domains and exhaustiveness.
 - Define foreign-type domain imports, orphan/coherence restrictions, and their
   authority-report representation.
-- Implement generic bounds for `copy`, `linear`, `zero_init`, `sized`, and the
+- Implement generic bounds for `copy`, `linear`, `sized`, and the
   parameterized carry policy, then decide whether any further core properties
   earn inclusion.
 - Finish conformance-item parsing, both-foreign orphan rules, and

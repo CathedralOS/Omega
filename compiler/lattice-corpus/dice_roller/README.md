@@ -6,7 +6,7 @@ Deterministic dice roller using a linear congruential generator (LCG).
 
 - Integer arithmetic chains (`*`, `+`, `%`) on `let`-bound locals
 - Sequential LCG steps computed inline to avoid field-read-after-sub-call patterns
-- `[copy, zero_init]` data properties on a scalar aggregate
+- `[copy]` data properties on a scalar aggregate
 - Guard-ladder verification of a precomputed integer result
 - Exit-code encoding of a correct computation
 

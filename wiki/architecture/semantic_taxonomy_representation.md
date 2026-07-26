@@ -415,8 +415,9 @@ OwnershipEvent = Establish | Transfer | Consume | AffineDrop
 ```
 
 `[copy]` maps to `Unrestricted`; ordinary data defaults to `Affine`;
-`[linear]` maps to `Linear`. Keep `zero_init` and the four-axis carry policy
-orthogonal to multiplicity. Flow joins operate over permission entries with
+`[linear]` maps to `Linear`. Zero establishment is derived from the default
+domain and zero-reachable shape; the four-axis carry policy remains orthogonal
+to multiplicity. Flow joins operate over permission entries with
 path-sensitive sum state. Borrow events remain permission operations, not
 linear obligations by fiat.
 
@@ -618,7 +619,8 @@ service reach.
   unchanged.
 - Runtime lowering may reject a non-tail ranked cycle while proof-time
   evaluation consumes the same checked machine and witness.
-- A type has one explicit multiplicity and `zero_init` remains orthogonal.
+- A type has one explicit multiplicity; zero establishment remains a derived,
+  independent judgment.
 - An established linear obligation is traceable through create, transfer, and
   consume events across branches.
 - The executable backend receives already-resolved operators and ownership

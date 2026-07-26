@@ -11,7 +11,7 @@
 
 use omega::language::std::console;
 
-data Fib [copy, zero_init] {
+data Fib [copy] {
     a: i32 in Wrapping;
     b: i32 in Wrapping;
     tmp: i32 in Wrapping;

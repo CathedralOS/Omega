@@ -29,7 +29,7 @@
 
 use omega::language::std::console;
 
-data Grid [copy, zero_init] {
+data Grid [copy] {
     board: [i32; 16];
     next: [i32; 16];
     offset: i32 in Wrapping;

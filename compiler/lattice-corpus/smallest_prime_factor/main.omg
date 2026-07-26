@@ -11,7 +11,7 @@
 
 use omega::language::std::console;
 
-data Trial [copy, zero_init] {
+data Trial [copy] {
     n: i32;
     d: i32 in Trapping;
 }

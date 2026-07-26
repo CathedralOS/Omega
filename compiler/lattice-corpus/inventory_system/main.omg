@@ -6,7 +6,7 @@
 // (looping dispatch chain pattern), and arithmetic over the found values.
 //
 // Data layout:
-//   Item [copy, zero_init] { id: i32 in Saturating; quantity: i32 in Saturating; price: i32 in Saturating; }
+//   Item [copy] { id: i32 in Saturating; quantity: i32 in Saturating; price: i32 in Saturating; }
 //
 // Inventory (5 items):
 //   items[0] = { id: 1, quantity: 3, price: 10 }   value = 30
@@ -32,13 +32,13 @@
 
 use omega::language::std::console;
 
-data Item [copy, zero_init] {
+data Item [copy] {
     id: i32 in Saturating;
     quantity: i32 in Saturating;
     price: i32 in Saturating;
 }
 
-data Inventory [copy, zero_init] {
+data Inventory [copy] {
     items: [Item; 5];
     total_value: i32 in Saturating;
     found_id: i32 in Saturating;

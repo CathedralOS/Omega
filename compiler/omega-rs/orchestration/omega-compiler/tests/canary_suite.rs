@@ -14362,12 +14362,20 @@ fn runtime_data_properties_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected `[copy, zero_init]` declarations to verify and run identically to property-free data (exit 70), got {:?}\nstderr:\n{}",
+        "expected `[copy]` declarations to verify and run identically to property-free data (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn case_first_payload_zero_established_canary_compiles() {
+    let canary = pass_canary("data/case_first_payload_zero_established");
+
+    compile_canary_without_output(&canary)
+        .expect("a zero-established first-case payload should compile");
 }
 
 #[test]
@@ -35525,7 +35533,6 @@ fn range_gated_establishment_canaries_reject_unsafe_uses() {
         "range/element_range_zero_excluded",
         "dependent/range_sugar_gated_field_omitted_rejected",
         "dependent/nested_gated_field_omitted_rejected",
-        "dependent/zero_init_range_excludes_zero_rejected",
         "dependent/data_where_gated_machine_unestablished_rejected",
     ] {
         let canary = fail_canary(name);
@@ -38240,7 +38247,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "comptime/runtime_const_array_length_transitive_exit",
     "comptime/runtime_const_array_length_bare_call_arm_exit",
     "data/property_carry_declared",
-    "data/property_zero_init_nested_array",
     "data/runtime_case_membership_mixed_shape_exit",
     "traits/runtime_equatable_scalar_not_equals_guard_exit",
     "borrow/runtime_view_of_view_chain_exit",
@@ -38419,7 +38425,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "dependent/data_where_invariant_window_unclosed_rejected",
     "dependent/data_where_gated_machine_unestablished_rejected",
     "dependent/range_sugar_gated_field_omitted_rejected",
-    "dependent/zero_init_range_excludes_zero_rejected",
     "dependent/nested_gated_field_omitted_rejected",
     "dependent/nested_data_where_window_unclosed_rejected",
     "dependent/data_where_live_borrow_pins_witness_rejected",
@@ -38652,7 +38657,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/case_payload_equality_interim",
     "data/case_payload_malformed",
     "data/field_default_retired",
-    "data/case_zero_payload",
+    "data/property_zero_init_retired",
     "data/enum_keyword_retired",
     "data/match_nonexhaustive_cases",
     "data/match_predicate_domain_needs_default",
@@ -38910,8 +38915,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_arity_mismatch",
     "versioning/data_version_block_retired",
     "data/property_send_case_payload",
-    "data/property_zero_init_array_element_violation",
-    "data/property_zero_init_user_string_violation",
     "data/builtin_type_name_shadow",
     "data/record_pattern_missing_field",
     "data/record_pattern_unknown_field",

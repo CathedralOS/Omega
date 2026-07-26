@@ -1,0 +1,15 @@
+// A payload-bearing first case is legal: the all-zero representation selects
+// Number(0), and the zeroed payload is itself established. Payload-free cases
+// have no privileged relationship to zero establishment or semantic emptiness.
+
+data Token {
+    case Number(value: i32);
+    case End;
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+}

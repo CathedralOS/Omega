@@ -26,7 +26,7 @@
 
 use omega::language::std::console;
 
-data Readings [copy, zero_init] {
+data Readings [copy] {
     flags: u8;
     offset: i16;
     total: i32 in Saturating;

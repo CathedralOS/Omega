@@ -11,7 +11,7 @@
 
 use omega::language::std::console;
 
-data ModExp [copy, zero_init] {
+data ModExp [copy] {
     result: i32 in Trapping;
     base: i32 in Trapping;
     exponent: i32;

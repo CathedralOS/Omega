@@ -17,7 +17,7 @@ data Dir {
     case W;
 }
 
-data Vec2 [copy, zero_init] {
+data Vec2 [copy] {
     dx: i32 in Saturating;
     dy: i32 in Saturating;
 }

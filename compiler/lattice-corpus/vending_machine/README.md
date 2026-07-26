@@ -1,7 +1,7 @@
 # Vending Machine
 
 An event-driven vending machine: a stream of case-payload `Event`s (coins
-inserted, buttons pressed) folded into a `[copy, zero_init]` `Register`. It
+inserted, buttons pressed) folded into a `[copy]` `Register`. It
 exercises features from the 2026-06 waves together in one program — `case`
 members with named payloads, type properties on plain data, payload binding
 in transition arms, and value-position machine calls — and reports the final

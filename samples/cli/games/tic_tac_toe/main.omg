@@ -25,7 +25,7 @@
 
 use omega::language::std::console;
 
-data Board [copy, zero_init] {
+data Board [copy] {
     cells: [i32; 9];
     // A board has at most 9 moves: ranged + the modular-counter idiom keeps the
     // increment Exact-provable with no overflow domain.

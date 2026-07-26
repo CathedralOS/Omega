@@ -31,4 +31,4 @@ omega --target windows_x64 --build-dir build samples/tic_tac_toe/main.omg
 ```
 
 Exercises: `[i32; 9]` fixed array, const-indexed writes (`cells[n] = v`),
-const-indexed guard reads, multi-arm dispatch chains, `[copy, zero_init]`.
+const-indexed guard reads, multi-arm dispatch chains, `[copy]`.

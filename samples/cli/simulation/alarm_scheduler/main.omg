@@ -53,7 +53,7 @@ data AlarmEvent {
     case Dismiss;
 }
 
-data Alarm [copy, zero_init] {
+data Alarm [copy] {
     hour: i32 in Saturating;
     minute: i32 in Saturating;
     active: i32 in Saturating;

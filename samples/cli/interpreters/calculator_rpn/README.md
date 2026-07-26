@@ -4,7 +4,7 @@ Integer RPN (reverse-Polish notation) calculator over a fixed-capacity `[i32; 4]
 
 ## What it demonstrates
 
-- `[i32; 4]` fixed-array stack with `[copy, zero_init]` properties
+- `[i32; 4]` fixed-array stack with `[copy]` property
 - Const-dispatch indexed write via `write_slot(idx, value)` chain (proven pattern)
 - `sp` (stack pointer) as an integer field driving dispatch
 - Binary arithmetic in a leaf state with const-indexed reads and no intermediate

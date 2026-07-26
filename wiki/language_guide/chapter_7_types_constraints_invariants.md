@@ -191,14 +191,14 @@ The likely durable homes are:
 ## Type Properties
 
 Some static laws are about the TYPE itself, not any particular value: "copies
-are sound", "the zero value is the canonical empty value", "values impose this
-carry floor while live", "established values must be consumed exactly once". These are
+are sound", "values impose this carry floor while live", and "established
+values must be consumed exactly once". These are
 PROPERTIES -- declared as a lowercase list in brackets on the data declaration,
 the same bracket syntax invariant parameters use in type positions
 (`&[u8, [non_empty]]`):
 
 ```omega
-data Point [copy, zero_init] {
+data Point [copy] {
     x: i32;
     y: i32;
 }
@@ -225,13 +225,13 @@ weakenable flow fact.
 They are acquired exactly three ways:
 
 - COMPUTED: the compiler always knows (`sized`); never written. Transparent
-  carry policy is also derived structurally rather than annotated. The
+  carry policy and whether zero establishes a checked-shape type are also
+  derived structurally rather than annotated. The
   `unbounded` property (chapter 10) is the proof-only marker: no machine
   layout, no ZII, fact-position use only.
 - DECLARED + VERIFIED: the bracket list requests the property and the compiler
   checks its structural rule at the declaration (`copy`: every field copies;
-  `zero_init`: the zero case is payload-free and no field invariant excludes
-  zero; `linear`: mutually exclusive with `copy`, and every contained linear
+  `linear`: mutually exclusive with `copy`, and every contained linear
   obligation is structurally preserved). Failure is a loud error at the
   declaration.
 - BOUNDARY-ASSERTED: a boundary provider claims a property for an opaque host
@@ -239,9 +239,9 @@ They are acquired exactly three ways:
   a receipt; packages can never self-grant it. Opaque authored carry floors use
   this path as well.
 
-Except for structurally derived carry policy, there is no silent inference and
-no negative form: a type that does not declare a property simply does not carry
-the fact. Properties cannot be
+Except for the compiler-owned derived judgments named above, there is no silent
+inference and no negative form: a type that does not declare a property simply
+does not carry the fact. Properties cannot be
 declared on foreign types (their rules read the fields; boundary providers
 are the audited exception).
 
@@ -249,7 +249,7 @@ Casing carries the class split: lowercase bracket facts are properties;
 capitalized names in `satisfies` positions are traits (behavior). See
 [Traits](chapter_14_traits.md) for the behavior side.
 
-Generic bounds reuse the same spelling (frozen decision 13): brackets attach
+Generic bounds reuse the same spelling: brackets attach
 to whatever they follow, at every position --
 
 ```omega
@@ -375,7 +375,7 @@ The spelling leaves room for trait bounds without collision
 (`T [copy] satisfies Equatable`).[^property-open]
 
 [^property-open]: Open: the initial core property set beyond
-copy/linear/zero_init/carry; whether evolution-contract facts join the same surface
+copy/linear/carry; whether evolution-contract facts join the same surface
 (`[open]` was ruled OUT for sums -- unknown-case handling is a wire decode
 policy, frozen decision 10; `must_use` was ruled out by strict result use,
 frozen decision 9). A `[max_size = N]` property is a candidate for this

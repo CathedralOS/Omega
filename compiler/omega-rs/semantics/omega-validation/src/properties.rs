@@ -1,20 +1,16 @@
-//! Declared type-property verification (frozen decision 8).
+//! Declared type-property verification.
 //!
 //! Properties are lowercase facts in brackets on a data declaration
-//! (`data Point [copy, zero_init]`). The spelling set is closed at parse
+//! (`data Point [copy]`). The spelling set is closed at parse
 //! time; this pass verifies the declared facts hold:
 //!
 //! - `copy`: structural — every field (and case payload field) must be a
 //!   primitive or a data type that itself declares the property.
 //! - `carry(...)`: the authored four-axis floor may not be more permissive
 //!   than the policy derived from every stored field.
-//! - `zero_init` (zero means empty): the zero case must be payload-free, no
-//!   field may declare a non-zero default, and nested data fields must
-//!   themselves be `zero_init` so the zeroed aggregate is the empty value.
-//!
-//! Zero-VALIDITY (the all-zero pattern is a valid value) is the unconditional
-//! layer-1 guarantee and needs no declaration; only zero-MEANS-EMPTY is
-//! opt-in and verified here.
+//! Whether zeroed storage establishes a type is derived from its default
+//! domain, fields, and zero-case payload in `data`; semantic emptiness is not
+//! a type property.
 
 use crate::symbols::TopLevelSymbols;
 use omega_core::diagnostics::Diagnostic;
@@ -26,7 +22,6 @@ use omega_typed_trees::types::TypeReferenceNode;
 pub enum DeclaredPropertyRequirement {
     Copy,
     Linear,
-    ZeroInit,
     Carry(omega_core::semantics::CarryPolicy),
 }
 
@@ -35,7 +30,6 @@ impl std::fmt::Display for DeclaredPropertyRequirement {
         match self {
             Self::Copy => formatter.write_str("copy"),
             Self::Linear => formatter.write_str("linear"),
-            Self::ZeroInit => formatter.write_str("zero_init"),
             Self::Carry(policy) => write!(formatter, "{policy}"),
         }
     }
@@ -59,9 +53,6 @@ pub(crate) fn validate_data_properties(
         }
         if let Some(carry) = properties.carry {
             validate_carry_policy(program, data_definition, carry, diagnostics);
-        }
-        if properties.zero_init {
-            validate_zero_init(program, symbols, data_definition, diagnostics);
         }
         if properties.multiplicity != omega_core::semantics::Multiplicity::Linear {
             validate_no_linear_erasure(program, symbols, data_definition, diagnostics);
@@ -379,12 +370,6 @@ fn validate_opaque_data_properties(
             data_definition.name
         )));
     }
-    if properties.zero_init {
-        diagnostics.push(Diagnostic::error(format!(
-            "opaque boundary data `{}` cannot claim `[zero_init]` without an admitted property receipt",
-            data_definition.name
-        )));
-    }
     if properties
         .carry
         .is_some_and(|policy| policy != omega_core::semantics::CarryPolicy::STRICT)
@@ -426,8 +411,8 @@ pub fn effective_type_carry_policy(
 }
 
 /// One entry point for "does this type carry the declared property?", shared
-/// with the instantiation-time bound check: `zero_init` has its own walk and
-/// carry requirements use the normalized four-axis comparison.
+/// with the instantiation-time bound check. Carry requirements use the
+/// normalized four-axis comparison.
 pub fn type_satisfies_declared_property(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -436,9 +421,6 @@ pub fn type_satisfies_declared_property(
     property: DeclaredPropertyRequirement,
 ) -> bool {
     match property {
-        DeclaredPropertyRequirement::ZeroInit => {
-            type_is_zero_init(program, symbols, type_parameters, type_reference)
-        }
         DeclaredPropertyRequirement::Carry(required) => {
             CarryDerivation::new(program, type_parameters)
                 .derive(type_reference)
@@ -521,9 +503,6 @@ pub fn declared_property_requirements(
     if properties.multiplicity == omega_core::semantics::Multiplicity::Linear {
         names.push(DeclaredPropertyRequirement::Linear);
     }
-    if properties.zero_init {
-        names.push(DeclaredPropertyRequirement::ZeroInit);
-    }
     if let Some(carry) = properties.carry {
         names.push(DeclaredPropertyRequirement::Carry(carry));
     }
@@ -543,7 +522,6 @@ fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -
     match property {
         "copy" => parameter.bounds.copy,
         "linear" => parameter.bounds.multiplicity == omega_core::semantics::Multiplicity::Linear,
-        "zero_init" => parameter.bounds.zero_init,
         _ => false,
     }
 }
@@ -595,103 +573,8 @@ fn named_type_declares_property(
             "linear" => {
                 definition.properties.multiplicity == omega_core::semantics::Multiplicity::Linear
             }
-            "zero_init" => definition.properties.zero_init,
             _ => false,
         })
-}
-
-fn validate_zero_init(
-    program: &TypedTrees,
-    symbols: &TopLevelSymbols<'_>,
-    data_definition: &DataDefinition,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let type_parameters = program.data_type_parameters(data_definition);
-    let data_members = program.data_members(data_definition);
-
-    // The zero case (tag 0) IS the empty value, so it cannot require payload
-    // fields. This was a hard error for every case-bearing data before
-    // properties landed; decision 8 demotes it into `[zero_init]`.
-    let first_case = data_members.iter().find_map(|member| match member {
-        DataMember::Variant(variant) => Some(variant),
-        DataMember::Field(_) => None,
-    });
-    if let Some(variant) = first_case
-        && variant.payload.count() > 0
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "data `{}` declares `[zero_init]` but zero case `{}` carries a payload: the first case is the zero-initialized empty value, so it must be payload-free",
-            data_definition.name, variant.name
-        )));
-    }
-
-    for_each_stored_field(
-        program,
-        data_definition,
-        &mut |field, case: Option<&str>| {
-            let place = match case {
-                Some(case) => format!("case `{case}` payload field `{}`", field.name),
-                None => format!("field `{}`", field.name),
-            };
-
-            if !type_is_zero_init(program, symbols, type_parameters, field.type_reference) {
-                if let Some(parameter) =
-                    referenced_type_parameter(program, type_parameters, field.type_reference)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` declares `[zero_init]` but {place} type parameter `{name}` does not declare `[zero_init]` — add `{name} [zero_init]`",
-                    data_definition.name,
-                    name = parameter.name
-                )));
-                    return;
-                }
-                diagnostics.push(Diagnostic::error(format!(
-                "data `{}` declares `[zero_init]` but {place} is not zero-means-empty: nested data fields must declare `[zero_init]` themselves",
-                data_definition.name
-            )));
-            }
-        },
-    );
-}
-
-/// Primitives are zero-means-empty by definition (zero, 0.0, false, the zero
-/// case); nested data must declare `[zero_init]` for the aggregate's zeroed
-/// bytes to read as empty.
-fn type_is_zero_init(
-    program: &TypedTrees,
-    symbols: &TopLevelSymbols<'_>,
-    type_parameters: &[TypeParameter],
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    if program
-        .type_reference_table
-        .primitive_type(type_reference)
-        .is_some()
-    {
-        return true;
-    }
-
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => {
-            // A type parameter qualifies through its declared bound; named
-            // data must declare the property. No source-level name receives
-            // builtin privilege.
-            if let Some(parameter) = type_parameter_named(type_parameters, name.as_str()) {
-                return type_parameter_declares_property(parameter, "zero_init");
-            }
-            named_type_declares_property(program, symbols, name.as_str(), "zero_init")
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_is_zero_init(program, symbols, type_parameters, *base_type)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_is_zero_init(program, symbols, type_parameters, *element_type)
-        }
-        TypeReferenceNode::Generic { base_name, .. } => {
-            named_type_declares_property(program, symbols, base_name.as_str(), "zero_init")
-        }
-        _ => false,
-    }
 }
 
 fn for_each_stored_field(

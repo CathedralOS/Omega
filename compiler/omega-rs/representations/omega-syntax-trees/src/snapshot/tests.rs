@@ -49,7 +49,6 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                 type_parameters: Vec::new(),
                 properties: super::DataPropertiesSnapshot {
                     multiplicity: "affine",
-                    zero_init: false,
                     carry: None,
                 },
                 quotient: None,

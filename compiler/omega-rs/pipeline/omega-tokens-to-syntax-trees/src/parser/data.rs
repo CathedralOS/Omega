@@ -189,9 +189,9 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
 }
 
 /// Parse an optional declared-property bracket list. The same list attaches
-/// to a data declaration (`data Point [copy, zero_init] { ... }`, frozen
-/// decision 8) and to a type parameter (`data Box<T [copy]>`, frozen decision
-/// 13) — brackets attach to what they follow, everywhere. The property set is
+/// to a data declaration (`data Point [copy] { ... }`) and to a type parameter
+/// (`data Box<T [copy]>`) — brackets attach to what they follow, everywhere.
+/// The property set is
 /// closed, so unknown names, duplicates, and the computed-only `sized` are
 /// rejected here rather than in validation.
 fn parse_property_brackets<'tokens, 'source>(
@@ -233,11 +233,9 @@ fn parse_property_brackets<'tokens, 'source>(
                 input = next;
             }
             "zero_init" => {
-                if properties.zero_init {
-                    return Err(next.error_here("duplicate type property `zero_init`"));
-                }
-                properties.zero_init = true;
-                input = next;
+                return Err(next.error_here(
+                    "type property `[zero_init]` is retired; whether zeroed storage establishes this type is derived from its default domain and zero-case payload",
+                ));
             }
             "carry" => {
                 if properties.carry.is_some() {
@@ -259,7 +257,7 @@ fn parse_property_brackets<'tokens, 'source>(
             }
             other => {
                 return Err(next.error_here(format!(
-                    "unknown type property `{other}`; declared properties are `copy`, `linear`, `zero_init`, `carry(...)`"
+                    "unknown type property `{other}`; declared properties are `copy`, `linear`, `carry(...)`"
                 )));
             }
         }
