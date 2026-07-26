@@ -93,57 +93,48 @@ ownership, or boundary checks.
 
 ### Public data shape
 
-V1 has no field-level `private`, `hidden`, `readonly`, or constructor-privacy
-surface. Publishing a structural `data` declaration publishes its field names
-and shape to packages allowed to name it. Those packages may read, construct,
-and update the value subject to ordinary borrow rules, field types, domains,
-invariants, and qualification requirements.
+Publishing a structural `data` declaration publishes its field names and shape
+to packages allowed to name it. Those packages may read, construct, and update
+the value subject to ordinary borrow rules, field types, domains, invariants,
+and qualification requirements.
 
-This is deliberate:
+The supporting model is:
 
-- confidentiality comes from custody behind an opaque/provider-owned carrier,
-  not from pretending in-process bytes are secret;
-- unforgeable authority comes from sealed introduction or provider minting, not
-  from a hidden record literal;
+- confidentiality comes from custody in memory the observer cannot access;
+- unforgeable authority comes from checked domain evidence or an admitted
+  provider receipt, not from a record literal;
 - construction and mutation preserve the declaration's checked invariants; and
 - ABI stability comes from normalized boundary/component representation plans,
   not from source visibility.
 
-Structural access never manufactures a sealed qualification. A public range
+Structural access never manufactures an abstract qualification. A public range
 record may be freely assembled; an authority *about* that range remains
-provider-minted and cannot be forged by placing the two beside each other.
+evidence-backed and cannot be forged by placing the two beside each other.
 When an invariant is not structurally expressible, useful operations require a
-sealed qualification such as `Tree in Valid`; hiding fields is not evidence
-that the invariant holds.
+bodyless qualification such as `Tree in Valid`.
 
 Changing a published source shape changes the pinned package identity and
 causes dependents to rebuild or fail loudly. It does not silently alter an ABI.
-Behavior that is not declared `pub` remains unnameable outside the package;
-Omega does not add an “implementation dependency” escape hatch for calling
-private machines. That natural wall preserves real component and quiescence
-boundaries.
+Only behavior declared `pub` is nameable outside the package. This preserves a
+determinate component entry set for replacement and quiescence.
 
-### Runtime opacity is not field privacy
+### Authority visibility and custody
 
-`boundary data` may carry an unpublished inline carrier or a sealed provider
-handle at runtime. That mechanism exists for externally realized,
-provider-minted, or authority-bearing values; it is not ordinary
-encapsulation. See
-[`opaque_runtime_representation.md`](../design_briefs/opaque_runtime_representation.md).
+Runtime authority uses ordinary data fields plus domain evidence. A value's
+published geometry or handle bits remain inspectable; reconstructing those
+fields does not reproduce its authority, validation, or provenance facts.
+Checked operations require the qualification they consume.
 
-Use the narrow mechanism for the actual job:
+Boundary evidence lets an admitted provider originate an abstract predicate
+under a receipt. Checked resource transformations preserve or divide that
+evidence while accounting for every linear claim. See
+[`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
-- state a structural invariant for checked correctness;
-- require a sealed qualification for an unforgeable semantic claim;
-- retain custody behind a provider boundary for confidentiality; and
-- accept transparent published fields for ordinary implementation data.
-
-Tooling may warn when runtime opaque data has no external realization,
-provider-owned backing, sealed introduction, authority-bearing introduction
-input, or comparable semantic justification. Package admission may reject that
-pattern by policy. The warning is not a soundness rule: a library-issued
-reservation or session can be a legitimate authority value without an OS or
-hardware provider.
+Confidential state remains in provider custody. A public value may carry an
+index into that state, while the provider boundary controls lookup and
+observation. Structural invariants govern ordinary data correctness, domain
+facts govern authority and validation, and normalized boundary/component plans
+govern ABI stability.
 
 ## Name Resolution
 

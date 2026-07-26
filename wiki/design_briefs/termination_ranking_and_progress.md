@@ -169,13 +169,15 @@ V1 progress profiles are named, opaque semantic domains over boundary-provider
 capability values. They use ordinary domain declaration syntax, for example:
 
 ```omega
-domain Scheduler::WeakFair { introduction sealed; }
+domain Scheduler::WeakFair {
+    semantic;
+}
 ```
 
 The qualification is a commitment, not an inferable predicate: it supplies no
 operators, never flow-narrows into existence, and does not entail another
-profile in v1. Profiles are sealed by default and use the existing boundary
-grant machinery:
+profile in v1. Profile qualification is owner-controlled by omission and uses
+the existing boundary grant machinery:
 
 - only the profile owner or explicit acceptance authority may authorize a
   claim;

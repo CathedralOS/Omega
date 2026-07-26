@@ -4,7 +4,7 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-24.
+Last pruned: 2026-07-25.
 
 ## 1. What is the runtime and object-safety contract for `dyn Trait`?
 
@@ -75,7 +75,7 @@ cycles, and any partially moved shape the plan cannot enumerate. Treat this as
 one ownership subsystem rather than special-casing calls in instruction
 selection.
 
-## 3. What is a composite linear value's resource frontier?
+## 3. How do resource frontiers transform across values?
 
 Omega requires structural linearity: a record, live sum payload, array, or
 generic container cannot erase a contained linear obligation. The current
@@ -84,6 +84,12 @@ deliberately rejects extracting one field from a multi-resource linear record.
 Accepting that program requires a semantic decomposition rule, not merely
 recording a field segment: two independently established fields must retain two
 origins, and the remainder must stay live after either field moves.
+
+The same machinery must validate nominal resource transformations. An admitted
+root may establish an abstract authority fact on a value. Checked operations
+then consume, split, retain, borrow, transfer, or discharge that claim across
+different result shapes. A qualified result or `ensures` clause states the
+obligation but does not prove that the transformation conserved it.
 
 Decide:
 
@@ -95,6 +101,9 @@ Decide:
   for field extraction/destructuring;
 - whether a by-value whole-composite consumer discharges every live component,
   only a nominal claim, or must expose an outcome mapping for each component;
+- how an outcome mapping names consumed inputs, inherited output origins,
+  discharged claims, retained borrows, and claims transferred across different
+  nominal carriers;
 - how alternative sum payloads, repeated array elements, generic substitution,
   and partially moved records identify their live component set at joins; and
 - which stable identity extends `PermissionProvenance` so multiple components
@@ -108,8 +117,11 @@ minting an extra claim unless the declaration explicitly opts into a distinct
 nominal protocol. Whole-value moves preserve the frontier, field moves transfer
 the selected subtree and leave siblings live, and whole-value consumers must
 account for every live frontier entry. Give each establishment an event-local
-origin identity rather than using source location alone. Defer dynamic-index
-owned extraction until the index/disjointness proof can name a unique element.
+origin identity rather than using source location alone. Validate an
+operation's normalized outcome mapping against that frontier; keep
+subject-specific relations such as range partition, containment, or equality
+in ordinary postconditions. Defer dynamic-index owned extraction until the
+index/disjointness proof can name a unique element.
 
 ## 4. How is quantified convergence packaged as a quotient relation?
 
@@ -253,46 +265,13 @@ This follows the distributed-systems lesson that local and latency-bearing
 operations should not be made syntactically indistinguishable; the closest
 classic reference is Waldo et al., *A Note on Distributed Computing*.
 
-## 8. How does opaque runtime `boundary data` acquire a representation?
-
-The architecture is settled in
-`wiki/design_briefs/opaque_runtime_representation.md`. Representation is the
-closed compiler property `Erased | Runtime::Inline(LayoutPlan) |
-Runtime::SealedHandle(HandlePlan)`, omission fails closed to `Erased`, and an
-empty inline carrier normalizes to a runtime zero-sized result. Representation
-is not an authored policy machine. The type owner pins it; providers own
-backing and supply entitlement to type-owned introductions.
-
-The compiler generates `pack(carrier)` only inside declared introduction
-implementations plus immutable carrier projection in the declaration's
-representation-implementation scope. `pack` has no authority parameter. Each
-introduction's ordinary signature and contract carry the actual entitlement:
-parent authority, source borrow, admitted root grant, mapping receipt, or
-registered handle backing. Conservation is an ordinary postcondition over
-published observations; external origin claims use provider admission and
-receipts. Mutable projection is opt-in, and opaque types derive no carrier-based
-equality, ordering, hashing, display, serialization, reflection, or cloning.
-
-This question is now limited to source and normalized-plan representation:
-
-- the exact representation-clause spelling;
-- how introduction implementations are designated;
-- the names and scoping of generated pack and immutable projection;
-- the closed `HandlePlan` vocabulary;
-- whether Extent lineage remains static through all required crossings; and
-- when `SealedHandle` implementation enters staging.
-
-Do not reopen provider-selected representation, package membership as mint
-authority, a universal pointer-sized fallback, a public integer cast, mutable
-projection by default, or a separate zero-sized source case.
-
 ## 9. How does a task-runtime provider publish checked behavior?
 
 The normalized activation/runtime join and receipt qualification exist, but no
 source or checked-plan carrier can currently supply the runtime side of that
-join. `TaskRuntime` is opaque `boundary data` with attached boundary machines;
-canonical provider selection, by contrast, owns requirement realizations
-derived from `satisfies` closures. No existing declaration or derived contract states a
+join. `TaskRuntime` has ordinary runtime fields plus attached boundary machines;
+canonical provider selection owns requirement realizations derived from
+`satisfies` closures. No existing declaration or derived contract states a
 runtime's continuation capacity/alignment, preemption granularity, CPU/thread
 migration, continuation movement, cancellation support, or inline-completion
 behavior. Those facts cannot be inferred from `suspends`, `blocks`, calling
@@ -568,19 +547,23 @@ frame; they already have independent contracts.
 
 ## 16. What is the authored domain-policy surface?
 
-Frozen decision 19 settled the semantic model: predicate and semantic facets
-are independent; semantic introduction is sealed by default; operator meaning
-comes from binding-site selection; weakening requires checked agreement; and
-open operator families need deterministic ownership. The normalized compiler
-model now carries these facts, but four source surfaces were deliberately left
-as sketches. Compatibility inference from “has facts” versus “has no facts”
-cannot be retired until declarations author the facets directly.
+Predicate and semantic facets are independent. Predicate membership may come
+from checked proof, checked transformation, validation, or permitted boundary
+evidence. Semantic meaning comes from an authorized binding-site commitment.
+Weakening requires checked agreement, and open operator families need
+deterministic ownership. The normalized compiler model carries the facet pair,
+but the source declarations that author it remain incomplete.
 
 Decide:
 
 - how a domain declares `predicate`, `semantic`, or both facets without
   inventing a parallel attribute system or silently inferring public semantics
   from its body;
+- the bodyless predicate spelling for abstract facts whose membership cannot be
+  unfolded from carrier data;
+- the `boundary domain` form that permits admission receipts to originate
+  predicate membership, including its additive interaction with checked
+  derivation and its normalized trust identity;
 - the declaration spelling for sealed-by-default versus open semantic
   introduction, and how an exported `MintAuthority<D>` is accepted at an
   explicit qualification site;
@@ -591,12 +574,14 @@ Decide:
 - which of these declarations contribute to normalized semantic identity,
   sealed-theory identity, trust reports, and package coherence.
 
-Recommendation: use explicit clauses inside ordinary domain/operator
-declarations, not attributes or compiler-recognized naming. Require the facet
-pair to be authored; keep introduction sealed by omission with one explicit
-open clause; pass `MintAuthority<D>` as an ordinary capability value at the
-qualification operation; name one owner position in an open operator-family
-declaration; and make weakening an ordinary checked certificate block whose
+Recommendation: use ordinary domain declarations for every facet. The leading
+bodyless predicate form is `pub domain T::Fact;`; adding `boundary` permits
+receipt-backed roots without changing internal checked derivation. Require
+semantic content to be authored explicitly, keep semantic introduction
+owner-controlled by omission with one explicit open clause, and pass
+`MintAuthority<D>` as an ordinary capability value at the semantic
+qualification operation. Name one owner position in an open operator-family
+declaration, and make weakening an ordinary checked certificate block whose
 normalized promise, but not private proof steps, enters theory identity.
 
 ## 17. What is the Omega-authored `AccessPlan` policy surface?
@@ -633,5 +618,38 @@ compute one complete name-keyed plan from the reflected schema and validated
 layout; normalize and validate the result in the compiler; and derive all
 public field tokens/accessors from the accepted pair. Keep device-specific
 operations as checked package machines over provider-private sealed access.
-Do not add a volatile qualifier, public arbitrary-offset primitive, access
-behavior to `FieldPlan`, or customer-shaped MMIO syntax.
+
+## 18. What fail-closed carry contract applies to boundary-origin authority?
+
+Ordinary data is suspension-safe and affinity-free unless its fields or
+explicit carry contract say otherwise. Runtime authority now uses ordinary data
+plus domain evidence, so opacity no longer identifies the values that formerly
+received a strict carry default. A forgotten provider/type annotation must not
+make a boundary-origin token movable, migratable, or suspension-safe by
+accident.
+
+The carry restriction also cannot live only in a droppable predicate fact.
+Forgetting `Granted` from an Extent may strand its legal resource consumer, but
+it must not erase an independent CPU, thread, suspension, or address-stability
+demand.
+
+Decide:
+
+- whether every receipt-originated authority value receives a born-strict
+  per-value carry claim independent of its domain membership;
+- how a boundary provider's admitted result contract grants narrower
+  suspension/CPU/thread/address permissions without rewriting the type-wide
+  structural floor;
+- how checked internal issuers request the same fail-closed treatment when
+  their abstract authority never crosses a boundary;
+- how the carry claim follows moves, borrows, qualification forgetting,
+  resource transformations, serialization, and component crossings; and
+- which normalized promise enters type/contract identity versus which
+  provider receipt remains realization evidence.
+
+Recommendation: boundary evidence creates a maximally strict per-value carry
+claim in permission provenance. The selected provider may grant axis-specific
+permissions through its admitted result contract; omission therefore rejects
+crossings. Carry remains independent of the predicate domain, so forgetting
+membership cannot weaken the claim. Ordinary checked issuers use the existing
+explicit type-wide or per-mint carry contract.

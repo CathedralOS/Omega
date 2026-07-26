@@ -149,15 +149,14 @@ rejects; a replaceable crossing names an ordinary requirement. The same
 requirement may be statically selected and inlined in another build. No
 hot-swap call syntax or `slot` keyword is implied.
 
-## Opaque representation and authority admission
+## Authority evidence and admission
 
-Runtime opaque representation is normalized compiler data, not hidden package
-convention. The artifact records every runtime `boundary data` carrier class,
-published introduction contract, provider/backing requirement, admitted claim,
-and reachable authority. The normalized representation and published
-introductions enter contract/component compatibility identity; private
-implementation bodies and proof evidence affect content identity but remain
-outside public contract identity.
+Runtime authority uses ordinary data layout plus domain evidence. The artifact
+records each boundary-domain permission, checked resource transformation,
+provider/backing requirement, admitted claim, and reachable authority. Public
+data shape and domain trust policy enter contract/component compatibility
+identity; private implementation bodies and proof evidence affect content
+identity while remaining outside public contract identity.
 
 Package policy admits the transitive reachable-authority set of the final
 resolved artifact. It does not approve dependencies one edge at a time. A new
@@ -166,8 +165,8 @@ equivalent reach blocks unless deployment policy explicitly grants it,
 regardless of which transitive package introduced the change.
 
 The complete manifest remains machine-readable. Human diffs are
-severity-ranked: checked local inline tokens collapse to a short summary, while
-new admitted providers, mutable carrier access, sealed-handle backing,
+severity-ranked: checked local tokens collapse to a short summary, while new
+admitted providers, boundary-evidence permissions, provider-owned backing,
 generation/revocation machinery, or system authority are elevated with their
 dependency path. Package policy decides who may enter with power; checked
 contracts still constrain behavior after admission.

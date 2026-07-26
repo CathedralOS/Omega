@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-24.
+Last pruned: 2026-07-25.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -34,38 +34,32 @@ scanners, or receipts.
 
 ## Priority queue
 
-### P1 — Runtime representation for opaque boundary values
+### P1 — Authority values and boundary evidence
 
-**SURFACE-BLOCKED: `OWNER_QUESTIONS.md` #8.** The architecture is settled in
-`wiki/design_briefs/opaque_runtime_representation.md`; exact declaration and
-generated-hook spelling remains.
+**DESIGN-BLOCKED: `OWNER_QUESTIONS.md` #3, #16, and #18.** The runtime model is
+specified in
+`wiki/design_briefs/authority_values_and_boundary_evidence.md`.
 
-`boundary data` is correctly non-constructible, but runtime values currently
-have no admitted storage/passing representation. This blocks honest source
-values for `Extent`, `Ptr<T>`, task runtimes, interrupt guards, acknowledgement
-tokens, and similar provider-minted authority.
+Authority-bearing runtime values use ordinary data fields plus domain facts.
+Implementation work:
 
-After the owner ruling:
+- add bodyless predicate declarations and `boundary domain` receipt
+  origination;
+- preserve evidence-source identity as checked, transformed, validated, or
+  accepted through artifacts and trust reports;
+- migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
+  tokens to ordinary data declarations with their required fields;
+- validate resource-frontier outcome mappings before a checked operation
+  establishes qualified results;
+- connect provider receipts, linearity, carry policy, and authority-flow
+  reporting; and
+- migrate Cathedral's temporary Extent model onto the shared declaration.
 
-- implement `Erased | Runtime::Inline(LayoutPlan) |
-  Runtime::SealedHandle(HandlePlan)`, with empty inline carriers normalizing to
-  runtime zero-sized values;
-- generate scoped `pack(carrier)` and immutable carrier projection only for
-  declared introduction/representation implementations;
-- make introduction entitlement explicit in ordinary inputs and contracts;
-- connect checked conservation, provider receipts, linearity, carry policy,
-  identity, and handle lookup/consumption;
-- forbid implicit equality, ordering, hashing, display, serialization,
-  reflection, cloning, and mutable carrier projection;
-- emit normalized representation and published-introduction manifests for
-  contract identity and transitive package admission; and
-- migrate Cathedral's temporary plain `Extent` record.
-
-Acceptance: an opaque linear `Extent` can cross a checked call and occupy
-storage without exposing a constructor, public fields, or forgeable numeric
-handle; split conservation rejects duplicate packing; a runtime zero-sized
-mask guard preserves prior state in nested behavioral canaries; and a package
-authority expansion is visible at final-artifact admission.
+Acceptance: reconstructing an authority value's fields does not establish its
+domain facts; admission can originate only domains that permit boundary
+evidence; qualified results require checked evidence or a receipt; split
+conserves one origin across its children; and authority expansion is visible at
+final-artifact admission.
 
 ### P2 — Source-visible materialization and placed access
 
@@ -256,7 +250,7 @@ improvements do not change public identity.
   partial-value semantics are owner-blocked on #2/#3.
 - **TR3–TR8:** finish task activation, custody, continuations, suspension-safe
   loans, and reference packages. Runtime provider publication is owner-blocked
-  on #9; opaque runtime storage also depends on #8.
+  on #9; authority-value declarations depend on #16.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to sealed `Extent` after P1.
 - Implement owned `Vec<T>` and then `Vec<u8> in Utf8`; do not restore a
@@ -330,11 +324,10 @@ blocked work.
 |---|---|
 | #1 dynamic trait contract | runtime descriptors and indirect dispatch |
 | #2 cleanup graph/partial values | automatic cleanup and multiplicity completion |
-| #3 composite resource frontier | contained linear debt and cleanup |
+| #3 resource frontier and transformations | contained linear debt, cleanup, and authority transformations |
 | #4 quotient convergence | N6/`Real` quotient packaging |
 | #5 compiler-run Omega | richer build-time policies and generators |
 | #6 suspending direct-call spelling | explicit suspension call surface |
-| #8 opaque runtime boundary-data surface | representation spelling, introduction hooks, Extent lineage, and sealed handles |
 | #9 task-runtime provider publication | task admission/dispatch |
 | #10 primitive float requirement family | float-format providers |
 | #11 wire family/presence/evolution | remaining wire runtime |
@@ -342,8 +335,9 @@ blocked work.
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
-| #16 authored domain policy | facets, operators, introduction, units |
+| #16 authored domain policy | facets, abstract predicates, boundary evidence, operators, and semantic introduction |
 | #17 authored `AccessPlan` policy | placed views and MMIO projection |
+| #18 boundary-authority carry default | fail-closed carry admission for transparent authority values |
 
 ## Vertical acceptance slices
 

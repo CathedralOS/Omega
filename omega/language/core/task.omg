@@ -50,10 +50,12 @@ boundary machine Task::finish<T>(self) -> TaskOutcome<T>
 suspends; blocks;
 ensures true;
 
-// Runtime authority is opaque: source can receive a selected provider but
-// cannot construct or inspect one. These generic boundary signatures give
+// Runtime authority is ordinary data whose provider qualification is
+// established by boundary evidence. These generic boundary signatures give
 // `start<M>` a nominal, machine-contract-checked surface for activation-plan
 // elaboration; provider admission/dispatch remains the next runtime layer.
+// The declaration below retains the compiler's current boundary-data spelling
+// until the authority-value domain surface lands.
 boundary data TaskRuntime;
 
 boundary machine TaskRuntime::start<T, Arguments, machine Target>(

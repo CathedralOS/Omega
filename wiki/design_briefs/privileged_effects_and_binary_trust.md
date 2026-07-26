@@ -103,9 +103,10 @@ RFLAGS.IF transitions (including STI's delayed recognition rule). Structured
 `pushfq <destination>`/`popfq <source>` operations preserve RSP, use exact
 `u64` places, and give restore the same `MachineControl`/`MachineOwner`
 contract. Their higher-level saved-mask/restore protocol remains an ordinary
-provider-minted linear token. Its source contract is now live as the opaque
-`InterruptMaskControl`/`InterruptMaskGuard` pair in
-`omega::language::core::interrupt`; provider minting/lowering remains.
+linear value whose runtime field records the prior mask state and whose
+qualification records valid issuance. Its compatibility source contract is
+live as the `InterruptMaskControl`/`InterruptMaskGuard` pair in
+`omega::language::core::interrupt`; provider lowering remains.
 
 `omega::language::core::assembly` now defines the canonical empty boundary
 traits `MachineControl` and `PortIo`. Compiler-known asm calls resolve those
