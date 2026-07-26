@@ -113,7 +113,8 @@ implementation work. Each one gets more expensive to retrofit every month.
    The remaining foundation is now factored generically in
    `design_briefs/os_memory_and_hardware_foundation.md`: inert `addr` values;
    concrete-range `Extent` authority distinct from allocator `Arena`;
-   `LayoutPlan` geometry plus separate `AccessPlan`; sealed placed views;
+   `LayoutPlan` geometry, consumer `AccessPlan`, admitted offset-keyed
+   `ResourceProfile`, and `Placed<P, T>` views;
    parsed checked asm; independent `CallPlan + StatePlan` (normalized compiler
    model and initial x86-64/AArch64 evaluators implemented); symbolic
    materialization; external-root reporting; DMA external loans; and carry /
@@ -231,10 +232,11 @@ None block current compiler development; all should stay visible.
   legacy `alloc` as the resource model: a kernel wants explicit allocator/arena
   capabilities and dependent bounds. Decide the resource algebra before
   implementing `Vec` lowering, not after.
-- **DECIDED, engineering pending: hardware representation** — programmable
-  `LayoutPlan` geometry, name-keyed fragments, separate `AccessPlan`, extent
-  authority, and plan-derived field access. The public Extent/access model is
-  settled; implementation is tracked in TASKS.md.
+- **Engineering pending: hardware representation** — programmable
+  `LayoutPlan` geometry, name-keyed fragments, consumer `AccessPlan`, provider
+  `ResourceProfile`, Extent-loan admission, and `Placed<P, T>` field access.
+  The source model is in chapter 20 and the OS foundation brief;
+  implementation is tracked in `TASKS.md`.
 - **TBD: runtime sealed entry references** — driver dispatch tables and
   dynamic callbacks need a stored, identity-bearing callable carrier.
   Compile-time machine parameters already select and invoke static symbols but

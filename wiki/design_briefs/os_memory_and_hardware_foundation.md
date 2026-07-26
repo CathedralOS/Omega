@@ -1,9 +1,9 @@
 # Design Brief: OS Memory And Hardware Foundation
 
-Current direction as of 2026-07-18. The primitive taxonomy and security model
-are settled enough to guide implementation. Exact source types, several plan
-vocabularies, and backend validators remain open and are listed explicitly
-below.
+Current direction as of 2026-07-26. The primitive taxonomy and security model
+guide implementation. The placed-access source model is specified here;
+`TASKS.md` distinguishes it from the smaller normalized Rust foundation already
+implemented.
 
 This brief is the common foundation for MMIO, DMA, shared-memory
 IPC, descriptor tables, interrupt entry, admitted executable installation, and
@@ -32,10 +32,11 @@ status.
 
 | Piece | Meaning | Primary customers |
 |---|---|---|
-| `Extent` capability | authority over one concrete address range with rights, provenance, address space, and lifetime | mappings, MMIO, DMA, IPC, allocators |
+| qualified `Extent` and its loans | transparent geometry plus established authority over one concrete range, with rights, provenance, address space, lifetime, and effective resource profile | mappings, MMIO, DMA, IPC, allocators |
 | `LayoutPlan` | physical geometry: offsets, alignment, overlays, bit and fragment placement, endianness | foreign records, descriptor tables, protocols |
-| `AccessPlan` | permitted primitive access: read/write/atomic, width, observation, ordering contract, RMW permission, service reach | MMIO and shared storage views |
-| placed view | a checked `Extent + LayoutPlan + AccessPlan` interpretation | registers, framebuffers, IPC pages |
+| `AccessPlan` | consumer demand: inaccessible, stable, external, or individually atomic field operations plus exposure | MMIO and shared storage views |
+| `ResourceProfile` | admitted provider supply over offset-keyed regions: observation, rights, widths, alignment, atomics, and reach | RAM, MMIO, shared pages, mapped accelerators |
+| `Placed<P, T>` | a checked loan interpreted through one nominal placement policy bundling layout, access, and reach | registers, framebuffers, IPC pages |
 | parsed checked assembly | target instructions whose contracts emit effects, authority, clobbers, state changes, and exits | control registers, port I/O, fences, mode changes |
 | boundary entry plan | one normalized contract containing a `CallPlan` and a `StatePlan` | firmware entry, interrupts, exceptions, syscalls, callbacks |
 | symbolic materialization | toolchain-resolved identities placed into structures at the last legal phase | IDT targets, image symbols, callbacks |
@@ -107,10 +108,13 @@ storage/component crossings. A provider-owned table may back a visible handle
 when operations need dynamic lookup or revocation; its key remains an ordinary
 field.
 
-Admitted suppliers originate root Extents through boundary-domain evidence:
+Admitted suppliers originate root Extents through boundary-machine receipts:
 boot handoff, an address-space mapper, a parent allocator's backing store, or a
-device provider. Checked code derives children through resource transformations
-whose outcome mappings conserve the parent claim.
+device provider. `Granted` is bodyless, so an ordinary `as` proof cannot create
+it. The provider requirement names the exact qualified result that admission
+may establish, and the receipt records that origin. Checked code derives
+children through resource transformations whose outcome mappings conserve the
+parent claim.
 
 Splitting consumes one owned qualified extent and returns disjoint owned
 children whose ranges exactly cover it. Linearity bounds consumption; ordinary
@@ -135,8 +139,8 @@ open set of normalized identities; and split, attenuation, sibling merge, and
 bounded shared/exclusive loans are validated. Failed consuming operations
 return every input authority.
 
-The source migration depends on bodyless/boundary-domain declarations and
-generic resource-frontier outcome mappings. See
+The source migration depends on bodyless establishment, admitted
+boundary-machine receipts, and generic resource-frontier outcome mappings. See
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
 
 ### Mapping and reclamation
@@ -217,99 +221,353 @@ zero-fill.
 
 ## Layout and access are separate plans
 
-`LayoutPlan` answers where bits live. `AccessPlan` answers how a placed range
-may be touched. Combining them would force wire formats to carry MMIO concepts
-and hardware plans to carry codec concepts.
+`LayoutPlan` answers where bits live. `AccessPlan` answers which primitive
+operations a consumer requests. `ResourceProfile` answers what an admitted
+backing supplies. `PlacementPlan` bundles the first two with the boundary reach
+required by the interpretation. Keeping these axes independent lets one schema
+describe owned values, MMIO, DMA-visible bytes, or a shared page without
+teaching its fields one permanent access environment.
 
-The layout vocabulary needs name-keyed entries and fragmented placements so one
-logical source can occupy several destination ranges. Validation must check both
-destination overlap and exact source tiling: every source bit appears exactly
-once unless an explicit overlay rule says otherwise.
+Ordinary owned RAM remains ordinary. Once raw storage has been validated or
+materialized as an owned `T`, it uses `&T`, `&mut T`, and lvalue projection.
+Placed stable access is reserved for cases where a loan or field-level policy
+must remain visible. It is not a ceremony imposed on every struct.
 
-The access vocabulary stays small and compiler-owned:
+### The source policy surface
 
-- read, write, and atomic transfer classes;
-- exact transfer width;
-- stable, volatile/external, or atomic observation;
-- generic read-modify-write permitted or forbidden;
-- provider-private versus exported access; and
-- the statically pinned boundary-trait reach of the accessor.
-
-The raw primitive is not a public `volatile_read(extent, arbitrary_offset)`
-escape hatch. A provider validates extent provenance, `LayoutPlan`, and
-`AccessPlan`, then derives an opaque placed view. Its public primitive surface
-is projection plus only the operations authorized for that field:
-
-- `read()` performs one exact-width access and returns a snapshot;
-- `write(value)` performs one whole-container write; and
-- explicitly atomic fields expose the ordinary checked atomic API (`load`,
-  `store`, `compare_exchange`, and authorized atomic RMW operations).
-
-Pure projection narrows authority without performing I/O. Projected field
-accessors are ordinary passable borrow-carrying values and cannot outlive the
-mapped extent. Whole-view methods may coexist as ergonomic forwarding machines;
-projection is the least-authority surface for helpers that need only one field.
-
-Borrow polarity remains authoritative: a shared projection permits reads;
-ordinary writes require an exclusive borrow; mutation through a shared borrow
-is legal only through an explicitly atomic or protocol-safe field. Placed views
-must not smuggle aliased unsynchronized mutation around the ownership checker.
-
-For example:
+A placement policy is a nominal, build-time-evaluated recipe:
 
 ```omega
-let status_register = uart.status;
-let status = status_register.read();
+trait Placement {
+    machine plan(schema: Schema) -> plan: PlacementPlan;
+}
+
+data PlacementPlan {
+    layout: LayoutPlan;
+    access: AccessPlan;
+    reach: BoundaryReach;
+}
+
+trait Access {
+    machine plan(
+        schema: Schema,
+        layout: LayoutPlan
+    ) -> plan: AccessPlan;
+}
 ```
 
-One container-width read produces one snapshot. Bit projections from that
-snapshot are pure. Flow facts attach to the snapshot value, never to storage
-that hardware or a peer may change.
+The layout policy decides physical geometry. The access policy receives the
+same reflected schema and the already validated layout so it can reject or
+hide fields that do not admit a primitive access. The placement policy chooses
+both and states the static service reach. Runtime provenance proves that this
+reach may touch the supplied region; it never manufactures or changes a
+machine's effect row. Transfer containers and effective widths are derived from
+the validated layout; the access policy does not restate geometry.
 
-Generic RMW is never derived for an ordinary MMIO field. Device behaviors such
-as W1C, read-to-clear, FIFO pop, and doorbells remain package machines over
-provider-private primitive access. This does not forbid atomic RMW on an
-explicitly atomic shared-memory field; those are different access classes.
+`Schema` carries opaque compiler-issued field keys. Access policies address
+fields through those keys, not authored indexes:
 
-The normalized `AccessPlan` foundation is now implemented independently of its
-future source spelling. It validates name-keyed entries against fixed
-`LayoutPlan` geometry, exact whole-byte transfer width, observation/operation
-compatibility, provider-private external RMW, and statically pinned reach. Its
-normalizer erases authored entry order, sorts by field identity, and assigns a
-deterministic plan identity over every permission, observation, width,
-exposure, reach, and exact normalized layout-geometry fact. Thus source
-reorderings that preserve the name-keyed policy and geometry preserve identity,
-while a shifted field or any other lowering-relevant policy change does not.
-Its
-operation gate already enforces shared-read/exclusive-write polarity while
-allowing explicitly atomic shared mutation. Successful geometry validation
-mints a sealed field descriptor containing the plan-derived container offset;
-successful operation authorization combines that descriptor with borrow
-polarity and the selected operation. Primitive lowering accepts only this
-authorized value, never an author-supplied offset. The normalized lowering seam
-now consumes that value and binds the resulting event to the access-plan
-identity, provider-admitted grant, field identity, exact address/width,
-observation model, loan-derived borrow polarity/lifetime, operation-specific
-atomic ordering, and static reach. Invalid load, store, or compare-exchange
-ordering rejects before target lowering. Source-policy evaluation, source-level
-borrow-carrying access values, and target-specific external/atomic emission
-remain.
+```omega
+machine UartAccess::plan(
+    schema: Schema,
+    layout: LayoutPlan
+) -> plan: AccessPlan
+    satisfies Access::plan
+{
+    let plan = AccessPlan::inaccessible(schema);
+    let plan = plan.with(
+        schema.field("status"),
+        FieldAccess::External(ExternalRead::Read, false, Exposure::Exported)
+    );
+    plan.with(
+        schema.field("transmit"),
+        FieldAccess::External(ExternalRead::None, true, Exposure::Exported)
+    )
+}
+```
 
-The normalized Extent/AccessPlan join is also live. A reusable
-provider-admitted placed-view grant retains the exact canonical geometry-bound
-access plan plus address space, provenance, required open-set rights, and
-permitted static reaches. The compact plan fingerprint remains useful for
-reports and caches but is not treated as collision-resistant authority.
-Derivation compares the exact plan and checks the remaining facts and layout
-size against an actual borrow-carrying Extent loan. Field operation
-authorization then derives shared/exclusive polarity from that loan rather
-than accepting a caller claim, and its sealed lowering value remains borrowed
-from the view. Omega source projection and target-specific primitive emission
-remain.
+The field key is compile-time identity only. The evaluated plan has exactly one
+decision per schema field. Starting from the inaccessible plan makes zero and
+omission deny access. A fixed-capacity bootstrap representation may back this
+model until computed generic sizes are implemented, but its capacity and tail
+do not enter source semantics or normalized identity; overflow rejects.
 
-The extent's provenance gates construction of an access capability. The
-accessor's normalized contract statically pins service reach. Runtime
-provenance never changes a machine's effect row.
+The target field vocabulary is a sum, so invalid cross-products are not
+representable:
+
+```omega
+data Exposure {
+    case Exported;
+    case BindingPrivate;
+}
+
+data ExternalRead {
+    case None;
+    case Read;
+    case Take;
+}
+
+data FieldAccess {
+    case Inaccessible;
+    case Stable(read: bool, write: bool, exposure: Exposure);
+    case External(
+        read: ExternalRead,
+        write: bool,
+        exposure: Exposure
+    );
+    case Atomic(
+        operations: AtomicOperations,
+        exposure: Exposure
+    );
+}
+```
+
+`BindingPrivate` belongs to the nominal placement policy's package. It is an
+API-surface restriction, not a substitute for range authority. A third party
+may describe its own interpretation of a range it legitimately holds, but it
+cannot call another binding's private accessors or exceed the admitted resource
+profile.
+
+Stable read/write plus an exclusive active borrow and exclusive source loan
+derives ordinary mutation and compound updates. External never derives generic
+read-modify-write. Atomic exposes only the listed operation families and their
+ordinary orderings.
+
+### Resource profiles are admitted supply
+
+The provider describes the backing with an immutable, offset-keyed capability
+set:
+
+```omega
+data ResourceProfile {
+    regions: ResourceRegions;
+}
+
+data ResourceRegion {
+    range: RelativeRange;
+    stable: StableCapability;
+    external: ExternalCapability;
+    atomic: AtomicCapability;
+    reach: BoundaryReach;
+}
+
+data RelativeRange {
+    offset: u64;
+    length: u64;
+}
+```
+
+Regions are disjoint and normalized. Uncovered bytes support nothing. The
+three capability slots are supply that may coexist, not one selected mode:
+ordinary RAM may supply stable, conservative external, and explicitly atomic
+access; MMIO normally supplies external only; a concurrently shared page may
+supply external and selected atomics without stable access.
+
+```omega
+data StableCapability {
+    case None;
+    case Read;
+    case Write;
+    case ReadWrite;
+}
+
+data ExternalReadBehavior {
+    case None;
+    case Repeatable;
+    case Destructive;
+}
+
+data TransferRule {
+    width_bits: u64;
+    alignment_bytes: u64;
+}
+
+data ExternalCapability {
+    case None;
+    case Access(
+        read: ExternalReadBehavior,
+        write: bool,
+        transfers: TransferRules
+    );
+}
+
+data AtomicTransferRule {
+    width_bits: u64;
+    alignment_bytes: u64;
+    operations: AtomicOperations;
+}
+
+data AtomicCapability {
+    case None;
+    case Access(transfers: AtomicTransferRules);
+}
+```
+
+Alignment is explicit per transfer width. `write` means a whole-container
+write at one listed width, never permission to synthesize an RMW. A profile can
+describe read-only containers, destructive reads, legal atomic widths, and
+different behavior across a heterogeneous BAR. Device-specific semantics such
+as W1C, FIFO protocols, posted-write completion, locks, DMA completion, and
+coherent snapshots stay out of this record.
+
+A consumer cannot make its own authoritative profile. Provider admission binds
+the exact profile to the range, rights, provenance, era, and receipt. The
+provider may lie about hardware; the receipt makes that trust expenditure
+visible but cannot prove the physical world.
+
+Subrange loans restrict this profile mechanically:
+
+```text
+child profile =
+    parent profile
+    intersect child interval
+    attenuate rights, reach, and operations
+```
+
+A child never gains a capability the parent lacked. Distinct layout fields or
+checked constant ranges can establish disjoint simultaneous subrange loans.
+Dynamic disjointness waits for the prover support named in `TASKS.md`.
+
+### Placement admission
+
+`ExtentLoan` is the borrow-carrying value produced from a qualified Extent. It
+retains the exact range and shared or exclusive source polarity rather than
+creating another authority root. Admission joins one such loan with one
+evaluated placement:
+
+```omega
+machine admit<P, T>(
+    loan: ExtentLoan
+) -> result: PlacementAdmissionResult<P, T>;
+
+data PlacementAdmissionResult<P, T> {
+    case Accepted(admission: PlacementAdmission<P, T>);
+    case Rejected(loan: ExtentLoan, reason: PlacementDiagnostic);
+}
+
+machine place<P, T>(
+    admission: PlacementAdmission<P, T>
+) -> view: Placed<P, T>;
+```
+
+The accepted token owns the exact loan. It retains the provider receipt,
+normalized placement plan, range and mapping era, effective resource profile,
+and alignment proof. Consuming it is the only route to `Placed<P, T>`. Failure
+returns the loan, so a fallible check never loses a moved linear input. A
+package-specific API such as `Platform::claim_uart()` normally performs both
+steps and returns the finished view.
+
+Plan validation checks relative layout, requested operations, widths, and
+reach. It also derives base congruence from each transfer:
+
+```text
+base mod alignment = -field_offset mod alignment
+```
+
+Power-of-two constraints combine at build time. Residues must agree modulo the
+smaller alignment; the combined modulus is the larger. An impossible policy
+therefore fails before deployment. Admission checks the remaining condition
+against the actual base or a provider base-alignment guarantee. Diagnostics
+lead with the fields, offsets, and transfer rules that conflict rather than raw
+congruence notation.
+
+The compatibility join requires interval containment, exact transfer width,
+absolute alignment, operation and reach subsets, and compatible observation.
+Stable supply may satisfy a more conservative External demand. External supply
+cannot satisfy Stable demand. Atomic access requires an explicit matching
+atomic rule.
+
+### Placed projection and lowering
+
+`Placed<P, T>` is a compiler-derived borrow-carrying view. Its fields are
+accessors, not lvalues:
+
+```omega
+let status = uart.status.read();
+uart.transmit.write(byte);
+```
+
+Projection is pure. The operation consumes a sealed lowering authorization
+binding plan identity, receipt, exact loan, field, address, width, observation,
+borrow polarity, lifetime, reach, and atomic ordering when applicable. No
+public primitive accepts an arbitrary base or offset.
+
+The compiler derives granular requirements:
+
+- `Readable<T>::read(&self)`;
+- `DestructiveRead<T>::take(&mut self)`;
+- `Writable<T>::write(&mut self, value)`;
+- atomic load, store, swap, compare-exchange, and fetch families.
+
+A destructive container derives `DestructiveRead`, never ordinary `Readable`.
+Exposure remains independent: a FIFO pop may be exported, while a
+read-to-clear status primitive may remain binding-private behind one authored
+snapshot machine. One container read yields owned bits; pure projections or an
+ordinary checked value recast may decode those bits afterward.
+
+An external field narrower than its admitted transfer container may be read by
+one whole-container snapshot and pure bit projection. It cannot be written
+generically, because preserving unrelated bits would require an external RMW.
+Registers requiring shadow state, W1C, read-back, or multi-field coherence use
+authored device machines. Shadows are valid only where software owns every bit
+they rewrite.
+
+External guarantees one non-elided transfer at its declared width and preserves
+relative program order among External accesses to the same region in one
+activation. It does not promise that a device has observed a posted write.
+Fences, read-back-to-flush, and device completion are separate checked
+operations because a CPU barrier alone cannot make every fabric or device
+complete a transfer.
+
+Write authorization requires all three of:
+
+1. the plan permits writing;
+2. the current view borrow is exclusive; and
+3. the placed value retains an exclusive source loan.
+
+Reborrowing a shared-source view as `&mut` does not upgrade the source.
+Atomic mutation follows its declared atomic rule instead of this ordinary-write
+path. An active atomic loan pins one transfer granularity for each overlapping
+location, so simultaneous atomic views cannot reinterpret the same bytes at
+different widths.
+
+View-to-view recast is rejected in the first implementation. It could expose a
+field that the source binding made inaccessible even without changing the
+observation class. Ordinary recast remains available for detached values and
+ordinary storage. A caller holding the underlying extent loan may request and
+admit a different placement explicitly.
+
+### Ownership phases and applicability
+
+The resource profile describes backing potential; the active loan describes
+the current phase. Starting DMA may exchange a stable CPU loan for an
+external-only device-owned loan. Consuming completion restores stable CPU
+authority. The same backing can therefore be placed differently at different
+times without a mutable phase flag in the profile.
+
+`Placed<P, T>` is restricted to stable addressable places whose lifetime and
+aliasing a loan can govern and whose primitive accesses are finite,
+compiler-owned, non-suspending operations without recoverable failure under the
+admitted provider contract. MMIO, resident shared mappings, persistent memory,
+and CPU-mapped accelerator storage can qualify. Durability and device
+completion remain protocols. Demand-paged or truncatable mappings, disks,
+streams, RPC endpoints, and device-only storage use fallible services or
+handles.
+
+This design has three mechanical walls and one trusted assertion: projection is
+pure, operations are explicit, and primitive access kinds are compiler-owned;
+the admitted provider is trusted to tell the truth about the backing.
+
+### Implementation migration
+
+The current `omega-access-plans` foundation predates this source model. It
+already validates normalized field geometry, exact widths, operation and
+observation compatibility, borrow polarity, atomic orderings, exact loan facts,
+and sealed lowering requests. Its current name-keyed entry vector,
+`ProviderPrivate` exposure, per-entry reach, generic RMW flag, and reusable
+placed-view grant are bootstrap representations to migrate, not the target
+source contract above. `TASKS.md` owns that migration and target-specific
+external/atomic emission.
 
 ## IPC and DMA
 
@@ -1082,16 +1340,19 @@ than re-reading source attributes.
 ## Implementation status and ownership
 
 `TASKS.md` owns the current implementation sequence. The language/compiler
-lanes are the checked-assembly catalog, authority values and boundary evidence, generic
-layout/materialization, `AccessPlan` projection, evaluated entry plans, final
-machine-state validation, external loans, carry/runtime admission, and
-relocatable admitted artifacts.
+lanes are the checked-assembly catalog, authority values and boundary evidence,
+generic layout/materialization, `PlacementPlan`/`AccessPlan` evaluation,
+`ResourceProfile` admission, `Placed<P, T>` projection and primitive lowering,
+evaluated entry plans, final machine-state validation, external loans,
+carry/runtime admission, and relocatable admitted artifacts.
 
 Cathedral owns page-table hierarchy and teardown, IDT/TSS schema and lifecycle,
 exception/IST policy, PIC/LAPIC providers, timer top and bottom halves, DMA
-protocols, hostile-IPC mapping policy, and task-runtime provisioning. Those
-customers are acceptance tests for the generic machinery, never compiler
-implementation phases.
+protocols, hostile-IPC mapping policy, task-runtime provisioning, concrete
+device schemas and placement policies, device `ResourceProfile` declarations,
+and protocol machines such as W1C/read-back/completion. Those customers are
+acceptance tests for the generic machinery, never compiler implementation
+phases.
 
 ## Gauntlet
 
@@ -1112,7 +1373,12 @@ an external loan, a split relocation consumed too early, and a final-image
 veneer/thunk that introduces a register class forbidden by the root's
 `StatePlan` despite all earlier per-function checks passing. Extent/access tests
 must also reject merging numerically adjacent ranges from different authority
-origins and reject ordinary non-atomic writes through two shared projections.
+origins; Stable placement over MMIO or External placement beyond admitted
+rights; impossible or runtime-misaligned transfer geometry; narrow external
+writes requiring RMW; destructive access through `Readable`; mixed-width
+overlapping atomics; source-loan polarity upgrades; overlapping live views;
+placed-view recast escalation; forged admission tokens; and ordinary
+non-atomic writes through two shared projections.
 IDT tests must show that an open-authored `Layout` or `Calling<C>` policy can
 produce only a candidate plan: it cannot mint the sealed resolver, Cathedral's
 materialized-table fact, or Cathedral's CPU/table publication authority; cannot

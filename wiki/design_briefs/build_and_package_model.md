@@ -152,8 +152,9 @@ hot-swap call syntax or `slot` keyword is implied.
 ## Authority evidence and admission
 
 Runtime authority uses ordinary data layout plus domain evidence. The artifact
-records each boundary-domain permission, checked resource transformation,
-provider/backing requirement, admitted claim, and reachable authority. Public
+records each owner-authorized boundary establishment, checked resource
+transformation, provider/backing requirement, admitted claim, and reachable
+authority. Public
 data shape and domain trust policy enter contract/component compatibility
 identity; private implementation bodies and proof evidence affect content
 identity while remaining outside public contract identity.

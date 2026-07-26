@@ -4,7 +4,7 @@ Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`.
 
-Last pruned: 2026-07-25.
+Last pruned: 2026-07-26.
 
 ## 1. What is the runtime and object-safety contract for `dyn Trait`?
 
@@ -546,38 +546,3 @@ machine-contract clause with a comma-separated place list. It says exactly what
 the checker needs and avoids colliding with authority retention. Keep effects,
 resource consumption, foreign retention, and hardware state out of the write
 frame; they already have independent contracts.
-
-## 17. What is the Omega-authored `AccessPlan` policy surface?
-
-The OS foundation deliberately separates layout geometry from access behavior.
-`LayoutPlan` says where bits live. The normalized `AccessPlan` says how a
-placed field may be observed or changed: exact transfer width, stable versus
-externally-changing or atomic observation, read/write/atomic permissions,
-public versus provider-private exposure, and statically pinned service reach.
-The Rust validator, sealed field-authorization seam, and plan-pair checks are
-live, but the Omega source record and policy-machine contract remain open.
-
-Decide:
-
-- which ordinary `omega::core` data records and closed case families represent
-  access entries, observation, operation permission, transfer width, exposure,
-  and pinned reach;
-- which trait or requirement a package-authored policy machine satisfies and
-  which schema/layout facts it receives when producing an `AccessPlan`;
-- whether one policy produces a complete plan for a layout, or whether access
-  families compose through an explicit normalized merge;
-- how provider-private primitive access is made available only to the declaring
-  device package while public derived accessors expose contracted operations
-  such as W1C without a generic RMW escape;
-- how a placed-view derivation cites both evaluated plan identities and checks
-  them against the exact `Extent` loan/provenance before minting field tokens;
-  and
-- which plan changes alter public accessor identity versus only provider
-  realization evidence.
-
-Recommendation: copy the programmable-layout pattern. Define ordinary closed
-`AccessPlan` data in `omega::core`; have an explicitly selected policy machine
-compute one complete name-keyed plan from the reflected schema and validated
-layout; normalize and validate the result in the compiler; and derive all
-public field tokens/accessors from the accepted pair. Keep device-specific
-operations as checked package machines over provider-private sealed access.

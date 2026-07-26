@@ -188,7 +188,7 @@ until the `Vec` runtime/lowering is ready to exercise it end to end.
 
 ## Lifetime Parameters
 
-Omega adopts the Rust lifetime model wholesale (frozen decision 15): a call's
+Omega uses Rust-style lifetime parameters: a call's
 output may borrow an input, and LIFETIME PARAMETERS — declared in the same
 `<>` list as type and `const` parameters, tick spelling — say which:
 
@@ -304,6 +304,33 @@ active.
 General outlives constraints, persistent-storage assignment across state
 transitions, and the remaining aggregate expression forms remain
 implementation work; they are not new language-design questions.
+
+## Loans Carried By Placed Views
+
+`Placed<P, T>` carries the exact source loan from which placement was admitted.
+It does not turn special backing into an ordinary `&mut T`. Normal references
+remain unchanged:
+
+```omega
+machine inspect(uart: &Placed<UartMmio, UartRegisters>);
+machine configure(uart: &mut Placed<UartMmio, UartRegisters>);
+```
+
+The current borrow of the view and the retained source loan answer different
+questions. `&mut` proves exclusive use of the view value; it does not upgrade a
+view created from a shared source loan. An ordinary placed write is legal only
+when its `AccessPlan` permits the operation, the current view borrow is
+exclusive, and the retained source loan is exclusive. Atomic operations use
+their admitted atomic contract instead.
+
+Field projection is pure and preserves the narrowed loan path. The resulting
+accessor cannot outlive its view or name bytes outside its planned field.
+Disjoint subrange views may coexist when a validated layout certificate or a
+checked interval proof establishes non-overlap. Each child receives only the
+parent resource profile restricted to its interval and attenuated rights.
+
+See [Chapter 20](chapter_20_memory_layout_abi.md#placed-and-externally-mutable-memory)
+for placement and access semantics.
 
 ## Relationship To Drops
 
