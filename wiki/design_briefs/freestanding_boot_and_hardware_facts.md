@@ -87,20 +87,27 @@ MMIO, descriptor tables, framebuffers, DMA buffers, and shared IPC
 pages use the same composition:
 
 ```text
-Extent capability + validated LayoutPlan + validated AccessPlan
-    -> sealed placed view / field-access values
+qualified Extent loan + admitted ResourceProfile
+    + evaluated PlacementPlan { LayoutPlan, AccessPlan, reach }
+    -> PlacementAdmission
+    -> Placed<P, T> / field accessors
 ```
 
-`Extent` owns authority over a concrete range. `LayoutPlan` owns bit geometry.
-`AccessPlan` owns primitive transfer semantics and statically pinned service
-reach. There is no general `Mmio<T>` magic wrapper and no public arbitrary-offset
-volatile primitive.
+`Extent` carries transparent geometry; its established facts and active loan
+carry authority over a concrete range. `LayoutPlan` owns bit geometry.
+`AccessPlan` states consumer demand. The provider's offset-keyed
+`ResourceProfile` states supply. A nominal placement policy selects the plans
+and static service reach, and admission checks that whole request against the
+exact loan once before any accessor exists.
 
-Device-specific operations such as W1C remain library machines over private
-field access. Address-translation policy and table construction belong to the
-OS package, which composes generic extent, mapping, layout, and checked-assembly
-contracts. DMA lends
-extents to an invisible borrower represented by a linear completion token.
+Projection is pure; accessors perform only their admitted exact-width stable,
+external, or atomic operations. Device-specific operations such as W1C,
+read-to-clear, FIFO, posted-write flush, and coherent snapshot remain package
+machines over binding-private primitives. Address-translation policy and table
+construction belong to the OS package, which composes generic extent, mapping,
+layout, and checked-assembly contracts. DMA lends extents to an invisible
+borrower represented by a linear completion token; completion may restore a
+stable CPU loan after the device-owned phase.
 
 ## Checked assembly
 

@@ -1,6 +1,6 @@
 # Design Brief: Authority Values And Boundary Evidence
 
-Status: design direction recorded 2026-07-25. The declaration surface and
+Status: design direction recorded 2026-07-26. The declaration surface and
 resource-transformation checker are staged through the owner questions named
 below.
 

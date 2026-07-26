@@ -1,6 +1,6 @@
 # Design Brief: Programmable Layouts
 
-Current as of 2026-07-25. Layouts and codecs are authored library policies with
+Current as of 2026-07-26. Layouts and codecs are authored library policies with
 machine-checked conformance laws. The compiler owns a small placement vocabulary
 and plan validator; it does not generate arbitrary codecs or import C's type
 system.
@@ -97,33 +97,37 @@ symbolic relocation is decodable, or that a variable-length wire placement is
 a valid MMIO projection, merely by setting a flag.
 
 Access behavior is deliberately not part of `LayoutPlan`. A separate normalized
-`AccessPlan` describes exact transfer width, read/write/atomic permission,
-stable versus externally-changing observation, generic RMW permission, and the
-statically pinned boundary reach. Layout and access plans are validated as a
-pair when deriving a placed view. See
-[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md).
+`AccessPlan` describes consumer demand per field: inaccessible, stable,
+external, or individually atomic operations plus exposure. A nominal
+`PlacementPlan` combines the selected layout and access plans with the
+boundary reach required by that interpretation. Provider supply remains
+separate as an admitted, offset-keyed `ResourceProfile`. Placement checks the
+pair against one exact Extent loan and derives `Placed<P, T>`.
 
-The normalized validator is live in `omega-access-plans`: entries are keyed by
-layout field name; exact-width accesses must fit one fixed placement/container;
-external access must pin reach; exported external RMW rejects; atomic and
-ordinary permissions cannot be conflated; and operation authorization preserves
-shared-read/exclusive-write polarity. Validation canonicalizes authored entry
-order by field identity and assigns one deterministic plan identity over every
-operation, observation, transfer-width, exposure, and service-reach fact.
-Equivalent name-keyed policies therefore share identity even when their source
-entry order differs. Validation now produces sealed,
-offset-bearing field descriptors, and borrow-specific authorization produces
-the only values primitive lowering may accept. Consuming one such value now
-produces a normalized primitive request bound to plan identity, admitted
-placed-view grant, field identity, exact address/width, observation,
-loan-derived borrow polarity/lifetime, operation-specific atomic ordering, and
-static reach. Invalid atomic load/store/compare-exchange orderings reject before
-emission. Omega source records, source-level borrow-carrying access values, and
-target-specific primitive emission remain. The normalized Extent join is live:
-provider-admitted grants validate
-space, provenance, open-set rights, loan size, and permitted static reaches;
-operation polarity derives from the actual Extent loan rather than a caller
-argument.
+The access policy receives this validated `LayoutPlan`, so it can decide which
+laid fields admit primitive access without copying offsets or transfer widths
+into source. It addresses the reflected schema with compiler-issued field keys
+and starts from an all-inaccessible plan. The evaluated plan has exactly one
+decision per schema field; omission is denial, and declaration reorder cannot
+silently reassign permissions.
+
+Placed projection is pure and yields borrow-carrying accessors rather than
+lvalues. Stable access derives ordinary mutation only when both the active
+borrow and source loan are exclusive. External access is exactly once at an
+admitted whole-container width and never synthesizes generic RMW. Atomic fields
+expose only admitted operation families and orderings. Boundary reach belongs
+to the placement, not individual fields, and runtime provenance proves that the
+selected reach may touch the supplied range.
+
+The current `omega-access-plans` implementation is the normalized bootstrap:
+it validates geometry, exact widths, observation/operation compatibility,
+borrow polarity, atomic orderings, exact loan facts, and sealed lowering
+requests. Its current name-keyed vector, per-entry reach, generic RMW bit,
+`ProviderPrivate` spelling, and reusable grant are migration work rather than
+the target source surface. See
+[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
+for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
+model.
 
 ## Codecs are hand-written and proved
 
@@ -194,6 +198,13 @@ target facts. A mutable view requires implication in both directions, because
 every value writable through the target must leave the source valid when the
 loan ends. Foreign validation or executable conversion remains an ordinary
 contracted machine.
+
+This judgment applies to values and ordinary storage, not to `Placed<P, T>` or
+its accessors. Reshaping a placed view could expose a field its source access
+plan made inaccessible even if the target retained the same observation class.
+The first placed-view slice therefore rejects view-to-view recast. Detached
+snapshot bits may still be recast as ordinary values, and a caller retaining
+the underlying extent loan may request another placement through admission.
 
 Implementation status (2026-07-24): shared scalar, bounded interior-byte, and
 nested plan-laid record reads are live. Fact-free mutable scalar views are live
@@ -379,9 +390,9 @@ code rather than compiler types.
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
-- concrete Omega `AccessPlan` record/source spelling, extent-provenance
-  agreement, and sealed placed-view accessor/lowering consumers (the normalized
-  validator and diagnostics are live);
+- implement the specified `AccessPlan`/`ResourceProfile` source records,
+  `Placement::plan`, admission token, `Placed<P, T>` projection, and
+  target-specific accessor lowering over the live normalized validator;
 - recast syntax and diagnostics;
 - schema-evolution law traits beyond strict roundtrip;
 - policy selection through generics; and

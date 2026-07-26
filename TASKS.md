@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-25.
+Last pruned: 2026-07-26.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -114,17 +114,36 @@ from raw bytes reject.
 
 #### L6b — `AccessPlan` and placed views
 
-**OWNER-BLOCKED: `OWNER_QUESTIONS.md` #17 for the authored policy surface.**
+**READY.** Chapter 20 and
+`wiki/design_briefs/os_memory_and_hardware_foundation.md` own the source model.
 
-- Expose the settled normalized access plan through Omega-authored policy.
-- Derive sealed field access from `Extent loan + LayoutPlan + AccessPlan`.
-- Enforce borrow polarity: shared reads, exclusive ordinary writes, and shared
-  mutation only through explicit atomic/protocol-safe fields.
-- Connect target external/atomic emission without a public
-  `volatile_read(base, offset)` escape.
+- Add the ordinary `PlacementPlan`, `AccessPlan`, `ResourceProfile`,
+  `BoundaryReach`, transfer-rule, exposure, observation, and operation records
+  to `omega::core`.
+- Add build-time `Placement::plan(schema)` and
+  `Access::plan(schema, validated_layout)` evaluation. Construct each access
+  plan from an all-inaccessible seed using compiler-issued schema field keys.
+- Migrate the normalized Rust model from name-keyed vectors, per-entry reach,
+  generic RMW, `ProviderPrivate`, and reusable placed-view grants to exact
+  schema cardinality, reach per placement, derived RMW legality,
+  `BindingPrivate`, and an admission token owning the exact Extent loan.
+- Implement offset-keyed admitted resource profiles, profile restriction on
+  subrange loans, consumer-demand/provider-supply compatibility, and the
+  build-time base-congruence plus runtime-base alignment split.
+- Derive `Placed<P, T>` projection and granular readable, destructive-read,
+  writable, and atomic accessors. Ordinary writes require plan permission,
+  exclusive current borrow, and exclusive source loan.
+- Connect target external/atomic emission. External transfers occur once at an
+  admitted whole-container width; no generic external RMW or arbitrary-offset
+  primitive is available.
 
 Acceptance: UART/MMIO and shared-page IPC use the same extent/layout foundation
-with different access plans; an unplanned offset or illegal RMW cannot compile.
+with different placement and resource profiles; ordinary owned RAM retains
+normal lvalues; Stable-over-MMIO, External-over-insufficient-rights,
+misaligned/inconsistent transfer plans, an unplanned offset, narrow external
+write, destructive read through `Readable`, mixed-width overlapping atomics,
+source-loan polarity upgrade, simultaneous overlapping views, view recast
+escalation, and forged admission evidence all reject before code generation.
 
 #### L6c — symbolic materialization
 
@@ -391,7 +410,6 @@ blocked work.
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
-| #17 authored `AccessPlan` policy | placed views and MMIO projection |
 
 ## Vertical acceptance slices
 

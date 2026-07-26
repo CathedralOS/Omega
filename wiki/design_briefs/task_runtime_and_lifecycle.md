@@ -206,9 +206,9 @@ era rather than replaying an old provenance edge.
 
 This is normalized provider accounting, not a second source-visible task or
 lease type. Connecting it to `Task<T>` awaits the ordinary selected
-task-runtime realization plus bodyless/boundary-domain evidence for the
-runtime's ordinary authority value; those owner questions are tracked
-separately.
+task-runtime realization plus bodyless establishment and admitted
+boundary-machine evidence for the runtime's ordinary authority value; those
+implementation dependencies are tracked separately.
 
 ## Storage policies are provider/library choices
 
@@ -325,7 +325,8 @@ owner-blocked on the checked behavior-publication decision recorded in
 boundary-trait requirements, while `TaskRuntime` has no checked source surface
 for the capacity, preemption, migration, storage, cancellation, or
 inline-completion statement. Its runtime key/state uses ordinary data and
-boundary-domain evidence as specified in
+bodyless facts established by owner-authorized machines or admitted boundary
+receipts as specified in
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
 Dispatch and transactional start follow those decisions.
 
@@ -385,7 +386,7 @@ Dispatch and transactional start follow those decisions.
    settled, add transactional `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
    to selected runtime values and source `Task<T>` after provider selection and
-   boundary-domain spelling land. The ledger already prevents premature
+   bodyless establishment land. The ledger already prevents premature
    close/reclaim and preserves a claim on failed settlement.
 6. Implement continuation/frame lowering and a first provider; an inline
    provider is valid only where the pinned contract permits inline completion.
