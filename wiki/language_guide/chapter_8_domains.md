@@ -251,6 +251,37 @@ Predicate evidence remains proof-erased. Runtime data discovered at the
 boundary, such as the base and length of a firmware memory-map entry, stays in
 the carrier; membership itself adds no tag.
 
+### Transparent predicate aliases
+
+A predicate alias gives a public name to a nonempty conjunction of compatible
+facts:
+
+```omega
+pub domain Socket::Usable =
+    Socket::Connected & Socket::Authenticated;
+```
+
+The alias expands before fact normalization, contract identity,
+compatibility, and admission. A contract mentioning `Socket::Usable` therefore
+has the same normalized fact identity as one spelling both constituent facts.
+Alias definitions form an acyclic expansion graph, and every constituent of a
+public alias must be legal to publish for the same subject.
+
+Aliases add names rather than evidence. Establishing an alias establishes its
+expanded facts, and ordinary fact forgetting may retain any chosen subset.
+Diagnostics expand the alias and report the unmet atomic fact.
+
+Predicate atoms may be compiler-owned while aliases remain openly nameable.
+Carry uses this shape: its four atomic permissions are a closed compiler
+vocabulary, while `Carry::Portable` is the standard transparent alias for
+their conjunction. Type-associated packages may name additional compatible
+bundles while the axis set remains compiler-owned.
+
+Changing an alias expansion changes normalized contracts that cite it. Adding
+a conjunct strengthens requirements and guarantees; removing one weakens them.
+The resulting compatibility effects are reported at the affected callers,
+implementations, or consumers.
+
 ### Weakening
 
 A semantic domain weakens implicitly to its carrier only if (1) the identity
@@ -1010,6 +1041,8 @@ Working interpretation:
 - `ensures x in Type::Domain` is a callee guarantee.
 - `x in Type::A | Type::B` is a domain union.
 - `x in Type::A & Type::B` is a domain intersection.
+- `pub domain Type::Alias = Type::A & Type::B;` is a transparent predicate
+  alias expanded before normalization and identity.
 - `Type::Domain` in a match arm is a domain pattern for values of `Type`.
 - `if x in Type::Domain` is a full executable domain check when the domain is
   runtime-checkable.

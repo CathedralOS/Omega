@@ -84,17 +84,17 @@ share mutable ordinary data unless a type's contract provides a sanctioned
 shared-access operation.
 
 - Type-wide carry guarantees use the compiler-built-in four-axis
-  `[carry(...)]` property; transparent data derives and opaque data defaults
-  strict. Sealed domains may establish additional per-mint permissions.
+  `[carry(...)]` property; transparent data derives structurally. Accepted
+  resource claims begin strict and result contracts may establish positive
+  per-claim permissions.
 - Moving an exclusively owned value to another concurrent graph is checked
-  from ownership plus the destination runtime's carry behavior. It needs no
-  separate `Send` marker.
+  from ownership plus the destination runtime's carry behavior.
 - A shared reference may cross only when its referent's borrow/access contract
   sanctions concurrent sharing (for example atomics or a mediated protocol)
-  and its carry demands are compatible. It needs no separate `Share` marker.
-- Copyability proves neither transfer placement nor shared mutation safety.
-- Atomics are dedicated core types, never an implicit mode on ordinary
-  integers.
+  and its carry demands are compatible.
+- Copyability governs duplication; ownership governs transfer, and access
+  contracts govern shared mutation.
+- Atomics are dedicated core types with explicit operations and orderings.
 
 Omega adopts the C11/Rust ordering vocabulary and SC-DRF model:
 `Relaxed`, `Acquire`, `Release`, `AcqRel`, and `SeqCst`. Atomic operations name
@@ -207,7 +207,7 @@ hard-real-time requirements force it.
 - Scheduler contracts using decision 23's sealed progress profiles; general
   trace propositions and profile entailment remain deferred.
 - Scheduler operation details and provider admission tests.
-- Four-axis carry policy, structural derivation, per-mint sealed facts, local
+- Four-axis carry policy, structural derivation, per-claim permission facts, local
   live-set checking, and runtime admission.
 - Atomic remainder and formally checked target lowerings.
 - Lock-free reclamation/resource algebra frontier.

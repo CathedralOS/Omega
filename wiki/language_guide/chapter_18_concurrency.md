@@ -147,15 +147,23 @@ Values that remain live across scheduler/storage transitions contribute four
 independent demands: suspension allowed or forbidden, same/any CPU,
 same/any host thread, and stable/movable address. Type-wide guarantees use the
 compiler-built-in `[carry(...)]` property from chapter 7. Transparent data
-derives structurally; opaque data is maximally strict unless a verified or
-receipt-admitted declaration says otherwise. Sealed domains established by a
-constructor's `ensures` may add permissions for one minted value.
+derives structurally. An admitted resource claim begins maximally strict and
+its result contract may establish the positive per-value facts
+`Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, and
+`Carry::MovableAddress`. `Carry::Portable` transparently expands to their
+conjunction.
 
-This replaces the provisional one-bit `[send]` property. Moving exclusively
-owned data into another activation is legal when ordinary ownership and the
-target runtime's carry contract both permit it. Sending a shared reference also
-requires a sanctioned shared-access/atomic/protocol contract. Neither question
-is a marker trait, and neither follows merely from `[copy]`.
+Checked-internal claims derive their policy from inherited provenance and
+storage. Claim transfers, aggregate containment, and conserved splits preserve
+permissions per axis; combined origins select the most restrictive demand.
+Forgetting a permission narrows what the value may do, while forgetting an
+authority qualification leaves its undischarged provenance and carry demand
+intact.
+
+Moving exclusively owned data into another activation is legal when ordinary
+ownership and the target runtime's carry contract both permit it. Sharing also
+requires the relevant borrow polarity and atomic or protocol contract. CPU
+affinity remains independent of host-thread affinity.
 
 The enforcement sites are not symmetric. Suspension is a static reach
 question: at a call or park, canonical place liveness plus possible suspension
@@ -173,8 +181,7 @@ the provider's behavior. Its admitted statement covers the selected provider
 plan identity and every runtime-behavior promise, so reusing an old receipt
 after strengthening a pinning, capacity, preemption, cancellation, or storage
 claim fails as plan drift. Receipt provenance is evidence and does not enter
-normalized runtime identity. No new type property or declaration clause is
-added.
+normalized runtime identity.
 
 The future temporal/model checker will consume the same policies, provenance
 anchors, operation contracts, effects, and provider hypotheses; carry is an

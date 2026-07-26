@@ -119,8 +119,9 @@ implementation work. Each one gets more expensive to retrofit every month.
    materialization; external-root reporting; DMA external loans; and carry /
    runtime admission. The next vertical slice is the x86 IDT
    and timer; placed views, address translation, DMA, hostile IPC, and AP bringup form
-   the wider gauntlet. Value-side carry is settled as a compiler-built-in
-   four-axis product with structural derivation and sealed per-mint facts.
+   the wider gauntlet. Value-side carry is a compiler-built-in four-axis
+   product. Ordinary data derives structurally; accepted resource claims begin
+   strict and gain positive per-claim permissions through result contracts.
    Suspension is checked locally against effects; CPU/thread/address demands
    join the runtime's born-pessimistic behavior contract at admission.
 

@@ -195,13 +195,19 @@ CarryPolicy {
 ```
 
 This is not ordinary `omega::core` data. Source `[carry(...)]`, transparent
-structural derivation, and sealed per-mint domain facts all lower into this one
-representation. Authority values whose facts originate at a boundary require a
-fail-closed default contract; its exact join with structural derivation and
-per-mint grants is tracked as an owner question.
+structural derivation, and per-claim permission facts all lower into this one
+representation. Accepted resource claims originate with the strict policy.
+Their result contracts may establish the four positive compiler facts
+`Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, and
+`Carry::MovableAddress`; `Carry::Portable` transparently expands to the complete
+permission conjunction before normalization.
 Permission entries retain any provenance anchor needed to interpret `Origin`
-or `Stable`. Aggregates share a field traversal with other properties but each
-axis owns its composition algebra.
+or `Stable`. Checked-internal claims derive from the provenance they inherit.
+Transfers and conserved splits preserve permissions, combined origins select
+the most restrictive demand per axis, and qualification forgetting leaves the
+permission entry live until the underlying claim is discharged. Aggregates
+share a field traversal with other properties but each axis owns its
+composition algebra.
 
 Runtime behavior is a distinct normalized provider-plan record, not a fifth
 carry axis and not a source type property:
@@ -234,8 +240,9 @@ their actual arguments through nested transparent wrappers. Canonical
 place-liveness rejects forbidden values across direct or transitive possible
 suspension, including persistent fields through reachable state transitions,
 arguments carried by the call itself, and later operands under left-to-right
-evaluation. Opaque admission, per-mint qualification, contained-machine
-runtime admission, and richer artifact/model export remain. The
+evaluation. Accepted-claim admission, per-claim qualification,
+contained-machine runtime admission, and richer artifact/model export remain.
+The
 parser-unreachable resolved/typed contained-machine span has been retired
 end-to-end. Checked `CarryFacts` now derives contained topology exactly once
 from authored attached-data fields whose data type has one or more attached

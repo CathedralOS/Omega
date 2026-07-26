@@ -111,6 +111,26 @@ the domain permits boundary evidence. The signature names the exact fact and
 subject; provider selection and its receipt name the accepted evidence source.
 This permission participates in domain trust identity and artifact reporting.
 
+**Transparent predicate aliases.** A declaration such as
+
+```omega
+pub domain Socket::Usable =
+    Socket::Connected & Socket::Authenticated;
+```
+
+names a nonempty conjunction of facts over a compatible subject. Expansion
+precedes normalization, semantic identity, compatibility, and admission; the
+alias and its expanded conjunction therefore have one normalized identity.
+Aliases form an acyclic expansion graph, add no evidence of their own, and
+diagnostics report an unmet atomic constituent. Public aliases expose only
+constituents legal to publish for their subject. Editing an expansion changes
+the normalized contracts that cite it.
+
+Compiler-owned predicate atoms may participate in ordinary aliases. Carry uses
+this arrangement: the compiler owns the axis set, while the standard
+`Carry::Portable` alias expands to the conjunction of its four positive
+permissions.
+
 **Progress-profile customer.** A progress profile is a semantic domain over a
 boundary-provider capability (`domain Scheduler::WeakFair { semantic; }`). It
 classifies the provider commitment rather than an execution result.
@@ -242,8 +262,8 @@ calendar arithmetic are explicitly out of the dimensional algebra.
 - General open-family linking (consent/linking mechanisms beyond the
   designated-owner rule).
 - Surface grammar: explicit facet authorship, bodyless predicates,
-  `boundary domain`, open semantic introduction, mint-authority passing, and
-  `weakens_to` certificate blocks.
+  `boundary domain`, transparent predicate aliases, open semantic
+  introduction, mint-authority passing, and `weakens_to` certificate blocks.
 
 ## Provenance
 

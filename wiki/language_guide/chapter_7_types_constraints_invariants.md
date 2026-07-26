@@ -286,43 +286,86 @@ data WorkItem [carry(
 ```
 
 The axis vocabulary is closed because every member changes compiler liveness,
-relocation, or runtime-admission behavior. A new axis is a language/compiler
-release with composition and validation rules; packages cannot add one by
-naming data or a trait. `CarryPolicy` is structured normalized compiler IR, not
-ordinary `omega::core` data and not the result of a policy machine.
+relocation, or runtime-admission behavior. Axis evolution is a
+language/compiler release with composition and validation rules. `CarryPolicy`
+is structured normalized compiler IR rather than ordinary `omega::core` data
+or a policy-machine result.
 
 Transparent scalars and data derive the most permissive policy their structure
 proves. Aggregates share the field traversal used by other structural
 properties but combine each carry axis under its own algebra, selecting the
-most restrictive live-field demand. Opacity stops derivation. Opaque data with
-no `carry` property is maximally strict; writing `[carry(...)]` is an inert
-universal claim until proved or admitted.
+most restrictive live-field demand. A declared `[carry(...)]` policy supplies a
+universal floor, validated against that structural result.
 
-A declared policy is a universal floor: every value of the type permits at
-least those transitions. Constructor-specific sealed domains established by
-`ensures` may add permissions for one minted value but may never retract a
-universal permission callers already rely upon:
+Resource claims add a per-value layer. A claim originated by an admitted
+provider begins with the strict policy because checked code cannot inspect its
+external backing. The provider's result contract may establish four
+compiler-owned positive permission facts:
+
+| Permission fact | Granted transition |
+|---|---|
+| `Carry::AcrossSuspend` | suspension may occur while the value is live |
+| `Carry::AnyCpu` | execution may resume on another CPU |
+| `Carry::AnyThread` | execution may resume on another host thread |
+| `Carry::MovableAddress` | the value's required storage may move |
+
+`Carry` is the compiler-owned subject-polymorphic namespace for these facts:
+the same permission may qualify any carried value while retaining that value's
+own provenance anchor.
+
+`Carry::Portable` is the standard transparent predicate alias for the
+conjunction of all four permissions:
 
 ```omega
-boundary data SlotLease [linear];
-
-machine Queue::lease_owned(&mut self) -> SlotLease
-    ensures result in Carry::AcrossSuspend
-    ensures result in Carry::AnyCpu;
+pub domain Carry::Portable =
+    Carry::AcrossSuspend
+    & Carry::AnyCpu
+    & Carry::AnyThread
+    & Carry::MovableAddress;
 ```
 
-The provenance attached at mint supplies relational anchors such as the
-meaning of `cpu: same`; no runtime tag is added to ordinary values. Generic
-property bounds use the same policy ordering and are checked parametrically;
-carry checking is not inherently blocked on backend monomorphization.
+An admitted portable range can therefore publish:
 
-There is no use-site carry marker. Canonical place liveness, the normalized
-type/per-mint policy, and the selected runtime contract decide whether a
-suspension, migration, transfer, or relocation is legal. The old `[send]`
-property is retired: one bit cannot distinguish suspension, CPU/thread
-affinity, and address stability. Cross-activation ownership transfer is checked
-from ownership plus carry/runtime compatibility; shared references additionally
-require a sanctioned shared-access contract.
+```omega
+boundary machine BootMemory::take(entry: FirmwareRange)
+    -> Extent in Extent::Granted
+               & Extent::Physical
+               & Carry::Portable;
+```
+
+A partially relaxed result names only the transitions it permits:
+
+```omega
+boundary machine InterruptMaskControl::save_and_mask(&mut self)
+    -> InterruptMaskGuard in InterruptMaskGuard::Active
+                            & Carry::MovableAddress;
+```
+
+The missing permissions leave that admitted claim no-suspend, same-CPU, and
+same-thread. Permission facts are droppable: forgetting one selects a stricter
+policy. The undischarged resource provenance remains attached independently,
+so forgetting `Extent::Granted` does not erase its carry demand. A freshly
+constructed unqualified `Extent` has no such resource provenance and follows
+its structural policy.
+
+Checked-internal claims derive carry from the claims and storage they actually
+inherit. Claim transfer preserves permissions; a conserved split gives every
+child the parent's permissions; combined origins select the most restrictive
+demand per axis. A transformation may establish a more permissive successor
+only by discharging the old claim and establishing a new claim with checked or
+admitted evidence.
+
+The provenance attached at claim origin supplies relational anchors such as
+the meaning of `cpu: same`; no runtime tag is added to ordinary values.
+Generic property bounds use the same policy ordering and are checked
+parametrically; carry checking is not inherently blocked on backend
+monomorphization.
+
+Canonical place liveness, the normalized type/per-claim policy, and the
+selected runtime contract decide whether a
+suspension, migration, transfer, or relocation is legal. Cross-activation
+ownership transfer is checked from ownership plus carry/runtime compatibility;
+shared references additionally require a sanctioned shared-access contract.
 
 The Rust-style colon bound (`<T: copy>`) and the attribute-prefix form
 (`[copy]` on its own line above the declaration) are both rejected: the colon
