@@ -293,6 +293,21 @@ overflow, while `Wrapping & Trapping` rejects as two policies for one role.
 Attaching a policy changes no payload and performs no work; the later
 arithmetic operation supplies the wrap, clamp, or trap behavior.
 
+A non-Exact policy may weaken to an unqualified integer binding. The payload
+does not change; subsequent arithmetic is Exact and must prove its safety from
+the callee's contracts and the current value facts. For example, a value whose
+earlier wrapping arithmetic produced `-1` enters Exact code as the exact
+integer `-1`, not as the mathematical pre-wrap result. Selecting a non-Exact
+policy in the other direction is explicit because it changes the behavior of
+future operations.
+
+A machine that names no arithmetic policy therefore publishes Exact behavior.
+Its implementation must prove its primitive arithmetic safe, select a
+different policy explicitly, return a checked failure, or quantify over an
+arithmetic policy. A caller-selectable policy must be visible in the machine's
+contract; the generic spelling for that choice remains open. Omission never
+silently chooses wrapping, saturation, or trapping.
+
 Shift counts follow the same rule (settled 2026-07-18): under Exact, a
 shift's count must be **proven** below the operand width (a literal
 out-of-range shift is an immediate compile error); under `Wrapping` the
@@ -327,7 +342,8 @@ Two rules keep it honest:
   `u8`; computing in a wider type uses the explicit widening conversion.
 - **No mixed-domain arithmetic.** An exact value and a `Wrapping` value cannot
   be combined directly; select the intended policy with explicit
-  qualification. Explicit always wins.
+  qualification or first weaken the Wrapping operand to Exact. Explicit always
+  wins.
 
 > **Conversion migration.** The implemented surface currently uses `as` for
 > numeric width and float-to-integer conversion as well as for unchanged-value
