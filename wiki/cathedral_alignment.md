@@ -21,13 +21,13 @@ These are decisions whose *absence is silently being decided* by ongoing
 implementation work. Each one gets more expensive to retrofit every month.
 
 1. **ZII and establishment** (SETTLED; implementation tracked in TASKS).
-   Zero-filled storage does not silently establish every constrained value.
-   If a default domain excludes zero, the place is inaccessible until an
-   explicit construction or qualification establishes it. `[zero_init]`
-   separately promises that zero is a usable canonical value. Linear
-   obligations begin at establishment, never at raw zero-fill. Cathedral may
-   require `[zero_init]` on OS-facing storage without weakening constrained
-   internal types.
+   All-zero bytes are a universally safe storage state, while whether they
+   establish an accessible value is derived from the default domain, common
+   fields, and first-case payload. If a gate excludes zero, explicit
+   construction or qualification must establish it. Linear obligations begin
+   at establishment, never at raw zero-fill. Cathedral APIs that depend on an
+   inert or reset state require an authored domain fact rather than inferring
+   semantics from representation shape.
 
 2. **Programmable wire/layout semantics** (PARTIAL).
    Omega uses one `data` declaration form with optional stable field numbers

@@ -30,12 +30,12 @@
 
 use omega::language::std::console;
 
-data Pixel [copy, zero_init] {
+data Pixel [copy] {
     r: i32 in Saturating;
     g: i32 in Saturating;
 }
 
-data Canvas [copy, zero_init] {
+data Canvas [copy] {
     pixels: [Pixel; 4];
 }
 

@@ -22,7 +22,7 @@
 
 use omega::language::std::console;
 
-data Particle [copy, zero_init] {
+data Particle [copy] {
     position: f64;
     velocity: f64;
     acceleration: f64;

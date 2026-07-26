@@ -15,5 +15,5 @@ omega --target windows_x64 --build-dir build samples/particle_sim/main.omg
 ```
 
 Exercises: f64 field arithmetic (`addsd`/`subsd`), float comparison guards
-(`ucomisd`), `[copy, zero_init]` aggregate properties, dispatched sub-machine
+(`ucomisd`), `[copy]` aggregate property, dispatched sub-machine
 calls that mutate `self` fields.

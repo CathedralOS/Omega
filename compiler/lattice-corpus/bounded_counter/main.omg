@@ -1,4 +1,4 @@
-// A counter saturating at a bound. Showcases `[copy, zero_init]` type
+// A counter saturating at a bound. Showcases `[copy]` type
 // properties and saturating arithmetic over a dispatched self-write path
 // driven by scalar arguments (the proven-good shape — case-payload commands
 // threaded into a self-writing sub-machine are a known miscompile, see
@@ -8,7 +8,7 @@
 
 use omega::language::std::console;
 
-data Counter [copy, zero_init] {
+data Counter [copy] {
     value: i32 in Saturating;
     bound: i32 in Saturating;
 }

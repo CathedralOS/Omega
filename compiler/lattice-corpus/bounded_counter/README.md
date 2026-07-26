@@ -1,6 +1,6 @@
 # Bounded Counter
 
-A counter that saturates at a bound. Showcases `[copy, zero_init]` type
+A counter that saturates at a bound. Showcases `[copy]` type
 properties (frozen decision 8) and saturating arithmetic over a dispatched
 self-write path driven by scalar-argument machine calls. Runs to exit **70**.
 

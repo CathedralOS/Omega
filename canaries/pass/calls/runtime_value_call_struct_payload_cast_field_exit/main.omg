@@ -13,7 +13,7 @@
 
 use omega::language::std::console;
 
-data Big [copy, zero_init] {
+data Big [copy] {
     len: i64;
     is_dir: bool;
     is_symlink: bool;

@@ -26,7 +26,7 @@ data LogLevel {
 }
 
 // Accumulator tracking per-level counts and total error code sum.
-data Logger [copy, zero_init] {
+data Logger [copy] {
     debug_count: i32 in Saturating;
     info_count: i32 in Saturating;
     warn_count: i32 in Saturating;

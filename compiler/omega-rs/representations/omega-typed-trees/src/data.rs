@@ -48,13 +48,12 @@ pub struct QuotientDefinition {
     pub relation_symbol: SymbolHandle,
 }
 
-/// Declared type properties (`data Point [copy, zero_init]`). The spelling
-/// set is closed at parse time; validation verifies the declared facts
-/// (`copy` and carry structurally, `zero_init` via the zero-means-empty rules).
+/// Declared type properties (`data Point [copy]`). The spelling
+/// set is closed at parse time; validation verifies copy and carry
+/// structurally.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DataProperties {
     pub copy: bool,
-    pub zero_init: bool,
     pub carry: Option<omega_core::semantics::CarryPolicy>,
     /// STR3: the first-class usage model (`[copy]` -> Unrestricted,
     /// ordinary data -> Affine, `[linear]` -> Linear). `copy` survives as the
@@ -108,9 +107,9 @@ pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub kind: TypeParameterKind,
-    /// Property bounds (`data Box<T [copy]>`, frozen decision 13). A bounded
-    /// parameter satisfies the structural copy/carry/zero_init walk inside its
-    /// owner, and every instantiation argument must carry the bound.
+    /// Property bounds (`data Box<T [copy]>`). A bounded parameter satisfies
+    /// the structural copy/carry walk inside its owner, and every
+    /// instantiation argument must carry the bound.
     pub bounds: DataProperties,
 }
 

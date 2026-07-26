@@ -1,7 +1,7 @@
 // Stopwatch with split/lap commands as case payloads.
 //
 // Stresses: case members (Tick, Lap, Split), payload-bound i32 args,
-// [copy, zero_init] properties, accumulated scalar writes, value-position
+// [copy] property, accumulated scalar writes, value-position
 // calls returning i32.
 //
 // Commands:
@@ -30,7 +30,7 @@ data Command {
     case Split;
 }
 
-data Watch [copy, zero_init] {
+data Watch [copy] {
     elapsed: i32 in Saturating;
     total: i32 in Saturating;
     last_lap: i32 in Saturating;

@@ -34,7 +34,7 @@ data Task {
     case Clamp(max: i32 in Saturating);
 }
 
-data Runner [copy, zero_init] {
+data Runner [copy] {
     score: i32 in Saturating;
 }
 

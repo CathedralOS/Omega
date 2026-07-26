@@ -16,5 +16,5 @@ All checks pass via guard ladders and the program exits 70.
 - f64 field arithmetic (`field + field`, `field * scalar`, `field - field`)
 - f64 accumulation across multiple dispatched machine calls
 - f64 comparison guards (`> 4.9`, `< 5.1`, etc.)
-- Structs with `[copy, zero_init]` properties containing f64 fields
+- Structs with `[copy]` property containing f64 fields
 - Multiple sequential machine calls each updating shared float state

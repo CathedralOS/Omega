@@ -7,7 +7,7 @@ Structured logger with case-payload severity levels and weighted score verificat
 - `case` members with and without payloads: `Debug`, `Info`, `Warn`, `Error(code: i32)`
 - Case dispatch in a sub-machine (`transition level { LogLevel::Debug -> ... }`)
 - Payload binding: `LogLevel::Error { code } -> on_error(code)`
-- Per-level count accumulation in `[copy, zero_init]` fields
+- Per-level count accumulation in `[copy]` fields
 - Multi-step `let`-bound arithmetic over fields after sub-machine mutations
 - Guard ladder verifying both a computed score and individual counts
 

@@ -3,7 +3,7 @@
 A stopwatch driven by `Tick`, `Lap`, and `Split` case-payload commands.
 Stresses: case members with scalar payloads (`Tick(n: i32)`), payload
 binding in transition arms, multiple scalar field writes within dispatch
-states, and `[copy, zero_init]` aggregate properties.
+states, and `[copy]` aggregate property.
 
 Scripted sequence (7 commands):
 

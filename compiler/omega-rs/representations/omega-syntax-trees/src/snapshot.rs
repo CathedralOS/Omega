@@ -171,7 +171,6 @@ pub struct TypeParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DataPropertiesSnapshot {
     pub multiplicity: &'static str,
-    pub zero_init: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub carry: Option<CarryPolicySnapshot>,
 }
@@ -941,7 +940,6 @@ fn snapshot_data_properties(properties: crate::item::DataProperties) -> DataProp
             Multiplicity::Affine => "affine",
             Multiplicity::Linear => "linear",
         },
-        zero_init: properties.zero_init,
         carry: properties.carry.map(|carry| CarryPolicySnapshot {
             suspension: match carry.suspension {
                 CarrySuspension::Forbidden => "forbidden",

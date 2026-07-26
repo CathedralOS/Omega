@@ -25,7 +25,7 @@
 
 use omega::language::std::console;
 
-data Board [copy, zero_init] {
+data Board [copy] {
     cells: [i32; 9];
     move_count: i32;
     winner: i32;

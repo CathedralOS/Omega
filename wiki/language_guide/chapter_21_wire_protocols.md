@@ -145,8 +145,9 @@ Schemas with identity numbers evolve under explicit rules. The safe path is
 easy:
 
 - Adding a field with a fresh number is compatible: old payloads decode with
-  the new field absent → ZII. This is safe exactly when zero-means-empty is
-  the right reading for the field; when a zero default would be wrong, the
+  the new field absent → the zero representation. This is safe only when zero
+  establishes the field type and the schema contract explicitly accepts that
+  value as the absent/default meaning. When a zero default would be wrong, the
   change is a version-era migration wearing add-clothing, and the honest tool
   is a `version` block.
 - Removing a field retires its number (above).

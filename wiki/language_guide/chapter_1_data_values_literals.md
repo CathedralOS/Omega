@@ -196,9 +196,10 @@ match entity {
 Working rules:
 
 - The FIRST case is the zero case: its tag is `0`, so a zeroed value is the
-  first case. Zero validity is unconditional; declaring the empty/none-like
-  case first (and payload-free) is the rule of the opt-in `zero_init`
-  property, recommended style otherwise (see
+  first case with a recursively zeroed payload. The compiler derives whether
+  that value establishes the type from the default domain and zero-reachable
+  fields. A payload-free first case has no special semantic status; emptiness
+  is an authored domain or contract (see
   [Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
 - The subject's shape decides what an arm can be: a scalar subject takes
   value patterns, a record subject takes domain arms, a case-bearing subject

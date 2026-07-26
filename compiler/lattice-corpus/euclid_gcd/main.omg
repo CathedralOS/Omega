@@ -13,7 +13,7 @@
 
 use omega::language::std::console;
 
-data Euclid [copy, zero_init] {
+data Euclid [copy] {
     a: i32 in Trapping;
     b: i32 in Trapping;
     tmp: i32 in Trapping;

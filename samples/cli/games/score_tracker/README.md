@@ -2,7 +2,7 @@
 
 A two-player score tracker driven by a stream of case-payload events.
 Exercises two-field case payloads (`Score(player, points)`), fixed-array
-indexed writes (`self.scores[0]`), `[copy, zero_init]` aggregate state, and
+indexed writes (`self.scores[0]`), `[copy]` aggregate state, and
 case dispatch routing to scalar-argument substates. Runs to exit **70**.
 
 ```
@@ -26,4 +26,4 @@ Features exercised:
 - `data Event { case Score(player: i32, points: i32); case Bonus(...); case Reset(...); }`
 - `transition event { Event::Score { player, points } -> ... }`
 - `self.scores[0] = self.scores[0] + points` (fixed-array indexed read-modify-write)
-- `data Tracker [copy, zero_init]` as an accumulator field
+- `data Tracker [copy]` as an accumulator field

@@ -44,7 +44,7 @@ data Opcode {
     case Pop;
 }
 
-data Vm [copy, zero_init] {
+data Vm [copy] {
     stack: [i32; 8];
     sp: i32 in Wrapping;
 }

@@ -1,5 +1,5 @@
 // Traffic-light state machine. Combines case members (light phases),
-// [copy, zero_init] properties on a case type, transition dispatch on
+// [copy] property on a case type, transition dispatch on
 // case values, and scalar counting across multiple machine calls.
 //
 // The light cycles: Red -> Green -> Yellow -> Red.
@@ -11,16 +11,15 @@
 use omega::language::std::console;
 
 // The three traffic-light phases. ZII (zero-initialized) is Red.
-// Both [copy] and [zero_init] are required so Phase can be a field inside
-// a [copy, zero_init] aggregate.
-data Phase [copy, zero_init] {
+// [copy] is required so Phase can be a field inside a [copy] aggregate.
+data Phase [copy] {
     case Red;
     case Green;
     case Yellow;
 }
 
 // Traffic-light state: current phase + total advance count.
-data Light [copy, zero_init] {
+data Light [copy] {
     phase: Phase;
     advances: i32;
 }

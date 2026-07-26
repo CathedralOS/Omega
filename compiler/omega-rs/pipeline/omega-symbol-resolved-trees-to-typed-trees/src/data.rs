@@ -20,7 +20,6 @@ pub(crate) fn lower_data_definition(
         type_parameters: omega_core::arena::HandleSpan::empty(),
         properties: typed::data::DataProperties {
             copy: data_definition.properties.copy,
-            zero_init: data_definition.properties.zero_init,
             carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,
         },
@@ -76,7 +75,6 @@ pub(crate) fn lower_type_parameter(
         kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
         bounds: typed::data::DataProperties {
             copy: parameter.bounds.copy,
-            zero_init: parameter.bounds.zero_init,
             carry: parameter.bounds.carry,
             multiplicity: parameter.bounds.multiplicity,
         },

@@ -16,7 +16,7 @@
 // f64-then-narrow route.
 use omega::language::std::console;
 
-data Sample [copy, zero_init] { x: f32; }
+data Sample [copy] { x: f32; }
 
 data Main {
     console: Console;

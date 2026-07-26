@@ -4,7 +4,7 @@ Fixed-capacity ring buffer over `[i32; 8]` with modular head/tail indexing.
 
 ## What it demonstrates
 
-- `[i32; 8]` fixed array field in a `[copy, zero_init]` data type
+- `[i32; 8]` fixed array field in a `[copy]` data type
 - Runtime-indexed array write via const-dispatch chain (the proven pattern):
   `write_slot(idx, value)` dispatches `idx == 0 | 1 | … | 7` to const-indexed writes
 - Runtime-indexed array read via parallel `read_slot(idx)` dispatch

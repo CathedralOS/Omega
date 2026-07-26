@@ -12,9 +12,8 @@
 
 /// First-class usage multiplicity (record §Multiplicity). Replaces `copy`
 /// as the whole usage model: `[copy]` maps to `Unrestricted`, ordinary data
-/// defaults to `Affine`, `[linear]` maps to `Linear`. `zero_init` and
-/// zero-initialization and carry policy remain orthogonal properties, never
-/// folded in.
+/// defaults to `Affine`, `[linear]` maps to `Linear`. Zero establishment is
+/// derived independently, and carry policy remains an orthogonal property.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Multiplicity {
     /// Freely duplicable and discardable (`[copy]`).

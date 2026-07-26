@@ -47,7 +47,7 @@
 
 use omega::language::std::console;
 
-data Sorter [copy, zero_init] {
+data Sorter [copy] {
     arr: [i32; 6];
 }
 

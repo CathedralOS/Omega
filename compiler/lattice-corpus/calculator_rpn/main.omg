@@ -24,7 +24,7 @@
 
 use omega::language::std::console;
 
-data Stack [copy, zero_init] {
+data Stack [copy] {
     slots: [i32 in Saturating; 4];
     sp: i32 in Saturating;        // stack pointer: index of next free slot (0 = empty)
     result: i32 in Saturating;    // set by pop_result() to hold the final answer

@@ -67,11 +67,6 @@ pub(crate) fn validate_data_field_types(
     }
 }
 
-// The zero-case-payload-free rule moved into `[zero_init]` verification
-// (crate::properties): zero-VALIDITY is unconditional (a zeroed payload is
-// itself zeroed, so the value stays valid), while zero-MEANS-EMPTY is the
-// opt-in property that demands a payload-free zero case (frozen decision 8).
-
 /// Whether zero-filled storage is already an established value of this type.
 /// Representation stays zero-expressible; a range/default domain that excludes
 /// zero gates VALUE establishment instead of making the declaration illegal.
@@ -183,56 +178,6 @@ pub(crate) fn data_requires_establishment(
     definition: &omega_typed_trees::data::DataDefinition,
 ) -> bool {
     data_requires_establishment_inner(program, definition, &mut Vec::new())
-}
-
-/// `[zero_init]` is stronger than representation-level zero expressibility: it
-/// promises that zeroed bytes are already an established value. A field whose
-/// type gates zero would make that promise false, so this explicit opt-in is
-/// the one declaration form that must still reject such a composition.
-pub(crate) fn validate_zero_init_establishment(
-    program: &TypedTrees,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for definition in program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.properties.zero_init)
-    {
-        if definition.zero_gated {
-            diagnostics.push(Diagnostic::error(format!(
-                "`[zero_init]` data `{}` declares a default domain that excludes its \
-                 zero representation; remove `[zero_init]` or make zero satisfy the facts",
-                definition.name.as_str(),
-            )));
-        }
-        let members = program.data_members(definition);
-        let zero_variant = members.iter().find_map(|member| match member {
-            DataMember::Variant(variant) => Some(variant),
-            DataMember::Field(_) => None,
-        });
-        let fields = members
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) => Some(field),
-                DataMember::Variant(_) => None,
-            })
-            .chain(
-                zero_variant
-                    .into_iter()
-                    .flat_map(|variant| program.data_payload_fields(variant)),
-            );
-        for field in fields {
-            if type_requires_establishment(program, field.type_reference) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "field `{}` of `[zero_init]` data `{}` declares a range that excludes \
-                     0 or contains a nested gated default domain, so zeroed bytes are not an \
-                     established value; remove `[zero_init]` or make zero valid",
-                    field.name.as_str(),
-                    definition.name.as_str(),
-                )));
-            }
-        }
-    }
 }
 
 fn data_requires_establishment_inner(

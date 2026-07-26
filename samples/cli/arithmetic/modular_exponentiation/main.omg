@@ -18,7 +18,7 @@ use omega::language::std::console;
 // provably nonzero). A `modulus: i32 [1..=100]` FIELD would be rejected: this
 // data is zero-initialized, and a range excluding 0 on a ZII field would let
 // reads trust a bound the startup value violates.
-data ModExp [copy, zero_init] {
+data ModExp [copy] {
     result: i32 [0..=99];
     base: i32 [0..=99];
     exponent: i32;

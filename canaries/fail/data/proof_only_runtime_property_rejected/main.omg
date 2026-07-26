@@ -1,6 +1,5 @@
-// N1 ZII/property face: `[zero_init]` (and copy/send) are claims about
-// values in memory; proof-only data never becomes one.
+// `[copy]` is a claim about runtime values; proof-only data never becomes one.
 use omega::language::std::console;
-data Nat [zero_init] { case Zero; case Succ(prev: Nat); }
+data Nat [copy] { case Zero; case Succ(prev: Nat); }
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

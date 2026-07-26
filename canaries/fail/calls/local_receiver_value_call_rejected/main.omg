@@ -5,7 +5,7 @@
 // supported forms.
 use omega::language::std::console;
 
-data Pair [copy, zero_init] { a: u64; b: u64; }
+data Pair [copy] { a: u64; b: u64; }
 
 machine Pair::total(&self) -> u64 {
     let sum: u64 = self.a + self.b;

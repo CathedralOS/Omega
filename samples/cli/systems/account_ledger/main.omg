@@ -86,7 +86,7 @@ data Transaction {
     case Query;
 }
 
-data Account [copy, zero_init] {
+data Account [copy] {
     balance: i32 in Wrapping;
     frozen: i32 in Wrapping;
 }

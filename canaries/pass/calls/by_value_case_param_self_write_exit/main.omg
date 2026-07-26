@@ -16,7 +16,7 @@ data Event {
     case Insert(cents: i32 in Wrapping);
 }
 
-data Register [copy, zero_init] {
+data Register [copy] {
     balance: i32 in Wrapping;
 }
 

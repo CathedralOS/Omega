@@ -14,7 +14,7 @@
 
 use omega::language::std::console;
 
-data S [copy, zero_init] {
+data S [copy] {
     arr: [i32; 4];
     // Wrapping DECLARED: the unbounded counter increment is overflow-capable
     // under the (now-enforced) nested-field exact check.

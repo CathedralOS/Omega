@@ -4,7 +4,7 @@
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,
 // where the field RANGE carries the normalization invariant the compiler
 // write-enforces at every construction site — ZII zero IS the zero duration.
-// Everything here is a pure `[copy, zero_init]` value with no authority; clock
+// Everything here is a pure `[copy]` value with no authority; clock
 // READS live on the `Time` capability (a later rung), never on these types.
 //
 // Rust parity, differing where Omega is better (TASKS_TIME.md north star):
@@ -31,18 +31,18 @@
 // module; the `Time` capability below wraps it (the filesystem.omg layering).
 use omega::language::std::time_host;
 
-data Ordering [copy, zero_init] {
+data Ordering [copy] {
     case Less;
     case Equal;
     case Greater;
 }
 
-data Duration [copy, zero_init] {
+data Duration [copy] {
     seconds: u64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
-data DurationResult [copy, zero_init] {
+data DurationResult [copy] {
     case Overflow;
     case Ok(duration: Duration);
 }
@@ -51,7 +51,7 @@ data DurationResult [copy, zero_init] {
 // units. (The scoping sketch spelled this `NanosecondsResult { Ok(nanoseconds) }`;
 // one payload field cannot be unit-accurate for nanoseconds AND milliseconds,
 // so the field is the neutral `total` -- noted in TASKS_TIME.md.)
-data TotalResult [copy, zero_init] {
+data TotalResult [copy] {
     case Overflow;
     case Ok(total: u64);
 }
@@ -502,12 +502,12 @@ machine Duration::is_greater_than(&self, other: Duration) -> bool {
 // subsecond nanoseconds since an UNSPECIFIED epoch. Opaque-by-convention --
 // only differences between two Instants from the same process are meaningful.
 // Same field shapes as Duration, so the subtraction machinery mirrors it.
-data Instant [copy, zero_init] {
+data Instant [copy] {
     seconds: u64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
-data InstantResult [copy, zero_init] {
+data InstantResult [copy] {
     case Overflow;
     case Ok(instant: Instant);
 }
@@ -691,7 +691,7 @@ machine Instant::duration_since(&self, earlier: Instant) -> Duration {
 // A point on the WALL clock (D7): signed Unix-epoch seconds (pre-1970
 // timestamps exist -- filesystem metadata bridges here) + subsecond
 // nanoseconds. ZII zero IS the Unix epoch.
-data SystemTime [copy, zero_init] {
+data SystemTime [copy] {
     seconds_since_unix_epoch: i64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
@@ -709,7 +709,7 @@ const SystemTime::MIN: SystemTime = SystemTime { seconds_since_unix_epoch: -9223
 // result: never a fake Ok, never a fabricated Backwards(ZERO) measurement.
 // (Deviation from the TASKS_TIME.md sketch, which had no zero case -- noted
 // there.) `duration_since` itself never produces Unmeasured.
-data SystemTimeDifference [copy, zero_init] {
+data SystemTimeDifference [copy] {
     case Unmeasured;
     case Backwards(amount: Duration);
     case Ok(duration: Duration);
@@ -795,7 +795,7 @@ machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDiff
     }
 }
 
-data SystemTimeResult [copy, zero_init] {
+data SystemTimeResult [copy] {
     case Overflow;
     case Ok(time: SystemTime);
 }

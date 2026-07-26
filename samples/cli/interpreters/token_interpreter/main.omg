@@ -34,7 +34,7 @@ data Token {
     case Clamp(max: i32 in Saturating);
 }
 
-data Interp [copy, zero_init] {
+data Interp [copy] {
     acc: i32 in Saturating;
 }
 

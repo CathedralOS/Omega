@@ -27,7 +27,7 @@
 
 use omega::language::std::console;
 
-data Ring [copy, zero_init] {
+data Ring [copy] {
     slots: [i32 in Saturating; 8];
     head: i32 in Saturating;
     tail: i32 in Saturating;

@@ -139,7 +139,6 @@ fn validate_program_internal(
     // Q6/MR4: runtime call cycles require the constant-stack tail admission;
     // erased proof-only SCCs instead require strict structural descent.
     call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
-    data::validate_zero_init_establishment(program, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see

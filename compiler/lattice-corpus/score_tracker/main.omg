@@ -1,5 +1,5 @@
 // Score tracker. Combines case-payload events, fixed arrays, scalar
-// accumulation, [copy, zero_init] properties, and multi-arm case dispatch.
+// accumulation, [copy] property, and multi-arm case dispatch.
 //
 // Two players compete. Events: Score(player, points) adds to a player's
 // total; Bonus(player) doubles their current score; Reset(player) zeroes it.
@@ -25,7 +25,7 @@ data Event {
     case Reset(player: i32 in Saturating);
 }
 
-data Tracker [copy, zero_init] {
+data Tracker [copy] {
     total: i32 in Saturating;
 }
 

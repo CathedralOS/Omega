@@ -36,7 +36,7 @@ use omega::language::std::targets::linux_arm64::filesystem_impl;
 
 // An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
 // it pass by value into read/write/close.
-data File [copy, zero_init] {
+data File [copy] {
     fd: i32;
 }
 
@@ -72,7 +72,7 @@ data IoResult {
 // type DT_DIR, `files` those with DT_REG. `entries - subdirs - files` are the
 // other types (symlinks, fifos, …). On a filesystem that reports DT_UNKNOWN,
 // `subdirs`/`files` undercount (see D-readdir).
-data DirStats [copy, zero_init] {
+data DirStats [copy] {
     entries: u64;
     subdirs: u64;
     files: u64;
@@ -85,7 +85,7 @@ data DirStatsResult {
 // file name copied out of the dirent record (max 255 bytes; `name_len` is the
 // true length); `is_dir`/`is_file` come from the dirent `d_type` (DT_DIR/DT_REG).
 // Self-contained (`[copy]`, the name embedded) so it outlives the read buffer.
-data DirEntry [copy, zero_init] {
+data DirEntry [copy] {
     name: [u8; 256];
     name_len: u64;
     is_dir: bool;
@@ -137,7 +137,7 @@ data TryLockResult {
 // (`create`/`create_new` = O_CREAT/O_EXCL) need `open`'s variadic `mode`
 // argument, which is not yet marshalled on arm64 — use `create` for the common
 // create-and-truncate case until that lands (see TASKS_FS.md step 7-open).
-data OpenOptions [copy, zero_init] {
+data OpenOptions [copy] {
     read: bool;
     write: bool;
     append: bool;
@@ -152,7 +152,7 @@ data OpenOptions [copy, zero_init] {
 
 // A file's permission bits (Rust `std::fs::Permissions`). `mode` is the POSIX
 // octal mode (e.g. 0o644 = 420 = rw-r--r--, 0o444 = 292 = read-only).
-data Permissions [copy, zero_init] {
+data Permissions [copy] {
     mode: u32;
 }
 
@@ -177,7 +177,7 @@ machine Permissions::set_readonly(&mut self, readonly: bool) {
 // (format bits + permission bits); `modified_secs` is the last-modification time
 // as whole seconds since the Unix epoch (`st_mtime`). The selected target's
 // `StatLayout` policy supplies the foreign record's checked field positions.
-data Metadata [copy, zero_init] {
+data Metadata [copy] {
     len: i64;
     is_dir: bool;
     is_symlink: bool;

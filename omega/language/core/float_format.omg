@@ -11,7 +11,7 @@
 // the constants readable without importing a particular proof library's
 // convention.
 
-data FloatSpecialValues [copy, zero_init] {
+data FloatSpecialValues [copy] {
     signed_zero: bool;
     subnormals: bool;
     infinity: bool;

@@ -1,0 +1,11 @@
+// The authored zero-init property is retired. Zero representation safety is
+// universal, while whether zeroed storage establishes a value is derived from
+// the type's default domain and zero-case payload.
+
+data Old [zero_init] {
+    value: i32;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

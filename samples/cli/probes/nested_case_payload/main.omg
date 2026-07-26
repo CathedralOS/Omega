@@ -40,7 +40,7 @@ data Command {
     case Noop;
 }
 
-data State [copy, zero_init] {
+data State [copy] {
     acc: i32 in Saturating;
 }
 

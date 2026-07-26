@@ -43,14 +43,12 @@ pub(crate) fn validate_proof_only_consumption(
         }
     }
 
-    // Data properties are runtime claims (`[copy]`/`[zero_init]`/`[carry(...)]`
-    // speak about values in memory); a proof-only carrier cannot honor
-    // them.
+    // Data properties are runtime claims (`[copy]`/`[carry(...)]` speak about
+    // values in memory); a proof-only carrier cannot honor them.
     for definition in program.data_definitions() {
         let properties = definition.properties;
         if !(properties.copy
             || properties.multiplicity == omega_core::semantics::Multiplicity::Linear
-            || properties.zero_init
             || properties.carry.is_some())
         {
             continue;
