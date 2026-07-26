@@ -187,7 +187,11 @@ claim is discharged.
 ## Semantic roles and operator coherence
 
 Semantic contributions are keyed by a small compiler-known role vocabulary.
-Different roles compose; competing contributions to the same role reject.
+Compatible contributions in different roles compose into one operator
+meaning; competing contributions to the same role reject. Cross-role
+composition is not permission to run two unrelated operator implementations
+in an arbitrary order: the selected contracts must determine one checked
+meaning.
 The initial roles are:
 
 | Role | Examples | Consumer |
@@ -208,6 +212,22 @@ two arithmetic policies and rejects.
 Predicate obligations compose independently. A standing range combined with
 an arithmetic policy is legal only where every permitted operation preserves
 the range; flow facts may instead be invalidated and later re-proved.
+
+A domain predicate does not synthesize its operators. A domain-owned operator
+still publishes a signature and relational contract, and its checked
+definition or selected satisfier must discharge that contract. For a
+normalized degree domain, returning a value in `[0, 360)` is necessary but not
+sufficient: the contract must also relate the result to the operands modulo
+360, or an implementation that always returned zero would pass.
+
+The same example shows how roles compose without competing overloads. Two
+normalized degree operands lie in `[0, 359]`, so their unreduced sum lies in
+`[0, 718]`. The degree-addition realization can therefore prove that its
+carrier addition is Exact, then reduce modulo 360. If the bindings also select
+`Wrapping`, machine-width overflow remains unreachable and the two arithmetic
+policies are observationally identical for that operation. This is a local
+proof of policy independence, not a claim that Wrapping and Exact are globally
+equivalent.
 
 Operator resolution reads static binding qualifications, never incidental
 flow facts. Resolution is compile-time, unambiguous, and recorded in the
@@ -230,6 +250,13 @@ though qualification itself cannot.
 Mixed arithmetic policies reject. Arithmetic-policy removal or replacement
 changes only future operator selection; it does not reinterpret an already
 stored payload.
+
+An arithmetic-policy qualification may weaken to the unqualified carrier,
+whose arithmetic is Exact by default. The current payload is preserved and
+every later Exact operation must discharge its ordinary safety obligations.
+This does not reinterpret earlier wrapping arithmetic as exact mathematics.
+Selecting Wrapping, Saturating, or Trapping from an Exact binding remains an
+explicit choice because it changes future operation behavior.
 
 Core's arithmetic-policy qualifications satisfy the same canonical
 representation-qualification relationship as an authored unit such as `Km`.

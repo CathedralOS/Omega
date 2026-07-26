@@ -560,7 +560,9 @@ the domains must still be distinguishable by mutually exclusive bodies.
 
 Domains may contribute proof facts and independently contribute semantic
 meaning. Semantic contributions are keyed by compiler-known roles so
-orthogonal meanings compose while competing meanings reject.
+compatible orthogonal meanings compose while competing meanings reject.
+Composition must still select one checked operator meaning; it never means
+running unrelated overloads in an arbitrary order.
 
 The intuition is that operators are shorthand for resolved semantic
 operations. If a value's declared qualifications contribute a `+`, `-`, or
@@ -571,22 +573,43 @@ not of proof state**: a binding declared, explicitly qualified, or
 scope; a plain `i32` binding never does, regardless of what has been proven
 about the value it holds.
 
+For example, a package may choose a canonical representation for cyclic
+degrees:
+
 ```omega
 domain i32::Degrees {
-    // semantic facts about cyclic degree values
+    self >= 0;
+    self < 360;
 }
 
-machine rotate(value: i32, delta: i32) -> i32
-requires value in i32::Degrees
-{
-    value + delta
-}
+operator add(
+    left: i32 in i32::Degrees,
+    right: i32 in i32::Degrees
+) -> sum: i32 in i32::Degrees
+    spelling +
+    ensures degree_sum(left, right, sum);
 ```
 
-In that shape, `+` is not mystical. The `requires` clause is a signature-site
-selection: `value` is *bound* into `i32::Degrees` for this machine's scope,
-so `value + delta` resolves through the `Degrees`-specific addition meaning
-if that meaning is unique.
+`45 as i32 in i32::Degrees` is accepted when the prover discharges the
+predicate. An arbitrary runtime integer uses an ordinary checked machine such
+as `Degrees::normalize(raw)`, which performs Euclidean reduction and
+guarantees the predicate afterward; `as` never performs that normalization.
+`normalize` and the pure relational predicate `degree_sum` are package-authored
+machines, not compiler-known names.
+
+The domain body does not synthesize `+`. The named operator publishes the
+semantic contract, including the relation between its operands and result.
+Its checked definition or selected satisfier must prove both that relation and
+the result qualification. Merely returning some value in `[0, 360)` would not
+establish degree addition.
+
+The operand bounds also make the carrier step simple: an unreduced sum lies in
+`[0, 718]`, so the operator can prove its primitive `i32` addition Exact before
+reducing modulo 360. A realization reached with `Wrapping` operands may weaken
+them to Exact for that proved-safe carrier step. The qualification does not add
+a second `+` overload. Machine-width overflow is unreachable in this
+realization, so Wrapping and Exact happen to agree for this operation; angular
+reduction modulo 360 remains the domain operator's job.
 
 This stays strict:
 
@@ -596,9 +619,11 @@ This stays strict:
   ordinary exact addition.
 - Resolution reads the complete static operand-domain tuple and must be
   unambiguous; competing meanings are compile errors, never ranked.
-- Semantic contributions in different roles compose. `Km & Wrapping` combines
-  dimensional meaning with overflow behavior. Two contributions to the same
-  role, such as `Wrapping & Trapping`, reject.
+- Compatible semantic contributions in different roles compose.
+  `Km & Wrapping` combines dimensional meaning with overflow behavior. A
+  domain operator whose contracts cannot compose with the selected arithmetic
+  policy must provide an explicit combined meaning or reject. Two
+  contributions to the same role, such as `Wrapping & Trapping`, reject.
 - Adding a qualification to an operand binding can expose a new ambiguity,
   which is a loud error; adding flow proof knowledge cannot change operator
   meaning at all.
@@ -684,21 +709,11 @@ can be modeled as calls to core slice operators whose contracts require bounds
 proofs. The compiler may lower those operator bodies through internal pointer
 and descriptor machinery, but the user-facing meaning belongs to `Slice`.
 
-For domain-sensitive quantities, the same spelling can resolve through a domain
-context:
-
-```omega
-machine add_degrees(value: i32, delta: i32) -> i32
-requires value in i32::Degrees
-{
-    value + delta
-}
-```
-
-Here the ordinary integer `+` is not automatically replaced. The `requires`
-clause binds `value` into `i32::Degrees` for this scope, and that binding
-participates in resolution only if it exposes a unique operator meaning for
-this expression.
+For domain-sensitive quantities, the same spelling resolves through the
+operator selected by the complete static binding qualifications. A parameter
+declared or `requires`-qualified into `i32::Degrees` therefore participates in
+the `Degrees` operator family; merely proving at runtime that a plain `i32`
+happens to lie in `[0, 360)` does not change its operator selection.
 
 Ambiguity is an error:
 
@@ -717,6 +732,13 @@ policy role because primitive arithmetic needs direct lowering. Unit domains
 occupy the denotation/dimension role. Domain-sensitive operators resolve from
 static binding-site selections, not runtime type mutation or the flow-fact
 environment.
+
+Arithmetic-policy weakening is directional. A value selected into `Wrapping`,
+`Saturating`, or `Trapping` may be passed to an unqualified binding, where
+arithmetic is Exact by default: its current payload is unchanged, and every
+later operation must prove the Exact obligations anew. This does not recover a
+mathematical value lost by earlier wrapping. Selecting a non-Exact policy for
+an Exact binding is explicit because it changes future operator behavior.
 
 **Normalization is not entailment.** A small deterministic, confluent,
 terminating normalizer owns what a domain expression *is* (canonical
