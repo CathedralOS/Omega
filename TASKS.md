@@ -36,7 +36,7 @@ scanners, or receipts.
 
 ### P1 — Authority values and boundary evidence
 
-**DESIGN-BLOCKED: `OWNER_QUESTIONS.md` #3, #16, and #18.** The runtime model is
+**DESIGN-BLOCKED: `OWNER_QUESTIONS.md` #3 and #16.** The runtime model is
 specified in
 `wiki/design_briefs/authority_values_and_boundary_evidence.md`.
 
@@ -45,12 +45,14 @@ Implementation work:
 
 - add bodyless predicate declarations and `boundary domain` receipt
   origination;
+- implement transparent predicate aliases with expansion before normalization,
+  identity, compatibility, and diagnostics;
 - preserve evidence-source identity as checked, transformed, validated, or
   accepted through artifacts and trust reports;
 - migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
   tokens to ordinary data declarations with their required fields;
-- validate resource-frontier outcome mappings before a checked operation
-  establishes qualified results;
+- infer and validate resource-frontier outcome mappings before a checked
+  operation establishes qualified results, rejecting ambiguous mappings;
 - connect provider receipts, linearity, carry policy, and authority-flow
   reporting; and
 - migrate Cathedral's temporary Extent model onto the shared declaration.
@@ -58,8 +60,10 @@ Implementation work:
 Acceptance: reconstructing an authority value's fields does not establish its
 domain facts; admission can originate only domains that permit boundary
 evidence; qualified results require checked evidence or a receipt; split
-conserves one origin across its children; and authority expansion is visible at
-final-artifact admission.
+conserves one origin and its carry permissions across its children;
+`Carry::Portable` normalizes identically to its four atoms; an accepted claim
+without permission facts rejects disallowed crossings; and authority expansion
+is visible at final-artifact admission.
 
 ### P2 — Source-visible materialization and placed access
 
@@ -74,8 +78,8 @@ References:
   establishment beyond checked recasts. Recursive aggregate representation-set
   checks are live for records, literal fixed arrays, complete-source aggregate
   slices, and exactly tiled interior slices.
-- Keep validation as the only route from raw bytes to established typed facts.
-- Do not expose a raw-offset writer.
+- Keep validation as the route from raw bytes to established typed facts and
+  derive public access from validated plans and field identities.
 
 Acceptance: an Omega-authored compact-bit policy validates, materializes, and
 projects a typed value on x86-64 and AArch64; malformed tiling and fact-minting
@@ -231,7 +235,8 @@ current consumers happen to align.
 - **R5:** finish relational frame candidates and escaping mutation checks.
   Boundary write-frame spelling is owner-blocked on #15.
 - **DOM1/DOM2/DOM3/DOM5:** authored facets, operator ownership, sealed
-  introduction, and weakening certificates are owner-blocked on #16.
+  introduction, weakening certificates, and transparent predicate aliases are
+  owner-blocked on #16's remaining declaration surface.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration.
@@ -245,16 +250,20 @@ improvements do not change public identity.
 
 ### Carry, multiplicity, tasks, and allocation
 
-- **CRY:** finish sealed/per-mint carry facts and admission integration.
+- **CRY:** implement the four compiler-owned positive carry permissions,
+  `Carry::Portable` expansion, strict accepted-resource origins, checked-origin
+  derivation, permission retention after qualification forgetting, and
+  per-axis inheritance through aggregates and inferred claim transformations.
+  This depends on #3/#16 rather than a separate carry decision.
 - **CML4:** finish structural multiplicity migration. Automatic cleanup and
   partial-value semantics are owner-blocked on #2/#3.
 - **TR3–TR8:** finish task activation, custody, continuations, suspension-safe
   loans, and reference packages. Runtime provider publication is owner-blocked
   on #9; authority-value declarations depend on #16.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
-  to sealed `Extent` after P1.
-- Implement owned `Vec<T>` and then `Vec<u8> in Utf8`; do not restore a
-  text-specific primitive.
+  to qualified `Extent` after P1.
+- Implement owned `Vec<T>` and then `Vec<u8> in Utf8` through ordinary data and
+  domain qualification.
 
 Acceptance: linear debt cannot disappear through aggregation or bulk reclaim;
 carry demands are checked against runtime behavior at admission; task and
@@ -335,9 +344,8 @@ blocked work.
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
-| #16 authored domain policy | facets, abstract predicates, boundary evidence, operators, and semantic introduction |
+| #16 authored domain policy | facets, abstract predicates, boundary evidence, predicate aliases, operators, and semantic introduction |
 | #17 authored `AccessPlan` policy | placed views and MMIO projection |
-| #18 boundary-authority carry default | fail-closed carry admission for transparent authority values |
 
 ## Vertical acceptance slices
 

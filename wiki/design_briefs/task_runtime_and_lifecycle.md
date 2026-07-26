@@ -283,10 +283,10 @@ valuable later theorem but not a prerequisite for the conservative task v1.
 
 Carry policy itself is independent of that loan subset. Ordinary data derives a
 compiler-normalized four-axis policy from its fields and explicit type-wide
-contract; constructor guarantees may add per-mint permissions. At each
-crossing, canonical place liveness determines which policies constrain the
-transition. Boundary-origin authority uses the fail-closed default selected by
-its admission contract.
+contract. Accepted resource claims originate strict and result contracts may
+add the positive per-claim permissions described in chapter 7. Checked claims
+derive from inherited provenance. At each crossing, canonical place liveness
+determines which policies constrain the transition.
 
 Suspension is enforced locally against possible suspension and cannot be
 narrowed away by runtime selection. The provider-side normalized behavior

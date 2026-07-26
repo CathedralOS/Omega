@@ -104,6 +104,11 @@ Decide:
 - how an outcome mapping names consumed inputs, inherited output origins,
   discharged claims, retained borrows, and claims transferred across different
   nominal carriers;
+- how the checker infers the unique claim mapping for accepted roots,
+  one-to-one transfers, conserved splits, loans, and aggregates, and rejects an
+  operation when multiple mappings remain possible;
+- how each inherited output claim preserves its input carry permissions, with
+  combined origins selecting the most restrictive demand per axis;
 - how alternative sum payloads, repeated array elements, generic substitution,
   and partially moved records identify their live component set at joins; and
 - which stable identity extends `PermissionProvenance` so multiple components
@@ -118,7 +123,8 @@ nominal protocol. Whole-value moves preserve the frontier, field moves transfer
 the selected subtree and leave siblings live, and whole-value consumers must
 account for every live frontier entry. Give each establishment an event-local
 origin identity rather than using source location alone. Validate an
-operation's normalized outcome mapping against that frontier; keep
+operation's inferred normalized outcome mapping against that frontier and
+reject ambiguous mappings; keep
 subject-specific relations such as range partition, containment, or equality
 in ordinary postconditions. Defer dynamic-index owned extraction until the
 index/disjointness proof can name a unique element.
@@ -618,38 +624,3 @@ compute one complete name-keyed plan from the reflected schema and validated
 layout; normalize and validate the result in the compiler; and derive all
 public field tokens/accessors from the accepted pair. Keep device-specific
 operations as checked package machines over provider-private sealed access.
-
-## 18. What fail-closed carry contract applies to boundary-origin authority?
-
-Ordinary data is suspension-safe and affinity-free unless its fields or
-explicit carry contract say otherwise. Runtime authority now uses ordinary data
-plus domain evidence, so opacity no longer identifies the values that formerly
-received a strict carry default. A forgotten provider/type annotation must not
-make a boundary-origin token movable, migratable, or suspension-safe by
-accident.
-
-The carry restriction also cannot live only in a droppable predicate fact.
-Forgetting `Granted` from an Extent may strand its legal resource consumer, but
-it must not erase an independent CPU, thread, suspension, or address-stability
-demand.
-
-Decide:
-
-- whether every receipt-originated authority value receives a born-strict
-  per-value carry claim independent of its domain membership;
-- how a boundary provider's admitted result contract grants narrower
-  suspension/CPU/thread/address permissions without rewriting the type-wide
-  structural floor;
-- how checked internal issuers request the same fail-closed treatment when
-  their abstract authority never crosses a boundary;
-- how the carry claim follows moves, borrows, qualification forgetting,
-  resource transformations, serialization, and component crossings; and
-- which normalized promise enters type/contract identity versus which
-  provider receipt remains realization evidence.
-
-Recommendation: boundary evidence creates a maximally strict per-value carry
-claim in permission provenance. The selected provider may grant axis-specific
-permissions through its admitted result contract; omission therefore rejects
-crossings. Carry remains independent of the predicate domain, so forgetting
-membership cannot weaken the claim. Ordinary checked issuers use the existing
-explicit type-wide or per-mint carry contract.

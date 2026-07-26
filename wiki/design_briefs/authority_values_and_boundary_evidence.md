@@ -193,16 +193,35 @@ selected provider, and receipt. Authority-flow reports continue to record
 which packages accept, derive, retain, return, release, or acquire qualified
 values.
 
+## Carry of resource claims
+
+Accepted resource claims originate with a strict four-axis carry policy. Their
+result contracts may establish the positive compiler-owned permissions
+`Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, and
+`Carry::MovableAddress`. `Carry::Portable` is the transparent conjunction of
+all four.
+
+The carry entry belongs to the undischarged permission provenance rather than
+the current predicate-fact set. Forgetting an authority qualification therefore
+retains the claim's demand. Freshly constructed unqualified data has no claim
+entry and follows its structural/type-wide carry policy.
+
+Checked-internal claims derive from the provenance and storage they inherit.
+Claim transfer and conserved decomposition preserve permissions; combined
+origins select the most restrictive demand per axis. The checker infers the
+unique mapping for ordinary root, transfer, split, loan, and aggregate shapes
+and rejects a transformation whose provenance assignment is ambiguous.
+
 ## Implementation dependencies
 
-Three general facilities complete this model:
+Two general facilities complete this model:
 
 1. The domain surface must author predicate and semantic facets explicitly,
-   including bodyless predicate declarations and boundary-evidence permission.
+   including bodyless predicate declarations, boundary-evidence permission,
+   and transparent predicate aliases.
 2. The permission checker must preserve path-indexed claim frontiers and
-   validate resource-transformation outcome mappings.
-3. Boundary-origin authority must receive a fail-closed carry claim that
-   survives qualification forgetting independently of its domain membership.
+   validate inferred resource-transformation outcome mappings together with
+   their inherited carry permissions.
 
 The current runtime authority declarations remain staged on their existing
 boundary-data forms until those facilities land. Migration changes the source
@@ -218,6 +237,8 @@ declarations and compiler metadata while preserving the authority contracts.
   validated resource transformation establishes it;
 - split conserves one parent claim into exact child claims without duplicating
   its origin;
+- accepted resource origins default to strict carry, explicit positive
+  permissions relax individual axes, and inherited claims preserve them;
 - a fabricated or dequalified linear Extent has no legal consuming path;
 - predicate facts and runtime authority carriers add no implicit runtime tag;
   and

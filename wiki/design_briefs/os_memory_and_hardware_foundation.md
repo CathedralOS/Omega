@@ -1017,16 +1017,17 @@ data PerCpuLease [
 The property lowers directly to normalized compiler IR. It is not ordinary
 `omega::core` data, a trait, or the output of a policy machine: the vocabulary
 is closed because the compiler must interpret every axis. Ordinary data derives
-structurally from its fields and explicit type-wide plan. Constructor
-guarantees may establish per-mint carry facts, monotonically adding permissions
-above the type-wide floor. Boundary-origin authority participates in
-fail-closed carry admission as tracked in the owner question for its default
-contract.
+structurally from its fields and explicit type-wide plan. Accepted resource
+claims originate strict; their result contracts may establish
+`Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, or
+`Carry::MovableAddress`. `Carry::Portable` expands to all four. Checked
+resource transformations inherit permissions through their provenance
+mapping, and combined origins select the most restrictive demand per axis.
 
-The old `[send]` placeholder is retired. Cross-activation exclusive transfer is
-ordinary ownership plus carry/runtime compatibility; crossing shared references
-also requires a sanctioned shared-access contract. Carry and sharing are not
-marker traits and do not follow from copyability.
+Cross-activation exclusive transfer combines ordinary ownership with
+carry/runtime compatibility. Crossing shared references additionally requires
+a sanctioned shared-access contract. Copyability remains an independent
+duplication property.
 
 Runtime providers state independent behavior:
 
