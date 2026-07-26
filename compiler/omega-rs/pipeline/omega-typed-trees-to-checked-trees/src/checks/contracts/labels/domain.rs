@@ -63,7 +63,9 @@ fn instantiate_domain_expression_label(
             "{} as {}",
             instantiate_domain_expression_label(program, cast.value, base_label),
             omega_typed_trees::expression::display_name_path(
-                program.expression_table.name_path_members(cast.target_label),
+                program
+                    .expression_table
+                    .name_path_members(cast.target_label),
                 "::",
             )
         ),

@@ -103,7 +103,9 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         panic!("fixed-array initializer should remain a cast");
     };
     assert!(matches!(
-        typed_trees.type_reference_table.type_reference(fixed.target_type),
+        typed_trees
+            .type_reference_table
+            .type_reference(fixed.target_type),
         omega_typed_trees::types::TypeReferenceNode::FixedArray {
             length: omega_typed_trees::types::FixedArrayLength::Literal(4),
             ..
@@ -117,7 +119,9 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
         panic!("slice initializer should remain a cast");
     };
     assert!(matches!(
-        typed_trees.type_reference_table.type_reference(slice.target_type),
+        typed_trees
+            .type_reference_table
+            .type_reference(slice.target_type),
         omega_typed_trees::types::TypeReferenceNode::Slice { .. }
     ));
 }

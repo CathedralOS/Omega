@@ -259,9 +259,7 @@ fn append_state_body_operations(
         if let Some(slice) = segment
             && slice
                 .boundary
-                .is_some_and(|(statement_index, _, _)| {
-                    statement_index == operation.statement_index
-                })
+                .is_some_and(|(statement_index, _, _)| statement_index == operation.statement_index)
         {
             append_call_argument_operations_for_segment(
                 context,
@@ -636,14 +634,13 @@ fn append_call_argument_operations_for_segment(
         .calls_for_statement(state_key, statement_index)
         .filter(|state_call| state_call.role == StateCallRole::CallArgument)
     {
-        let follows_previous =
-            segment
-                .previous_boundary
-                .is_none_or(|(previous_statement, previous_ordinal, previous_role)| {
-                    statement_index != previous_statement
-                        || (previous_role != StateCallRole::Statement
-                            && state_call.call_ordinal > previous_ordinal)
-                });
+        let follows_previous = segment.previous_boundary.is_none_or(
+            |(previous_statement, previous_ordinal, previous_role)| {
+                statement_index != previous_statement
+                    || (previous_role != StateCallRole::Statement
+                        && state_call.call_ordinal > previous_ordinal)
+            },
+        );
         let precedes_boundary =
             segment
                 .boundary

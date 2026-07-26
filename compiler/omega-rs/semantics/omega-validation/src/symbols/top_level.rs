@@ -204,7 +204,6 @@ impl<'program> TopLevelSymbols<'program> {
             .map(|symbol| symbol.symbol)
             .unwrap_or_else(SymbolHandle::invalid)
     }
-
 }
 
 fn builtin_type_symbols(program: &TypedTrees) -> Vec<TypeSymbol<'_>> {

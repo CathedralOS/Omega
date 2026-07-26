@@ -152,7 +152,9 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 cast.value,
             ),
             omega_typed_trees::expression::display_name_path(
-                program.expression_table.name_path_members(cast.target_label),
+                program
+                    .expression_table
+                    .name_path_members(cast.target_label),
                 "::",
             )
         ),

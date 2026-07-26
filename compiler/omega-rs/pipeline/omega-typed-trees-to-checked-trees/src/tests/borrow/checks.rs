@@ -2302,9 +2302,7 @@ fn rejects_persistent_borrow_storage_until_cross_state_loans_are_propagated() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains(
-            "assignment stores a borrow-carrying value in persistent field `stored`"
-        ),
+        combined.contains("assignment stores a borrow-carrying value in persistent field `stored`"),
         "expected the persistent-loan fence, got:\n{combined}"
     );
 }

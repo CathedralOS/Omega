@@ -33,11 +33,7 @@ pub(crate) fn lower_measure_definition(
 
     let mut lowered_components = Vec::new();
     for expression in syntax_trees.expressions.expression_handles(measure.body) {
-        let lowered = lower_expression_into_table(
-            lowerer,
-            syntax_trees,
-            *expression,
-        )?;
+        let lowered = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowered_components.push(lowered);
     }
     let body = lowerer

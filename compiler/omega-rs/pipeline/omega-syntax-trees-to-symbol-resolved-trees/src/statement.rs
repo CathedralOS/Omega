@@ -1111,11 +1111,7 @@ fn lower_statement_expression(
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
 ) -> Result<omega_symbol_resolved_trees::expression::ExpressionHandle, Diagnostic> {
-    lower_expression_into_table(
-        lowerer,
-        syntax_trees,
-        expression,
-    )
+    lower_expression_into_table(lowerer, syntax_trees, expression)
 }
 
 fn lower_statement_expressions(
@@ -1136,11 +1132,7 @@ fn lower_statement_expressions(
         .iter()
         .enumerate()
     {
-        let expression = lower_expression_into_table(
-            lowerer,
-            syntax_trees,
-            *expression,
-        )?;
+        let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowerer
             .symbol_resolved_trees
             .tables

@@ -4347,18 +4347,20 @@ fn validate_expression_call_bounds(
     // same-type sibling that the by-type walk would misresolve) loudly instead
     // of binding 0. STATEMENT-position nested calls are validated separately
     // (`validate_call_node`) and remain unsupported -- see TASKS D2.
-    let receiver_type = machine_symbols.callable_field_type(receiver_name).or_else(|| {
-        let chain = receiver_member_chain(program, call.receiver)?;
-        if chain.len() < 3 || chain.first().map(String::as_str) != Some("self") {
-            return None;
-        }
-        crate::places::nested_receiver_type_name(
-            program,
-            current_machine,
-            Some(current_state),
-            &chain,
-        )
-    });
+    let receiver_type = machine_symbols
+        .callable_field_type(receiver_name)
+        .or_else(|| {
+            let chain = receiver_member_chain(program, call.receiver)?;
+            if chain.len() < 3 || chain.first().map(String::as_str) != Some("self") {
+                return None;
+            }
+            crate::places::nested_receiver_type_name(
+                program,
+                current_machine,
+                Some(current_state),
+                &chain,
+            )
+        });
 
     // N6 attached lift: a quotient has no runtime representative or attached
     // methods of its own, but a checked pure operation attached to its carrier

@@ -278,12 +278,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 };
             }
             let target_start = input;
-            let (target_type, rest) =
-                parse_cast_target_type_reference_handle(syntax_trees, input)?;
-            let consumed = target_start
-                .tokens
-                .len()
-                .saturating_sub(rest.tokens.len());
+            let (target_type, rest) = parse_cast_target_type_reference_handle(syntax_trees, input)?;
+            let consumed = target_start.tokens.len().saturating_sub(rest.tokens.len());
             let target_label_text = target_start.tokens[..consumed]
                 .iter()
                 .map(|token| token.lexeme.as_str())
