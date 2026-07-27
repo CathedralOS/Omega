@@ -163,13 +163,16 @@ obligation rather than evidence by itself.
 
 ### `as`
 
-`as` changes static qualification, never the runtime value:
+`as` applies a compiler-known coercion after statically discharging its
+obligation. It preserves the carrier's mathematical value or a reference's
+referent:
 
 | Axis | Requirement |
 |---|---|
-| carrier type and layout | unchanged |
-| runtime payload value | unchanged |
-| runtime work and control | none |
+| mathematical value or referent | unchanged |
+| proof | discharged before lowering |
+| effects and control | no effects, allocation, suspension, failure, or user code |
+| policy | no hidden lossy or executable conversion choice |
 
 For a domain with a body, `value as T in D` succeeds only when the prover
 discharges every proposition in that body. `as` never performs validation.
@@ -198,22 +201,31 @@ Examples:
 
 - `bytes as [u8] in Path` requires a proof of `no_nul(bytes)`;
 - `5 as i32 in Km` may use `Km`'s canonical qualification route;
+- `small as u32` succeeds only when representability is proved;
+- `&card as &dyn Card::PowerOrder` proves the named conformance fits and
+  packages the same referent with its local dispatch table;
 - `reservation as Reservation in Issued` fails when issuance requires
   `BoxOffice` state;
 - `extent as Extent in Granted` fails when authority requires an admitted root
   or a conserved predecessor; and
-- kilometres-to-metres uses a named conversion because the numeric payload
-  changes.
+- kilometres-to-metres uses a named conversion because the carrier's numeric
+  value changes from, for example, `5` to `5000`.
+
+An `as` lowering may emit a bounded intrinsic instruction such as
+zero-extension or construct a fat reference. This is packaging, not an
+invocation of user code. A narrowing numeric conversion with no proof is
+rejected; truncating, saturating, or trapping behavior uses an explicitly
+named operation.
 
 ### Qualification, validation, and conversion
 
-| Operation | Carrier | Payload | Runtime work |
+| Operation | Mathematical value/referent | Packaging | Runtime behavior |
 |---|---|---|---|
-| qualify with `as` | same | same | none |
-| forget qualification | same | same | none |
-| representation recast | changes | same bits under its validated plan | none |
-| validation | same | same | yes |
-| conversion | same or different | may change | ordinary contracted work |
+| qualify or coerce with `as` | same | may change | compiler intrinsic only |
+| forget qualification | same | unchanged | none |
+| representation recast | same bits under its validated plan | changes carrier | none |
+| validation | same | unchanged | ordinary checked work |
+| conversion | may change carrier value | same or different carrier | ordinary contracted work |
 
 Forgetting `raw 1 in Km` yields raw `1`; converting it to metres yields
 `1000`. Runtime validators and numeric or unit conversions remain ordinary

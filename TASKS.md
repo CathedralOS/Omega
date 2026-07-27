@@ -352,7 +352,14 @@ move it to a convenience library.
   aggregate borrow propagation.
 - Implement constant data parameters after their identity/coherence rules are
   pinned by existing generic machinery.
-- Dynamic traits are owner-blocked on #1.
+- Implement local dynamic traits as two-word borrowed descriptors selecting one
+  complete nominal conformance. Derive the per-requirement dynamic surface,
+  lower checked adapters, retain compile-time operational envelopes, add
+  transparent trait refinements and named-conformance generic bounds, and
+  prototype envelope/effect-row inference before committing the full lowering.
+  Local descriptors must not cross replaceable component boundaries. Add owned
+  erased values only after general storage ownership, size/alignment metadata,
+  and cleanup contracts can support them.
 - Extend compiler-run Omega/build-time evaluation after owner question #5.
 - Implement separate compilation and replaceable-realization artifacts without
   new replacement syntax. A component is a selected provider realization plus
@@ -360,9 +367,14 @@ move it to a convenience library.
   crossing that closure name requirements; concrete calls remain internal.
   Keep candidate resource demand separate from stable semantic identity unless
   policy explicitly fixes a budget. Emit target/runtime stack-provision needs,
-  mapping lifetime cohorts, and two-sided import/export validation. Runtime
-  binding-era algorithms, drain/coexistence policy, migration scheduling, and
-  resource provisioning remain consumer/runtime work.
+  mapping lifetime cohorts, and two-sided import/export validation. Implement
+  boundary-trait binding multiplicity, `BindingEntryCeiling`/plan validation,
+  origin/custodian claim metadata, custody transfer receipts, compiler root
+  maps, enumerable component-state roots, and named-path retention reports.
+  Runtime binding-era algorithms, drain/coexistence policy, migration
+  scheduling, and resource provisioning remain consumer/runtime work. Stable
+  object identity and the ObjectTable migration bundle wait for a deployment
+  that requires replacement without holder cooperation.
 - Implement serialized capability attenuation/revocation.
 - Portable atomic fences are owner-blocked on #13.
 - Foreign retained-pointer lifetimes are owner-blocked on #14.
@@ -397,7 +409,6 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 dynamic trait contract | runtime descriptors and indirect dispatch |
 | #2 cleanup graph/partial values | automatic cleanup and multiplicity completion |
 | #3 resource frontier and transformations | contained linear debt, cleanup, and authority transformations |
 | #4 quotient convergence | N6/`Real` quotient packaging |

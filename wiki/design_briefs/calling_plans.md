@@ -353,6 +353,39 @@ leaves. Admission proves or accepts that a realization refines the complete
 boundary plan. See
 [`extern_boundary_and_format_domains.md`](extern_boundary_and_format_domains.md).
 
+### Local dynamic dispatch
+
+`dyn Trait` remains within one artifact and does not use a boundary
+`CallPlan`. Its descriptor selects one complete conformance and an
+artifact-private requirement table. The requirement owns one erased caller
+call shape; each selected satisfier supplies a checked adapter into its
+physical machine shape.
+
+The dynamic requirement's operational envelope accounts for the complete
+dispatch path:
+
+```text
+descriptor dispatch
++ table adapter
++ erased physical call shape
++ selected satisfier demand
+```
+
+Call-shape cost is a resource term, not merely an ABI note. If a
+suspension-capable requirement needs a continuation-capable physical shape,
+even a nonsuspending satisfier pays that shape's frame and structural work. It
+may satisfy the suspension guarantee while still exceeding a caller's stack or
+work ceiling.
+
+The exact continuation-capable lowering depends on the final suspension-frame
+representation. The architecture does not: one requirement-owned erased shape,
+checked adapters, and resource accounting in the per-requirement envelope.
+
+A local table is never shipped across a replaceable component boundary.
+Component calls use the boundary requirement's evaluated `CallPlan`,
+`StatePlan`, and entry contract. A local proxy may adapt that component
+binding back into `dyn Trait` inside the consumer artifact.
+
 ## External roots
 
 An inbound stub installed for hardware or foreign callbacks is an external root
