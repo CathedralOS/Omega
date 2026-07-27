@@ -223,7 +223,7 @@ machine Metrics::sample<T>(
     out: &mut CounterSnapshot
 )
 where
-    T: CounterLike
+    T satisfies CounterLike
 {
     source.snapshot(out);
 }
@@ -231,7 +231,7 @@ where
 
 Common requirements:
 
-- Trait requirements: `T: CounterLike`.
+- Trait requirements: `T satisfies CounterLike`.
 - One-off machine requirements: `machine T::poll(&mut self) -> PollResult`.
 - Value/proof requirements: `N > 0`.
 - Effect requirements: a generic operation may be callable only when its
@@ -246,6 +246,19 @@ domain, maintained through invariant windows — see
 
 Traits are covered in the next chapter. Generics only need to provide a place
 for constraints to live.
+
+A trait bound tests an existing nominal conformance; it does not declare one.
+When one conformance is selectable, its name is omitted. When a type has
+several conformances to the same trait, the bound names the complete
+conformance:
+
+```omega
+where
+    C satisfies Card::PowerOrder
+```
+
+The body then uses requirements from that one conformance. It never mixes
+machines from several conformances.
 
 ## Static Dispatch
 

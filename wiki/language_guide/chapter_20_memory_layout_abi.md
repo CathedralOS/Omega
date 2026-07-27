@@ -218,7 +218,7 @@ DLL import, vtable slot, or provider realization must refine the convention the
 requirement already pinned; its mechanism does not silently select an ABI. A
 semantic boundary trait that is reusable across conventions can expose the
 policy as an ordinary type parameter, for example
-`boundary trait Console<C>: Calling<C> where C: CallingPolicy`. Concrete
+`boundary trait Console<C>: Calling<C> where C satisfies CallingPolicy`. Concrete
 instantiations remain distinct boundary contracts, and one instantiation cannot
 mix conventions entry by entry.
 
@@ -418,7 +418,7 @@ families. Helpers may accept one such accessor instead of the whole view:
 ```omega
 machine send_byte<T>(transmit: T, byte: u8)
 where
-    T: Writable<u8>
+    T satisfies Writable<u8>
 {
     transmit.write(byte);
 }

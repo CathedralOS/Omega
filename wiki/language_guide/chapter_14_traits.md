@@ -40,56 +40,55 @@ a name for the required surface.
 `satisfies Incrementable` is an explicit binding: this machine intentionally
 fulfills the matching requirement from `Incrementable`.
 
-> **Named satisfiers (drafted 2026-07-18, direction).** Under an explicit
-> `satisfies` clause, the machine's own name may differ from the trait's
-> required-machine name — so a type may carry *several named satisfiers* of
-> one trait (`Card::PowerOrder` and `Card::RarityOrder` both satisfying a
-> key-shaped ordering trait). Omega selects explicitly where Rust's implicit
-> resolution forces one impl per type: selection happens where concrete
-> meets abstract — spelled in a generic instantiation, and at a `dyn`
-> coercion (settled 2026-07-18):
->
-> ```omega
-> let h: &dyn Ranked = &card;                            // unique satisfier: implicit
-> let h: &dyn Ranked = &card as &dyn Card::PowerOrder;   // plural: name the binding
-> ```
->
-> `dyn` over a satisfier path is the operator that turns a conformance into
-> a viewable type; the form **decays immediately** to `&dyn Trait` — the
-> satisfier is carried in the descriptor and erased downstream, never part
-> of type identity (two differently-bound `&dyn Ranked` are the same type).
-> The trait is recovered from the `satisfies` clause, disambiguated by
-> expected type if a machine ever satisfies several traits. Elided when
-> unique, a loud error listing candidates when plural — the landed
-> bail-on-ambiguity pattern. **Conformance visibility (settled
-> 2026-07-18)** is what makes elision sound: anyone may conform any type
-> to any trait, but implicit selection consults only **home**
-> conformances — those declared in the type's package or the trait's
-> package. A third-party conformance (owner of neither) is legal and
-> **named-only**: usable anywhere by spelling it, never a candidate for
-> an unnamed call. Imports therefore control whether a *name* resolves;
-> they never change what an *unnamed* call does — "it found the wrong
-> impl" is unwritable, not unlikely. A fully explicit chain
-> (`as &dyn Card::PowerOrder as &dyn Ranked`) is valid by composition —
-> coercion then identity recast — and useful only where no annotation
-> supplies context; no `by` or other connective exists. `measure`
-> (chapter 10) is declaration sugar for a named satisfier of the ordering
-> trait.
->
-> **Completions (settled 2026-07-18, the rearrange-mode arc — record in
-> the mathematical_proofs brief):** (1) a trait may declare FREE-machine
-> requirements (`machine add(a: Self, b: Self) -> Self;` — no `Self::`,
-> mirroring free proof machines); (2) a requirement may carry `ensures`
-> — a conformance THEOREM every satisfier must prove, discharged by
-> matching the binding machine's proven ensures first-order (the
-> layouts-settle mechanism, now general); (3) when requirement
-> signatures collide, the `satisfies` clause names the requirement path
-> (`satisfies CommutativeSemiring::mul as Tropical`) — the missing
-> disambiguation half of name-divergent binding, same
-> elide-when-unique/loud-when-plural pattern; (4) clause order is
-> signature → `satisfies` → `terminates [by ...]` → ordinary contracts →
-> checked body, or signature → `satisfies` → `via <Binding>;` for an
-> irreducible external realization.
+### Named conformances
+
+A type may satisfy one trait in several coherent ways. Each named conformance
+binds the complete trait surface; Omega never assembles one conformance from
+requirements supplied by different conformances.
+
+```omega
+Card satisfies Ranked as PowerOrder;
+Card satisfies Ranked as CostOrder;
+```
+
+Selection happens where concrete code meets an abstract requirement. A unique
+visible home conformance is inferred. If several conformances are eligible,
+the use names one:
+
+```omega
+let ranked: &dyn Ranked =
+    &card as &dyn Card::PowerOrder;
+
+machine sort<C>(cards: &mut [C])
+where
+    C satisfies Card::PowerOrder
+{
+}
+```
+
+The same rule governs static bounds and dynamic coercions: uniqueness permits
+elision; ambiguity requires a conformance path. Naming a conformance selects
+one coherent set of requirements, including every law relating those
+requirements.
+
+Implicit selection consults only home conformances declared by the type's
+package or the trait's package. A third-party conformance is legal but
+named-only. Imports can therefore make a conformance name resolvable; they
+cannot silently change an unnamed selection.
+
+A trait may declare free-machine requirements:
+
+```omega
+trait Additive {
+    machine add(a: Self, b: Self) -> Self;
+}
+```
+
+A requirement may carry contracts such as `ensures`; every conformance proves
+them. When requirement signatures collide, the machine's `satisfies` clause
+names the requirement path. Clause order is signature, `satisfies`,
+`terminates [by ...]`, ordinary contracts, then the checked body. An
+irreducible external realization uses `via <Binding>;` instead of a body.
 
 ### Core qualification conformance
 
@@ -141,7 +140,7 @@ machine Player::draw(
 )
 satisfies Drawable
 where
-    Canvas: RasterTarget
+    Canvas satisfies RasterTarget
 requires
     self.health > 0
 effects
@@ -220,7 +219,7 @@ machine Metrics::sample<T>(
     out: &mut CounterSnapshot
 )
 where
-    T: CounterLike
+    T satisfies CounterLike
 {
     source.snapshot(out);
 }
@@ -263,7 +262,7 @@ trait CallingPolicy {
 
 trait Calling<C>
 where
-    C: CallingPolicy
+    C satisfies CallingPolicy
 {
 }
 
@@ -353,10 +352,9 @@ expected transform surface when a framework or checker needs one.
 
 ## Dispatch
 
-Trait satisfaction should be static by default.
-
-If a call site says `T: CounterLike`, the compiler should resolve the concrete
-machine targets during compilation whenever possible.
+Trait satisfaction is static by default. If a call site says
+`T satisfies CounterLike`, the compiler resolves the concrete machine targets
+during compilation.
 
 ```omega
 machine Metrics::sample<T>(
@@ -364,24 +362,15 @@ machine Metrics::sample<T>(
     out: &mut CounterSnapshot
 )
 where
-    T: CounterLike
+    T satisfies CounterLike
 {
     source.snapshot(out);
 }
 ```
 
-The default should be direct machine calls with trait requirements erased after
-checking.
-
-Dynamic dispatch is still needed for runtime-selected implementations:
-
-- Hot-swappable OS components.
-- Runtime-loaded plugins.
-- ABI/component boundaries.
-- Versioned replaceable requirement bindings.
-- User app extension points.
-
-That should be explicit.
+The default is a direct machine call with the trait requirement erased after
+checking. `dyn` is the explicit form for runtime selection among conformances
+compiled into the same artifact:
 
 ```omega
 machine App::run_filter(
@@ -393,54 +382,191 @@ machine App::run_filter(
 }
 ```
 
-`dyn ImageFilter` means the concrete data shape is hidden behind an interface
-handle. Mechanically, it is a runtime dispatch pair:
+### Local dynamic values
+
+A borrowed dynamic value is two runtime words:
 
 ```text
-dyn ImageFilter:
-  instance handle or data pointer
-  machine table for ImageFilter
+&dyn ImageFilter
+┌──────────────────┬──────────────────────────────┐
+│ instance pointer │ selected-conformance table   │
+└──────────────────┴──────────────────────────────┘
 ```
 
-A call such as `filter.apply(image)` dispatches through that machine table.
+The requirement name selects a table slot. The table entry calls the matching
+machine from one selected conformance. When a type has several conformances to
+the trait, a coercion names the conformance:
 
-Inside a single already-built boundary binary, this is ordinary runtime
-indirection. Across a dynamic loading or hot-swap boundary, it becomes a loader
-and boundary problem.
+```omega
+let ranked: &dyn Ranked =
+    &card as &dyn Card::PowerOrder;
+```
 
-A dynamic interface value must carry or be associated with enough metadata to
-check:
+The coercion is an `as` operation: the compiler proves that the named
+conformance fits and packages the same referent with a statically selected
+table. It runs no user code and cannot fail.
 
-- Which machine table is passed?
-- Is the target hot-swappable?
-- What effects are allowed?
-- Can the call cross boundary or host boundaries?
-- Are versioned machine surfaces still compatible?
-- What ABI version is used?
-- Which concrete authority values and domains were granted?
-- What lifecycle hooks exist for drop, migration, and replacement?
+The table is a private realization. Logical identity records the trait,
+selected conformance, and normalized contracts rather than a table address.
+Adding a conformance therefore does not change the layout of the concrete
+type.
 
-For a Theseus-like OS, `dyn`-like runtime indirection is not optional. Versioned
-data can prove that replacement is compatible and that state can migrate, but a
-running caller still needs an era-safe runtime binding, table, trampoline, or
-endpoint that can be updated to the new realization. This is runtime
-representation of an ordinary requirement crossing, not a `slot` source
-construct.
+The source dynamic form described here is borrowed. An owned erased value
+additionally needs a storage owner, size/alignment metadata, and checked
+cleanup. Those compose with the same selected-conformance table after the
+general owned-storage and cleanup contracts land; they do not change local
+dispatch or make the value component-safe.
 
-Working rule:
+### Dynamic surface
 
-- Static trait dispatch is the default.
-- `dyn Trait` is reserved for explicit runtime interface boundaries.
-- Dynamic-loaded `dyn` values must pass loader, ABI, effect, authority-flow,
-  boundary-provider, and version checks.
-- Unverified dynamic code should be isolated or capability-limited.
+A requirement is available through `dyn Trait` when all of these hold:
+
+- its receiver is `&self` or `&mut self`;
+- `Self` appears nowhere else, including nested runtime contracts;
+- it has no requirement-local generic parameters;
+- parameter and result representations are concrete after trait parameters
+  are bound;
+- it is not a boundary-machine requirement;
+- every returned borrow lifetime is expressible from the inputs;
+- its public contract names no satisfier-private identity; and
+- its operational contract normalizes into the requirement's dynamic
+  envelope.
+
+Eligibility is per requirement. An ineligible
+`machine clone(&self) -> Self` is absent from the dynamic surface; it does not
+make unrelated requirements unavailable through `dyn`. Calling it on a
+dynamic value reports why that requirement cannot be dispatched. There is no
+`Self: Sized` escape hatch: exclusion follows from the signature the compiler
+already sees.
+
+One conformance supplies the complete dynamic surface. A table never mixes
+requirements from different conformances, because contracts may relate
+several requirements within one conformance.
+
+### Operational envelopes
+
+Erasing implementation identity must not erase the static facts needed to
+check the caller. Each eligible requirement therefore retains a compile-time
+operational envelope: the operational projection of its normalized machine
+contract. It includes service reach and effects, write frame, capability
+requirements, suspension, blocking, failure, termination, and quantitative
+resource ceilings. Carry remains a property of the dynamic value rather than
+of an individual requirement.
+
+The envelope adds no runtime words. A concrete coercion records the selected
+conformance's exact envelope in static type information. At control-flow joins,
+obligations combine permissively by union or maximum; guarantees combine
+conservatively by conjunction or intersection. In particular, carry
+permissions intersect and termination survives only when every alternative
+guarantees it.
+
+An unannotated dynamic parameter is implicitly polymorphic over fitting
+envelopes. Only requirements reachable through the machine's call graph
+contribute to its inferred contract. Passing the value onward contributes
+requirements called transitively; storing it instead requires the storage
+type's declared bound. Envelope polymorphism changes contract checking, not
+runtime representation, and does not require machine-code monomorphization.
+
+### Transparent trait refinements
+
+A transparent refinement gives a reusable name to a narrower trait contract:
+
+```omega
+pub trait LocalLogger = Logger {
+    machine *
+        effects;
+        suspends false;
+        blocks false;
+        terminates;
+}
+
+pub trait BufferedLogger = Logger {
+    machine Logger::write
+        effects;
+        suspends false;
+
+    machine Logger::flush
+        effects Storage;
+}
+```
+
+A refinement is a bound, not a new nominal conformance target. A type must
+still explicitly satisfy `Logger`; fitting the refinement is then a structural
+contract check over that existing conformance. A machine declaration cannot
+`satisfies LocalLogger`, while a generic bound may say:
+
+```omega
+machine record<L>(logger: &L)
+where
+    L satisfies LocalLogger
+{
+    logger.write("record");
+}
+```
+
+If several conformances are eligible, the bound names one exactly as a dynamic
+coercion does:
+
+```omega
+where
+    C satisfies Card::PowerOrder
+```
+
+`machine *` applies to every present and future requirement in the base trait;
+a targeted clause names one requirement. Unmentioned requirements and axes
+inherit the base contract. A refinement may narrow obligations or strengthen
+guarantees, never widen them. Multiple refinements combine by an
+order-independent meet, and expansion happens before normalization and
+fingerprinting.
+
+Within a machine contract, an omitted `suspends` or `blocks` clause means
+false. Within a refinement, omission means inherit; `suspends false` and
+`blocks false` explicitly narrow. `effects;` means an empty row, while
+`effects _;` introduces an independent abstract effect row for that
+requirement. Correlating several requirements with one named row is a later
+extension.
+
+The `satisfies` token consequently has two related grammatical uses. On a
+machine or conformance item it creates a nominal conformance edge. In a
+generic `where` clause it tests an already-declared edge, optionally selecting
+its name.
+
+### Components are a different crossing
+
+A local dynamic descriptor never crosses a replaceable component boundary.
+Its table uses within-artifact calling semantics, and freely copied
+descriptors cannot be enumerated for unload or migration. A component exposes
+a boundary requirement whose calls use the selected `CallPlan` and
+`StatePlan`.
+
+Code that wants a local dynamic interface over a component owns a local proxy:
+
+```omega
+data LoggingProxy {
+    service: LoggingService;
+}
+
+machine LoggingProxy::write(&self, text: &[u8])
+    satisfies Logger::write as ComponentLogger
+    effects LoggingService
+    suspends
+{
+    self.service.write(text);
+}
+
+let logger: &dyn Logger =
+    &proxy as &dyn LoggingProxy::ComponentLogger;
+```
+
+The descriptor points to the proxy in the current artifact. The proxy crosses
+the boundary through the ordinary binding, concentrating ABI, replacement,
+effect, and resource costs at one named seam.
 
 ## Satisfaction
 
-There are two plausible satisfaction modes.
-
-Inferred satisfaction keeps the language small. If the machines exist, the
-trait is satisfied.
+Conformance is nominal. A matching set of machines does not silently make a
+type satisfy a trait; a `satisfies` clause or standalone conformance item
+declares the edge and gives the compiler a stable place to check it.
 
 ```omega
 trait Incrementable {
@@ -455,37 +581,23 @@ machine Counter::increment(&mut self) {
     self.value = self.value + 1;
 }
 
+Counter satisfies Incrementable;
+
 machine Scheduler::step<T>(
     subject: &mut T
 )
 where
-    T: Incrementable
+    T satisfies Incrementable
 {
     subject.increment();
 }
 ```
 
-`Counter` satisfies `Incrementable` because `Counter::increment` exists with a
-compatible signature.
-
-Explicit machine binding gives better intent and better diagnostics.
-
-```omega
-data Counter {
-    value: i32;
-}
-
-machine Counter::increment(&mut self) satisfies Incrementable {
-    self.value = self.value + 1;
-}
-```
-
-If the machine signature drifts, the compiler can point at the machine's
-`satisfies` clause instead of only failing later at a generic call site.
-
-Working preference: infer by default for local/simple use, allow explicit
-machine `satisfies` for public API boundaries, documentation, generated
-artifacts, and clearer errors.
+A machine may bind a requirement directly with
+`satisfies Incrementable::increment`; a standalone conformance item binds and
+checks the complete surface. Structural checks still answer whether the
+declared conformance fits a transparent refinement, but they never create the
+nominal edge.
 
 ## Invariants And Effects
 
@@ -564,8 +676,8 @@ machine Network::send<T, Message>(
     value: &T
 )
 where
-    T: WireEncodable<Message>,
-    Message: WireMessage
+    T satisfies WireEncodable<Message>,
+    Message satisfies WireMessage
 {
     let message: Message;
     value.to_wire(&mut message);
@@ -630,7 +742,7 @@ machine CounterDefaults::reset<T>(
     value: &mut T
 )
 where
-    T: SettableCounter
+    T satisfies SettableCounter
 {
     value.set(0);
 }
@@ -642,10 +754,9 @@ the conformance story below.
 
 ## Conformance Items
 
-Trait implementations are ordinary attached machines (structural satisfaction,
-above) -- nothing trait-shaped ever appears on a `data` declaration. When a
-whole (type, trait) pair should be claimed, checked, or filled in, the spelling
-is a standalone CONFORMANCE ITEM:
+Trait implementations are ordinary attached machines; nothing trait-shaped
+appears on a `data` declaration. A standalone conformance item declares and
+checks the nominal relationship for a whole `(type, trait)` pair:
 
 ```omega
 Point satisfies Equatable;
@@ -661,10 +772,10 @@ Those arguments specialize authored default signatures and bodies. They also
 compose through header parents, so a non-generic `trait IntSink: Sink<i32>`
 passes `i32` into defaults inherited from `Sink<T>`.
 
-The claim is discharged member by member:
+The declared claim is discharged member by member:
 
 - a hand-written machine with the matching signature is CHECKED (today's
-  structural satisfaction),
+  structural fit check),
 - a missing member whose trait declares a machine body gets that
   body INSTANTIATED for the conforming type,
 - a missing member of a SYNTHESIZABLE core trait is generated by the compiler
@@ -813,7 +924,7 @@ machine DriverLoop::poll_once<T>(
     device: &mut T
 )
 where
-    T: Pollable
+    T satisfies Pollable
 {
     let result: PollResult;
     device.poll(&mut result);
@@ -839,14 +950,7 @@ reusable contract, that group can be a trait.
 
 ## Open Questions
 
-- Should public API boundaries require explicit `satisfies`, or is inference
-  enough with lint support?
 - Are associated data slots needed soon, or are trait parameters enough for the
   first implementation?
 - Is `where machine T::poll(...)` the right spelling for a one-off machine
   requirement?
-- What is the exact runtime representation of `dyn Trait`: fat pointer,
-  component handle, dispatch table, endpoint, trampoline, or target-specific
-  lowering?
-- Which `dyn` calls are legal inside fully boundary code, and which require
-  loader or authority mediation?

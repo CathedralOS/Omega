@@ -1,6 +1,6 @@
 # Design Brief: Separate Compilation And Replaceable Realizations
 
-Current as of 2026-07-24. Status: architecture settled; artifact and runtime
+Current as of 2026-07-26. Status: architecture settled; artifact and runtime
 representations remain open.
 
 ## Terms that must not collapse
@@ -75,6 +75,45 @@ selected realization's actual demand. A replaceable edge must remain valid for
 the admitted candidate and therefore composes through requirement promises and
 candidate admission records rather than private implementation evidence.
 
+## Bindings and era entry
+
+A boundary-trait value names a selected provider slot. It does not contain a
+local dynamic-dispatch table and does not name one provider era permanently.
+After publication, new calls resolve the slot to the new era; an already
+entered call or era-custodied session retains the era it selected.
+
+Multiplicity and rebinding are independent. A `[copy]` binding may be
+duplicated because every copy still resolves the current slot. Duplication
+does not create old-era retention. An affine or linear binding restricts
+authority duplication for its own contract, not because replacement requires
+it.
+
+Every replaceable binding publishes an entry contract with these semantics:
+
+1. each entry linearizes into exactly one era;
+2. that era remains reachable until the matching leave;
+3. closing an era prevents future entry into it;
+4. reclamation waits for acknowledged quiescence; and
+5. entry and leave publish operational and resource cost.
+
+The algorithm is runtime policy. Epochs, RCU, counters, hazard references, or a
+target-specific single-core scheme may satisfy the same contract. Whether a
+bounded or interrupt context may call the binding is derived from the admitted
+entry/leave work, stack, suspension, blocking, effect, capability, `CallPlan`,
+and `StatePlan` contracts. There is no separate `isr_safe` switch.
+
+Binding identity contains the abstract requirement contract, selected
+`CallPlan` and `StatePlan`, replacement-facing guarantees, and a
+`BindingEntryCeiling`. A target or runtime supplies a concrete
+`BindingEntryPlan` whose realized demand fits that ceiling. Provider
+realizations may change without changing the binding identity; changing the
+ceiling is a contract change.
+
+Local `dyn` tables never cross this boundary. A consumer that wants a local
+dynamic interface owns a local proxy whose methods call the boundary binding.
+The proxy localizes the ABI, entry, effect, and resource costs while the
+descriptor remains an ordinary within-artifact two-word value.
+
 ## Replacement protocol
 
 Replacement accounts for every live object belonging to the old realization;
@@ -108,6 +147,79 @@ migration, or an admitted indefinite-retention policy. "Routing switched" and
 Objects with independently reclaimable lifetimes occupy separate mapping
 cohorts; unrelated lifetimes must not share a page that one side expects to
 unmap.
+
+## Claim custody and retention reporting
+
+Claim metadata separates historical origin from current custody. Origin remains
+audit history. Custody names the owner whose state currently gives the claim
+meaning and whose era must remain reachable.
+
+Custody follows checked establishment, not opacity or representation. A
+transparent provider-local key can retain an era. Moves, returns, and stores
+preserve custody; consumption discharges it. Transfer requires a named receiver
+and checked acknowledgment. A boundary transfer requires an admitted receipt.
+An implementation cannot create custody merely by writing a postcondition.
+
+The runtime need not instrument every local move. Compiler root maps identify
+claim-bearing places at durable roots and suspension points; continuation maps
+are a projection of the canonical place-liveness analysis already needed for
+carry and stack/resource checking. A coarse holder directory can identify the
+component or container, while exact paths are reported when root metadata
+supports them.
+
+A custom dynamic container that transitively stores claim-carrying values must
+provide checked root enumeration before it may appear in independently
+replaceable component state. Failure is a compile error at the state-field
+declaration, not a surprise during deployment.
+
+Retention reports name old-era edges and the most precise known holding path,
+for example:
+
+```text
+v1 retained by Cache.sessions[14]
+  claim: Transaction in Live
+  custodian: PaymentProvider@v1
+```
+
+Long-lived old-era custody is sound. Deployment policy decides whether to wait,
+retain the era, request an authored custody transfer, or reject the
+replacement.
+
+## Replacement capability tiers
+
+Publication always redirects new binding calls to the new era. The tiers differ
+only in what happens to existing sessions:
+
+| Tier | Existing sessions | Application participation |
+|---|---|---|
+| drain or coexist | continue in the old era until they end | none |
+| explicit migration | holder consumes the old handle and receives a new-era handle | required |
+| stable object identity | a stable object table redirects the durable handle | none |
+
+The first tier uses era-bound handles such as `{era, local_key}`. An optional
+generation hardens admitted or foreign holders but is not required for
+correctness in fully checked Omega code: a live claim keeps its era and slot
+unreclaimable.
+
+Explicit migration is an authored protocol. It transfers state, custody, and
+claims and changes the application-visible handle. A stable object table is
+warranted only when replacement must not require holder cooperation. It
+provides handle transparency, not semantic correctness.
+
+Stable-object migration uses a state machine:
+
+```text
+Live(v1)
+  -> Preparing(current = v1, candidate = v2)
+  -> Cutover(point of no return; publish v2 atomically)
+  -> Live(v2)
+```
+
+Calls during `Preparing` continue to use v1. At cutover, the requirement
+contract must permit the chosen racing-call disposition: continue on the old
+era, bounded wait when allowed, or a declared retry result. The provider proves
+that migrated state denotes the same logical object and that custody and
+resource obligations transfer correctly.
 
 ## Current whole-program rework inventory
 
@@ -150,7 +262,7 @@ contract.
 - symbolic import/export and relocation encoding;
 - concrete entry-acquisition and era-ledger representation;
 - replacement-plan and disposition-receipt representation;
-- continuation/state migration interfaces;
+- continuation/state migration interfaces and the stable-object table bundle;
 - cross-component optimization and specialization rules; and
 - target/runtime stack-provision plans.
 

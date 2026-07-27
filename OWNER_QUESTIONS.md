@@ -2,41 +2,10 @@
 
 Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
-and deliberately deferred research live in `TASKS.md`.
+and deliberately deferred research live in `TASKS.md`. Question numbers remain
+stable when a resolved entry is removed, so gaps are intentional.
 
 Last pruned: 2026-07-26.
-
-## 1. What is the runtime and object-safety contract for `dyn Trait`?
-
-Closed-world call-site specialization currently makes `&dyn Trait` parameters
-execute correctly when every concrete receiver is known at its call site. It
-cannot represent a runtime-varying trait value stored in data, passed across a
-component boundary, or rebound to one of several satisfiers. The language guide
-explicitly leaves the runtime representation and boundary legality open, while
-the remaining task requires descriptors that preserve satisfier identity.
-
-Decide:
-
-- whether the stable value is a two-word `{instance, table}` pair whose table
-  identity names the satisfier, or carries a separate sealed satisfier/contract
-  identity (or component/endpoint handle);
-- which trait signatures are object-safe, especially `Self` outside the
-  receiver, unbound trait parameters, value returns, generic requirements,
-  effects, capabilities, and boundary machines;
-- whether `dyn Trait` may be owned/stored directly or only borrowed, and how
-  lifetime, mutability, drop, migration, and hot-swap pinning travel with it;
-- who emits, owns, versions, validates, and updates machine tables, including
-  the ABI identity used across separately built components; and
-- how named satisfier selection and third-party named-only conformances are
-  encoded and checked at coercion.
-
-Recommendation: use a sealed descriptor whose logical identity is
-`{instance, satisfier_contract}` and let a validated target-specific table be a
-private realization of that contract. Initially admit only borrowed receivers,
-fully bound trait parameters, and requirements whose nonreceiver
-parameters/results do not mention `Self`; require declared effect/capability
-ceilings at every dynamic descriptor entry. This keeps the public model independent of raw
-table addresses and leaves room for loader-controlled table replacement.
 
 ## 2. What is automatic cleanup's graph-edge and partial-value contract?
 
@@ -402,7 +371,7 @@ Decide:
 
 - which existing requirement/satisfier relationship authorizes derivation of a
   callback reference, and whether the source-visible carrier belongs to the
-  same sealed satisfier-reference family as dynamic dispatch while retaining a
+  same sealed satisfier-identity family as local dynamic dispatch while retaining a
   distinct external-entry lowering;
 - how the carrier binds requirement identity, selected satisfier, evaluated
   boundary-entry plan, artifact/version identity, and permitted audience
@@ -416,7 +385,7 @@ Decide:
 - how the private ABI lowering materializes the native callback pointer only
   inside the admitted foreign binding, including callback-specific context,
   lifetime, thread, and reentrancy contracts; and
-- which object-safety/descriptor machinery may be shared with question 1
+- which local descriptor machinery from language-guide chapter 14 may be shared
   without making an external callback merely a `dyn Trait` descriptor entry or
   erasing the internal-versus-external calling distinction.
 

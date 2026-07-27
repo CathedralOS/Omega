@@ -119,6 +119,90 @@ Working interpretation:
   provider must come from the toolchain, target configuration, or an explicitly
   whitelisted boundary package.
 
+## Boundary-Trait Values And Bindings
+
+An ordinary trait name is not a runtime type; use `dyn Trait` for local dynamic
+dispatch. A boundary trait name in value position instead denotes the selected
+binding for that service:
+
+```omega
+data Application {
+    logging: LoggingService;
+}
+```
+
+The binding names a provider slot, not a provider-era address. In a statically
+composed build the compiler can erase the indirection. In a replaceable build,
+each call resolves the slot to one era and retains that era until the call
+leaves. The source API is the same in both builds.
+
+Boundary bindings use ordinary multiplicity:
+
+```omega
+boundary trait LoggingService [copy] {
+    machine write(text: &[u8]);
+}
+
+boundary trait DeviceControl {
+    machine reset(&mut self);
+}
+
+boundary trait Connection [linear] {
+    machine release(self);
+}
+```
+
+`[copy]` means the binding authority is fungible. The default is affine:
+move it or share it by borrow, but do not duplicate it. `[linear]` additionally
+requires explicit discharge. Copying a rebindable binding creates no retention
+edge to an old provider era; active calls and era-custodied session values do.
+
+A service that accounts for or may refuse duplication does not use `[copy]`.
+It exposes an ordinary operation instead:
+
+```omega
+boundary trait LicensedService {
+    machine duplicate() -> LicensedService;
+}
+```
+
+Boundary requirements have an implicit shared binding receiver when none is
+written. `&mut self` requires exclusive binding access, while `self` consumes
+the binding. This receiver is distinct from the selected provider's internal
+state mutation.
+
+Composite bindings take the restrictive meet of their parents' multiplicities.
+Projecting a parent from `&Composite` yields a borrowed parent binding. An
+owned parent is obtained only by consuming and attenuating the composite, with
+every omitted linear obligation returned or discharged. A borrowed projection
+never silently manufactures an owned, copyable sub-binding.
+
+### Local dynamic interfaces over bindings
+
+A local `dyn` descriptor cannot cross a replaceable component boundary: its
+table uses within-artifact calling semantics and copied descriptors cannot be
+ledgered for unloading. An ordinary local proxy bridges the two mechanisms:
+
+```omega
+data LoggingProxy {
+    service: LoggingService;
+}
+
+machine LoggingProxy::write(&self, text: &[u8])
+    satisfies Logger::write as ComponentLogger
+    effects LoggingService
+    suspends
+{
+    self.service.write(text);
+}
+```
+
+Callers own the proxy and derive `&dyn Logger` at the use site. The local
+descriptor points to the proxy; the proxy crosses the boundary through
+`LoggingService` with its selected `CallPlan`, `StatePlan`, entry contract,
+and provider lease. This concentrates the ABI and replacement cost at one
+auditable seam.
+
 ## Service Reach And Operational Clauses
 
 The source `effects` row is a `+`-separated ceiling of name-resolved boundary
@@ -529,6 +613,47 @@ The compiler should understand boundary traits, provider packages, libraries,
 symbols, calling conventions, boundary providers, and target image imports
 generically. It should not special-case every Windows, Darwin, Linux, or SDK
 API.
+
+### Origin and custody
+
+A claim records two independent provenance facts:
+
+- **origin** answers where the claim first came from and remains audit history;
+- **custodian** answers which owner currently gives the claim meaning and must
+  remain available for reclamation.
+
+Custody follows establishment, not representation. A transparent
+`Transaction { slot: u64 }` may still be custodied by the provider era whose
+session table interprets `slot`. Moves, returns, and stores preserve custody;
+consumption discharges it.
+
+Fresh claims established by a component default to that component era as
+custodian. Custody can change only through a checked transfer to a named
+receiver:
+
+```omega
+machine StableLedger::adopt(
+    &mut self,
+    transaction: Transaction in Live
+) -> adopted: Transaction in Live
+    ensures custodied_by(adopted, self);
+```
+
+`custodied_by` is a proof relation, not a freely assertable fact. A checked body
+must prove the transfer and acknowledgment; a boundary implementation must
+return an admitted receipt naming the receiver and subject. A written
+postcondition creates an obligation and is never evidence by itself.
+
+Multiplicity is independent. A copyable historical fact may need no discharge;
+a linear session does. A copyable boundary binding names a current provider
+slot and does not retain an old era. A session claim custodied by an old era
+does retain it until transfer or discharge.
+
+Long-lived old-era custody is sound but can delay deployment indefinitely.
+Replacement reports therefore name retention edges and, where root metadata
+permits, their holding paths such as `Cache.sessions[14]`. Deployment policy
+may reject or require adoption of those edges without introducing a
+`stable(custodian)` type predicate.
 
 ## Host Providers
 
