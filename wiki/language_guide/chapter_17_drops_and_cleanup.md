@@ -1,28 +1,23 @@
 # Chapter 17: Drops And Cleanup
 
-Owned values need a deterministic cleanup story.
+Owned values need a deterministic cleanup story. Omega represents that story
+on graph edges, where ownership actually changes, rather than at lexical braces
+or in backend-invented drop flags.
 
-The language should not pretend cleanup is a library convention. If owned values
-can manage heap storage, locks, file handles, sockets, GPU buffers, or other
-resources, the compiler must know when those values stop being live and what
-cleanup obligations remain.
-
-Working model:
+The core rules are:
 
 - Plain values with no cleanup simply stop being live.
-- Resource-owning values may have a cleanup machine.
-- The compiler inserts cleanup on graph edges where an owned value dies.
-- Transition arguments can move ownership to the target state.
-- Cleanup is visible in lowered graphs and proof artifacts.
-- Automatic cleanup may execute, but it must be infallible and must not
-  suspend. Fallible or suspending release needs an explicit machine such as
-  `close`, `flush`, `commit`, `join`, or `cancel`.
-- Automatic cleanup applies to affine ownership. A live linear obligation
-  requires an explicit terminal consumer and is an error at scope exit.
+- Affine values may have automatic cleanup.
+- Linear values require an explicit terminal consumer and reject if they would
+  die on an edge.
+- Moving a value transfers its obligation.
+- Every ordinary outgoing edge carries a checked cleanup plan.
+- Nuclear abort is not an ownership-graph edge and performs no cleanup.
+- Cleanup remains visible in semantic, proof, debug, and resource artifacts.
 
 ## Cleanup Machines
 
-A type can define cleanup through a reserved machine shape.
+Cleanup uses an ordinary reserved machine shape:
 
 ```omega
 data MutexGuard<T> {
@@ -36,159 +31,293 @@ machine MutexGuard::drop(&mut self)
 }
 ```
 
-The exact syntax is provisional, but the semantics are not:
+`drop` receives one whole valid value. It may call ordinary machines and carry
+declared effects or boundary reach, but automatic cleanup is always:
 
-- `Mutex::lock` can return `MutexGuard<T>`.
-- `MutexGuard<T>` owns the obligation to unlock.
-- When the guard dies, the compiler inserts `MutexGuard::drop`.
-- The drop guarantee contributes the fact that the mutex is unlocked.
-- If a context forbids blocking cleanup, `drop` must satisfy that operational
-  blocking ceiling.
+- terminating;
+- infallible;
+- non-suspending;
+- nonblocking; and
+- free of abort, trap, or another abnormal outcome.
+
+A release that waits, suspends, may fail, or promises protocol completion is an
+explicit consuming machine such as `close`, `flush`, `commit`, `finish`, or
+`cancel`. A resource with no valid nonblocking terminal outcome must be linear.
+An affine resource may instead have an authorized nonblocking fallback, such as
+abandonment or transfer to a stable custodian.
+
+Enqueuing deferred reclamation transfers the obligation to the queue; it does
+not discharge it. The queue must publish capacity, servicing, progress, and
+resource bounds that cover eventual discharge. Without those contracts it is a
+declared leak with extra data structure.
 
 ## Edge Cleanup
 
-Cleanup is graph-aware, not merely textual.
+Cleanup is an edge property, not a node property. Every ordinary edge follows
+one semantic sequence:
 
-```omega
-state locked(&mut self) {
-    let guard: MutexGuard<Data> = self.data.lock();
+```text
+select the edge
+    ↓
+evaluate and materialize successor arguments or the return value
+    ↓
+commit the ownership transfer map
+    ↓
+clean the remaining dying affine places
+    ↓
+verify the resulting frontier
+    ↓
+hand control to the successor or caller
+```
 
-    transition self.mode {
-        Mode::Read -> read_with_guard(move guard)
-        Mode::Write -> write_with_guard(move guard)
-        Mode::Done -> done()
-    }
+This sequence applies to:
+
+- explicit state transitions;
+- terminal returns;
+- ordinary success and failure edges;
+- natural state completion; and
+- compiler-synthesized call continuations.
+
+Argument evaluation may itself contain ordinary graph edges. Each such edge
+uses the frontier that exists after the evaluations preceding it. Nuclear abort
+has no successor in the ownership graph and therefore has no cleanup plan.
+
+For an edge `e`:
+
+```text
+Fₑ = permission frontier after outgoing values are materialized
+Mₑ = source-place → target-place ownership mapping
+
+transferred(e) = domain(Mₑ)
+dying(e)       = owned(Fₑ) \ domain(Mₑ)
+
+image(Mₑ) must fit EntryFrontier(target)
+```
+
+The target frontier describes its required shape, facts, multiplicity, access,
+and operational metadata. Different predecessors may supply different
+historical origins; they do not have to supply the same source-place identity.
+A required target place with no mapped live source is an error. Extra affine
+places are cleaned on their predecessor edges.
+
+Example:
+
+```text
+        S1 {x, y, r}                S2 {x, r}
+             │                          │
+             │ e1: clean y              │ e2: no cleanup
+             └──────────┬───────────────┘
+                        ▼
+                   S3 {x, r}
+```
+
+No runtime flag is needed. The two predecessor edges already identify the
+different ownership situations.
+
+## Joins And Runtime Discrimination
+
+Audit-only origin may remain path-sensitive. Operational metadata may join only
+when every alternative uses the same realization, or when the distinction is
+already carried by ordinary runtime representation or control state.
+
+Examples of valid existing discriminators include:
+
+- a sum tag;
+- an era-bearing handle;
+- an admitted provider key; or
+- an author-visible state distinction.
+
+When cleanup or custody transfer differs and no discriminator exists, the
+author must normalize to a common custodian or represent the alternative
+explicitly. A sum contains the same runtime bit that a hidden drop flag would
+have contained, but makes it part of the type, layout, and report.
+
+The checker never duplicates a named semantic state to make an invalid join
+typecheck. After checking, code generation may clone or share physical blocks
+when every realization maps back to the same typed edge plan. Physical layout
+cannot create a different frontier meaning.
+
+## State Parameters Remain Explicit
+
+Machine parameters are roots owned by the activation, but that ownership does
+not make them ambient names in every internal state. A state receives the
+values, borrows, and authority named by its parameters, and transitions spell
+the corresponding mappings.
+
+The storage planner may coalesce an unchanged source and target place, so an
+explicit semantic transfer need not copy bytes or execute code. The permission
+ledger still records the transfer. This preserves state signatures as
+source-visible proof and authority frontiers without imposing a runtime tax.
+
+## Cleanup Order
+
+Cleanup order is deterministic:
+
+1. Independent roots are cleaned in reverse declaration order.
+2. Locals therefore precede by-value machine or state parameters declared
+   before them.
+3. A whole value's nominal `drop(&mut self)` runs before structural field
+   cleanup.
+4. Remaining fields are cleaned in reverse declaration order.
+5. A sum cleans only its active payload.
+
+The checker validates that cleanup-bearing borrow and ownership dependencies
+agree with this order. A borrowed owner cannot die before a dependent cleanup
+action.
+
+Reverse declaration order is stable at joins. Dynamic acquisition history is
+not. APIs needing a different release protocol express it through an explicit
+owner or consuming machine rather than asking cleanup to reconstruct history.
+
+## Partial Values
+
+The frontier ranges over canonical places, not just bindings:
+
+```text
+resources before move:
+  .file   → live
+  .socket → live
+
+move resources.file
+
+resources after move:
+  .file   → moved
+  .socket → live
+```
+
+An aggregate with structural field cleanup may be partially moved. Its cleanup
+plan visits only the remaining live fields.
+
+A type with a nominal whole-value `drop` body may not be partially moved:
+the body is entitled to receive one whole valid value. Such a type exposes an
+explicit consuming decomposition machine when field extraction is meaningful.
+The cleanup body must return with the value valid; its resulting field frontier
+then determines structural cleanup.
+
+Dynamic-index owned extraction remains subject to the general requirement that
+the checker can name one unique place. No cleanup-specific runtime bitmap is
+introduced to compensate for an unnameable frontier.
+
+## Contextual Droppability
+
+Multiplicity is a type property; automatic droppability is checked at the
+particular edge. Every `requires` clause on `drop` must be established there.
+A value may therefore be automatically droppable in one state and require an
+explicit consumer or fact-preserving transfer in another.
+
+Diagnostics name both the edge and the missing cleanup premise:
+
+```text
+cannot leave edge Transaction::active -> done
+
+automatic Transaction::drop requires:
+  custodied_by(transaction, stable_ledger)
+
+available:
+  custodied_by(transaction, PaymentProvider@v1)
+
+transfer custody or call an explicit consuming operation
+```
+
+For a generic checked body, cleanup requirements are inferred from its edges
+and enter the normalized generic contract. An instantiation diagnostic points
+both to the failing caller and to the originating cleanup edge; the caller
+should not have to discover a remote implicit drop from a bare unsatisfied
+predicate.
+
+## Effects, Resources, And Cycles
+
+Cleanup contributes to the enclosing machine contract on the existing axes:
+
+- effects, reach, write frames, and capabilities combine by their ordinary
+  union rules;
+- structural work sums actions taken on one edge, then takes the maximum across
+  alternative acyclic edges;
+- stack uses peak composition within an edge, then takes the maximum across
+  alternatives;
+- every reachable cleanup action contributes its requirements and guarantees;
+  and
+- every cleanup action must satisfy termination and automatic-cleanup control
+  restrictions.
+
+For a measured cycle, cleanup on the backedge runs once per iteration. Bounded
+work therefore composes with the same ranking that proves termination:
+
+```text
+total work
+  = entry work
+  + iteration bound × maximum cycle-edge work
+  + exit work
+```
+
+Cleanup is included in the cycle-edge term. Max-over-edges alone is not a valid
+bound for repeated backedges.
+
+## Conservation Witness
+
+The center of every cleanup artifact is one conservation theorem:
+
+> Every incoming owned obligation is assigned exactly once to transfer,
+> explicit terminal consumption, automatic affine cleanup, or validated
+> no-code affine discard.
+
+Nothing may appear in two categories or in none. The transfer map, ordered
+cleanup actions, contracts, and backend realization are evidence for that
+theorem.
+
+One useful report shape is:
+
+```text
+EdgeCleanupPlan {
+    edge
+    frontier_before
+    established_during_materialization
+    transfer_map
+    explicit_consumptions
+    ordered_affine_cleanup_actions
+    trivial_affine_discards
+    frontier_after
+    effects_and_resource_composition
+    conservation_witness
 }
 ```
 
-The lowered edge behavior is:
+A linear place in the dying set is a compile error. A trivial affine discard is
+an explicit checked no-code action, not evidence that nothing was live.
 
-```text
-locked -> read_with_guard:
-  move guard into target
-  do not drop guard
+## Backend Realization
 
-locked -> write_with_guard:
-  move guard into target
-  do not drop guard
+The semantic transfer map gives storage planning information directly. The
+backend must not rediscover it from lexical scopes:
 
-locked -> done:
-  drop guard
-  jump done
-```
+- loop-carried source and target places may coalesce into one storage slot;
+- an address-stable borrow crossing an edge requires a storage realization
+  that actually preserves that address;
+- identical cleanup suffixes may share one physical block;
+- checked code may be cloned for optimization while retaining its semantic
+  state and edge identities; and
+- every cleanup or no-code action maps back to the permission ledger.
 
-The rule:
+Coalescing is a soundness requirement when a borrow contract promises stable
+address, and a performance acceptance requirement for unchanged loop-carried
+large values. It is never used to make an invalid semantic transfer legal.
 
-```text
-If an owned value is live before a transition edge and is not moved into that
-edge's target arguments, the edge must clean it up before jumping.
-```
+## Acceptance Requirements
 
-That requires move/liveness analysis over the machine graph. It is the same
-reason transition arguments and state parameters must be explicit.
-
-## Transferring Cleanup Responsibility
-
-Moving a resource into a target state transfers the cleanup obligation.
-
-```omega
-state read_with_guard(guard: MutexGuard<Data>) {
-    self.read_data(&guard);
-
-    transition {
-        _ -> done()
-    }
-}
-```
-
-Here `read_with_guard` owns `guard`. Its outgoing edge to `done` must either
-drop `guard` or move it again.
-
-Working rules:
-
-- A moved value is unavailable in the source after the edge.
-- A target that receives a resource owns its cleanup obligation.
-- A resource value cannot disappear from the graph without cleanup.
-- A must-cleanup value cannot be copied unless its type explicitly supports
-  shared cleanup semantics.
-- Establishing a linear resource creates one obligation; moving it transfers
-  that obligation and an explicit terminal consumer discharges it. Automatic
-  edge cleanup cannot discharge it.
-
-## Drop Order
-
-Drop order must be deterministic.
-
-Tentative rule:
-
-- Locals drop in reverse creation order on each edge.
-- Fields drop after the owning value's cleanup machine.
-- Field drop order should be fixed by the language, not target lowering.
-- Partially moved values drop only the fields that remain live.
-
-The exact field order is less important than choosing one and making it visible
-to tooling.
-
-## Effects And Failure
-
-Automatic cleanup should be boring.
-
-Settled restrictions:
-
-- Automatic `drop` cannot return a recoverable error.
-- Automatic `drop` cannot suspend or block waiting for another computation.
-- Drop guarantees relinquishment of ownership, not durability, protocol
-  completion, or successful remote acknowledgement.
-- Fallible operations should be explicit machines, such as `file.close()` or
-  `transaction.commit()`. Waiting operations such as `Task::finish` are explicit
-  for the same reason.
-
-This avoids hiding important control flow behind cleanup while still giving the
-language a complete ownership story.
-
-## Relationship To Proofs
-
-Cleanup operations emit requirements and guarantees like any other operation.
-
-For a mutex guard:
-
-```text
-drop guard
-requires guard owns lock
-ensures mutex unlocked
-```
-
-For a file handle:
-
-```text
-drop file
-requires file owns handle
-ensures handle released
-boundaries platform close contract
-```
-
-These facts matter for:
-
-- borrow checking,
-- invariant restoration,
-- deadlock and waitable-resource proofs,
-- hot-swap quiescence,
-- host-boundary reports.
-
-Drop is therefore part of the same proof system as moves, transitions, effects,
-and host contracts.
-
-## First Implementation Shape
-
-The compiler can start smaller than the full model.
-
-Initial scope:
-
-- Track owned locals across machine graphs.
-- Insert structural cleanup for values with known cleanup.
-- Reject user-defined fallible drop.
-- Reject resource values that reach an edge without cleanup or move.
-- Show lowered cleanup edges in debug/proof artifacts.
-
-This gives the language a complete answer without requiring every resource API
-to be designed up front.
+1. An affine local omitted from a successor is cleaned exactly once on that
+   edge.
+2. A moved result or transition argument is committed before remaining cleanup
+   runs.
+3. A live linear place in the dying set rejects.
+4. Failure and success edges use the same cleanup rules.
+5. Nuclear abort emits no cleanup or unwinding.
+6. A partially moved structural aggregate cleans only its live fields.
+7. Partial movement from a nominal-`drop` type rejects.
+8. Different predecessor cleanup lists require no hidden runtime flag.
+9. Operationally distinct alternatives require an existing represented
+   discriminator or author-visible normalization.
+10. A backedge cleans iteration-local values while preserving loop-carried
+    places without copies.
+11. Bounded cyclic work counts repeated cleanup through the termination
+    measure.
+12. Proof/debug artifacts retain the conservation witness and exact edge plan.

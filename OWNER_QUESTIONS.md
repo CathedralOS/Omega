@@ -7,43 +7,6 @@ stable when a resolved entry is removed, so gaps are intentional.
 
 Last pruned: 2026-07-26.
 
-## 2. What is automatic cleanup's graph-edge and partial-value contract?
-
-Omega already records affine StateExit events and rejects non-empty `drop`
-bodies so cleanup cannot silently disappear. Executing those bodies is not just
-an instruction-selection task: the language has graph states rather than
-lexical scopes, while the current guide still labels exact cleanup syntax and
-field order provisional.
-
-Decide:
-
-- which outgoing edges run automatic cleanup (explicit transition, terminal
-  return, natural state completion, trap/failure, and synthesized call
-  continuation), and exactly where cleanup occurs relative to argument moves,
-  guard evaluation, result materialization, and the target handoff;
-- the deterministic order for locals, by-value parameters, the owning value's
-  `drop` machine, remaining fields, nested aggregates, and conditional sum
-  payloads, including partially moved values;
-- whether the reserved `Type::drop(&mut self)` body is inlined onto every edge,
-  lowered as an ordinary state call with a continuation, or represented by a
-  distinct checked cleanup plan, and how recursion/re-entry is constrained;
-- how `requires`, `ensures`, effects, boundary reaches, and the settled
-  infallible/non-suspending rule are checked and instantiated at each implicit
-  cleanup site; and
-- what proof artifact distinguishes a trivial affine discard from executed
-  cleanup and demonstrates that every live cleanup obligation is transferred or
-  discharged exactly once.
-
-Recommendation: synthesize an explicit checked cleanup-edge plan before
-backend selection. On each normal outgoing edge, move target arguments first in
-the semantic plan, then clean the remaining live locals in reverse creation
-order, by-value parameters in reverse declaration order, invoke the owner's
-cleanup body, and finally clean remaining fields in reverse declaration order.
-Reject cleanup on nuclear traps, fallible/suspending drop bodies, recursive drop
-cycles, and any partially moved shape the plan cannot enumerate. Treat this as
-one ownership subsystem rather than special-casing calls in instruction
-selection.
-
 ## 3. How do resource frontiers transform across values?
 
 The structural frontier is settled. A claim is an identity-bearing entity; its

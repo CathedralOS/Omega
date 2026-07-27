@@ -89,14 +89,15 @@ Cancellation and failure paths obey the same conservation law. A `try_*`
 operation that has not completed must therefore return the live linear value
 in its pending/failure case.
 
-Automatic cleanup is for affine ownership. It may execute infallible,
-non-suspending relinquishment, but it cannot silently satisfy a linear
-protocol. A `Task<T>` is therefore linear: `finish` terminally consumes its
-lifecycle claim, while moving it into another owner transfers the obligation.
-`request_cancel` retains the claim because a request does not prove that the
-activation stopped. Scope exit with a live `Task<T>` is a compile error, not an
-implicit blocking finish or detach. Strict result use does not prove this rule:
-it catches a discarded return, not a bound handle reaching scope end.
+Automatic cleanup is for affine ownership. It may execute terminating,
+infallible, non-suspending, nonblocking relinquishment, but it cannot silently
+satisfy a linear protocol. A `Task<T>` is therefore linear: `finish` terminally
+consumes its lifecycle claim, while moving it into another owner transfers the
+obligation. `request_cancel` retains the claim because a request does not prove
+that the activation stopped. Scope exit with a live `Task<T>` is a compile
+error, not an implicit blocking finish or detach. Strict result use does not
+prove this rule: it catches a discarded return, not a bound handle reaching
+scope end.
 
 The receiver's type graph retains this distinction directly: `&self` and
 `&mut self` are reference types, while bare `self` is owned. Permission-event
@@ -162,10 +163,14 @@ permission event. Repeated same-symbol nested transition calls retain distinct
 ordinals and join both materializations to their shared target-state event.
 Normalized platform-entry parameter writes now realize program StateEntry
 events directly; missing inbound code fails closed, and later consumes cannot
-launder zero storage into establishment. Nontrivial state-exit cleanup is
-owner-blocked on the graph-edge timing, partial-value order, and proof/effect
-contract under "automatic cleanup's graph-edge and partial-value contract" in
-`OWNER_QUESTIONS.md`. Composite field extraction is
+launder zero storage into establishment. Nontrivial state-exit cleanup lowers
+through a checked per-edge plan: outgoing values materialize first, their
+ownership mapping commits, and the remaining affine places clean in reverse
+declaration order. The plan retains the exact conservation witness that every
+incoming obligation transfers, is explicitly consumed, is automatically
+cleaned, or receives a validated no-code affine discard exactly once. Nominal
+whole-value cleanup forbids partial extraction; purely structural aggregates
+clean only their remaining live field places. Composite field extraction is
 separately owner-blocked on whether nominal and contained claims form one
 path-indexed resource frontier, and on component origin identity, under the
 "composite linear value's resource frontier" question.

@@ -459,13 +459,12 @@ consume cannot retroactively realize StateEntry, and a missing inbound write
 leaves the ledger incomplete rather than treating zero storage as
 establishment. A unique linear obligation returned from a state-local place is
 joined to the caller's receiving establishment without minting a caller-local
-origin. Nontrivial state-exit code actions are owner-blocked on the
-cleanup-edge, partial-value order, and proof/effect decisions in
-`OWNER_QUESTIONS.md` under "automatic cleanup's graph-edge and partial-value
-contract." Composite per-field debt is owner-blocked on the resource-frontier
-and component-origin decisions under "composite linear value's resource
-frontier." Broader
-resource algebra remains.
+origin. Nontrivial state-exit code actions now target the settled
+`EdgeCleanupPlan`: materialize outgoing values, commit the transfer map, clean
+the ordered dying affine places, and retain the exact conservation witness.
+Composite per-field debt remains owner-blocked on the resource-frontier and
+component-origin decisions under "composite linear value's resource
+frontier." Broader resource algebra remains.
 
 ### Service reach and operational ceilings
 
