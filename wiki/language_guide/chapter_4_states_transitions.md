@@ -108,6 +108,21 @@ machine Inventory::find_item(
 The call-shaped syntax in a transition arm is argument passing for a jump. It is
 not method dispatch.
 
+Machine parameters are roots owned by the current activation, but they are not
+ambient names inside every state. A state may observe, mutate, move, or use only
+the values and authority named by its own parameters. Transitions spell how
+those places reach the target.
+
+This explicit source frontier does not require runtime copying. The lowered
+transfer map may preserve one canonical obligation across renamed state places,
+and storage planning may assign the source and target places to the same slot.
+Proof and debug artifacts retain the mapping even when its physical realization
+uses no instructions.
+
+Keeping state parameters explicit also keeps ranking arguments, invariants,
+borrow dependencies, and authority local to the edges that must re-establish
+them. Machine-wide implicit capture remains unsupported.
+
 ## Data Patterns
 
 A transition over ordinary data may destructure fields and match selected

@@ -321,8 +321,13 @@ improvements do not change public identity.
   per-axis inheritance through aggregates and inferred claim transformations.
   Conserved multi-output inheritance depends on #3; admitted-root and
   one-to-one inheritance follow P1a.
-- **CML4:** finish structural multiplicity migration. Automatic cleanup and
-  partial-value semantics are owner-blocked on #2/#3.
+- **CML4:** finish structural multiplicity migration. Implement checked
+  `EdgeCleanupPlan` construction after outgoing-value materialization and
+  transfer-map commitment; deterministic reverse-declaration cleanup;
+  contextual cleanup-contract checking; structural partial-value cleanup;
+  nominal-drop partial-move rejection; repeated-cycle resource composition;
+  and conservation-witness/backend-ledger reporting. Composite resource
+  frontier transformations remain owner-blocked on #3.
 - **TR3–TR8:** finish task activation, custody, continuations, suspension-safe
   loans, and reference packages. Runtime provider publication is owner-blocked
   on #9; authority-value declarations follow P1a.
@@ -409,7 +414,6 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #2 cleanup graph/partial values | automatic cleanup and multiplicity completion |
 | #3 resource frontier and transformations | contained linear debt, cleanup, and authority transformations |
 | #4 quotient convergence | N6/`Real` quotient packaging |
 | #5 compiler-run Omega | richer build-time policies and generators |
