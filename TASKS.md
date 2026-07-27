@@ -82,15 +82,46 @@ core requirement; and a third party cannot open another package's domain.
 
 #### P1c — composite resource frontiers
 
-**DESIGN-BLOCKED: `OWNER_QUESTIONS.md` #3.** Implement path-indexed partial
-moves and conserved multi-output transformations when #3 settles. Extent
-split/merge is triggered only when an independently owned subrange must cross
-an ownership boundary; it is not required for the admitted-root, placed-view,
-or borrow-backed Arena slices.
+**CLEAR DIRECTION.** Implement path-indexed partial moves and content-conserving
+multi-output transformations.
 
-Acceptance: partial moves preserve sibling obligations; a checked split cannot
-duplicate one origin; mapped outputs inherit the correct carry permissions;
-and ambiguous mappings reject.
+- give every establishment a fresh claim identity while retaining root lineage
+  independently from its current canonical place;
+- infer one-to-one and unambiguous aggregate outcome mappings, preserve sibling
+  obligations on partial moves, and reject ambiguous mappings;
+- make content-bearing qualified claim kinds publish one normalized projection
+  into a compiler-owned partial composition algebra;
+- implement the initial closed vocabulary `Indivisible | Interval<Scalar>`,
+  with indivisible as the default;
+- require admitted roots to carry backing receipts denominated in the same
+  algebra and prove projected content is within that backing;
+- prove all consumed content equals the separated composition of produced
+  content plus any remainder retired through an authorized route;
+- conserve every independent content-bearing claim kind and require one joint
+  projection when correspondence between quantities carries authority meaning;
+- keep domain facets, permission attenuation, carry, and root lineage as
+  independent axes; recoverable or scarce authority uses a claim or loan rather
+  than a discardable permission; and
+- retain normalized projections, admitted backing, outcome mappings, and the
+  n-ary conservation witness in proof/debug artifacts.
+
+Extent split/merge is triggered only when an independently owned subrange must
+cross an ownership boundary; it is not required for the admitted-root,
+placed-view, subrange-loan, or borrow-backed Arena slices. Virtual-to-physical
+owned decomposition remains rejected until a compact canonical symbolic mapping
+algebra with decidable containment, equality, restriction, and separated
+composition is specified. Runtime-indexed extraction likewise remains a
+monotone acceptance restriction until the frontier and prover can identify the
+unique moved element.
+
+Acceptance: partial moves preserve sibling obligations; duplicated or
+overlapping children reject even when every child is individually contained and
+their scalar measures add up; gaps reject unless an authorized retirement
+accounts for them; admitted backing and projected content normalize in the same
+algebra; unrelated roots cannot merge merely because their intervals are
+adjacent; mapped outputs inherit carry from their actual origins; related
+virtual/physical quantities cannot be conserved independently; and ambiguous
+mappings reject.
 
 ### P2 — Source-visible materialization and placed access
 
@@ -319,15 +350,15 @@ improvements do not change public identity.
   `Carry::Portable` expansion, strict accepted-resource origins, checked-origin
   derivation, permission retention after qualification forgetting, and
   per-axis inheritance through aggregates and inferred claim transformations.
-  Conserved multi-output inheritance depends on #3; admitted-root and
-  one-to-one inheritance follow P1a.
+  Conserved multi-output inheritance follows P1c; admitted-root and one-to-one
+  inheritance follow P1a.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;
   contextual cleanup-contract checking; structural partial-value cleanup;
   nominal-drop partial-move rejection; repeated-cycle resource composition;
   and conservation-witness/backend-ledger reporting. Composite resource
-  frontier transformations remain owner-blocked on #3.
+  frontier transformations follow P1c.
 - **TR3–TR8:** finish task activation, custody, continuations, suspension-safe
   loans, and reference packages. Runtime provider publication is owner-blocked
   on #9; authority-value declarations follow P1a.

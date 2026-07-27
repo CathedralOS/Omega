@@ -1028,11 +1028,23 @@ evidence source in a receipt. Checked implementations still prove their
 guarantees, and checked resource transformations preserve or divide existing
 claims through normalized outcome mappings.
 
+A content-bearing claim kind publishes one normalized projection into a closed
+compiler-owned partial composition algebra. Its admitted receipt states backing
+in the same algebra. Establishment proves projected content lies within that
+backing; access proves its touched footprint lies within content; and every
+n-to-m transformation proves consumed content equals the separated composition
+of produced content plus any authorized retirement. Per-output containment and
+scalar measures do not establish this theorem.
+
 For example, an admitted platform provider may return an ordinary linear
 `Extent { base: addr, length: u64 } in Extent::Granted & Extent::Physical`.
-Reconstructing those fields produces an unqualified Extent. Split consumes the
-qualified parent, proves its range partition in ordinary postconditions, and
-transfers the parent claim into its children.
+Reconstructing those fields produces an unqualified Extent. `Granted` projects
+the qualified subject into the compiler-owned interval algebra. Split consumes
+the qualified parent and proves its interval equals the separated composition
+of all children while preserving compatible common root lineage. Merge proves
+the same theorem in reverse. Permission attenuation cannot be reversed by
+joining permissions; authority that must return is represented as a claim or
+loan.
 
 Bodyless qualifications use owner-authorized establishment machines.
 Representation-identical, premise-free establishment may satisfy the core

@@ -80,13 +80,15 @@ resource consumer.
 
 An admitted platform provider originates a root only by satisfying the
 owner-authored memory requirement whose result names
-`Extent in Extent::Granted`; admission records that assertion in its receipt.
+`Extent in Extent::Granted`. The receipt denominates its backing in the same
+compiler-owned interval algebra as `Granted`'s normalized content projection,
+and admission proves the projected interval is contained in that backing.
 
 The staged source declaration remains in `omega::language::core::extent`
 together with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge.
 Core's stage-1 `Arena` returns and reclaims qualified Extents.
 
-Address space, rights, provenance, and mapping era are domain facts on the
+Address space, permissions, provenance, and mapping era are domain facts on the
 carrier. Physical, virtual, I/O-port, and provider-defined spaces share the
 same range algebra. An operation requiring `Physical` accepts evidence for that
 space; an extent carrying `Virtual` does not meet the requirement. Rights such
@@ -114,18 +116,23 @@ device provider. `Granted` is bodyless, so an ordinary `as` proof cannot create
 it. The provider requirement names the exact qualified result that admission
 may establish, and the receipt records that origin. Checked code derives
 children through resource transformations whose outcome mappings conserve the
-parent claim.
+parent claim's content and root lineage.
 
 Splitting consumes one owned qualified extent and returns disjoint owned
-children whose ranges exactly cover it. Linearity bounds consumption; ordinary
-postconditions over `base` and `length` prove the geometry relation while the
-resource-frontier mapping transfers provenance. Attenuation removes rights.
-Merge consumes
-contiguous compatible descendants of the same authority origin; numeric
-adjacency alone is insufficient because adjacent ranges may have different
-grants, rights, provenance, or eras. The ordinary case is rejoining what one
-split separated. Combining unrelated adjacent grants, if needed, is an explicit
-provider operation that establishes the combined authority.
+children whose ranges exactly cover it. `Extent::Granted` projects its subject
+to a normalized address-space interval. The checker proves the parent content
+equals the partial separated composition of all child content; per-child
+containment or a scalar length sum is insufficient. Merge proves the same
+equation in reverse over compatible common root lineage. Literal siblinghood is
+not required, while numeric adjacency alone is insufficient because adjacent
+ranges may have different grants, permissions, provenance, or eras. Combining
+unrelated adjacent grants, if needed, is an explicit provider operation that
+establishes new combined authority.
+
+Permission attenuation is orthogonal to interval content. Weakening read-write
+to read-only preserves the range and permanently discards write; merge cannot
+join permissions to recreate it. Authority that must return later is a separate
+claim or loan.
 
 Subrange loans are borrow-carrying values. Their polarity follows the parent
 borrow: shared loans permit only shared operations; exclusive loans permit
@@ -137,7 +144,28 @@ is non-clonable; an admitted one-shot root receipt establishes the first claim;
 space, provenance, era, and lineage identities are normalized; rights are an
 open set of normalized identities; and split, attenuation, sibling merge, and
 bounded shared/exclusive loans are validated. Failed consuming operations
-return every input authority.
+return every input authority. The source checker generalizes this temporary
+sibling-only model to compatible common lineage, algebra-denominated backing,
+and n-ary separated content conservation.
+
+Content is also the source of truth for access: every authority-bearing
+operation proves its touched interval lies within the claim's projection. A
+checked overapproximation rejects when establishment backing is too small; an
+underapproximation remains safe but restricts use. A provider can still lie
+about external reality, and that accepted assertion remains visible in its
+receipt.
+
+Layout fields, placed views, subrange loans, borrow-backed Arenas, and allocator
+free-list entries do not split owned authority. They remain borrowed or private
+geometry under one root. Owned split/merge is needed only when a subrange
+actually leaves the parent's ownership domain.
+
+Virtual and physical quantities cannot be decomposed as independent conserved
+projections when their correspondence matters. That requires a future compact,
+canonical symbolic mapping algebra whose containment, restriction, equality,
+and separated composition remain decidable. Until it exists, owned
+virtual-to-physical decomposition rejects; the initial content vocabulary is
+`Indivisible | Interval<Scalar>`.
 
 The source migration depends on bodyless establishment, admitted
 boundary-machine receipts, and generic resource-frontier outcome mappings. See

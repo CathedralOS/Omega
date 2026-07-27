@@ -16,8 +16,9 @@ carrier.
 > bodyless historical fact.
 >
 > Flow inference changes what is known. Static binding qualifications determine
-> which semantic roles participate in operator resolution. Multiplicity
-> governs conservation, and carry governs mobility.
+> which semantic roles participate in operator resolution. Multiplicity governs
+> copy/discard obligations; qualified claim content governs decomposition;
+> permissions govern operations; and carry governs mobility.
 
 Domains are not runtime tags, wrapper types, hidden storage, or a second
 object model. Attaching, proving, selecting, or forgetting a domain never
@@ -1076,8 +1077,10 @@ Working interpretation:
 - `as` proves a body when one exists. For a bodyless domain it consumes one
   canonical core qualification conformance. Both routes preserve carrier,
   payload, and runtime work.
-- Multiplicity governs conservation and must-discharge behavior. Carry governs
-  mobility. Neither is inferred from the domain's spelling.
+- Multiplicity governs copy/discard and must-discharge behavior. A
+  content-bearing qualified claim may separately select a compiler-owned
+  decomposition algebra; permissions govern operations, and carry governs
+  mobility. None is inferred merely from the domain's spelling.
 - Qualification and proof evidence erase from runtime code. Static semantic
   roles may affect later operator lowering without adding runtime metadata.
 - Qualification, forgetting, recast, validation, and conversion remain

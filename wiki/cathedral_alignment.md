@@ -230,8 +230,9 @@ None block current compiler development; all should stay visible.
   materialization fills the IDT; installation records an external root.
 - **TBD: allocator story** — `Vec` has no runtime. Decision 22 rejects ambient
   legacy `alloc` as the resource model: a kernel wants explicit allocator/arena
-  capabilities and dependent bounds. Decide the resource algebra before
-  implementing `Vec` lowering, not after.
+  capabilities and dependent bounds. Content-bearing claim conservation is
+  settled independently; quantitative allocation/work accounting remains the
+  resource-algebra prerequisite for general `Vec` lowering.
 - **Engineering pending: hardware representation** — programmable
   `LayoutPlan` geometry, name-keyed fragments, consumer `AccessPlan`, provider
   `ResourceProfile`, Extent-loan admission, and `Placed<P, T>` field access.
