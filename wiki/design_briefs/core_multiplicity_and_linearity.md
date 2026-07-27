@@ -2,8 +2,8 @@
 
 Settled 2026-07-18 at the semantic level (frozen decision 21).
 This brief establishes the core usage discipline independently of dependent
-types and the later general resource algebra. Terminal consumption is derived
-from ordinary by-value ownership and result flow; it has no separate
+types and content-bearing resource decomposition. Terminal consumption is
+derived from ordinary by-value ownership and result flow; it has no separate
 annotation to settle.
 
 ## Multiplicity is a type property
@@ -111,16 +111,33 @@ Fallible or suspending work is an explicit `flush`, `close`, `commit`,
 
 ## Relationship to dependent types and resources
 
-Core linearity requires no value-indexed types. V1 covers whole-value moves,
+Core linearity requires no value-indexed types. The core covers whole-value moves,
 linear parameters and returns, structural propagation, path reconciliation,
 and explicit consumers. Transactions, acknowledgements, DMA submissions, and
 task lifecycle claims are immediate clients.
 
-Dependent buffers are a later stress test. A borrowed split needs dependent
-bounds and disjointness; a general *owned* split also needs the resource
-algebra to prove conservation of the original ownership token across the two
-results. Until that algebra lands, dependent-linear buffers may support whole
-ownership and borrowed views without claiming general owned splitting.
+Divisibility is not implied by linearity. Most linear values are indivisible:
+file handles, acknowledgement tokens, and DMA completions have no composition
+operator. A content-bearing qualified claim may separately project into a
+compiler-owned partial composition algebra. The initial closed vocabulary is
+`Indivisible | Interval<Scalar>`, with indivisible as the default.
+
+Owned decomposition proves one n-ary theorem: the separated composition of all
+consumed content equals all produced content plus any remainder retired through
+an authorized route. Per-output containment and scalar measures cannot prove
+this because individually plausible children may overlap. Split and merge are
+the same equation in opposite dataflow directions.
+
+This refines rather than duplicates the edge-cleanup witness. Edge cleanup
+accounts for every incoming whole claim exactly once; a content-bearing
+transformation additionally accounts for every symbolic unit inside the mapped
+claims exactly once. Proof/debug artifacts report both levels in one nested
+conservation witness.
+
+Borrowed division remains cheaper. Layout fields, subrange loans, placed views,
+and borrow-backed Arenas retain one owned root and therefore do not split its
+content. Runtime-indexed owned extraction remains rejected until the frontier
+and prover can name the unique moved element.
 
 ## Representation law
 
@@ -170,19 +187,19 @@ declaration order. The plan retains the exact conservation witness that every
 incoming obligation transfers, is explicitly consumed, is automatically
 cleaned, or receives a validated no-code affine discard exactly once. Nominal
 whole-value cleanup forbids partial extraction; purely structural aggregates
-clean only their remaining live field places. Composite field extraction is
-separately owner-blocked on whether nominal and contained claims form one
-path-indexed resource frontier, and on component origin identity, under the
-"composite linear value's resource frontier" question.
-The broader resource algebra remains open.
+clean only their remaining live field places. Composite field extraction uses
+one path-indexed frontier: an explicit `[linear]` declaration contributes one
+nominal root, while a transparent aggregate derives contained child claims
+without adding another root. Statically named fields, cases, and indices move
+their claim subtrees and leave sibling obligations live.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
 consumes. One unambiguous moved input preserves its origin into the result;
 one unambiguous obligation transferred through a target state's result also
 preserves its callee origin when the caller binds it. Ambiguous multi-resource
-results remain conservative until the general resource algebra can state their
-mapping.
+results reject. Content-bearing n-to-m transformations additionally discharge
+the selected compiler-owned algebra's conservation theorem.
 
 Generic conditional sums resolve payload multiplicity through symbol-keyed
 type-argument substitution. Consequently `TaskOutcome<LinearT>::Returned` and
@@ -214,19 +231,31 @@ Compatibility move/drop summaries alone are not sufficient; see
    being forced into exact linear reconciliation.
 9. Linearity works for a fixed-size acknowledgement token without any
    dependent-type feature enabled.
+10. A linear claim is indivisible unless its qualified claim kind selects a
+    decomposable compiler-owned content algebra.
+11. A split whose children overlap or duplicate content rejects even when each
+    child is individually contained and their scalar measures add up.
+12. Permission attenuation cannot be undone by merge; authority that must
+    return is represented by a claim or loan.
 
 ## Deferred design spaces
 
-- The general resource algebra for owned splitting, merging, attenuation, and
-  quantitative resources.
+- Additional content algebras beyond `Indivisible | Interval<Scalar>`.
+  Correspondence-bearing virtual/physical decomposition requires a compact
+  canonical symbolic mapping algebra with decidable containment, restriction,
+  equality, and separated composition; independently conserving the two
+  projections is unsound because it permits their association to be swapped.
+- Quantitative operational resource accounting remains a separate algebra from
+  content-bearing claim conservation.
 - Dependent-linear buffer ergonomics after the core checker exists.
 - The first conservative cross-suspension loan subset. Four-axis carry policy
   is settled independently; this item is the remaining borrow-rule and
   implementation work for values live at suspension points.
 
-The first general resource-algebra customer is Extent split/merge: splitting
+The first content-algebra customer is Extent split/merge: splitting
 consumes one parent range authority and returns disjoint child authorities;
-common-origin merging consumes matching children and restores the parent.
+compatible-common-lineage merging consumes exactly composing children and
+restores their parent content.
 Arena-backed task-pool leases reuse the conservation discipline without
 conflating allocation permission with range authority. General owned `LinBuf` splitting and
 quantitative effect members come later.
@@ -235,5 +264,9 @@ The compiler foundation now has an executable `omega-extents` conservation
 model: roots come only from one-shot admitted grants; split is exact; merge is
 restricted to compatible children of the same split; attenuation only removes
 normalized rights; and consuming failures return their authority inputs. This
-does not replace the Omega `[linear]` checker work; it fixes the normalized
-algebra that checker and providers must preserve.
+does not replace the Omega `[linear]` checker work. Source integration replaces
+the temporary sibling-only restriction with compatible common root lineage,
+algebra-denominated receipts, one normalized claim-content projection, and the
+generic n-ary conservation witness. Permission attenuation stays orthogonal:
+merge never restores a discarded permission, and authority that must return is
+a separate claim or loan.

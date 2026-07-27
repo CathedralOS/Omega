@@ -11,7 +11,8 @@
 The durable model is an explicit bounded `Arena` capability with dependent
 resource contracts; reaching an allocation boundary contributes its
 boundary-trait service identity. Quantitative `Alloc<Peak, Retained>` rows
-remain deferred to the resource algebra.
+remain deferred to the quantitative operational resource algebra; this is
+separate from the settled content algebra for decomposing owned claims.
 
 **Where Omega is today.** No heap, no allocator. Storage is inline (`[T;N]`,
 struct fields), bounded (`FixedVec<T,N>` — `push` is a *compile-time* proof

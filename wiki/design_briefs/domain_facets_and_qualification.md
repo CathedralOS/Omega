@@ -180,6 +180,16 @@ non-copyable carrier. A must-discharge obligation requires a linear carrier or
 an independent linear token. A reusable historical fact such as
 `Artifact::Admitted` may live on a reusable carrier.
 
+Multiplicity does not imply divisibility. A content-bearing qualified claim
+separately publishes one normalized projection into a compiler-owned partial
+composition algebra. That projection governs establishment backing, authorized
+access, n-ary decomposition/recomposition, and retirement accounting. The
+initial resource vocabulary is `Indivisible | Interval<Scalar>`; a tracked
+resource claim with no decomposable projection is indivisible. Ordinary
+qualifications that carry no resource content acquire no content entry at all.
+Domain facets retain their predicate/semantic meaning, while permission
+attenuation, content, lineage, and carry remain independent claim axes.
+
 Carry is independent. Mobility demands attach to the established value or
 resource provenance and survive qualification forgetting until the underlying
 claim is discharged.

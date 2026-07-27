@@ -7,56 +7,6 @@ stable when a resolved entry is removed, so gaps are intentional.
 
 Last pruned: 2026-07-26.
 
-## 3. How do resource frontiers transform across values?
-
-The structural frontier is settled. A claim is an identity-bearing entity; its
-canonical path is its current location, and its origin/root lineage is separate
-metadata. Every establishment creates a fresh identity. Moving a path moves
-its claim subtree and leaves siblings live. Construction nests contributed
-claims at field paths; destructuring performs the inverse. Variant claims are
-guarded by the active case. Statically named array indices participate like
-field paths; dynamic-index owned extraction remains a monotone acceptance
-restriction until the checker can prove which element moved.
-
-An explicitly `[linear]` declaration contributes one nominal root claim. A
-transparent composite that merely contains affine/linear fields derives their
-child claims without adding another nominal root. Whole-value consumers account
-for every live frontier entry. One-to-one moves, borrows, containment, and
-unambiguous aggregate mappings infer automatically; ambiguous mappings reject.
-Carry inheritance follows each output's mapped origins rather than every
-consumed argument.
-
-The unresolved question is conserved decomposition and recomposition of
-externally rooted claims. A qualified result and geometric postcondition do not
-alone prove that one authority was neither duplicated nor enlarged. Per-output
-relations are insufficient because conservation is irreducibly n-ary.
-
-Decide:
-
-- how a resource owner maps a claim to a compiler-understood footprint without
-  teaching the compiler customer names such as `Extent`, `base`, or `split`;
-- whether the first closed footprint vocabulary is
-  `Indivisible | Interval<Scalar>`, with later counted/set algebras added only
-  for real customers;
-- how the checked rule proves parent footprint equals the separated
-  composition of all children for split and the inverse for merge;
-- how attenuation composes with footprint conservation without restoring
-  discarded rights;
-- which symbolic root-lineage identity survives ordinary calls and storage
-  when fragments must later recombine; and
-- how generic or runtime-sized collections expose separated claims once
-  quantified array reasoning exists.
-
-Recommendation: keep indivisible as the default. Let an owner select a
-compiler-owned footprint algebra and provide a checked projection from its
-carrier into that algebra. The ordinary prover establishes subject arithmetic;
-the resource checker owns separated composition and frontier conservation.
-Owner-originated resources may establish fresh claims under owner-authorized
-machines; admitted/conduit resources may only root through receipts or conserve
-existing origins. Layout plans and ordinary allocator bookkeeping remain
-borrowed geometry and do not require owned split. Defer this algebra until a
-subrange genuinely crosses an ownership boundary.
-
 ## 4. How is quantified convergence packaged as a quotient relation?
 
 The checked construction corpus now proves rational closeness transitivity and

@@ -462,9 +462,14 @@ joined to the caller's receiving establishment without minting a caller-local
 origin. Nontrivial state-exit code actions now target the settled
 `EdgeCleanupPlan`: materialize outgoing values, commit the transfer map, clean
 the ordered dying affine places, and retain the exact conservation witness.
-Composite per-field debt remains owner-blocked on the resource-frontier and
-component-origin decisions under "composite linear value's resource
-frontier." Broader resource algebra remains.
+Composite per-field debt uses the settled path-indexed frontier: explicit
+nominal linearity contributes one root, transparent aggregates contribute their
+contained child claims, and static field/case/index moves preserve siblings.
+Content-bearing n-to-m transformations additionally retain the selected
+compiler-owned algebra, normalized claim projection and admitted backing,
+root-lineage mapping, and exact separated-conservation witness. The initial
+closed vocabulary is `Indivisible | Interval<Scalar>`; correspondence-bearing
+symbolic mappings and runtime-indexed extraction remain fail-closed extensions.
 
 ### Service reach and operational ceilings
 
