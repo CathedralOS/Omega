@@ -1,0 +1,16 @@
+use omega::language::core::qualification;
+
+data Packet {
+    value: i64;
+}
+
+domain Packet::Marked;
+
+machine rebuild_marked(value: Packet) -> Packet in Marked
+satisfies RepresentationQualification<Packet in Marked>::qualify {
+    Packet { value: value.value }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

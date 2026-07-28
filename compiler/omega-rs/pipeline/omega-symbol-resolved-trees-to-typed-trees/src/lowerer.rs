@@ -4,6 +4,7 @@ use crate::domain_constraints::normalize_domain_constraints;
 use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::operator::lower_operator_definition;
+use crate::qualification_casts::normalize_qualification_casts;
 use crate::trait_definition::lower_trait_definition;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
@@ -145,6 +146,7 @@ impl Lowerer<'_> {
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
+        normalize_qualification_casts(&mut trees);
         Ok(trees)
     }
 }

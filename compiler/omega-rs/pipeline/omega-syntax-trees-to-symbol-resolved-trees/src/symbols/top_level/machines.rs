@@ -6,7 +6,9 @@ use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol;
 use crate::symbols::scope::MachineScope;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
-use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type;
+use crate::symbols::type_references::{
+    assign_type_reference_argument_symbols, assign_type_reference_symbol_with_locals_and_self_type,
+};
 
 pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
@@ -120,6 +122,13 @@ pub(super) fn assign_machine_symbols(
         for conformance in machine_trait_conformances.span_mut_or_empty(machine.satisfies) {
             conformance.symbol =
                 top_level_symbol(symbols, SymbolKind::Trait, conformance.name.as_str());
+            assign_type_reference_argument_symbols(
+                symbols,
+                child_type_references,
+                &local_type_parameters,
+                machine_symbol,
+                conformance.arguments,
+            );
         }
 
         for state in machine_state_handles

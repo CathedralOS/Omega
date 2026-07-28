@@ -6,7 +6,7 @@ pub mod source_span;
 pub mod source_text;
 
 pub use resolver::Resolver;
-pub use source_file::{SourceFile, SourcePosition};
+pub use source_file::{SourceFile, SourceOrigin, SourcePosition};
 pub use source_id::SourceId;
 pub use source_map::SourceMap;
 pub use source_span::SourceSpan;

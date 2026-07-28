@@ -179,7 +179,8 @@ For a domain with a body, `value as T in D` succeeds only when the prover
 discharges every proposition in that body. `as` never performs validation.
 
 For a bodyless domain, `as` is available only through the domain owner's
-canonical core qualification conformance. That conformance is checked
+canonical `RepresentationQualification<Q>` conformance from
+`omega::language::core::qualification`. That conformance is checked
 compile-time evidence and emits no call. A bodyful domain always takes the
 proof route; an establisher cannot bypass its predicate.
 
@@ -197,6 +198,24 @@ eligible satisfier. One visible home satisfier enables `as`; several make the
 implicit form ambiguous, and the caller names the intended satisfier machine.
 Machine names such as `new` are library conventions rather than language
 hooks.
+
+```omega
+use omega::language::core::qualification;
+
+domain i64::Km;
+
+machine qualify_km(value: i64) -> i64 in Km
+satisfies RepresentationQualification<i64 in Km>::qualify {
+    value
+}
+
+let distance: i64 in Km = 5 as i64 in Km;
+let selected: i64 in Km = qualify_km(5);
+```
+
+The direct call is the ambiguity escape hatch. Because it targets this blessed
+conformance, it erases just like the shorthand; checked qualification evidence
+retains the selected domain and satisfier identity.
 
 Examples:
 
@@ -1104,7 +1123,9 @@ Working interpretation:
 
 > **Implementation gate:** the current Rust trees carry independent predicate
 > bodies, closed semantic-role records, transparent aliases, and normalized
-> establishment routes. Arithmetic policies still have special lowering paths,
-> and canonical representation qualification remains to land. General domain
-> work must preserve every domain-theory axis independently in the IR; see
+> establishment routes. Canonical representation qualification is checked and
+> erased; explicit cross-package delegation remains owner-blocked on question
+> #16 and therefore fails closed. Arithmetic policies still have special
+> lowering paths. General domain work must preserve every domain-theory axis
+> independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

@@ -53,6 +53,7 @@ pub(crate) use semantic::{
 };
 
 mod proof;
+mod qualification_erasure;
 mod qualification_evidence;
 
 #[cfg(test)]

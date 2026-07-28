@@ -236,6 +236,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
     let mut boundary_trait = TraitDefinition {
         symbol: boundary_trait_symbol,
         is_boundary: true,
+        semantic_role: omega_core::semantics::TraitSemanticRole::Ordinary,
         name: Identifier::generated("Console"),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
@@ -293,6 +294,7 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             requirement: None,
             alias: None,
             via: None,
+            ..Default::default()
         },
     );
     program.push_machine_state(

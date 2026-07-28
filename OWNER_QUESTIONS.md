@@ -428,3 +428,39 @@ machine-contract clause with a comma-separated place list. It says exactly what
 the checker needs and avoids colliding with authority retention. Keep effects,
 resource consumption, foreign retention, and hardware state out of the write
 frame; they already have independent contracts.
+
+## 16. How does a domain owner delegate canonical qualification authority?
+
+`RepresentationQualification<Q>` now opens a bodyless domain only when its
+satisfier is declared in the domain-owning package. The semantic rule also
+allows an explicit owner-authorized delegate, but no source declaration says
+which package receives that authority. Import visibility, dependency aliases,
+trait visibility, and matching names cannot safely imply delegation: each is
+caller-controlled or too broad, while canonical qualification licenses erased
+fact establishment.
+
+Decide:
+
+- whether delegation is authored on the domain declaration, in an owner package
+  manifest, through an owner-owned boundary requirement, or through another
+  existing declaration relationship;
+- how the delegate package is identified across dependency aliases, relocation,
+  versioning, and separate compilation without treating a filesystem path as
+  semantic identity;
+- whether authority targets one exact domain, a transparent alias, a domain
+  subtree, or a broader package surface, and whether the carrier and canonical
+  satisfier identity are pinned independently;
+- whether delegation is public and re-exportable, explicitly non-transitive, or
+  may itself be delegated under a separately authored grant;
+- how compatibility and revocation work when either package evolves, including
+  whether changing the grant is a semantic-interface break; and
+- which normalized grant identity appears beside the domain and satisfier in
+  checked qualification evidence and package-admission reports.
+
+Recommendation: use an owner-authored, non-transitive grant naming one exact
+atomic bodyless domain and one normalized package identity. The grant should
+be part of the owner's semantic interface, copied into the dependent package's
+admission inputs, and retained in every delegated qualification-use artifact.
+Do not derive authority from imports, build dependency aliases, public trait
+visibility, carrier ownership, or the presence of a conformer. Until this
+surface settles, third-party canonical satisfiers must continue to fail closed.

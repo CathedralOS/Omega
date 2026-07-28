@@ -1,0 +1,9 @@
+// Canonical erased establishment for one open, bodyless domain.
+//
+// This requirement is compiler-recognized by trusted core provenance. Its
+// satisfiers are compile-time evidence witnesses: both implicit `as` and a
+// direct call through the conformance erase to the unchanged input value.
+pub trait RepresentationQualification<Q> {
+    machine qualify(value: Self) -> Q
+    terminates;
+}

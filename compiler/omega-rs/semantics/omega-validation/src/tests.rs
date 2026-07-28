@@ -1280,7 +1280,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
 }
 
 #[test]
-fn bodyless_domain_mint_does_not_invent_a_predicate_obligation() {
+fn bodyless_domain_mint_requires_canonical_authority_not_a_predicate_proof() {
     let typed = typed_program_from_source(
         r#"
         domain i64::Km {}
@@ -1290,8 +1290,19 @@ fn bodyless_domain_mint_does_not_invent_a_predicate_obligation() {
         }
         "#,
     );
-    validate_program(&typed)
-        .expect("a bodyless qualification owes authority but no predicate proof");
+    let diagnostics = validate_program(&typed)
+        .expect_err("a bodyless qualification without a canonical satisfier must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has no canonical representation qualification")
+    }));
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.message.contains("predicate obligation")),
+        "bodyless qualification owes authority, not a body proof: {diagnostics:#?}"
+    );
 }
 
 #[test]

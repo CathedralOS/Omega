@@ -455,6 +455,8 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         target_label: cast.target_label,
                         domain: cast.domain,
                         semantic_domain: cast.semantic_domain,
+                        semantic_domain_symbol: cast.semantic_domain_symbol,
+                        qualification_satisfier: cast.qualification_satisfier,
                         form: cast.form,
                     },
                 )),
@@ -715,6 +717,8 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                     target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 },
             ))
@@ -971,6 +975,8 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                     target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 },
             ))

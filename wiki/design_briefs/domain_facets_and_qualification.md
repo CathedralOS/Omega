@@ -144,9 +144,19 @@ named satisfier directly. Satisfier names are ordinary library names and have
 no compiler significance. Both the shorthand and a direct call through this
 blessed conformance erase to the unchanged input value.
 
-The trait's final public symbol and exact generic spelling are selected with
-the core declaration. Its semantics and validation contract are fixed by the
-rules above.
+The core declaration is:
+
+```omega
+pub trait RepresentationQualification<Q> {
+    machine qualify(value: Self) -> Q
+    terminates;
+}
+```
+
+A conformer names the relationship as
+`satisfies RepresentationQualification<Q>::qualify`. Recognition is by the
+trusted core declaration's semantic role, never by a user-authored lookalike
+name.
 
 ## Establishment, propagation, and conservation
 

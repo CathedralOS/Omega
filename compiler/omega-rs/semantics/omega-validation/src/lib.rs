@@ -53,6 +53,7 @@ use crate::state_signatures::{
 use crate::symbols::MachineSymbols;
 pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
+    validate_canonical_qualification_conformance, validate_core_qualification_trait,
     validate_data_conformances, validate_external_leaf_native_shapes,
     validate_machine_trait_conformances, validate_trait_requirements,
 };
@@ -129,6 +130,7 @@ fn validate_program_internal(
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
+    validate_core_qualification_trait(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
@@ -207,6 +209,7 @@ fn validate_program_internal(
             validate_machine_contract_entailment(program, machine, &mut diagnostics);
         }
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
+        validate_canonical_qualification_conformance(program, machine, &mut diagnostics);
 
         // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
         // realization -- it must never parse and then silently drop. Exactly

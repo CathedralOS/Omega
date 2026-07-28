@@ -35,5 +35,7 @@ pub(crate) fn lower_typed_trees(
 
     checks::check_checked_facts_recording(&program, &mut facts)?;
 
+    crate::qualification_erasure::erase_canonical_qualification_uses(&mut program);
+
     Ok(CheckedTrees::with_roots(program, facts))
 }

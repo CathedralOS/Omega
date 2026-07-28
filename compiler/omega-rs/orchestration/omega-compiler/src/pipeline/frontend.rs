@@ -450,7 +450,7 @@ fn is_bundled_omega_path(path: &[Identifier]) -> bool {
         .is_some_and(|segment| segment.as_str() == "omega")
 }
 
-fn bundled_omega_root() -> PathBuf {
+pub(crate) fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../omega")
         .canonicalize()

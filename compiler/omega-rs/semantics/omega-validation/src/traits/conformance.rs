@@ -226,6 +226,19 @@ pub(crate) fn validate_machine_trait_conformances(
             )));
             continue;
         };
+        let explicit_type_arguments = program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
+        let expected_type_arguments = program.trait_type_parameters(trait_definition).len();
+        if explicit_type_arguments.len() != expected_type_arguments {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance to trait `{}` expects {expected_type_arguments} generic argument(s), got {}",
+                machine.name,
+                trait_definition.name,
+                explicit_type_arguments.len()
+            )));
+            continue;
+        }
 
         // SINGLE-REQUIREMENT conformance (rearrange settle 2026-07-18): an
         // explicit `satisfies Trait::requirement`, or a bare trait name on a
@@ -249,6 +262,7 @@ pub(crate) fn validate_machine_trait_conformances(
                 &requirement_name,
                 named_requirement.is_some(),
                 conformance.alias.as_ref().map(|alias| alias.as_str()),
+                explicit_type_arguments,
                 diagnostics,
             );
             continue;
@@ -259,7 +273,7 @@ pub(crate) fn validate_machine_trait_conformances(
             program,
             machine,
             trait_definition,
-            &[],
+            explicit_type_arguments,
             diagnostics,
             &mut visited_traits,
         );
@@ -278,6 +292,7 @@ fn validate_machine_single_requirement(
     requirement_name: &omega_typed_trees::name::Identifier,
     explicitly_named: bool,
     conformance_alias: Option<&str>,
+    explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(requirement) = program
@@ -316,12 +331,13 @@ fn validate_machine_single_requirement(
         return;
     };
 
-    validate_machine_state_satisfies_trait_signature(
+    validate_machine_state_satisfies_trait_signature_with_arguments(
         program,
         machine,
         entry_state,
         trait_definition,
         requirement,
+        explicit_type_arguments,
         diagnostics,
     );
 
@@ -465,25 +481,6 @@ fn trait_conformance_candidate_machines<'program>(
             && candidate.attached_data.as_ref() == Some(attached_data)
     }));
     candidates
-}
-
-pub(super) fn validate_machine_state_satisfies_trait_signature(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    trait_definition: &TraitDefinition,
-    requirement: &StateSignature,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_machine_state_satisfies_trait_signature_with_arguments(
-        program,
-        machine,
-        state,
-        trait_definition,
-        requirement,
-        &[],
-        diagnostics,
-    );
 }
 
 pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
