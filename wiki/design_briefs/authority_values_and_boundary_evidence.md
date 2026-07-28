@@ -163,14 +163,19 @@ Unqualified carrier data has no claim and therefore no projected authority.
 
 The initial closed algebra vocabulary is:
 
-- `Indivisible`, the default: the claim has one atomic unit and supports no
-  owned decomposition; and
+- `Indivisible`: the claim has one atomic unit and supports no owned
+  decomposition; and
 - `Interval<Scalar>`, for one-dimensional ordered ranges.
 
 Packages may author projections into that vocabulary. The compiler owns
 normalization, containment, equality, and partial separated composition. New
 algebra kinds require a compiler release and a concrete customer; arbitrary
 owner-defined composition is not authority evidence.
+
+Owner question #19 governs how a source declaration marks a claim as
+content-bearing and selects this algebra, including whether an explicit content
+clause may omit `Indivisible`. Ordinary linear claims never default into the
+content algebra merely because they are linear.
 
 An interval normalizes a coordinate-space identity plus half-open ordered bounds
 `[start, end)`. Separated composition requires the same coordinate space and
