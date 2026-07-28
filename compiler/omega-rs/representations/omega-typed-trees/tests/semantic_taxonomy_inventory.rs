@@ -27,6 +27,7 @@ fn domain_definition_carries_normalized_facet_roles() {
             symbol: _,
             name: _,
             target_type: _,
+            predicate_body: _,
             // STR4 checked plans (2026-07-19): the normalized SemanticDomainId
             // landed -- LOSS 1's "no normalized SemanticDomainId" clause is
             // re-pinned. It remains a compatibility identity beside the

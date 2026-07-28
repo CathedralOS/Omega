@@ -4107,6 +4107,37 @@ fn user_domain_literal_grant_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn bodyless_domain_declaration_spellings_canary_runs() {
+    let canary = pass_canary("domains/bodyless_domain_declarations_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bodyless-domains-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equivalent bodyless-domain spellings should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bodyless-domain declaration canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected bodyless-domain declaration canary to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 GAP #4 (slice-`.len`-to-field write): a `&[u8] in Utf8` PARAM is a runtime
 // `{ptr, len}` descriptor in a frame slot, so `self.result = text.len` reads the
 // descriptor's len field (NOT a compile-time constant -- that is GAP #2). This
@@ -37619,6 +37650,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_field_countdown_compile",
     "termination/custom_ranking_struct_view",
     "termination/runtime_recursive_result_roles_exit",
+    "domains/bodyless_domain_declarations_exit",
     "domains/contracts_domain_membership_surface",
     "domains/domain_operator_spelling_selected",
     "domains/domain_operator_proven_fact_selects_meaning",

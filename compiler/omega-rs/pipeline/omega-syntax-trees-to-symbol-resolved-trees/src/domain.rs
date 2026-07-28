@@ -22,11 +22,11 @@ pub(crate) fn lower_domain_definition(
         .symbol_resolved_trees
         .semantic_domains
         .intern(domain.name.as_str());
-    // Compatibility projection until the source facet spelling lands: a
-    // factful declaration is a predicate+semantic hybrid; a factless one is
-    // semantic-only. This is the sole place where the legacy shape is read.
+    // Compatibility projection until the role-keyed semantic records land.
+    // Predicate-body presence is explicit source metadata; no downstream
+    // consumer may reconstruct it by counting facts.
     let facets = omega_core::semantics::DomainFacets {
-        predicate: domain.facts.count() > 0,
+        predicate: domain.predicate_body.is_present(),
         semantic: Some(semantic_id),
     };
 
@@ -34,6 +34,7 @@ pub(crate) fn lower_domain_definition(
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
+        predicate_body: domain.predicate_body,
         facts,
         operators,
         body_token_count: domain.body_token_count,

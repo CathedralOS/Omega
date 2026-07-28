@@ -9,6 +9,8 @@ pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub target_type: TypeReferenceHandle,
+    /// Explicit predicate-body presence copied from the resolved theory.
+    pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,
@@ -27,6 +29,7 @@ impl Default for DomainDefinition {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             target_type: TypeReferenceHandle::invalid(),
+            predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 0,

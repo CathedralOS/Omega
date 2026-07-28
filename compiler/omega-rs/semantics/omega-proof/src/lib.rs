@@ -31,6 +31,7 @@ pub struct InvariantSurface {
 pub struct DomainSurface {
     pub name: String,
     pub target_type: String,
+    pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub fact_count: usize,
     pub membership_fact_count: usize,
     pub body_token_count: usize,
@@ -85,6 +86,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 report.domains.insert(DomainSurface {
                     name: domain.name.to_string(),
                     target_type: type_reference_name(syntax_trees, domain.target_type),
+                    predicate_body: domain.predicate_body,
                     fact_count: syntax_trees.items.proof_facts(domain.facts).len(),
                     membership_fact_count: syntax_trees
                         .items
@@ -550,6 +552,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
+            predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 3,
@@ -561,6 +564,10 @@ mod tests {
         let (_, domain) = report.domains.iter().next().expect("domain surface");
         assert_eq!(domain.name, "NonEmpty");
         assert_eq!(domain.target_type, "String");
+        assert_eq!(
+            domain.predicate_body,
+            omega_core::semantics::DomainPredicateBody::Bodyless
+        );
         assert_eq!(domain.fact_count, 0);
         assert_eq!(domain.membership_fact_count, 0);
         assert_eq!(domain.body_token_count, 3);

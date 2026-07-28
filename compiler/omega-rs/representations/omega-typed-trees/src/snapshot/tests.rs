@@ -33,6 +33,7 @@ fn snapshots_normalized_domain_facets() {
         panic!("one domain snapshot")
     };
     assert_eq!(domain.semantic_id, 23);
+    assert_eq!(domain.predicate_body, "bodyless");
     assert!(!domain.facets.predicate);
     assert_eq!(domain.facets.semantic, Some(23));
     assert!(snapshot.to_json_pretty().is_ok());

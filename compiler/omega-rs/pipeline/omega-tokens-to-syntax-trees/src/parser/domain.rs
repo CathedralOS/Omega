@@ -32,12 +32,14 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (domain_name, input) = input.take_identifier()?;
     let name = Identifier::generated(format!("{target_label}::{domain_name}"));
-    let ((facts, operators, body_token_count), input) = parse_domain_body(syntax_trees, input)?;
+    let ((predicate_body, facts, operators, body_token_count), input) =
+        parse_domain_body(syntax_trees, input)?;
 
     Ok((
         DomainDefinition {
             name,
             target_type,
+            predicate_body,
             facts,
             operators,
             body_token_count,
@@ -74,7 +76,29 @@ fn type_reference_target_label(
 fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (HandleSpan<ProofFact>, HandleSpan<OperatorDefinition>, usize)> {
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        omega_core::semantics::DomainPredicateBody,
+        HandleSpan<ProofFact>,
+        HandleSpan<OperatorDefinition>,
+        usize,
+    ),
+> {
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((
+            (
+                omega_core::semantics::DomainPredicateBody::Bodyless,
+                HandleSpan::empty(),
+                HandleSpan::empty(),
+                0,
+            ),
+            input,
+        ));
+    }
+
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
     let mut facts = HandleSpan::empty();
@@ -111,8 +135,13 @@ fn parse_domain_body<'tokens, 'source>(
 
     let body_token_count = body_start_tokens.saturating_sub(input.tokens.len());
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let predicate_body = if facts.is_empty() {
+        omega_core::semantics::DomainPredicateBody::Bodyless
+    } else {
+        omega_core::semantics::DomainPredicateBody::Present
+    };
 
-    Ok(((facts, operators, body_token_count), input))
+    Ok(((predicate_body, facts, operators, body_token_count), input))
 }
 
 fn merge_contiguous_fact_spans(

@@ -142,6 +142,14 @@ Semantic qualification and trust publication currently consume
 pair. Role-keyed semantic contributions, bodyless establishment routes,
 receipt origins, and the checked core qualification relationship remain.
 
+Implementation status (DOM1 body presence, 2026-07-28): `domain T::Fact;` and
+`domain T::Fact {}` both parse as an explicit bodyless predicate-body record,
+while `{ true; }` is explicitly predicate-bearing. Syntax, symbol-resolved, and
+typed trees plus their snapshots preserve that record, and the compatibility
+predicate facet is projected from it rather than reconstructed from fact
+count. Bodyless establishment evidence and the core qualification relationship
+remain separate work.
+
 Implementation status (DOM1 generic propagation, 2026-07-23): typed
 `TypeConstraintNode::Domain` is a normalized binding-site record, not a bare
 name. A post-lowering pass resolves the short name only against declarations
