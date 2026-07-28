@@ -71,13 +71,19 @@ fn instantiate_call_contract_name_path_place(
     let target_parameters = super::call_target_parameters(program, call.target_state_symbol)?;
     let first_member = members.first().map(|member| member.as_str());
 
-    let mut place = if first_member == Some("self")
+    let mut place = if first_member == Some("result") {
+        let super::CallSite::Expression { expression, .. } = call_site else {
+            return None;
+        };
+        facts.append_place_from_expression(program, expression)
+    } else if first_member == Some("self")
         || target_parameters
             .iter()
             .find(|parameter| parameter.is_self)
             .is_some_and(|parameter| {
                 path.head_symbol == parameter.symbol || path.symbol == parameter.symbol
-            }) {
+            })
+    {
         super::receiver_place_for_call(program, facts, call, &call_site)?
     } else {
         let mut argument_index = 0usize;

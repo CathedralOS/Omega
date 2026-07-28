@@ -58,7 +58,7 @@ pub(super) fn find_call_site_in_expression<'program>(
 
             if is_machine_call {
                 if traversal.is_target_call_site() {
-                    return Some(CallSite::Expression(call));
+                    return Some(CallSite::Expression { expression, call });
                 }
                 traversal.advance_call_ordinal();
             }

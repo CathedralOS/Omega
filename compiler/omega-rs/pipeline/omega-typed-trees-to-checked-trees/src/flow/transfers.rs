@@ -89,15 +89,18 @@ pub(super) fn propagate_statement_transfers(
                     (source_place.is_some_and(|source_place| {
                         semantic.places_match(program, fact_place, source_place)
                     }) || fact_label == source_label)
-                        .then_some(FactPayload::DomainMembership {
-                            value: ExpressionHandle::invalid(),
-                            domain,
-                            domain_symbol,
-                        })
+                        .then_some((
+                            FactPayload::DomainMembership {
+                                value: ExpressionHandle::invalid(),
+                                domain,
+                                domain_symbol,
+                            },
+                            fact.evidence,
+                        ))
                 }
                 FactPayload::BooleanExpression(expression) => {
                     (program.expression_table.display_name(expression) == source_label)
-                        .then_some(FactPayload::BooleanExpression(expression))
+                        .then_some((FactPayload::BooleanExpression(expression), fact.evidence))
                 }
                 FactPayload::ContractBooleanExpression {
                     expression,
@@ -105,13 +108,13 @@ pub(super) fn propagate_statement_transfers(
                     ..
                 } if !instantiated.is_valid() => {
                     (program.expression_table.display_name(expression) == source_label)
-                        .then_some(FactPayload::BooleanExpression(expression))
+                        .then_some((FactPayload::BooleanExpression(expression), fact.evidence))
                 }
                 _ => None,
             })
             .collect();
 
-        for payload in facts_to_transfer {
+        for (payload, evidence) in facts_to_transfer {
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(target_place),
                 point: ProgramPoint::Statement {
@@ -120,6 +123,7 @@ pub(super) fn propagate_statement_transfers(
                     statement_index,
                 },
                 origin: FactOrigin::StatementTransfer,
+                evidence,
                 payload,
             });
             semantic.append_ref(&mut refs, fact);
@@ -150,6 +154,10 @@ pub(super) fn propagate_statement_transfers(
                     statement_index,
                 },
                 origin: FactOrigin::StatementTransfer,
+                evidence: QualificationEvidence::from_origin(
+                    omega_core::semantics::QualificationEvidenceOrigin::CheckedValidation,
+                    state_symbol,
+                ),
                 payload: FactPayload::DomainMembership {
                     value: ExpressionHandle::invalid(),
                     domain: HandleSpan::empty(),

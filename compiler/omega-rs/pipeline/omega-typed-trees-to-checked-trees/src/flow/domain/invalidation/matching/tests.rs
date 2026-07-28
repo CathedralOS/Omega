@@ -44,6 +44,7 @@ fn domain_membership_fact(domain_symbol: SymbolHandle) -> Fact {
         place: FactPlace::Unknown,
         point: ProgramPoint::Global,
         origin: FactOrigin::ProofObligation,
+        evidence: Default::default(),
         payload: FactPayload::DomainMembership {
             value: ExpressionHandle::invalid(),
             domain: omega_core::arena::HandleSpan::empty(),

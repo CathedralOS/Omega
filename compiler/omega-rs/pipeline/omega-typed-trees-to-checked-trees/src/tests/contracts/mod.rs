@@ -4,6 +4,7 @@ mod assembly;
 mod indexing;
 mod instantiation;
 mod proof_obligations;
+mod qualification_evidence;
 
 fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
     // The source loader supplies these canonical core declarations in real

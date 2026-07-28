@@ -61,6 +61,7 @@ fn append_domain_definition_facts(program: &TypedTrees, facts: &mut FactPlan) {
                 origin: FactOrigin::DomainDefinition {
                     domain_symbol: domain.symbol,
                 },
+                evidence: Default::default(),
                 payload,
             });
             facts.append_ref(&mut refs, fact);
@@ -103,6 +104,7 @@ fn append_invariant_definition_facts(program: &TypedTrees, facts: &mut FactPlan)
                 origin: FactOrigin::InvariantDefinition {
                     invariant_symbol: invariant.symbol,
                 },
+                evidence: Default::default(),
                 payload: FactPayload::TypeConstraint { constraint },
             });
             facts.append_ref(&mut refs, fact);

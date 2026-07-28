@@ -147,8 +147,22 @@ Implementation status (DOM1 body presence, 2026-07-28): `domain T::Fact;` and
 while `{ true; }` is explicitly predicate-bearing. Syntax, symbol-resolved, and
 typed trees plus their snapshots preserve that record, and the compatibility
 predicate facet is projected from it rather than reconstructed from fact
-count. Bodyless establishment evidence and the core qualification relationship
-remain separate work.
+count.
+
+Implementation status (P1a evidence origin, 2026-07-28): checked semantic facts
+now carry an establishment-evidence axis independent of their program-point
+origin. The normalized origin classes distinguish prover, checked validation,
+owner establishment, checked transformation, admitted receipt, propagation,
+and canonical qualification. A checked machine attached to a domain's carrier
+may discharge its own bodyless result guarantee; the same route does not bypass
+a bodyful predicate and an unrelated carrier machine cannot mint the fact.
+Call-result binding and ordinary statement transfer preserve the evidence.
+Granted selected provider plans attach their normalized plan fingerprint to
+matching admitted facts, and checked artifacts publish
+`05_qualification_evidence.json` with origin, source, program point, and receipt
+identity. Exact owner-authorized admitted-subject matching, canonical
+qualification conformance, aliases, and the full independent domain-theory
+record remain P1 work.
 
 Implementation status (DOM1 generic propagation, 2026-07-23): typed
 `TypeConstraintNode::Domain` is a normalized binding-site record, not a bare

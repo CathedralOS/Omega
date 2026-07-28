@@ -98,6 +98,7 @@ pub fn compile_to_checked(
         checked_program,
         &provider_plans,
         &selected_provider_plans,
+        &build_config.grants,
     )?;
     crate::pipeline::task_plans::elaborate_task_activation_plans(
         checked_program,

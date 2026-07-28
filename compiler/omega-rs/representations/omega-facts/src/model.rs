@@ -157,6 +157,33 @@ pub enum FactOrigin {
     StatementTransfer,
 }
 
+/// Establishment evidence carried beside a qualification fact.
+///
+/// `source_symbol` names the checked machine, boundary requirement, operator,
+/// or declaration that supplied the evidence when one exists.
+/// `receipt_identity == 0` means no admitted receipt was retained for this
+/// compilation; admitted provider selection fills the normalized receipt
+/// identity after the checked program retains its selected provider plans.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QualificationEvidence {
+    pub origin: omega_core::semantics::QualificationEvidenceOrigin,
+    pub source_symbol: SymbolHandle,
+    pub receipt_identity: u64,
+}
+
+impl QualificationEvidence {
+    pub const fn from_origin(
+        origin: omega_core::semantics::QualificationEvidenceOrigin,
+        source_symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            origin,
+            source_symbol,
+            receipt_identity: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ContractFactKind {
     #[default]
@@ -235,6 +262,7 @@ pub struct Fact {
     pub place: FactPlace,
     pub point: ProgramPoint,
     pub origin: FactOrigin,
+    pub evidence: QualificationEvidence,
     pub payload: FactPayload,
 }
 

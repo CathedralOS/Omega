@@ -20,6 +20,7 @@ pub(crate) use omega_core::arena::{Handle, HandleSpan};
 pub(crate) use omega_core::symbols::SymbolHandle;
 pub(crate) use omega_facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FactRef, ProgramPoint,
+    QualificationEvidence,
 };
 pub(crate) use std::collections::BTreeSet;
 

@@ -127,7 +127,7 @@ impl EvaluationTraversal<'_, '_> {
                 {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::CallSite::Expression(target) if std::ptr::eq(*target, call))
+                if matches!(self.target, crate::CallSite::Expression { call: target, .. } if std::ptr::eq(*target, call))
                 {
                     self.target_reached = true;
                 }

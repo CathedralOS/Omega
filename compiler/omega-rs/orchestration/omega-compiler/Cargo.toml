@@ -54,3 +54,6 @@ omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
 omega-visualizations = { path = "../omega-visualizations" }
+
+[dev-dependencies]
+omega-facts = { path = "../../representations/omega-facts" }

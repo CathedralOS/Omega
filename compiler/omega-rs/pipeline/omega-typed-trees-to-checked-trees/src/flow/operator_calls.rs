@@ -317,19 +317,25 @@ pub(super) fn append_operator_statement_ensures(
                         place.root,
                         &place.segments,
                     );
+                    let payload = FactPayload::ContractDomainMembership {
+                        kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
+                        fact: fact_handle,
+                        value: membership.value,
+                        domain: membership.domain,
+                        domain_symbol: membership.domain_symbol,
+                    };
                     let fact = semantic.append_fact(Fact {
                         place: FactPlace::Place(place),
                         point,
                         origin: FactOrigin::OperatorEnsures {
                             operator_symbol: operator.symbol,
                         },
-                        payload: FactPayload::ContractDomainMembership {
-                            kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
-                            fact: fact_handle,
-                            value: membership.value,
-                            domain: membership.domain,
-                            domain_symbol: membership.domain_symbol,
-                        },
+                        evidence: crate::qualification_evidence::operator_contract_evidence(
+                            program,
+                            operator.symbol,
+                            payload,
+                        ),
+                        payload,
                     });
                     semantic.append_ref(&mut refs, fact);
                 }
@@ -355,6 +361,7 @@ pub(super) fn append_operator_statement_ensures(
                             origin: FactOrigin::OperatorEnsures {
                                 operator_symbol: operator.symbol,
                             },
+                            evidence: QualificationEvidence::default(),
                             payload: FactPayload::ContractBooleanExpression {
                                 kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
                                 fact: fact_handle,
@@ -376,6 +383,7 @@ pub(super) fn append_operator_statement_ensures(
                                 origin: FactOrigin::OperatorEnsures {
                                     operator_symbol: operator.symbol,
                                 },
+                                evidence: QualificationEvidence::default(),
                                 payload: FactPayload::ContractBooleanExpression {
                                     kind: semantic_contract_fact_kind(
                                         ContractProofFactKind::Ensures,
