@@ -337,6 +337,16 @@ ensures
     }
 }
 
+// Translating both endpoints by the same Nat preserves their absolute gap.
+// This bridges IntPair's nonnegative coordinates to Rat's public Nat metric.
+machine nat_gap_add_common(prefix: Nat, a: Nat, b: Nat)
+ensures
+    (nat_gap(add(prefix, a), add(prefix, b))) == (nat_gap(a, b))
+{
+    sub_add_cancel_left(prefix, a, b);
+    sub_add_cancel_left(prefix, b, a);
+}
+
 // Absolute difference is homogeneous under a shared Nat factor.
 machine nat_gap_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
 terminates by a;

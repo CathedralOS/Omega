@@ -1,0 +1,46 @@
+// F7's first prerequisite: Rat accepts a negative IntPair numerator while its
+// public metric remains Nat-valued and keeps the existing laws.
+use omega::language::core::rat;
+
+machine negative_half() -> Rat {
+    mk_signed_rat(
+        IntPair {
+            neg: Nat::Succ { prev: Nat::Zero },
+            pos: Nat::Zero
+        },
+        Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } },
+        Nat::Succ { prev: Nat::Zero }
+    )
+}
+
+machine negative_gap_is_reflexive()
+ensures
+    (rat_gap(negative_half(), negative_half())) == Nat::Zero
+{
+    let value: Rat = negative_half();
+    rat_gap_reflexive(value);
+}
+
+machine signed_gap_is_symmetric(left: Rat, right: Rat)
+ensures
+    (rat_gap(left, right)) == (rat_gap(right, left))
+{
+    rat_gap_symmetric(left, right);
+}
+
+machine signed_scaled_triangle_is_available(left: Rat, middle: Rat, right: Rat)
+ensures
+    (sub(
+        mul(middle.den, rat_gap(left, right)),
+        add(
+            mul(right.den, rat_gap(left, middle)),
+            mul(left.den, rat_gap(middle, right))
+        )
+    )) == Nat::Zero
+{
+    rat_gap_triangle_scaled(left, middle, right);
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-27.
+Last pruned: 2026-07-28.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -499,19 +499,17 @@ and allocation handles expose no compiler-owned stack/control storage.
 - **N8:** expand the construction corpus and proof-engine support needed by
   layouts, quotients, and `Real`.
 - **F7:** replace hardcoded float lowering with the settled ordinary
-  boundary-operator/provider-plan architecture in this strict order:
-  1. extend the N6 rational carrier to signed values while preserving the
-     existing `rat_gap` metric theorems;
-  2. add the proof-level `FloatMeaning` sum (`FiniteNonZero(SignedRat)`,
+  boundary-operator/provider-plan architecture in this strict remaining order:
+  1. add the proof-level `FloatMeaning` sum (`FiniteNonZero(Rat)`,
      signed zero, signed infinity, and payload-erased NaN);
-  3. implement executable per-operation `FloatSemantics` functions and make
+  2. implement executable per-operation `FloatSemantics` functions and make
      build-time folding plus the interpreter consume them;
-  4. implement checked arithmetic-policy adapters, including result-checked
+  3. implement checked arithmetic-policy adapters, including result-checked
      `Trapping` and overflow-only `Saturating`;
-  5. add explicit target satisfiers and selected `ProviderPlan` realization for
+  4. add explicit target satisfiers and selected `ProviderPlan` realization for
      x86-64, AArch64, and checked software fallbacks, including canonical
      floating-control-state preconditions and foreign-boundary restoration; and
-  6. ship differential validation evidence for every admitted hardware
+  5. ship differential validation evidence for every admitted hardware
      realization.
   Keep `f32` and `f64` permanently bound to binary32 and binary64. Keep
   multiply-then-add, fused multiply-add, directed-rounding variants,

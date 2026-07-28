@@ -4,7 +4,10 @@ use omega::language::core::cauchy;
 
 machine unit_sample(index: Nat) -> Rat {
     Rat {
-        num: Nat::Succ { prev: Nat::Zero },
+        num: IntPair {
+            neg: Nat::Zero,
+            pos: Nat::Succ { prev: Nat::Zero }
+        },
         den: Nat::Succ { prev: Nat::Zero }
     }
 }

@@ -4959,26 +4959,21 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
             ExpressionNode::Member(member) => {
-                let ExpressionNode::Name(path) =
-                    program.expression_table.expression(member.receiver)
-                else {
-                    return None;
-                };
-                let [single] = program.expression_table.name_path_members(path.members) else {
-                    return None;
-                };
-                let (_, receiver_term) = environment
-                    .iter()
-                    .find(|(name, _)| name == single.as_str())?;
-                match self.resolve_at(receiver_term.clone(), depth + 1) {
+                let receiver_term = self.callee_term_with_machines(
+                    member.receiver,
+                    environment,
+                    machine_environment,
+                    depth + 1,
+                )?;
+                match self.resolve_at(receiver_term, depth + 1) {
                     StructuralTerm::Constructor { fields, .. } => fields
                         .iter()
                         .find(|(name, _)| name == member.member.as_str())
                         .map(|(_, term)| term.clone()),
                     // A field read off a SYMBOLIC receiver names the caller's
-                    // place in the shared Opaque vocabulary -- exactly how the
-                    // caller-side termifier spells `a.neg` (display name), so
-                    // citations over the same place line up.
+                    // possibly nested place in the shared Opaque vocabulary --
+                    // exactly how the caller-side termifier spells `a.num.neg`
+                    // (display name), so citations over the same place line up.
                     StructuralTerm::Variable(name) => Some(StructuralTerm::Opaque(format!(
                         "{name}.{}",
                         member.member.as_str()

@@ -2074,6 +2074,28 @@ fn capability_pass_canaries_compile_in_isolation() {
 }
 
 #[test]
+fn signed_rat_metric_canaries_compile_in_isolation() {
+    for canary_name in [
+        "proofs/rat_metric_compile",
+        "proofs/signed_rat_metric_compile",
+        "proofs/cauchy_predicates_compile",
+    ] {
+        let canary = pass_canary(canary_name);
+        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+            panic!(
+                "expected signed Rat canary {} to compile, but got diagnostics:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
+}
+
+#[test]
 fn capability_manifest_reports_authority_flow_verbs() {
     for (canary_name, verb) in [
         ("capabilities/acquires_filesystem_authority", "acquires"),
@@ -38333,6 +38355,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_core_rat_declared_exit",
     "proofs/rat_metric_compile",
+    "proofs/signed_rat_metric_compile",
     "proofs/cauchy_predicates_compile",
     "proofs/nat_metric_triangle_compile",
     "proofs/accepted_axiom_cited_exit",
@@ -38955,6 +38978,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/rat_close_triangle_false_rejected",
     "proofs/rat_scaled_triangle_false_rejected",
     "proofs/rat_zero_denominator_rejected",
+    "proofs/signed_rat_zero_denominator_rejected",
     "proofs/static_machine_selection_false_equality_rejected",
     "proofs/value_call_refuted_inequality_rejected",
     "proofs/nat_unmeasured_recursion_rejected",

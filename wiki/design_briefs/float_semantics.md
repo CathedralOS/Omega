@@ -92,7 +92,7 @@ than prose or a four-place relation:
 
 ```omega
 data FloatMeaning {
-    case FiniteNonZero(value: SignedRat); // value != 0
+    case FiniteNonZero(value: Rat); // signed value, value != 0
     case Zero(sign: Sign);
     case Infinity(sign: Sign);
     case NaN;
