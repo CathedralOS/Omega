@@ -671,6 +671,8 @@ impl<'program> LayoutBuilder<'program> {
                     .any(|constraint| match constraint {
                         TypeConstraintNode::Domain(name) => {
                             !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                                && omega_core::semantics::CarryPermission::from_name(name.as_str())
+                                    .is_none()
                         }
                         _ => false,
                     });
@@ -1023,6 +1025,8 @@ impl<'program> LayoutBuilder<'program> {
                 let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
                     TypeConstraintNode::Domain(name) => {
                         !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                            && omega_core::semantics::CarryPermission::from_name(name.as_str())
+                                .is_none()
                     }
                     _ => false,
                 });

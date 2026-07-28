@@ -1,0 +1,39 @@
+// Compiler-owned carry permissions are admitted only through the selected
+// owner-authorized requirement. The resulting claim is born strict, so this
+// contract relaxes suspension without relaxing CPU, thread, or address.
+data Token [linear] {
+    id: u64;
+}
+
+domain Token::SuspensionSafe = Carry::AcrossSuspend;
+
+boundary trait ClaimProvider {
+    machine grant(token: Token) -> Token
+    ensures
+        result in Token::SuspensionSafe;
+}
+
+machine grant_claim(token: Token) -> Token
+satisfies ClaimProvider::grant
+{
+    token
+}
+
+boundary trait Scheduler {
+    machine park() suspends;
+}
+
+data Harness {
+    provider: ClaimProvider;
+    scheduler: Scheduler;
+}
+
+machine Harness::forward(&self, raw: Token) -> Token {
+    let claim: Token = self.provider.grant(raw);
+    self.scheduler.park();
+    transition { _ -> claim }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

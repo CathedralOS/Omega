@@ -455,7 +455,20 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     let mut cursor = input.take_contextual("in")?;
     let mut constraints = Vec::new();
     loop {
-        let (domain_name, rest) = cursor.take_identifier()?;
+        let (first_domain_name, mut rest) = cursor.take_identifier()?;
+        let mut qualified_domain_name = first_domain_name.as_str().to_owned();
+        while rest.at_punctuation(PunctuationKind::ColonColon) {
+            rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (member, next) = rest.take_identifier()?;
+            qualified_domain_name.push_str("::");
+            qualified_domain_name.push_str(member.as_str());
+            rest = next;
+        }
+        let domain_name = if qualified_domain_name == first_domain_name.as_str() {
+            first_domain_name
+        } else {
+            Identifier::generated(qualified_domain_name)
+        };
         // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars
         // are layout policies") flattens to one instance name -- the same
         // monomorphization-by-instantiation shape as generic data.
@@ -479,12 +492,20 @@ fn apply_in_domain_suffix<'tokens, 'source>(
         } else {
             (domain_name, rest)
         };
-        constraints.push(
-            match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
-                Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
-                None => TypeConstraintNode::Domain(domain_name),
-            },
-        );
+        if domain_name.as_str() == "Carry::Portable" {
+            constraints.extend(
+                omega_core::semantics::CarryPermission::ALL.map(|permission| {
+                    TypeConstraintNode::Domain(Identifier::generated(permission.name()))
+                }),
+            );
+        } else {
+            constraints.push(
+                match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+                    Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
+                    None => TypeConstraintNode::Domain(domain_name),
+                },
+            );
+        }
 
         if !rest.at_punctuation(PunctuationKind::Ampersand) {
             cursor = rest;

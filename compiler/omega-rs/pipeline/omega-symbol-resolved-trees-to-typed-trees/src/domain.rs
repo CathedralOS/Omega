@@ -30,6 +30,31 @@ pub(crate) fn expand_domain_reference(
         path: Vec<resolved::name::DiagnosticName>,
         stack: &mut Vec<omega_core::symbols::SymbolHandle>,
     ) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
+        let name = path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        if name == "Carry::Portable" {
+            return Ok(omega_core::semantics::CarryPermission::ALL
+                .into_iter()
+                .map(|permission| {
+                    let [namespace, member] = permission
+                        .name()
+                        .split("::")
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .expect("compiler carry permission has two path members");
+                    ExpandedDomainReference {
+                        symbol: omega_core::symbols::SymbolHandle::invalid(),
+                        path: vec![
+                            resolved::name::DiagnosticName::generated_static(namespace),
+                            resolved::name::DiagnosticName::generated_static(member),
+                        ],
+                    }
+                })
+                .collect());
+        }
         let Some(domain) = program
             .domain_definitions
             .iter()

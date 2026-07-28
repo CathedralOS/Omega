@@ -4200,6 +4200,44 @@ fn extent_root_provider_adapter_compiles() {
 }
 
 #[test]
+fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
+    let canary = pass_canary("core/carry_permission_provider_adapter");
+    let build_dir = std::env::temp_dir().join(format!("omega-carry-claim-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect(
+        "the selected owner-authorized requirement should admit its exact carry \
+         permission and allow that claim to cross suspension",
+    );
+
+    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
+        .expect("carry qualification-evidence artifact");
+    assert!(evidence.contains("\"domain\": \"Carry::AcrossSuspend\""));
+    assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
+    assert!(evidence.contains("\"source\": \"ClaimProvider\""));
+    assert!(evidence.contains("\"requirement\": \"ClaimProvider::grant\""));
+    assert!(
+        evidence.contains("\"receipt_identity\": \"0x"),
+        "the carry permission must retain its admitted provider receipt:\n{evidence}"
+    );
+
+    let carry = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
+        .expect("carry policy artifact");
+    assert!(carry.contains("\"machine\": \"Harness::forward\""));
+    assert!(carry.contains("\"storage\": \"local\""));
+    assert!(carry.contains(
+        "\"effective\": {\"suspension\": \"allowed\", \"cpu\": \"same\", \
+         \"thread\": \"same\", \"address\": \"stable\"}"
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn canonical_bodyless_qualification_single_satisfier_compiles() {
     let canary = pass_canary("domains/canonical_bodyless_qualification");
     let checked = compile_to_checked(&canary.join("main.omg"), None).expect(
@@ -38174,6 +38212,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/arena_core_surface",
     "core/extent_core_surface",
     "core/extent_root_provider_adapter",
+    "core/carry_permission_provider_adapter",
     "core/interrupt_obligations_surface",
     "core/task_core_linear_claim",
     "core/task_lifecycle_operations",
@@ -38536,6 +38575,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/bodyless_internal_state_reconstruction_rejected",
     "core/extent_reconstruction_does_not_grant",
     "core/extent_root_adapter_direct_call_does_not_grant",
+    "core/carry_permission_adapter_direct_call_does_not_grant",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",

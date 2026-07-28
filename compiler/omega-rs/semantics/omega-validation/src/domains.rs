@@ -63,18 +63,32 @@ fn validate_domain_aliases(program: &TypedTrees, diagnostics: &mut Vec<Diagnosti
         }
 
         for constituent in &alias.constituents {
+            let label = program
+                .domain_path_members(constituent.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if label == "Carry::Portable"
+                || omega_core::semantics::CarryPermission::from_name(&label).is_some()
+            {
+                // Compiler carry atoms are deliberately subject-polymorphic,
+                // and public aliases may bundle this closed public vocabulary.
+                continue;
+            }
             let Some(referenced) = domain_definition_by_symbol(program, constituent.domain_symbol)
             else {
-                let label = program
-                    .domain_path_members(constituent.domain)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
-                diagnostics.push(Diagnostic::error(format!(
-                    "domain alias `{}` references unknown domain `{label}`",
-                    domain.name
-                )));
+                if label.starts_with("Carry::") {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "domain alias `{}` references unknown compiler carry permission `{label}`; expected `Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, `Carry::MovableAddress`, or `Carry::Portable`",
+                        domain.name
+                    )));
+                } else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "domain alias `{}` references unknown domain `{label}`",
+                        domain.name
+                    )));
+                }
                 continue;
             };
             if !type_references_match(program, domain.target_type, referenced.target_type) {

@@ -98,6 +98,46 @@ pub(super) fn propagate_statement_transfers(
                             fact.evidence,
                         ))
                 }
+                FactPayload::CarryPermission { permission, .. }
+                | FactPayload::ContractCarryPermission { permission, .. } => {
+                    let FactPlace::Place(fact_place) = fact.place else {
+                        return None;
+                    };
+                    let fact_label = crate::labels::canonical_place_label(
+                        program,
+                        semantic,
+                        semantic.places.get(fact_place),
+                    );
+                    (source_place.is_some_and(|source_place| {
+                        semantic.places_match(program, fact_place, source_place)
+                    }) || fact_label == source_label)
+                        .then_some((
+                            FactPayload::CarryPermission {
+                                value: ExpressionHandle::invalid(),
+                                permission,
+                            },
+                            fact.evidence,
+                        ))
+                }
+                FactPayload::CarryOrigin { .. } => {
+                    let FactPlace::Place(fact_place) = fact.place else {
+                        return None;
+                    };
+                    let fact_label = crate::labels::canonical_place_label(
+                        program,
+                        semantic,
+                        semantic.places.get(fact_place),
+                    );
+                    (source_place.is_some_and(|source_place| {
+                        semantic.places_match(program, fact_place, source_place)
+                    }) || fact_label == source_label)
+                        .then_some((
+                            FactPayload::CarryOrigin {
+                                value: ExpressionHandle::invalid(),
+                            },
+                            fact.evidence,
+                        ))
+                }
                 FactPayload::BooleanExpression(expression) => {
                     (program.expression_table.display_name(expression) == source_label)
                         .then_some((FactPayload::BooleanExpression(expression), fact.evidence))

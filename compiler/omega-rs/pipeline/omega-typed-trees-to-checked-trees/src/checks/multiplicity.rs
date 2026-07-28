@@ -1112,7 +1112,7 @@ fn variant_carries_linear_obligation(
     })
 }
 
-fn type_multiplicity(
+pub(crate) fn type_multiplicity(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Multiplicity {

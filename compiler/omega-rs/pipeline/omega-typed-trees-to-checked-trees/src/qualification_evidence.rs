@@ -81,8 +81,16 @@ pub(crate) fn boundary_qualification_authorization(
     let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
         return None;
     };
-    if !membership.domain_symbol.is_valid() || !expression_is_bare_result(program, membership.value)
-    {
+    if !expression_is_bare_result(program, membership.value) {
+        return None;
+    }
+    if membership_carry_permission(program, membership).is_some() {
+        return Some(BoundaryQualificationAuthorization {
+            requirement_symbol: owner_symbol,
+            signature_symbol: signature.symbol,
+        });
+    }
+    if !membership.domain_symbol.is_valid() {
         return None;
     }
     let domain = domain_definition(program, membership.domain_symbol)?;
@@ -117,6 +125,14 @@ pub(crate) fn call_contract_evidence(
 ) -> Option<QualificationEvidence> {
     if !is_ensures {
         return Some(QualificationEvidence::default());
+    }
+    if matches!(payload, FactPayload::ContractCarryPermission { .. }) {
+        return call_carry_permission_evidence(
+            program,
+            target_symbol,
+            target_state_symbol,
+            contract,
+        );
     }
     let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
         return Some(QualificationEvidence::default());
@@ -194,6 +210,69 @@ pub(crate) fn call_contract_evidence(
     ))
 }
 
+fn call_carry_permission_evidence(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+    target_state_symbol: SymbolHandle,
+    contract: &ContractProofFact,
+) -> Option<QualificationEvidence> {
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target_symbol)
+    {
+        let checked_body = match machine.supply_mode {
+            MachineSupplyMode::CheckedBody => true,
+            MachineSupplyMode::Boundary => program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == target_state_symbol)
+                .is_some_and(|state| {
+                    !program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .is_empty()
+                }),
+            MachineSupplyMode::Accepted
+            | MachineSupplyMode::Requirement
+            | MachineSupplyMode::ExternalRealization { .. } => false,
+        };
+        if checked_body {
+            if contract.qualification_authorization.is_some() {
+                return None;
+            }
+            return Some(QualificationEvidence::from_origin(
+                QualificationEvidenceOrigin::CheckedTransformation,
+                target_symbol,
+            ));
+        }
+        return contract.qualification_authorization.map(|authorization| {
+            QualificationEvidence::from_admitted_requirement(
+                authorization.requirement_symbol,
+                authorization.signature_symbol,
+            )
+        });
+    }
+
+    if program
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == target_symbol && definition.is_boundary)
+    {
+        return contract.qualification_authorization.map(|authorization| {
+            QualificationEvidence::from_admitted_requirement(
+                authorization.requirement_symbol,
+                authorization.signature_symbol,
+            )
+        });
+    }
+
+    Some(QualificationEvidence::from_origin(
+        QualificationEvidenceOrigin::Propagated,
+        target_symbol,
+    ))
+}
+
 pub(crate) fn operator_contract_evidence(
     program: &TypedTrees,
     operator_symbol: SymbolHandle,
@@ -240,6 +319,26 @@ fn expression_is_bare_result(
         return false;
     };
     name.as_str() == "result"
+}
+
+fn membership_carry_permission(
+    program: &TypedTrees,
+    membership: &omega_typed_trees::domain::ProofMembershipFact,
+) -> Option<omega_core::semantics::CarryPermission> {
+    carry_permission_from_path(program, membership.domain)
+}
+
+fn carry_permission_from_path(
+    program: &TypedTrees,
+    domain: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+) -> Option<omega_core::semantics::CarryPermission> {
+    let name = program
+        .domain_path_members(domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    omega_core::semantics::CarryPermission::from_name(&name)
 }
 
 fn unwrapped_type_references_match(

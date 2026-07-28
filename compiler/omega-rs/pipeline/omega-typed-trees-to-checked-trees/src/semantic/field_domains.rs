@@ -192,10 +192,16 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 if parameter.is_self || parameter.is_mutable {
                     continue;
                 }
+                let mut has_resource_claim = false;
                 for domain_symbol in crate::field_domain::domain_constraint_symbols(
                     program,
                     parameter.type_reference,
                 ) {
+                    has_resource_claim |= state_parameter_domain_is_resource_claim(
+                        program,
+                        parameter.type_reference,
+                        domain_symbol,
+                    );
                     append_state_parameter_domain_fact(
                         facts,
                         machine.symbol,
@@ -203,6 +209,25 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         parameter.symbol,
                         &[],
                         domain_symbol,
+                        &mut refs,
+                    );
+                }
+                if has_resource_claim {
+                    append_state_parameter_carry_origin(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        &mut refs,
+                    );
+                }
+                for permission in carry_constraint_permissions(program, parameter.type_reference) {
+                    append_state_parameter_carry_fact(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        permission,
                         &mut refs,
                     );
                 }
@@ -244,6 +269,105 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
             );
         }
     }
+}
+
+fn state_parameter_domain_is_resource_claim(
+    program: &TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    crate::checks::type_multiplicity(program, type_reference)
+        == omega_core::semantics::Multiplicity::Linear
+        && program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == domain_symbol)
+            .is_some_and(|domain| {
+                domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+            })
+}
+
+fn append_state_parameter_carry_origin(
+    facts: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    refs: &mut omega_core::arena::HandleSpan<omega_facts::FactRef>,
+) {
+    let place = facts.append_symbol_place(parameter_symbol);
+    let fact = facts.append_fact(Fact {
+        place: FactPlace::Place(place),
+        point: ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        },
+        origin: FactOrigin::StateParameterDomain {
+            machine_symbol,
+            state_symbol,
+        },
+        evidence: QualificationEvidence::from_origin(
+            omega_core::semantics::QualificationEvidenceOrigin::Propagated,
+            state_symbol,
+        ),
+        payload: FactPayload::CarryOrigin {
+            value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+        },
+    });
+    facts.append_ref(refs, fact);
+}
+
+fn carry_constraint_permissions(
+    program: &TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> Vec<omega_core::semantics::CarryPermission> {
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            carry_constraint_permissions(program, *referee)
+        }
+        omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } => program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .filter_map(|constraint| match constraint {
+                omega_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                    omega_core::semantics::CarryPermission::from_name(domain.name.as_str())
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn append_state_parameter_carry_fact(
+    facts: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    permission: omega_core::semantics::CarryPermission,
+    refs: &mut omega_core::arena::HandleSpan<omega_facts::FactRef>,
+) {
+    let place = facts.append_symbol_place(parameter_symbol);
+    let fact = facts.append_fact(Fact {
+        place: FactPlace::Place(place),
+        point: ProgramPoint::State {
+            machine_symbol,
+            state_symbol,
+        },
+        origin: FactOrigin::StateParameterDomain {
+            machine_symbol,
+            state_symbol,
+        },
+        evidence: QualificationEvidence::from_origin(
+            omega_core::semantics::QualificationEvidenceOrigin::Propagated,
+            state_symbol,
+        ),
+        payload: FactPayload::CarryPermission {
+            value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+            permission,
+        },
+    });
+    facts.append_ref(refs, fact);
 }
 
 #[allow(clippy::too_many_arguments)]

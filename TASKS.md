@@ -73,8 +73,8 @@ state, so a graph may introduce a qualification after entry and must forward it
 across each later transition without leaking that obligation onto the machine's
 outer caller. Cathedral now imports the shared carrier, admits its checked
 provider plan, obtains one `Granted` root after `ExitBootServices`, and carries
-that linear value into owned idle. Compiler-owned carry atoms and the remaining
-authority migrations remain.
+that linear value into owned idle. The remaining authority migrations and
+composite claim-frontier work remain.
 
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
@@ -373,6 +373,23 @@ improvements do not change public identity.
   per-axis inheritance through aggregates and inferred claim transformations.
   Conserved multi-output inheritance follows P1c; admitted-root and one-to-one
   inheritance follow P1a.
+
+  Implementation checkpoint (2026-07-28): the compiler now owns a closed,
+  subject-polymorphic vocabulary for the four positive atoms and expands
+  `Carry::Portable` before normalization in contracts, type constraints, and
+  transparent user aliases. Exact owner-authorized boundary result guarantees
+  retain admitted requirement/provider evidence; calling the checked adapter
+  directly grants no permission. Admitted linear bodyless claims receive a
+  separate born-strict `CarryOrigin`, so qualification weakening cannot recover
+  structural mobility. Local assignments and one-to-one state-parameter
+  handoffs retain that origin and its exact permissions; safe-point liveness
+  and asynchronous preemption facts consume the resulting per-value policy,
+  and artifacts publish both permission evidence and each crossing value's
+  effective axes. Remaining CRY work is checked-origin inference from inherited
+  provenance when permissions are not explicitly restated, path-indexed
+  aggregate/partial-move inheritance, conserved multi-output outcome mappings
+  under P1c, and final runtime-behavior admission for the CPU, host-thread, and
+  address axes.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;

@@ -109,27 +109,47 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         .iter()
         .filter(|(_, fact)| fact.evidence.origin != QualificationEvidenceOrigin::None)
         .filter_map(|(_, fact)| {
-            let domain_symbol = match fact.payload {
-                FactPayload::DomainMembership { domain_symbol, .. }
-                | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+            let domain_label = match fact.payload {
+                FactPayload::DomainMembership {
+                    domain,
+                    domain_symbol,
+                    ..
+                }
+                | FactPayload::ContractDomainMembership {
+                    domain,
+                    domain_symbol,
+                    ..
+                } => {
+                    if domain_symbol.is_valid() {
+                        qualification_symbol_label(program, domain_symbol)
+                    } else {
+                        program
+                            .domain_path_members(domain)
+                            .iter()
+                            .map(|member| member.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::")
+                    }
+                }
+                FactPayload::CarryPermission { permission, .. }
+                | FactPayload::ContractCarryPermission { permission, .. } => {
+                    permission.name().to_owned()
+                }
                 _ => return None,
             };
-            Some((fact, domain_symbol))
+            Some((fact, domain_label))
         })
         .collect::<Vec<_>>();
 
     let mut json = String::from("{\n  \"qualification_evidence\": [");
-    for (index, (fact, domain_symbol)) in rows.iter().enumerate() {
+    for (index, (fact, domain_label)) in rows.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
         json.push_str("\n    {\n      \"subject\": ");
         push_json_string(&mut json, &qualification_subject(program, fact));
         json.push_str(",\n      \"domain\": ");
-        push_json_string(
-            &mut json,
-            &qualification_symbol_label(program, *domain_symbol),
-        );
+        push_json_string(&mut json, domain_label);
         json.push_str(",\n      \"origin\": ");
         push_json_string(&mut json, fact.evidence.origin.as_str());
         json.push_str(",\n      \"program_point\": ");
@@ -355,6 +375,8 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
                     omega_checked_trees::SuspensionCrossingStorage::CallArgument => "call_argument",
                 },
             );
+            json.push_str(", \"effective\": ");
+            push_carry_policy_json(&mut json, live.effective);
             json.push('}');
         }
         json.push_str("]\n    }");

@@ -7,11 +7,12 @@ use omega_typed_trees::types::TypeReferenceHandle;
 pub(super) fn build_machine_preemption_carry_facts(
     program: &omega_typed_trees::TypedTrees,
     carry: &omega_checked_trees::CarryFacts,
+    semantic: &omega_facts::FactPlan,
 ) -> Vec<omega_checked_trees::MachinePreemptionCarryFact> {
     let direct = program
         .machines()
         .iter()
-        .map(|machine| build_machine_preemption_carry_fact(program, machine))
+        .map(|machine| build_machine_preemption_carry_fact(program, semantic, machine))
         .collect::<Vec<_>>();
 
     program
@@ -56,6 +57,7 @@ fn join_machine_subtree_preemption(
 
 fn build_machine_preemption_carry_fact(
     program: &omega_typed_trees::TypedTrees,
+    semantic: &omega_facts::FactPlan,
     machine: &omega_typed_trees::machine::Machine,
 ) -> omega_checked_trees::MachinePreemptionCarryFact {
     let mut accumulator = PreemptionAccumulator {
@@ -106,6 +108,9 @@ fn build_machine_preemption_carry_fact(
             accumulator.visit_statement(statement);
         }
     }
+    if let Some(claim_policy) = established_claim_carry_policy(program, semantic, machine.symbol) {
+        accumulator.effective = accumulator.effective.intersect(claim_policy);
+    }
 
     omega_checked_trees::MachinePreemptionCarryFact {
         machine: machine.symbol,
@@ -113,6 +118,72 @@ fn build_machine_preemption_carry_fact(
         analysis_complete: accumulator.analysis_complete,
         contributing_types: accumulator.contributing_types,
         unnamed_strict_values: accumulator.unnamed_strict_values,
+    }
+}
+
+fn established_claim_carry_policy(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &omega_facts::FactPlan,
+    machine: SymbolHandle,
+) -> Option<CarryPolicy> {
+    let mut claims = Vec::<(String, omega_facts::QualificationEvidence, CarryPolicy)>::new();
+
+    for (_, fact) in semantic.facts.iter() {
+        if fact.evidence.origin == omega_core::semantics::QualificationEvidenceOrigin::None
+            || fact_point_machine(fact.point) != Some(machine)
+        {
+            continue;
+        }
+        let permission = match fact.payload {
+            omega_facts::FactPayload::CarryPermission { permission, .. }
+            | omega_facts::FactPayload::ContractCarryPermission { permission, .. } => {
+                Some(permission)
+            }
+            omega_facts::FactPayload::CarryOrigin { .. } => None,
+            _ => continue,
+        };
+        let omega_facts::FactPlace::Place(place) = fact.place else {
+            continue;
+        };
+        let place =
+            crate::labels::canonical_place_label(program, semantic, semantic.places.get(place));
+        if let Some((_, _, policy)) = claims
+            .iter_mut()
+            .find(|(candidate, evidence, _)| *candidate == place && *evidence == fact.evidence)
+        {
+            if let Some(permission) = permission {
+                *policy = permission.relax(*policy);
+            }
+        } else {
+            claims.push((
+                place,
+                fact.evidence,
+                permission
+                    .map(|permission| permission.relax(CarryPolicy::STRICT))
+                    .unwrap_or(CarryPolicy::STRICT),
+            ));
+        }
+    }
+
+    (!claims.is_empty()).then(|| {
+        claims
+            .into_iter()
+            .fold(CarryPolicy::PERMISSIVE, |combined, (_, _, policy)| {
+                combined.intersect(policy)
+            })
+    })
+}
+
+fn fact_point_machine(point: omega_facts::ProgramPoint) -> Option<SymbolHandle> {
+    match point {
+        omega_facts::ProgramPoint::Machine { machine_symbol }
+        | omega_facts::ProgramPoint::State { machine_symbol, .. }
+        | omega_facts::ProgramPoint::Statement { machine_symbol, .. }
+        | omega_facts::ProgramPoint::Call { machine_symbol, .. }
+        | omega_facts::ProgramPoint::CallRequires { machine_symbol, .. }
+        | omega_facts::ProgramPoint::CallEnsures { machine_symbol, .. }
+        | omega_facts::ProgramPoint::Exit { machine_symbol, .. } => Some(machine_symbol),
+        omega_facts::ProgramPoint::Global | omega_facts::ProgramPoint::Definition { .. } => None,
     }
 }
 

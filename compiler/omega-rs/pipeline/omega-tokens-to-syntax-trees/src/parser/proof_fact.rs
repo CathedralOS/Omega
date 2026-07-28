@@ -44,6 +44,44 @@ fn copy_item_path_to_expression_path(
     }
 }
 
+fn expand_carry_portable_item_paths(
+    syntax_trees: &mut SyntaxTrees,
+    domains: Vec<HandleSpan<omega_syntax_trees::identifier::Identifier>>,
+) -> Vec<HandleSpan<omega_syntax_trees::identifier::Identifier>> {
+    let mut expanded = Vec::new();
+    for domain in domains {
+        let name = syntax_trees
+            .tables
+            .items
+            .identifier_path_members(domain)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        if name != "Carry::Portable" {
+            expanded.push(domain);
+            continue;
+        }
+
+        for permission in omega_core::semantics::CarryPermission::ALL {
+            let mut parts = permission.name().split("::");
+            let namespace = syntax_trees.items.append_identifier_path_member(
+                omega_syntax_trees::identifier::Identifier::generated(
+                    parts.next().expect("carry permission has a namespace"),
+                ),
+            );
+            let member = syntax_trees.items.append_identifier_path_member(
+                omega_syntax_trees::identifier::Identifier::generated(
+                    parts.next().expect("carry permission has a member"),
+                ),
+            );
+            debug_assert_eq!(member.arena_index(), namespace.arena_index() + 1);
+            expanded.push(HandleSpan::from_parts(namespace, 2));
+        }
+    }
+    expanded
+}
+
 pub(super) fn parse_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -146,7 +184,8 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                         .checked_add(1)
                         .expect("proof fact span count overflow");
                 } else {
-                    for domain in membership_domains {
+                    for domain in expand_carry_portable_item_paths(syntax_trees, membership_domains)
+                    {
                         let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
                             ProofMembershipFact { value, domain },
                         ));

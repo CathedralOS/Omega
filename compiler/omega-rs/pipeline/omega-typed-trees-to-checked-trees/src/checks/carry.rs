@@ -1,18 +1,96 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_core::semantics::CarrySuspension;
+use omega_core::semantics::{CarryPolicy, CarrySuspension};
+use omega_facts::{FactPayload, FactPlace, QualificationEvidence};
 
 mod intra_statement;
 mod preemption;
 
+struct ClaimCarryContext<'facts> {
+    semantic: &'facts omega_facts::FactPlan,
+    entry_contexts: Vec<omega_facts::FactContextHandle>,
+}
+
+impl ClaimCarryContext<'_> {
+    /// A place with no claim entry follows its structural/type-wide policy.
+    /// Once a compiler-owned carry fact is present, the underlying claim was
+    /// born strict and only its exact positive permissions may relax it.
+    /// Distinct provenances intersect so a combined claim cannot borrow a
+    /// permissive axis from a sibling.
+    fn effective_policy(
+        &self,
+        program: &omega_typed_trees::TypedTrees,
+        value_name: &str,
+        structural: CarryPolicy,
+    ) -> CarryPolicy {
+        let mut origins = Vec::<(QualificationEvidence, CarryPolicy)>::new();
+
+        for context_handle in &self.entry_contexts {
+            let context = self.semantic.contexts.get(*context_handle);
+            for fact in self.semantic.context_view(context).facts() {
+                if fact.evidence.origin == omega_core::semantics::QualificationEvidenceOrigin::None
+                {
+                    // Declaration-shaped requires/ensures facts describe an
+                    // obligation. Only an established fact with retained
+                    // evidence denotes a live claim entry.
+                    continue;
+                }
+                let permission = match fact.payload {
+                    FactPayload::CarryPermission { permission, .. }
+                    | FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
+                    FactPayload::CarryOrigin { .. } => None,
+                    _ => continue,
+                };
+                let FactPlace::Place(place) = fact.place else {
+                    continue;
+                };
+                if crate::labels::canonical_place_label(
+                    program,
+                    self.semantic,
+                    self.semantic.places.get(place),
+                ) != value_name
+                {
+                    continue;
+                }
+
+                if let Some((_, policy)) = origins
+                    .iter_mut()
+                    .find(|(evidence, _)| *evidence == fact.evidence)
+                {
+                    if let Some(permission) = permission {
+                        *policy = permission.relax(*policy);
+                    }
+                } else {
+                    origins.push((
+                        fact.evidence,
+                        permission
+                            .map(|permission| permission.relax(CarryPolicy::STRICT))
+                            .unwrap_or(CarryPolicy::STRICT),
+                    ));
+                }
+            }
+        }
+
+        if origins.is_empty() {
+            structural
+        } else {
+            origins
+                .into_iter()
+                .fold(CarryPolicy::PERMISSIVE, |combined, (_, policy)| {
+                    combined.intersect(policy)
+                })
+        }
+    }
+}
+
 struct CrossingAccumulator {
-    effective: omega_core::semantics::CarryPolicy,
+    effective: CarryPolicy,
     live_values: Vec<omega_checked_trees::SuspensionCrossingLiveValueFact>,
 }
 
 impl Default for CrossingAccumulator {
     fn default() -> Self {
         Self {
-            effective: omega_core::semantics::CarryPolicy::PERMISSIVE,
+            effective: CarryPolicy::PERMISSIVE,
             live_values: Vec::new(),
         }
     }
@@ -28,7 +106,7 @@ pub(super) fn check_suspension_carry(
     facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let asynchronous_preemption =
-        preemption::build_machine_preemption_carry_facts(program, &facts.carry);
+        preemption::build_machine_preemption_carry_facts(program, &facts.carry, &facts.semantic);
     facts.carry.asynchronous_preemption = asynchronous_preemption;
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
@@ -65,6 +143,19 @@ pub(super) fn check_suspension_carry(
         else {
             continue;
         };
+        let Some(state_flow) = facts
+            .flow
+            .control
+            .states
+            .iter()
+            .find_map(|(_, state_flow)| {
+                (state_flow.machine_symbol == machine.symbol
+                    && state_flow.state_symbol == state.symbol)
+                    .then_some(state_flow)
+            })
+        else {
+            continue;
+        };
 
         for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
             let Some(call_operations) = facts
@@ -91,11 +182,25 @@ pub(super) fn check_suspension_carry(
                 call.call_ordinal,
             );
             let mut crossing = CrossingAccumulator::default();
+            let claim_carry = ClaimCarryContext {
+                semantic: &facts.semantic,
+                entry_contexts: facts
+                    .flow
+                    .state_call_entry_semantic_contexts(
+                        state_flow,
+                        call.statement_index,
+                        call.call_ordinal,
+                        call.target_symbol,
+                        call.receiver_symbol,
+                    )
+                    .collect(),
+            };
 
             append_call_carried_argument_diagnostics(
                 program,
                 call,
                 call_site.as_ref(),
+                &claim_carry,
                 &mut crossing,
                 &mut diagnostics,
             );
@@ -105,6 +210,7 @@ pub(super) fn check_suspension_carry(
                 state,
                 call,
                 call_site.as_ref(),
+                &claim_carry,
                 &mut crossing,
                 &mut diagnostics,
             );
@@ -114,6 +220,7 @@ pub(super) fn check_suspension_carry(
                 state,
                 call,
                 call_site.as_ref(),
+                &claim_carry,
                 &mut crossing,
                 &mut diagnostics,
             );
@@ -123,6 +230,7 @@ pub(super) fn check_suspension_carry(
                 state,
                 call,
                 call_site.as_ref(),
+                &claim_carry,
                 &mut crossing,
                 &mut diagnostics,
             );
@@ -151,6 +259,7 @@ fn append_call_carried_argument_diagnostics(
     program: &omega_typed_trees::TypedTrees,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -173,6 +282,7 @@ fn append_call_carried_argument_diagnostics(
             parameter.type_reference,
             &display_name,
             call,
+            claim_carry,
             omega_checked_trees::SuspensionCrossingStorage::CallArgument,
             crossing,
             diagnostics,
@@ -186,6 +296,7 @@ fn append_live_persistent_diagnostics(
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -207,6 +318,7 @@ fn append_live_persistent_diagnostics(
                         field.symbol,
                         field.type_reference,
                         field.name.as_str(),
+                        claim_carry,
                         crossing,
                         diagnostics,
                     );
@@ -222,6 +334,7 @@ fn append_live_persistent_diagnostics(
                             field.symbol,
                             field.type_reference,
                             field.name.as_str(),
+                            claim_carry,
                             crossing,
                             diagnostics,
                         );
@@ -241,6 +354,7 @@ fn append_live_persistent_diagnostics(
             owned.symbol,
             owned.type_reference,
             owned.name.as_str(),
+            claim_carry,
             crossing,
             diagnostics,
         );
@@ -257,6 +371,7 @@ fn append_persistent_field_if_live(
     field_symbol: omega_core::symbols::SymbolHandle,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     field_name: &str,
+    claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -278,6 +393,7 @@ fn append_persistent_field_if_live(
         type_reference,
         &display_name,
         call,
+        claim_carry,
         omega_checked_trees::SuspensionCrossingStorage::Persistent,
         crossing,
         diagnostics,
@@ -423,6 +539,7 @@ fn append_live_parameter_diagnostics(
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -453,6 +570,7 @@ fn append_live_parameter_diagnostics(
             parameter.type_reference,
             parameter.name.as_str(),
             call,
+            claim_carry,
             omega_checked_trees::SuspensionCrossingStorage::Parameter,
             crossing,
             diagnostics,
@@ -466,6 +584,7 @@ fn append_live_local_diagnostics(
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::BorrowCallFact,
     call_site: Option<&crate::CallSite<'_>>,
+    claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -505,6 +624,7 @@ fn append_live_local_diagnostics(
             local.type_reference,
             local.name.as_str(),
             call,
+            claim_carry,
             omega_checked_trees::SuspensionCrossingStorage::Local,
             crossing,
             diagnostics,
@@ -518,6 +638,7 @@ fn append_if_suspension_forbidden(
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     value_name: &str,
     call: &omega_checked_trees::BorrowCallFact,
+    claim_carry: &ClaimCarryContext<'_>,
     storage: omega_checked_trees::SuspensionCrossingStorage,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
@@ -528,6 +649,7 @@ fn append_if_suspension_forbidden(
         type_reference,
         value_name,
         call,
+        claim_carry,
         storage,
         crossing,
         diagnostics,
@@ -540,18 +662,21 @@ fn append_if_suspension_forbidden_with_type_parameters(
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     value_name: &str,
     call: &omega_checked_trees::BorrowCallFact,
+    claim_carry: &ClaimCarryContext<'_>,
     storage: omega_checked_trees::SuspensionCrossingStorage,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let policy =
+    let structural =
         omega_validation::effective_type_carry_policy(program, type_parameters, type_reference);
+    let policy = claim_carry.effective_policy(program, value_name, structural);
     crossing.effective = crossing.effective.intersect(policy);
     crossing
         .live_values
         .push(omega_checked_trees::SuspensionCrossingLiveValueFact {
             type_reference,
             storage,
+            effective: policy,
         });
     if policy.suspension == CarrySuspension::Allowed {
         return;

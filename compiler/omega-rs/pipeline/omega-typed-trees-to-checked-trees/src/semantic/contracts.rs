@@ -164,6 +164,7 @@ fn append_call_semantic_contract_refs(
         let Some(evidence) = evidence else {
             continue;
         };
+        let carry_origin = admitted_resource_carry_origin(program, payload, evidence);
         let fact = facts.append_fact(Fact {
             place,
             point,
@@ -172,7 +173,43 @@ fn append_call_semantic_contract_refs(
             payload,
         });
         facts.append_ref(refs, fact);
+        if let Some(value) = carry_origin {
+            let fact = facts.append_fact(Fact {
+                place,
+                point,
+                origin,
+                evidence,
+                payload: FactPayload::CarryOrigin { value },
+            });
+            facts.append_ref(refs, fact);
+        }
     }
+}
+
+fn admitted_resource_carry_origin(
+    program: &omega_typed_trees::TypedTrees,
+    payload: FactPayload,
+    evidence: QualificationEvidence,
+) -> Option<omega_typed_trees::expression::ExpressionHandle> {
+    if evidence.origin != omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt {
+        return None;
+    }
+    let FactPayload::ContractDomainMembership {
+        value,
+        domain_symbol,
+        ..
+    } = payload
+    else {
+        return None;
+    };
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)?;
+    (domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+        && crate::checks::type_multiplicity(program, domain.target_type)
+            == omega_core::semantics::Multiplicity::Linear)
+        .then_some(value)
 }
 
 fn append_semantic_contract_refs(

@@ -31,6 +31,17 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                     let ProofFact::Membership(membership) = fact else {
                         continue;
                     };
+                    if let Some(permission) =
+                        crate::proof_facts::carry_permission(program, membership.domain)
+                    {
+                        if !expression_is_bare_result(program, membership.value) {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "boundary requirement `{}::{}` may admit carry permission `{permission}` only for its exact `result`",
+                                trait_definition.name, signature.name,
+                            )));
+                        }
+                        continue;
+                    }
                     if !membership.domain_symbol.is_valid() {
                         continue;
                     }
@@ -99,6 +110,15 @@ fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<
                 let ProofFact::Membership(membership) = fact else {
                     continue;
                 };
+                if let Some(permission) =
+                    crate::proof_facts::carry_permission(program, membership.domain)
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "external machine `{}` cannot directly admit carry permission `{permission}`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider",
+                        machine.name,
+                    )));
+                    continue;
+                }
                 if !membership.domain_symbol.is_valid() {
                     continue;
                 }

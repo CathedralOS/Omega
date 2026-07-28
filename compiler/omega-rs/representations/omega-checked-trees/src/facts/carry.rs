@@ -61,6 +61,10 @@ pub struct SuspensionCrossingCarryFact {
 pub struct SuspensionCrossingLiveValueFact {
     pub type_reference: omega_typed_trees::types::TypeReferenceHandle,
     pub storage: SuspensionCrossingStorage,
+    /// Per-value policy after a born-strict claim is relaxed by the exact
+    /// compiler-owned permissions still attached to this place. This may be
+    /// stricter than the transparent carrier's structural policy.
+    pub effective: CarryPolicy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
