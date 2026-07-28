@@ -71,6 +71,7 @@ pub(super) fn check_call_requires(
                         || incoming_guard_proves_requires(
                             program,
                             state_flow,
+                            call_flow,
                             expression,
                         )
                     }
@@ -441,6 +442,7 @@ fn explain_domain_requirement_failure(
 fn incoming_guard_proves_requires(
     program: &omega_typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let Some(machine) = program
@@ -457,7 +459,27 @@ fn incoming_guard_proves_requires(
     else {
         return false;
     };
-    let required_label = program.expression_table.display_name(expression);
+    let Some(call_site) = crate::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return false;
+    };
+    let Some(target_parameters) = crate::call_target_parameters(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let required_label = super::labels::instantiate_call_contract_expression_label(
+        program,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        &call_site,
+        target_parameters,
+        expression,
+    );
     let incoming =
         crate::checks::ranges::incoming_guards::collect_incoming_guard_facts(program, machine);
     let guard_matches = incoming
@@ -466,14 +488,11 @@ fn incoming_guard_proves_requires(
         .any(|guard| {
             guard_conjunct_matches(program, guard.guard(), &required_label)
                 || guard.direct_arguments().is_some_and(|arguments| {
-                    let call_site = crate::CallSite::TransitionNamed(arguments);
-                    let instantiated = super::labels::instantiate_call_contract_expression_label(
+                    let instantiated = instantiate_state_parameter_label(
                         program,
-                        state_flow.state_symbol,
-                        0,
-                        &call_site,
                         state,
-                        expression,
+                        arguments,
+                        &required_label,
                     );
                     guard_conjunct_matches(program, guard.guard(), &instantiated)
                 })
@@ -486,6 +505,75 @@ fn incoming_guard_proves_requires(
     fields
         .iter()
         .all(|field| caller_state_preserves_field(program, state, field))
+}
+
+/// Rebind a contract label already instantiated in `state` through the
+/// immediate incoming transition arguments. Contract comparison is currently
+/// label-based, so substitute only whole, unqualified parameter identifiers:
+/// a field token in `self.count` must not be mistaken for the state parameter
+/// `count`.
+fn instantiate_state_parameter_label(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    arguments: omega_core::arena::HandleSpan<omega_typed_trees::expression::ExpressionHandle>,
+    label: &str,
+) -> String {
+    let arguments = program.statement_table.expression_handles(arguments);
+    let mut replacements: Vec<(&str, String)> = Vec::new();
+    let mut argument_index = 0usize;
+    for parameter in program.state_parameters(state) {
+        if parameter.is_self {
+            continue;
+        }
+        let Some(argument) = arguments.get(argument_index) else {
+            break;
+        };
+        replacements.push((
+            parameter.name.as_str(),
+            program.expression_table.display_name(*argument),
+        ));
+        argument_index = argument_index.saturating_add(1);
+    }
+    replace_unqualified_identifiers(label, &replacements)
+}
+
+fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)]) -> String {
+    let mut result = String::with_capacity(label.len());
+    let mut cursor = 0usize;
+    while cursor < label.len() {
+        let Some(ch) = label[cursor..].chars().next() else {
+            break;
+        };
+        if ch == '_' || ch.is_alphabetic() {
+            let start = cursor;
+            cursor += ch.len_utf8();
+            while cursor < label.len() {
+                let Some(next) = label[cursor..].chars().next() else {
+                    break;
+                };
+                if next == '_' || next.is_alphanumeric() {
+                    cursor += next.len_utf8();
+                } else {
+                    break;
+                }
+            }
+            let identifier = &label[start..cursor];
+            let qualified =
+                start > 0 && matches!(label.as_bytes().get(start - 1), Some(b'.' | b':'));
+            if !qualified
+                && let Some((_, replacement)) =
+                    replacements.iter().find(|(name, _)| *name == identifier)
+            {
+                result.push_str(replacement);
+            } else {
+                result.push_str(identifier);
+            }
+        } else {
+            result.push(ch);
+            cursor += ch.len_utf8();
+        }
+    }
+    result
 }
 
 /// A named transition is itself an incoming edge. Its taken-arm guard may

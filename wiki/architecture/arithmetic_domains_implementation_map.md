@@ -77,9 +77,12 @@
 > SetFileTime round trip. The cast-field payload regression now uses the same
 > named widening for its raw byte-assembly setup while retaining the final
 > payload `mode as u32` that it specifically exists to pin. All 19 reach checked
-> trees, and the full native filesystem/GUI suite remains green. Other remaining
-> filesystem casts are policy-bearing count/byte conversions or
-> compatibility-specific lowering shapes. The fixture exposed and now pins the
+> trees, and the full native filesystem/GUI suite remains green. Guarded
+> nonnegative host counts now use named exact narrowing across the portable and
+> target-specific filesystem rows; incoming transition arguments rebind the
+> nested conversion contract in checked proof. Other remaining filesystem casts
+> are policy-bearing byte conversions or compatibility-specific lowering
+> shapes. The fixture exposed and now pins the
 > backend repair: branch-expanded storage reserves every assignment-value call
 > ordinal; leaf-only nested call trees are selectable root scopes; top-level
 > `Machine::entry` call results match their machine name; and only a bare-call

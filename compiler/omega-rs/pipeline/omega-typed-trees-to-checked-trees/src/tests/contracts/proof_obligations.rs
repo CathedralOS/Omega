@@ -1418,6 +1418,39 @@ fn accepts_guarded_transition_that_establishes_state_arrival_requires() {
 }
 
 #[test]
+fn incoming_guard_rebinds_state_parameter_for_nested_call_requires() {
+    let source = r#"
+        data Main {
+            observed: i64;
+        }
+
+        machine require_nonnegative(value: i64)
+        requires
+            value >= 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            transition self.observed >= 0 {
+                true -> accepted(self.observed)
+                false -> done()
+            }
+
+            state accepted(&mut self, count: i64) {
+                require_nonnegative(count);
+            }
+
+            state done(&mut self) {
+            }
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "the incoming guard should rebind the state parameter before proving a nested call contract",
+    );
+}
+
+#[test]
 fn rejects_transition_that_does_not_establish_state_arrival_requires() {
     let source = r#"
         data Main {
