@@ -1294,6 +1294,7 @@ mod tests {
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
                 arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
+                operational_acknowledgement: Default::default(),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
@@ -1309,6 +1310,7 @@ mod tests {
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
                 arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
+                operational_acknowledgement: Default::default(),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
@@ -1333,6 +1335,7 @@ mod tests {
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
                 arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
+                operational_acknowledgement: Default::default(),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
@@ -1348,6 +1351,7 @@ mod tests {
                 target_symbol: helper_symbol,
                 target: "event_action".into(),
                 arguments: Arc::from(vec![name("roll", roll_symbol)].into_boxed_slice()),
+                operational_acknowledgement: Default::default(),
             })),
             operator: BinaryOperator::Equal,
             right: resolved_path_expression(
