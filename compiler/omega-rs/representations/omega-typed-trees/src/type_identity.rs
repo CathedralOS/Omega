@@ -354,7 +354,7 @@ mod tests {
     use crate::TypedTrees;
     use crate::name::Identifier;
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
-    use omega_core::semantics::{DomainFacets, SemanticDomainId};
+    use omega_core::semantics::{DomainPredicateBody, DomainSemanticRoles, SemanticDomainId};
     use omega_core::symbols::SymbolHandle;
 
     fn declared(name: &str, semantic_id: SemanticDomainId) -> TypeConstraintNode {
@@ -362,10 +362,8 @@ mod tests {
             name: Identifier::generated(name),
             symbol: SymbolHandle::invalid(),
             semantic_id,
-            facets: DomainFacets {
-                predicate: true,
-                semantic: Some(semantic_id),
-            },
+            predicate_body: DomainPredicateBody::Present,
+            semantic_roles: DomainSemanticRoles::default(),
         })
     }
 

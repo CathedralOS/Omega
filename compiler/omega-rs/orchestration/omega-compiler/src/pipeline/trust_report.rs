@@ -49,10 +49,7 @@ pub(super) fn write_trust_report(
         });
     }
     for domain in typed.domain_definitions() {
-        let Some(semantic_id) = domain.facets.semantic else {
-            continue;
-        };
-        if !semantic_id.is_valid() {
+        if !domain.semantic_id.is_valid() {
             continue;
         }
         // A root grant naming this domain (by full rendered name or leaf)

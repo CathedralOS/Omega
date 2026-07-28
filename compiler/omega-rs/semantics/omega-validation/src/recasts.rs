@@ -164,12 +164,10 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
 fn in_program_trust_table(program: &TypedTrees) -> omega_core::trust::TrustGrantTable {
     let mut table = omega_core::trust::TrustGrantTable::default();
     for domain in program.domain_definitions() {
-        if let Some(semantic_id) = domain.facets.semantic
-            && semantic_id.is_valid()
-        {
+        if domain.semantic_id.is_valid() {
             table.grant(omega_core::trust::TrustGrant {
                 commitment: omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
-                    semantic_id,
+                    domain.semantic_id,
                 ),
                 provenance: omega_core::trust::TrustProvenance::OwnPackageDev,
             });
@@ -183,11 +181,11 @@ fn in_program_trust_table(program: &TypedTrees) -> omega_core::trust::TrustGrant
 /// domain's commitment must be granted here -- own-package declarations are
 /// dev-active, so every in-program mint passes today; the consult is the
 /// seam where package inertness and root grants bite. When the normalized
-/// declaration carries a PREDICATE facet, that obligation then discharges by
+/// declaration carries a PREDICATE BODY, that obligation then discharges by
 /// (a) folding every domain fact at a LITERAL value, or (b) with machine/state
 /// context, entailing every fact from the value's DECLARED RANGE
 /// (flow-integration v1); anything else keeps the staged refusal. A
-/// semantic-only declaration owes no invented predicate proof.
+/// bodyless declaration owes no invented predicate proof.
 fn judge_qualification_cast(
     program: &TypedTrees,
     context: Option<(
@@ -209,16 +207,12 @@ fn judge_qualification_cast(
     });
     match declared {
         Some(domain) => {
-            let Some(semantic_id) = domain.facets.semantic else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`as ... in {name}` requires a semantic facet, but `{name}` is predicate-only"
-                )));
-                return;
-            };
             let trust = in_program_trust_table(program);
             if trust
                 .authority(
-                    &omega_core::trust::TrustCommitment::SemanticDomainIntroduction(semantic_id),
+                    &omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
+                        domain.semantic_id,
+                    ),
                 )
                 .is_none()
             {
@@ -230,7 +224,7 @@ fn judge_qualification_cast(
                 )));
                 return;
             }
-            let mut judgment = if domain.facets.predicate {
+            let mut judgment = if domain.predicate_body.is_present() {
                 literal_mint_discharges(program, domain, cast.value)
             } else {
                 MintJudgment::Discharged

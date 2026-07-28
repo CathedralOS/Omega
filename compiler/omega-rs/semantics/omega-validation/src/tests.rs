@@ -1280,7 +1280,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
 }
 
 #[test]
-fn semantic_only_domain_mint_does_not_invent_a_predicate_obligation() {
+fn bodyless_domain_mint_does_not_invent_a_predicate_obligation() {
     let typed = typed_program_from_source(
         r#"
         domain i64::Km {}
@@ -1291,40 +1291,50 @@ fn semantic_only_domain_mint_does_not_invent_a_predicate_obligation() {
         "#,
     );
     validate_program(&typed)
-        .expect("a semantic-only qualification owes authority but no predicate proof");
+        .expect("a bodyless qualification owes authority but no predicate proof");
 }
 
 #[test]
-fn predicate_only_domain_rejects_semantic_qualification() {
-    let mut typed = typed_program_from_source(
+fn distinct_semantic_roles_compose_in_one_domain_chain() {
+    let typed = typed_program_from_source(
         r#"
-        domain i64::Km {}
+        domain i32::Degrees {
+            operator add(left: i32, right: i32) -> i32 spelling +;
+        }
 
-        machine qualify(raw: i64) {
-            let distance: i64 = raw as i64 in Km;
+        data Holder {
+            value: i32 in Degrees & Wrapping;
         }
         "#,
     );
-    let domain_roots = typed.roots.domain_definitions;
-    let [domain] = typed
-        .tables
-        .domain_definitions
-        .span_mut_or_empty(domain_roots)
-    else {
-        panic!("one domain declaration")
-    };
-    domain.facets = omega_core::semantics::DomainFacets {
-        predicate: true,
-        semantic: None,
-    };
+    validate_program(&typed)
+        .expect("a denotation/dimension domain and an arithmetic policy should compose");
+}
 
-    let diagnostics =
-        validate_program(&typed).expect_err("predicate-only domains cannot qualify values");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("requires a semantic facet"))
+#[test]
+fn duplicate_denotation_role_contributions_are_rejected() {
+    let typed = typed_program_from_source(
+        r#"
+        domain i32::Degrees {
+            operator add(left: i32, right: i32) -> i32;
+        }
+
+        domain i32::Radians {
+            operator combine(left: i32, right: i32) -> i32;
+        }
+
+        data Holder {
+            value: i32 in Degrees & Radians;
+        }
+        "#,
     );
+    let diagnostics =
+        validate_program(&typed).expect_err("one domain chain cannot select two denotations");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("conflicting `denotation_dimension` semantic-role contributions")
+    }));
 }
 
 fn validate_contract_source(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {

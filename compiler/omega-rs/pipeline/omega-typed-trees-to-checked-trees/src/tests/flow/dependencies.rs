@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn constrained_type_composes_predicate_facets_without_flow_minting_semantic_facets() {
+fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_domains() {
     let source = r#"
         domain [u8]::Meaning {}
         domain [u8]::Utf8 { valid_utf8(self); }

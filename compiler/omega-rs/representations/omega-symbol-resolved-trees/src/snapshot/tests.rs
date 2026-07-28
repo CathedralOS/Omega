@@ -78,9 +78,9 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         target_type: TypeReference::Unit,
         predicate_body: omega_core::semantics::DomainPredicateBody::Present,
         semantic_id: omega_core::semantics::SemanticDomainId(17),
-        facets: omega_core::semantics::DomainFacets {
-            predicate: true,
-            semantic: Some(omega_core::semantics::SemanticDomainId(17)),
+        semantic_roles: omega_core::semantics::DomainSemanticRoles {
+            denotation_dimension: Some(omega_core::semantics::SemanticDomainId(17)),
+            arithmetic_policy: None,
         },
         ..Default::default()
     });
@@ -98,10 +98,17 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
     );
     assert_eq!(snapshot.roots.machines[0].states.len(), 1);
     assert_eq!(snapshot.roots.domain_definitions[0].semantic_id, 17);
-    assert!(snapshot.roots.domain_definitions[0].facets.predicate);
     assert_eq!(
-        snapshot.roots.domain_definitions[0].facets.semantic,
+        snapshot.roots.domain_definitions[0]
+            .semantic_roles
+            .denotation_dimension,
         Some(17)
+    );
+    assert_eq!(
+        snapshot.roots.domain_definitions[0]
+            .semantic_roles
+            .arithmetic_policy,
+        None
     );
     assert_eq!(snapshot.tables.statement_count, 1);
     assert_eq!(snapshot.tables.expression_count, 1);

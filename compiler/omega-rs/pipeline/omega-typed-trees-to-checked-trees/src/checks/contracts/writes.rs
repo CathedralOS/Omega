@@ -674,7 +674,7 @@ fn scan_construction_field_domains(
 
 /// The declared predicate-domain symbols of a constructed field: a case literal's
 /// PAYLOAD field (for the named variant) or a record/common struct field whose
-/// declared type carries one or more predicate-faceted domain constraints.
+/// declared type carries one or more predicate-bearing domain constraints.
 /// Mirrors omega-validation `struct_literals::construction_field_type` + domain
 /// extraction.
 fn construction_field_domain_symbols(

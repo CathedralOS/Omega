@@ -742,7 +742,8 @@ pub struct DomainConstraint {
     pub name: Identifier,
     pub symbol: SymbolHandle,
     pub semantic_id: omega_core::semantics::SemanticDomainId,
-    pub facets: omega_core::semantics::DomainFacets,
+    pub predicate_body: omega_core::semantics::DomainPredicateBody,
+    pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
 }
 
 impl DomainConstraint {

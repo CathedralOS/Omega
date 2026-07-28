@@ -892,7 +892,8 @@ fn domain_is_declared(
         && program.domain_definitions().iter().any(|domain| {
             domain.symbol == constraint.symbol
                 && domain.semantic_id == constraint.semantic_id
-                && domain.facets == constraint.facets
+                && domain.predicate_body == constraint.predicate_body
+                && domain.semantic_roles == constraint.semantic_roles
                 && type_references_match(program, base_type, domain.target_type)
         })
 }
@@ -913,23 +914,7 @@ fn validate_type_constraints_node(
 ) {
     let primitive_type = program.type_reference_table.primitive_type(base_type);
     let constraints = program.type_reference_table.constraints(constraints);
-    let policy_domains = constraints
-        .iter()
-        .filter_map(|constraint| match constraint {
-            TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if policy_domains.len() > 1 {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} declares a domain chain with policy domains {}; a domain chain may carry at most one policy domain",
-            policy_domains
-                .iter()
-                .map(|domain| format!("`{}`", domain.name()))
-                .collect::<Vec<_>>()
-                .join(", "),
-        )));
-    }
+    validate_semantic_role_composition(constraints, diagnostics, &owner);
 
     for constraint in constraints {
         match constraint {
@@ -1086,6 +1071,77 @@ fn validate_type_constraints_node(
                 }
             }
         }
+    }
+}
+
+fn validate_semantic_role_composition(
+    constraints: &[TypeConstraintNode],
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: &TypeReferenceOwner<'_>,
+) {
+    use omega_core::semantics::{DomainSemanticRole, SemanticDomainTable};
+
+    for role in [
+        DomainSemanticRole::DenotationDimension,
+        DomainSemanticRole::ArithmeticPolicy,
+    ] {
+        let mut contributions = Vec::new();
+        for constraint in constraints {
+            let contribution = match constraint {
+                TypeConstraintNode::Domain(domain) => domain
+                    .semantic_roles
+                    .contribution(role)
+                    .map(|semantic_id| (semantic_id, domain.name.to_string())),
+                TypeConstraintNode::ArithmeticDomain(domain)
+                    if role == DomainSemanticRole::ArithmeticPolicy =>
+                {
+                    let semantic_id = match domain {
+                        omega_core::arithmetic::ArithmeticDomain::Exact => continue,
+                        omega_core::arithmetic::ArithmeticDomain::Wrapping => {
+                            SemanticDomainTable::WRAPPING
+                        }
+                        omega_core::arithmetic::ArithmeticDomain::Saturating => {
+                            SemanticDomainTable::SATURATING
+                        }
+                        omega_core::arithmetic::ArithmeticDomain::Trapping => {
+                            SemanticDomainTable::TRAPPING
+                        }
+                    };
+                    Some((semantic_id, domain.name().to_owned()))
+                }
+                _ => None,
+            };
+            let Some((semantic_id, label)) = contribution else {
+                continue;
+            };
+            if contributions.iter().all(
+                |(prior, _): &(omega_core::semantics::SemanticDomainId, String)| {
+                    *prior != semantic_id
+                },
+            ) {
+                contributions.push((semantic_id, label));
+            }
+        }
+        if contributions.len() <= 1 {
+            continue;
+        }
+        let rendered = contributions
+            .iter()
+            .map(|(_, label)| format!("`{label}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let rule = match role {
+            DomainSemanticRole::ArithmeticPolicy => {
+                "a domain chain may carry at most one policy domain"
+            }
+            DomainSemanticRole::DenotationDimension => {
+                "a domain chain may carry at most one denotation/dimension domain"
+            }
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} declares conflicting `{}` semantic-role contributions {rendered}; {rule}",
+            role.as_str(),
+        )));
     }
 }
 

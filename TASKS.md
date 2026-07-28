@@ -60,8 +60,8 @@ legality, reject unknown/cross-carrier/cyclic expansions, and report unmet
 atomic facts. Package-owner coherence, the remaining independent domain-theory
 records, compiler-owned carry atoms, and the authority migrations remain.
 
-- represent semantic roles and establishment routes independently instead of
-  projecting a facet pair; predicate-body and alias records are now separate;
+- represent establishment routes independently; predicate-body, semantic-role,
+  and alias records are now separate;
 - migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
   tokens to ordinary data declarations with their required fields;
 - connect provider receipts, linearity, carry policy, and authority-flow
@@ -256,12 +256,9 @@ ceilings, and publication-before-ledger-record all reject.
 
 ### Domain theory and numeric conversion
 
-- Replace the transitional predicate/semantic facet projection with
-  semantic-role and establishment-route records; predicate-body and transparent
-  alias records are already independent.
+- Add normalized establishment-route records; predicate-body, semantic-role,
+  and transparent-alias records are already independent.
 - Implement the core canonical qualification conformance from P1b.
-- Add role collision/composition tests: `Km & Wrapping` composes;
-  `Wrapping & Trapping` rejects.
 - Define ordinary core numeric conversion machines, with explicit narrowing
   policy, then migrate width and float/integer conversion away from the legacy
   `as` spelling.
@@ -342,9 +339,8 @@ current consumers happen to align.
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
   Boundary write-frame spelling is owner-blocked on #15.
-- **DOM1/DOM2/DOM3/DOM5:** replace the transitional facet projection with
-  semantic-role and establishment-route records (predicate-body and alias
-  records are already independent);
+- **DOM1/DOM2/DOM3/DOM5:** add normalized establishment-route records
+  (predicate-body, semantic-role, and alias records are already independent);
   implement the canonical core qualification conformance, operator ownership,
   and weakening certificates.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,

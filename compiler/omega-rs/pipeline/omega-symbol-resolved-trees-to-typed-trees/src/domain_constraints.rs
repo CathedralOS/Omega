@@ -22,7 +22,7 @@ pub(crate) fn normalize_domain_constraints(
 }
 
 /// Normalize one newly-lowered type reference immediately when an earlier
-/// lowering decision needs its facet axes. The full finish pass remains the
+/// lowering decision needs its domain-theory records. The full finish pass remains the
 /// completeness rail for all other type sites.
 pub(crate) fn normalize_domain_constraints_for_type(
     source: &SymbolResolvedTrees,
@@ -90,7 +90,8 @@ fn normalize_constraint_span(
                 name: domain_constraint.name,
                 symbol: domain.symbol,
                 semantic_id: domain.semantic_id,
-                facets: domain.facets,
+                predicate_body: domain.predicate_body,
+                semantic_roles: domain.semantic_roles,
             }));
             continue;
         }
@@ -121,7 +122,12 @@ fn normalize_constraint_span(
                 semantic_id: declaration
                     .map(|domain| domain.semantic_id)
                     .unwrap_or_default(),
-                facets: declaration.map(|domain| domain.facets).unwrap_or_default(),
+                predicate_body: declaration
+                    .map(|domain| domain.predicate_body)
+                    .unwrap_or_default(),
+                semantic_roles: declaration
+                    .map(|domain| domain.semantic_roles)
+                    .unwrap_or_default(),
             }));
         }
     }

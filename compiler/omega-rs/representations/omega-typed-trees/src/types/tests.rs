@@ -98,9 +98,10 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
     });
     let domain_symbol = SymbolHandle::from_arena_index(12);
     let semantic_id = omega_core::semantics::SemanticDomainId(9);
-    let facets = omega_core::semantics::DomainFacets {
-        predicate: true,
-        semantic: Some(semantic_id),
+    let predicate_body = omega_core::semantics::DomainPredicateBody::Present;
+    let semantic_roles = omega_core::semantics::DomainSemanticRoles {
+        denotation_dimension: Some(semantic_id),
+        arithmetic_policy: None,
     };
     let constraints = source_types.insert_constraints([
         TypeConstraintNode::Range { minimum, maximum },
@@ -108,7 +109,8 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
             name: Identifier::generated("Utf8"),
             symbol: domain_symbol,
             semantic_id,
-            facets,
+            predicate_body,
+            semantic_roles,
         }),
     ]);
     let source_root = source_types.insert(TypeReferenceNode::Constrained {
@@ -148,7 +150,8 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
     };
     assert_eq!(copied_domain.symbol, domain_symbol);
     assert_eq!(copied_domain.semantic_id, semantic_id);
-    assert_eq!(copied_domain.facets, facets);
+    assert_eq!(copied_domain.predicate_body, predicate_body);
+    assert_eq!(copied_domain.semantic_roles, semantic_roles);
 }
 
 #[test]

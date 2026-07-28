@@ -253,7 +253,7 @@ pub struct DomainDefinitionSnapshot {
     pub alias: Vec<DomainAliasConstituentSnapshot>,
     pub predicate_body: &'static str,
     pub semantic_id: u32,
-    pub facets: DomainFacetsSnapshot,
+    pub semantic_roles: DomainSemanticRolesSnapshot,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
@@ -266,9 +266,9 @@ pub struct DomainAliasConstituentSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct DomainFacetsSnapshot {
-    pub predicate: bool,
-    pub semantic: Option<u32>,
+pub struct DomainSemanticRolesSnapshot {
+    pub denotation_dimension: Option<u32>,
+    pub arithmetic_policy: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -579,8 +579,8 @@ pub enum TypeConstraintSnapshot {
         name: String,
         symbol: u32,
         semantic_id: u32,
-        predicate_facet: bool,
-        semantic_facet: Option<u32>,
+        predicate_body: &'static str,
+        semantic_roles: DomainSemanticRolesSnapshot,
     },
     Range {
         minimum: ExpressionSnapshot,
@@ -673,10 +673,7 @@ fn domain_definition_snapshot(
             .unwrap_or_default(),
         predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
-        facets: DomainFacetsSnapshot {
-            predicate: domain.facets.predicate,
-            semantic: domain.facets.semantic.map(|semantic| semantic.0),
-        },
+        semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
         facts: domain_fact_snapshots(program, domain),
         operators: program
             .domain_operators(domain)
@@ -1333,8 +1330,8 @@ fn type_constraint_snapshot(
             name: domain.name.to_string(),
             symbol: domain.symbol.arena_index(),
             semantic_id: domain.semantic_id.0,
-            predicate_facet: domain.facets.predicate,
-            semantic_facet: domain.facets.semantic.map(|semantic| semantic.0),
+            predicate_body: domain.predicate_body.as_str(),
+            semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
         },
         TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: expression_snapshot(program, *minimum),
@@ -1343,6 +1340,15 @@ fn type_constraint_snapshot(
         TypeConstraintNode::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
             domain: domain.name().to_owned(),
         },
+    }
+}
+
+fn semantic_roles_snapshot(
+    roles: omega_core::semantics::DomainSemanticRoles,
+) -> DomainSemanticRolesSnapshot {
+    DomainSemanticRolesSnapshot {
+        denotation_dimension: roles.denotation_dimension.map(|semantic| semantic.0),
+        arithmetic_policy: roles.arithmetic_policy.map(|semantic| semantic.0),
     }
 }
 

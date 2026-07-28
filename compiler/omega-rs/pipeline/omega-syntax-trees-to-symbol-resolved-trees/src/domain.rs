@@ -28,12 +28,13 @@ pub(crate) fn lower_domain_definition(
         .symbol_resolved_trees
         .semantic_domains
         .intern(domain.name.as_str());
-    // Compatibility projection until the role-keyed semantic records land.
-    // Predicate-body presence is explicit source metadata; no downstream
-    // consumer may reconstruct it by counting facts.
-    let facets = omega_core::semantics::DomainFacets {
-        predicate: domain.predicate_body.is_present(),
-        semantic: Some(semantic_id),
+    // Until authored denotation declarations land, an authored domain-owned
+    // operator is the source-level contribution to the denotation/dimension
+    // role. This projection happens once; downstream consumers read the
+    // explicit role record and never inspect operator presence.
+    let semantic_roles = omega_core::semantics::DomainSemanticRoles {
+        denotation_dimension: (!operators.is_empty()).then_some(semantic_id),
+        arithmetic_policy: None,
     };
 
     Ok(DomainDefinition {
@@ -47,7 +48,7 @@ pub(crate) fn lower_domain_definition(
         operators,
         body_token_count: domain.body_token_count,
         semantic_id,
-        facets,
+        semantic_roles,
     })
 }
 

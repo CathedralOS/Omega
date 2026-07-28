@@ -265,7 +265,7 @@ pub struct DomainDefinitionSnapshot {
     pub alias: Vec<DomainAliasConstituentSnapshot>,
     pub predicate_body: &'static str,
     pub semantic_id: u32,
-    pub facets: DomainFacetsSnapshot,
+    pub semantic_roles: DomainSemanticRolesSnapshot,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
@@ -278,9 +278,9 @@ pub struct DomainAliasConstituentSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct DomainFacetsSnapshot {
-    pub predicate: bool,
-    pub semantic: Option<u32>,
+pub struct DomainSemanticRolesSnapshot {
+    pub denotation_dimension: Option<u32>,
+    pub arithmetic_policy: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -665,9 +665,15 @@ fn domain_definition_snapshot(
             .unwrap_or_default(),
         predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
-        facets: DomainFacetsSnapshot {
-            predicate: domain.facets.predicate,
-            semantic: domain.facets.semantic.map(|semantic| semantic.0),
+        semantic_roles: DomainSemanticRolesSnapshot {
+            denotation_dimension: domain
+                .semantic_roles
+                .denotation_dimension
+                .map(|semantic| semantic.0),
+            arithmetic_policy: domain
+                .semantic_roles
+                .arithmetic_policy
+                .map(|semantic| semantic.0),
         },
         facts: domain_fact_snapshots(program, domain.facts),
         operators: program

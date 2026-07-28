@@ -396,8 +396,8 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                 .ends_with(&format!("::{}", name.as_str()))
                     })
                 {
-                    if let Some(semantic_id) = domain.facets.semantic {
-                        committed.push(semantic_id);
+                    if domain.semantic_id.is_valid() {
+                        committed.push(domain.semantic_id);
                     }
                 }
                 collect_casts(program, cast.value, committed);

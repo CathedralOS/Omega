@@ -1,6 +1,6 @@
 //! Binding-site selection for domain-owned operator meanings (chapter 8,
 //! "Domain-Sensitive Operators"). A domain-owned candidate participates only
-//! when its semantic facet is selected by an operand declaration, explicit
+//! when its semantic role is selected by an operand declaration, explicit
 //! mint, or signature `requires`. Flow-established predicate membership never
 //! changes operator meaning.
 //!
@@ -167,7 +167,8 @@ fn type_selects_semantic_domain(
             .iter()
             .any(|constraint| match constraint {
                 omega_typed_trees::types::TypeConstraintNode::Domain(domain) => {
-                    domain.symbol == domain_symbol && domain.facets.semantic.is_some()
+                    domain.symbol == domain_symbol
+                        && domain.semantic_roles.denotation_dimension.is_some()
                 }
                 _ => false,
             }),
@@ -208,11 +209,9 @@ fn cast_selects_domain(
     if cast.semantic_domain.is_empty() {
         return false;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol && domain.facets.semantic.is_some())
-    else {
+    let Some(domain) = program.domain_definitions().iter().find(|domain| {
+        domain.symbol == domain_symbol && domain.semantic_roles.denotation_dimension.is_some()
+    }) else {
         return false;
     };
     let authored = program
@@ -309,7 +308,7 @@ fn signature_selects_domain(
                         .domain_definitions()
                         .iter()
                         .find(|domain| domain.symbol == domain_symbol)
-                        .is_some_and(|domain| domain.facets.semantic.is_some())
+                        .is_some_and(|domain| domain.semantic_roles.denotation_dimension.is_some())
             }
             ProofFact::Expression(_) => false,
         })
