@@ -1,3 +1,5 @@
+use omega::language::core::numeric_conversion;
+
 data RandomState {
     seed: u64 in Wrapping;
     calls: UInt;
@@ -9,7 +11,7 @@ data Random {
 machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
-    ((state.seed >> 32) as u32)
+    narrow_u64_to_u32_wrapping(state.seed >> 32)
 }
 
 machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) -> u32 {

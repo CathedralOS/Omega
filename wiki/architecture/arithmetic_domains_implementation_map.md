@@ -67,7 +67,11 @@
 > compatibility spelling. Because conversion operations are ordinary calls,
 > the proof and indexed-range paths consult exact R5 write frames:
 > pure/disjoint calls preserve unrelated dominating guards, while opaque or
-> overlapping frames still invalidate them.
+> overlapping frames still invalidate them. The active PRNG canary cohort now
+> names wrapping high-word extraction as well. Runtime branch alias resolution
+> follows binary/member argument structure and substitutes its bare parameter
+> root, preventing a nested conversion in a mutating value machine from reading
+> an unused cloned parameter slot; a focused native canary retains that fix.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
