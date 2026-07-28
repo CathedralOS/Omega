@@ -363,6 +363,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
     matches!(
         instruction.kind,
         MachineInstructionKind::RuntimeMachineIntegerWrite
+            | MachineInstructionKind::RuntimeStorageBitFieldWrite
             | MachineInstructionKind::RuntimeStorageBinaryWrite
             | MachineInstructionKind::RuntimeStorageConvert
             | MachineInstructionKind::RuntimeFrameIndexedIntegerWrite

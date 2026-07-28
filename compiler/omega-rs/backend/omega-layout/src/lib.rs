@@ -163,6 +163,22 @@ impl Default for FieldLayout {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BitFieldFragment {
+    /// Byte offset relative to the containing record.
+    pub container_byte_offset: usize,
+    pub container_width_bits: u16,
+    pub destination_lsb: u16,
+    pub source_lsb: u16,
+    pub width: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BitFieldLayout {
+    pub field: SymbolHandle,
+    pub fragments: Vec<BitFieldFragment>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantLayout {
     pub symbol: SymbolHandle,
@@ -259,6 +275,13 @@ impl Default for MachineLayout {
 pub struct LayoutPlan {
     pub data_layouts: Arena<DataLayout>,
     pub fields: Arena<FieldLayout>,
+    pub bit_fields: Vec<BitFieldLayout>,
     pub machine_layouts: Arena<MachineLayout>,
     pub variants: Arena<VariantLayout>,
+}
+
+impl LayoutPlan {
+    pub fn bit_field(&self, field: SymbolHandle) -> Option<&BitFieldLayout> {
+        self.bit_fields.iter().find(|layout| layout.field == field)
+    }
 }

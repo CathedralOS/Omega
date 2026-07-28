@@ -25,11 +25,12 @@ use super::primitives::{
     encode_float_multiply, encode_float_sqrt, encode_float_subtract, encode_float_to_signed_int,
     encode_float_to_unsigned_int, encode_ldadd, encode_ldclr, encode_ldeor, encode_ldset,
     encode_load_byte_w_from_x, encode_load_byte_w_post_increment, encode_load_w_from_x,
-    encode_load_x_from_x, encode_lslv_w_register, encode_lslv_x_register, encode_lsrv_w_register,
-    encode_lsrv_x_register, encode_move_w_register, encode_move_x_register, encode_movz,
-    encode_movz_w, encode_msub_w_register, encode_msub_x_register, encode_mul_x_register,
-    encode_mvn_register, encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
-    encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
+    encode_load_x_from_x, encode_lsl_x_immediate, encode_lslv_w_register, encode_lslv_x_register,
+    encode_lsr_x_immediate, encode_lsrv_w_register, encode_lsrv_x_register, encode_move_w_register,
+    encode_move_x_register, encode_movz, encode_movz_w, encode_msub_w_register,
+    encode_msub_x_register, encode_mul_x_register, encode_mvn_register, encode_orr_x_register,
+    encode_sdiv_w_register, encode_sdiv_x_register, encode_sign_extend_byte_to_w,
+    encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
@@ -38,7 +39,8 @@ use super::primitives::{
     encode_unconditional_branch, encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
-    add_constant_width, runtime_frame_base_indexed_address_to_runtime_frame_write_width,
+    add_constant_width, bit_fragment_container_bytes,
+    runtime_frame_base_indexed_address_to_runtime_frame_write_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
@@ -51,8 +53,8 @@ use super::widths::{
     runtime_pointee_address_to_runtime_frame_write_width, runtime_pointee_binary_write_width,
     runtime_pointee_bounded_buffer_write_width, runtime_pointee_integer_write_width,
     runtime_pointee_string_write_width, runtime_storage_address_to_runtime_frame_write_width,
-    runtime_storage_binary_write_width, runtime_storage_compare_width,
-    runtime_storage_convert_width,
+    runtime_storage_binary_write_width, runtime_storage_bit_field_write_width,
+    runtime_storage_compare_width, runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
     runtime_storage_value_compare_width, runtime_value_operand_width,
@@ -1283,6 +1285,83 @@ pub fn encode_runtime_machine_integer_write(
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_integer_write_width(byte_offset, byte_size)
+    );
+    Ok(bytes)
+}
+
+fn bit_width_mask(width: u16) -> Result<u64, Diagnostic> {
+    match width {
+        1..=63 => Ok((1_u64 << width) - 1),
+        64 => Ok(u64::MAX),
+        _ => Err(Diagnostic::error("AArch64 bit-field width must be 1..=64")),
+    }
+}
+
+fn validate_runtime_bit_field_fragment(
+    fragment: &omega_target_operations::RuntimeBitFieldFragment,
+) -> Result<usize, Diagnostic> {
+    let container_bytes = bit_fragment_container_bytes(fragment)?;
+    let destination_end = u32::from(fragment.destination_lsb) + u32::from(fragment.width);
+    if destination_end > u32::from(fragment.container_width_bits) {
+        return Err(Diagnostic::error(
+            "AArch64 bit-field fragment exceeds its destination container",
+        ));
+    }
+    let source_end = u32::from(fragment.source_lsb) + u32::from(fragment.width);
+    if source_end > 64 {
+        return Err(Diagnostic::error(
+            "AArch64 bit-field fragment exceeds its logical scalar",
+        ));
+    }
+    bit_width_mask(fragment.width)?;
+    Ok(container_bytes)
+}
+
+pub fn encode_runtime_storage_bit_field_write(
+    base_byte_offset: usize,
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if fragments.is_empty() {
+        return Err(Diagnostic::error(
+            "AArch64 bit-field write requires at least one fragment",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(runtime_storage_bit_field_write_width(
+        base_byte_offset,
+        fragments,
+    )?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    for fragment in fragments {
+        let container_bytes = validate_runtime_bit_field_fragment(fragment)?;
+        let offset = base_byte_offset
+            .checked_add(fragment.container_byte_offset)
+            .ok_or_else(|| Diagnostic::error("AArch64 bit-field offset overflows"))?;
+        let fragment_mask = bit_width_mask(fragment.width)?;
+        let destination_mask = fragment_mask
+            .checked_shl(u32::from(fragment.destination_lsb))
+            .ok_or_else(|| {
+                Diagnostic::error("AArch64 bit-field destination mask overflows 64 bits")
+            })?;
+        let source_bits = (value as u64)
+            .checked_shr(u32::from(fragment.source_lsb))
+            .unwrap_or(0)
+            & fragment_mask;
+        let inserted = source_bits
+            .checked_shl(u32::from(fragment.destination_lsb))
+            .ok_or_else(|| Diagnostic::error("AArch64 bit-field value overflows 64 bits"))?;
+
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, container_bytes, 19)?;
+        append_unsigned_immediate_padded(&mut bytes, 20, !destination_mask);
+        bytes.extend(encode_and_x_register(17, 17, 20));
+        append_unsigned_immediate_padded(&mut bytes, 20, inserted);
+        bytes.extend(encode_orr_x_register(17, 17, 20));
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, container_bytes, 19)?;
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_bit_field_write_width(base_byte_offset, fragments)?
     );
     Ok(bytes)
 }
@@ -4270,6 +4349,47 @@ fn append_runtime_value_operand(
             "runtime operand",
         )?;
         Ok(())
+    } else if let Some((_, base_byte_offset, _, fragments)) =
+        runtime_value_operands.bit_field(operand)
+    {
+        if fragments.is_empty() {
+            return Err(Diagnostic::error(
+                "AArch64 bit-field operand requires at least one fragment",
+            ));
+        }
+        if matches!(destination_register, 19 | 20 | 21) {
+            return Err(Diagnostic::error(
+                "AArch64 bit-field operand destination conflicts with reserved assembly registers",
+            ));
+        }
+        bytes.extend(encode_adrp_placeholder(19));
+        bytes.extend(encode_add_page_offset_placeholder(19));
+        bytes.extend(encode_movz(destination_register, 0));
+        for fragment in &fragments {
+            let container_bytes = validate_runtime_bit_field_fragment(fragment)?;
+            let offset = base_byte_offset
+                .checked_add(fragment.container_byte_offset)
+                .ok_or_else(|| Diagnostic::error("AArch64 bit-field offset overflows"))?;
+            append_load_data_from_x_offset(bytes, 20, 19, offset, container_bytes, 21)?;
+            if fragment.destination_lsb != 0 {
+                bytes.extend(encode_lsr_x_immediate(
+                    20,
+                    20,
+                    fragment.destination_lsb as u8,
+                ));
+            }
+            append_unsigned_immediate_padded(bytes, 21, bit_width_mask(fragment.width)?);
+            bytes.extend(encode_and_x_register(20, 20, 21));
+            if fragment.source_lsb != 0 {
+                bytes.extend(encode_lsl_x_immediate(20, 20, fragment.source_lsb as u8));
+            }
+            bytes.extend(encode_orr_x_register(
+                destination_register,
+                destination_register,
+                20,
+            ));
+        }
+        Ok(())
     } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
         runtime_value_operands.pointee(operand)
     {
@@ -5873,6 +5993,9 @@ pub(in crate::aarch64) fn runtime_value_operand_value_byte_size(
 ) -> Option<usize> {
     if let Some((_, _, byte_size)) = operands.storage(operand) {
         return Some(byte_size);
+    }
+    if let Some((_, _, value_byte_size, _)) = operands.bit_field(operand) {
+        return Some(value_byte_size);
     }
     if let Some((_, _, byte_size)) = operands.pointee(operand) {
         return Some(byte_size);

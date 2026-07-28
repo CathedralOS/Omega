@@ -95,7 +95,8 @@ fn assign_value_home(
             field_byte_offset: *field_byte_offset,
             byte_size: *byte_size,
         },
-        TargetValueOperand::Binary { .. }
+        TargetValueOperand::BitField { .. }
+        | TargetValueOperand::Binary { .. }
         | TargetValueOperand::Convert { .. }
         | TargetValueOperand::TextEquals { .. }
         | TargetValueOperand::TextEqualsLiteral { .. }

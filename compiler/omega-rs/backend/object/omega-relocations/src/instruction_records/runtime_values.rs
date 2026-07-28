@@ -21,6 +21,10 @@ pub(super) fn collect_runtime_value_operand_relocations(
             let symbol = context.storage_region_symbol_handle(*region);
             context.insert_data_address(operand_text_offset, symbol);
         }
+        RuntimeValueOperand::BitField { region, .. } => {
+            let symbol = context.storage_region_symbol_handle(*region);
+            context.insert_data_address(operand_text_offset, symbol);
+        }
         RuntimeValueOperand::Pointee { .. }
         | RuntimeValueOperand::FrameBaseIndexed { .. }
         | RuntimeValueOperand::FrameFixedIndexed { .. } => {

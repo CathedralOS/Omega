@@ -3,7 +3,8 @@ use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::{
-    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
+    RuntimeBitFieldFragment, RuntimeValueOperandHandle, RuntimeValueOperandSource,
+    StateGuardOperator,
 };
 
 pub fn encode_runtime_value_compare(
@@ -47,6 +48,22 @@ pub fn encode_runtime_machine_integer_write(
         }
         Architecture::X86_64 => {
             x86_64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
+        }
+    }
+}
+
+pub fn encode_runtime_storage_bit_field_write(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    fragments: &[RuntimeBitFieldFragment],
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_bit_field_write(base_byte_offset, fragments, value)
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_bit_field_write(base_byte_offset, fragments, value)
         }
     }
 }

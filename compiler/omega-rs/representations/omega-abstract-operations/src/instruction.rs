@@ -13,6 +13,6 @@ pub use operation_kind::{AbstractOperationDomain, AbstractOperationKind, Selecte
 pub use place::{PLACE_MAX_STEPS, Place, PlaceStep};
 pub use storage::RuntimeStorageRegion;
 pub use value_operand::{
-    AbstractValueOperand, AbstractValueOperandHandle, RuntimeValueOperand,
+    AbstractValueOperand, AbstractValueOperandHandle, RuntimeBitFieldFragment, RuntimeValueOperand,
     RuntimeValueOperandHandle, ValueOperand, ValueOperandHandle,
 };

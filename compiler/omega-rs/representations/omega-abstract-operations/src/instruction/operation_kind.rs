@@ -583,6 +583,15 @@ pub enum AbstractOperationKind {
         value: i64,
         byte_size: usize,
     },
+    /// Store one immediate logical scalar through a validated fragmented
+    /// plan-laid field. Each destination container is updated by masked RMW;
+    /// fragments are complete source tiling established by layout validation.
+    WriteStorageBitField {
+        region: RuntimeStorageRegion,
+        base_byte_offset: usize,
+        fragments: Vec<crate::RuntimeBitFieldFragment>,
+        value: i64,
+    },
 
     /// Binary rung 2a: `place = left OP right` -- the six Write*Binary
     /// variants collapse onto this one. Field semantics mirror the retired

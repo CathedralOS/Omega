@@ -185,6 +185,55 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
 }
 
 #[test]
+fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate should live under compiler/orchestration/omega-compiler")
+        .join("canaries/pass/layouts/runtime_plan_laid_compact_bits_exit/main.omg");
+    let checked = compile_to_checked(&canary, None).expect("compact-bit canary should compile");
+
+    assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
+    let recorded = &checked.typed.plan_laid_layouts[0];
+    assert_eq!(recorded.data_name, "CompactBits<PackedFlags>");
+    assert_eq!(recorded.offsets, vec![0, 0, 0]);
+    assert_eq!(recorded.size, 1);
+    assert_eq!(recorded.align, 1);
+    assert_eq!(recorded.bit_fields.len(), 3);
+    assert_eq!(recorded.bit_fields[0].fragments.len(), 1);
+    assert_eq!(recorded.bit_fields[1].fragments.len(), 1);
+    assert_eq!(recorded.bit_fields[2].fragments.len(), 2);
+    assert_eq!(recorded.bit_fields[2].fragments[0].source_lsb, 0);
+    assert_eq!(recorded.bit_fields[2].fragments[1].source_lsb, 2);
+
+    let target = NativeTarget::from_omega_target_name(None).expect("host target");
+    let layouts = build_layout_plan(&checked, target).expect("layout plan should build");
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "CompactBits<PackedFlags>")
+        .expect("the synthesized compact-bit record should be laid out");
+    let DataShape::Record { fields } = &data_layout.shape else {
+        panic!("compact-bit data should be a record");
+    };
+    let fields = layouts.fields.span_or_empty(*fields);
+    assert_eq!(fields.len(), 3);
+    assert_eq!(
+        fields.iter().map(|field| field.offset).collect::<Vec<_>>(),
+        vec![0, 0, 0]
+    );
+    assert_eq!(
+        layouts
+            .bit_field(fields[2].symbol)
+            .expect("split field should retain bit geometry")
+            .fragments
+            .len(),
+        2
+    );
+}
+
+#[test]
 fn c_layout_policy_plans_a_uefi_ish_schema() {
     let main_path = write_program("clayout-pilot", PILOT);
     let checked = compile_to_checked(&main_path, None).expect("pilot should compile");

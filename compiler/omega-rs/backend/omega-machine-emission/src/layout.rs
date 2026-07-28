@@ -828,6 +828,15 @@ fn machine_instruction_width(
             *value,
             *byte_size,
         )?,
+        SelectedInstructionKind::WriteStorageBitField {
+            base_byte_offset,
+            fragments,
+            ..
+        } => omega_instruction_selection::runtime_storage_bit_field_write_width(
+            input.target.architecture,
+            *base_byte_offset,
+            fragments,
+        )?,
         SelectedInstructionKind::WritePlaceString {
             target,
             byte_length,
