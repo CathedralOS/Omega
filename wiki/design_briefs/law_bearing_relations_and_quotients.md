@@ -31,6 +31,14 @@ fragment remains separate: this ruling admits proposition-valued dependency
 in the erased proof stratum, not arbitrary value-to-runtime-`Type`
 computation, runtime proof objects, or value-directed layout.
 
+The rational-carrier work also supplies the first rung of F7's float semantics.
+`FloatMeaning::FiniteNonZero` requires signed `Rat`, while the existing Cauchy
+metric kernel is deliberately stated over nonnegative `rat_gap` results. Extend
+the carrier through the existing positive/negative-coordinate construction,
+rebuild the gap implementation, and preserve the public metric theorems. Float
+semantic functions cannot land before that extension; float target providers
+must not grow a parallel private rational theory.
+
 ## Carrier families and heterogeneous representatives
 
 Every proof carrier participating in this facility is read as a family with a

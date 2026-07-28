@@ -462,16 +462,52 @@ domain, and format; it cannot regress a landed value to an untyped integer.
 ## Float Facts
 
 > A float is a format-parameterized approximation carrier: every operation is
-> "exact
-> rational arithmetic, then round once" under a FORMAT the target binds.
-> `f32`/`f64` name the IEEE binary32/64 formats — a fact recorded in target
-> provider-plan data, never in the grammar. Every finite float is exactly a
-> dyadic rational, so float facts are `Rat` facts (chapter 10). Names mean
-> formats, always: `f32` never rebinds to a different representation on any
-> target; a future format (posits, bf16) arrives as a new name plus a
-> format record plus provider bindings — zero grammar.
+> an executable special-value theory plus "exact signed-rational arithmetic,
+> then round once" for its finite branch. `f32`/`f64` permanently name the
+> binary32/64 core formats; a target provider realizes those meanings but never
+> chooses them. Every finite nonzero float is exactly a dyadic signed rational.
+> Signed zero, infinity, and NaN use the separate `FloatMeaning` cases below.
+> A future format (posits, bf16) arrives as a new name plus a format record plus
+> provider bindings — zero grammar and no rebinding of existing names.
 
 Float constraints describe correctness facts, not optimization permissions.
+
+### Operators are requirements
+
+Primitive float operations use the ordinary operand-driven operator resolver.
+The complete static carrier/domain tuple selects a named boundary-operator
+requirement such as `Float::add`; the target package supplies a selected
+satisfier and normalized `ProviderPlan`.
+
+```text
+a + b
+  -> Float::add selected from the static operand tuple
+  -> x86 ADDSS, AArch64 FADD, or a checked software realization
+```
+
+Selection is static. There is no float vtable, operation-kind argument, ambient
+format, or special compiler-only operator family. Arithmetic, comparison,
+conversion, classification, fused operations, and directed-rounding variants
+remain separate named requirements.
+
+The contract of each requirement is an equality against an executable core
+semantic function:
+
+```omega
+data FloatMeaning {
+    case FiniteNonZero(value: SignedRat); // value != 0
+    case Zero(sign: Sign);
+    case Infinity(sign: Sign);
+    case NaN;
+}
+
+ensures meaning(result)
+    == FloatSemantics::add(Binary32, meaning(left), meaning(right));
+```
+
+Subnormals inhabit `FiniteNonZero`; signed zero is separate because operations
+such as reciprocal observe the sign. NaN payloads do not enter the base proof
+meaning, although the concrete runtime value retains its honest bits.
 
 ### Value domains — wellness facts
 
@@ -516,6 +552,22 @@ into wraparound):
 - **`in Wrapping`**: compile error — there is no modular reading of a
   float (the float-to-int cast ruling's precedent, generalized).
 
+For example, finite operands alone do not prove finite division:
+
+```omega
+machine divide(a: f32 in Finite, b: f32 in Finite)
+    -> f32 in Finite
+{
+    return a / b;
+}
+```
+
+The selected `/` requirement requires `b` to exclude both signed zeros and the
+rounded quotient to remain within the finite range. Underflow to signed zero is
+finite and needs no exclusion. `Saturating` discharges the magnitude-overflow
+branch but not the nonzero-divisor obligation. A result-checked `Trapping`
+qualification may instead trap before a non-finite result returns.
+
 ### Float comparisons and NaN
 
 Float comparisons follow the format's partial order on both engines (IEEE
@@ -547,9 +599,11 @@ operands, where a bit-pattern comparison would invert the order — by
 are now pinnable (runtime `0.0 / 0.0` under the quiet default constructs
 NaN portably).
 
-NaN payload bits are unspecified after every operation and never
-proof-observable; a recast (`&self.f as &u32`) reads whatever bits are
-honestly there.
+NaN payload bits are absent from the base arithmetic promise and never
+observable through `FloatMeaning`. A representation-sensitive consumer must
+prove non-NaN, canonicalize NaN, or require an exact raw-NaN refinement from
+the selected realization. A runtime recast (`&self.f as &u32`) still reads
+whatever bits are honestly there and makes no reproducibility promise.
 
 ### Two orders
 
@@ -582,14 +636,33 @@ order independently.
 ### Literals and compile-time arithmetic
 
 A float literal parses to its exact rational value (`9.80665` IS
-`196133/20000`); compile-time float arithmetic is exact `Rat` arithmetic;
-the result rounds **once**, at the landing site, to the landing type's
-format. The same literal lands correctly as `f32`, `f64`, or any future
-format with no suffix — a constant is unitless until a site requests a
-type. Where the exact operation is undefined or exceeds the format
-(division by zero, overflow), compile-time evaluation applies the format's
-special-value semantics — so compile-time and runtime agree bit-for-bit by
-construction, NaN production included.
+`196133/20000`); anonymous compile-time decimal arithmetic is exact `Rat`
+arithmetic, and the result rounds **once** at the landing site to the landing
+type's format. The same literal lands correctly as `f32`, `f64`, or any future
+format with no suffix — a constant is unitless until a site requests a type.
+After landing, compile-time operations invoke the same executable
+`FloatSemantics` functions as the interpreter and target contracts.
+
+Semantic results therefore agree across build time and runtime. Exact raw NaN
+bits are a stronger promise: build-time recast of a computed possibly-NaN value
+requires proof of non-NaN, canonicalization, or an exact target refinement.
+
+### Canonical floating control state
+
+Checked Omega code runs under one canonical semantic floating-control
+configuration: nearest-even, gradual underflow, and the target's corresponding
+masked-exception policy. The invariant covers only semantic control bits, not
+sticky status flags.
+
+Directed rounding is a distinct operation (`add_toward_zero`, for example),
+not a temporary control-mode change. `Trapping` checks the semantic result
+rather than unmasking hardware floating exceptions. Consequently the scheduler
+does not switch rounding modes between Omega activations.
+
+Foreign code is the restoration seam. A foreign binding either proves it
+preserves the relevant MXCSR/FPCR controls or its trampoline saves and restores
+them. A callback entering Omega establishes the canonical controls before
+checked code runs and restores the foreign controls on return.
 
 ## Temporaries
 

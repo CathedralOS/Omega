@@ -104,9 +104,12 @@ Working rules:
   need `Nat` at all; `Nat` appears when a claim is genuinely about unbounded
   mathematics.
 
-Core ships the roster: `Nat`, `Seq<T>`, `Bag<T>`, and `Rat` — every finite
-float embeds into `Rat` exactly (IEEE values are dyadic rationals), so float
-verification is exact Rat-versus-Rat error bounding. `Int` follows when
+Core ships the roster: `Nat`, `Seq<T>`, `Bag<T>`, and `Rat`. Every finite
+nonzero float embeds into signed `Rat` exactly (binary values are dyadic
+rationals), while signed zero, infinity, and NaN inhabit the separate
+proof-level `FloatMeaning` cases. Float verification invokes executable
+`FloatSemantics` functions whose finite branches are exact Rat arithmetic plus
+one format rounding step. `Int` follows when
 subtraction-closed reasoning wants it, with one rule stated at introduction:
 `Int`'s order has no floor, so ranking views over it must produce a
 well-founded `Nat` rank or carry a proven floor.
