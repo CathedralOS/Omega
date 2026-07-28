@@ -57,11 +57,13 @@ predicate aliases now have independent syntax/resolved/typed records, expand
 to their atomic conjunction before type and contract identity, compatibility,
 admission, and executable predicate lowering, retain public/private publication
 legality, reject unknown/cross-carrier/cyclic expansions, and report unmet
-atomic facts. Package-owner coherence, the remaining independent domain-theory
-records, compiler-owned carry atoms, and the authority migrations remain.
+atomic facts. Establishment relationships now normalize independently as exact
+owner-machine, domain-operator, or boundary-requirement identities; alias
+guarantees expand to atomic routes, typed constraints and snapshots preserve
+them, and checked consumers no longer reconstruct authority from names.
+Package-owner coherence, canonical qualification, compiler-owned carry atoms,
+and the authority migrations remain.
 
-- represent establishment routes independently; predicate-body, semantic-role,
-  and alias records are now separate;
 - migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
   tokens to ordinary data declarations with their required fields;
 - connect provider receipts, linearity, carry policy, and authority-flow
@@ -256,8 +258,6 @@ ceilings, and publication-before-ledger-record all reject.
 
 ### Domain theory and numeric conversion
 
-- Add normalized establishment-route records; predicate-body, semantic-role,
-  and transparent-alias records are already independent.
 - Implement the core canonical qualification conformance from P1b.
 - Define ordinary core numeric conversion machines, with explicit narrowing
   policy, then migrate width and float/integer conversion away from the legacy
@@ -339,10 +339,9 @@ current consumers happen to align.
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
   Boundary write-frame spelling is owner-blocked on #15.
-- **DOM1/DOM2/DOM3/DOM5:** add normalized establishment-route records
-  (predicate-body, semantic-role, and alias records are already independent);
-  implement the canonical core qualification conformance, operator ownership,
-  and weakening certificates.
+- **DOM1/DOM2/DOM3/DOM5:** implement the canonical core qualification
+  conformance, operator ownership, package-owner coherence, and weakening
+  certificates.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration.

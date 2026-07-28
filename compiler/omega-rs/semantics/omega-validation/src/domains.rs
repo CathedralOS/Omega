@@ -175,6 +175,7 @@ fn validate_repeated_normalized_domain_identities(
             peer.semantic_id != domain.semantic_id
                 || peer.predicate_body != domain.predicate_body
                 || peer.semantic_roles != domain.semantic_roles
+                || peer.establishment_routes != domain.establishment_routes
                 || normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts
         }) {
             diagnostics.push(Diagnostic::error(format!(

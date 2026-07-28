@@ -20,18 +20,19 @@ rather than extending old booleans and bitsets by convention.
 
 `omega-symbol-resolved-trees/src/domain.rs` and
 `omega-typed-trees/src/domain.rs` represent every domain as one
-`DomainDefinition` containing independent predicate-body, semantic-role, alias,
-fact, and operator records. Operator-bearing source declarations are projected
-once during syntax-to-resolved lowering into the closed
+`DomainDefinition` containing independent predicate-body, semantic-role,
+establishment-route, alias, fact, and operator records. Operator-bearing source
+declarations are projected once during syntax-to-resolved lowering into the
+closed
 `DenotationDimension` role; downstream consumers do not infer semantic roles
-from operator presence. The record does not yet represent:
+from operator presence. Establishment relationships are normalized after
+symbol assignment as exact source identities and copied through typed domain
+definitions and binding-site constraints. The record does not yet represent:
 
-- owner-authorized establishment relationships;
 - denotation schema and implicit-weakening certificate/sealed theory;
 - the distinction between flow knowledge and binding-site semantic
   qualification; or
-- evidence-source identity for proof, checked establishment, transformation,
-  and admitted receipt.
+- canonical representation-qualification conformance.
 
 `omega-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
 membership, while qualification casts and emitted semantic commitments consume
@@ -142,8 +143,7 @@ consume the declaration's stable semantic identity, qualification consults
 predicate-body presence for proof, and operator selection consumes semantic
 roles. Domain conjunction validation permits contributions in different roles
 (`Degrees & Wrapping`) and rejects multiple distinct contributors to one role.
-Bodyless establishment routes and the checked core qualification relationship
-remain.
+The checked core qualification relationship remains.
 
 Implementation status (DOM1 body presence, 2026-07-28): `domain T::Fact;` and
 `domain T::Fact {}` both parse as an explicit bodyless predicate-body record,
@@ -163,14 +163,27 @@ Granted selected provider plans attach their normalized plan fingerprint to
 matching admitted facts, and checked artifacts publish
 `05_qualification_evidence.json` with origin, source, program point, and receipt
 identity. Exact owner-authorized admitted-subject matching is now live.
-Canonical qualification conformance and the remaining independent
-domain-theory records remain P1 work.
+Canonical qualification conformance remains P1 work.
+
+Implementation status (P1a establishment routes, 2026-07-28):
+`DomainEstablishmentRoute` records the exact symbol identity of an
+owner-checked machine, domain-owned operator, or authorizing boundary
+trait/requirement pair. Syntax-to-resolved lowering normalizes those
+relationships once after symbol assignment, recursively expands aliases to
+their atomic domain facts, and deduplicates without losing declaration order.
+Resolved and typed domain definitions, typed binding-site constraints, and
+structural snapshots preserve the records. Checked owner and boundary
+qualification consumers consult only the normalized route identity instead of
+reconstructing permission from attachment names or contract placement.
+Canonical-qualification routes and package-owner coherence remain P1b/P1a
+work, respectively.
 
 Implementation status (DOM alias expansion, 2026-07-28): transparent
 declared-domain aliases retain independent syntax, resolved, and typed records.
 Their constituent symbols resolve after the complete declaration set exists;
 uses expand recursively to atomic facts before constrained-type and contract
-identity, compatibility, admission, and executable predicate lowering.
+identity, compatibility, admission, executable predicate lowering, and
+establishment-route normalization.
 Validation rejects empty, unknown, cross-carrier, cyclic, and public-to-private
 expansions, while call diagnostics name the unmet atom. Compiler-owned `Carry`
 atoms and `Carry::Portable` remain part of the separate per-claim carry
@@ -194,8 +207,9 @@ writes and constructions, entry/read facts, return/parameter implication, and
 post-write re-establishment. Members without predicate bodies never enter that
 fact lattice; their normalized identities and role contributions remain on the
 type for qualification and operator consumers. Semantic roles compose by key,
-with same-role collisions rejected. Establishment-route identities remain the
-next independent domain-theory record.
+with same-role collisions rejected. Establishment routes copy independently
+onto every normalized domain constraint and do not enter the predicate-fact
+lattice.
 
 Implementation status (DOM2 binding activation, 2026-07-23): checked operator
 selection reads only static binding sources: normalized declared constraints,

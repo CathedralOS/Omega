@@ -392,16 +392,20 @@ predicate lowering, validate nonempty/acyclic/same-carrier/public expansions,
 and diagnose unmet atoms. Operator-bearing declarations contribute the
 `DenotationDimension` role once during syntax lowering; arithmetic domains
 contribute `ArithmeticPolicy`; different roles compose and same-role
-collisions reject. Canonical `as`, establishment-route identities, and
+collisions reject. Establishment relationships now normalize once after symbol
+assignment as exact owner-machine, domain-operator, or boundary
+trait/requirement identities. Alias guarantees expand to their atomic facts;
+resolved and typed declarations, binding-site constraints, snapshots, and
+checked qualification consumers preserve the records without re-inferring
+permission from names. Canonical `as`, package-owner coherence, and
 compiler-owned `Carry` atoms remain.
 Migration should:
 
-1. add normalized bodyless-domain establishment-route identities;
-2. complete evidence-source identity across every establishment route;
-3. publish and validate the core representation-qualification trait;
-4. preserve normalized qualification through generics, contracts, artifacts,
+1. publish and validate the core representation-qualification trait;
+2. add package-owner coherence to authored establishment routes;
+3. preserve normalized qualification through generics, contracts, artifacts,
    and separate compilation; and
-5. migrate numeric width conversions away from the qualification spelling once
+4. migrate numeric width conversions away from the qualification spelling once
    their named operations are fixed.
 
 General open operator-family linking, external unit-kind equations, authored

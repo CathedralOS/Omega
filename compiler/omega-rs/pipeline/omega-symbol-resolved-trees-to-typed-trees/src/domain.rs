@@ -121,6 +121,7 @@ pub(crate) fn lower_domain_definition(
         // Copied, never re-derived (the STR3 propagation rule).
         semantic_id: domain.semantic_id,
         semantic_roles: domain.semantic_roles,
+        establishment_routes: domain.establishment_routes.clone(),
     };
 
     for operator in lowerer.source_trees.operator_definitions(domain.operators) {

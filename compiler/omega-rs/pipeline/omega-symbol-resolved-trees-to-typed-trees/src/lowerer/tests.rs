@@ -176,6 +176,10 @@ fn lowers_domain_definitions() {
         .find(|candidate| candidate.name.as_str() == "Player::Alive")
         .expect("resolved alive domain");
     assert_eq!(domain.semantic_roles, resolved_domain.semantic_roles);
+    assert_eq!(
+        domain.establishment_routes,
+        resolved_domain.establishment_routes
+    );
     assert!(domain.semantic_roles.is_empty());
     let tagged = typed_trees
         .domain_definitions()
@@ -269,12 +273,20 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
     assert_eq!(signed.semantic_id, signed_domain.semantic_id);
     assert_eq!(signed.predicate_body, signed_domain.predicate_body);
     assert_eq!(signed.semantic_roles, signed_domain.semantic_roles);
+    assert_eq!(
+        signed.establishment_routes,
+        signed_domain.establishment_routes
+    );
 
     let unsigned = constraint_for(fields["unsigned"]);
     assert_eq!(unsigned.symbol, unsigned_domain.symbol);
     assert_eq!(unsigned.semantic_id, unsigned_domain.semantic_id);
     assert_eq!(unsigned.predicate_body, unsigned_domain.predicate_body);
     assert_eq!(unsigned.semantic_roles, unsigned_domain.semantic_roles);
+    assert_eq!(
+        unsigned.establishment_routes,
+        unsigned_domain.establishment_routes
+    );
 
     let omega_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = typed
         .type_reference_table
@@ -292,6 +304,10 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
     assert_eq!(boxed_signed.symbol, signed_domain.symbol);
     assert_eq!(boxed_signed.predicate_body, signed_domain.predicate_body);
     assert_eq!(boxed_signed.semantic_roles, signed_domain.semantic_roles);
+    assert_eq!(
+        boxed_signed.establishment_routes,
+        signed_domain.establishment_routes
+    );
 }
 
 #[test]

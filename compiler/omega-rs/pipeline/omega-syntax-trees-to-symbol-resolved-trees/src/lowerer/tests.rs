@@ -369,6 +369,153 @@ fn preserves_domain_operator_declarations() {
 }
 
 #[test]
+fn normalizes_domain_establishment_route_identities() {
+    use omega_core::semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token {
+        value: u64;
+    }
+
+    domain Token::Issued;
+
+    machine Token::issue(value: u64) -> Token
+    ensures
+        result in Token::Issued
+    {
+        Token { value: value }
+    }
+
+    boundary trait TokenIssuer {
+        machine issue(value: u64) -> Token
+        ensures
+            result in Token::Issued;
+    }
+
+    domain Token::Stamped {
+        operator stamp(value: Token) -> Token
+        ensures
+            result in Token::Stamped;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+    let owner = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Token::issue")
+        .expect("owner machine");
+    let issuer = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "TokenIssuer")
+        .expect("boundary trait");
+    let requirement = program
+        .trait_machine_signatures(issuer.machines)
+        .first()
+        .expect("issue requirement");
+    let issued = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Issued")
+        .expect("issued domain");
+    assert!(
+        issued
+            .establishment_routes
+            .contains(&DomainEstablishmentRoute::OwnerCheckedMachine {
+                machine: owner.symbol,
+            })
+    );
+    assert!(
+        issued
+            .establishment_routes
+            .contains(&DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: issuer.symbol,
+                requirement: requirement.symbol,
+            })
+    );
+
+    let stamped = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Stamped")
+        .expect("stamped domain");
+    let operator = program
+        .operator_definitions(stamped.operators)
+        .first()
+        .expect("domain-owned operator");
+    assert_eq!(
+        stamped.establishment_routes,
+        [DomainEstablishmentRoute::OwnerOperator {
+            operator: operator.symbol,
+        }]
+    );
+}
+
+#[test]
+fn expands_alias_establishment_routes_to_atomic_domains() {
+    use omega_core::semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token {
+        value: u64;
+    }
+
+    domain Token::Issued;
+    domain Token::Stamped;
+    domain Token::Ready = Token::Issued & Token::Stamped;
+
+    boundary trait TokenIssuer {
+        machine issue(value: u64) -> Token
+        ensures
+            result in Token::Ready;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let issuer = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "TokenIssuer")
+        .expect("boundary trait");
+    let requirement = program
+        .trait_machine_signatures(issuer.machines)
+        .first()
+        .expect("issue requirement");
+    let route = DomainEstablishmentRoute::BoundaryRequirement {
+        boundary_trait: issuer.symbol,
+        requirement: requirement.symbol,
+    };
+
+    for name in ["Token::Issued", "Token::Stamped"] {
+        let atom = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == name)
+            .expect("atomic domain");
+        assert_eq!(atom.establishment_routes, [route]);
+    }
+    let alias = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Ready")
+        .expect("alias domain");
+    assert!(
+        alias.establishment_routes.is_empty(),
+        "routes belong to normalized atomic facts, not alias spellings"
+    );
+}
+
+#[test]
 fn lowers_machine_contract_clauses() {
     let source = r#"
     machine distinct_indices(i: usize, j: usize)

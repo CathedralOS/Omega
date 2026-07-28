@@ -894,6 +894,7 @@ fn domain_is_declared(
                 && domain.semantic_id == constraint.semantic_id
                 && domain.predicate_body == constraint.predicate_body
                 && domain.semantic_roles == constraint.semantic_roles
+                && domain.establishment_routes == constraint.establishment_routes
                 && type_references_match(program, base_type, domain.target_type)
         })
 }

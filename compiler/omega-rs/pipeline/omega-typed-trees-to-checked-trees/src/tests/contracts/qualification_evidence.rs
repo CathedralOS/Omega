@@ -1,5 +1,5 @@
 use super::*;
-use omega_core::semantics::QualificationEvidenceOrigin;
+use omega_core::semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 use omega_facts::{FactOrigin, FactPayload};
 
 #[test]
@@ -54,6 +54,14 @@ machine Main::run(&mut self) {
         .iter()
         .find(|domain| domain.name.as_str() == "Token::Issued")
         .expect("issued domain");
+    assert!(
+        issued
+            .establishment_routes
+            .contains(&DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: issuer.symbol,
+                requirement: issue.symbol,
+            })
+    );
     let call_fact = checked
         .facts
         .semantic
@@ -115,6 +123,17 @@ machine Main::run(&mut self) {
         .iter()
         .find(|domain| domain.name.as_str() == "Token::Issued")
         .expect("issued domain");
+    let owner = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Token::issue")
+        .expect("owner machine");
+    assert_eq!(
+        issued.establishment_routes,
+        [DomainEstablishmentRoute::OwnerCheckedMachine {
+            machine: owner.symbol,
+        }]
+    );
     let call_fact = checked
         .facts
         .semantic
@@ -154,6 +173,46 @@ machine Main::run(&mut self) {
         })
         .expect("assignment transfer preserves qualification");
     assert_eq!(transferred.evidence, call_fact.evidence);
+}
+
+#[test]
+fn checked_owner_authority_is_consumed_from_the_normalized_route_record() {
+    let mut typed = parse_typed_trees(
+        r#"
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+machine Token::issue(value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}
+"#,
+    );
+    let roots = typed.roots.domain_definitions;
+    let [issued] = typed.tables.domain_definitions.span_mut_or_empty(roots) else {
+        panic!("one domain");
+    };
+    issued.establishment_routes.clear();
+
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("checked lowering must not reconstruct owner authority from names");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("cannot prove ensures contract") }),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]

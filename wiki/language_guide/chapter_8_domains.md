@@ -1102,8 +1102,9 @@ Working interpretation:
 - Qualification, forgetting, recast, validation, and conversion remain
   distinct according to carrier identity, payload identity, and runtime work.
 
-> **Implementation gate:** the current Rust trees carry a transitional facet
-> pair and arithmetic-policy special paths. General domain work must preserve
-> predicate bodies, semantic contributions by role, establishment routes, and
-> normalized qualification independently in the IR; see
+> **Implementation gate:** the current Rust trees carry independent predicate
+> bodies, closed semantic-role records, transparent aliases, and normalized
+> establishment routes. Arithmetic policies still have special lowering paths,
+> and canonical representation qualification remains to land. General domain
+> work must preserve every domain-theory axis independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

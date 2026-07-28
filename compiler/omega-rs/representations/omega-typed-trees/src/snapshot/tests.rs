@@ -19,12 +19,16 @@ fn snapshots_empty_typed_tree_as_json() {
 #[test]
 fn snapshots_normalized_domain_semantic_roles() {
     let mut program = TypedTrees::default();
+    let machine = omega_core::symbols::SymbolHandle::from_arena_index(25);
     program.push_domain_definition(DomainDefinition {
         semantic_id: omega_core::semantics::SemanticDomainId(23),
         semantic_roles: omega_core::semantics::DomainSemanticRoles {
             denotation_dimension: Some(omega_core::semantics::SemanticDomainId(23)),
             arithmetic_policy: None,
         },
+        establishment_routes: vec![
+            omega_core::semantics::DomainEstablishmentRoute::OwnerCheckedMachine { machine },
+        ],
         ..Default::default()
     });
 
@@ -36,6 +40,12 @@ fn snapshots_normalized_domain_semantic_roles() {
     assert_eq!(domain.predicate_body, "bodyless");
     assert_eq!(domain.semantic_roles.denotation_dimension, Some(23));
     assert_eq!(domain.semantic_roles.arithmetic_policy, None);
+    assert_eq!(domain.establishment_routes.len(), 1);
+    assert_eq!(domain.establishment_routes[0].kind, "owner_checked_machine");
+    assert_eq!(
+        domain.establishment_routes[0].source_symbol,
+        machine.arena_index()
+    );
     assert!(snapshot.to_json_pretty().is_ok());
 }
 
@@ -78,6 +88,8 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
     let program = TypedTrees::default();
     let symbol = omega_core::symbols::SymbolHandle::from_arena_index(31);
     let semantic_id = omega_core::semantics::SemanticDomainId(7);
+    let boundary_trait = omega_core::symbols::SymbolHandle::from_arena_index(32);
+    let requirement = omega_core::symbols::SymbolHandle::from_arena_index(33);
     let snapshot = type_constraint_snapshot(
         &program,
         &TypeConstraintNode::Domain(DomainConstraint {
@@ -89,6 +101,12 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
                 denotation_dimension: Some(semantic_id),
                 arithmetic_policy: None,
             },
+            establishment_routes: vec![
+                omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                    boundary_trait,
+                    requirement,
+                },
+            ],
         }),
     );
 
@@ -103,7 +121,13 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
                 denotation_dimension: Some(7),
                 arithmetic_policy: None,
             },
+            establishment_routes,
         } if name == "Utf8"
+            && establishment_routes == vec![super::DomainEstablishmentRouteSnapshot {
+                kind: "boundary_requirement",
+                source_symbol: 32,
+                requirement_symbol: Some(33),
+            }]
     ));
 }
 

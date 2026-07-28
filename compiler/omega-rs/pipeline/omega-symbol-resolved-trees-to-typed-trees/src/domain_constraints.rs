@@ -92,6 +92,7 @@ fn normalize_constraint_span(
                 semantic_id: domain.semantic_id,
                 predicate_body: domain.predicate_body,
                 semantic_roles: domain.semantic_roles,
+                establishment_routes: domain.establishment_routes.clone(),
             }));
             continue;
         }
@@ -127,6 +128,9 @@ fn normalize_constraint_span(
                     .unwrap_or_default(),
                 semantic_roles: declaration
                     .map(|domain| domain.semantic_roles)
+                    .unwrap_or_default(),
+                establishment_routes: declaration
+                    .map(|domain| domain.establishment_routes.clone())
                     .unwrap_or_default(),
             }));
         }

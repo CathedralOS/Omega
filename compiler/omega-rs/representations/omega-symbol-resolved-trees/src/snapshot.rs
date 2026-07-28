@@ -266,6 +266,8 @@ pub struct DomainDefinitionSnapshot {
     pub predicate_body: &'static str,
     pub semantic_id: u32,
     pub semantic_roles: DomainSemanticRolesSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub establishment_routes: Vec<DomainEstablishmentRouteSnapshot>,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
@@ -281,6 +283,14 @@ pub struct DomainAliasConstituentSnapshot {
 pub struct DomainSemanticRolesSnapshot {
     pub denotation_dimension: Option<u32>,
     pub arithmetic_policy: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DomainEstablishmentRouteSnapshot {
+    pub kind: &'static str,
+    pub source_symbol: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requirement_symbol: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -675,6 +685,12 @@ fn domain_definition_snapshot(
                 .arithmetic_policy
                 .map(|semantic| semantic.0),
         },
+        establishment_routes: domain
+            .establishment_routes
+            .iter()
+            .copied()
+            .map(establishment_route_snapshot)
+            .collect(),
         facts: domain_fact_snapshots(program, domain.facts),
         operators: program
             .operator_definitions(domain.operators)
@@ -682,6 +698,17 @@ fn domain_definition_snapshot(
             .map(|operator| operator_snapshot(program, operator))
             .collect(),
         body_token_count: domain.body_token_count,
+    }
+}
+
+fn establishment_route_snapshot(
+    route: omega_core::semantics::DomainEstablishmentRoute,
+) -> DomainEstablishmentRouteSnapshot {
+    let requirement = route.requirement_symbol();
+    DomainEstablishmentRouteSnapshot {
+        kind: route.kind_name(),
+        source_symbol: route.source_symbol().arena_index(),
+        requirement_symbol: requirement.is_valid().then(|| requirement.arena_index()),
     }
 }
 
