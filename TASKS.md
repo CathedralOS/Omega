@@ -260,8 +260,6 @@ ceilings, and publication-before-ledger-record all reject.
 - Define ordinary core numeric conversion machines, with explicit narrowing
   policy, then migrate width and float/integer conversion away from the legacy
   `as` spelling.
-- Add one user-authored predicate canary whose body is not a compiler-known
-  byte predicate.
 
 Acceptance: qualification `as` preserves carrier, payload, and runtime work;
 numeric and unit conversions are visible calls; bodyful and bodyless domains

@@ -1,0 +1,25 @@
+// A domain body may call an ordinary user-authored predicate machine. This
+// exercises general predicate identity and fact propagation without relying
+// on the compiler-recognized byte predicates used by string-literal grants.
+
+data Reading {
+    value: i64;
+    minimum: i64;
+    maximum: i64;
+}
+
+machine within_calibration(reading: Reading) -> bool {
+    reading.value >= reading.minimum && reading.value <= reading.maximum
+}
+
+domain Reading::Calibrated {
+    within_calibration(self);
+}
+
+machine consume(reading: Reading in Calibrated) {}
+
+data Main {}
+
+machine Main::main(&mut self, reading: Reading in Calibrated) {
+    consume(reading);
+}
