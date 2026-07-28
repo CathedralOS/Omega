@@ -5,7 +5,9 @@ use crate::operator::lower_operator_definition;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_symbol_resolved_trees::domain::{DomainDefinition, ProofFact, ProofMembershipFact};
+use omega_symbol_resolved_trees::domain::{
+    DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
+};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_domain_definition(
@@ -13,6 +15,10 @@ pub(crate) fn lower_domain_definition(
     syntax_trees: &SyntaxTrees,
     domain: &syntax::item::DomainDefinition,
 ) -> Result<DomainDefinition, Diagnostic> {
+    let alias = domain
+        .alias
+        .as_ref()
+        .map(|alias| lower_domain_alias(lowerer, syntax_trees, alias));
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
     let operators = lower_domain_operators(lowerer, syntax_trees, domain.operators)?;
 
@@ -34,6 +40,8 @@ pub(crate) fn lower_domain_definition(
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
+        is_public: domain.is_public,
+        alias,
         predicate_body: domain.predicate_body,
         facts,
         operators,
@@ -41,6 +49,33 @@ pub(crate) fn lower_domain_definition(
         semantic_id,
         facets,
     })
+}
+
+fn lower_domain_alias(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    alias: &syntax::item::DomainAliasDefinition,
+) -> DomainAliasDefinition {
+    let constituents = alias
+        .constituents
+        .iter()
+        .map(|constituent| {
+            let mut domain = omega_core::arena::HandleSpan::empty();
+            for member in syntax_trees.items.identifier_path_members(*constituent) {
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .domain_path_members
+                    .append_to_span(&mut domain, lower_name(member));
+            }
+            DomainAliasConstituent {
+                domain,
+                domain_symbol: SymbolHandle::invalid(),
+            }
+        })
+        .collect();
+    DomainAliasDefinition { constituents }
 }
 
 fn lower_domain_operators(

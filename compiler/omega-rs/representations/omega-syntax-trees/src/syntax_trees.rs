@@ -205,6 +205,17 @@ impl SyntaxTrees {
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
                 target_type: self.copy_type_reference_handle(other, domain.target_type),
+                is_public: domain.is_public,
+                alias: domain
+                    .alias
+                    .as_ref()
+                    .map(|alias| crate::item::DomainAliasDefinition {
+                        constituents: alias
+                            .constituents
+                            .iter()
+                            .map(|constituent| self.copy_item_identifier_span(other, *constituent))
+                            .collect(),
+                    }),
                 predicate_body: domain.predicate_body,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),

@@ -52,18 +52,16 @@ receipt identity; and `05_qualification_evidence.json` publishes the result.
 Boundary admission now also retains the exact authorizing trait and state
 signature, admits only an exact `ensures result in Domain` whose result carrier
 matches the domain target, rejects direct accepted-machine membership claims,
-and publishes the requirement identity beside the receipt. Package-owner
-coherence, the independent domain-theory records, aliases, and the authority
-migrations remain.
+and publishes the requirement identity beside the receipt. Transparent
+predicate aliases now have independent syntax/resolved/typed records, expand
+to their atomic conjunction before type and contract identity, compatibility,
+admission, and executable predicate lowering, retain public/private publication
+legality, reject unknown/cross-carrier/cyclic expansions, and report unmet
+atomic facts. Package-owner coherence, the remaining independent domain-theory
+records, compiler-owned carry atoms, and the authority migrations remain.
 
-- represent predicate bodies, semantic roles, establishment routes, and alias
-  expansion independently instead of projecting a facet pair from body shape;
-- record proof, owner establishment, checked transformation, and admitted
-  receipt as distinct evidence origins;
-- allow admitted qualification only through a provider satisfying an
-  owner-authorized requirement that names the exact qualified subject;
-- implement transparent predicate aliases with expansion before normalization,
-  identity, compatibility, and diagnostics;
+- represent semantic roles and establishment routes independently instead of
+  projecting a facet pair; predicate-body and alias records are now separate;
 - migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
   tokens to ordinary data declarations with their required fields;
 - connect provider receipts, linearity, carry policy, and authority-flow
@@ -258,8 +256,9 @@ ceilings, and publication-before-ledger-record all reject.
 
 ### Domain theory and numeric conversion
 
-- Replace the transitional predicate/semantic facet projection with predicate
-  body, semantic-role, establishment-route, and alias records.
+- Replace the transitional predicate/semantic facet projection with
+  semantic-role and establishment-route records; predicate-body and transparent
+  alias records are already independent.
 - Implement the core canonical qualification conformance from P1b.
 - Add role collision/composition tests: `Km & Wrapping` composes;
   `Wrapping & Trapping` rejects.
@@ -344,9 +343,10 @@ current consumers happen to align.
 - **R5:** finish relational frame candidates and escaping mutation checks.
   Boundary write-frame spelling is owner-blocked on #15.
 - **DOM1/DOM2/DOM3/DOM5:** replace the transitional facet projection with
-  predicate-body, semantic-role, establishment-route, and alias records;
+  semantic-role and establishment-route records (predicate-body and alias
+  records are already independent);
   implement the canonical core qualification conformance, operator ownership,
-  weakening certificates, and transparent aliases.
+  and weakening certificates.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration.

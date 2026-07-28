@@ -110,7 +110,39 @@ pub(super) fn lower_domain_membership_expression(
             domain_symbol.arena_index()
         )));
     };
+    let expanded = crate::domain::expand_domain_reference(
+        program,
+        domain_symbol,
+        vec![domain_definition.name.clone()],
+    )?;
+    let mut lowered = Vec::with_capacity(expanded.len());
+    for atom in expanded {
+        lowered.push(lower_atomic_domain_membership_expression(
+            program,
+            target,
+            value,
+            atom.symbol,
+        )?);
+    }
+    combine_conjunction(target, lowered)
+}
 
+fn lower_atomic_domain_membership_expression(
+    program: &resolved::SymbolResolvedTrees,
+    target: &mut typed::TypedTrees,
+    value: typed::expression::ExpressionHandle,
+    domain_symbol: omega_core::symbols::SymbolHandle,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+    let Some(domain_definition) = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot lower executable membership for unknown domain symbol {}",
+            domain_symbol.arena_index()
+        )));
+    };
     let source = &program.tables.bodies.expressions;
     let mut lowered_facts = Vec::new();
 
@@ -153,6 +185,13 @@ pub(super) fn lower_domain_membership_expression(
         lowered_facts.push(lowered);
     }
 
+    combine_conjunction(target, lowered_facts)
+}
+
+fn combine_conjunction(
+    target: &mut typed::TypedTrees,
+    lowered_facts: Vec<typed::expression::ExpressionHandle>,
+) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
     let mut lowered_facts = lowered_facts.into_iter();
     let Some(mut combined) = lowered_facts.next() else {
         return Ok(target

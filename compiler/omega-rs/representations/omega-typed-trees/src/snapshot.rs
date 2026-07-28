@@ -248,12 +248,21 @@ pub struct DataPayloadFieldSnapshot {
 pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
+    pub is_public: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub alias: Vec<DomainAliasConstituentSnapshot>,
     pub predicate_body: &'static str,
     pub semantic_id: u32,
     pub facets: DomainFacetsSnapshot,
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DomainAliasConstituentSnapshot {
+    pub domain: Vec<String>,
+    pub domain_symbol: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -643,6 +652,25 @@ fn domain_definition_snapshot(
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
         target_type: type_reference_snapshot(program, domain.target_type),
+        is_public: domain.is_public,
+        alias: domain
+            .alias
+            .as_ref()
+            .map(|alias| {
+                alias
+                    .constituents
+                    .iter()
+                    .map(|constituent| DomainAliasConstituentSnapshot {
+                        domain: program
+                            .domain_path_members(constituent.domain)
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect(),
+                        domain_symbol: constituent.domain_symbol.arena_index(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
         facets: DomainFacetsSnapshot {

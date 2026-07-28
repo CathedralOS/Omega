@@ -29,9 +29,14 @@ pub(super) fn parse_item<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, Item> {
     if input.at_keyword(KeywordKind::Pub) {
         let input = input.take_keyword(KeywordKind::Pub, "pub")?;
-        // Visibility is syntax-level metadata for now. Semantic export rules
-        // still live in explicit `export` items until module scoping grows up.
-        return parse_item(syntax_trees, input);
+        // General semantic export rules still live in explicit `export` items
+        // until module scoping grows up. Domains retain this bit now because a
+        // public transparent alias may not publish a private constituent.
+        let (mut item, rest) = parse_item(syntax_trees, input)?;
+        if let Item::Domain(domain) = &mut item {
+            domain.is_public = true;
+        }
+        return Ok((item, rest));
     }
 
     if input.at_contextual("repr") {

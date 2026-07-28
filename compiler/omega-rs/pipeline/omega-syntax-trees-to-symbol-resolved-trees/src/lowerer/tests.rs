@@ -177,6 +177,9 @@ fn lowers_domain_definitions() {
     }
 
     domain Player::Tagged;
+
+    domain Player::Usable =
+        Player::Valid & Player::Alive;
     "#;
 
     let tokens = Lexer::new(source)
@@ -185,7 +188,7 @@ fn lowers_domain_definitions() {
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
-    assert_eq!(program.domain_definitions.len(), 3);
+    assert_eq!(program.domain_definitions.len(), 4);
     let domain = program
         .domain_definitions
         .iter()
@@ -227,6 +230,20 @@ fn lowers_domain_definitions() {
             .find_child_by_name(program.symbols.root(), "Player::Alive")
             .is_some()
     );
+    let usable = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Player::Usable")
+        .expect("usable alias should lower");
+    let alias = usable.alias.as_ref().expect("alias theory");
+    assert_eq!(alias.constituents.len(), 2);
+    assert!(
+        alias
+            .constituents
+            .iter()
+            .all(|constituent| constituent.domain_symbol.is_valid())
+    );
+    assert!(usable.facts.is_empty(), "aliases are not predicate facts");
 }
 
 #[test]

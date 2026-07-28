@@ -552,6 +552,8 @@ mod tests {
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
+            is_public: false,
+            alias: None,
             predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),

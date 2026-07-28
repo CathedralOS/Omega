@@ -1,0 +1,46 @@
+// A transparent alias is a spelling for its atomic conjunction. It works in
+// constrained types, contracts, and executable membership without minting an
+// independent fact.
+
+data Socket {
+    connected: bool;
+    authenticated: bool;
+}
+
+pub domain Socket::Connected {
+    self.connected;
+}
+
+pub domain Socket::Authenticated {
+    self.authenticated;
+}
+
+pub domain Socket::Usable =
+    Socket::Connected & Socket::Authenticated;
+
+data Pair {
+    aliased: Socket in Usable;
+    expanded: Socket in Connected & Authenticated;
+}
+
+machine consume(socket: Socket)
+requires
+    socket in Socket::Usable
+{
+}
+
+machine forward(socket: Socket)
+requires
+    socket in Socket::Connected;
+    socket in Socket::Authenticated
+{
+    consume(socket);
+}
+
+machine is_usable(socket: Socket) -> bool {
+    socket in Socket::Usable
+}
+
+data Main {}
+
+machine Main::run(&mut self) {}

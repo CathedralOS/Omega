@@ -1,10 +1,12 @@
-use crate::parser::input::{Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::operator::parse_operator_definition;
 use crate::parser::proof_fact::parse_proof_facts_until;
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{DomainDefinition, OperatorDefinition, ProofFact};
+use omega_syntax_trees::item::{
+    DomainAliasDefinition, DomainDefinition, OperatorDefinition, ProofFact,
+};
 use omega_syntax_trees::types::TypeReferenceNode;
 use omega_tokens::PunctuationKind;
 
@@ -32,13 +34,36 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (domain_name, input) = input.take_identifier()?;
     let name = Identifier::generated(format!("{target_label}::{domain_name}"));
-    let ((predicate_body, facts, operators, body_token_count), input) =
-        parse_domain_body(syntax_trees, input)?;
+    let (alias, predicate_body, facts, operators, body_token_count, input) =
+        if input.at_punctuation(PunctuationKind::Equal) {
+            let (alias, input) = parse_domain_alias(syntax_trees, input)?;
+            (
+                Some(alias),
+                omega_core::semantics::DomainPredicateBody::Bodyless,
+                HandleSpan::empty(),
+                HandleSpan::empty(),
+                0,
+                input,
+            )
+        } else {
+            let ((predicate_body, facts, operators, body_token_count), input) =
+                parse_domain_body(syntax_trees, input)?;
+            (
+                None,
+                predicate_body,
+                facts,
+                operators,
+                body_token_count,
+                input,
+            )
+        };
 
     Ok((
         DomainDefinition {
             name,
             target_type,
+            is_public: false,
+            alias,
             predicate_body,
             facts,
             operators,
@@ -46,6 +71,29 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         },
         input,
     ))
+}
+
+fn parse_domain_alias<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, DomainAliasDefinition> {
+    let mut input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+    let mut constituents = Vec::new();
+
+    loop {
+        let (domain, rest) = parse_path_handle_span(input, |member| {
+            syntax_trees.items.append_identifier_path_member(member)
+        })?;
+        constituents.push(domain);
+        if !rest.at_punctuation(PunctuationKind::Ampersand) {
+            input = rest;
+            break;
+        }
+        input = rest.take_punctuation(PunctuationKind::Ampersand, "&")?;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    Ok((DomainAliasDefinition { constituents }, input))
 }
 
 /// A readable label for a domain TARGET type, used to build the domain's name

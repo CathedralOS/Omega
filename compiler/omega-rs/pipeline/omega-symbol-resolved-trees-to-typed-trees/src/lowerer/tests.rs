@@ -288,6 +288,126 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
 }
 
 #[test]
+fn expands_transparent_domain_aliases_before_semantic_normalization() {
+    let source = r#"
+    data Socket {
+        connected: bool;
+        authenticated: bool;
+    }
+
+    domain Socket::Connected {
+        self.connected;
+    }
+    domain Socket::Authenticated {
+        self.authenticated;
+    }
+    domain Socket::Usable =
+        Socket::Connected & Socket::Authenticated;
+    domain Socket::Ready = Socket::Usable;
+    domain Socket::Prepared {
+        self in Socket::Ready;
+    }
+
+    data Holder {
+        aliased: Socket in Usable;
+        expanded: Socket in Connected & Authenticated;
+    }
+
+    machine is_usable(socket: Socket) -> bool {
+        socket in Socket::Usable
+    }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+
+    let symbol_named = |name: &str| {
+        typed
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.name.as_str() == name)
+            .map(|domain| domain.symbol)
+            .expect("declared domain")
+    };
+    let connected = symbol_named("Socket::Connected");
+    let authenticated = symbol_named("Socket::Authenticated");
+    let usable = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Socket::Usable")
+        .expect("retained alias declaration");
+    assert_eq!(usable.alias.as_ref().expect("alias").constituents.len(), 2);
+
+    let prepared = typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Socket::Prepared")
+        .expect("prepared domain");
+    let imported = typed
+        .proof_facts(prepared)
+        .iter()
+        .map(|fact| match fact {
+            omega_typed_trees::domain::ProofFact::Membership(membership) => {
+                membership.domain_symbol
+            }
+            omega_typed_trees::domain::ProofFact::Expression(_) => {
+                panic!("alias should expand to membership atoms")
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(imported, [connected, authenticated]);
+
+    let holder = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Holder")
+        .expect("Holder");
+    let fields = typed
+        .data_members(holder)
+        .iter()
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                Some((field.name.as_str(), field.type_reference))
+            }
+            omega_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    assert_eq!(
+        typed.normalized_type_identity(fields["aliased"]),
+        typed.normalized_type_identity(fields["expanded"]),
+        "alias and explicit conjunction must have one normalized identity"
+    );
+
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "is_usable")
+        .expect("membership machine");
+    let has_atomic_conjunction = typed
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+        .any(|statement| {
+            let omega_typed_trees::statement::StatementNode::Expression(expression) = statement
+            else {
+                return false;
+            };
+            matches!(
+                typed.expression_table.expression(*expression),
+                omega_typed_trees::expression::ExpressionNode::Binary(binary)
+                    if binary.operator
+                        == omega_typed_trees::expression::BinaryOperator::And
+            )
+        });
+    assert!(
+        has_atomic_conjunction,
+        "executable alias membership must lower to an atomic conjunction"
+    );
+}
+
+#[test]
 fn parameter_domain_conjunction_synthesizes_each_predicate_contract_only() {
     let source = r#"
     domain [u8]::Meaning {}

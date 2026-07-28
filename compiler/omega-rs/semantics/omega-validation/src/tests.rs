@@ -2421,6 +2421,84 @@ fn rejects_domain_import_cycles() {
 }
 
 #[test]
+fn rejects_unknown_transparent_alias_constituent() {
+    let typed = typed_program_from_source(
+        r#"
+        data Socket {}
+        domain Socket::Usable =
+            Socket::Connected & Socket::Missing;
+        domain Socket::Connected { true; }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed).expect_err("unknown alias constituent must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("domain alias `Socket::Usable` references unknown domain `Socket::Missing`")
+    }));
+}
+
+#[test]
+fn rejects_transparent_alias_constituent_with_different_carrier() {
+    let typed = typed_program_from_source(
+        r#"
+        data Socket {}
+        data Session {}
+        domain Socket::Connected { true; }
+        domain Session::Authenticated { true; }
+        domain Socket::Usable =
+            Socket::Connected & Session::Authenticated;
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("cross-carrier alias constituent must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "domain alias `Socket::Usable` includes `Session::Authenticated` but they classify different types",
+        )
+    }));
+}
+
+#[test]
+fn rejects_transparent_domain_alias_cycles() {
+    let typed = typed_program_from_source(
+        r#"
+        data Socket {}
+        domain Socket::Usable = Socket::Ready;
+        domain Socket::Ready = Socket::Usable;
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed).expect_err("alias cycle must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("domain alias cycle: Socket::Usable -> Socket::Ready -> Socket::Usable")
+    }));
+}
+
+#[test]
+fn rejects_public_alias_that_publishes_private_constituent() {
+    let typed = typed_program_from_source(
+        r#"
+        data Socket {}
+        domain Socket::Connected { true; }
+        pub domain Socket::Usable = Socket::Connected;
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("public alias cannot expose private atom");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "public domain alias `Socket::Usable` cannot publish private constituent `Socket::Connected`",
+        )
+    }));
+}
+
+#[test]
 fn rejects_machine_effects_outside_trait_ceiling() {
     let source = r#"
     boundary trait Filesystem {}

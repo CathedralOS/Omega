@@ -385,8 +385,12 @@ still require ordinary proof; call-result and statement transfer preserve the
 evidence. The checked artifact publishes origin/source/receipt rows, and a
 granted selected provider plan supplies the normalized receipt identity for
 matching admitted facts. This is the first P1a tranche: exact admitted-subject
-authorization, canonical `as`, aliases, and replacement of the compatibility
-facet pair remain.
+authorization and transparent declared-domain aliases are now implemented.
+Aliases retain independent syntax/resolved/typed records, expand to atoms
+before type and contract identity, compatibility, admission, and executable
+predicate lowering, validate nonempty/acyclic/same-carrier/public expansions,
+and diagnose unmet atoms. Canonical `as`, compiler-owned `Carry` atoms, and
+replacement of the compatibility facet pair remain.
 Migration should:
 
 1. replace the facet pair with the independent domain-theory records above;

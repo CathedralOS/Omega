@@ -341,9 +341,10 @@ and rejects a transformation whose provenance assignment is ambiguous.
 
 The implementation requires:
 
-1. The domain surface must support bodyless declarations, transparent aliases,
-   owner-authorized establishment routes, and receipt-backed guarantees on
-   boundary requirements.
+1. The domain surface supports bodyless declarations and transparent
+   declared-domain aliases. It still must complete owner-authorized
+   establishment routes, compiler-owned carry atoms, and receipt-backed
+   guarantees throughout boundary requirements and authority-flow consumers.
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.
