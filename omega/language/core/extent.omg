@@ -20,6 +20,17 @@ data Extent [linear] {
 // owner-authored boundary requirement.
 pub domain Extent::Granted;
 
+// The domain owner authorizes exactly this admitted root crossing. The caller
+// supplies ordinary geometry; the selected provider plan and its admission
+// receipt are what establish `Granted` on the returned carrier. One call
+// yields one root claim. Backing containment and richer space/rights facts join
+// the same receipt as the resource-frontier implementation lands.
+pub boundary trait ExtentRootProvider {
+    machine grant(root: Extent) -> Extent
+    ensures
+        result in Extent::Granted;
+}
+
 data ExtentSlot {
     case Empty;
     case Live(extent: Extent);

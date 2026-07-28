@@ -273,6 +273,12 @@ establishment route; the provider inherits the guarantee by satisfying the
 boundary requirement. Checked artifacts retain the authorizing trait,
 requirement signature, and provider receipt independently.
 
+A checked adapter satisfying such a requirement is executable provider code,
+not a second establishment route. Calling it directly exposes only what its
+checked body establishes. Calling the selected boundary-trait slot consumes the
+admitted requirement and receipt; compilation preserves that semantic call
+until checking is complete, then redirects execution to the selected adapter.
+
 Predicate and authority evidence remains erased. Runtime data discovered at a
 boundary, such as a firmware range's base and length, remains in the carrier.
 

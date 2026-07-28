@@ -64,8 +64,12 @@ them, and checked consumers no longer reconstruct authority from names.
 Core `Extent` now exposes its ordinary `{ base: addr, length: u64 }` geometry
 and carries authority through bodyless `Extent::Granted`; every declared-domain
 parameter constraint becomes an implicit caller obligation, so matching runtime
-geometry cannot cross a qualified boundary without evidence. Compiler-owned
-carry atoms and the remaining authority migrations remain.
+geometry cannot cross a qualified boundary without evidence. Core now also
+owns `ExtentRootProvider::grant`: a selected, build-admitted checked adapter may
+originate exactly its qualified result with the authorizing requirement and
+provider-plan receipt retained, while calling that adapter directly does not
+mint `Granted`. Compiler-owned carry atoms and the remaining authority
+migrations remain.
 
 - migrate task-runtime handles, interrupt guards, and acknowledgement tokens to
   ordinary data declarations with their required fields;
