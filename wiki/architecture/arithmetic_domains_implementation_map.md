@@ -49,7 +49,13 @@
 > negatives. Exact is contract-gated; saturation clamps the conversion itself;
 > trapping is a runtime event; and every result carries ordinary Exact
 > arithmetic. Checked-result narrowing remains design-open; float/integer
-> named operations and retirement of compatibility numeric `as` remain.
+> named operations and retirement of compatibility numeric `as` remain. The
+> first migration cohort covers indexed operands, guard subjects, comparisons,
+> bitwise operands, entry results, 16-bit conversions, and signed/unsigned
+> extension. An indexed conversion immediately requalified inside arithmetic
+> still needs an explicit result binding because the inline call-result form
+> mislowers; that normalization defect is engineering work, not a semantic
+> question.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
