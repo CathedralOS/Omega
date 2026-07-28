@@ -5,6 +5,7 @@
 // record on macOS syscalls.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -25,12 +26,14 @@ machine Main::main(&mut self) {
     // defensive: clear a stale link from a prior failed run (rc ignored)
     self.n = self.fs.remove("/tmp/omega_nlink_2.txt");
     self.rc = self.fs.read_metadata("/tmp/omega_nlink.txt", &mut self.buffer);
-    self.nlink1 = (self.buffer[6] as i32) | ((self.buffer[7] as i32) << 8);
+    self.nlink1 =
+        widen_u8_to_i32(self.buffer[6]) | (widen_u8_to_i32(self.buffer[7]) << 8);
     self.rc = self.fs.hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
     transition self.rc == 0 { true -> stat2() _ -> fail() }
     state stat2(&mut self) {
         self.rc = self.fs.read_metadata("/tmp/omega_nlink.txt", &mut self.buffer);
-        self.nlink2 = (self.buffer[6] as i32) | ((self.buffer[7] as i32) << 8);
+        self.nlink2 =
+            widen_u8_to_i32(self.buffer[6]) | (widen_u8_to_i32(self.buffer[7]) << 8);
         self.n = self.fs.remove("/tmp/omega_nlink_2.txt");
         self.n = self.fs.remove("/tmp/omega_nlink.txt");
         transition self.nlink1 == 1 { true -> check2() _ -> fail() }

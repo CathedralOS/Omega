@@ -5,6 +5,7 @@
 // robust assertion; blocks is filesystem-dependent, so it is only decoded.)
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -23,15 +24,18 @@ machine Main::main(&mut self) {
     self.n = self.fs.write(self.fd, "some content here");
     self.n = self.fs.close(self.fd);
     self.rc = self.fs.read_metadata("/tmp/omega_blocks.txt", &mut self.buffer);
-    self.blksize = (self.buffer[112] as i32) | ((self.buffer[113] as i32) << 8) | ((self.buffer[114] as i32) << 16) | ((self.buffer[115] as i32) << 24);
-    self.blocks = (self.buffer[104] as i64)
-        | ((self.buffer[105] as i64) << 8)
-        | ((self.buffer[106] as i64) << 16)
-        | ((self.buffer[107] as i64) << 24)
-        | ((self.buffer[108] as i64) << 32)
-        | ((self.buffer[109] as i64) << 40)
-        | ((self.buffer[110] as i64) << 48)
-        | ((self.buffer[111] as i64) << 56);
+    self.blksize = widen_u8_to_i32(self.buffer[112])
+        | (widen_u8_to_i32(self.buffer[113]) << 8)
+        | (widen_u8_to_i32(self.buffer[114]) << 16)
+        | (widen_u8_to_i32(self.buffer[115]) << 24);
+    self.blocks = widen_u8_to_i64(self.buffer[104])
+        | (widen_u8_to_i64(self.buffer[105]) << 8)
+        | (widen_u8_to_i64(self.buffer[106]) << 16)
+        | (widen_u8_to_i64(self.buffer[107]) << 24)
+        | (widen_u8_to_i64(self.buffer[108]) << 32)
+        | (widen_u8_to_i64(self.buffer[109]) << 40)
+        | (widen_u8_to_i64(self.buffer[110]) << 48)
+        | (widen_u8_to_i64(self.buffer[111]) << 56);
     self.n = self.fs.remove("/tmp/omega_blocks.txt");
     transition self.blksize > 0 { true -> good() _ -> fail() }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }

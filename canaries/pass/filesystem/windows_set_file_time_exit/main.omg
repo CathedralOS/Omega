@@ -17,6 +17,7 @@
 use omega::language::std::filesystem_host;
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -64,14 +65,14 @@ machine Main::main(&mut self) {
     }
     state decode(&mut self) {
         // Windows `_stat64` st_mtime @40, pinned by the target StatLayout.
-        self.mtime = (self.stat_buf[40] as i64)
-            | ((self.stat_buf[41] as i64) << 8)
-            | ((self.stat_buf[42] as i64) << 16)
-            | ((self.stat_buf[43] as i64) << 24)
-            | ((self.stat_buf[44] as i64) << 32)
-            | ((self.stat_buf[45] as i64) << 40)
-            | ((self.stat_buf[46] as i64) << 48)
-            | ((self.stat_buf[47] as i64) << 56);
+        self.mtime = widen_u8_to_i64(self.stat_buf[40])
+            | (widen_u8_to_i64(self.stat_buf[41]) << 8)
+            | (widen_u8_to_i64(self.stat_buf[42]) << 16)
+            | (widen_u8_to_i64(self.stat_buf[43]) << 24)
+            | (widen_u8_to_i64(self.stat_buf[44]) << 32)
+            | (widen_u8_to_i64(self.stat_buf[45]) << 40)
+            | (widen_u8_to_i64(self.stat_buf[46]) << 48)
+            | (widen_u8_to_i64(self.stat_buf[47]) << 56);
         transition self.mtime == 1500000000 { true -> good() _ -> bad(75) }
     }
     state good(&mut self) { self.console.exit_process(70); }
