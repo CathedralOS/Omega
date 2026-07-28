@@ -52,10 +52,10 @@
 > named operations and retirement of compatibility numeric `as` remain. The
 > first migration cohort covers indexed operands, guard subjects, comparisons,
 > bitwise operands, entry results, 16-bit conversions, and signed/unsigned
-> extension. An indexed conversion immediately requalified inside arithmetic
-> still needs an explicit result binding because the inline call-result form
-> mislowers; that normalization defect is engineering work, not a semantic
-> question.
+> extension. A value-machine call directly beneath a value cast or
+> qualification is now normalized through a synthetic local, so an indexed
+> conversion may be requalified inline inside arithmetic without consuming the
+> call scratch slot instead of the delivered result.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

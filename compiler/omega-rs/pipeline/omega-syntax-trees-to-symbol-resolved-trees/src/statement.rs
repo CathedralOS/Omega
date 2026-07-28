@@ -384,6 +384,22 @@ fn rewrite_children(
                     ExpressionNode::Indexed(_)
                 ) {
                 cast.value
+            } else if !cast.form.is_recast() && is_hoistable_value_cast_call(lowerer, cast.value) {
+                // A value-machine call directly beneath a value cast
+                // (including erased domain qualification) must first
+                // materialize through the ordinary let-bound call-result
+                // route. Otherwise Cast(Call(..)) reaches native selection as
+                // one compound operand and surrounding arithmetic can consume
+                // the call scratch slot instead of the delivered result. This
+                // is exactly the authored equivalent:
+                //
+                //   (convert(x) as T in Policy)
+                //     -> let __hoist = convert(x);
+                //        (__hoist as T in Policy)
+                //
+                // The callee's declared return types the synthetic local in
+                // `infer_hoist_temp_type`.
+                hoist_into_temp(lowerer, cast.value, hoisted)
             } else {
                 hoist_child(lowerer, cast.value, hoisted, hoist_builtin_calls)
             };
@@ -463,6 +479,18 @@ fn rewrite_children(
         // forms either do not surface the blocker or are out of scope.
         _ => {}
     }
+}
+
+/// Whether a direct call beneath a non-recast value cast can use the let-bound
+/// value-call result path. Pure compiler builtins keep their existing
+/// expression lowering because their synthetic result type is inferred from an
+/// operand rather than a declared machine return.
+fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return false;
+    };
+    !call.receiver.is_valid() && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
 }
 
 /// Rewrites an `Indexed` node's INDEX position. A hoistable COMPUTED index

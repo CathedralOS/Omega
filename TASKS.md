@@ -346,11 +346,11 @@ ceilings, and publication-before-ledger-record all reject.
   to ordinary Exact arithmetic. The first corpus cohort now exercises the named
   surface across indexed operands, guard subjects, comparisons, bitwise
   operands, entry results, 16-bit conversions, and signed/unsigned extension.
-- Finish call-result normalization for an immediately requalified named
-  conversion inside arithmetic. The indexed narrow/widen canary currently
-  binds the conversion result before attaching its arithmetic policy because
-  the equivalent inline call-result qualification mislowers natively. This is
-  an engineering defect, not a language-design blocker.
+- Call-result normalization now materializes a value-machine call directly
+  beneath a value cast or qualification through the ordinary synthetic local
+  route. Inline named conversion, subsequent arithmetic-policy qualification,
+  and enclosing arithmetic therefore preserve the delivered result; the
+  indexed narrow/widen canary pins the formerly mislowered shape.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation

@@ -23822,7 +23822,7 @@ fn runtime_narrow_widen_cast_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected an inline narrow widening cast to extend by signedness -- u8>127 zero-extends (sum 806), i8<0 sign-extends (-5) (exit 70), got {:?}\nstderr:\n{}",
+        "expected inline named conversion + policy qualification to consume the delivered call result and extend by signedness -- u8>127 zero-extends (sum 806), i8<0 sign-extends (-5) (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
