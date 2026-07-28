@@ -29,8 +29,8 @@ use boundaries::append_call_boundary_edges;
 pub(crate) use builder::build_flow_facts;
 pub(crate) use builder::build_flow_facts_with_service_reaches;
 use call_phases::{
-    apply_call_invalidations, build_call_entry_contexts, build_call_exit_contexts,
-    build_call_requires_contexts,
+    CallFlowContexts, apply_call_invalidations, build_call_entry_contexts,
+    build_call_exit_contexts, build_call_requires_contexts,
 };
 use calls::build_call_flow_fact;
 use common::{

@@ -382,14 +382,16 @@ improvements do not change public identity.
   directly grants no permission. Admitted linear bodyless claims receive a
   separate born-strict `CarryOrigin`, so qualification weakening cannot recover
   structural mobility. Local assignments and one-to-one state-parameter
-  handoffs retain that origin and its exact permissions; safe-point liveness
-  and asynchronous preemption facts consume the resulting per-value policy,
-  and artifacts publish both permission evidence and each crossing value's
-  effective axes. Remaining CRY work is checked-origin inference from inherited
-  provenance when permissions are not explicitly restated, path-indexed
-  aggregate/partial-move inheritance, conserved multi-output outcome mappings
-  under P1c, and final runtime-behavior admission for the CPU, host-thread, and
-  address axes.
+  handoffs retain that origin and its exact permissions. Scalar
+  one-linear-input/one-linear-output calls now infer the same mapping at the
+  call exit for checked, generic-slot, and admitted targets, including chained
+  checked helpers; the independent carry entry survives even when the helper
+  does not republish the authority qualification. Safe-point liveness and
+  asynchronous preemption facts consume the resulting per-value policy, and
+  artifacts publish both permission evidence and each crossing value's
+  effective axes. Remaining CRY work is path-indexed aggregate/partial-move
+  inheritance, conserved multi-output outcome mappings under P1c, and final
+  runtime-behavior admission for the CPU, host-thread, and address axes.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;

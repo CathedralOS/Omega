@@ -411,6 +411,165 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
 }
 
 #[test]
+fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
+    let checked = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued
+                    & Carry::AcrossSuspend;
+        }
+        machine forward(token: Token) -> Token { token }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            let first: Token = forward(token);
+            let forwarded: Token = forward(first);
+            self.scheduler.park();
+            transition { _ -> forwarded }
+        }
+        "#,
+    )
+    .expect("a checked one-input/one-output transformation inherits the claim permission");
+
+    let crossing = checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter()
+        .find(|crossing| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == crossing.machine)
+                .is_some_and(|machine| machine.name.as_str() == "Main::run")
+        })
+        .expect("claim suspension crossing");
+    let forwarded = crossing
+        .live_values
+        .iter()
+        .find(|value| {
+            checked
+                .display_type_reference(value.type_reference)
+                .as_str()
+                == "Token"
+                && value.storage == omega_checked_trees::SuspensionCrossingStorage::Local
+        })
+        .expect("live forwarded claim");
+    assert_eq!(
+        forwarded.effective,
+        omega_core::semantics::CarryPolicy {
+            suspension: omega_core::semantics::CarrySuspension::Allowed,
+            ..omega_core::semantics::CarryPolicy::STRICT
+        }
+    );
+    assert!(
+        !checked
+            .facts
+            .semantic
+            .facts
+            .iter()
+            .map(|(_, fact)| fact)
+            .any(|fact| {
+                let omega_facts::FactPlace::Place(place) = fact.place else {
+                    return false;
+                };
+                crate::labels::canonical_place_label(
+                    &checked.typed,
+                    &checked.facts.semantic,
+                    checked.facts.semantic.places.get(place),
+                ) == "forwarded"
+                    && matches!(
+                        fact.payload,
+                        omega_facts::FactPayload::DomainMembership { .. }
+                            | omega_facts::FactPayload::ContractDomainMembership { .. }
+                    )
+            }),
+        "the helper may forget `Issued` while the independent carry entry remains live"
+    );
+}
+
+#[test]
+fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
+    let diagnostics = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued;
+        }
+        machine forward(token: Token) -> Token { token }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            let forwarded: Token = forward(token);
+            self.scheduler.park();
+            transition { _ -> forwarded }
+        }
+        "#,
+    )
+    .expect_err("a checked one-to-one helper cannot recover structural mobility");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`forwarded` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+                && diagnostic.message.contains("cpu: same")
+                && diagnostic.message.contains("address: stable")
+        }),
+        "expected the inherited strict claim diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn admitted_one_to_one_call_cannot_erase_a_strict_claim_origin() {
+    let diagnostics = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued;
+        }
+        boundary trait TokenTransformer {
+            machine forward(token: Token) -> Token;
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main {
+            issuer: TokenIssuer;
+            transformer: TokenTransformer;
+            scheduler: Scheduler;
+        }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            let forwarded: Token = self.transformer.forward(token);
+            self.scheduler.park();
+            transition { _ -> forwarded }
+        }
+        "#,
+    )
+    .expect_err("an admitted one-to-one transformation cannot launder a claim origin");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`forwarded` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+                && diagnostic.message.contains("cpu: same")
+                && diagnostic.message.contains("address: stable")
+        }),
+        "expected the admitted transformation to retain the strict claim, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
     let diagnostics = lower(
         r#"

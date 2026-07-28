@@ -5,7 +5,7 @@ pub(super) fn build_call_flow_fact(
     program: &omega_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     proof: &ProofFacts,
-    semantic: &FactPlan,
+    semantic: &mut FactPlan,
     domains: &DomainFacts,
     ctx: &mut FlowBuildContext,
     machine: &omega_typed_trees::machine::Machine,
@@ -41,7 +41,7 @@ pub(super) fn build_call_flow_fact(
         *active_constraints,
         borrow_call,
     );
-    let exit = build_call_exit_contexts(
+    let mut exit = build_call_exit_contexts(
         semantic,
         ctx,
         machine,
@@ -49,6 +49,16 @@ pub(super) fn build_call_flow_fact(
         borrow_call,
         invalidation.post_contexts,
         invalidation.post_constraints,
+    );
+    append_one_to_one_call_carry_facts(
+        program,
+        semantic,
+        ctx,
+        machine,
+        state,
+        borrow_call,
+        &entry,
+        &mut exit,
     );
     append_call_ownership_events(program, ctx, machine, state, borrow_call);
     let boundary_edges = append_call_boundary_edges(program, ctx, borrow_call);
@@ -80,4 +90,177 @@ pub(super) fn build_call_flow_fact(
         service_reach: Default::default(),
         operational: Default::default(),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+/// Preserve the independent carry entry across the P1a mapping whose complete
+/// owned frontier is exactly one scalar linear input and one scalar linear
+/// output. The original evidence stays attached; declared-domain membership is
+/// intentionally not copied, so qualification weakening cannot launder carry.
+/// Conditional aggregates and every n-ary shape wait for P1c path mappings.
+fn append_one_to_one_call_carry_facts(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &mut FactPlan,
+    ctx: &mut FlowBuildContext,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    borrow_call: &BorrowCallFact,
+    entry: &CallFlowContexts,
+    exit: &mut CallFlowContexts,
+) {
+    let Some(target_return_type) = call_target_return_type(program, borrow_call.target_symbol)
+    else {
+        return;
+    };
+    if crate::checks::type_multiplicity(program, target_return_type)
+        != omega_core::semantics::Multiplicity::Linear
+    {
+        return;
+    }
+    let Some(crate::CallSite::Expression { expression, call }) = crate::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    ) else {
+        return;
+    };
+
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let mut argument_index = 0usize;
+    let mut linear_inputs = Vec::new();
+    let Some(parameters) = crate::call_target_parameters(program, borrow_call.target_symbol) else {
+        return;
+    };
+    for parameter in parameters {
+        let argument = if parameter.is_self {
+            call.receiver.is_valid().then_some(call.receiver)
+        } else {
+            let argument = arguments.get(argument_index).copied();
+            argument_index = argument_index.saturating_add(1);
+            argument
+        };
+        if crate::checks::type_carries_linear_obligation(program, parameter.type_reference) {
+            if crate::checks::type_multiplicity(program, parameter.type_reference)
+                != omega_core::semantics::Multiplicity::Linear
+            {
+                // Conditional aggregate obligations need a path-indexed P1c
+                // outcome mapping; they are not a scalar one-to-one input.
+                return;
+            }
+            if let Some(argument) = argument {
+                linear_inputs.push(argument);
+            }
+        }
+    }
+    let [source_argument] = linear_inputs.as_slice() else {
+        return;
+    };
+    let Some(source_place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+        program,
+        semantic,
+        state.symbol,
+        borrow_call.statement_index,
+        *source_argument,
+    ) else {
+        return;
+    };
+    let target_place = semantic.append_place_from_expression(program, expression);
+    let source_label = program.expression_table.display_name(*source_argument);
+    let context_handles = ctx
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(entry.contexts)
+        .iter()
+        .map(|context_ref| context_ref.context)
+        .collect::<Vec<_>>();
+    let mut transfers = Vec::new();
+
+    for context_handle in context_handles {
+        let context = semantic.contexts.get(context_handle);
+        for fact in semantic.context_view(context).facts() {
+            if fact.evidence.origin == omega_core::semantics::QualificationEvidenceOrigin::None {
+                continue;
+            }
+            let payload = match fact.payload {
+                FactPayload::CarryPermission { permission, .. }
+                | FactPayload::ContractCarryPermission { permission, .. } => {
+                    FactPayload::CarryPermission {
+                        value: ExpressionHandle::invalid(),
+                        permission,
+                    }
+                }
+                FactPayload::CarryOrigin { .. } => FactPayload::CarryOrigin {
+                    value: ExpressionHandle::invalid(),
+                },
+                _ => continue,
+            };
+            let FactPlace::Place(fact_place) = fact.place else {
+                continue;
+            };
+            let fact_label = crate::labels::canonical_place_label(
+                program,
+                semantic,
+                semantic.places.get(fact_place),
+            );
+            if !semantic.places_match(program, fact_place, source_place)
+                && fact_label != source_label
+            {
+                continue;
+            }
+            if !transfers.contains(&(payload, fact.evidence)) {
+                transfers.push((payload, fact.evidence));
+            }
+        }
+    }
+    if transfers.is_empty() {
+        return;
+    }
+
+    let point = ProgramPoint::CallEnsures {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index: borrow_call.statement_index,
+        call_ordinal: borrow_call.call_ordinal,
+    };
+    let mut refs = HandleSpan::empty();
+    for (payload, evidence) in transfers {
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point,
+            origin: FactOrigin::CallEnsures,
+            evidence,
+            payload,
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+    let context = semantic.append_context(point, refs);
+    ctx.contexts
+        .semantic_context_refs
+        .append_to_span(&mut exit.contexts, FlowSemanticContextRef { context });
+    append_constraint_ref(
+        &mut ctx.contexts.constraint_refs,
+        &mut exit.constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+}
+
+fn call_target_return_type(
+    program: &omega_typed_trees::TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    if let Some(state) = crate::find_state(program, target_state_symbol) {
+        return Some(state.return_type);
+    }
+    if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
+        return Some(signature.return_type);
+    }
+    program.traits().iter().find_map(|trait_definition| {
+        program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == target_state_symbol)
+            .map(|signature| signature.return_type)
+    })
 }

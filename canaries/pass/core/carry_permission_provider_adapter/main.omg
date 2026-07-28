@@ -19,6 +19,10 @@ satisfies ClaimProvider::grant
     token
 }
 
+machine forward_claim(token: Token) -> Token {
+    token
+}
+
 boundary trait Scheduler {
     machine park() suspends;
 }
@@ -30,8 +34,9 @@ data Harness {
 
 machine Harness::forward(&self, raw: Token) -> Token {
     let claim: Token = self.provider.grant(raw);
+    let forwarded: Token = forward_claim(claim);
     self.scheduler.park();
-    transition { _ -> claim }
+    transition { _ -> forwarded }
 }
 
 data Main {}

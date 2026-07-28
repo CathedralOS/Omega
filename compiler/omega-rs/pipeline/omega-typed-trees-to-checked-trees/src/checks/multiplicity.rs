@@ -1007,7 +1007,7 @@ fn common_permission_provenance(
     origins.all(|origin| origin == first).then_some(first)
 }
 
-fn type_carries_linear_obligation(
+pub(crate) fn type_carries_linear_obligation(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
