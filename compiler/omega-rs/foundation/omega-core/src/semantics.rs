@@ -734,6 +734,32 @@ pub struct DomainFacets {
     pub semantic: Option<SemanticDomainId>,
 }
 
+/// Whether a declared domain carries a predicate body.
+///
+/// This is explicit domain-theory metadata rather than something consumers
+/// may reconstruct from the current number of lowered facts. A semicolon
+/// declaration and an empty braced declaration are both `Bodyless`; an
+/// explicitly universal `{ true; }` declaration is `Present`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DomainPredicateBody {
+    #[default]
+    Bodyless,
+    Present,
+}
+
+impl DomainPredicateBody {
+    pub const fn is_present(self) -> bool {
+        matches!(self, Self::Present)
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Bodyless => "bodyless",
+            Self::Present => "present",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,6 +790,18 @@ mod tests {
         assert_eq!(table.intern("Wrapping"), SemanticDomainTable::WRAPPING);
         assert_eq!(table.name(SemanticDomainId::NULL), None);
         assert_eq!(table.lookup("Miles"), None);
+    }
+
+    #[test]
+    fn domain_predicate_body_distinguishes_bodyless_from_explicit_predicates() {
+        assert_eq!(
+            DomainPredicateBody::default(),
+            DomainPredicateBody::Bodyless
+        );
+        assert!(!DomainPredicateBody::Bodyless.is_present());
+        assert!(DomainPredicateBody::Present.is_present());
+        assert_eq!(DomainPredicateBody::Bodyless.as_str(), "bodyless");
+        assert_eq!(DomainPredicateBody::Present.as_str(), "present");
     }
 
     #[test]

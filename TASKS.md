@@ -44,7 +44,6 @@ The runtime model is specified in
 **CLEAR DIRECTION.** Authority-bearing runtime values use ordinary data fields
 plus bodyless domain facts.
 
-- accept equivalent bodyless `domain T::Fact;` and empty-braced declarations;
 - represent predicate bodies, semantic roles, establishment routes, and alias
   expansion independently instead of projecting a facet pair from body shape;
 - record proof, owner establishment, checked transformation, and admitted

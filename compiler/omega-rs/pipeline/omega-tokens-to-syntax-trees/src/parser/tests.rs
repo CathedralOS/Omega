@@ -2156,6 +2156,10 @@ fn parses_domain_definition_surface() {
     assert_eq!(domains.len(), 1);
     assert_eq!(domains[0].name.as_str(), "Player::Alive");
     assert!(domains[0].target_type.is_valid());
+    assert_eq!(
+        domains[0].predicate_body,
+        omega_core::semantics::DomainPredicateBody::Present
+    );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
     assert!(domains[0].body_token_count > 3);
 
@@ -2168,6 +2172,43 @@ fn parses_domain_definition_surface() {
         facts[1],
         omega_syntax_trees::item::ProofFact::Expression(_)
     ));
+}
+
+#[test]
+fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
+    let source = r#"
+        domain Reservation::Issued;
+        domain Reservation::Recorded {}
+        domain Reservation::Universal { true; }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let domains = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            omega_syntax_trees::item::Item::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(domains.len(), 3);
+    for domain in &domains[..2] {
+        assert_eq!(
+            domain.predicate_body,
+            omega_core::semantics::DomainPredicateBody::Bodyless
+        );
+        assert!(domain.facts.is_empty());
+        assert_eq!(domain.body_token_count, 0);
+    }
+    assert_eq!(
+        domains[2].predicate_body,
+        omega_core::semantics::DomainPredicateBody::Present
+    );
+    assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
+    assert!(domains[2].body_token_count > 0);
 }
 
 #[test]

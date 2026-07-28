@@ -248,6 +248,7 @@ pub struct DataPayloadFieldSnapshot {
 pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub target_type: TypeReferenceSnapshot,
+    pub predicate_body: &'static str,
     pub semantic_id: u32,
     pub facets: DomainFacetsSnapshot,
     pub facts: Vec<ProofFactSnapshot>,
@@ -642,6 +643,7 @@ fn domain_definition_snapshot(
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
         target_type: type_reference_snapshot(program, domain.target_type),
+        predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
         facets: DomainFacetsSnapshot {
             predicate: domain.facets.predicate,

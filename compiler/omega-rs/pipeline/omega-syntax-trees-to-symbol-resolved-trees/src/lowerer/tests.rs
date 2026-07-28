@@ -176,8 +176,7 @@ fn lowers_domain_definitions() {
         self.health > 0
     }
 
-    domain Player::Tagged {
-    }
+    domain Player::Tagged;
     "#;
 
     let tokens = Lexer::new(source)
@@ -201,6 +200,10 @@ fn lowers_domain_definitions() {
     };
     assert!(membership.domain_symbol.is_valid());
     assert!(domain.body_token_count >= 3);
+    assert_eq!(
+        domain.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Present
+    );
     assert!(domain.facets.predicate, "factful domains are hybrids");
     assert_eq!(domain.facets.semantic, Some(domain.semantic_id));
     let tagged = program
@@ -208,6 +211,11 @@ fn lowers_domain_definitions() {
         .iter()
         .find(|domain| domain.name.as_str() == "Player::Tagged")
         .expect("tagged domain should lower");
+    assert_eq!(
+        tagged.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Bodyless
+    );
+    assert_eq!(tagged.body_token_count, 0);
     assert!(
         !tagged.facets.predicate,
         "factless domains are semantic-only"

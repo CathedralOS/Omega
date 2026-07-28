@@ -612,6 +612,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
+            predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: omega_core::arena::HandleSpan::empty(),
             operators: HandleSpan::from_parts(operator, 1),
             body_token_count: 3,

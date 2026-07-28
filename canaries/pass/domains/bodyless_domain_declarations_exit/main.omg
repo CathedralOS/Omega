@@ -1,0 +1,22 @@
+// P1a: the canonical semicolon spelling and the empty-braced spelling both
+// declare bodyless facts. An explicit `true` body remains a predicate body.
+
+use omega::language::std::console;
+
+data Ticket {
+    serial: u64;
+}
+
+domain Ticket::Issued;
+domain Ticket::Recorded {}
+domain Ticket::Universal {
+    true;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
