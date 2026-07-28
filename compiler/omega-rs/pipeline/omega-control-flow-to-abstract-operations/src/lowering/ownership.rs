@@ -32,6 +32,7 @@ pub(super) fn build_abstract_ownership_summary(
                 kind: event.kind,
                 multiplicity: event.multiplicity,
                 access: event.access,
+                claim_identity: event.claim_identity,
                 provenance: event.provenance,
                 root: event.root,
                 segments: summary.segments.insert_many(

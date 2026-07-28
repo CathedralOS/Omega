@@ -46,6 +46,7 @@ pub(crate) fn remap_permission_event_owned(
         kind: event.kind,
         multiplicity: event.multiplicity,
         access: event.access,
+        claim_identity: event.claim_identity,
         provenance: event.provenance,
         root: event.root,
         segments: event.segments,

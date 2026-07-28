@@ -188,14 +188,17 @@ fn service_reach_rows_are_identity_sets_without_global_name_bits() {
 /// spine now retain Establish / Transfer / Consume / AffineDrop permission
 /// events (including conditional-payload debt). MOVE/DROP remain compatibility
 /// fields, not the source taxonomy. CML3 slice 3 added multiplicity, explicit
-/// owned/shared/exclusive access, and transfer-stable origin provenance.
+/// owned/shared/exclusive access, transfer-stable root-lineage provenance, and
+/// an independent transfer-stable permission claim identity.
 /// Borrow activations/weakenings also enter this context, and the linear
 /// judgment no longer reads move/drop. The remaining gap is retiring them as
 /// transitional producer input.
 #[test]
 fn downstream_ownership_summary_carries_qualified_permission_events() {
     use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
-    use omega_core::semantics::{Multiplicity, PermissionAccess, PermissionProvenance};
+    use omega_core::semantics::{
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionProvenance,
+    };
     let StateOwnershipSummary {
         moves: _,
         drops: _,
@@ -205,5 +208,6 @@ fn downstream_ownership_summary_carries_qualified_permission_events() {
     let event = StatePermissionEvent::default();
     assert_eq!(event.multiplicity, Multiplicity::Affine);
     assert_eq!(event.access, PermissionAccess::Owned);
+    assert_eq!(event.claim_identity, PermissionClaimIdentity::Unknown);
     assert_eq!(event.provenance, PermissionProvenance::Unknown);
 }

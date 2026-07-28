@@ -40,6 +40,7 @@ fn append_remapped_permission_events(
                 kind: event.kind,
                 multiplicity: event.multiplicity,
                 access: event.access,
+                claim_identity: event.claim_identity,
                 provenance: event.provenance,
                 root: event.root,
                 segments: target.semantics.ownership.segments.insert_many(

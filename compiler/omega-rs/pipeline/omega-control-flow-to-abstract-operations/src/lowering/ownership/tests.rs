@@ -17,6 +17,12 @@ fn lowers_only_semantic_permission_events() {
         .ownership
         .segments
         .insert_many([segment]);
+    let claim_identity = omega_core::semantics::PermissionClaimIdentity::Established {
+        machine_symbol: SymbolHandle::from_arena_index(1),
+        state_symbol: SymbolHandle::from_arena_index(2),
+        source: omega_core::semantics::PermissionEventSource::Statement { statement_index: 4 },
+        ordinal: 7,
+    };
     let mut state = StateFlow {
         key: StateKey {
             machine: SymbolHandle::from_arena_index(1),
@@ -48,6 +54,7 @@ fn lowers_only_semantic_permission_events() {
             kind: omega_core::semantics::PermissionEventKind::Consume,
             multiplicity: omega_core::semantics::Multiplicity::Linear,
             access: omega_core::semantics::PermissionAccess::Owned,
+            claim_identity,
             provenance: omega_core::semantics::PermissionProvenance::Unknown,
             root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(11)),
             segments,
@@ -70,6 +77,7 @@ fn lowers_only_semantic_permission_events() {
         omega_core::semantics::PermissionEventKind::Consume
     );
     assert!(permission.obligation_live);
+    assert_eq!(permission.claim_identity, claim_identity);
     assert_eq!(
         summary.segments.span_or_empty(permission.segments),
         &[segment]

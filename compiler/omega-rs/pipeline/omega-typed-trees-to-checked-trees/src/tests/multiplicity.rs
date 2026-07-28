@@ -66,15 +66,31 @@ fn retains_semantic_permission_events_beside_legacy_moves_and_drops() {
         omega_core::semantics::Multiplicity::Affine
     );
     let origin = events[0].provenance;
+    let claim_identity = events[0].claim_identity;
     assert_ne!(origin, omega_core::semantics::PermissionProvenance::Unknown);
+    assert_ne!(
+        claim_identity,
+        omega_core::semantics::PermissionClaimIdentity::Unknown
+    );
     assert!(
         events[..4].iter().all(|event| event.provenance == origin),
         "transfers preserve one obligation origin rather than minting a new one per binding"
+    );
+    assert!(
+        events[..4]
+            .iter()
+            .all(|event| event.claim_identity == claim_identity),
+        "transfers preserve one claim identity rather than minting a new claim per binding"
     );
     assert_eq!(
         events[4].provenance,
         omega_core::semantics::PermissionProvenance::Unknown,
         "legacy-derived affine cleanup must not invent establishment provenance"
+    );
+    assert_eq!(
+        events[4].claim_identity,
+        omega_core::semantics::PermissionClaimIdentity::Unknown,
+        "no-debt affine cleanup must not invent a live claim identity"
     );
 }
 
@@ -129,7 +145,8 @@ fn borrow_loans_share_the_permission_context_with_access_and_origin() {
     );
 
     use omega_core::semantics::{
-        Multiplicity, PermissionAccess, PermissionEventKind, PermissionProvenance,
+        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+        PermissionProvenance,
     };
     let events = checked
         .facts
@@ -152,8 +169,11 @@ fn borrow_loans_share_the_permission_context_with_access_and_origin() {
         assert_eq!(pair[0].kind, PermissionEventKind::Establish);
         assert_eq!(pair[1].kind, PermissionEventKind::Consume);
         assert_eq!(pair[0].provenance, pair[1].provenance);
+        assert_eq!(pair[0].claim_identity, pair[1].claim_identity);
         assert_ne!(pair[0].provenance, PermissionProvenance::Unknown);
+        assert_ne!(pair[0].claim_identity, PermissionClaimIdentity::Unknown);
     }
+    assert_ne!(events[0].claim_identity, events[2].claim_identity);
     assert_eq!(
         events
             .iter()
@@ -280,6 +300,12 @@ fn state_call_result_preserves_a_locally_created_obligation_origin() {
             .iter()
             .all(|event| event.provenance == events[0].provenance),
         "the state-call result must not mint a caller-side origin: {events:#?}"
+    );
+    assert!(
+        events
+            .iter()
+            .all(|event| event.claim_identity == events[0].claim_identity),
+        "the state-call result must preserve the callee claim identity: {events:#?}"
     );
 }
 
@@ -609,6 +635,10 @@ fn transparent_record_frontier_preserves_independent_field_origins() {
         pair_establishments[0].provenance, pair_establishments[1].provenance,
         "constructing an aggregate must not collapse independent field lineages"
     );
+    assert_ne!(
+        pair_establishments[0].claim_identity, pair_establishments[1].claim_identity,
+        "constructing an aggregate must not collapse independent field claims"
+    );
     for establishment in pair_establishments {
         assert_eq!(
             events
@@ -618,7 +648,61 @@ fn transparent_record_frontier_preserves_independent_field_origins() {
             8,
             "each source claim must map through its field and extracted local independently"
         );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.claim_identity == establishment.claim_identity)
+                .count(),
+            8,
+            "each source claim identity must survive aggregate and local transfers"
+        );
     }
+}
+
+#[test]
+fn transparent_record_entry_claims_share_lineage_but_have_distinct_identities() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::run() -> i32 { 0 }
+        machine consume(pair: Pair) {
+            let left: Receipt = pair.left;
+            let right: Receipt = pair.right;
+            Receipt::ack(left);
+            Receipt::ack(right);
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{
+        PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    };
+    let entries = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| {
+            event.source == PermissionEventSource::StateEntry
+                && event.kind == PermissionEventKind::Establish
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].provenance, entries[1].provenance);
+    assert_ne!(entries[0].claim_identity, entries[1].claim_identity);
+    assert!(
+        entries
+            .iter()
+            .all(|event| event.claim_identity != PermissionClaimIdentity::Unknown)
+    );
 }
 
 #[test]

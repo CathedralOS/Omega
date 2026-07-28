@@ -34,6 +34,7 @@ fn remap_ownership_summary_preserves_all_event_handles() {
             kind: omega_core::semantics::PermissionEventKind::Establish,
             multiplicity: omega_core::semantics::Multiplicity::Linear,
             access: omega_core::semantics::PermissionAccess::Owned,
+            claim_identity: omega_core::semantics::PermissionClaimIdentity::Unknown,
             provenance: omega_core::semantics::PermissionProvenance::Unknown,
             root: Default::default(),
             segments: Default::default(),

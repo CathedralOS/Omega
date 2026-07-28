@@ -95,6 +95,7 @@ pub(crate) fn state_ownership_summary(
                 kind: event.kind,
                 multiplicity: event.multiplicity,
                 access: event.access,
+                claim_identity: event.claim_identity,
                 provenance: event.provenance,
                 root: event.root,
                 segments: state_graph.semantics.ownership.segments.insert_many(

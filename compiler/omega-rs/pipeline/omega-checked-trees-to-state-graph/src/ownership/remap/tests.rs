@@ -47,6 +47,7 @@ fn remaps_ownership_summary_from_source_roots_into_target_roots() {
             kind: omega_core::semantics::PermissionEventKind::Consume,
             multiplicity: omega_core::semantics::Multiplicity::Linear,
             access: omega_core::semantics::PermissionAccess::Owned,
+            claim_identity: omega_core::semantics::PermissionClaimIdentity::Unknown,
             provenance: omega_core::semantics::PermissionProvenance::Unknown,
             root: omega_facts::PlaceRoot::Symbol(SymbolHandle::from_arena_index(7)),
             segments: segment_span,
