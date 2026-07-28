@@ -372,9 +372,10 @@ pub(super) fn build_straight_line_runtime_storage_plan(
                     );
                 }
 
-                if let Some(state_call) = context
+                for state_call in context
                     .state_calls
-                    .assignment_value_call(state.key, operation.statement_index)
+                    .calls_for_statement(state.key, operation.statement_index)
+                    .filter(|state_call| state_call.role == StateCallRole::AssignmentValue)
                 {
                     append_state_call_result_slot(
                         context,
@@ -690,9 +691,10 @@ fn append_branch_operation_storage(
         return;
     }
 
-    if let Some(state_call) = context
+    for state_call in context
         .state_calls
-        .assignment_value_call(state_key, statement_index)
+        .calls_for_statement(state_key, statement_index)
+        .filter(|state_call| state_call.role == StateCallRole::AssignmentValue)
     {
         append_branch_state_call_storage(
             context,

@@ -74,15 +74,18 @@
 > an unused cloned parameter slot; a focused native canary retains that fix.
 > The filesystem consumer cohort now names raw-stat `u8` widening across 15
 > native macOS canaries, both filesystem-to-time interop legs, and the Windows
-> SetFileTime round trip. All 18 reach checked trees, and the full native
-> filesystem/GUI suite remains green. Cast-heavy compatibility regressions keep
-> their authored legacy shape while they pin legacy lowering. Other remaining
-> filesystem casts are policy-bearing count/byte conversions. A probe of the
-> cast-field payload fixture found that terminal branch substates still
-> model only the first of several assignment-value calls in one local
-> initializer's branch prelude, so the full initializer does not materialize on
-> the native path. Migrating that fixture therefore waits on nested leaf-call
-> execution, not a conversion-policy ruling.
+> SetFileTime round trip. The cast-field payload regression now uses the same
+> named widening for its raw byte-assembly setup while retaining the final
+> payload `mode as u32` that it specifically exists to pin. All 19 reach checked
+> trees, and the full native filesystem/GUI suite remains green. Other remaining
+> filesystem casts are policy-bearing count/byte conversions or
+> compatibility-specific lowering shapes. The fixture exposed and now pins the
+> backend repair: branch-expanded storage reserves every assignment-value call
+> ordinal; leaf-only nested call trees are selectable root scopes; top-level
+> `Machine::entry` call results match their machine name; and only a bare-call
+> local initializer is satisfied by a direct result copy. Embedded calls
+> materialize their own result slots before the complete enclosing expression
+> is lowered.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
