@@ -126,13 +126,19 @@ results preserve them. Multiple contained claims established at one state entry
 share root lineage but retain distinct identities. Explicit `[linear]`
 aggregates still contribute one indivisible nominal root.
 
-This is not full P1c: case and fixed-index paths, general state/call n-ary
-input/outcome maps, per-claim carry inheritance, content projections/backing,
-and conservation witnesses remain. Symbol-keyed substitutions already retain
-contained claims through nested generic transparent records.
+Path-aligned checked state results now infer n-ary claim conservation by exact
+relative output path: each uniquely matched callee claim keeps its identity and
+lineage through caller binding, while ambiguous or non-path-aligned checked
+multi-claim results reject instead of minting replacement claims.
 
-- infer one-to-one and unambiguous aggregate outcome mappings, preserve sibling
-  obligations on partial moves, and reject ambiguous mappings;
+This is not full P1c: case and fixed-index paths, general state/call n-ary
+input maps and aggregate-constructor/explicit outcome maps, per-claim carry
+inheritance, content projections/backing, and conservation witnesses remain.
+Symbol-keyed substitutions already retain contained claims through nested
+generic transparent records.
+
+- extend inferred outcome mappings beyond direct path-aligned returns to
+  aggregate constructors and explicit normalized maps;
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed vocabulary `Indivisible | Interval<Scalar>`,

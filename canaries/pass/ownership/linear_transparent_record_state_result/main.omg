@@ -1,0 +1,30 @@
+// A path-aligned state result maps each transparent-record claim from the
+// callee's outgoing frontier to the caller's receiving frontier independently.
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data Pair {
+    left: Receipt;
+    right: Receipt;
+}
+
+data Main {}
+
+machine Main::issue(&mut self) -> Pair {
+    let left: Receipt = Receipt { code: 1 };
+    let right: Receipt = Receipt { code: 2 };
+    let pair: Pair = Pair { left: left, right: right };
+    transition { _ -> pair }
+}
+
+machine Main::run(&mut self) -> i32 {
+    let returned: Pair = self.issue();
+    let left: Receipt = returned.left;
+    let right: Receipt = returned.right;
+    Receipt::ack(left);
+    Receipt::ack(right);
+    0
+}

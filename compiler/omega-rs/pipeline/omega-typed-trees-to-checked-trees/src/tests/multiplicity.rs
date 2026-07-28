@@ -310,6 +310,123 @@ fn state_call_result_preserves_a_locally_created_obligation_origin() {
 }
 
 #[test]
+fn state_call_result_maps_multiple_claims_by_unique_output_path() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::issue(&mut self) -> Pair {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let pair: Pair = Pair { left: left, right: right };
+            transition { _ -> pair }
+        }
+        machine Main::run(&mut self) -> i32 {
+            let returned: Pair = self.issue();
+            let left: Receipt = returned.left;
+            let right: Receipt = returned.right;
+            Receipt::ack(left);
+            Receipt::ack(right);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionClaimIdentity, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    let run_symbol = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .find(|state| state.name.as_str() == "run")
+        .map(|state| state.symbol)
+        .expect("run state");
+    let caller_establishments = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.kind == PermissionEventKind::Establish
+                && matches!(
+                    event.source,
+                    omega_core::semantics::PermissionEventSource::Statement { statement_index: 0 }
+                )
+        })
+        .filter(|event| event.state_symbol == run_symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(caller_establishments.len(), 2);
+    assert_ne!(
+        caller_establishments[0].claim_identity,
+        caller_establishments[1].claim_identity
+    );
+    assert!(
+        caller_establishments
+            .iter()
+            .all(|event| event.claim_identity != PermissionClaimIdentity::Unknown)
+    );
+    for establishment in caller_establishments {
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.claim_identity == establishment.claim_identity)
+                .count(),
+            8,
+            "each callee claim must remain independently conserved through the caller: {events:#?}"
+        );
+    }
+}
+
+#[test]
+fn state_call_result_rejects_ambiguous_multi_claim_mapping() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::issue(&mut self) -> Pair {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            transition { _ -> Pair { left: left, right: right } }
+        }
+        machine Main::run(&mut self) -> i32 {
+            let returned: Pair = self.issue();
+            let left: Receipt = returned.left;
+            let right: Receipt = returned.right;
+            Receipt::ack(left);
+            Receipt::ack(right);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the result needs an explicit n-ary outcome mapping");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has no unique conserved claim mapping")
+    }));
+}
+
+#[test]
 fn permission_producer_discovers_transfers_without_legacy_moves() {
     let checked = checked(
         r#"
