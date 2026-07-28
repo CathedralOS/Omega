@@ -1,13 +1,16 @@
 // A runtime-indexed read `self.nums[self.i]` used as a SUB-EXPRESSION OPERAND
-// (a child of a binary `+` and of an `as` cast), not just a whole-value copy.
+// (a child of a binary `+` and an ordinary numeric-conversion call), not just a
+// whole-value copy.
 // The operand-hoisting normalization rewrites
 //
 //     self.acc = self.acc + self.nums[self.i];
-//     self.big = self.nums[self.i] as i64;
+//     self.big = widen_i32_to_i64(self.nums[self.i]);
 //
 // into synthetic `let __hoist_N = self.nums[self.i];` temps placed before each
-// statement, then the parent reads the temp. Before that normalization both
-// forms errored "needs runtime value lowering" / "needs runtime storage write
+// statement, then the parent reads the temp. The named conversion keeps the
+// representation-changing operation visible as a call; its checked core body
+// owns the transitional backend cast. Before operand normalization both forms
+// errored "needs runtime value lowering" / "needs runtime storage write
 // lowering" (only a root-level whole-value indexed read lowered). The elements
 // and accumulator are `i32 in Trapping` so the `acc + element` arithmetic
 // satisfies decision 17 (a plain `i32` would be rejected by the exact-arithmetic
@@ -15,6 +18,7 @@
 // i = 1: acc = 0 + 20 = 20 and big = 20. Expected exit: 70.
 
 use platform::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -32,7 +36,7 @@ machine Main::main(&mut self) {
     self.acc = 0;
 
     self.acc = self.acc + self.nums[self.i];
-    self.big = self.nums[self.i] as i64;
+    self.big = widen_i32_to_i64(self.nums[self.i]);
 
     transition self.acc == 20 {
         true -> check_big()

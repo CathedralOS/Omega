@@ -1,0 +1,69 @@
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    exact: i8;
+    wrapping: i8;
+    saturated_low: i8;
+    saturated_high: i8;
+    trapping: i8;
+    widened: i64;
+}
+
+machine Main::main(&mut self) {
+    self.exact = narrow_i16_to_i8_exact(-5);
+    self.wrapping = narrow_i16_to_i8_wrapping(130);
+    self.saturated_low = narrow_i16_to_i8_saturating(-200);
+    self.saturated_high = narrow_i16_to_i8_saturating(200);
+    self.trapping = narrow_i16_to_i8_trapping(70);
+    self.widened = widen_i8_to_i64(-5);
+
+    transition self.exact == 0 - 5 {
+        true -> check_wrapping()
+        _ -> bad()
+    }
+
+    state check_wrapping(&mut self) {
+        transition self.wrapping == 0 - 126 {
+            true -> check_saturated_low()
+            _ -> bad()
+        }
+    }
+
+    state check_saturated_low(&mut self) {
+        transition self.saturated_low == 0 - 128 {
+            true -> check_saturated_high()
+            _ -> bad()
+        }
+    }
+
+    state check_saturated_high(&mut self) {
+        transition self.saturated_high == 127 {
+            true -> check_trapping()
+            _ -> bad()
+        }
+    }
+
+    state check_trapping(&mut self) {
+        transition self.trapping == 70 {
+            true -> check_widened()
+            _ -> bad()
+        }
+    }
+
+    state check_widened(&mut self) {
+        transition self.widened == 0 - 5 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

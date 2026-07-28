@@ -24134,9 +24134,9 @@ fn runtime_slice_index_read_exit_canary_runs() {
 #[test]
 fn runtime_indexed_read_operand_exit_canary_runs() {
     // A runtime-indexed read `self.nums[self.i]` used as a SUB-EXPRESSION OPERAND
-    // (a child of `+` and of an `as i64` cast), hoisted into synthetic
-    // `let __hoist_N = self.nums[self.i];` temps. Exits 70 when acc == 20 and
-    // big == 20.
+    // (a child of `+` and of the ordinary `widen_i32_to_i64` conversion),
+    // hoisted into synthetic `let __hoist_N = self.nums[self.i];` temps.
+    // Exits 70 when acc == 20 and big == 20.
     let canary = pass_canary("slices/runtime_indexed_read_operand_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
@@ -24163,6 +24163,105 @@ fn runtime_indexed_read_operand_exit_canary_runs() {
         "expected hoisted runtime-indexed operand reads (binary + cast) to lower and exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_numeric_conversion_surface_exit_canary_runs() {
+    let canary = pass_canary("core/numeric_conversion_surface");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numeric-conversion-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned numeric conversion surface should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned numeric conversion surface should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected exact/wrapping/saturating/trapping/widening unsigned conversions to agree; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_numeric_signed_conversion_surface_exit_canary_runs() {
+    let canary = pass_canary("core/numeric_signed_conversion_surface");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numeric-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("signed numeric conversion surface should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("signed numeric conversion surface should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed exact/wrapping/saturating/trapping/widening conversions to agree; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn numeric_trapping_conversion_overflow_aborts() {
+    let canary = pass_canary("core/numeric_trapping_conversion_overflow");
+    let build_dir = std::env::temp_dir().join(format!("omega-numeric-trap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping numeric conversion should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping numeric conversion should run");
+    assert!(
+        !output.status.success() && output.status.code() != Some(7),
+        "expected out-of-range narrowing to trap before returning; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("trapping numeric conversion should reach checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert!(
+        outcome
+            .error
+            .as_deref()
+            .is_some_and(|reason| reason.contains("arithmetic overflow in Trapping domain")),
+        "interpreter must report the same conversion trap, got {:?}",
+        outcome.error
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -38643,6 +38742,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_string_literal_dispatch_exit",
     "core/local_value_intro_compile",
     "core/self_read_only_receiver_compile",
+    "core/numeric_conversion_surface",
+    "core/numeric_signed_conversion_surface",
+    "core/numeric_trapping_conversion_overflow",
     "domains/match_domain_patterns",
     "domains/match_interleaved_domain_data_guard",
     "drops/cleanup_machine_drop_shape",
@@ -38813,6 +38915,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/extent_reconstruction_does_not_grant",
     "core/extent_root_adapter_direct_call_does_not_grant",
     "core/carry_permission_adapter_direct_call_does_not_grant",
+    "core/numeric_exact_narrowing_unproven",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",
