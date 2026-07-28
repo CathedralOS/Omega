@@ -2,8 +2,8 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{CarryPolicy, CarrySuspension};
 use omega_facts::{FactPayload, FactPlace, QualificationEvidence};
 
+mod activation;
 mod intra_statement;
-mod preemption;
 
 struct ClaimCarryContext<'facts> {
     semantic: &'facts omega_facts::FactPlan,
@@ -98,16 +98,16 @@ impl Default for CrossingAccumulator {
 
 /// Reject a call that may suspend while a suspension-forbidden lexical value
 /// remains live in the caller activation. This is deliberately a local check:
-/// CPU/thread/address demands join provider runtime behavior at admission,
-/// while suspension joins the value policy with the callee's inferred effect
-/// reach here.
+/// suspension joins the value policy with the callee's inferred effect reach
+/// here. The independent activation-wide analysis derives CPU/thread
+/// preservation obligations without publishing a provider preemption mode.
 pub(super) fn check_suspension_carry(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let asynchronous_preemption =
-        preemption::build_machine_preemption_carry_facts(program, &facts.carry, &facts.semantic);
-    facts.carry.asynchronous_preemption = asynchronous_preemption;
+    let activation_wide_carry =
+        activation::build_machine_activation_carry_facts(program, &facts.carry, &facts.semantic);
+    facts.carry.activation_wide_carry = activation_wide_carry;
     let mut diagnostics = Vec::new();
     let mut suspension_crossings = Vec::new();
 

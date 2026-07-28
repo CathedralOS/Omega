@@ -1384,7 +1384,7 @@ fn boundary_trait_canary_reports_capability_use() {
         carry_manifest.contains("\"effective\":")
             && carry_manifest.contains("\"suspension\":")
             && carry_manifest.contains("\"address\":")
-            && carry_manifest.contains("\"asynchronous_preemption\": [")
+            && carry_manifest.contains("\"activation_wide_carry\": [")
             && carry_manifest.contains("\"analysis_complete\":"),
         "carry manifest should expose structured checked policies\n{}",
         carry_manifest
@@ -37653,10 +37653,19 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
     assert_eq!(
         manifest
-            .matches("\"runtime_admission\": {\"status\": \"pending_provider\"}")
+            .matches("\"canonical_suspension_crossings\": [")
             .count(),
         2
     );
+    assert_eq!(manifest.matches("\"stack_plan\": {\"bytes\":").count(), 2);
+    assert_eq!(
+        manifest
+            .matches("\"cpu_thread_preservation\": {\"preserve_cpu\":")
+            .count(),
+        2
+    );
+    assert!(!manifest.contains("\"runtime_admission\""));
+    assert!(!manifest.contains("\"asynchronous_migration\""));
     assert!(carry_manifest.contains("\"safe_point_crossings\": [\n    {"));
     assert!(carry_manifest.contains("\"machine\": \"Worker::run\""));
     assert!(carry_manifest.contains("\"target\": \"Sleeper::park\""));

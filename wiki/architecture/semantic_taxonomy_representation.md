@@ -333,19 +333,19 @@ generic-slot, and admitted targets; conditional aggregates deliberately wait
 for P1c path-indexed mappings. Chained checked helpers therefore preserve the
 claim entry without republishing its authority domain or carry facts.
 Canonical suspension liveness records and checks each live value's effective
-claim policy, while asynchronous preemption envelopes conservatively join
-established claim origins and permissions. Qualification and carry artifacts
-expose the admitted atom and the effective crossing policy. Remaining work is
+claim policy, while activation-wide carry envelopes conservatively join
+established claim origins and permissions without publishing a provider
+preemption mode. Qualification and carry artifacts expose the admitted atom and
+the effective crossing policy. Remaining work is
 path-indexed aggregate and partial-move propagation plus conserved multi-output
 mappings under P1c. The task source/artifact canary pins an admitted
 suspension-only permission through qualified selected-machine specialization
-and canonical safe-point liveness. The current activation artifact also carries
-retired safe-point/all-instruction `MigrationDemand` compatibility fields; they
-are migration input, not a settled runtime admission contract. TR replaces them
-with WCSU-derived `StackPlan`, canonical suspension crossings, and demanded
-CPU/thread preservation. Fixed nonmoving stack storage supplies continuation
-address stability structurally; no provider preemption mode selects an
-alternate all-instruction supply envelope.
+and canonical safe-point liveness. The activation artifact now carries a
+fixed-stack `StackPlan`, canonical suspension crossings, and demanded
+CPU/thread preservation; the retired safe-point/all-instruction
+`MigrationDemand` compatibility fields are gone. Fixed nonmoving stack storage
+supplies continuation address stability structurally; no provider preemption
+mode selects an alternate all-instruction supply envelope.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
@@ -489,14 +489,16 @@ Concrete static-machine specializations retain their executable instance
 symbol. The compiler derives a validated `TaskActivationPlan` for each closed
 TaskRuntime start specialization and emits `05_task_activations.json`. The plan
 uses checked contract/entry/layout/calling identities, the normalized
-transitive suspension plan, canonical crossing liveness/carry facts, whole-call-
-graph WCSU, and concrete target layout. The current implementation still emits
-the retired continuation-size, preemption-mode, and all-instruction
-runtime-supply fields. Migration replaces those with `StackPlan`, canonical
-suspension crossings, and demanded CPU/thread preservation. Every activation
-requires the cancellation operation because cancellation-request authority is
-part of every `Task<T>` claim. Provider admission/dispatch, claim provenance,
-stack leases, and child accounting remain later task-runtime rungs.
+transitive suspension plan, canonical crossing liveness/carry facts, and
+concrete target layout. The artifact now carries `StackPlan`, canonical
+suspension-crossing identities, and demanded CPU/thread preservation; the
+retired continuation-size, preemption-mode, and all-instruction runtime-supply
+fields are gone. `StackPlan.bytes` is currently the local machine/park-frontier
+layout bridge; whole-call-graph WCSU composition remains part of fixed-stack
+lowering. Every activation requires the cancellation operation because
+cancellation-request authority is part of every `Task<T>` claim. Provider
+admission/dispatch, claim provenance, stack leases, and child accounting remain
+later task-runtime rungs.
 
 ### Multiplicity and permission context
 

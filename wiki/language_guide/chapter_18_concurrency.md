@@ -84,11 +84,14 @@ start outcome sums, and opaque `TaskRuntime::start` / `try_start` signatures
 have landed. Qualifier-aware generic payload propagation preserves a
 substituted linear result or rejected argument bundle instead of silently
 losing its obligation through an unconstrained generic field. Concrete static
-targets produce `05_task_activations.json`, but its current continuation-size,
-preemption-mode, and all-instruction runtime-supply fields predate the settled
-model and must migrate to WCSU-derived `StackPlan`, canonical suspension
-crossings, and demand-driven CPU/thread preservation. Every activation plan
-requires the cancellation operation promised by the `Task` lifecycle. The core
+targets produce `05_task_activations.json`; it now records a fixed-stack
+`StackPlan`, canonical suspension-crossing identities, and demand-driven
+CPU/thread preservation instead of the retired continuation-size,
+preemption-mode, and all-instruction runtime-supply fields. Its current stack
+byte count is the local machine/park-frontier layout bridge; whole-call-graph
+WCSU composition and stack reservation remain lowering work. Every activation
+plan requires the cancellation operation promised by the `Task` lifecycle. The
+core
 lifecycle calls are ownership-checked: receiver types keep shared `&self`
 distinct from consuming `self`, `request_cancel` preserves the claim, and
 `finish` consumes it into the conditional terminal outcome. Provider

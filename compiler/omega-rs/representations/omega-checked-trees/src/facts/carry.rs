@@ -19,17 +19,18 @@ pub struct CarryFacts {
     pub contained_targets: Arena<ContainedMachineTargetFact>,
     /// Canonical call sites that may suspend, with the most restrictive
     /// four-axis policy contributed by every value live across that exact
-    /// crossing. Runtime activation admission consumes this checked result;
-    /// it must not re-run syntax-shaped liveness.
+    /// crossing. Activation planning consumes this checked result; it must not
+    /// re-run syntax-shaped liveness.
     pub suspension_crossings: Vec<SuspensionCrossingCarryFact>,
     /// One envelope per machine over every typed storage slot and call value
-    /// that may be live at an instruction boundary. Asynchronous runtimes use
-    /// this envelope because they may preempt away from canonical safe points.
-    pub asynchronous_preemption: Vec<MachinePreemptionCarryFact>,
+    /// that may be live at an instruction boundary. Activation planning keeps
+    /// only the CPU/thread preservation this envelope demands; fixed,
+    /// nonmoving stack storage supplies address stability structurally.
+    pub activation_wide_carry: Vec<MachineActivationCarryFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachinePreemptionCarryFact {
+pub struct MachineActivationCarryFact {
     pub machine: SymbolHandle,
     /// Intersection of this machine's direct envelope with every machine
     /// reachable through its checked contained-field topology.
@@ -84,11 +85,11 @@ impl CarryFacts {
         self.data.iter().find(|fact| fact.data == data)
     }
 
-    pub fn preemption_for_machine(
+    pub fn activation_carry_for_machine(
         &self,
         machine: SymbolHandle,
-    ) -> Option<&MachinePreemptionCarryFact> {
-        self.asynchronous_preemption
+    ) -> Option<&MachineActivationCarryFact> {
+        self.activation_wide_carry
             .iter()
             .find(|fact| fact.machine == machine)
     }
