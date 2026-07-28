@@ -1,1 +1,1 @@
-ambiguous operator spelling `+` has 2 viable candidates
+conflicting `denotation_dimension` semantic-role contributions `Linear`, `Cyclic`
