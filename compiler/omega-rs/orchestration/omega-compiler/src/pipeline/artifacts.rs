@@ -196,6 +196,11 @@ pub(super) fn write_checked_snapshot(
     )?;
     write_phase_json(
         options,
+        "05_claim_outcomes.json",
+        &omega_visualizations::claim_outcome_manifest_json(checked),
+    )?;
+    write_phase_json(
+        options,
         "05_carry_manifest.json",
         &omega_visualizations::carry_manifest_json(checked),
     )?;

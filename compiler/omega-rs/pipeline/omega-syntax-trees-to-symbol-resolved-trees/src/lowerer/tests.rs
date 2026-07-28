@@ -634,6 +634,62 @@ fn lowers_attached_main_state_name_as_main() {
 }
 
 #[test]
+fn resolves_qualified_attached_machine_tail_transition() {
+    let source = r#"
+    data Main {}
+
+    machine Main::pack(left: i32, right: i32) -> i32 {
+        left + right
+    }
+
+    machine Main::issue() -> i32 {
+        transition { _ -> Main::pack(1, 2) }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let pack = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::pack")
+        .expect("pack machine");
+    let pack_state = program
+        .machine_state_handles(pack.states)
+        .first()
+        .map(|state| program.machine_state(*state))
+        .expect("pack state");
+    let issue = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::issue")
+        .expect("issue machine");
+    let issue_state = program
+        .machine_state_handles(issue.states)
+        .first()
+        .map(|state| program.machine_state(*state))
+        .expect("issue state");
+    let omega_symbol_resolved_trees::statement::Statement::Transition(transition) = program
+        .state_statements(issue_state.statements)
+        .last()
+        .expect("terminal transition")
+    else {
+        panic!("issue should end in a transition");
+    };
+    let omega_symbol_resolved_trees::statement::TransitionTarget::Named(target) =
+        &transition.target
+    else {
+        panic!("qualified tail call should remain a named transition");
+    };
+
+    assert_eq!(target.symbol, pack_state.symbol);
+    assert!(target.head_symbol.is_valid());
+}
+
+#[test]
 fn resolves_self_parameter_type_to_machine_symbol() {
     let source = r#"
     data Main {

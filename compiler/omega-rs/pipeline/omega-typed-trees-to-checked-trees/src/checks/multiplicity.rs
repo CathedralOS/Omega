@@ -1,4 +1,7 @@
-use omega_checked_trees::{CheckFacts, FlowOwnershipEventSource, FlowPermissionEventFact};
+use omega_checked_trees::{
+    CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+    FlowOwnershipEventSource, FlowPermissionEventFact,
+};
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{
@@ -47,6 +50,31 @@ struct LinearClaimTemplate {
     type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
     conditional: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedClaimOutcomeMap {
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    entries: Vec<CheckedClaimOutcomeEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedClaimOutcomeEntry {
+    output_path: Vec<omega_facts::PlaceSegment>,
+    source: CheckedClaimOutcomeSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CheckedClaimOutcomeSource {
+    Input {
+        parameter_symbol: SymbolHandle,
+        path: Vec<omega_facts::PlaceSegment>,
+    },
+    Established {
+        claim_identity: PermissionClaimIdentity,
+        provenance: PermissionProvenance,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -197,7 +225,7 @@ pub(crate) fn record_permission_events(
     }
 
     append_borrow_permission_events(facts, &mut permission_events, &mut claim_identities);
-    reconcile_state_call_result_origins(
+    let claim_outcome_maps = reconcile_state_call_result_origins(
         program,
         &facts.flow.ownership.segments,
         &mut permission_events,
@@ -209,6 +237,7 @@ pub(crate) fn record_permission_events(
         .ownership
         .permissions
         .insert_many(permission_events);
+    publish_claim_outcome_maps(facts, claim_outcome_maps);
 }
 
 /// Join a state call's receiving establishment to the unique claim and
@@ -226,9 +255,599 @@ fn reconcile_state_call_result_origins(
     program: &omega_typed_trees::TypedTrees,
     segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
     permission_events: &mut [FlowPermissionEventFact],
-) {
-    let mut rewrites = Vec::new();
+) -> Vec<CheckedClaimOutcomeMap> {
+    let iteration_limit = permission_events.len().saturating_add(1);
+    for _ in 0..iteration_limit {
+        let maps = derive_checked_claim_outcome_maps(program, segments, permission_events);
+        let rewrites = call_result_origin_rewrites(program, segments, permission_events, &maps);
+        if !apply_claim_origin_rewrites(permission_events, &rewrites) {
+            return derive_checked_claim_outcome_maps(program, segments, permission_events);
+        }
+    }
+    derive_checked_claim_outcome_maps(program, segments, permission_events)
+}
 
+fn derive_checked_claim_outcome_maps(
+    program: &omega_typed_trees::TypedTrees,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+) -> Vec<CheckedClaimOutcomeMap> {
+    let state_count = program
+        .machines()
+        .iter()
+        .map(|machine| program.machine_states(machine).len())
+        .sum::<usize>();
+    let mut maps = Vec::new();
+    for _ in 0..=state_count {
+        let next = program
+            .machines()
+            .iter()
+            .flat_map(|machine| {
+                program.machine_states(machine).iter().filter_map(|state| {
+                    derive_checked_claim_outcome_map(
+                        program,
+                        machine.symbol,
+                        state,
+                        segments,
+                        permission_events,
+                        &maps,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        if next == maps {
+            return maps;
+        }
+        maps = next;
+    }
+    maps
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_checked_claim_outcome_map(
+    program: &omega_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state: &omega_typed_trees::state::State,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+    known_maps: &[CheckedClaimOutcomeMap],
+) -> Option<CheckedClaimOutcomeMap> {
+    let expected_paths = linear_claim_frontier(program, state.return_type)
+        .into_iter()
+        .map(|claim| claim.path)
+        .collect::<Vec<_>>();
+    if expected_paths.is_empty() {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut entries = state_result_expressions(program, statements)
+        .into_iter()
+        .flat_map(|(statement_index, expression)| {
+            claim_outcomes_for_expression(
+                program,
+                state,
+                statement_index,
+                expression,
+                segments,
+                permission_events,
+                known_maps,
+                &[],
+            )
+        })
+        .chain(
+            state_result_named_transitions(program, statements)
+                .into_iter()
+                .flat_map(|(statement_index, target_symbol, arguments)| {
+                    claim_outcomes_for_named_transition(
+                        program,
+                        state,
+                        statement_index,
+                        target_symbol,
+                        arguments,
+                        segments,
+                        permission_events,
+                        known_maps,
+                    )
+                }),
+        )
+        .fold(Vec::new(), |mut entries, entry| {
+            if !entries.contains(&entry) {
+                entries.push(entry);
+            }
+            entries
+        });
+    entries.retain(|entry| expected_paths.contains(&entry.output_path));
+    for path in &expected_paths {
+        let sources = entries
+            .iter()
+            .filter(|entry| entry.output_path == *path)
+            .map(|entry| &entry.source)
+            .fold(Vec::new(), |mut sources, source| {
+                if !sources.contains(&source) {
+                    sources.push(source);
+                }
+                sources
+            });
+        if sources.len() != 1 {
+            return None;
+        }
+    }
+    entries.retain(|entry| {
+        expected_paths
+            .iter()
+            .filter(|path| **path == entry.output_path)
+            .count()
+            == 1
+    });
+    if entries.len() != expected_paths.len() {
+        return None;
+    }
+    entries.sort_by_key(|entry| {
+        expected_paths
+            .iter()
+            .position(|path| *path == entry.output_path)
+            .unwrap_or(usize::MAX)
+    });
+    let sources = entries
+        .iter()
+        .map(|entry| &entry.source)
+        .collect::<Vec<_>>();
+    if sources
+        .iter()
+        .enumerate()
+        .any(|(index, source)| sources[index + 1..].contains(source))
+    {
+        return None;
+    }
+    Some(CheckedClaimOutcomeMap {
+        machine_symbol,
+        state_symbol: state.symbol,
+        entries,
+    })
+}
+
+fn state_result_expressions(
+    program: &omega_typed_trees::TypedTrees,
+    statements: &[StatementNode],
+) -> Vec<(usize, omega_typed_trees::expression::ExpressionHandle)> {
+    statements
+        .iter()
+        .enumerate()
+        .flat_map(|(statement_index, statement)| match statement {
+            StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
+                vec![(statement_index, *expression)]
+            }
+            StatementNode::Transition(transition) => [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|handle| handle.is_valid())
+                .filter_map(|handle| {
+                    let omega_typed_trees::statement::TransitionTargetNode::Value(expression) =
+                        program.statement_table.transition_target(handle)
+                    else {
+                        return None;
+                    };
+                    Some((statement_index, *expression))
+                })
+                .collect(),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+fn state_result_named_transitions(
+    program: &omega_typed_trees::TypedTrees,
+    statements: &[StatementNode],
+) -> Vec<(
+    usize,
+    SymbolHandle,
+    HandleSpan<omega_typed_trees::expression::ExpressionHandle>,
+)> {
+    statements
+        .iter()
+        .enumerate()
+        .flat_map(|(statement_index, statement)| {
+            let StatementNode::Transition(transition) = statement else {
+                return Vec::new();
+            };
+            [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|handle| handle.is_valid())
+                .filter_map(|handle| {
+                    let omega_typed_trees::statement::TransitionTargetNode::Named {
+                        path,
+                        arguments,
+                    } = program.statement_table.transition_target(handle)
+                    else {
+                        return None;
+                    };
+                    Some((statement_index, path.symbol, *arguments))
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn claim_outcomes_for_named_transition(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    target_symbol: SymbolHandle,
+    arguments: HandleSpan<omega_typed_trees::expression::ExpressionHandle>,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+    known_maps: &[CheckedClaimOutcomeMap],
+) -> Vec<CheckedClaimOutcomeEntry> {
+    let Some(target_state) = crate::find_state(program, target_symbol) else {
+        return Vec::new();
+    };
+    let Some(target_map) = known_maps
+        .iter()
+        .find(|map| map.state_symbol == target_state.symbol)
+    else {
+        return Vec::new();
+    };
+    let arguments = program.statement_table.expression_handles(arguments);
+    target_map
+        .entries
+        .iter()
+        .filter_map(|entry| {
+            let source = bind_claim_outcome_source_at_arguments(
+                program,
+                state,
+                statement_index,
+                arguments,
+                None,
+                target_state,
+                &entry.source,
+                segments,
+                permission_events,
+            )?;
+            Some(CheckedClaimOutcomeEntry {
+                output_path: entry.output_path.clone(),
+                source,
+            })
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn claim_outcomes_for_expression(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+    known_maps: &[CheckedClaimOutcomeMap],
+    output_prefix: &[omega_facts::PlaceSegment],
+) -> Vec<CheckedClaimOutcomeEntry> {
+    if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    ) {
+        let found = permission_events
+            .iter()
+            .filter(|event| {
+                event.state_symbol == state.symbol
+                    && permission_event_statement_index(event.source) == Some(statement_index)
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.access == PermissionAccess::Owned
+                    && event.obligation_live
+                    && event.root == place.root
+            })
+            .filter_map(|event| {
+                let event_path = segments.span_or_empty(event.segments);
+                if !event_path.starts_with(place.segments.as_slice()) {
+                    return None;
+                }
+                let mut output_path = output_prefix.to_vec();
+                output_path.extend_from_slice(&event_path[place.segments.len()..]);
+                Some(CheckedClaimOutcomeEntry {
+                    output_path,
+                    source: claim_outcome_source_for_event(
+                        program,
+                        state,
+                        event,
+                        segments,
+                        permission_events,
+                    ),
+                })
+            })
+            .collect::<Vec<_>>();
+        if !found.is_empty() {
+            return found;
+        }
+    }
+
+    match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::StructLiteral(literal)
+            if literal.case_name.is_none() =>
+        {
+            let Some(definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+            else {
+                return Vec::new();
+            };
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .flat_map(|literal_field| {
+                    let Some(field) =
+                        program
+                            .data_members(definition)
+                            .iter()
+                            .find_map(|member| match member {
+                                omega_typed_trees::data::DataMember::Field(field)
+                                    if field.name.as_str() == literal_field.name.as_str() =>
+                                {
+                                    Some(field)
+                                }
+                                _ => None,
+                            })
+                    else {
+                        return Vec::new();
+                    };
+                    let mut field_prefix = output_prefix.to_vec();
+                    field_prefix.push(omega_facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    });
+                    claim_outcomes_for_expression(
+                        program,
+                        state,
+                        statement_index,
+                        literal_field.value,
+                        segments,
+                        permission_events,
+                        known_maps,
+                        &field_prefix,
+                    )
+                })
+                .collect()
+        }
+        omega_typed_trees::expression::ExpressionNode::Call(call) => {
+            let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+                return Vec::new();
+            };
+            let Some(target_map) = known_maps
+                .iter()
+                .find(|map| map.state_symbol == target_state.symbol)
+            else {
+                return Vec::new();
+            };
+            target_map
+                .entries
+                .iter()
+                .filter_map(|entry| {
+                    let source = bind_claim_outcome_source_at_call(
+                        program,
+                        state,
+                        statement_index,
+                        call,
+                        target_state,
+                        &entry.source,
+                        segments,
+                        permission_events,
+                    )?;
+                    let mut output_path = output_prefix.to_vec();
+                    output_path.extend_from_slice(&entry.output_path);
+                    Some(CheckedClaimOutcomeEntry {
+                        output_path,
+                        source,
+                    })
+                })
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn claim_outcome_source_for_event(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    event: &FlowPermissionEventFact,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+) -> CheckedClaimOutcomeSource {
+    if let Some(entry) = permission_events.iter().find(|candidate| {
+        candidate.state_symbol == state.symbol
+            && candidate.source == PermissionEventSource::StateEntry
+            && candidate.kind == PermissionEventKind::Establish
+            && candidate.access == PermissionAccess::Owned
+            && candidate.claim_identity == event.claim_identity
+            && candidate.provenance == event.provenance
+    }) && let omega_facts::PlaceRoot::Symbol(parameter_symbol) = entry.root
+        && program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == parameter_symbol)
+    {
+        return CheckedClaimOutcomeSource::Input {
+            parameter_symbol,
+            path: segments.span_or_empty(entry.segments).to_vec(),
+        };
+    }
+    CheckedClaimOutcomeSource::Established {
+        claim_identity: event.claim_identity,
+        provenance: event.provenance,
+    }
+}
+
+fn claim_origin_for_source(
+    state: &omega_typed_trees::state::State,
+    source: &CheckedClaimOutcomeSource,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+) -> Option<(PermissionProvenance, PermissionClaimIdentity)> {
+    match source {
+        CheckedClaimOutcomeSource::Established {
+            claim_identity,
+            provenance,
+        } => Some((*provenance, *claim_identity)),
+        CheckedClaimOutcomeSource::Input {
+            parameter_symbol,
+            path,
+        } => {
+            let origins = permission_events
+                .iter()
+                .filter(|event| {
+                    event.state_symbol == state.symbol
+                        && event.source == PermissionEventSource::StateEntry
+                        && event.kind == PermissionEventKind::Establish
+                        && event.access == PermissionAccess::Owned
+                        && event.obligation_live
+                        && event.root == omega_facts::PlaceRoot::Symbol(*parameter_symbol)
+                        && segments.span_or_empty(event.segments) == path
+                        && event.claim_identity != PermissionClaimIdentity::Unknown
+                        && event.provenance != PermissionProvenance::Unknown
+                })
+                .map(|event| (event.provenance, event.claim_identity))
+                .fold(Vec::new(), |mut origins, origin| {
+                    if !origins.contains(&origin) {
+                        origins.push(origin);
+                    }
+                    origins
+                });
+            let [origin] = origins.as_slice() else {
+                return None;
+            };
+            Some(*origin)
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bind_claim_outcome_source_at_call(
+    program: &omega_typed_trees::TypedTrees,
+    caller_state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    call: &omega_typed_trees::expression::TableCallExpression,
+    target_state: &omega_typed_trees::state::State,
+    source: &CheckedClaimOutcomeSource,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+) -> Option<CheckedClaimOutcomeSource> {
+    bind_claim_outcome_source_at_arguments(
+        program,
+        caller_state,
+        statement_index,
+        program.expression_table.expression_handles(call.arguments),
+        call.receiver.is_valid().then_some(call.receiver),
+        target_state,
+        source,
+        segments,
+        permission_events,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bind_claim_outcome_source_at_arguments(
+    program: &omega_typed_trees::TypedTrees,
+    caller_state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    arguments: &[omega_typed_trees::expression::ExpressionHandle],
+    receiver: Option<omega_typed_trees::expression::ExpressionHandle>,
+    target_state: &omega_typed_trees::state::State,
+    source: &CheckedClaimOutcomeSource,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+) -> Option<CheckedClaimOutcomeSource> {
+    let CheckedClaimOutcomeSource::Input {
+        parameter_symbol,
+        path,
+    } = source
+    else {
+        return Some(source.clone());
+    };
+    let argument = argument_for_parameter(
+        program,
+        arguments,
+        receiver,
+        target_state,
+        *parameter_symbol,
+    )?;
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        caller_state.symbol,
+        statement_index,
+        argument,
+    )?;
+    place.segments.extend_from_slice(path);
+    let sources = permission_events
+        .iter()
+        .filter(|event| {
+            event.state_symbol == caller_state.symbol
+                && permission_event_statement_index(event.source) == Some(statement_index)
+                && event.kind == PermissionEventKind::Transfer
+                && event.access == PermissionAccess::Owned
+                && event.obligation_live
+                && event.root == place.root
+                && segments.span_or_empty(event.segments) == place.segments
+        })
+        .map(|event| {
+            claim_outcome_source_for_event(
+                program,
+                caller_state,
+                event,
+                segments,
+                permission_events,
+            )
+        })
+        .fold(Vec::new(), |mut sources, source| {
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+            sources
+        });
+    let [source] = sources.as_slice() else {
+        return None;
+    };
+    Some(source.clone())
+}
+
+fn argument_for_parameter(
+    program: &omega_typed_trees::TypedTrees,
+    arguments: &[omega_typed_trees::expression::ExpressionHandle],
+    receiver: Option<omega_typed_trees::expression::ExpressionHandle>,
+    target_state: &omega_typed_trees::state::State,
+    parameter_symbol: SymbolHandle,
+) -> Option<omega_typed_trees::expression::ExpressionHandle> {
+    let parameters = program.state_parameters(target_state);
+    let includes_explicit_self =
+        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
+    let mut argument_index = 0usize;
+    for parameter in parameters {
+        let argument = if parameter.is_self && !includes_explicit_self {
+            receiver
+        } else {
+            let argument = arguments.get(argument_index).copied();
+            argument_index = argument_index.saturating_add(1);
+            argument
+        };
+        if parameter.symbol == parameter_symbol {
+            return argument;
+        }
+    }
+    None
+}
+
+fn call_result_origin_rewrites(
+    program: &omega_typed_trees::TypedTrees,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+    maps: &[CheckedClaimOutcomeMap],
+) -> Vec<(
+    PermissionProvenance,
+    PermissionClaimIdentity,
+    PermissionProvenance,
+    PermissionClaimIdentity,
+)> {
+    let mut rewrites = Vec::new();
     for event in permission_events.iter() {
         if event.kind != PermissionEventKind::Establish
             || event.access != PermissionAccess::Owned
@@ -269,80 +888,63 @@ fn reconcile_state_call_result_origins(
         let Some(target_state) = crate::find_state(program, call.target_symbol) else {
             continue;
         };
-        if !type_carries_linear_obligation(program, target_state.return_type) {
+        let Some(map) = maps
+            .iter()
+            .find(|map| map.state_symbol == target_state.symbol)
+        else {
             continue;
-        }
-        let receiving_path = segments.span_or_empty(event.segments);
-
-        let target_statements = program
-            .statement_table
-            .statements(target_state.statement_nodes);
-        let origins = permission_events
-            .iter()
-            .filter_map(|candidate| {
-                if candidate.state_symbol != target_state.symbol
-                    || candidate.kind != PermissionEventKind::Transfer
-                    || candidate.access != PermissionAccess::Owned
-                    || !candidate.obligation_live
-                    || candidate.provenance == PermissionProvenance::Unknown
-                    || candidate.claim_identity == PermissionClaimIdentity::Unknown
-                {
-                    return None;
-                }
-                let PermissionEventSource::Statement { statement_index } = candidate.source else {
-                    return None;
-                };
-                if !statement_transfers_state_result(program, target_statements, statement_index) {
-                    return None;
-                }
-                let output_path = state_result_relative_path_for_event(
-                    program,
-                    target_state.symbol,
-                    target_statements,
-                    statement_index,
-                    candidate,
-                    segments,
-                );
-                Some((output_path, candidate.provenance, candidate.claim_identity))
-            })
-            .fold(Vec::new(), |mut origins, origin| {
-                if !origins.contains(&origin) {
-                    origins.push(origin);
-                }
-                origins
-            });
-        let matching = origins
-            .iter()
-            .filter(|(output_path, _, _)| {
-                output_path
-                    .as_deref()
-                    .is_some_and(|output_path| output_path == receiving_path)
-            })
-            .collect::<Vec<_>>();
-        let origin = if let [origin] = matching.as_slice() {
-            Some((origin.1, origin.2))
-        } else if receiving_path.is_empty() {
-            let distinct = origins
-                .iter()
-                .map(|(_, provenance, identity)| (*provenance, *identity))
-                .fold(Vec::new(), |mut distinct, origin| {
-                    if !distinct.contains(&origin) {
-                        distinct.push(origin);
-                    }
-                    distinct
-                });
-            let [origin] = distinct.as_slice() else {
-                continue;
-            };
-            Some(*origin)
-        } else {
-            None
         };
-        if let Some((provenance, identity)) = origin {
-            rewrites.push((locally_minted, event.claim_identity, provenance, identity));
-        }
+        let receiving_path = segments.span_or_empty(event.segments);
+        let matching = map
+            .entries
+            .iter()
+            .filter(|entry| entry.output_path == receiving_path)
+            .filter_map(|entry| {
+                bind_claim_outcome_source_at_call(
+                    program,
+                    state,
+                    statement_index,
+                    call,
+                    target_state,
+                    &entry.source,
+                    segments,
+                    permission_events,
+                )
+            })
+            .fold(Vec::new(), |mut sources, source| {
+                if !sources.contains(&source) {
+                    sources.push(source);
+                }
+                sources
+            });
+        let [source] = matching.as_slice() else {
+            continue;
+        };
+        let Some((provenance, claim_identity)) =
+            claim_origin_for_source(state, source, segments, permission_events)
+        else {
+            continue;
+        };
+        rewrites.push((
+            locally_minted,
+            event.claim_identity,
+            provenance,
+            claim_identity,
+        ));
     }
+    rewrites
+}
 
+fn apply_claim_origin_rewrites(
+    permission_events: &mut [FlowPermissionEventFact],
+    rewrites: &[(
+        PermissionProvenance,
+        PermissionClaimIdentity,
+        PermissionProvenance,
+        PermissionClaimIdentity,
+    )],
+) -> bool {
+    let mut changed = false;
     for event in permission_events
         .iter_mut()
         .filter(|event| event.access == PermissionAccess::Owned)
@@ -365,159 +967,55 @@ fn reconcile_state_call_result_origins(
             provenance = *replacement_provenance;
             claim_identity = *replacement_identity;
         }
+        changed |= event.provenance != provenance || event.claim_identity != claim_identity;
         event.provenance = provenance;
         event.claim_identity = claim_identity;
     }
+    changed
 }
 
-fn state_result_relative_path_for_event(
-    program: &omega_typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
-    statements: &[StatementNode],
-    statement_index: usize,
-    event: &FlowPermissionEventFact,
-    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
-) -> Option<Vec<omega_facts::PlaceSegment>> {
-    let statement = statements.get(statement_index)?;
-    let result_expressions = match statement {
-        StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
-            vec![*expression]
-        }
-        StatementNode::Transition(transition) => [transition.target, transition.continuation]
-            .into_iter()
-            .filter(|handle| handle.is_valid())
-            .filter_map(|handle| {
-                let omega_typed_trees::statement::TransitionTargetNode::Value(expression) =
-                    program.statement_table.transition_target(handle)
-                else {
-                    return None;
-                };
-                Some(*expression)
-            })
-            .collect(),
-        _ => return None,
-    };
-    let mut paths = result_expressions
-        .into_iter()
-        .flat_map(|expression| {
-            state_result_relative_paths_for_expression(
-                program,
-                state_symbol,
-                statement_index,
-                expression,
-                event,
-                segments,
-                &[],
-            )
-        })
-        .fold(Vec::new(), |mut paths, path| {
-            if !paths.contains(&path) {
-                paths.push(path);
-            }
-            paths
-        });
-    (paths.len() == 1).then(|| paths.pop().expect("one result-relative path"))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn state_result_relative_paths_for_expression(
-    program: &omega_typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    expression: omega_typed_trees::expression::ExpressionHandle,
-    event: &FlowPermissionEventFact,
-    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
-    output_prefix: &[omega_facts::PlaceSegment],
-) -> Vec<Vec<omega_facts::PlaceSegment>> {
-    let event_path = segments.span_or_empty(event.segments);
-    if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        expression,
-    ) && place.root == event.root
-        && event_path.starts_with(place.segments.as_slice())
-    {
-        let mut output_path = output_prefix.to_vec();
-        output_path.extend_from_slice(&event_path[place.segments.len()..]);
-        return vec![output_path];
-    }
-
-    let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-    else {
-        return Vec::new();
-    };
-    // Active-case paths are a separate frontier slice. Until they exist, a
-    // case constructor cannot claim that its payload map is complete.
-    if literal.case_name.is_some() {
-        return Vec::new();
-    }
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == literal.type_name.as_str())
-    else {
-        return Vec::new();
-    };
-
-    program
-        .expression_table
-        .struct_fields(literal.fields)
-        .iter()
-        .flat_map(|literal_field| {
-            let Some(field) =
-                program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| match member {
-                        omega_typed_trees::data::DataMember::Field(field)
-                            if field.name.as_str() == literal_field.name.as_str() =>
-                        {
-                            Some(field)
-                        }
-                        _ => None,
-                    })
-            else {
-                return Vec::new();
+fn publish_claim_outcome_maps(facts: &mut CheckFacts, maps: Vec<CheckedClaimOutcomeMap>) {
+    facts.flow.ownership.claim_outcome_entries = omega_core::arena::Arena::default();
+    facts.flow.ownership.claim_outcome_maps = omega_core::arena::Arena::default();
+    for map in maps {
+        let mut entries = Vec::new();
+        for entry in map.entries {
+            let output_segments = facts.flow.ownership.segments.insert_many(entry.output_path);
+            let source = match entry.source {
+                CheckedClaimOutcomeSource::Input {
+                    parameter_symbol,
+                    path,
+                } => FlowClaimOutcomeSource::Input {
+                    parameter_symbol,
+                    segments: facts.flow.ownership.segments.insert_many(path),
+                },
+                CheckedClaimOutcomeSource::Established {
+                    claim_identity,
+                    provenance,
+                } => FlowClaimOutcomeSource::Established {
+                    claim_identity,
+                    provenance,
+                },
             };
-            let mut field_prefix = output_prefix.to_vec();
-            field_prefix.push(omega_facts::PlaceSegment::Field {
-                symbol: field.symbol,
+            entries.push(FlowClaimOutcomeEntryFact {
+                output_segments,
+                source,
             });
-            state_result_relative_paths_for_expression(
-                program,
-                state_symbol,
-                statement_index,
-                literal_field.value,
-                event,
-                segments,
-                &field_prefix,
-            )
-        })
-        .collect()
-}
-
-fn statement_transfers_state_result(
-    program: &omega_typed_trees::TypedTrees,
-    statements: &[StatementNode],
-    statement_index: usize,
-) -> bool {
-    let Some(statement) = statements.get(statement_index) else {
-        return false;
-    };
-    match statement {
-        StatementNode::Expression(_) => statement_index + 1 == statements.len(),
-        StatementNode::Transition(transition) => [transition.target, transition.continuation]
-            .into_iter()
-            .filter(|handle| handle.is_valid())
-            .any(|handle| {
-                matches!(
-                    program.statement_table.transition_target(handle),
-                    omega_typed_trees::statement::TransitionTargetNode::Value(_)
-                )
-            }),
-        _ => false,
+        }
+        let entries = facts
+            .flow
+            .ownership
+            .claim_outcome_entries
+            .insert_many(entries);
+        facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .insert(FlowClaimOutcomeMapFact {
+                machine_symbol: map.machine_symbol,
+                state_symbol: map.state_symbol,
+                entries,
+            });
     }
 }
 
@@ -550,7 +1048,7 @@ pub(crate) fn validate_linear_permission_events(
             program,
             state,
             &events,
-            &facts.flow.ownership.permissions,
+            &facts.flow.ownership,
             &mut diagnostics,
         );
 
@@ -647,7 +1145,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
     events: &[&FlowPermissionEventFact],
-    all_events: &omega_core::arena::Arena<FlowPermissionEventFact>,
+    ownership: &omega_checked_trees::FlowOwnershipFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -686,7 +1184,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         {
             continue;
         }
-        let mapped_from_call = all_events.iter().any(|(_, candidate)| {
+        let mapped_from_call = ownership.permissions.iter().any(|(_, candidate)| {
             candidate.kind == PermissionEventKind::Transfer
                 && candidate.access == PermissionAccess::Owned
                 && candidate.obligation_live
@@ -697,7 +1195,24 @@ fn append_unresolved_state_result_mapping_diagnostics(
                         && permission_event_statement_index(candidate.source)
                             == Some(statement_index)))
         });
-        if mapped_from_call {
+        let receiving_path = ownership.segments.span_or_empty(event.segments);
+        let mapped_by_checked_outcome = ownership
+            .claim_outcome_maps
+            .iter()
+            .filter(|(_, map)| map.state_symbol == target_state.symbol)
+            .flat_map(|(_, map)| ownership.claim_outcome_entries.span_or_empty(map.entries))
+            .any(|entry| {
+                ownership.segments.span_or_empty(entry.output_segments) == receiving_path
+                    && matches!(
+                        entry.source,
+                        FlowClaimOutcomeSource::Established {
+                            claim_identity,
+                            provenance,
+                        } if claim_identity == event.claim_identity
+                            && provenance == event.provenance
+                    )
+            });
+        if mapped_from_call || mapped_by_checked_outcome {
             continue;
         }
         if !unresolved_statements.contains(&statement_index) {

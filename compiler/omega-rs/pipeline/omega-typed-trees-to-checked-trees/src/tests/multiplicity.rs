@@ -473,7 +473,7 @@ fn state_call_result_maps_direct_aggregate_constructor_fields() {
 }
 
 #[test]
-fn state_call_result_rejects_opaque_multi_output_call_mapping() {
+fn state_call_result_consumes_checked_opaque_multi_output_map() {
     let source = r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
@@ -490,8 +490,11 @@ fn state_call_result_rejects_opaque_multi_output_call_mapping() {
             let right: Receipt = Receipt { code: 2 };
             transition { _ -> Main::pack(left, right) }
         }
+        machine Main::forward(&mut self) -> Pair {
+            transition { _ -> (self.issue()) }
+        }
         machine Main::run(&mut self) -> i32 {
-            let returned: Pair = self.issue();
+            let returned: Pair = self.forward();
             let left: Receipt = returned.left;
             let right: Receipt = returned.right;
             Receipt::ack(left);
@@ -503,13 +506,91 @@ fn state_call_result_rejects_opaque_multi_output_call_mapping() {
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let diagnostics =
-        lower_typed_trees(typed).expect_err("the opaque call needs an explicit n-ary outcome map");
-
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("has no unique conserved claim mapping")
+    let checked = lower_typed_trees(typed).expect("checked outcome maps should compose");
+    use omega_core::semantics::PermissionEventKind;
+    let maps = checked
+        .facts
+        .flow
+        .ownership
+        .claim_outcome_maps
+        .iter()
+        .map(|(_, map)| map)
+        .collect::<Vec<_>>();
+    let (pack_symbol, issue_symbol, forward_symbol, run_symbol) = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .fold(
+            (None, None, None, None),
+            |(pack, issue, forward, run), state| match state.name.as_str() {
+                "pack" => (Some(state.symbol), issue, forward, run),
+                "issue" => (pack, Some(state.symbol), forward, run),
+                "forward" => (pack, issue, Some(state.symbol), run),
+                "run" => (pack, issue, forward, Some(state.symbol)),
+                _ => (pack, issue, forward, run),
+            },
+        );
+    let pack_symbol = pack_symbol.expect("pack state");
+    let issue_symbol = issue_symbol.expect("issue state");
+    let forward_symbol = forward_symbol.expect("forward state");
+    let run_symbol = run_symbol.expect("run state");
+    assert_eq!(
+        maps.iter()
+            .find(|map| map.state_symbol == pack_symbol)
+            .map(|map| map.entries.count()),
+        Some(2),
+    );
+    assert_eq!(
+        maps.iter()
+            .find(|map| map.state_symbol == forward_symbol)
+            .map(|map| map.entries.count()),
+        Some(2),
+    );
+    assert_eq!(
+        maps.iter()
+            .find(|map| map.state_symbol == issue_symbol)
+            .map(|map| map.entries.count()),
+        Some(2),
+    );
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    let issue_transfers = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.state_symbol == issue_symbol
+                && event.kind == PermissionEventKind::Transfer
+                && event.obligation_live
+        })
+        .collect::<Vec<_>>();
+    let run_establishments = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.state_symbol == run_symbol
+                && event.kind == PermissionEventKind::Establish
+                && matches!(
+                    event.source,
+                    omega_core::semantics::PermissionEventSource::Statement { statement_index: 0 }
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(issue_transfers.len(), 2);
+    assert_eq!(run_establishments.len(), 2);
+    assert_ne!(
+        run_establishments[0].claim_identity,
+        run_establishments[1].claim_identity,
+    );
+    assert!(run_establishments.iter().all(|establishment| {
+        issue_transfers
+            .iter()
+            .any(|transfer| transfer.claim_identity == establishment.claim_identity)
     }));
 }
 

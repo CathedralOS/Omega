@@ -2,8 +2,9 @@ use omega_core::arena::Arena;
 
 use super::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowCallFact,
-    FlowConstraintRef, FlowDropEventFact, FlowExitFact, FlowInvalidationFact, FlowMoveEventFact,
-    FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact, FlowStatementFact,
+    FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowConstraintRef, FlowDropEventFact,
+    FlowExitFact, FlowInvalidationFact, FlowMoveEventFact, FlowPermissionEventFact,
+    FlowSemanticContextRef, FlowStateFact, FlowStatementFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -63,6 +64,8 @@ pub struct FlowOwnershipFacts {
     pub moves: Arena<FlowMoveEventFact>,
     pub drops: Arena<FlowDropEventFact>,
     pub permissions: Arena<FlowPermissionEventFact>,
+    pub claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
+    pub claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
 }
 
 impl FlowOwnershipFacts {
@@ -71,12 +74,16 @@ impl FlowOwnershipFacts {
         moves: Arena<FlowMoveEventFact>,
         drops: Arena<FlowDropEventFact>,
         permissions: Arena<FlowPermissionEventFact>,
+        claim_outcome_entries: Arena<FlowClaimOutcomeEntryFact>,
+        claim_outcome_maps: Arena<FlowClaimOutcomeMapFact>,
     ) -> Self {
         Self {
             segments,
             moves,
             drops,
             permissions,
+            claim_outcome_entries,
+            claim_outcome_maps,
         }
     }
 }
