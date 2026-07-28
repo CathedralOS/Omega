@@ -6,7 +6,7 @@ mod resolution;
 use super::*;
 pub(crate) use canonicalization::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
-    canonical_place_from_semantic_place, canonical_place_from_symbol,
+    canonical_place_from_semantic_place, canonical_place_from_symbol, index_place_segment,
 };
 pub(crate) use comparison::{
     canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,

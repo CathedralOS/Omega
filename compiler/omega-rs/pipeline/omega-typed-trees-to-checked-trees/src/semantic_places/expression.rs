@@ -45,9 +45,7 @@ pub(crate) fn instantiate_call_contract_expression_place(
                 call,
                 indexed.collection,
             )?;
-            let segment = omega_facts::PlaceSegment::Index {
-                expression: indexed.index,
-            };
+            let segment = crate::flow::index_place_segment(program, indexed.index);
             Some(super::append_place_segment(facts, receiver, segment))
         }
         _ => None,

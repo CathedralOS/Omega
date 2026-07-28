@@ -152,12 +152,15 @@ impl FactPlan {
             }
             ExpressionNode::Indexed(indexed) => {
                 let place = self.append_place_from_expression(program, indexed.collection);
-                self.push_place_segment(
-                    place,
-                    PlaceSegment::Index {
+                let segment = program
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .map(|index| PlaceSegment::FixedIndex { index })
+                    .unwrap_or(PlaceSegment::Index {
                         expression: indexed.index,
-                    },
-                );
+                    });
+                self.push_place_segment(place, segment);
                 place
             }
             _ => self.append_expression_place(expression),

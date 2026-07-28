@@ -1060,6 +1060,171 @@ fn transparent_record_rejects_duplicate_field_move() {
 }
 
 #[test]
+fn fixed_array_partial_move_leaves_sibling_obligation_live() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let receipts: [Receipt; 2] = [left, right];
+            let first: Receipt = receipts[0];
+            Receipt::ack(first);
+            let second: Receipt = receipts[1];
+            Receipt::ack(second);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    let receipt_establishments = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.kind == PermissionEventKind::Establish
+                && event.obligation_live
+                && matches!(
+                    checked
+                        .facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments),
+                    [omega_facts::PlaceSegment::FixedIndex { .. }]
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(receipt_establishments.len(), 2);
+    let indices = receipt_establishments
+        .iter()
+        .map(|event| {
+            let [omega_facts::PlaceSegment::FixedIndex { index }] = checked
+                .facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(event.segments)
+            else {
+                unreachable!("fixed array claim path")
+            };
+            *index
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(indices, [0, 1]);
+    assert_ne!(
+        receipt_establishments[0].claim_identity,
+        receipt_establishments[1].claim_identity
+    );
+}
+
+#[test]
+fn fixed_array_rejects_duplicate_literal_index_move() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let receipts: [Receipt; 2] = [left, right];
+            let first: Receipt = receipts[0];
+            let duplicate: Receipt = receipts[0];
+            Receipt::ack(first);
+            Receipt::ack(duplicate);
+            let second: Receipt = receipts[1];
+            Receipt::ack(second);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the same fixed element cannot move twice");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("receipts[0]")
+                && diagnostic
+                    .message
+                    .contains("already transferred or consumed")
+        }),
+        "expected a duplicate fixed-index move diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn fixed_array_state_result_maps_claims_by_literal_index() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Main {}
+        machine Main::pack(left: Receipt, right: Receipt) -> [Receipt; 2] {
+            [left, right]
+        }
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let receipts: [Receipt; 2] = Main::pack(left, right);
+            let first: Receipt = receipts[0];
+            let second: Receipt = receipts[1];
+            Receipt::ack(first);
+            Receipt::ack(second);
+            0
+        }
+        "#,
+    );
+
+    let pack_symbol = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .find(|state| state.name.as_str() == "pack")
+        .map(|state| state.symbol)
+        .expect("pack state");
+    let map = checked
+        .facts
+        .flow
+        .ownership
+        .claim_outcome_maps
+        .iter()
+        .map(|(_, map)| map)
+        .find(|map| map.state_symbol == pack_symbol)
+        .expect("fixed-array outcome map");
+    let entries = checked
+        .facts
+        .flow
+        .ownership
+        .claim_outcome_entries
+        .span_or_empty(map.entries);
+    assert_eq!(entries.len(), 2);
+    for (expected, entry) in entries.iter().enumerate() {
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(entry.output_segments),
+            [omega_facts::PlaceSegment::FixedIndex { index: expected }]
+        );
+    }
+}
+
+#[test]
 fn transparent_record_sibling_assignment_transfers_the_source_claim() {
     let source = r#"
         data Receipt [linear] { code: i32; }

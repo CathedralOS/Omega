@@ -228,13 +228,21 @@ pub(super) fn owner_path_overlaps_place_segments(
             ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
             (
                 BorrowOwnerSegment::FixedIndex(owner_index),
+                omega_facts::PlaceSegment::FixedIndex { index: place_index },
+            ) => owner_index == place_index,
+            (
+                BorrowOwnerSegment::FixedIndex(owner_index),
                 omega_facts::PlaceSegment::Index { expression },
             ) => program
                 .expression_table
                 .constant_integer_value(*expression)
                 .and_then(|value| usize::try_from(value).ok())
                 .is_none_or(|place_index| *owner_index == place_index),
-            (BorrowOwnerSegment::DynamicIndex, omega_facts::PlaceSegment::Index { .. }) => true,
+            (
+                BorrowOwnerSegment::DynamicIndex,
+                omega_facts::PlaceSegment::FixedIndex { .. }
+                | omega_facts::PlaceSegment::Index { .. },
+            ) => true,
             _ => false,
         })
 }

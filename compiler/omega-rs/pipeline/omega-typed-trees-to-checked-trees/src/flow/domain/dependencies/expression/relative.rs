@@ -46,9 +46,7 @@ pub(super) fn relative_place_segments_from_expression(
                 indexed.collection,
                 self_type_symbol,
             )?;
-            segments.push(omega_facts::PlaceSegment::Index {
-                expression: indexed.index,
-            });
+            segments.push(crate::flow::index_place_segment(program, indexed.index));
             Some(segments)
         }
         _ => None,

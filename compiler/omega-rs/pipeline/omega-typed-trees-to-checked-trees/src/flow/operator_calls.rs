@@ -474,9 +474,9 @@ fn operator_contract_relative_place(
         ExpressionNode::Indexed(indexed) => {
             let mut place =
                 operator_contract_relative_place(program, operator, indexed.collection)?;
-            place.segments.push(omega_facts::PlaceSegment::Index {
-                expression: indexed.index,
-            });
+            place
+                .segments
+                .push(crate::flow::index_place_segment(program, indexed.index));
             Some(place)
         }
         _ => None,

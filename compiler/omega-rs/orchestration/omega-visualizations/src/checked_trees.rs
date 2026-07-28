@@ -333,6 +333,11 @@ fn push_claim_path_json(
                 push_json_string(json, &symbol_label(program, *symbol));
                 json.push('}');
             }
+            omega_facts::PlaceSegment::FixedIndex { index } => {
+                json.push_str("{\"fixed_index\": ");
+                json.push_str(&index.to_string());
+                json.push('}');
+            }
             omega_facts::PlaceSegment::Index { expression } => {
                 json.push_str("{\"index\": ");
                 push_json_string(json, &program.expression_table.display_name(*expression));
@@ -456,6 +461,11 @@ fn qualification_subject(program: &CheckedTrees, fact: &omega_facts::Fact) -> St
             PlaceSegment::Field { symbol } => {
                 subject.push('.');
                 subject.push_str(&qualification_symbol_label(program, *symbol));
+            }
+            PlaceSegment::FixedIndex { index } => {
+                subject.push('[');
+                subject.push_str(&index.to_string());
+                subject.push(']');
             }
             PlaceSegment::Index { expression } => {
                 subject.push('[');
@@ -1488,6 +1498,11 @@ fn borrow_access_label(
                 label.push('.');
                 label.push_str(&symbol_name_for_state(program, machine, state, *symbol));
             }
+            omega_facts::PlaceSegment::FixedIndex { index } => {
+                label.push('[');
+                label.push_str(&index.to_string());
+                label.push(']');
+            }
             omega_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
                 label.push_str(&program.expression_table.display_name(*expression));
@@ -1520,6 +1535,11 @@ fn borrow_loan_label(
             omega_facts::PlaceSegment::Field { symbol } => {
                 place.push('.');
                 place.push_str(&symbol_name_for_state(program, machine, state, *symbol));
+            }
+            omega_facts::PlaceSegment::FixedIndex { index } => {
+                place.push('[');
+                place.push_str(&index.to_string());
+                place.push(']');
             }
             omega_facts::PlaceSegment::Index { expression } => {
                 place.push('[');

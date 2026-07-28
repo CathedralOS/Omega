@@ -3,6 +3,18 @@ use super::resolution::effective_member_symbol;
 use super::*;
 use crate::lookup::first_valid_name_path_symbol;
 
+pub(crate) fn index_place_segment(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> omega_facts::PlaceSegment {
+    program
+        .expression_table
+        .constant_integer_value(expression)
+        .and_then(|value| usize::try_from(value).ok())
+        .map(|index| omega_facts::PlaceSegment::FixedIndex { index })
+        .unwrap_or(omega_facts::PlaceSegment::Index { expression })
+}
+
 pub(crate) fn canonical_place_from_expression(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
@@ -37,9 +49,9 @@ pub(crate) fn canonical_place_from_expression(
         }
         ExpressionNode::Indexed(indexed) => {
             let mut place = canonical_place_from_expression(program, indexed.collection)?;
-            place.segments.push(omega_facts::PlaceSegment::Index {
-                expression: indexed.index,
-            });
+            place
+                .segments
+                .push(index_place_segment(program, indexed.index));
             Some(place)
         }
         _ => Some(CanonicalPlace {

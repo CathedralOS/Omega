@@ -573,9 +573,12 @@ source provenance, and transfer-stable claim identity. Carry policy now indexes
 that exact identity as a separate checked axis, so n-ary outcome maps preserve
 each child policy and suspension checks intersect the policies of every live
 claim below an aggregate place. The carry artifact retains each effective
-claim policy and its contributing-origin count. Active-case and fixed-index
-frontiers remain P1c work. Symbol-keyed substitutions already retain contained
-claims through nested generic transparent records.
+claim policy and its contributing-origin count. Literal-length fixed arrays now
+enumerate structured fixed-index paths through construction, literal-index
+extraction, partial moves, and n-ary output maps; runtime-indexed extraction
+remains fail-closed. Active-case frontiers remain P1c work. Symbol-keyed
+substitutions already retain contained claims through nested generic
+transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
 compiler-owned algebra, normalized claim projection and admitted backing,
 root-lineage mapping, and exact separated-conservation witness. The initial

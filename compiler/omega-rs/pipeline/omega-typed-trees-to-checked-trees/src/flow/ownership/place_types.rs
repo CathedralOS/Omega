@@ -65,7 +65,8 @@ pub(crate) fn project_type_reference_from_segments(
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = field_type_reference(program, current, *symbol)?;
             }
-            omega_facts::PlaceSegment::Index { .. } => {
+            omega_facts::PlaceSegment::FixedIndex { .. }
+            | omega_facts::PlaceSegment::Index { .. } => {
                 current = indexed_element_type_reference(program, current)?;
             }
         }
