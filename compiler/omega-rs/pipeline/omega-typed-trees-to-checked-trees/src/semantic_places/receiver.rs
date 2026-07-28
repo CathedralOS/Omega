@@ -38,6 +38,15 @@ pub(crate) fn receiver_place_for_call(
                                 .then_some(statement.receiver_symbol)
                         })
                         .unwrap_or_else(SymbolHandle::invalid);
+                        if let Some(variant) =
+                            omega_facts::payload_variant_for_field(program, symbol)
+                        {
+                            place = super::append_place_segment(
+                                facts,
+                                place,
+                                omega_facts::PlaceSegment::Case { variant },
+                            );
+                        }
                         place = super::append_place_segment(
                             facts,
                             place,

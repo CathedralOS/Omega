@@ -15,6 +15,17 @@ pub(crate) fn index_place_segment(
         .unwrap_or(omega_facts::PlaceSegment::Index { expression })
 }
 
+pub(crate) fn push_field_place_segments(
+    program: &omega_typed_trees::TypedTrees,
+    segments: &mut Vec<omega_facts::PlaceSegment>,
+    symbol: SymbolHandle,
+) {
+    if let Some(variant) = omega_facts::payload_variant_for_field(program, symbol) {
+        segments.push(omega_facts::PlaceSegment::Case { variant });
+    }
+    segments.push(omega_facts::PlaceSegment::Field { symbol });
+}
+
 pub(crate) fn canonical_place_from_expression(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
@@ -27,14 +38,16 @@ pub(crate) fn canonical_place_from_expression(
         ExpressionNode::Mutable(inner) => canonical_place_from_expression(program, *inner),
         ExpressionNode::Name(path) => {
             let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
-            let segments = program
+            let mut segments = Vec::new();
+            for symbol in program
                 .expression_table
                 .name_path_member_symbols(path.member_symbols)
                 .iter()
                 .skip(1)
                 .copied()
-                .map(|symbol| omega_facts::PlaceSegment::Field { symbol })
-                .collect();
+            {
+                push_field_place_segments(program, &mut segments, symbol);
+            }
             Some(CanonicalPlace {
                 root: omega_facts::PlaceRoot::Symbol(root_symbol),
                 segments,
@@ -42,9 +55,8 @@ pub(crate) fn canonical_place_from_expression(
         }
         ExpressionNode::Member(member) => {
             let mut place = canonical_place_from_expression(program, member.receiver)?;
-            place.segments.push(omega_facts::PlaceSegment::Field {
-                symbol: effective_member_symbol(program, member.receiver, member),
-            });
+            let symbol = effective_member_symbol(program, member.receiver, member);
+            push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {

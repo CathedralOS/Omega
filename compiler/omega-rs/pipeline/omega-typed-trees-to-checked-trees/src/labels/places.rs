@@ -123,6 +123,10 @@ pub(crate) fn canonical_place_label_from_parts(
                 label.push('.');
                 label.push_str(&symbol_name(program, *symbol));
             }
+            omega_facts::PlaceSegment::Case { variant } => {
+                label.push_str("::");
+                label.push_str(&symbol_name(program, *variant));
+            }
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 label.push('[');
                 label.push_str(&index.to_string());

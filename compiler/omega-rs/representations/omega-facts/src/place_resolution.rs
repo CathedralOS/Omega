@@ -4,6 +4,27 @@ use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMembe
 
 use crate::{FactPlan, Place, PlaceHandle, PlaceRoot, PlaceSegment};
 
+pub fn payload_variant_for_field(
+    program: &TypedTrees,
+    field_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    if !field_symbol.is_valid() {
+        return None;
+    }
+    program.data_definitions().iter().find_map(|definition| {
+        program.data_members(definition).iter().find_map(|member| {
+            let omega_typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .any(|field| field.symbol == field_symbol)
+                .then_some(variant.symbol)
+        })
+    })
+}
+
 pub(crate) fn effective_member_symbol(
     program: &TypedTrees,
     receiver: ExpressionHandle,
@@ -34,20 +55,8 @@ fn resolve_member_symbol_from_receiver(
         .iter()
         .find(|definition| definition.symbol == type_symbol)
     {
-        for member in program.data_members(data) {
-            match member {
-                omega_typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                _ => {}
-            }
+        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+            return Some(symbol);
         }
     }
 
@@ -62,20 +71,8 @@ fn resolve_member_symbol_from_receiver(
                 .iter()
                 .find(|definition| definition.name.as_str() == attached_data)
         {
-            for member in program.data_members(data) {
-                match member {
-                    omega_typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == member_name =>
-                    {
-                        return Some(field.symbol);
-                    }
-                    omega_typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == member_name =>
-                    {
-                        return Some(variant.symbol);
-                    }
-                    _ => {}
-                }
+            if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+                return Some(symbol);
             }
         }
         for owned in program.machine_owned_data(machine) {
@@ -118,6 +115,10 @@ fn canonical_place_label_from_parts(
                 label.push('.');
                 label.push_str(&symbol_label(program, *symbol));
             }
+            PlaceSegment::Case { variant } => {
+                label.push_str("::");
+                label.push_str(&symbol_label(program, *variant));
+            }
             PlaceSegment::FixedIndex { index } => {
                 label.push('[');
                 label.push_str(&index.to_string());
@@ -150,8 +151,16 @@ fn symbol_label(program: &TypedTrees, symbol: SymbolHandle) -> String {
                 {
                     return variant.name.as_str().to_owned();
                 }
-                omega_typed_trees::data::DataMember::Field(_)
-                | omega_typed_trees::data::DataMember::Variant(_) => {}
+                omega_typed_trees::data::DataMember::Variant(variant) => {
+                    if let Some(field) = program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == symbol)
+                    {
+                        return field.name.as_str().to_owned();
+                    }
+                }
+                omega_typed_trees::data::DataMember::Field(_) => {}
             }
         }
     }
@@ -261,10 +270,20 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
 
     for data in program.data_definitions() {
         for member in program.data_members(data) {
-            if let omega_typed_trees::data::DataMember::Field(field) = member
-                && field.symbol == symbol
-            {
-                return Some(type_reference_base_symbol(program, field.type_reference));
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return Some(type_reference_base_symbol(program, field.type_reference));
+                }
+                omega_typed_trees::data::DataMember::Variant(variant) => {
+                    if let Some(field) = program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == symbol)
+                    {
+                        return Some(type_reference_base_symbol(program, field.type_reference));
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -317,20 +336,8 @@ pub(crate) fn resolve_place_member_symbol(
             .iter()
             .find(|definition| definition.name.as_str() == attached_data)
     {
-        for member in program.data_members(data) {
-            match member {
-                omega_typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                _ => {}
-            }
+        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+            return Some(symbol);
         }
     }
 
@@ -339,24 +346,38 @@ pub(crate) fn resolve_place_member_symbol(
         .iter()
         .find(|definition| definition.symbol == base_symbol)
     {
-        for member in program.data_members(data) {
-            match member {
-                omega_typed_trees::data::DataMember::Field(field)
-                    if field.name.as_str() == member_name =>
-                {
-                    return Some(field.symbol);
-                }
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == member_name =>
-                {
-                    return Some(variant.symbol);
-                }
-                _ => {}
-            }
+        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
+            return Some(symbol);
         }
     }
 
     None
+}
+
+fn data_member_symbol_by_name(
+    program: &TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                (field.name.as_str() == member_name).then_some(field.symbol)
+            }
+            omega_typed_trees::data::DataMember::Variant(variant) => (variant.name.as_str()
+                == member_name)
+                .then_some(variant.symbol)
+                .or_else(|| {
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find_map(|field| {
+                            (field.name.as_str() == member_name).then_some(field.symbol)
+                        })
+                }),
+        })
 }
 
 fn fact_place_type_symbol(
@@ -375,6 +396,7 @@ fn fact_place_type_symbol(
             PlaceSegment::Field { symbol } => {
                 current = symbol_type_symbol(program, *symbol)?;
             }
+            PlaceSegment::Case { .. } => {}
             PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. } => return None,
         }
     }

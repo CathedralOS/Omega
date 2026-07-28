@@ -41,6 +41,15 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
                 {
                     return Some(variant.symbol);
                 }
+                omega_typed_trees::data::DataMember::Variant(variant) => {
+                    if let Some(field) = program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.name.as_str() == member_name)
+                    {
+                        return Some(field.symbol);
+                    }
+                }
                 _ => {}
             }
         }
@@ -64,6 +73,15 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
                         if variant.name.as_str() == member_name =>
                     {
                         return Some(variant.symbol);
+                    }
+                    omega_typed_trees::data::DataMember::Variant(variant) => {
+                        if let Some(field) = program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|field| field.name.as_str() == member_name)
+                        {
+                            return Some(field.symbol);
+                        }
                     }
                     _ => {}
                 }
@@ -165,14 +183,28 @@ pub(crate) fn symbol_type_symbol(
 
     for data in program.data_definitions() {
         for member in program.data_members(data) {
-            if let omega_typed_trees::data::DataMember::Field(field) = member
-                && field.symbol == symbol
-            {
-                return Some(
-                    program
-                        .type_reference_table
-                        .type_symbol(field.type_reference),
-                );
+            match member {
+                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    return Some(
+                        program
+                            .type_reference_table
+                            .type_symbol(field.type_reference),
+                    );
+                }
+                omega_typed_trees::data::DataMember::Variant(variant) => {
+                    if let Some(field) = program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == symbol)
+                    {
+                        return Some(
+                            program
+                                .type_reference_table
+                                .type_symbol(field.type_reference),
+                        );
+                    }
+                }
+                _ => {}
             }
         }
     }

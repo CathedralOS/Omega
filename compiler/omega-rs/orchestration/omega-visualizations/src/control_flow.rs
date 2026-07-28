@@ -383,6 +383,10 @@ fn borrow_place_label(
                 label.push('.');
                 label.push_str(&symbol_name_for_state(plan, machine, state, *symbol));
             }
+            omega_facts::PlaceSegment::Case { variant } => {
+                label.push_str("::");
+                label.push_str(&symbol_name_for_state(plan, machine, state, *variant));
+            }
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 label.push('[');
                 label.push_str(&index.to_string());

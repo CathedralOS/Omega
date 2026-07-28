@@ -66,6 +66,7 @@ pub struct BorrowLoanFact {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum BorrowLoanOwnerSegment {
     Field(SymbolHandle),
+    Case(SymbolHandle),
     FixedIndex(usize),
     #[default]
     DynamicIndex,

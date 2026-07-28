@@ -54,4 +54,19 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
             );
         }
     }
+    for member in program.data_members(data_definition.members) {
+        let Some(member_symbol) = data_children.next() else {
+            break;
+        };
+        let omega_symbol_resolved_trees::data::DataMember::Variant(variant) = member else {
+            continue;
+        };
+        builder.insert_children(
+            member_symbol,
+            program
+                .data_payload_fields(variant.payload)
+                .iter()
+                .map(|field| symbol_seed(SymbolKind::Field, &field.name, has_sources)),
+        );
+    }
 }

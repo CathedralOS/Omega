@@ -11,6 +11,7 @@ pub use plan::*;
 pub use view::*;
 pub use write_frame::*;
 
+pub use place_resolution::payload_variant_for_field;
 pub(crate) use place_resolution::{
     canonical_place_label, effective_member_symbol, resolve_place_member_symbol,
 };

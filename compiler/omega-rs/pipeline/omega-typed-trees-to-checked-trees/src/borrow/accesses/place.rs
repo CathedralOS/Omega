@@ -71,16 +71,15 @@ pub(crate) fn borrow_access_place(
                         member.receiver,
                         machine_symbol,
                     )?;
-                    place.segments.push(omega_facts::PlaceSegment::Field {
-                        symbol: contextual_effective_member_symbol(
-                            program,
-                            state_symbol,
-                            statement_index,
-                            member.receiver,
-                            member,
-                            machine_symbol,
-                        ),
-                    });
+                    let symbol = contextual_effective_member_symbol(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        member.receiver,
+                        member,
+                        machine_symbol,
+                    );
+                    crate::flow::push_field_place_segments(program, &mut place.segments, symbol);
                     Some(place)
                 }
             }
@@ -101,14 +100,13 @@ pub(crate) fn borrow_access_place(
                 .position(|member_symbol| *member_symbol == root_symbol)
                 .map(|index| index + 1)
                 .unwrap_or(1);
+            let mut segments = Vec::new();
+            for symbol in member_symbols.iter().skip(skip).copied() {
+                crate::flow::push_field_place_segments(program, &mut segments, symbol);
+            }
             Some(BorrowAccessPlace {
                 root_symbol,
-                segments: member_symbols
-                    .iter()
-                    .skip(skip)
-                    .copied()
-                    .map(|symbol| omega_facts::PlaceSegment::Field { symbol })
-                    .collect(),
+                segments,
             })
         }
         ExpressionNode::ArrayLiteral(_)

@@ -186,6 +186,13 @@ fn ownership_place_text(
                         .unwrap_or_else(|| "<field>".to_owned()),
                 );
             }
+            omega_facts::PlaceSegment::Case { variant } => {
+                text.push_str("::");
+                text.push_str(
+                    &ownership_symbol_name(backend_plan, source_key, *variant)
+                        .unwrap_or_else(|| "<case>".to_owned()),
+                );
+            }
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 text.push('[');
                 text.push_str(&index.to_string());

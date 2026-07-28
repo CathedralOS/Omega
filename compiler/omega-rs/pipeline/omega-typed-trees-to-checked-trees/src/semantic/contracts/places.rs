@@ -185,8 +185,18 @@ fn contract_expression_place(
                         .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            let segment = omega_facts::PlaceSegment::Field { symbol };
-            Some(append_place_segment(facts, receiver, segment))
+            let receiver = if let Some(variant) =
+                omega_facts::payload_variant_for_field(program, symbol)
+            {
+                append_place_segment(facts, receiver, omega_facts::PlaceSegment::Case { variant })
+            } else {
+                receiver
+            };
+            Some(append_place_segment(
+                facts,
+                receiver,
+                omega_facts::PlaceSegment::Field { symbol },
+            ))
         }
         ExpressionNode::Indexed(indexed) => {
             let collection =
@@ -242,6 +252,9 @@ fn contract_name_path_place(
             .filter(|symbol| symbol.is_valid())
             .or_else(|| resolve_place_member_symbol(program, facts, place, member_name.as_str()))
             .unwrap_or_else(SymbolHandle::invalid);
+        if let Some(variant) = omega_facts::payload_variant_for_field(program, member_symbol) {
+            place = append_place_segment(facts, place, omega_facts::PlaceSegment::Case { variant });
+        }
         place = append_place_segment(
             facts,
             place,

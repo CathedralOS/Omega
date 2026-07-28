@@ -205,8 +205,10 @@ twice rejects. An explicit `[linear]` record remains one indivisible nominal
 root. Literal-length fixed arrays likewise expose one canonical path per
 contained element: literal-index extraction leaves sibling obligations live,
 while runtime-indexed owned extraction remains conservative because it cannot
-name one unique element. Active sum cases remain conservative until their P1c
-frontier identities and mappings are implemented.
+name one unique element. Active sums expose a case-plus-field path for every
+contained claim. Constructing a case activates only its payload; moving one
+payload field leaves same-case siblings live while impossible case alternatives
+remain inactive.
 
 An aggregate with structural field cleanup may be partially moved. Its cleanup
 plan visits only the remaining live fields.

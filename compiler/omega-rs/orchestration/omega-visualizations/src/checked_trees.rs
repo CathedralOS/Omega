@@ -333,6 +333,11 @@ fn push_claim_path_json(
                 push_json_string(json, &symbol_label(program, *symbol));
                 json.push('}');
             }
+            omega_facts::PlaceSegment::Case { variant } => {
+                json.push_str("{\"case\": ");
+                push_json_string(json, &symbol_label(program, *variant));
+                json.push('}');
+            }
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 json.push_str("{\"fixed_index\": ");
                 json.push_str(&index.to_string());
@@ -461,6 +466,10 @@ fn qualification_subject(program: &CheckedTrees, fact: &omega_facts::Fact) -> St
             PlaceSegment::Field { symbol } => {
                 subject.push('.');
                 subject.push_str(&qualification_symbol_label(program, *symbol));
+            }
+            PlaceSegment::Case { variant } => {
+                subject.push_str("::");
+                subject.push_str(&qualification_symbol_label(program, *variant));
             }
             PlaceSegment::FixedIndex { index } => {
                 subject.push('[');
@@ -1498,6 +1507,10 @@ fn borrow_access_label(
                 label.push('.');
                 label.push_str(&symbol_name_for_state(program, machine, state, *symbol));
             }
+            omega_facts::PlaceSegment::Case { variant } => {
+                label.push_str("::");
+                label.push_str(&symbol_name_for_state(program, machine, state, *variant));
+            }
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 label.push('[');
                 label.push_str(&index.to_string());
@@ -1535,6 +1548,10 @@ fn borrow_loan_label(
             omega_facts::PlaceSegment::Field { symbol } => {
                 place.push('.');
                 place.push_str(&symbol_name_for_state(program, machine, state, *symbol));
+            }
+            omega_facts::PlaceSegment::Case { variant } => {
+                place.push_str("::");
+                place.push_str(&symbol_name_for_state(program, machine, state, *variant));
             }
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 place.push('[');
@@ -1899,15 +1916,14 @@ mod tests {
     #[test]
     fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         let mut program = CheckedTrees::default();
-        let output_segments =
-            program
-                .facts
-                .flow
-                .ownership
-                .segments
-                .insert_many([omega_facts::PlaceSegment::Field {
-                    symbol: SymbolHandle::invalid(),
-                }]);
+        let output_segments = program.facts.flow.ownership.segments.insert_many([
+            omega_facts::PlaceSegment::Case {
+                variant: SymbolHandle::invalid(),
+            },
+            omega_facts::PlaceSegment::Field {
+                symbol: SymbolHandle::invalid(),
+            },
+        ]);
         let entries = program
             .facts
             .flow
@@ -1955,7 +1971,9 @@ mod tests {
         let json = claim_outcome_manifest_json(&program);
 
         assert!(json.contains("\"claim_outcome_maps\""));
-        assert!(json.contains("\"output_path\": [{\"field\": \"invalid\"}]"));
+        assert!(
+            json.contains("\"output_path\": [{\"case\": \"invalid\"}, {\"field\": \"invalid\"}]")
+        );
         assert!(json.contains("\"kind\": \"input\""));
         assert!(json.contains("\"kind\": \"established\""));
         assert!(json.contains("\"statement_index\": 2"));

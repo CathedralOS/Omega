@@ -10,6 +10,7 @@ pub(super) fn assign_data_symbols(
 ) {
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
+    let data_payload_fields = &mut program.tables.declarations.data_payload_fields;
     let state_parameters = &mut program.tables.declarations.state_parameters;
     let child_type_references = &mut program.tables.declarations.child_type_references;
     program
@@ -74,6 +75,15 @@ pub(super) fn assign_data_symbols(
                     omega_symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         variant.symbol =
                             next_child_of_kind(&mut data_children, symbols, SymbolKind::Variant);
+                        let mut variant_children =
+                            symbols.child_handles(variant.symbol).into_iter().flatten();
+                        for field in data_payload_fields.span_mut_or_empty(variant.payload) {
+                            field.symbol = next_child_of_kind(
+                                &mut variant_children,
+                                symbols,
+                                SymbolKind::Field,
+                            );
+                        }
                     }
                 }
             }

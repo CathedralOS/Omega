@@ -8,6 +8,7 @@ pub(super) fn owner_path_from_place_segments(
         .iter()
         .map(|segment| match segment {
             omega_facts::PlaceSegment::Field { symbol } => BorrowOwnerSegment::Field(*symbol),
+            omega_facts::PlaceSegment::Case { variant } => BorrowOwnerSegment::Case(*variant),
             omega_facts::PlaceSegment::FixedIndex { index } => {
                 BorrowOwnerSegment::FixedIndex(*index)
             }
@@ -37,6 +38,12 @@ pub(super) fn owner_path_matches(
                         symbol: place_symbol,
                     },
                 ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
+                (
+                    BorrowOwnerSegment::Case(owner_variant),
+                    omega_facts::PlaceSegment::Case {
+                        variant: place_variant,
+                    },
+                ) => owner_variant == place_variant,
                 (
                     BorrowOwnerSegment::FixedIndex(owner_index),
                     omega_facts::PlaceSegment::FixedIndex { index: place_index },

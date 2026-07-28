@@ -576,9 +576,12 @@ claim below an aggregate place. The carry artifact retains each effective
 claim policy and its contributing-origin count. Literal-length fixed arrays now
 enumerate structured fixed-index paths through construction, literal-index
 extraction, partial moves, and n-ary output maps; runtime-indexed extraction
-remains fail-closed. Active-case frontiers remain P1c work. Symbol-keyed
-substitutions already retain contained claims through nested generic
-transparent records.
+remains fail-closed. Active sums likewise enumerate structured case-plus-field
+paths. Payload-field symbols are children of their variants; known construction
+activates only the selected case, same-case siblings remain independent, and
+checked output maps omit proven-inactive alternatives while propagating live
+case identities through opaque calls. Symbol-keyed substitutions already retain
+contained claims through nested generic transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
 compiler-owned algebra, normalized claim projection and admitted backing,
 root-lineage mapping, and exact separated-conservation witness. The initial

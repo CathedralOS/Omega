@@ -127,12 +127,7 @@ impl FactPlan {
                             resolve_place_member_symbol(program, self, place, member_name.as_str())
                         })
                         .unwrap_or_else(SymbolHandle::invalid);
-                    self.push_place_segment(
-                        place,
-                        PlaceSegment::Field {
-                            symbol: member_symbol,
-                        },
-                    );
+                    self.push_field_place_segment(program, place, member_symbol);
                 }
                 place
             }
@@ -147,7 +142,7 @@ impl FactPlan {
                             .unwrap_or_else(SymbolHandle::invalid)
                     }
                 };
-                self.push_place_segment(place, PlaceSegment::Field { symbol });
+                self.push_field_place_segment(program, place, symbol);
                 place
             }
             ExpressionNode::Indexed(indexed) => {
@@ -180,6 +175,18 @@ impl FactPlan {
     pub fn push_place_segment(&mut self, place: PlaceHandle, segment: PlaceSegment) {
         let segment = self.place_segments.append(segment);
         self.places.get_mut(place).segments.push_contiguous(segment);
+    }
+
+    fn push_field_place_segment(
+        &mut self,
+        program: &omega_typed_trees::TypedTrees,
+        place: PlaceHandle,
+        symbol: SymbolHandle,
+    ) {
+        if let Some(variant) = crate::payload_variant_for_field(program, symbol) {
+            self.push_place_segment(place, PlaceSegment::Case { variant });
+        }
+        self.push_place_segment(place, PlaceSegment::Field { symbol });
     }
 
     pub fn append_fact_context(&mut self, fact: Fact) -> FactHandle {

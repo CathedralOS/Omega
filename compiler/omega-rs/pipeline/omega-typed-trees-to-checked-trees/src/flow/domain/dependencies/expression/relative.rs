@@ -35,9 +35,7 @@ pub(super) fn relative_place_segments_from_expression(
             } else {
                 effective_member_symbol(program, member.receiver, member)
             };
-            segments.push(omega_facts::PlaceSegment::Field {
-                symbol: member_symbol,
-            });
+            crate::flow::push_field_place_segments(program, &mut segments, member_symbol);
             Some(segments)
         }
         ExpressionNode::Indexed(indexed) => {
