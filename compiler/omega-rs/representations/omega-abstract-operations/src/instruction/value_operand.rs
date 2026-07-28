@@ -8,6 +8,15 @@ pub type ValueOperandHandle = Handle<ValueOperand>;
 pub type AbstractValueOperandHandle = ValueOperandHandle;
 pub type RuntimeValueOperandHandle = ValueOperandHandle;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeBitFieldFragment {
+    pub container_byte_offset: usize,
+    pub container_width_bits: u16,
+    pub destination_lsb: u16,
+    pub source_lsb: u16,
+    pub width: u16,
+}
+
 /// The one canonical runtime value operand, shared verbatim across the
 /// abstract/target/assigned operation layers (each just re-exports it under its
 /// own alias). The three layers used to re-declare this enum identically, so a
@@ -21,6 +30,15 @@ pub enum ValueOperand {
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_size: usize,
+    },
+    /// One logical scalar assembled from validated fragments inside an owned
+    /// plan-laid record. The base is the containing record; every fragment
+    /// offset is relative to it.
+    BitField {
+        region: RuntimeStorageRegion,
+        base_byte_offset: usize,
+        value_byte_size: usize,
+        fragments: Vec<RuntimeBitFieldFragment>,
     },
     Pointee {
         pointer_byte_offset: usize,

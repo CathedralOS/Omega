@@ -612,6 +612,17 @@ pub(super) fn encode_machine_instruction_bytes(
             *value,
             *byte_size,
         ),
+        SelectedInstructionKind::WriteStorageBitField {
+            base_byte_offset,
+            fragments,
+            value,
+            ..
+        } => omega_instruction_selection::encode_runtime_storage_bit_field_write(
+            input.target.architecture,
+            *base_byte_offset,
+            fragments,
+            *value,
+        ),
         SelectedInstructionKind::WritePlaceString {
             target,
             byte_length,

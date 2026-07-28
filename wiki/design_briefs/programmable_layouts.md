@@ -307,18 +307,21 @@ Implementation status: steps 1-3 are live for primitive record schemas. Step
 accepts repeated `Bits` placements, and rejects unknown/missing fields, mixed
 whole/fragment placement, destination overlap/out-of-bounds ranges, and source
 fragments that do not tile the logical field exactly. Ordinary plan-laid value
-types continue to require one fixed `At` entry per field. A target-neutral
-ordinary-scalar consumer now takes only named values and this validated plan:
-there is no caller-supplied offset, every planned field must be supplied
-exactly once, widths and fragments are rechecked, padding/reserved bits start
-at zero, and the destination changes only after complete validation. A
-compiler-evaluated compact-bit policy pins this generic path without naming a
-target subsystem. Target and OS packages consume plans; the compiler does not
-own their table hierarchy, flags, or lifecycle. The inverse scalar decoder consumes compiler-materialized
-field widths and the same named geometry, reconstructs complete logical
-fields, and rejects incomplete or overlapping source fragments. Decoding
-establishes no domain, trust, or authority fact. Source establishment remains
-separate work.
+types accept either one fixed `At` placement or a complete set of fixed `Bits`
+placements for each primitive scalar field. Direct reads assemble the logical
+value from one or more fragments, and immediate writes use masked
+read-modify-write operations that preserve neighboring bits; both paths are
+live on x86-64 and AArch64. A target-neutral ordinary-scalar consumer takes
+only named values and this validated plan: there is no caller-supplied offset,
+every planned field must be supplied exactly once, widths and fragments are
+rechecked, padding/reserved bits start at zero, and the destination changes
+only after complete validation. A compiler-evaluated compact-bit policy pins
+this generic path without naming a target subsystem. Target and OS packages
+consume plans; the compiler does not own their table hierarchy, flags, or
+lifecycle. The inverse scalar decoder consumes compiler-materialized field
+widths and the same named geometry, reconstructs complete logical fields, and
+rejects incomplete or overlapping source fragments. Decoding establishes no
+domain, trust, or authority fact. Source establishment remains separate work.
 Step 8 now also has a normalized symbolic foundation: sealed
 `Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or

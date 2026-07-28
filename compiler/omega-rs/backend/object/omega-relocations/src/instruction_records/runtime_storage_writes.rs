@@ -33,6 +33,12 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_relative_offset(offset, symbol);
             true
         }
+        SelectedInstructionKind::WriteStorageBitField { region, .. } => {
+            context.insert_data_address_at_instruction_start(
+                context.storage_region_symbol_handle(*region),
+            );
+            true
+        }
         SelectedInstructionKind::WritePlaceBinary {
             target,
             left,

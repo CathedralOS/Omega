@@ -136,12 +136,15 @@ References:
   establishment beyond checked recasts. Recursive aggregate representation-set
   checks are live for records, literal fixed arrays, complete-source aggregate
   slices, and exactly tiled interior slices.
+- Direct ordinary-scalar projection through validated fixed `Bits` placements
+  is live on x86-64 and AArch64, including masked writes and fragmented reads.
+  Source-visible validation/materialization remains the establishment boundary.
 - Keep validation as the route from raw bytes to established typed facts and
   derive public access from validated plans and field identities.
 
 Acceptance: an Omega-authored compact-bit policy validates, materializes, and
-projects a typed value on x86-64 and AArch64; malformed tiling and fact establishment
-from raw bytes reject.
+projects a typed value on x86-64 and AArch64; malformed tiling and fact
+establishment from raw bytes reject.
 
 #### L6b — `AccessPlan` and placed views
 

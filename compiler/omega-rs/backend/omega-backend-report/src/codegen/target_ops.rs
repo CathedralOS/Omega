@@ -743,6 +743,19 @@ fn selected_instruction_name(
                 target.steps()
             )
         }
+        SelectedInstructionKind::WriteStorageBitField {
+            region,
+            base_byte_offset,
+            fragments,
+            value,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+            format!(
+                "write bit field {value} -> {target_symbol}@{base_byte_offset} ({} fragments)",
+                fragments.len()
+            )
+        }
         SelectedInstructionKind::WritePlaceString {
             target,
             data,

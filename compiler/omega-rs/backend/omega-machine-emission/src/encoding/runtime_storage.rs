@@ -172,7 +172,8 @@ fn validate_runtime_value_home(
                 ));
             }
         }
-        RuntimeValueOperand::Binary { .. }
+        RuntimeValueOperand::BitField { .. }
+        | RuntimeValueOperand::Binary { .. }
         | RuntimeValueOperand::Convert { .. }
         | RuntimeValueOperand::TextEquals { .. }
         | RuntimeValueOperand::TextEqualsLiteral { .. }
@@ -183,7 +184,7 @@ fn validate_runtime_value_home(
                     | omega_assigned_target_operations::AssignedValueHomeKind::StackSlot { .. }
             ) {
                 return Err(Diagnostic::error(
-                    "binary/convert/text-equals runtime value must lower through a scratch-register or stack-slot home",
+                    "computed runtime value must lower through a scratch-register or stack-slot home",
                 ));
             }
         }

@@ -37,20 +37,24 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
 #[derive(Clone, Copy)]
 pub(in crate::selection) struct NestedFieldLayoutCursor<'layout> {
     byte_offset: usize,
+    containing_byte_offset: usize,
     type_symbol: SymbolHandle,
     type_name: &'layout str,
     type_descriptor: &'layout TypeLayoutDescriptor,
     layout: TypeLayout,
+    bit_field: Option<&'layout omega_layout::BitFieldLayout>,
 }
 
 impl<'layout> NestedFieldLayoutCursor<'layout> {
     pub(in crate::selection) fn from_root(root_field: &'layout FieldLayout) -> Self {
         Self {
             byte_offset: root_field.offset,
+            containing_byte_offset: 0,
             type_symbol: root_field.type_symbol,
             type_name: root_field.type_name.as_ref(),
             type_descriptor: &root_field.type_descriptor,
             layout: root_field.layout,
+            bit_field: None,
         }
     }
 
@@ -60,6 +64,13 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
 
     pub(in crate::selection) fn layout(self) -> TypeLayout {
         self.layout
+    }
+
+    pub(in crate::selection) fn bit_field(
+        self,
+    ) -> Option<(usize, &'layout omega_layout::BitFieldLayout)> {
+        self.bit_field
+            .map(|bit_field| (self.containing_byte_offset, bit_field))
     }
 
     pub(in crate::selection) fn type_descriptor(self) -> &'layout TypeLayoutDescriptor {
@@ -74,10 +85,12 @@ impl<'layout> NestedFieldLayoutCursor<'layout> {
     ) -> Self {
         Self {
             byte_offset: cursor.byte_offset + element_layout.size * index,
+            containing_byte_offset: cursor.byte_offset + element_layout.size * index,
             type_symbol: element_type.storage_symbol(),
             type_name: "",
             type_descriptor: element_type,
             layout: element_layout,
+            bit_field: None,
         }
     }
 }
@@ -157,12 +170,15 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
                 })?
         }
     };
+    let containing_byte_offset = cursor.byte_offset;
     let mut next = NestedFieldLayoutCursor {
         byte_offset: cursor.byte_offset + field.offset,
+        containing_byte_offset,
         type_symbol: field.type_symbol,
         type_name: &field.type_name,
         type_descriptor: &field.type_descriptor,
         layout: field.layout,
+        bit_field: layouts.bit_field(field.symbol),
     };
 
     if let Some(index) = field_segment.index {
@@ -175,10 +191,12 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
             alignment: next.layout.alignment,
         };
         next.byte_offset += element_layout.size * index;
+        next.containing_byte_offset = next.byte_offset;
         next.type_symbol = element_type.storage_symbol();
         next.type_name = "";
         next.type_descriptor = element_type;
         next.layout = element_layout;
+        next.bit_field = None;
     }
 
     Some(next)

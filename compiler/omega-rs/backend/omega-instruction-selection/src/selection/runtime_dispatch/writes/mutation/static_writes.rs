@@ -1,13 +1,13 @@
 use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_bit_field_place_in_table, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
 };
-use omega_abstract_operations::SelectedInstructionKind;
+use omega_abstract_operations::{RuntimeBitFieldFragment, SelectedInstructionKind};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 
@@ -56,6 +56,33 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_static_muta
                 value,
             )?),
         };
+
+    if let Some(bit_target) = resolve_runtime_bit_field_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        let value = value.stored_integer(bit_target.value_byte_count);
+        set_runtime_static_value_in_table(static_values, expressions, target, value);
+        return Some(SelectedInstructionKind::WriteStorageBitField {
+            region: bit_target.region,
+            base_byte_offset: bit_target.base_byte_offset,
+            fragments: bit_target
+                .fragments
+                .into_iter()
+                .map(|fragment| RuntimeBitFieldFragment {
+                    container_byte_offset: fragment.container_byte_offset,
+                    container_width_bits: fragment.container_width_bits,
+                    destination_lsb: fragment.destination_lsb,
+                    source_lsb: fragment.source_lsb,
+                    width: fragment.width,
+                })
+                .collect(),
+            value: value.bits(),
+        });
+    }
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
         input,

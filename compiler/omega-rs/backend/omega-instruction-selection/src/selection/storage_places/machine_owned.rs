@@ -1,7 +1,7 @@
 use super::expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
-use super::model::RuntimeStoragePlace;
+use super::model::{RuntimeBitFieldPlace, RuntimeStoragePlace};
 use super::nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
@@ -119,6 +119,47 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
         resolve_nested_field_layout_with_pairs(layouts, root_field, suffix.iter())?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+pub(in crate::selection) fn resolve_machine_owned_bit_field_in_table(
+    layouts: &LayoutPlan,
+    input: &crate::InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeBitFieldPlace> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let (machine_base_offset, root_field, suffix_start_index) =
+        root_machine_field_layout_from_table_path(
+            layouts,
+            input,
+            dispatch_index,
+            entry_machine,
+            source_machine,
+            &path,
+        )?;
+    let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
+    for (field_name, field_symbol, field_index, case_variant) in
+        path.suffix(suffix_start_index).iter()
+    {
+        cursor = resolve_nested_field_layout_step(
+            layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+    let (containing_byte_offset, bit_field) = cursor.bit_field()?;
+    Some(RuntimeBitFieldPlace {
+        region: RuntimeStorageRegion::Machine,
+        base_byte_offset: machine_base_offset.checked_add(containing_byte_offset)?,
+        value_byte_count: cursor.layout().size,
+        fragments: bit_field.fragments.clone(),
+    })
 }
 
 pub(in crate::selection) fn resolve_machine_owned_collection_in_table(

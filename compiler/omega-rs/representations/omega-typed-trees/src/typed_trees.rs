@@ -96,9 +96,29 @@ pub struct PlanLaidLayout {
     pub data_name: String,
     /// Byte offset of each field, in declaration order.
     pub offsets: Vec<usize>,
+    /// Fragmented scalar fields keyed by declaration-order field index.
+    /// Empty for ordinary byte-aligned plans. The compiler's layout
+    /// validator has already proved complete source tiling, non-overlapping
+    /// destinations, and in-bounds containers.
+    pub bit_fields: Vec<PlanLaidBitField>,
     /// Total value size (fixed by the value-type gate).
     pub size: usize,
     pub align: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanLaidBitField {
+    pub field_index: usize,
+    pub fragments: Vec<PlanLaidBitFragment>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PlanLaidBitFragment {
+    pub container_byte_offset: usize,
+    pub container_width_bits: u16,
+    pub destination_lsb: u16,
+    pub source_lsb: u16,
+    pub width: u16,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

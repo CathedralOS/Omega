@@ -1,8 +1,8 @@
 use crate::InstructionSelectionInput;
 use crate::selection::lookups::state_parameters;
 use omega_abstract_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
-    StateGuardOperator,
+    RuntimeBitFieldFragment, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
+    SelectedInstructionKind, StateGuardOperator,
 };
 use omega_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
@@ -16,7 +16,7 @@ use super::super::super::storage_places::resolve_runtime_frame_base_indexed_targ
 use super::super::super::storage_places::{
     clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
-    resolve_binary_write_arithmetic_domain_in_table,
+    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -862,6 +862,31 @@ fn select_runtime_static_mutation_write_in_table(
     value: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
     let value = static_integer_value_in_table(&input.layouts, expressions, value)?;
+
+    if let Some(bit_target) = resolve_runtime_bit_field_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteStorageBitField {
+            region: bit_target.region,
+            base_byte_offset: bit_target.base_byte_offset,
+            fragments: bit_target
+                .fragments
+                .into_iter()
+                .map(|fragment| RuntimeBitFieldFragment {
+                    container_byte_offset: fragment.container_byte_offset,
+                    container_width_bits: fragment.container_width_bits,
+                    destination_lsb: fragment.destination_lsb,
+                    source_lsb: fragment.source_lsb,
+                    width: fragment.width,
+                })
+                .collect(),
+            value,
+        });
+    }
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
         input,

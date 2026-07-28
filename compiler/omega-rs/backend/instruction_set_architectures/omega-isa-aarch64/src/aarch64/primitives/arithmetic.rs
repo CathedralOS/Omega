@@ -923,6 +923,24 @@ pub(in crate::aarch64) fn encode_lsr_x_immediate(
     )
 }
 
+/// `LSL Xd, Xn, #shift`, the `UBFM` alias.
+pub(in crate::aarch64) fn encode_lsl_x_immediate(
+    destination_register: u8,
+    source_register: u8,
+    shift: u8,
+) -> [u8; 4] {
+    debug_assert!((1..64).contains(&shift));
+    let immr = 64_u32 - u32::from(shift);
+    let imms = 63_u32 - u32::from(shift);
+    encode_instruction(
+        0xD340_0000
+            | (immr << 16)
+            | (imms << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 /// `ASR Xd, Xn, #shift` — arithmetic shift right by a constant (`SBFM Xd, Xn,
 /// #shift, #63`).
 pub(in crate::aarch64) fn encode_asr_x_immediate(

@@ -1,5 +1,5 @@
 use crate::{AssignedTargetOperationPlan, AssignedValueOperandKind};
-use omega_target_operations::{RuntimeStorageRegion, StateGuardOperator};
+use omega_target_operations::{RuntimeBitFieldFragment, RuntimeStorageRegion, StateGuardOperator};
 
 impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperationPlan {
     fn immediate_integer(
@@ -22,6 +22,31 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 byte_offset,
                 byte_size,
             } => Some((*region, *byte_offset, *byte_size)),
+            _ => None,
+        }
+    }
+
+    fn bit_field(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(
+        RuntimeStorageRegion,
+        usize,
+        usize,
+        Vec<RuntimeBitFieldFragment>,
+    )> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::BitField {
+                region,
+                base_byte_offset,
+                value_byte_size,
+                fragments,
+            } => Some((
+                *region,
+                *base_byte_offset,
+                *value_byte_size,
+                fragments.clone(),
+            )),
             _ => None,
         }
     }

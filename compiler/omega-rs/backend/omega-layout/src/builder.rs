@@ -1,8 +1,8 @@
 use crate::packing::{PlannedField, pack_fields, pack_fields_at, place_fields_by_plan};
 use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use crate::{
-    DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
-    TypeLayoutDescriptor, VariantLayout,
+    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
+    MachineLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -85,6 +85,7 @@ struct LayoutBuilder<'program> {
     data_layouts: Arena<DataLayout>,
     data_visiting: LayoutVisitStack,
     fields: Arena<FieldLayout>,
+    bit_fields: Vec<BitFieldLayout>,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
     /// definition symbol paired with the canonical display of its type
     /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
@@ -196,6 +197,7 @@ impl<'program> LayoutBuilder<'program> {
             data_layouts: Arena::with_capacity(data_definitions.len()),
             data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
             fields: Arena::with_capacity(field_capacity),
+            bit_fields: Vec::new(),
             generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
@@ -211,6 +213,7 @@ impl<'program> LayoutBuilder<'program> {
         LayoutPlan {
             data_layouts: self.data_layouts,
             fields: self.fields,
+            bit_fields: self.bit_fields,
             machine_layouts: self.machine_layouts,
             variants: self.variants,
         }
@@ -353,6 +356,32 @@ impl<'program> LayoutBuilder<'program> {
                     alignment: plan.align,
                 },
             );
+            for bit_field in &plan.bit_fields {
+                let Some(field) = self
+                    .fields
+                    .span(fields)
+                    .and_then(|fields| fields.get(bit_field.field_index))
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "plan-laid data `{}` has no field at bit-placement index {}",
+                        definition.name, bit_field.field_index
+                    )));
+                };
+                self.bit_fields.push(BitFieldLayout {
+                    field: field.symbol,
+                    fragments: bit_field
+                        .fragments
+                        .iter()
+                        .map(|fragment| BitFieldFragment {
+                            container_byte_offset: fragment.container_byte_offset,
+                            container_width_bits: fragment.container_width_bits,
+                            destination_lsb: fragment.destination_lsb,
+                            source_lsb: fragment.source_lsb,
+                            width: fragment.width,
+                        })
+                        .collect(),
+                });
+            }
 
             return Ok(DataLayout {
                 symbol: definition.symbol,

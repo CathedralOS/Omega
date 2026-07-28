@@ -22,4 +22,7 @@ pub mod types;
 pub mod wire;
 
 pub use snapshot::TypedTreesSnapshot;
-pub use typed_trees::{PlanLaidLayout, TypedTreeRoots, TypedTreeTables, TypedTrees};
+pub use typed_trees::{
+    PlanLaidBitField, PlanLaidBitFragment, PlanLaidLayout, TypedTreeRoots, TypedTreeTables,
+    TypedTrees,
+};

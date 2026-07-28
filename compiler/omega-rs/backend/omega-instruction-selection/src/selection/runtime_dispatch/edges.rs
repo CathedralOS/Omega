@@ -9,9 +9,10 @@ use super::guards::{
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
-    resolve_runtime_storage_primitive_type_in_table, static_integer_value,
+    resolve_runtime_bit_field_place_in_table, resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    static_integer_value,
 };
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
@@ -114,6 +115,53 @@ fn guard_contains_pointee_operand(
     )
     .is_some()
         || resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        )
+        .is_some()
+}
+
+/// Whether a conjunction contains a plan-laid compact bit-field operand. The
+/// flat state-guard clause model records the containing storage byte, not the
+/// logical field value; expression selection preserves the fragment geometry
+/// and assembles that value before comparing it.
+fn guard_contains_bit_field_operand(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return false;
+    };
+    if binary.operator == BinaryOperator::And {
+        return guard_contains_bit_field_operand(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+        ) || guard_contains_bit_field_operand(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        );
+    }
+    resolve_runtime_bit_field_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    )
+    .is_some()
+        || resolve_runtime_bit_field_place_in_table(
             input,
             dispatch_index,
             source_key,
@@ -1530,7 +1578,15 @@ fn select_dispatch_guard_instructions(
             &input.state_guards.expressions,
             edge.guard_expression,
         );
-    if !guard_can_emit_directly(edge) || has_pointee_operand {
+    let has_bit_field_operand = edge.guard_has_expression
+        && guard_contains_bit_field_operand(
+            input,
+            source_dispatch_index,
+            source_key,
+            &input.state_guards.expressions,
+            edge.guard_expression,
+        );
+    if !guard_can_emit_directly(edge) || has_pointee_operand || has_bit_field_operand {
         let clauses = lower_guard_conjunction(
             input.state_guards,
             input.layouts,
@@ -1569,6 +1625,7 @@ fn select_dispatch_guard_instructions(
             if edge.guard_has_expression
                 && (has_unresolved_runtime_compare
                     || has_pointee_operand
+                    || has_bit_field_operand
                     || clauses
                         .iter()
                         .any(|clause| clause.byte_size == string_descriptor_size))

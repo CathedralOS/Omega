@@ -77,6 +77,18 @@ pub(super) fn runtime_value_operand_name(
             let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
             format!("{symbol}@{byte_offset}/{}", byte_size)
         }
+        RuntimeValueOperand::BitField {
+            region,
+            base_byte_offset,
+            value_byte_size,
+            fragments,
+        } => {
+            let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+            format!(
+                "bit_field({symbol}@{base_byte_offset}, value {value_byte_size}B, {} fragments)",
+                fragments.len()
+            )
+        }
         RuntimeValueOperand::Pointee {
             pointer_byte_offset,
             field_byte_offset,

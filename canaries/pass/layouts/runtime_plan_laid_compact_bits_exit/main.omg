@@ -1,0 +1,133 @@
+// A plan-laid owned value whose three logical fields share one byte. The
+// `code` field is itself split across two fragments. Ordinary field writes
+// must use masked RMW so later writes preserve siblings; reads must reconstruct
+// the logical scalar from every fragment. Exit 70 pins both behaviors.
+use omega::language::std::console;
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField {
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
+    number: i64;
+    kind: FieldKind;
+}
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: u64 [0..=32];
+}
+data FieldPlan {
+    case At(offset: u64);
+    case Bits(
+        container: u64,
+        container_width: u64,
+        destination_lsb: u64,
+        source_lsb: u64,
+        width: u64
+    );
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
+}
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data CompactBits { entries: [FieldEntry; 64]; }
+machine CompactBits::plan(&mut self, schema: Schema) -> Plan {
+    self.entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 0,
+            source_lsb: 0,
+            width: 1,
+        },
+    };
+    self.entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 1,
+            source_lsb: 0,
+            width: 3,
+        },
+    };
+    self.entries[2] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 4,
+            source_lsb: 0,
+            width: 2,
+        },
+    };
+    self.entries[3] = FieldEntry {
+        key: schema.fields[2].key,
+        placement: FieldPlan::Bits {
+            container: 0,
+            container_width: 8,
+            destination_lsb: 6,
+            source_lsb: 2,
+            width: 2,
+        },
+    };
+    Plan {
+        entries: self.entries,
+        entry_count: 4,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data PackedFlags {
+    present: bool;
+    mode: u8 [0..=7];
+    code: u8 [0..=15];
+}
+
+data Main {
+    console: Console;
+    packed: CompactBits<PackedFlags>;
+}
+
+machine Main::main(&mut self) {
+    self.packed.present = true;
+    self.packed.mode = 5;
+    self.packed.code = 10;
+
+    transition self.packed.present == true {
+        true -> check_mode()
+        false -> bad()
+    }
+
+    state check_mode(&mut self) {
+        transition self.packed.mode == 5 {
+            true -> check_code()
+            false -> bad()
+        }
+    }
+
+    state check_code(&mut self) {
+        transition self.packed.code == 10 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

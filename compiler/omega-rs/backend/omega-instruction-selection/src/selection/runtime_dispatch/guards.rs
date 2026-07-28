@@ -12,7 +12,7 @@ use omega_state_guards::{StateGuardKind, StateGuardLowering, StateGuardOperator}
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, enum_variant_value, enum_variant_value_in_table,
-    resolve_binary_operand_arithmetic_domain_in_table,
+    resolve_binary_operand_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
@@ -28,7 +28,8 @@ use super::super::storage_places::{
 use super::writes::mutation::{binary_value_operand_byte_width, binary_value_operands_are_float};
 use super::writes::resolve_runtime_text_equals_operand_in_table;
 use omega_abstract_operations::{
-    RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
+    RuntimeBitFieldFragment, RuntimeValueOperand, RuntimeValueOperandHandle,
+    SelectedInstructionKind, TargetDataObjectHandle,
 };
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_table_tree,
@@ -2021,6 +2022,33 @@ fn resolve_runtime_value_operand_in_table(
         );
     }
 
+    if let Some(place) = resolve_runtime_bit_field_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::BitField {
+                region: place.region,
+                base_byte_offset: place.base_byte_offset,
+                value_byte_size: place.value_byte_count,
+                fragments: place
+                    .fragments
+                    .into_iter()
+                    .map(|fragment| RuntimeBitFieldFragment {
+                        container_byte_offset: fragment.container_byte_offset,
+                        container_width_bits: fragment.container_width_bits,
+                        destination_lsb: fragment.destination_lsb,
+                        source_lsb: fragment.source_lsb,
+                        width: fragment.width,
+                    })
+                    .collect(),
+            }),
+        );
+    }
+
     if let Some(place) = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
@@ -2068,6 +2096,9 @@ fn runtime_value_operand_byte_size(
     match runtime_value_operands.get(operand) {
         RuntimeValueOperand::Immediate(_) => 8,
         RuntimeValueOperand::Storage { byte_size, .. } => *byte_size,
+        RuntimeValueOperand::BitField {
+            value_byte_size, ..
+        } => *value_byte_size,
         RuntimeValueOperand::Pointee { byte_size, .. } => *byte_size,
         RuntimeValueOperand::FrameIndexed { byte_size, .. }
         | RuntimeValueOperand::FrameBaseIndexed { byte_size, .. } => *byte_size,
