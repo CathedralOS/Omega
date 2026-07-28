@@ -5,7 +5,7 @@
 //   result = 0
 //   for each byte b in text: result = result * 10 + (b - 48)
 //
-// Composes a `.len`-bounded loop, runtime carrier byte reads, a widening cast,
+// Composes a `.len`-bounded loop, runtime carrier byte reads, named widening,
 // a guard-proven Exact loop counter, and an honestly-Wrapping accumulator (digit
 // bytes carry no range facts, so the multiply-accumulate declares its domain).
 // Parsing "150" yields 150 (a dynamic, 3-digit parse -- the length is read at
@@ -19,6 +19,7 @@ domain [u8; 8]::Utf8 {
     valid_utf8(self);
 }
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -54,7 +55,7 @@ machine Main::main(&mut self) {
     // result = result * 10 + (byte - '0').
     state digit(&mut self) {
         self.b = self.text[self.i];
-        self.dval = self.b as i32;
+        self.dval = widen_u8_to_i32(self.b) as i32 in Wrapping;
         self.dval = self.dval - 48;
         self.result = self.result * 10;
         self.result = self.result + self.dval;

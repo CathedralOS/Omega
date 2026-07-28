@@ -182,6 +182,21 @@ fn named_integer_conversion_samples_reach_checked_trees() {
         "cli/basics/multiplication_table",
         "cli/arithmetic/prime_sieve",
         "cli/algorithms/maze_flood",
+        "gui/image_viewer",
+        "cli/games/dungeon_crawler_cli",
+        "cli/games/dice_histogram",
+        "cli/collections/heat_grid",
+        "cli/text/parse_int",
+        "cli/text/parse_number",
+        "cli/text/substring_search",
+        "cli/interpreters/calculator",
+        "cli/systems/descriptor_walk",
+        "cli/simulation/calendar",
+        "cli/text/string_hash",
+        "cli/arithmetic/factorial_loop",
+        "cli/arithmetic/popcount",
+        "cli/arithmetic/utf8_byte_class",
+        "cli/basics/print_squares",
     ] {
         let main_path = repo_root().join("samples").join(relative).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {

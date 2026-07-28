@@ -351,7 +351,13 @@ ceilings, and publication-before-ledger-record all reject.
   trapping versus wrapping narrowing choices. Seven user-facing samples now
   use the named surface for widening and trapping conversion: `width_mixer`,
   `array_sum`, `format_number`, `print_number`, `multiplication_table`,
-  `prime_sieve`, and `maze_flood`.
+  `prime_sieve`, and `maze_flood`. The follow-on sweep migrated every remaining
+  runtime integer width/signedness conversion in `samples/`, including byte
+  parsing/rendering, hashing, indexed image decode, descriptor counts, PRNG
+  word extraction, and signed-byte reinterpretation. Integer-looking `as T`
+  spellings that remain in samples are same-carrier arithmetic qualification
+  (or the wire policy's same-type compatibility spelling), not hidden numeric
+  conversion; float conversion remains its own F7 lane.
 - Call-result normalization now materializes a value-machine call directly
   beneath a value cast or qualification through the ordinary synthetic local
   route. Inline named conversion, subsequent arithmetic-policy qualification,

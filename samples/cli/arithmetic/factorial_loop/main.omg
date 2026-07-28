@@ -9,6 +9,7 @@
 //
 // Expected exit: 120
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 data Main {
     console: Console;
 }
@@ -23,6 +24,6 @@ terminates by n;
 }
 machine Main::main(&mut self) {
     let result: u64 = self.fact(5, 1);
-    let code: i32 = result as i32;
+    let code: i32 = narrow_u64_to_i32_trapping(result);
     self.console.exit_process(code);
 }

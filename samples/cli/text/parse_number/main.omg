@@ -1,12 +1,10 @@
 // Parse a two-digit number out of its text form -- the core of reading numeric
-// input. Each character byte is converted to its integer value with an explicit
-// `as i32` cast (which zero-extends the u8 into an i32), then '0' (48) is subtracted
-// to get the digit, and the digits are combined as `tens*10 + ones`. For "25" this
-// yields 2*10 + 5 = 25. The arithmetic is fully EXACT: a carrier byte read carries no
-// range fact yet, so each cast is folded through `% 256` (an identity for a u8-sourced
-// value) to bound it, after which every step is verifiably in range -- no overflow
-// domain needed. (The `as i32` cast is required: a carrier byte is a u8, and widening
-// to i32 is explicit.)
+// input. Each character byte is widened to i32 through the named conversion,
+// then '0' (48) is subtracted to get the digit, and the digits are combined as
+// `tens*10 + ones`. For "25" this yields 2*10 + 5 = 25. The arithmetic is fully
+// EXACT: a carrier byte read carries no range fact yet, so each widened value is
+// folded through `% 256` (an identity for a u8-sourced value) to bound it, after
+// which every step is verifiably in range -- no overflow domain needed.
 // Expected exit: 25.
 
 domain [u8]::Utf8 {
@@ -16,6 +14,7 @@ domain [u8; 4]::Utf8 {
     valid_utf8(self);
 }
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -30,9 +29,9 @@ machine Main::main(&mut self) {
     self.console.write_line("parse_number: reading the two-digit text 25 back into an integer");
     self.text = "25";
 
-    self.tens = (self.text[0] as i32) % 256;
+    self.tens = widen_u8_to_i32(self.text[0]) % 256;
     self.tens = self.tens - 48;
-    self.ones = (self.text[1] as i32) % 256;
+    self.ones = widen_u8_to_i32(self.text[1]) % 256;
     self.ones = self.ones - 48;
     self.value = self.tens * 10 + self.ones;
 
