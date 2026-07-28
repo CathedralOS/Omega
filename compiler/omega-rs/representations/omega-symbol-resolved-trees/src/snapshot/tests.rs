@@ -76,6 +76,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
     program.domain_definitions.push(DomainDefinition {
         name: DiagnosticName::generated("i64::Km"),
         target_type: TypeReference::Unit,
+        predicate_body: omega_core::semantics::DomainPredicateBody::Present,
         semantic_id: omega_core::semantics::SemanticDomainId(17),
         facets: omega_core::semantics::DomainFacets {
             predicate: true,
@@ -87,6 +88,10 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
 
     let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
     assert_eq!(snapshot.roots.machines.len(), 1);
+    assert_eq!(
+        snapshot.roots.domain_definitions[0].predicate_body,
+        "present"
+    );
     assert_eq!(
         snapshot.roots.machines[0].supply,
         MachineSupplySnapshot::CheckedBody

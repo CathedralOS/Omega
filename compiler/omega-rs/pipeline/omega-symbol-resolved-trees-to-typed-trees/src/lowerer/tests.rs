@@ -165,6 +165,10 @@ fn lowers_domain_definitions() {
     };
     assert!(membership.domain_symbol.is_valid());
     assert!(domain.body_token_count >= 3);
+    assert_eq!(
+        domain.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Present
+    );
     assert!(domain.target_type.is_valid());
     let resolved_domain = resolved_program
         .domain_definitions
@@ -179,6 +183,10 @@ fn lowers_domain_definitions() {
         .iter()
         .find(|candidate| candidate.name.as_str() == "Player::Tagged")
         .expect("typed tagged domain");
+    assert_eq!(
+        tagged.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Bodyless
+    );
     assert!(!tagged.facets.predicate);
     assert_eq!(tagged.facets.semantic, Some(tagged.semantic_id));
 }

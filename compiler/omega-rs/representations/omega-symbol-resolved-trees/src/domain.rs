@@ -8,6 +8,8 @@ pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub target_type: TypeReference,
+    /// Explicit predicate-body presence from the source declaration.
+    pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,

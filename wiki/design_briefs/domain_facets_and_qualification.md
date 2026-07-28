@@ -369,7 +369,12 @@ Required tests:
 ## Implementation staging
 
 The compiler currently carries an explicit predicate/semantic facet pair and
-special arithmetic-domain paths. Migration should:
+special arithmetic-domain paths. Semicolon and empty-braced declarations now
+both normalize to an explicit bodyless predicate-body record in syntax,
+symbol-resolved, and typed trees; an explicit `{ true; }` body remains
+predicate-bearing. This removes fact-count inference for body presence but does
+not yet grant bodyless membership or replace the compatibility facet pair.
+Migration should:
 
 1. replace the facet pair with the independent domain-theory records above;
 2. add bodyless-domain establishment and evidence-source identity;

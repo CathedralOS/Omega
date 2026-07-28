@@ -19,6 +19,7 @@ pub(crate) fn lower_domain_definition(
         symbol: domain.symbol,
         name: lower_name(&domain.name),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
+        predicate_body: domain.predicate_body,
         facts,
         operators: Default::default(),
         body_token_count: domain.body_token_count,

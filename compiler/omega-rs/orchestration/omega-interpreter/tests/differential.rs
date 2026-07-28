@@ -659,6 +659,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "domains/executable_imported_domain_membership_union_value_exit",
         215,
     ),
+    ("domains/bodyless_domain_declarations_exit", 70),
     ("domains/user_domain_literal_grant", 70),
     ("domains/utf8_equals_literal_exit", 70),
     ("domains/utf8_equals_view_exit", 70),
