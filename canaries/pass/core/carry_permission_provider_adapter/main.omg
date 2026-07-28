@@ -32,10 +32,10 @@ data Harness {
     scheduler: Scheduler;
 }
 
-machine Harness::forward(&self, raw: Token) -> Token {
+machine Harness::forward(&self, raw: Token) -> Token suspends; {
     let claim: Token = self.provider.grant(raw);
     let forwarded: Token = forward_claim(claim);
-    self.scheduler.park();
+    suspend self.scheduler.park();
     transition { _ -> forwarded }
 }
 

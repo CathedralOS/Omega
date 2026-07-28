@@ -128,6 +128,7 @@ fn lower_statement_node(
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
                     discards_result: call.discards_result,
                 },
             }));

@@ -313,6 +313,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
@@ -1226,6 +1227,7 @@ impl ExpressionTable {
                     target: call.target,
                     machine_arguments: call.machine_arguments,
                     arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
@@ -1426,6 +1428,7 @@ impl ExpressionTable {
                     target: call.target.clone(),
                     machine_arguments: Box::default(),
                     arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
                 }))
             }
             Expression::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
@@ -1540,6 +1543,7 @@ impl ExpressionTable {
                     .iter()
                     .map(|argument| self.to_tree(*argument))
                     .collect::<Arc<[_]>>(),
+                operational_acknowledgement: call.operational_acknowledgement,
             })),
             ExpressionNode::Float(value) => Expression::Float(value.clone()),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
@@ -1863,6 +1867,7 @@ pub struct CallExpression {
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
     pub arguments: Arc<[Expression]>,
+    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1872,6 +1877,7 @@ pub struct TableCallExpression {
     pub target: Identifier,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

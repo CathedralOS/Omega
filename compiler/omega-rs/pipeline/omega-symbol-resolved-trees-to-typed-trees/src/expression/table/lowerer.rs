@@ -169,6 +169,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                                 .collect::<Vec<_>>()
                                 .into_boxed_slice(),
                             arguments,
+                            operational_acknowledgement: call.operational_acknowledgement,
                         },
                     )))
             }

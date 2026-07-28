@@ -287,6 +287,86 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    // CALLACK: `suspend` and `block` remain contextual identifiers except
+    // when followed by another expression rather than `(` (so declarations
+    // may still name an ordinary `suspend()` or `block()` operation).
+    if input.at_contextual("suspend")
+        && input
+            .clone()
+            .take_contextual("suspend")
+            .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::LeftParen))
+    {
+        let input = input.take_contextual("suspend")?;
+        if input.at_contextual("suspend") {
+            return Err(
+                input.error_here("duplicate `suspend` call acknowledgement; write it exactly once")
+            );
+        }
+        let (acknowledges_block, input) = if input.at_contextual("block") {
+            (true, input.take_contextual("block")?)
+        } else {
+            (false, input)
+        };
+        let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
+        let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone()
+        else {
+            return Err(input.error_here(
+                "`suspend` is a call acknowledgement and must appear immediately before a call",
+            ));
+        };
+        syntax_trees.expressions.replace_expression(
+            expression,
+            ExpressionNode::Call(omega_syntax_trees::expression::TableCallExpression {
+                operational_acknowledgement:
+                    omega_core::semantics::CallOperationalAcknowledgement {
+                        acknowledges_suspend: true,
+                        acknowledges_block,
+                        ..Default::default()
+                    },
+                ..call
+            }),
+        );
+        return Ok((expression, rest));
+    }
+
+    if input.at_contextual("block")
+        && input
+            .clone()
+            .take_contextual("block")
+            .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::LeftParen))
+    {
+        let input = input.take_contextual("block")?;
+        if input.at_contextual("suspend") {
+            return Err(input.error_here(
+                "call acknowledgements use canonical order `suspend block`, never `block suspend`",
+            ));
+        }
+        if input.at_contextual("block") {
+            return Err(
+                input.error_here("duplicate `block` call acknowledgement; write it exactly once")
+            );
+        }
+        let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
+        let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression).clone()
+        else {
+            return Err(input.error_here(
+                "`block` is a call acknowledgement and must appear immediately before a call",
+            ));
+        };
+        syntax_trees.expressions.replace_expression(
+            expression,
+            ExpressionNode::Call(omega_syntax_trees::expression::TableCallExpression {
+                operational_acknowledgement:
+                    omega_core::semantics::CallOperationalAcknowledgement {
+                        acknowledges_block: true,
+                        ..Default::default()
+                    },
+                ..call
+            }),
+        );
+        return Ok((expression, rest));
+    }
+
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
         if input.at_contextual("mut") || input.at_keyword(KeywordKind::State) {

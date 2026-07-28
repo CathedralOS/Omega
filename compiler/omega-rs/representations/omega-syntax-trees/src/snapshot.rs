@@ -372,6 +372,9 @@ pub enum StatementSnapshot {
         target: IdentifierSnapshot,
         machine_arguments: Vec<Vec<IdentifierSnapshot>>,
         arguments: Vec<ExpressionSnapshot>,
+        acknowledgement_synthesized: bool,
+        acknowledges_suspend: bool,
+        acknowledges_block: bool,
     },
     Expression {
         value: ExpressionSnapshot,
@@ -504,6 +507,9 @@ pub enum ExpressionSnapshot {
         target: IdentifierSnapshot,
         machine_arguments: Vec<Vec<IdentifierSnapshot>>,
         arguments: Vec<ExpressionSnapshot>,
+        acknowledgement_synthesized: bool,
+        acknowledges_suspend: bool,
+        acknowledges_block: bool,
     },
     Float {
         text: String,
@@ -1264,6 +1270,10 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 .iter()
                 .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                 .collect(),
+            acknowledgement_synthesized: call.operational_acknowledgement.origin
+                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+            acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
         StatementNode::Expression(value) => StatementSnapshot::Expression {
             value: snapshot_expression_handle(syntax_trees, *value),
@@ -1541,6 +1551,10 @@ fn snapshot_call_expression(
             .iter()
             .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
             .collect(),
+        acknowledgement_synthesized: call.operational_acknowledgement.origin
+            == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+        acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+        acknowledges_block: call.operational_acknowledgement.acknowledges_block,
     }
 }
 

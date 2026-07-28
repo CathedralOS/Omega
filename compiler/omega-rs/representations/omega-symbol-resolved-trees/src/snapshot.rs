@@ -434,6 +434,9 @@ pub enum StatementSnapshot {
         target: String,
         machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
+        acknowledgement_synthesized: bool,
+        acknowledges_suspend: bool,
+        acknowledges_block: bool,
     },
     Expression {
         value: ExpressionSnapshot,
@@ -499,6 +502,9 @@ pub enum ExpressionSnapshot {
         target: String,
         machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
+        acknowledgement_synthesized: bool,
+        acknowledges_suspend: bool,
+        acknowledges_block: bool,
     },
     Float {
         value: String,
@@ -1047,6 +1053,10 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
                 .iter()
                 .map(|expression| table_expression_snapshot(program, *expression))
                 .collect(),
+            acknowledgement_synthesized: call.operational_acknowledgement.origin
+                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+            acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
         Statement::Expression(expression) => StatementSnapshot::Expression {
             value: statement_expression_snapshot(program, *expression),
@@ -1170,6 +1180,10 @@ fn table_expression_snapshot(
                 .iter()
                 .map(|argument| table_expression_snapshot(program, *argument))
                 .collect(),
+            acknowledgement_synthesized: call.operational_acknowledgement.origin
+                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+            acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {
             value: value.to_string(),

@@ -20,8 +20,8 @@ machine Main::read(&mut self, cell: &Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
-machine Main::main(&mut self) {
-    self.scheduler.park();
+machine Main::main(&mut self) suspends; {
+    suspend self.scheduler.park();
     transition { _ -> resumed() }
 
     state resumed(&mut self) {

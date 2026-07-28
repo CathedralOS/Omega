@@ -56,8 +56,8 @@ trait Worker {
 }
 
 machine finish(clock: &mut Clock, storage: &mut Storage) -> u64 {
-    storage.flush();
-    clock.wait();
+    block storage.flush();
+    suspend clock.wait();
     0
 }
 

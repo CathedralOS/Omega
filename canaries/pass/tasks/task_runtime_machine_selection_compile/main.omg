@@ -19,7 +19,7 @@ boundary trait TokenIssuer {
 data Worker { }
 machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends; {
     let carried: Token = token;
-    Sleeper::park(7);
+    suspend Sleeper::park(7);
     carried
 }
 

@@ -145,7 +145,7 @@ fn rejects_suspension_while_borrow_carrying_local_remains_live() {
         }
         machine Main::run(&mut self) {
             let message: Message = Message { body: &self.cell };
-            self.scheduler.park();
+            suspend self.scheduler.park();
             let value: i32 = self.read(message.body);
         }
         "#,
@@ -178,7 +178,7 @@ fn accepts_suspension_after_restrictive_locals_last_use() {
         machine Main::run(&mut self) {
             let message: Message = Message { body: &self.cell };
             let value: i32 = self.read(message.body);
-            self.scheduler.park();
+            suspend self.scheduler.park();
         }
         "#,
     )
@@ -194,7 +194,7 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
         machine Main::keep(&self, value: &i32) {}
         machine Main::run(&mut self) {
             let value: i32 = 7;
-            self.scheduler.park();
+            suspend self.scheduler.park();
             self.keep(&value);
         }
         "#,
@@ -240,7 +240,7 @@ fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
         machine Main::run(&mut self) -> Token {
             let token: Token = self.issuer.issue(7);
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> token }
         }
         "#,
@@ -295,7 +295,7 @@ fn non_suspension_claim_permission_does_not_relax_suspension() {
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
         machine Main::run(&mut self) -> Token {
             let token: Token = self.issuer.issue(7);
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> token }
         }
         "#,
@@ -327,7 +327,7 @@ fn admitted_linear_bodyless_claim_without_permissions_is_born_strict() {
         data Main { issuer: TokenIssuer; scheduler: Scheduler; }
         machine Main::run(&mut self) -> Token {
             let token: Token = self.issuer.issue(7);
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> token }
         }
         "#,
@@ -363,7 +363,7 @@ fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
             transition { _ -> hold(token) }
 
             state hold(token: Token in Token::Issued) -> Token {
-                self.scheduler.park();
+                suspend self.scheduler.park();
                 transition { _ -> token }
             }
         }
@@ -401,7 +401,7 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
             transition { _ -> hold(token) }
 
             state hold(token: Token in Token::Issued & Carry::AcrossSuspend) -> Token {
-                self.scheduler.park();
+                suspend self.scheduler.park();
                 transition { _ -> token }
             }
         }
@@ -429,7 +429,7 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
             let token: Token = self.issuer.issue(7);
             let first: Token = forward(token);
             let forwarded: Token = forward(first);
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> forwarded }
         }
         "#,
@@ -510,7 +510,7 @@ fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
         machine Main::run(&mut self) -> Token {
             let token: Token = self.issuer.issue(7);
             let forwarded: Token = forward(token);
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> forwarded }
         }
         "#,
@@ -551,7 +551,7 @@ fn admitted_one_to_one_call_cannot_erase_a_strict_claim_origin() {
         machine Main::run(&mut self) -> Token {
             let token: Token = self.issuer.issue(7);
             let forwarded: Token = self.transformer.forward(token);
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> forwarded }
         }
         "#,
@@ -579,13 +579,13 @@ fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
             machine park() suspends;
         }
         data Main { scheduler: Scheduler; cell: Cell; }
-        machine Main::wait(&mut self) { self.scheduler.park(); }
+        machine Main::wait(&mut self) { suspend self.scheduler.park(); }
         machine Main::read(&mut self, cell: &Cell) -> i32 {
             transition { _ -> cell.value }
         }
         machine Main::run(&mut self) {
             let message: Message = Message { body: &self.cell };
-            self.wait();
+            suspend self.wait();
             let value: i32 = self.read(message.body);
         }
         "#,
@@ -613,7 +613,7 @@ fn rejects_suspension_while_restrictive_self_field_remains_live() {
             transition { _ -> cell.value }
         }
         machine Main::run(&mut self) {
-            self.scheduler.park();
+            suspend self.scheduler.park();
             let value: i32 = self.read(self.message.body);
         }
         "#,
@@ -642,7 +642,7 @@ fn accepts_suspension_after_restrictive_self_field_last_use() {
         }
         machine Main::run(&mut self) {
             let value: i32 = self.read(self.message.body);
-            self.scheduler.park();
+            suspend self.scheduler.park();
         }
         "#,
     )
@@ -661,7 +661,7 @@ fn rejects_suspension_when_self_field_is_used_in_reachable_state() {
             transition { _ -> cell.value }
         }
         machine Main::run(&mut self) {
-            self.scheduler.park();
+            suspend self.scheduler.park();
             transition { _ -> resumed() }
             state resumed(&mut self) {
                 let value: i32 = self.read(self.message.body);
@@ -692,7 +692,7 @@ fn rejects_restrictive_argument_carried_by_suspending_call() {
         data Main { scheduler: Scheduler; cell: Cell; }
         machine Main::run(&mut self) {
             let message: Message = Message { body: &self.cell };
-            self.scheduler.park(message);
+            suspend self.scheduler.park(message);
         }
         "#,
     )
@@ -709,7 +709,7 @@ fn rejects_restrictive_argument_carried_by_suspending_call() {
 }
 
 #[test]
-fn rejects_restrictive_use_after_nested_suspending_call_in_same_statement() {
+fn rejects_nested_suspending_call_before_carry_analysis() {
     let diagnostics = lower(
         r#"
         data Cell { value: i32; }
@@ -723,18 +723,17 @@ fn rejects_restrictive_use_after_nested_suspending_call_in_same_statement() {
         }
         machine Main::run(&mut self) {
             let message: Message = Message { body: &self.cell };
-            let values: [i32; 2] = [self.scheduler.park(), self.read(message.body)];
+            let values: [i32; 2] = [suspend self.scheduler.park(), self.read(message.body)];
         }
         "#,
     )
-    .expect_err("left-to-right evaluation keeps the later operand live across suspension");
+    .expect_err("a suspending call cannot hide partially evaluated aggregate state");
 
     assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("may suspend")
-                && diagnostic.message.contains("`message` remains live")
-        }),
-        "expected intra-statement carry diagnostic, got {diagnostics:#?}"
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("nested inside a partially evaluated expression")),
+        "expected direct-position diagnostic before carry planning, got {diagnostics:#?}"
     );
 }
 
@@ -753,7 +752,9 @@ fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
         }
         machine Main::run(&mut self) {
             let message: Message = Message { body: &self.cell };
-            let values: [i32; 2] = [self.read(message.body), self.scheduler.park()];
+            let first: i32 = self.read(message.body);
+            let parked: i32 = suspend self.scheduler.park();
+            let values: [i32; 2] = [first, parked];
         }
         "#,
     )

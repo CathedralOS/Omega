@@ -18,6 +18,7 @@ pub(crate) fn validate_typed_program(
 
     let operations = omega_effects::infer_operational_may(program);
     omega_validation::validate_behavior_plan(program, &operations)?;
+    crate::call_acknowledgements::validate_call_acknowledgements(program, &operations)?;
 
     Ok(ValidatedTypedProgram {
         proof_plan,

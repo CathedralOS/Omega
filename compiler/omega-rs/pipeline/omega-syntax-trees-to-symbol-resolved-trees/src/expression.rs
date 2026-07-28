@@ -168,6 +168,11 @@ fn lower_expression_node_into_table(
                         target: DiagnosticName::new("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments,
+                        operational_acknowledgement:
+                            omega_core::semantics::CallOperationalAcknowledgement {
+                                origin: omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                                ..Default::default()
+                            },
                     },
                 )));
             }
@@ -197,6 +202,11 @@ fn lower_expression_node_into_table(
                         target: DiagnosticName::new("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: max_arguments,
+                        operational_acknowledgement:
+                            omega_core::semantics::CallOperationalAcknowledgement {
+                                origin: omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                                ..Default::default()
+                            },
                     }));
                 let min_arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(
@@ -212,6 +222,11 @@ fn lower_expression_node_into_table(
                         target: DiagnosticName::new("min", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: min_arguments,
+                        operational_acknowledgement:
+                            omega_core::semantics::CallOperationalAcknowledgement {
+                                origin: omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                                ..Default::default()
+                            },
                     },
                 )));
             }
@@ -260,6 +275,7 @@ fn lower_expression_node_into_table(
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                     arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
                 })),
             )
         }

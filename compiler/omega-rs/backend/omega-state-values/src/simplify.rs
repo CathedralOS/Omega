@@ -772,6 +772,7 @@ fn simplify_call_expression(
         target_symbol: call.target_symbol,
         target: call.target.clone(),
         arguments: simplified_arguments,
+        operational_acknowledgement: call.operational_acknowledgement,
     }))
 }
 

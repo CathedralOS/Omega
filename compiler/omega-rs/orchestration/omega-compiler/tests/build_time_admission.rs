@@ -33,7 +33,7 @@ fn const_evaluation_rejects_possible_suspension_independently() {
 boundary machine wait_for_length() -> u64 suspends;
 
 machine length() -> u64 {
-    let value: u64 = wait_for_length();
+    let value: u64 = suspend wait_for_length();
     transition { _ -> value }
 }
 
@@ -60,7 +60,7 @@ fn const_evaluation_rejects_possible_blocking_independently() {
 boundary machine blocking_length() -> u64 blocks;
 
 machine helper() -> u64 {
-    let value: u64 = blocking_length();
+    let value: u64 = block blocking_length();
     transition { _ -> value }
 }
 

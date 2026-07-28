@@ -643,7 +643,7 @@ mod tests {
             data Worker {}
             machine Worker::run(job: Job) -> i32 suspends; {
                 let value: i32 = job.value;
-                Sleeper::park(value);
+                suspend Sleeper::park(value);
                 value
             }
             data Main { runtime: &TaskRuntime; }

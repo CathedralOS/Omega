@@ -422,6 +422,9 @@ pub enum StatementSnapshot {
         target: String,
         machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
+        acknowledgement_synthesized: bool,
+        acknowledges_suspend: bool,
+        acknowledges_block: bool,
     },
     Expression {
         value: ExpressionSnapshot,
@@ -494,6 +497,9 @@ pub enum ExpressionSnapshot {
         target: String,
         machine_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
+        acknowledgement_synthesized: bool,
+        acknowledges_suspend: bool,
+        acknowledges_block: bool,
     },
     Float {
         value: String,
@@ -1036,6 +1042,10 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
                 .map(|argument| path_snapshot(&argument.path))
                 .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
+            acknowledgement_synthesized: call.operational_acknowledgement.origin
+                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+            acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
         StatementNode::Expression(expression) => StatementSnapshot::Expression {
             value: expression_snapshot(program, *expression),
@@ -1133,6 +1143,10 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
                 .map(|argument| path_snapshot(&argument.path))
                 .collect(),
             arguments: expression_span_snapshot(program, call.arguments),
+            acknowledgement_synthesized: call.operational_acknowledgement.origin
+                == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+            acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+            acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {
             value: value.to_string(),

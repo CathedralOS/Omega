@@ -694,7 +694,7 @@ fn static_machine_argument_rejects_inferred_suspension_above_slot_ceiling() {
         boundary machine suspend_source(value: &Token) suspends;
 
         machine work(value: &Token) {
-            suspend_source(value);
+            suspend suspend_source(value);
         }
 
         machine invoke<machine F>(value: &Token)
@@ -736,7 +736,7 @@ fn static_machine_argument_rejects_blocking_independently_from_suspension() {
         boundary machine blocking_source(value: &Token) blocks;
 
         machine work(value: &Token) {
-            blocking_source(value);
+            block blocking_source(value);
         }
 
         machine invoke<machine F>(value: &Token)
@@ -782,7 +782,7 @@ fn static_machine_argument_admits_provider_within_both_operational_ceilings() {
         boundary machine waiting_source(value: &Token) suspends; blocks;
 
         machine work(value: &Token) {
-            waiting_source(value);
+            suspend block waiting_source(value);
         }
 
         machine invoke<machine F>(value: &Token)
@@ -881,7 +881,7 @@ fn recursive_private_operational_inference_reaches_independent_fixed_points() {
 
         machine B::step(&mut self, a: &mut A, source: &mut WaitingSource) {
             a.step(self, source);
-            source.wait();
+            suspend block source.wait();
         }
         "#,
     );
@@ -916,7 +916,7 @@ fn published_operational_omission_is_a_negative_ceiling() {
 
         data Published { source: WaitingSource; }
         boundary machine Published::entry(&mut self) {
-            self.source.wait();
+            suspend block self.source.wait();
         }
         "#,
     );

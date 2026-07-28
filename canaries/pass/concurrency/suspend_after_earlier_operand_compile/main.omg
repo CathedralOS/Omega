@@ -19,7 +19,9 @@ machine Main::read(&mut self, cell: &Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) suspends; {
     let message: Message = Message { body: &self.cell };
-    let values: [i32; 2] = [self.read(message.body), self.scheduler.park()];
+    let prior: i32 = self.read(message.body);
+    let parked: i32 = suspend self.scheduler.park();
+    let values: [i32; 2] = [prior, parked];
 }
