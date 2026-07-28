@@ -41,13 +41,15 @@
 > remain a closed semantic role: attaching one is erased, while conversion and
 > later arithmetic carry runtime work.
 >
-> **Integer-conversion checkpoint (2026-07-28).** The complete same-signed
-> fixed-width integer family is live in `core::numeric_conversion`: widening,
-> and Exact/Wrapping/Saturating/Trapping narrowing. Exact is contract-gated;
-> saturation clamps the conversion itself; trapping is a runtime event; and the
-> result carries ordinary Exact arithmetic. Cross-signed, checked-result, and
-> float/integer families remain open, as does retirement of compatibility
-> numeric `as`.
+> **Integer-conversion checkpoint (2026-07-28).** Every fixed-width integer pair
+> is live in `core::numeric_conversion`: widening only for complete range
+> containment, and Exact/Wrapping/Saturating/Trapping narrowing otherwise.
+> Cross-signed naming follows representability rather than bit width, so a
+> signed-to-wider-unsigned conversion is still narrowing because it excludes
+> negatives. Exact is contract-gated; saturation clamps the conversion itself;
+> trapping is a runtime event; and every result carries ordinary Exact
+> arithmetic. Checked-result narrowing remains design-open; float/integer
+> named operations and retirement of compatibility numeric `as` remain.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

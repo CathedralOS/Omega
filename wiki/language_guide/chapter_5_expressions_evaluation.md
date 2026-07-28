@@ -399,15 +399,16 @@ Two rules keep it honest:
   qualification or first weaken the Wrapping operand to Exact. Explicit always
   wins.
 
-> **Conversion migration.** Same-signed fixed-width integer conversion now uses
-> named ordinary machines in `core::numeric_conversion`. Widening names only
-> range-containing conversions. Narrowing names Exact, Wrapping, Saturating, or
-> Trapping behavior; Exact carries a proven input-range contract, and every
-> result returns to ordinary Exact arithmetic. Cross-signed integers,
-> checked-result narrowing, float/integer conversion, and the remaining corpus
-> still use compatibility `as` while their named operations land. The domain
-> model reserves qualification `as` for changing static facts without changing
-> carrier, payload, or runtime work.
+> **Conversion migration.** Every fixed-width integer pair now has named
+> ordinary machines in `core::numeric_conversion`. Widening names only
+> range-containing conversions. Every other pair—including signed-to-wider-
+> unsigned conversion, whose target excludes negatives—uses Exact, Wrapping,
+> Saturating, or Trapping narrowing. Exact carries a proven representability
+> contract, and every result returns to ordinary Exact arithmetic.
+> Checked-result narrowing remains design-open in the appendix; float/integer
+> conversion and the remaining corpus still use compatibility `as` while their
+> named operations land. The domain model reserves qualification `as` for
+> changing static facts without changing carrier, payload, or runtime work.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.

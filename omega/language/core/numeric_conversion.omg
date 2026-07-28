@@ -396,3 +396,634 @@ pub machine narrow_i64_to_i32_trapping(value: i64) -> i32 {
 pub machine widen_i32_to_i64(value: i32) -> i64 {
     value as i64
 }
+
+// === Cross-signed integer conversion ======================================
+//
+// `widen` means the complete source range is representable by the target.
+// Every other cross-signed pair is range-narrowing even when the target has
+// more bits: changing signedness can still exclude negative values or the
+// unsigned source's upper half.
+
+// --- Unsigned -> signed ---------------------------------------------------
+
+pub machine narrow_u8_to_i8_exact(value: u8 [0..=127]) -> i8
+requires
+    value <= 127;
+{
+    value as i8
+}
+
+pub machine narrow_u8_to_i8_wrapping(value: u8) -> i8 {
+    value as i8 in Wrapping
+}
+
+pub machine narrow_u8_to_i8_saturating(value: u8) -> i8 {
+    let capped: u8 = clamp(value, 0, 127);
+    capped as i8
+}
+
+pub machine narrow_u8_to_i8_trapping(value: u8) -> i8 {
+    let invalid: bool = value > 127;
+    numeric_conversion_trap_if(invalid);
+    value as i8
+}
+
+pub machine widen_u8_to_i16(value: u8) -> i16 {
+    value as i16
+}
+
+pub machine widen_u8_to_i32(value: u8) -> i32 {
+    value as i32
+}
+
+pub machine widen_u8_to_i64(value: u8) -> i64 {
+    value as i64
+}
+
+pub machine narrow_u16_to_i8_exact(value: u16 [0..=127]) -> i8
+requires
+    value <= 127;
+{
+    value as i8
+}
+
+pub machine narrow_u16_to_i8_wrapping(value: u16) -> i8 {
+    value as i8 in Wrapping
+}
+
+pub machine narrow_u16_to_i8_saturating(value: u16) -> i8 {
+    let capped: u16 = clamp(value, 0, 127);
+    capped as i8
+}
+
+pub machine narrow_u16_to_i8_trapping(value: u16) -> i8 {
+    let invalid: bool = value > 127;
+    numeric_conversion_trap_if(invalid);
+    value as i8
+}
+
+pub machine narrow_u16_to_i16_exact(value: u16 [0..=32767]) -> i16
+requires
+    value <= 32767;
+{
+    value as i16
+}
+
+pub machine narrow_u16_to_i16_wrapping(value: u16) -> i16 {
+    value as i16 in Wrapping
+}
+
+pub machine narrow_u16_to_i16_saturating(value: u16) -> i16 {
+    let capped: u16 = clamp(value, 0, 32767);
+    capped as i16
+}
+
+pub machine narrow_u16_to_i16_trapping(value: u16) -> i16 {
+    let invalid: bool = value > 32767;
+    numeric_conversion_trap_if(invalid);
+    value as i16
+}
+
+pub machine widen_u16_to_i32(value: u16) -> i32 {
+    value as i32
+}
+
+pub machine widen_u16_to_i64(value: u16) -> i64 {
+    value as i64
+}
+
+pub machine narrow_u32_to_i8_exact(value: u32 [0..=127]) -> i8
+requires
+    value <= 127;
+{
+    value as i8
+}
+
+pub machine narrow_u32_to_i8_wrapping(value: u32) -> i8 {
+    value as i8 in Wrapping
+}
+
+pub machine narrow_u32_to_i8_saturating(value: u32) -> i8 {
+    let capped: u32 = clamp(value, 0, 127);
+    capped as i8
+}
+
+pub machine narrow_u32_to_i8_trapping(value: u32) -> i8 {
+    let invalid: bool = value > 127;
+    numeric_conversion_trap_if(invalid);
+    value as i8
+}
+
+pub machine narrow_u32_to_i16_exact(value: u32 [0..=32767]) -> i16
+requires
+    value <= 32767;
+{
+    value as i16
+}
+
+pub machine narrow_u32_to_i16_wrapping(value: u32) -> i16 {
+    value as i16 in Wrapping
+}
+
+pub machine narrow_u32_to_i16_saturating(value: u32) -> i16 {
+    let capped: u32 = clamp(value, 0, 32767);
+    capped as i16
+}
+
+pub machine narrow_u32_to_i16_trapping(value: u32) -> i16 {
+    let invalid: bool = value > 32767;
+    numeric_conversion_trap_if(invalid);
+    value as i16
+}
+
+pub machine narrow_u32_to_i32_exact(value: u32 [0..=2147483647]) -> i32
+requires
+    value <= 2147483647;
+{
+    value as i32
+}
+
+pub machine narrow_u32_to_i32_wrapping(value: u32) -> i32 {
+    value as i32 in Wrapping
+}
+
+pub machine narrow_u32_to_i32_saturating(value: u32) -> i32 {
+    let capped: u32 = clamp(value, 0, 2147483647);
+    capped as i32
+}
+
+pub machine narrow_u32_to_i32_trapping(value: u32) -> i32 {
+    let invalid: bool = value > 2147483647;
+    numeric_conversion_trap_if(invalid);
+    value as i32
+}
+
+pub machine widen_u32_to_i64(value: u32) -> i64 {
+    value as i64
+}
+
+pub machine narrow_u64_to_i8_exact(value: u64 [0..=127]) -> i8
+requires
+    value <= 127;
+{
+    value as i8
+}
+
+pub machine narrow_u64_to_i8_wrapping(value: u64) -> i8 {
+    value as i8 in Wrapping
+}
+
+pub machine narrow_u64_to_i8_saturating(value: u64) -> i8 {
+    let capped: u64 = clamp(value, 0, 127);
+    capped as i8
+}
+
+pub machine narrow_u64_to_i8_trapping(value: u64) -> i8 {
+    let invalid: bool = value > 127;
+    numeric_conversion_trap_if(invalid);
+    value as i8
+}
+
+pub machine narrow_u64_to_i16_exact(value: u64 [0..=32767]) -> i16
+requires
+    value <= 32767;
+{
+    value as i16
+}
+
+pub machine narrow_u64_to_i16_wrapping(value: u64) -> i16 {
+    value as i16 in Wrapping
+}
+
+pub machine narrow_u64_to_i16_saturating(value: u64) -> i16 {
+    let capped: u64 = clamp(value, 0, 32767);
+    capped as i16
+}
+
+pub machine narrow_u64_to_i16_trapping(value: u64) -> i16 {
+    let invalid: bool = value > 32767;
+    numeric_conversion_trap_if(invalid);
+    value as i16
+}
+
+pub machine narrow_u64_to_i32_exact(value: u64 [0..=2147483647]) -> i32
+requires
+    value <= 2147483647;
+{
+    value as i32
+}
+
+pub machine narrow_u64_to_i32_wrapping(value: u64) -> i32 {
+    value as i32 in Wrapping
+}
+
+pub machine narrow_u64_to_i32_saturating(value: u64) -> i32 {
+    let capped: u64 = clamp(value, 0, 2147483647);
+    capped as i32
+}
+
+pub machine narrow_u64_to_i32_trapping(value: u64) -> i32 {
+    let invalid: bool = value > 2147483647;
+    numeric_conversion_trap_if(invalid);
+    value as i32
+}
+
+pub machine narrow_u64_to_i64_exact(value: u64) -> i64
+requires
+    value <= 9223372036854775807;
+{
+    value as i64
+}
+
+pub machine narrow_u64_to_i64_wrapping(value: u64) -> i64 {
+    value as i64 in Wrapping
+}
+
+pub machine narrow_u64_to_i64_saturating(value: u64) -> i64 {
+    // Select i64::MAX from the source high bit. This stays unsigned until the
+    // representable result is selected, so no host signed comparison can
+    // misclassify u64 values above i64::MAX.
+    let modular_value: u64 in Wrapping = value as u64 in Wrapping;
+    let high_bit: u64 in Wrapping = modular_value >> 63;
+    let zero: u64 in Wrapping = 0;
+    let high_mask: u64 in Wrapping = zero - high_bit;
+    let all_bits: u64 in Wrapping = 18446744073709551615;
+    let low_mask: u64 in Wrapping = high_mask ^ all_bits;
+    let signed_max_bits: u64 in Wrapping = 9223372036854775807;
+    let selected: u64 in Wrapping =
+        (modular_value & low_mask) | (signed_max_bits & high_mask);
+    selected as i64
+}
+
+pub machine narrow_u64_to_i64_trapping(value: u64) -> i64 {
+    let first_invalid: u64 = 9223372036854775808;
+    let invalid: bool = value >= first_invalid;
+    numeric_conversion_trap_if(invalid);
+    value as i64
+}
+
+// --- Signed -> unsigned ---------------------------------------------------
+
+pub machine narrow_i8_to_u8_exact(value: i8 [0..=127]) -> u8
+requires
+    value >= 0 && value <= 127;
+{
+    value as u8
+}
+
+pub machine narrow_i8_to_u8_wrapping(value: i8) -> u8 {
+    value as u8 in Wrapping
+}
+
+pub machine narrow_i8_to_u8_saturating(value: i8) -> u8 {
+    let capped: i8 = clamp(value, 0, 127);
+    capped as u8
+}
+
+pub machine narrow_i8_to_u8_trapping(value: i8) -> u8 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u8
+}
+
+pub machine narrow_i8_to_u16_exact(value: i8 [0..=127]) -> u16
+requires
+    value >= 0 && value <= 127;
+{
+    value as u16
+}
+
+pub machine narrow_i8_to_u16_wrapping(value: i8) -> u16 {
+    value as u16 in Wrapping
+}
+
+pub machine narrow_i8_to_u16_saturating(value: i8) -> u16 {
+    let capped: i8 = clamp(value, 0, 127);
+    capped as u16
+}
+
+pub machine narrow_i8_to_u16_trapping(value: i8) -> u16 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u16
+}
+
+pub machine narrow_i8_to_u32_exact(value: i8 [0..=127]) -> u32
+requires
+    value >= 0 && value <= 127;
+{
+    value as u32
+}
+
+pub machine narrow_i8_to_u32_wrapping(value: i8) -> u32 {
+    value as u32 in Wrapping
+}
+
+pub machine narrow_i8_to_u32_saturating(value: i8) -> u32 {
+    let capped: i8 = clamp(value, 0, 127);
+    capped as u32
+}
+
+pub machine narrow_i8_to_u32_trapping(value: i8) -> u32 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u32
+}
+
+pub machine narrow_i8_to_u64_exact(value: i8 [0..=127]) -> u64
+requires
+    value >= 0 && value <= 127;
+{
+    value as u64
+}
+
+pub machine narrow_i8_to_u64_wrapping(value: i8) -> u64 {
+    value as u64 in Wrapping
+}
+
+pub machine narrow_i8_to_u64_saturating(value: i8) -> u64 {
+    let capped: i8 = clamp(value, 0, 127);
+    capped as u64
+}
+
+pub machine narrow_i8_to_u64_trapping(value: i8) -> u64 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u64
+}
+
+pub machine narrow_i16_to_u8_exact(value: i16 [0..=255]) -> u8
+requires
+    value >= 0 && value <= 255;
+{
+    value as u8
+}
+
+pub machine narrow_i16_to_u8_wrapping(value: i16) -> u8 {
+    value as u8 in Wrapping
+}
+
+pub machine narrow_i16_to_u8_saturating(value: i16) -> u8 {
+    let capped: i16 = clamp(value, 0, 255);
+    capped as u8
+}
+
+pub machine narrow_i16_to_u8_trapping(value: i16) -> u8 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    let above: bool = value > 255;
+    numeric_conversion_trap_if(above);
+    value as u8
+}
+
+pub machine narrow_i16_to_u16_exact(value: i16 [0..=32767]) -> u16
+requires
+    value >= 0 && value <= 32767;
+{
+    value as u16
+}
+
+pub machine narrow_i16_to_u16_wrapping(value: i16) -> u16 {
+    value as u16 in Wrapping
+}
+
+pub machine narrow_i16_to_u16_saturating(value: i16) -> u16 {
+    let capped: i16 = clamp(value, 0, 32767);
+    capped as u16
+}
+
+pub machine narrow_i16_to_u16_trapping(value: i16) -> u16 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u16
+}
+
+pub machine narrow_i16_to_u32_exact(value: i16 [0..=32767]) -> u32
+requires
+    value >= 0 && value <= 32767;
+{
+    value as u32
+}
+
+pub machine narrow_i16_to_u32_wrapping(value: i16) -> u32 {
+    value as u32 in Wrapping
+}
+
+pub machine narrow_i16_to_u32_saturating(value: i16) -> u32 {
+    let capped: i16 = clamp(value, 0, 32767);
+    capped as u32
+}
+
+pub machine narrow_i16_to_u32_trapping(value: i16) -> u32 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u32
+}
+
+pub machine narrow_i16_to_u64_exact(value: i16 [0..=32767]) -> u64
+requires
+    value >= 0 && value <= 32767;
+{
+    value as u64
+}
+
+pub machine narrow_i16_to_u64_wrapping(value: i16) -> u64 {
+    value as u64 in Wrapping
+}
+
+pub machine narrow_i16_to_u64_saturating(value: i16) -> u64 {
+    let capped: i16 = clamp(value, 0, 32767);
+    capped as u64
+}
+
+pub machine narrow_i16_to_u64_trapping(value: i16) -> u64 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u64
+}
+
+pub machine narrow_i32_to_u8_exact(value: i32 [0..=255]) -> u8
+requires
+    value >= 0 && value <= 255;
+{
+    value as u8
+}
+
+pub machine narrow_i32_to_u8_wrapping(value: i32) -> u8 {
+    value as u8 in Wrapping
+}
+
+pub machine narrow_i32_to_u8_saturating(value: i32) -> u8 {
+    let capped: i32 = clamp(value, 0, 255);
+    capped as u8
+}
+
+pub machine narrow_i32_to_u8_trapping(value: i32) -> u8 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    let above: bool = value > 255;
+    numeric_conversion_trap_if(above);
+    value as u8
+}
+
+pub machine narrow_i32_to_u16_exact(value: i32 [0..=65535]) -> u16
+requires
+    value >= 0 && value <= 65535;
+{
+    value as u16
+}
+
+pub machine narrow_i32_to_u16_wrapping(value: i32) -> u16 {
+    value as u16 in Wrapping
+}
+
+pub machine narrow_i32_to_u16_saturating(value: i32) -> u16 {
+    let capped: i32 = clamp(value, 0, 65535);
+    capped as u16
+}
+
+pub machine narrow_i32_to_u16_trapping(value: i32) -> u16 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    let above: bool = value > 65535;
+    numeric_conversion_trap_if(above);
+    value as u16
+}
+
+pub machine narrow_i32_to_u32_exact(value: i32 [0..=2147483647]) -> u32
+requires
+    value >= 0 && value <= 2147483647;
+{
+    value as u32
+}
+
+pub machine narrow_i32_to_u32_wrapping(value: i32) -> u32 {
+    value as u32 in Wrapping
+}
+
+pub machine narrow_i32_to_u32_saturating(value: i32) -> u32 {
+    let capped: i32 = clamp(value, 0, 2147483647);
+    capped as u32
+}
+
+pub machine narrow_i32_to_u32_trapping(value: i32) -> u32 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u32
+}
+
+pub machine narrow_i32_to_u64_exact(value: i32 [0..=2147483647]) -> u64
+requires
+    value >= 0 && value <= 2147483647;
+{
+    value as u64
+}
+
+pub machine narrow_i32_to_u64_wrapping(value: i32) -> u64 {
+    value as u64 in Wrapping
+}
+
+pub machine narrow_i32_to_u64_saturating(value: i32) -> u64 {
+    let capped: i32 = clamp(value, 0, 2147483647);
+    capped as u64
+}
+
+pub machine narrow_i32_to_u64_trapping(value: i32) -> u64 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u64
+}
+
+pub machine narrow_i64_to_u8_exact(value: i64 [0..=255]) -> u8
+requires
+    value >= 0 && value <= 255;
+{
+    value as u8
+}
+
+pub machine narrow_i64_to_u8_wrapping(value: i64) -> u8 {
+    value as u8 in Wrapping
+}
+
+pub machine narrow_i64_to_u8_saturating(value: i64) -> u8 {
+    let capped: i64 = clamp(value, 0, 255);
+    capped as u8
+}
+
+pub machine narrow_i64_to_u8_trapping(value: i64) -> u8 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    let above: bool = value > 255;
+    numeric_conversion_trap_if(above);
+    value as u8
+}
+
+pub machine narrow_i64_to_u16_exact(value: i64 [0..=65535]) -> u16
+requires
+    value >= 0 && value <= 65535;
+{
+    value as u16
+}
+
+pub machine narrow_i64_to_u16_wrapping(value: i64) -> u16 {
+    value as u16 in Wrapping
+}
+
+pub machine narrow_i64_to_u16_saturating(value: i64) -> u16 {
+    let capped: i64 = clamp(value, 0, 65535);
+    capped as u16
+}
+
+pub machine narrow_i64_to_u16_trapping(value: i64) -> u16 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    let above: bool = value > 65535;
+    numeric_conversion_trap_if(above);
+    value as u16
+}
+
+pub machine narrow_i64_to_u32_exact(value: i64 [0..=4294967295]) -> u32
+requires
+    value >= 0 && value <= 4294967295;
+{
+    value as u32
+}
+
+pub machine narrow_i64_to_u32_wrapping(value: i64) -> u32 {
+    value as u32 in Wrapping
+}
+
+pub machine narrow_i64_to_u32_saturating(value: i64) -> u32 {
+    let capped: i64 = clamp(value, 0, 4294967295);
+    capped as u32
+}
+
+pub machine narrow_i64_to_u32_trapping(value: i64) -> u32 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    let above: bool = value > 4294967295;
+    numeric_conversion_trap_if(above);
+    value as u32
+}
+
+pub machine narrow_i64_to_u64_exact(value: i64) -> u64
+requires
+    value >= 0 && value <= 9223372036854775807;
+{
+    value as u64
+}
+
+pub machine narrow_i64_to_u64_wrapping(value: i64) -> u64 {
+    value as u64 in Wrapping
+}
+
+pub machine narrow_i64_to_u64_saturating(value: i64) -> u64 {
+    let capped: i64 = clamp(value, 0, 9223372036854775807);
+    capped as u64
+}
+
+pub machine narrow_i64_to_u64_trapping(value: i64) -> u64 {
+    let below: bool = value < 0;
+    numeric_conversion_trap_if(below);
+    value as u64
+}

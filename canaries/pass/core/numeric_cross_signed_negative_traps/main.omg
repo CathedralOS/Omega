@@ -1,0 +1,14 @@
+// Signed -> unsigned narrowing must trap on every negative source value,
+// including conversions to a wider unsigned representation.
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let negative: i8 = 0 - 1;
+    let converted: u64 = narrow_i8_to_u64_trapping(negative);
+    self.console.exit_process(7);
+}
