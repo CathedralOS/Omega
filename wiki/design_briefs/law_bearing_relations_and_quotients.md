@@ -32,12 +32,13 @@ in the erased proof stratum, not arbitrary value-to-runtime-`Type`
 computation, runtime proof objects, or value-directed layout.
 
 The rational-carrier work also supplies the first rung of F7's float semantics.
-`FloatMeaning::FiniteNonZero` requires signed `Rat`, while the existing Cauchy
-metric kernel is deliberately stated over nonnegative `rat_gap` results. Extend
-the carrier through the existing positive/negative-coordinate construction,
-rebuild the gap implementation, and preserve the public metric theorems. Float
-semantic functions cannot land before that extension; float target providers
-must not grow a parallel private rational theory.
+Landed 2026-07-28: public `Rat` now carries an `IntPair` numerator over a
+positive `Nat` denominator, and `mk_signed_rat` canonicalizes the difference
+pair before reduction. `rat_gap` remains `Nat`-valued; its reflexive, symmetric,
+and shared-denominator triangle theorems were rebuilt over the signed
+coordinates without changing their public statements. `FloatMeaning` and float
+target providers must consume this one public carrier rather than grow a
+parallel private rational theory.
 
 ## Carrier families and heterogeneous representatives
 

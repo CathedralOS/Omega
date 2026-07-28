@@ -114,8 +114,11 @@ subtraction-closed reasoning wants it, with one rule stated at introduction:
 `Int`'s order has no floor, so ranking views over it must produce a
 well-founded `Nat` rank or carry a proven floor.
 
-Core's Cauchy-facing rational metric avoids division. `rat_gap(p, q)` is the
-absolute cross-product numerator gap, and
+Core's `Rat` stores a signed `IntPair` numerator and a positive `Nat`
+denominator; `mk_signed_rat` cancels the pair's shared offset and reduces the
+remaining magnitude with the denominator. Its Cauchy-facing metric still
+avoids division. `rat_gap(p, q)` is the nonnegative absolute cross-product
+numerator gap, and
 `rat_close(p, q, precision) == Nat::Zero` states
 `|p-q| <= 1/precision` by comparing `precision * gap` with the common
 denominator in Nat's monus order. Its reflexive and symmetric laws are ordinary

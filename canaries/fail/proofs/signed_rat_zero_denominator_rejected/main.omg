@@ -1,0 +1,17 @@
+// The signed constructor retains Rat's positive-denominator invariant.
+use omega::language::core::rat;
+
+machine invalid_signed_rat() -> Rat {
+    mk_signed_rat(
+        IntPair {
+            neg: Nat::Succ { prev: Nat::Zero },
+            pos: Nat::Zero
+        },
+        Nat::Zero,
+        Nat::Succ { prev: Nat::Zero }
+    )
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
