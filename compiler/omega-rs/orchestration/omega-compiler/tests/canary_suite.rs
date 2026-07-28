@@ -24268,6 +24268,108 @@ fn numeric_trapping_conversion_overflow_aborts() {
 }
 
 #[test]
+fn runtime_numeric_cross_signed_conversion_surface_exit_canary_runs() {
+    let canary = pass_canary("core/numeric_cross_signed_conversion_surface");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numeric-cross-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-signed numeric conversion surface should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-signed numeric conversion surface should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both signedness directions and all explicit policies to agree; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("cross-signed surface should reach checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must agree on cross-signed conversions, got {:?}",
+        outcome.error
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn numeric_cross_signed_trapping_conversions_abort() {
+    for (name, label) in [
+        (
+            "core/numeric_cross_signed_unsigned_overflow_traps",
+            "unsigned upper half to signed",
+        ),
+        (
+            "core/numeric_cross_signed_negative_traps",
+            "negative signed value to unsigned",
+        ),
+    ] {
+        let canary = pass_canary(name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-numeric-cross-trap-{}-{}",
+            label.replace(' ', "-"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{label} trapping conversion should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .unwrap_or_else(|error| panic!("{label} trapping conversion should run: {error}"));
+        assert!(
+            !output.status.success() && output.status.code() != Some(7),
+            "{label} must trap before returning; got {:?}\nstderr:\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let checked = compile_to_checked(&canary.join("main.omg"), None)
+            .unwrap_or_else(|_| panic!("{label} should reach checked trees"));
+        let outcome = omega_interpreter::interpret(&checked, &[]);
+        assert!(
+            outcome
+                .error
+                .as_deref()
+                .is_some_and(|reason| reason.contains("arithmetic overflow in Trapping domain")),
+            "interpreter must report the same {label} trap, got {:?}",
+            outcome.error
+        );
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_subslice_len_exit_canary_runs() {
     // A `&[u8]` bound to a literal fixed-array subslice (`self.source[0..2]`)
     // and used only for `.len` is inlined to `(self.source[0..2]).len`; the
@@ -38743,6 +38845,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/local_value_intro_compile",
     "core/self_read_only_receiver_compile",
     "core/numeric_conversion_surface",
+    "core/numeric_cross_signed_conversion_surface",
+    "core/numeric_cross_signed_negative_traps",
+    "core/numeric_cross_signed_unsigned_overflow_traps",
     "core/numeric_signed_conversion_surface",
     "core/numeric_trapping_conversion_overflow",
     "domains/match_domain_patterns",
@@ -38916,6 +39021,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/extent_root_adapter_direct_call_does_not_grant",
     "core/carry_permission_adapter_direct_call_does_not_grant",
     "core/numeric_exact_narrowing_unproven",
+    "core/numeric_cross_signed_exact_negative_unproven",
+    "core/numeric_cross_signed_exact_unsigned_unproven",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",

@@ -337,15 +337,19 @@ ceilings, and publication-before-ledger-record all reject.
 - Define ordinary core numeric conversion machines, with explicit narrowing
   policy, then migrate width and float/integer conversion away from the legacy
   `as` spelling.
-- Same-signed fixed-width integer conversion is now available from
-  `core::numeric_conversion`: widening is named only where the complete source
-  range fits, while narrowing explicitly selects Exact, Wrapping, Saturating,
-  or Trapping behavior. Exact narrowing publishes and enforces its range
-  precondition; every conversion result returns to ordinary Exact arithmetic.
-  The runtime-indexed operand canary is the first corpus migration.
-- Remaining: cross-signed integer conversion, checked-result narrowing,
-  float/integer named operations, broad corpus migration, and retirement of
-  numeric compatibility `as` after its last internal conversion consumer.
+- All fixed-width integer pairs are now available from
+  `core::numeric_conversion`. Widening is named only where the complete source
+  range fits; every other pair—including a signed-to-wider-unsigned conversion
+  that excludes negatives—is range-narrowing and explicitly selects Exact,
+  Wrapping, Saturating, or Trapping behavior. Exact narrowing publishes and
+  enforces its representability precondition; every conversion result returns
+  to ordinary Exact arithmetic. The runtime-indexed operand canary is the first
+  corpus migration.
+- Checked-result narrowing is design-blocked on the open arithmetic-library
+  question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
+  result family merely to mirror another language. Remaining implementation
+  work is float/integer named operations, broad corpus migration, and retirement
+  of numeric compatibility `as` after its last internal conversion consumer.
 
 Acceptance: qualification `as` preserves carrier, payload, and runtime work;
 numeric and unit conversions are visible calls; bodyful and bodyless domains
