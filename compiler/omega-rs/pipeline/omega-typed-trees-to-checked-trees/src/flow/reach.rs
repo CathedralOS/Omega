@@ -78,6 +78,9 @@ pub(super) fn attach_reach_summaries(
                     transitive_may_block: summary.transitive_may_block,
                 })
                 .unwrap_or_default();
+            call.operational_acknowledgement = effect_call
+                .map(|summary| summary.acknowledgement)
+                .unwrap_or_default();
         }
     });
 }

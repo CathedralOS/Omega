@@ -68,7 +68,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             target: Identifier::generated("heal"),
             machine_arguments: Box::default(),
             arguments,
-
+            operational_acknowledgement: Default::default(),
             discards_result: false,
         }),
     );
@@ -191,7 +191,7 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
             target: Identifier::generated("heal"),
             machine_arguments: Box::default(),
             arguments,
-
+            operational_acknowledgement: Default::default(),
             discards_result: false,
         }),
     );

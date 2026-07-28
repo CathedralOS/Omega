@@ -390,6 +390,15 @@ current consumers happen to align.
   changing machine contract identity, ABI, or lowering. Canary the four exact
   envelope combinations, narrowed refinements, nested-suspension rejection,
   nested blocking acceptance, task-start distinction, and synthesized adapters.
+
+  Implementation checkpoint (2026-07-28): CALLACK is implemented end to end.
+  Contextual prefixes survive syntax, resolved, typed, operational, checked,
+  snapshot, and visualization artifacts; exact-envelope and suspension-position
+  validation run before continuation planning; synthesized calls carry explicit
+  synthesized acknowledgement facts; and the corpus covers exact combinations,
+  local checked-summary narrowing, nesting, task-start, and adapter cases.
+  Imported transparent-refinement spelling remains owned by STR/EFX; CALLACK
+  consumes the pinned narrowed envelope once that surface supplies one.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   ranking witnesses into public identity.
 - **GR6:** finish remaining qualification/trust consumers.

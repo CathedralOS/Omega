@@ -795,6 +795,7 @@ pub(super) fn rewrite_destructure_guard_expression(
             target: call.target,
             machine_arguments: call.machine_arguments,
             arguments: rewrite_expression_span(syntax_trees, call.arguments, subject, fields),
+            operational_acknowledgement: call.operational_acknowledgement,
         }),
         ExpressionNode::Cast(cast) => ExpressionNode::Cast(TableCastExpression {
             value: rewrite_destructure_guard_expression(syntax_trees, cast.value, subject, fields),

@@ -241,6 +241,7 @@ pub struct TableCallExpression {
     /// These are declaration identities, never runtime expression values.
     pub machine_arguments: Box<[StaticMachineArgument]>,
     pub arguments: HandleSpan<ExpressionHandle>,
+    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

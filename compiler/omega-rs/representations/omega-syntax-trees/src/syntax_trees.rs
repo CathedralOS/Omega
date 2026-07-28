@@ -861,6 +861,7 @@ impl SyntaxTrees {
                 target: call.target.clone(),
                 machine_arguments: call.machine_arguments.clone(),
                 arguments: self.copy_statement_expression_span(other, call.arguments),
+                operational_acknowledgement: call.operational_acknowledgement,
                 discards_result: call.discards_result,
             }),
             StatementNode::Expression(value) => {
@@ -1064,6 +1065,7 @@ impl SyntaxTrees {
                 target: call.target.clone(),
                 machine_arguments: call.machine_arguments.clone(),
                 arguments: self.copy_expression_handle_list(other, call.arguments),
+                operational_acknowledgement: call.operational_acknowledgement,
             }),
             ExpressionNode::Float(value) => ExpressionNode::Float(value.clone()),
             ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {

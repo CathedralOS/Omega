@@ -1,1 +1,1 @@
-may suspend while `message` remains live
+nested inside a partially evaluated expression

@@ -203,6 +203,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         target: typed::name::Identifier::generated_static("equals"),
                         machine_arguments: Box::default(),
                         arguments,
+                        operational_acknowledgement:
+                            omega_core::semantics::CallOperationalAcknowledgement {
+                                origin: omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                                ..Default::default()
+                            },
                     },
                 ));
             return Ok(Some(self.with_equality_polarity(call, binary.operator)));

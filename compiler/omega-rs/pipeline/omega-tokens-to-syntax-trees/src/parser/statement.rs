@@ -573,6 +573,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         target: Identifier::new("asm#hlt", mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
+                        operational_acknowledgement: Default::default(),
                         discards_result: false,
                     })),
                 contract,
@@ -599,6 +600,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             target: Identifier::new("asm#port_out", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
+                            operational_acknowledgement: Default::default(),
                             discards_result: false,
                         })),
                     contract,
@@ -621,6 +623,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         target: Identifier::new("asm#port_in", mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments,
+                        operational_acknowledgement: Default::default(),
                     }));
             Ok((
                 ParsedAsmInstruction {
@@ -645,6 +648,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
+                        operational_acknowledgement: Default::default(),
                         discards_result: false,
                     })),
                 contract,
@@ -661,6 +665,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         target: Identifier::new(kind.intrinsic_name(), mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
+                        operational_acknowledgement: Default::default(),
                         discards_result: false,
                     })),
                 contract,
@@ -677,6 +682,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         target: Identifier::new("asm#pushfq", mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
+                        operational_acknowledgement: Default::default(),
                     }));
             Ok((
                 ParsedAsmInstruction {
@@ -706,6 +712,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             target: Identifier::new("asm#popfq", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
+                            operational_acknowledgement: Default::default(),
                             discards_result: false,
                         })),
                     contract,
@@ -728,6 +735,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         target: Identifier::new("asm#rdmsr", mnemonic.source_span()),
                         machine_arguments: Box::default(),
                         arguments,
+                        operational_acknowledgement: Default::default(),
                     }));
             Ok((
                 ParsedAsmInstruction {
@@ -759,6 +767,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             target: Identifier::new("asm#wrmsr", mnemonic.source_span()),
                             machine_arguments: Box::default(),
                             arguments,
+                            operational_acknowledgement: Default::default(),
                             discards_result: false,
                         })),
                     contract,
@@ -779,6 +788,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         ),
                         machine_arguments: Box::default(),
                         arguments: HandleSpan::empty(),
+                        operational_acknowledgement: Default::default(),
                     }));
             Ok((
                 ParsedAsmInstruction {
@@ -813,6 +823,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                             ),
                             machine_arguments: Box::default(),
                             arguments,
+                            operational_acknowledgement: Default::default(),
                             discards_result: false,
                         })),
                     contract,
@@ -1562,6 +1573,7 @@ fn expression_handle_to_statement_call(
         target,
         machine_arguments: call.machine_arguments,
         arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
+        operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
     })
 }

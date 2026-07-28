@@ -89,6 +89,7 @@ pub(super) fn build_call_flow_fact(
             .unwrap_or_else(HandleSpan::empty),
         service_reach: Default::default(),
         operational: Default::default(),
+        operational_acknowledgement: Default::default(),
     }
 }
 

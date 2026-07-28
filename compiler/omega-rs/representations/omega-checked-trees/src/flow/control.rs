@@ -29,6 +29,7 @@ pub struct FlowCallFact {
     pub ensures: HandleSpan<ContractProofFactRef>,
     pub service_reach: ServiceReachSummary,
     pub operational: OperationalMaySummary,
+    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

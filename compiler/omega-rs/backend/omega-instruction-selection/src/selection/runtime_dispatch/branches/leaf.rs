@@ -1137,6 +1137,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     target: call.target.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     arguments: copied_arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
                 },
             ))
         }

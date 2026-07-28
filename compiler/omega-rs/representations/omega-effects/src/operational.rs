@@ -62,6 +62,7 @@ pub struct CallOperational {
     pub direct_may_block: bool,
     pub transitive_may_suspend: bool,
     pub transitive_may_block: bool,
+    pub acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +98,7 @@ struct CallWork {
     direct_may_block: bool,
     transitive_may_suspend: bool,
     transitive_may_block: bool,
+    acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -232,6 +234,7 @@ fn push_statement_call(
     push_call(
         program,
         call.target_symbol,
+        call.operational_acknowledgement,
         statement_index,
         call_ordinal,
         calls,
@@ -336,6 +339,7 @@ fn push_expression_call(
     push_call(
         program,
         call.target_symbol,
+        call.operational_acknowledgement,
         statement_index,
         call_ordinal,
         calls,
@@ -345,6 +349,7 @@ fn push_expression_call(
 fn push_call(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,
+    acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
     statement_index: usize,
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
@@ -360,6 +365,7 @@ fn push_call(
         direct_may_block: direct.may_block,
         transitive_may_suspend: false,
         transitive_may_block: false,
+        acknowledgement,
     });
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 }
@@ -521,6 +527,17 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
         for state in machine.states {
             let mut calls = HandleSpan::empty();
             for call in state.calls {
+                let acknowledgement = if call.acknowledgement.origin
+                    == omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized
+                {
+                    omega_core::semantics::CallOperationalAcknowledgement {
+                        acknowledges_suspend: call.transitive_may_suspend,
+                        acknowledges_block: call.transitive_may_block,
+                        ..call.acknowledgement
+                    }
+                } else {
+                    call.acknowledgement
+                };
                 plan.calls.append_to_span(
                     &mut calls,
                     CallOperational {
@@ -532,6 +549,7 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
                         direct_may_block: call.direct_may_block,
                         transitive_may_suspend: call.transitive_may_suspend,
                         transitive_may_block: call.transitive_may_block,
+                        acknowledgement,
                     },
                 );
             }

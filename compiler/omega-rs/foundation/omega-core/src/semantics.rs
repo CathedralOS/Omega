@@ -546,6 +546,23 @@ pub struct OperationalMaySummary {
     pub transitive_may_block: bool,
 }
 
+/// Exact call-site acknowledgement of the statically known operational
+/// envelope. This is diagnostic/audit metadata only: it must not enter a
+/// machine contract identity, ABI, or lowering decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CallOperationalAcknowledgement {
+    pub origin: CallOperationalAcknowledgementOrigin,
+    pub acknowledges_suspend: bool,
+    pub acknowledges_block: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CallOperationalAcknowledgementOrigin {
+    #[default]
+    Source,
+    CompilerSynthesized,
+}
+
 /// The BUILTIN canonical ranking-view catalog (decision 23, TPR2). The ids
 /// are FIXED (deterministic across programs — they may enter proof-cache
 /// keys); user-declared measures are NOT here (they get per-program

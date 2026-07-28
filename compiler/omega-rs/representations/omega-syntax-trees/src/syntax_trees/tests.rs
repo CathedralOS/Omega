@@ -145,6 +145,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         target: Identifier::generated("take_non_negative"),
         machine_arguments: Box::default(),
         arguments: HandleSpan::from_parts(argument, 1),
+        operational_acknowledgement: Default::default(),
         discards_result: false,
     }));
     let call = file.items.append_statement_handle(call);
@@ -242,6 +243,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             target: Identifier::generated("xp_required"),
             machine_arguments: Box::default(),
             arguments: nested_arguments,
+            operational_acknowledgement: Default::default(),
         }));
 
     let zero = file.expressions.insert(ExpressionNode::Integer(
@@ -257,6 +259,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             target: Identifier::generated("max"),
             machine_arguments: Box::default(),
             arguments: max_arguments,
+            operational_acknowledgement: Default::default(),
         }));
 
     let statement = file

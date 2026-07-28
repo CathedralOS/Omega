@@ -316,7 +316,7 @@ fn indexes_call_contract_facts_by_target_machine() {
             target: Identifier::generated("run"),
             machine_arguments: Box::default(),
             arguments: Default::default(),
-
+            operational_acknowledgement: Default::default(),
             discards_result: false,
         }),
     );
@@ -490,7 +490,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             target: Identifier::generated("draw"),
             machine_arguments: Box::default(),
             arguments: Default::default(),
-
+            operational_acknowledgement: Default::default(),
             discards_result: false,
         }),
     );

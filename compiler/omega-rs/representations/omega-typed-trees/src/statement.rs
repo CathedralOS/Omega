@@ -157,6 +157,7 @@ impl StatementTable {
                         target: call.target.clone(),
                         machine_arguments: call.machine_arguments.clone(),
                         arguments,
+                        operational_acknowledgement: call.operational_acknowledgement,
                         discards_result: call.discards_result,
                     })
                 }
@@ -452,6 +453,7 @@ pub struct TableCall {
     pub target: Identifier,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    pub operational_acknowledgement: omega_core::semantics::CallOperationalAcknowledgement,
     /// `_ = call();` -- the caller explicitly discards a non-unit result.
     pub discards_result: bool,
 }
@@ -465,6 +467,7 @@ impl Default for TableCall {
             target: Identifier::default(),
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
+            operational_acknowledgement: Default::default(),
             discards_result: false,
         }
     }

@@ -1218,6 +1218,25 @@ fn checked_call_label(
         call.service_reach,
         call.operational,
     );
+    let acknowledgement = call.operational_acknowledgement;
+    let acknowledgement_text = match (
+        acknowledgement.acknowledges_suspend,
+        acknowledgement.acknowledges_block,
+    ) {
+        (false, false) => "neither",
+        (true, false) => "suspend",
+        (false, true) => "block",
+        (true, true) => "suspend block",
+    };
+    let origin = match acknowledgement.origin {
+        omega_core::semantics::CallOperationalAcknowledgementOrigin::Source => "source",
+        omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => {
+            "compiler-synthesized"
+        }
+    };
+    label.push_str(&format!(
+        "\nacknowledgement: {acknowledgement_text} ({origin})"
+    ));
     label.push_str("\n\ndouble-click to scope target");
     label
 }

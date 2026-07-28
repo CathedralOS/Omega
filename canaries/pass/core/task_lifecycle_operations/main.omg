@@ -7,13 +7,13 @@ machine TaskOutcome::settle<T>(self) {}
 
 data Main {}
 
-machine Main::settle(task: Task<i32>) {
+machine Main::settle(task: Task<i32>) suspends; blocks; {
     task.request_cancel();
-    let outcome: TaskOutcome<i32> = task.finish();
+    let outcome: TaskOutcome<i32> = suspend block task.finish();
     TaskOutcome::settle(outcome);
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) suspends; blocks; {
     let task: Task<i32> = Task { provider: 1, activation: 7 };
-    Main::settle(task);
+    suspend block Main::settle(task);
 }
