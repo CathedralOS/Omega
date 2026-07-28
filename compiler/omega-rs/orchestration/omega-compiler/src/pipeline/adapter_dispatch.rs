@@ -1,9 +1,11 @@
 //! PRV4 step (3) consumption: ADAPTER DISPATCH. A call through a field
 //! whose declared type is a BOUNDARY trait rewrites to a direct call to the
-//! unique checked adapter satisfying that requirement -- the same
-//! pre-checking typed rewrite family as const lengths and MP4
-//! specialization, and it runs in BOTH engine pipelines so the interpreter
-//! and native builds dispatch identically (the differential contract).
+//! unique checked adapter satisfying that requirement. The rewrite runs only
+//! after semantic checking: the source call must first consume the boundary
+//! requirement (and any admitted qualification receipt), while execution then
+//! targets the selected checked adapter. It runs in BOTH engine pipelines so
+//! the interpreter and native builds dispatch identically (the differential
+//! contract).
 //! Without a satisfying adapter the call keeps its host-lowering route
 //! (the built-in tables or selected external leaves serve it).
 //!

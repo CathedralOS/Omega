@@ -1,0 +1,20 @@
+use omega::language::core::extent;
+
+machine grant_root(root: Extent) -> Extent
+satisfies ExtentRootProvider::grant
+{
+    root
+}
+
+machine consume_granted(root: Extent in Granted) -> Extent {
+    root
+}
+
+data Main {}
+
+machine Main::forward(root: Extent) -> Extent {
+    let unqualified: Extent = grant_root(root);
+    transition { _ -> (consume_granted(unqualified)) }
+}
+
+machine Main::main(&mut self) {}

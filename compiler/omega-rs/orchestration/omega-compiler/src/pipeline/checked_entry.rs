@@ -86,11 +86,6 @@ pub fn compile_to_checked(
         &target_provider_defaults,
         &build_config.provider_selections,
     )?;
-    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
-        &mut typed,
-        &selected_provider_plans,
-        target_name,
-    )?;
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
     let checked_program = Arc::get_mut(&mut checked.program)
         .expect("checked program must be uniquely owned before engine handoff");
@@ -99,6 +94,13 @@ pub fn compile_to_checked(
         &provider_plans,
         &selected_provider_plans,
         &build_config.grants,
+    )?;
+    // Preserve boundary-requirement proof/evidence at checking time, then
+    // redirect only execution to the selected checked adapter.
+    crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
+        &mut checked_program.typed,
+        &selected_provider_plans,
+        target_name,
     )?;
     crate::pipeline::task_plans::elaborate_task_activation_plans(
         checked_program,

@@ -4173,6 +4173,33 @@ fn bodyless_owner_establishment_canaries() {
 }
 
 #[test]
+fn extent_root_provider_adapter_compiles() {
+    let canary = pass_canary("core/extent_root_provider_adapter");
+    let build_dir = std::env::temp_dir().join(format!("omega-extent-root-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect(
+        "a checked adapter selected through the owner-authored Extent provider \
+         requirement should originate and forward one admitted Granted root",
+    );
+    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
+        .expect("Extent qualification-evidence artifact");
+    assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
+    assert!(evidence.contains("\"source\": \"ExtentRootProvider\""));
+    assert!(evidence.contains("\"requirement\": \"ExtentRootProvider::grant\""));
+    assert!(
+        evidence.contains("\"receipt_identity\": \"0x"),
+        "the build grant must attach the selected provider-plan receipt:\n{evidence}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn canonical_bodyless_qualification_single_satisfier_compiles() {
     let canary = pass_canary("domains/canonical_bodyless_qualification");
     let checked = compile_to_checked(&canary.join("main.omg"), None).expect(
@@ -38145,6 +38172,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/fixed_vec_core_surface",
     "core/arena_core_surface",
     "core/extent_core_surface",
+    "core/extent_root_provider_adapter",
     "core/interrupt_obligations_surface",
     "core/task_core_linear_claim",
     "core/task_lifecycle_operations",
@@ -38505,6 +38533,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/canonical_qualification_third_party",
     "domains/canonical_qualification_lookalike_trait",
     "core/extent_reconstruction_does_not_grant",
+    "core/extent_root_adapter_direct_call_does_not_grant",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",

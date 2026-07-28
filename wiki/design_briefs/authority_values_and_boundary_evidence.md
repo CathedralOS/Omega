@@ -59,6 +59,21 @@ satisfies that requirement, and admission records its receipt. A third party
 cannot make its own declaration an implicit establishment route for someone
 else's domain.
 
+Core's first live authority root uses this exact shape:
+
+```omega
+pub boundary trait ExtentRootProvider {
+    machine grant(root: Extent) -> Extent
+    ensures
+        result in Extent::Granted;
+}
+```
+
+A checked adapter may realize the requirement, but its ordinary direct-call
+surface does not mint `Granted`. Semantic checking consumes the boundary
+requirement and admitted receipt first; only afterward does execution dispatch
+rewrite the selected trait slot to that adapter.
+
 The compiler therefore does not treat a bodyless `boundary machine` guarantee
 as domain evidence merely because the machine is accepted. An admitted
 membership guarantee must be inherited from a boundary requirement, must spell

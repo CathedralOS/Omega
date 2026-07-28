@@ -147,6 +147,14 @@ pub(crate) fn call_contract_evidence(
             | MachineSupplyMode::ExternalRealization { .. } => false,
         };
         if checked_body {
+            // A checked adapter inherits the boundary requirement so its body
+            // can be validated against that requirement, but a direct call to
+            // the adapter is not the admitted crossing. Only a call whose
+            // target is the boundary trait/signature may consume the attached
+            // authorization and originate its qualified result.
+            if contract.qualification_authorization.is_some() {
+                return None;
+            }
             let origin = if domain.predicate_body.is_present() {
                 QualificationEvidenceOrigin::Prover
             } else if machine_matches_bodyless_domain_owner(program, machine, domain_symbol) {

@@ -383,13 +383,6 @@ impl Compiler {
             &target_provider_defaults,
             &build_config.provider_selections,
         )?;
-        // PRV4 adapter dispatch (both engines, before checking): only the
-        // uniquely selected provider candidate may rewrite boundary calls.
-        crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
-            &mut typed,
-            &selected_provider_plans,
-            self.options.target_name.as_deref(),
-        )?;
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             &self.options,
             &typed,
@@ -422,6 +415,16 @@ impl Compiler {
             &provider_plans,
             &selected_provider_plans,
             &build_config.grants,
+        )?;
+        // PRV4 adapter dispatch (both engines, after checking): semantic facts
+        // stay attached to the admitted boundary requirement, while execution
+        // alone is redirected to the uniquely selected checked adapter.
+        crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
+            &mut Arc::get_mut(&mut checked.program)
+                .expect("checked program must be uniquely owned before backend fan-out")
+                .typed,
+            &selected_provider_plans,
+            self.options.target_name.as_deref(),
         )?;
         crate::pipeline::task_plans::elaborate_task_activation_plans(
             Arc::get_mut(&mut checked.program)

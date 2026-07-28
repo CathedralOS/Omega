@@ -1,0 +1,29 @@
+use omega::language::core::extent;
+
+// A checked adapter may realize the owner-authored provider requirement, but
+// it does not mint `Granted` when called directly. The selected boundary slot
+// and its admission receipt authorize the exact qualified result.
+machine grant_root(root: Extent) -> Extent
+satisfies ExtentRootProvider::grant
+{
+    root
+}
+
+machine consume_granted(root: Extent in Granted) -> Extent {
+    root
+}
+
+data Harness {
+    provider: ExtentRootProvider;
+}
+
+machine Harness::forward(&self, root: Extent) -> Extent
+effects ExtentRootProvider
+{
+    let granted: Extent = self.provider.grant(root);
+    transition { _ -> (consume_granted(granted)) }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

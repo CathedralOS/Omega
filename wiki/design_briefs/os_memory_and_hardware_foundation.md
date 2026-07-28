@@ -70,6 +70,12 @@ data Extent [linear] {
 }
 
 pub domain Extent::Granted;
+
+pub boundary trait ExtentRootProvider {
+    machine grant(root: Extent) -> Extent
+    ensures
+        result in Extent::Granted;
+}
 ```
 
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
@@ -79,10 +85,13 @@ authority require `Granted`, so a fabricated or dequalified Extent has no legal
 resource consumer.
 
 An admitted platform provider originates a root only by satisfying the
-owner-authored memory requirement whose result names
-`Extent in Extent::Granted`. The receipt denominates its backing in the same
-compiler-owned interval algebra as `Granted`'s normalized content projection,
-and admission proves the projected interval is contained in that backing.
+owner-authored `ExtentRootProvider::grant` requirement. The caller supplies the
+ordinary geometry; the selected provider and its admission receipt establish
+`Granted` on the returned carrier. A direct call to the checked adapter is not
+that crossing and does not establish the fact. The receipt denominates its
+backing in the same compiler-owned interval algebra as `Granted`'s normalized
+content projection, and admission proves the projected interval is contained
+in that backing.
 
 The live source declaration is in `omega::language::core::extent` together
 with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
