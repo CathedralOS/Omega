@@ -131,17 +131,19 @@ relative output path: each uniquely matched callee claim keeps its identity and
 lineage through caller binding, while ambiguous or non-path-aligned checked
 multi-claim results reject instead of minting replacement claims. Direct record
 constructors now contribute an explicit structural output map by nesting each
-source claim under its named field; nested opaque multi-output calls still
-reject until they publish a normalized outcome map.
+source claim under its named field. Checked bodies now publish complete
+normalized outcome maps, and opaque n-ary result calls consume them to a fixed
+point across expression calls and qualified tail transitions. Input-relative
+entries rebind through the actual caller arguments; locally established entries
+retain exact claim identity and provenance across multi-hop wrappers. Bodyless
+or ambiguous targets remain fail-closed. The checked proof/debug surface retains
+the structured maps in `05_claim_outcomes.json`.
 
-This is not full P1c: case and fixed-index paths, general state/call n-ary
-input maps and explicit call outcome maps, per-claim carry inheritance, content
-projections/backing, and conservation witnesses remain. Symbol-keyed
-substitutions already retain contained claims through nested generic
-transparent records.
+This is not full P1c: case and fixed-index paths, per-claim carry inheritance,
+content projections/backing, and conservation witnesses remain. Symbol-keyed
+substitutions already retain contained claims through nested generic transparent
+records.
 
-- publish explicit normalized outcome maps for opaque n-ary calls and consume
-  them at caller result frontiers;
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed vocabulary `Indivisible | Interval<Scalar>`,
@@ -155,8 +157,8 @@ transparent records.
 - keep domain facets, permission attenuation, carry, and root lineage as
   independent axes; recoverable or scarce authority uses a claim or loan rather
   than a discardable permission; and
-- retain normalized projections, admitted backing, outcome mappings, and the
-  n-ary conservation witness in proof/debug artifacts.
+- retain normalized projections, admitted backing, and the n-ary conservation
+  witness beside the landed outcome maps in proof/debug artifacts.
 
 Extent split/merge is triggered only when an independently owned subrange must
 cross an ownership boundary; it is not required for the admitted-root,
@@ -433,7 +435,9 @@ improvements do not change public identity.
   artifacts publish both permission evidence and each crossing value's
   effective axes. Path-indexed transparent-record frontiers now preserve
   contained claim identities and permissions through whole-record and field
-  transfers. Remaining CRY work is conserved multi-output outcome mapping.
+  transfers. Checked n-ary outcome maps now retain those identities through
+  opaque and multi-hop calls; remaining CRY work is per-origin carry inheritance
+  across those maps plus content-algebra conservation.
   A source-to-artifact canary pins an admitted suspension-only permission
   through selected-machine specialization and the canonical safe-point
   crossing. The activation artifact now carries a fixed-stack `StackPlan`,

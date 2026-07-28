@@ -202,11 +202,15 @@ independently propagated source provenance through backend realization. Fresh
 claim identity is distinct from provenance/root lineage and survives those
 local transformations. Checked state results conserve multiple claims when
 direct paths or record-constructor fields provide a unique structural output
-map; opaque multi-output calls reject rather than minting replacement claims.
-Active-case and fixed-index frontiers, general n-ary input and explicit
-call-output maps, and per-claim carry remain subsequent P1c slices. Symbol-keyed
-substitutions already retain contained claims through nested generic
-transparent records.
+map; checked bodies now publish that complete map for opaque n-ary callers to
+consume. Input-relative entries bind through actual arguments, established
+entries retain their exact identity and provenance, and fixed-point composition
+covers expression calls, qualified tail transitions, and multi-hop wrappers.
+Ambiguous or bodyless targets remain fail-closed. The structured maps are
+retained in the checked `05_claim_outcomes.json` proof/debug artifact.
+Active-case and fixed-index frontiers and per-claim carry remain subsequent P1c
+slices. Symbol-keyed substitutions already retain contained claims through
+nested generic transparent records.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

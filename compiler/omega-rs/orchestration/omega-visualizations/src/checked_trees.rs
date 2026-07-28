@@ -232,6 +232,200 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
+/// Normalized per-state claim outcome maps retained by the checked ownership
+/// pass. This is a proof/debug artifact: it exposes the exact output path and
+/// input-or-established source used for n-ary conservation without making the
+/// presentation spelling part of public contract identity.
+pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
+    let ownership = &program.facts.flow.ownership;
+    let mut json = String::from("{\n  \"claim_outcome_maps\": [");
+    for (map_index, (_, map)) in ownership.claim_outcome_maps.iter().enumerate() {
+        if map_index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"machine\": ");
+        push_json_string(&mut json, &symbol_label(program, map.machine_symbol));
+        json.push_str(",\n      \"state\": ");
+        push_json_string(
+            &mut json,
+            &state_label_from_symbol(program, map.state_symbol),
+        );
+        json.push_str(",\n      \"entries\": [");
+        for (entry_index, entry) in ownership
+            .claim_outcome_entries
+            .span_or_empty(map.entries)
+            .iter()
+            .enumerate()
+        {
+            if entry_index > 0 {
+                json.push(',');
+            }
+            json.push_str("\n        {\n          \"output_path\": ");
+            push_claim_path_json(
+                &mut json,
+                program,
+                ownership.segments.span_or_empty(entry.output_segments),
+            );
+            json.push_str(",\n          \"source\": ");
+            push_claim_outcome_source_json(&mut json, program, entry.source);
+            json.push_str("\n        }");
+        }
+        json.push_str("\n      ]\n    }");
+    }
+    json.push_str("\n  ]\n}\n");
+    json
+}
+
+fn push_claim_outcome_source_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    source: omega_checked_trees::FlowClaimOutcomeSource,
+) {
+    match source {
+        omega_checked_trees::FlowClaimOutcomeSource::Unknown => {
+            json.push_str("{\"kind\": \"unknown\"}");
+        }
+        omega_checked_trees::FlowClaimOutcomeSource::Input {
+            parameter_symbol,
+            segments,
+        } => {
+            json.push_str("{\"kind\": \"input\", \"parameter\": ");
+            push_json_string(json, &symbol_label(program, parameter_symbol));
+            json.push_str(", \"path\": ");
+            push_claim_path_json(
+                json,
+                program,
+                program
+                    .facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(segments),
+            );
+            json.push('}');
+        }
+        omega_checked_trees::FlowClaimOutcomeSource::Established {
+            claim_identity,
+            provenance,
+        } => {
+            json.push_str("{\"kind\": \"established\", \"claim_identity\": ");
+            push_claim_identity_json(json, program, claim_identity);
+            json.push_str(", \"provenance\": ");
+            push_claim_provenance_json(json, program, provenance);
+            json.push('}');
+        }
+    }
+}
+
+fn push_claim_path_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    path: &[omega_facts::PlaceSegment],
+) {
+    json.push('[');
+    for (index, segment) in path.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                json.push_str("{\"field\": ");
+                push_json_string(json, &symbol_label(program, *symbol));
+                json.push('}');
+            }
+            omega_facts::PlaceSegment::Index { expression } => {
+                json.push_str("{\"index\": ");
+                push_json_string(json, &program.expression_table.display_name(*expression));
+                json.push('}');
+            }
+        }
+    }
+    json.push(']');
+}
+
+fn push_claim_identity_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    identity: omega_core::semantics::PermissionClaimIdentity,
+) {
+    match identity {
+        omega_core::semantics::PermissionClaimIdentity::Unknown => {
+            json.push_str("{\"kind\": \"unknown\"}");
+        }
+        omega_core::semantics::PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source,
+            ordinal,
+        } => {
+            json.push_str("{\"kind\": \"established\", \"machine\": ");
+            push_json_string(json, &symbol_label(program, machine_symbol));
+            json.push_str(", \"state\": ");
+            push_json_string(json, &state_label_from_symbol(program, state_symbol));
+            json.push_str(", \"source\": ");
+            push_permission_event_source_json(json, program, source);
+            json.push_str(", \"ordinal\": ");
+            json.push_str(&ordinal.to_string());
+            json.push('}');
+        }
+    }
+}
+
+fn push_claim_provenance_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    provenance: omega_core::semantics::PermissionProvenance,
+) {
+    match provenance {
+        omega_core::semantics::PermissionProvenance::Unknown => {
+            json.push_str("{\"kind\": \"unknown\"}");
+        }
+        omega_core::semantics::PermissionProvenance::Established {
+            machine_symbol,
+            state_symbol,
+            source,
+        } => {
+            json.push_str("{\"kind\": \"established\", \"machine\": ");
+            push_json_string(json, &symbol_label(program, machine_symbol));
+            json.push_str(", \"state\": ");
+            push_json_string(json, &state_label_from_symbol(program, state_symbol));
+            json.push_str(", \"source\": ");
+            push_permission_event_source_json(json, program, source);
+            json.push('}');
+        }
+    }
+}
+
+fn push_permission_event_source_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    source: omega_core::semantics::PermissionEventSource,
+) {
+    use omega_core::semantics::PermissionEventSource;
+    match source {
+        PermissionEventSource::StateEntry => json.push_str("{\"kind\": \"state_entry\"}"),
+        PermissionEventSource::Statement { statement_index } => {
+            json.push_str("{\"kind\": \"statement\", \"statement_index\": ");
+            json.push_str(&statement_index.to_string());
+            json.push('}');
+        }
+        PermissionEventSource::Call {
+            statement_index,
+            call_ordinal,
+            target_symbol,
+        } => {
+            json.push_str("{\"kind\": \"call\", \"statement_index\": ");
+            json.push_str(&statement_index.to_string());
+            json.push_str(", \"call_ordinal\": ");
+            json.push_str(&call_ordinal.to_string());
+            json.push_str(", \"target\": ");
+            push_json_string(json, &state_label_from_symbol(program, target_symbol));
+            json.push('}');
+        }
+        PermissionEventSource::StateExit => json.push_str("{\"kind\": \"state_exit\"}"),
+    }
+}
+
 fn qualification_subject(program: &CheckedTrees, fact: &omega_facts::Fact) -> String {
     use omega_facts::{FactPlace, PlaceRoot, PlaceSegment};
 
@@ -1647,11 +1841,12 @@ fn push_json_string(output: &mut String, value: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        carry_manifest_json, machine_contract_manifest_json, push_termination_interface_json,
-        qualification_evidence_manifest_json,
+        carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
+        push_termination_interface_json, qualification_evidence_manifest_json,
     };
     use omega_checked_trees::{
-        CheckedTrees, DataCarryFact, MachineActivationCarryFact, MachineContractPlan,
+        CheckedTrees, DataCarryFact, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact,
+        FlowClaimOutcomeSource, MachineActivationCarryFact, MachineContractPlan,
         MachineTerminationFact,
     };
     use omega_core::semantics::{
@@ -1667,6 +1862,73 @@ mod tests {
     use omega_typed_trees::machine::Machine;
     use omega_typed_trees::name::Identifier;
     use omega_typed_trees::typed_trees::MachineSpecialization;
+
+    #[test]
+    fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
+        let mut program = CheckedTrees::default();
+        let output_segments =
+            program
+                .facts
+                .flow
+                .ownership
+                .segments
+                .insert_many([omega_facts::PlaceSegment::Field {
+                    symbol: SymbolHandle::invalid(),
+                }]);
+        let entries = program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_entries
+            .insert_many([
+                FlowClaimOutcomeEntryFact {
+                    output_segments,
+                    source: FlowClaimOutcomeSource::Input {
+                        parameter_symbol: SymbolHandle::invalid(),
+                        segments: Default::default(),
+                    },
+                },
+                FlowClaimOutcomeEntryFact {
+                    output_segments: Default::default(),
+                    source: FlowClaimOutcomeSource::Established {
+                        claim_identity:
+                            omega_core::semantics::PermissionClaimIdentity::Established {
+                                machine_symbol: SymbolHandle::invalid(),
+                                state_symbol: SymbolHandle::invalid(),
+                                source: omega_core::semantics::PermissionEventSource::Statement {
+                                    statement_index: 2,
+                                },
+                                ordinal: 7,
+                            },
+                        provenance: omega_core::semantics::PermissionProvenance::Established {
+                            machine_symbol: SymbolHandle::invalid(),
+                            state_symbol: SymbolHandle::invalid(),
+                            source: omega_core::semantics::PermissionEventSource::StateEntry,
+                        },
+                    },
+                },
+            ]);
+        program
+            .facts
+            .flow
+            .ownership
+            .claim_outcome_maps
+            .insert(FlowClaimOutcomeMapFact {
+                machine_symbol: SymbolHandle::invalid(),
+                state_symbol: SymbolHandle::invalid(),
+                entries,
+            });
+
+        let json = claim_outcome_manifest_json(&program);
+
+        assert!(json.contains("\"claim_outcome_maps\""));
+        assert!(json.contains("\"output_path\": [{\"field\": \"invalid\"}]"));
+        assert!(json.contains("\"kind\": \"input\""));
+        assert!(json.contains("\"kind\": \"established\""));
+        assert!(json.contains("\"statement_index\": 2"));
+        assert!(json.contains("\"ordinal\": 7"));
+        assert!(json.contains("\"kind\": \"state_entry\""));
+    }
 
     #[test]
     fn qualification_evidence_manifest_separates_origin_point_and_receipt() {

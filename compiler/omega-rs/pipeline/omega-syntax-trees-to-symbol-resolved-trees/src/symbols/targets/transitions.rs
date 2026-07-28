@@ -4,7 +4,9 @@ use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use crate::symbols::expressions::{
     assign_expression_span_symbols, assign_statement_expression_symbols,
 };
-use crate::symbols::lookup::{call_target_for_attached_data, child_symbol_by_kinds};
+use crate::symbols::lookup::{
+    call_target_for_attached_data, child_symbol_by_kinds, top_level_symbol,
+};
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
 
@@ -93,6 +95,28 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     let Some(target_name) = target_name else {
         return;
     };
+
+    // A qualified tail call (`-> Main::pack(left, right)`) is stored as a
+    // named transition target, while the same call in value position is
+    // resolved by the expression-call path. Mirror that static attached-data
+    // lookup here. The ordinary scoped-path walk cannot descend from a data
+    // symbol into a separately declared attached machine, so without this
+    // fallback the target stayed invalid and downstream ownership/call facts
+    // silently treated the arguments as non-transferring.
+    if path.len() >= 2 {
+        let owner = path[..path.len() - 1]
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        let target_symbol =
+            call_target_for_attached_data(symbols, owner.as_str(), target_name.as_str());
+        if target_symbol.is_valid() {
+            named.head_symbol = top_level_symbol(symbols, SymbolKind::Data, owner.as_str());
+            named.symbol = target_symbol;
+            return;
+        }
+    }
 
     if path.len() <= 2 {
         let target_symbol = child_symbol_by_kinds(

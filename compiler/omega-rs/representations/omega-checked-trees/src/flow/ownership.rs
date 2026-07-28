@@ -53,3 +53,38 @@ pub struct FlowPermissionEventFact {
     /// payload debt. Keep the event and record whether an obligation existed.
     pub obligation_live: bool,
 }
+
+/// One normalized source for a claim transferred through a checked state's
+/// result. Inputs are relative to the callee's declared parameter frontier;
+/// claims established by the checked body retain their exact semantic
+/// identity and root-lineage provenance.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowClaimOutcomeSource {
+    #[default]
+    Unknown,
+    Input {
+        parameter_symbol: SymbolHandle,
+        segments: HandleSpan<omega_facts::PlaceSegment>,
+    },
+    Established {
+        claim_identity: omega_core::semantics::PermissionClaimIdentity,
+        provenance: omega_core::semantics::PermissionProvenance,
+    },
+}
+
+/// One output-path entry in a checked state's normalized claim outcome map.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowClaimOutcomeEntryFact {
+    pub output_segments: HandleSpan<omega_facts::PlaceSegment>,
+    pub source: FlowClaimOutcomeSource,
+}
+
+/// Complete path-indexed claim mapping published by one checked state result.
+/// Absence means the state has no live linear result frontier or could not
+/// prove one unique mapping for every output claim.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FlowClaimOutcomeMapFact {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub entries: HandleSpan<FlowClaimOutcomeEntryFact>,
+}
