@@ -271,7 +271,7 @@ fn parameter_domain_grants(
     if parameter.is_mutable || parameter.is_self {
         return false;
     }
-    crate::field_domain::predicate_domain_constraint_symbols(program, parameter.type_reference)
+    crate::field_domain::domain_constraint_symbols(program, parameter.type_reference)
         .into_iter()
         .any(|param_domain| {
             facts.semantic.domain_implies(param_domain, domain_symbol)

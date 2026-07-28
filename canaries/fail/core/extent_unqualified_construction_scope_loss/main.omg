@@ -1,0 +1,14 @@
+use omega::language::core::extent;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    // Runtime geometry is ordinary and constructible. Without `Granted`
+    // evidence, however, core exposes no authority-discharge operation for the
+    // claim, so it cannot disappear at scope exit in this program.
+    let forged: Extent = Extent {
+        base: 0 as addr,
+        length: 4096,
+    };
+}

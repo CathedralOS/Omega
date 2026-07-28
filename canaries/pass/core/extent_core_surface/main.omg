@@ -1,8 +1,8 @@
 use omega::language::core::extent;
 
-// The concrete-range authority is source-visible but opaque. Its zero-usable
-// container is an ordinary debt-free-first sum; only the Live path carries
-// the conditional linear obligation.
+// Extent exposes ordinary runtime geometry while `Granted` remains a bodyless
+// authority fact. Its zero-usable container is an ordinary debt-free-first
+// sum; only the Live path carries the conditional linear obligation.
 data Holder {
     slot: ExtentSlot;
 }

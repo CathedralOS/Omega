@@ -162,6 +162,13 @@ evidence, or an admitted provider satisfying an owner-authorized boundary
 requirement. A qualified result type or `ensures` clause is an implementation
 obligation rather than evidence by itself.
 
+A parameter declared `value: T in D` imposes an implicit
+`requires value in D` at every call boundary. Predicate-bearing `D` discharges
+through proof; bodyless `D` requires retained establishment evidence. The
+callee may then treat the immutable parameter as qualified and forward that
+fact. Matching the runtime representation of `T` never satisfies this
+obligation by itself.
+
 ### `as`
 
 `as` applies a compiler-known coercion after statically discharging its

@@ -112,9 +112,10 @@ pub(crate) fn lower_state_signature(
             .append_to_span(&mut typed_signature.type_parameters, parameter);
     }
 
-    // #66/DOM1: collect every predicate-bearing domain on constrained parameters. Each
-    // desugars below into its own implicit `requires <param> in <domain>`
-    // membership contract; bodyless domains do not enter the fact lattice.
+    // #66/DOM1/P1a: collect every declared domain on constrained parameters.
+    // Each desugars below into its own implicit `requires <param> in <domain>`
+    // membership contract. Predicate-bearing domains discharge by proof;
+    // bodyless domains require retained qualification evidence.
     let mut domain_constrained_parameters: Vec<(
         omega_core::symbols::SymbolHandle,
         typed::name::Identifier,
@@ -124,7 +125,7 @@ pub(crate) fn lower_state_signature(
     for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
         for (domain_symbol, domain_full_name) in
-            predicate_domain_constraints(&lowerer.typed_trees, parameter.type_reference)
+            domain_constraints(&lowerer.typed_trees, parameter.type_reference)
         {
             domain_constrained_parameters.push((
                 parameter.symbol,
@@ -169,7 +170,7 @@ pub(crate) fn lower_state_signature(
         );
     }
 
-    // #66/DOM1: desugar each predicate-bearing domain into an implicit `requires
+    // #66/DOM1/P1a: desugar each declared domain into an implicit `requires
     // <param> in <domain>` membership contract (here on a trait/platform
     // signature; the regular-machine path is `lower_machine`).
     for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
@@ -189,10 +190,10 @@ pub(crate) fn lower_state_signature(
     Ok(typed_signature)
 }
 
-/// Every normalized predicate-bearing domain on a parameter type, looking through a
-/// leading reference. Bodyless qualifications never synthesize proof
-/// contracts.
-pub(crate) fn predicate_domain_constraints(
+/// Every normalized declared domain on a parameter type, looking through a
+/// leading reference. Arithmetic policy is represented by a distinct
+/// constraint node and does not become a membership contract.
+pub(crate) fn domain_constraints(
     typed_trees: &typed::TypedTrees,
     type_reference: typed::types::TypeReferenceHandle,
 ) -> Vec<(omega_core::symbols::SymbolHandle, String)> {
@@ -201,16 +202,14 @@ pub(crate) fn predicate_domain_constraints(
         .type_reference(type_reference)
     {
         typed::types::TypeReferenceNode::Reference { referee, .. } => {
-            predicate_domain_constraints(typed_trees, *referee)
+            domain_constraints(typed_trees, *referee)
         }
         typed::types::TypeReferenceNode::Constrained { constraints, .. } => typed_trees
             .type_reference_table
             .constraints(*constraints)
             .iter()
             .filter_map(|constraint| match constraint {
-                typed::types::TypeConstraintNode::Domain(domain)
-                    if domain.symbol.is_valid() && domain.predicate_body.is_present() =>
-                {
+                typed::types::TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
                     typed_trees
                         .domain_definitions()
                         .iter()
@@ -225,8 +224,8 @@ pub(crate) fn predicate_domain_constraints(
 }
 
 /// Build the implicit `requires <param> in <domain>` membership contract for a
-/// normalized predicate constraint. The caller attaches the contract at the
-/// right level (machine vs trait signature).
+/// normalized declared-domain constraint. The caller attaches the contract at
+/// the right level (machine vs trait signature).
 pub(crate) fn build_domain_membership_contract(
     lowerer: &mut Lowerer,
     param_symbol: omega_core::symbols::SymbolHandle,

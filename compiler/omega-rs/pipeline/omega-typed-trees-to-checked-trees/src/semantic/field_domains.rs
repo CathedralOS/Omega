@@ -169,12 +169,12 @@ fn append_data_field_domain_facts(
     }
 }
 
-/// #66 param entry-assumption: an IMMUTABLE state parameter declared with an
-/// encoding domain (`check_text(text: &[u8] in Utf8)`) carries that domain
-/// throughout the state body. The param's implicit `requires param in Domain`
-/// (Phase 1) makes every caller prove membership, and immutability means it can
-/// never be reassigned out of the domain -- so it holds at every program point in
-/// the state. Surfaced at `ProgramPoint::State` (the param belongs to the state),
+/// #66/P1a param entry-assumption: an IMMUTABLE state parameter declared with a
+/// domain qualification carries that domain throughout the state body. The
+/// param's implicit `requires param in Domain` makes every caller establish
+/// membership (by proof for a bodyful predicate, by retained evidence for a
+/// bodyless qualification), and immutability means it can never be reassigned
+/// out of the domain. Surfaced at `ProgramPoint::State` (the param belongs to the state),
 /// which `build_state_flow_fact` folds into the state entry; the flow's context
 /// threading then carries it to every call, including guarded-transition
 /// fallthrough arms (now that a transition no longer leaks its branch-taken exit
@@ -192,7 +192,10 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 if parameter.is_self || parameter.is_mutable {
                     continue;
                 }
-                for domain_symbol in field_domain_symbols(program, parameter.type_reference) {
+                for domain_symbol in crate::field_domain::domain_constraint_symbols(
+                    program,
+                    parameter.type_reference,
+                ) {
                     append_state_parameter_domain_fact(
                         facts,
                         machine.symbol,

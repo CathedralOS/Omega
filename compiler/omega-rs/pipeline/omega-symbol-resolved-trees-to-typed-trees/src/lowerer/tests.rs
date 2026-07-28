@@ -431,7 +431,7 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
 }
 
 #[test]
-fn parameter_domain_conjunction_synthesizes_each_predicate_contract_only() {
+fn parameter_domain_conjunction_synthesizes_each_membership_contract() {
     let source = r#"
     domain [u8]::Meaning {}
     domain [u8]::Utf8 { valid_utf8(self); }
@@ -459,14 +459,18 @@ fn parameter_domain_conjunction_synthesizes_each_predicate_contract_only() {
                 .domain_definitions()
                 .iter()
                 .find(|domain| domain.symbol == membership.domain_symbol)
-                .expect("normalized predicate domain")
+                .expect("normalized declared domain")
                 .name
                 .as_str()
                 .to_owned()
         })
         .collect();
 
-    assert_eq!(names, ["[u8]::Utf8", "[u8]::NoNul"]);
+    assert_eq!(
+        names,
+        ["[u8]::Meaning", "[u8]::Utf8", "[u8]::NoNul"],
+        "bodyless and predicate-bearing constraints are all call-boundary obligations"
+    );
 }
 
 #[test]

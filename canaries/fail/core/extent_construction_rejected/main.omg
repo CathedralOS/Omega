@@ -1,9 +1,0 @@
-use omega::language::core::extent;
-
-data Main {
-}
-
-machine Main::main(&mut self) {
-    // Address bits and empty syntax cannot mint concrete-range authority.
-    let forged: Extent = Extent {};
-}

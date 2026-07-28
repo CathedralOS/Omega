@@ -84,9 +84,9 @@ owner-authored memory requirement whose result names
 compiler-owned interval algebra as `Granted`'s normalized content projection,
 and admission proves the projected interval is contained in that backing.
 
-The staged source declaration remains in `omega::language::core::extent`
-together with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge.
-Core's stage-1 `Arena` returns and reclaims qualified Extents.
+The live source declaration is in `omega::language::core::extent` together
+with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
+`Arena` returns and reclaims qualified Extents.
 
 Address space, permissions, provenance, and mapping era are domain facts on the
 carrier. Physical, virtual, I/O-port, and provider-defined spaces share the
