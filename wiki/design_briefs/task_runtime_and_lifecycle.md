@@ -103,13 +103,14 @@ a runtime-authored continuation-capacity record.
 
 Compiler elaboration remains live for concrete `TaskRuntime::start<M>` and
 `try_start<M>` specializations and emits `05_task_activations.json`. The
-implementation currently also emits the superseded continuation-demand and
-`SafePoints | Asynchronous` runtime-join fields. Those are migration scaffolding,
-not the target model: replace them with WCSU-derived stack provision, canonical
-suspension crossings, and demand-driven CPU/thread preservation obligations.
-`05_carry_manifest.json` remains useful because it names each suspension
-crossing and its typed live-value/storage frontier; tools consume that checked
-artifact rather than reinterpret source.
+artifact now carries a fixed-stack `StackPlan`, canonical suspension-crossing
+identities, and demand-driven CPU/thread preservation obligations; the
+superseded continuation-demand and `SafePoints | Asynchronous` runtime-join
+fields are gone. Its current byte count is still the local machine/park-frontier
+layout bridge. Whole-call-graph WCSU composition and stack reservation remain
+the fixed-stack lowering rung below. `05_carry_manifest.json` remains useful
+because it names each suspension crossing and its typed live-value/storage
+frontier; tools consume that checked artifact rather than reinterpret source.
 
 Architectural preemption does not itself create a semantic crossing. A runtime
 may stop and restore opaque register/stack state without changing the
@@ -332,12 +333,14 @@ those facts in their proper homes, `TaskRuntimeContract`,
 `RuntimeBehaviorContract`, and the generalized
 `ActivationDemand <= RuntimeSupply` join have no surviving semantic role.
 
-The current `omega-task-plans` Rust crate still implements that retired join,
-including continuation capacity, preemption granularity, continuation movement,
-and inline-completion fields. It must migrate rather than becoming normative.
-Provider selection, bodyless establishment, transactional start, and the
-provider-provenance/child-lease ledger remain ordinary implementation work
-under the settled model in
+The `omega-task-plans` Rust crate no longer implements that retired join:
+continuation capacity, preemption granularity, continuation movement, and
+inline-completion runtime fields have been removed. Its lifecycle ledger is
+now explicitly downstream of an already selected runtime and exact activation
+plan rather than pretending to perform provider admission. Provider selection,
+bodyless establishment, transactional start, stack leases and WCSU-backed
+provisioning, and source-level ledger connection remain ordinary implementation
+work under the settled model in
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
 
 ## Architectural preemption and semantic safe points
@@ -425,12 +428,12 @@ question #18; retained foreign pointers remain owner question #14.
 
 The compiler task canary now carries an admitted suspension-only permission
 through a qualified selected-machine entry, local transfer, canonical
-safe-point liveness, and the current `05_task_activations.json` compatibility
-artifact. Static-machine specialization normalizes the qualified entry back to
-its underlying runtime carrier while retaining the qualification as proof
-evidence. The canary deliberately does not make the retired preemption-mode,
-all-instruction, or continuation-address fields normative. This fixture is
-intentionally affine: conservation and provider custody for linear task
+safe-point liveness, and the current `05_task_activations.json` fixed-stack and
+crossing artifact. Static-machine specialization normalizes the qualified entry
+back to its underlying runtime carrier while retaining the qualification as
+proof evidence. The retired preemption-mode, all-instruction, and
+continuation-address compatibility fields are no longer emitted. This fixture
+is intentionally affine: conservation and provider custody for linear task
 arguments remain TR3–TR8 work.
 
 ## Acceptance register

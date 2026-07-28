@@ -2,15 +2,13 @@ use omega_checked_trees::{
     CheckedTrees, SuspensionCrossingStorage, TaskActivationPlanFact, TaskStartOperation,
 };
 use omega_core::diagnostics::Diagnostic;
-use omega_core::semantics::{
-    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension,
-};
+use omega_core::semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use omega_layout::TypeLayout;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_task_plans::{
-    ActivationPlanCandidate, AddressStabilityDemand, CallingPlanId, DistinctActivationRequirement,
-    MachineContractId, MachineEntryId, MigrationDemand, SameCpuDemand, SameThreadDemand,
-    ValueLayoutId, validate_activation_plan,
+    ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
+    CanonicalSuspensionCrossing, MachineContractId, MachineEntryId, StackPlan,
+    StackRepresentationId, SuspensionCrossingId, ValueLayoutId, validate_activation_plan,
 };
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
@@ -129,21 +127,29 @@ pub(super) fn elaborate_task_activation_plans(
         let may_suspend = contract.suspension.checked_may_suspend;
         let may_block = contract.blocking.checked_may_block;
         let crossings = activation_carry_crossings(program, target_machine.symbol);
-        // A transparent target that reaches Suspend must have canonical facts
-        // for its possible park sites, including contained-machine frames.
-        // Missing facts are not evidence of safety: keep the plan validator
-        // fail-closed.
-        let suspension_crossings_safe =
-            !may_suspend || (!crossings.subtree.is_empty() && crossings.all_allow_suspension());
-        let safe_point_policy = crossings.safe_point_policy();
-        let asynchronous_migration = program
+        let canonical_suspension_crossings = crossings
+            .subtree
+            .iter()
+            .map(|crossing| canonical_suspension_crossing(program, crossing))
+            .collect::<Result<Vec<_>, _>>()?;
+        let activation_wide_carry = program
             .facts
             .carry
-            .preemption_for_machine(target_machine.symbol)
+            .activation_carry_for_machine(target_machine.symbol)
             .filter(|fact| fact.analysis_complete)
-            .map(|fact| migration_demand(fact.effective));
-        let (continuation_bytes, continuation_alignment) =
-            continuation_layout(program, target, &layouts, target_machine, &crossings.root)?;
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "task activation target `{}` has incomplete activation-wide CPU/thread carry analysis",
+                    target_machine.name
+                ))]
+            })?;
+        let carry_obligations = carry_obligations(activation_wide_carry.effective);
+        let (stack_bytes, stack_alignment) =
+            fixed_stack_layout(program, target, &layouts, target_machine, &crossings.root)?;
+        let stack_representation = normalized_id(
+            stack_representation_identity(target),
+            StackRepresentationId::from_normalized_identity,
+        )?;
 
         let plan = validate_activation_plan(ActivationPlanCandidate {
             machine_contract,
@@ -151,23 +157,20 @@ pub(super) fn elaborate_task_activation_plans(
             argument_layout,
             terminal_outcome_layout,
             calling_plan,
-            continuation_bytes,
-            continuation_alignment,
+            stack_plan: StackPlan {
+                bytes: stack_bytes,
+                alignment: stack_alignment,
+                representation: stack_representation,
+            },
             may_suspend,
             may_block,
-            suspension_crossings_safe,
-            safe_point_migration: migration_demand(safe_point_policy),
-            // An asynchronous provider can preempt at every instruction. The
-            // checker therefore joins every storage/call/transient value that
-            // can exist at an instruction boundary. Incomplete type coverage
-            // stays explicit as `None`, so provider admission fails closed.
-            asynchronous_migration,
+            // Missing or locally unsafe crossings remain visible so the plan
+            // validator rejects them fail-closed.
+            canonical_suspension_crossings,
+            carry_obligations,
             // `Task<T>` always carries cancellation-request authority. A
-            // runtime that cannot accept that request cannot establish this
-            // lifecycle claim, even if this compilation unit never happens
-            // to call `request_cancel` itself.
+            // selected provider must establish that operation later.
             cancellation_required: true,
-            activation: DistinctActivationRequirement::Required,
         })
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
 
@@ -188,22 +191,6 @@ pub(super) fn elaborate_task_activation_plans(
 struct ActivationCarryCrossings<'program> {
     root: Vec<&'program omega_checked_trees::SuspensionCrossingCarryFact>,
     subtree: Vec<&'program omega_checked_trees::SuspensionCrossingCarryFact>,
-}
-
-impl ActivationCarryCrossings<'_> {
-    fn all_allow_suspension(&self) -> bool {
-        self.subtree
-            .iter()
-            .all(|crossing| crossing.effective.suspension == CarrySuspension::Allowed)
-    }
-
-    fn safe_point_policy(&self) -> CarryPolicy {
-        self.subtree
-            .iter()
-            .fold(CarryPolicy::PERMISSIVE, |policy, crossing| {
-                policy.intersect(crossing.effective)
-            })
-    }
 }
 
 fn activation_carry_crossings(
@@ -255,7 +242,11 @@ fn task_start_operation(
     }
 }
 
-fn continuation_layout(
+/// Current fixed-stack layout bridge: persistent machine storage plus the
+/// largest canonical park frontier and entry resume overhead. Whole-call-graph
+/// WCSU composition will replace this local sizing pass before provider stack
+/// reservation is enabled.
+fn fixed_stack_layout(
     program: &CheckedTrees,
     target: NativeTarget,
     layouts: &omega_layout::LayoutPlan,
@@ -335,21 +326,102 @@ fn align_to(value: usize, alignment: usize) -> Result<usize, Vec<Diagnostic>> {
         })
 }
 
-fn migration_demand(policy: CarryPolicy) -> MigrationDemand {
-    MigrationDemand {
-        cpu: match policy.cpu {
-            CarryCpu::Origin => SameCpuDemand::Same,
-            CarryCpu::Any => SameCpuDemand::Any,
-        },
-        thread: match policy.host_thread {
-            CarryHostThread::Origin => SameThreadDemand::Same,
-            CarryHostThread::Any => SameThreadDemand::Any,
-        },
-        address: match policy.address {
-            CarryAddress::Stable => AddressStabilityDemand::Stable,
-            CarryAddress::Movable => AddressStabilityDemand::Movable,
-        },
+fn carry_obligations(policy: CarryPolicy) -> ActivationCarryObligations {
+    ActivationCarryObligations {
+        preserve_cpu: policy.cpu == CarryCpu::Origin,
+        preserve_host_thread: policy.host_thread == CarryHostThread::Origin,
     }
+}
+
+fn canonical_suspension_crossing(
+    program: &CheckedTrees,
+    crossing: &omega_checked_trees::SuspensionCrossingCarryFact,
+) -> Result<CanonicalSuspensionCrossing, Vec<Diagnostic>> {
+    let mut hash = StableHash::new();
+    hash.byte(0x73);
+    hash.string(symbol_identity(program, crossing.machine));
+    hash.string(symbol_identity(program, crossing.state));
+    hash.usize(crossing.statement_index);
+    hash.usize(crossing.call_ordinal);
+    hash.string(symbol_identity(program, crossing.target));
+    hash.byte(u8::from(
+        crossing.effective.suspension == CarrySuspension::Allowed,
+    ));
+    hash.byte(u8::from(crossing.effective.cpu == CarryCpu::Origin));
+    hash.byte(u8::from(
+        crossing.effective.host_thread == CarryHostThread::Origin,
+    ));
+    hash.byte(match crossing.effective.address {
+        omega_core::semantics::CarryAddress::Movable => 1,
+        omega_core::semantics::CarryAddress::Stable => 2,
+    });
+    for live in &crossing.live_values {
+        hash.string(
+            program
+                .normalized_type_identity(live.type_reference)
+                .as_str(),
+        );
+        hash.byte(match live.storage {
+            SuspensionCrossingStorage::Persistent => 1,
+            SuspensionCrossingStorage::Parameter => 2,
+            SuspensionCrossingStorage::Local => 3,
+            SuspensionCrossingStorage::CallArgument => 4,
+        });
+        hash.byte(u8::from(
+            live.effective.suspension == CarrySuspension::Allowed,
+        ));
+        hash.byte(u8::from(live.effective.cpu == CarryCpu::Origin));
+        hash.byte(u8::from(
+            live.effective.host_thread == CarryHostThread::Origin,
+        ));
+        hash.byte(match live.effective.address {
+            omega_core::semantics::CarryAddress::Movable => 1,
+            omega_core::semantics::CarryAddress::Stable => 2,
+        });
+    }
+    Ok(CanonicalSuspensionCrossing {
+        identity: normalized_id(
+            hash.finish(),
+            SuspensionCrossingId::from_normalized_identity,
+        )?,
+        suspension_allowed: crossing.effective.suspension == CarrySuspension::Allowed,
+        preserve_cpu: crossing.effective.cpu == CarryCpu::Origin,
+        preserve_host_thread: crossing.effective.host_thread == CarryHostThread::Origin,
+    })
+}
+
+fn symbol_identity(program: &CheckedTrees, symbol: omega_core::symbols::SymbolHandle) -> &str {
+    for machine in program.machines() {
+        if machine.symbol == symbol {
+            return machine.name.as_str();
+        }
+        if let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
+        {
+            return state.name.as_str();
+        }
+    }
+    "<unknown>"
+}
+
+fn stack_representation_identity(target: NativeTarget) -> u64 {
+    let mut hash = StableHash::new();
+    hash.byte(0x53);
+    hash.string("fixed-nonmoving-stack-v1");
+    hash.byte(match target.architecture {
+        Architecture::Aarch64 => 1,
+        Architecture::X86_64 => 2,
+    });
+    hash.byte(match target.object_format {
+        ObjectFormat::Elf => 1,
+        ObjectFormat::MachO => 2,
+        ObjectFormat::Coff => 3,
+    });
+    hash.usize(target.pointer_size);
+    hash.usize(target.pointer_alignment);
+    hash.finish()
 }
 
 fn signature_layout_identity(
@@ -463,24 +535,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn migration_mapping_preserves_each_restrictive_axis() {
+    fn preservation_mapping_keeps_only_cpu_and_thread_obligations() {
         assert_eq!(
-            migration_demand(CarryPolicy {
+            carry_obligations(CarryPolicy {
                 suspension: CarrySuspension::Allowed,
                 cpu: CarryCpu::Origin,
                 host_thread: CarryHostThread::Origin,
-                address: CarryAddress::Stable,
+                address: omega_core::semantics::CarryAddress::Stable,
             }),
-            MigrationDemand {
-                cpu: SameCpuDemand::Same,
-                thread: SameThreadDemand::Same,
-                address: AddressStabilityDemand::Stable,
+            ActivationCarryObligations {
+                preserve_cpu: true,
+                preserve_host_thread: true,
             }
         );
     }
 
     #[test]
-    fn activation_safe_point_policy_joins_contained_machine_crossings() {
+    fn activation_crossings_include_contained_machine_crossings() {
         let root = omega_core::symbols::SymbolHandle::from_arena_index(1);
         let child = omega_core::symbols::SymbolHandle::from_arena_index(2);
         let field = omega_core::symbols::SymbolHandle::from_arena_index(3);
@@ -515,7 +586,7 @@ mod tests {
             suspension: CarrySuspension::Allowed,
             cpu: CarryCpu::Origin,
             host_thread: CarryHostThread::Any,
-            address: CarryAddress::Movable,
+            address: omega_core::semantics::CarryAddress::Movable,
         };
         program.facts.carry.suspension_crossings.push(
             omega_checked_trees::SuspensionCrossingCarryFact {
@@ -533,8 +604,13 @@ mod tests {
 
         assert!(crossings.root.is_empty());
         assert_eq!(crossings.subtree.len(), 1);
-        assert!(crossings.all_allow_suspension());
-        assert_eq!(crossings.safe_point_policy(), child_policy);
+        assert!(
+            crossings
+                .subtree
+                .iter()
+                .all(|crossing| crossing.effective.suspension == CarrySuspension::Allowed)
+        );
+        assert_eq!(crossings.subtree[0].effective, child_policy);
     }
 
     #[test]
@@ -614,15 +690,12 @@ mod tests {
             .expect("target machine");
         assert_eq!(target.name.as_str(), "Worker::run");
         let plan = activation.plan.candidate();
-        assert_eq!(plan.continuation_bytes, 16);
-        assert_eq!(plan.continuation_alignment, 8);
+        assert_eq!(plan.stack_plan.bytes, 16);
+        assert_eq!(plan.stack_plan.alignment, 8);
         assert!(plan.may_suspend);
         assert!(!plan.may_block);
-        assert_eq!(plan.safe_point_migration, MigrationDemand::unconstrained());
-        assert_eq!(
-            plan.asynchronous_migration,
-            Some(MigrationDemand::unconstrained())
-        );
+        assert_eq!(plan.canonical_suspension_crossings.len(), 1);
+        assert_eq!(plan.carry_obligations, ActivationCarryObligations::none());
         assert!(plan.cancellation_required);
         assert_ne!(plan.machine_contract.normalized_identity(), 0);
         assert_ne!(plan.argument_layout.normalized_identity(), 0);
@@ -636,12 +709,13 @@ mod tests {
         assert!(manifest.contains("\"operation\": \"start\""));
         assert!(manifest.contains("\"operation\": \"try_start\""));
         assert!(manifest.contains("\"target_machine\": \"Worker::run\""));
-        assert!(manifest.contains("\"continuation\": {\"bytes\": 16, \"alignment\": 8}"));
+        assert!(manifest.contains("\"stack_plan\": {\"bytes\": 16, \"alignment\": 8"));
+        assert!(manifest.contains("\"canonical_suspension_crossings\": ["));
         assert!(manifest.contains(
-            "\"asynchronous_migration\": {\"cpu\": \"any\", \"thread\": \"any\", \"address\": \"movable\"}"
+            "\"cpu_thread_preservation\": {\"preserve_cpu\": false, \"preserve_host_thread\": false}"
         ));
         assert!(manifest.contains("\"cancellation_required\": true"));
         assert!(manifest.contains("\"activation_plan_id\": \"0x"));
-        assert!(manifest.contains("\"runtime_admission\": {\"status\": \"pending_provider\"}"));
+        assert!(!manifest.contains("\"runtime_admission\""));
     }
 }

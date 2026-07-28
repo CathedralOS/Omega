@@ -411,18 +411,20 @@ improvements do not change public identity.
   call exit for checked, generic-slot, and admitted targets, including chained
   checked helpers; the independent carry entry survives even when the helper
   does not republish the authority qualification. Safe-point liveness and
-  asynchronous preemption facts consume the resulting per-value policy, and
+  activation-wide carry facts consume the resulting per-value policy, and
   artifacts publish both permission evidence and each crossing value's
-  effective axes. A source-to-artifact canary pins an admitted
-  suspension-only permission through selected-machine specialization and the
-  canonical safe-point crossing. Its current activation artifact still contains
-  the retired safe-point/all-instruction migration-demand compatibility fields;
-  those fields are not the settled provider contract.
-  Remaining CRY work is path-indexed aggregate/partial-move inheritance and
-  conserved multi-output outcome mappings under P1c. TR3–TR8 migrates the
-  activation artifact to `StackPlan`, canonical crossings, and demanded
-  CPU/thread preservation; linear argument custody and conservation remain
-  task-resource work rather than missing carry admission.
+  effective axes. Path-indexed transparent-record frontiers now preserve
+  contained claim identities and permissions through whole-record and field
+  transfers. Remaining CRY work is conserved multi-output outcome mapping.
+  A source-to-artifact canary pins an admitted suspension-only permission
+  through selected-machine specialization and the canonical safe-point
+  crossing. The activation artifact now carries a fixed-stack `StackPlan`,
+  canonical crossing identities, and demanded CPU/thread preservation; the
+  retired safe-point/all-instruction migration-demand fields and generalized
+  runtime join are gone. Its byte count remains the local machine/park-frontier
+  bridge until whole-call-graph WCSU composition lands. Linear argument custody
+  and conservation remain task-resource work rather than missing carry
+  admission.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;
@@ -430,12 +432,13 @@ improvements do not change public identity.
   nominal-drop partial-move rejection; repeated-cycle resource composition;
   and conservation-witness/backend-ledger reporting. Composite resource
   frontier transformations follow P1c.
-- **TR3–TR8:** migrate task activation from the retired generalized
-  `TaskRuntimeContract` join to WCSU-derived fixed nonmoving `StackPlan`,
-  `StackLease` reservation, canonical suspension crossings, and demand-driven
-  CPU/thread preservation; then finish custody, park/resume lowering,
-  suspension-safe loans, and reference packages. Authority-value declarations
-  follow P1a.
+- **TR3–TR8:** finish whole-call-graph WCSU derivation for the fixed nonmoving
+  `StackPlan`, `StackLease` reservation, selected-provider preservation and
+  cancellation conformance, transactional argument custody, park/resume
+  lowering, suspension-safe loans, and reference packages. The provider-
+  independent plan schema, canonical crossings, activation-wide CPU/thread
+  demands, and retirement of the generalized `TaskRuntimeContract` join are
+  complete. Authority-value declarations follow P1a.
 - **WORKPLAN:** after owner question #17, implement one deterministic
   abstract-work algebra for interrupt roots, work-to-next-safe-point queries,
   and build-evaluator metering. Preserve maximum/unbounded path attribution and

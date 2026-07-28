@@ -1,33 +1,39 @@
+//! Activation-wide CPU/thread carry analysis.
+//!
+//! This scans all typed storage and transient values because strict values can
+//! exist outside semantic suspension crossings. It derives obligations for an
+//! activation plan; it does not model or select a runtime preemption mode.
+
 use omega_core::semantics::CarryPolicy;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_typed_trees::types::TypeReferenceHandle;
 
-pub(super) fn build_machine_preemption_carry_facts(
+pub(super) fn build_machine_activation_carry_facts(
     program: &omega_typed_trees::TypedTrees,
     carry: &omega_checked_trees::CarryFacts,
     semantic: &omega_facts::FactPlan,
-) -> Vec<omega_checked_trees::MachinePreemptionCarryFact> {
+) -> Vec<omega_checked_trees::MachineActivationCarryFact> {
     let direct = program
         .machines()
         .iter()
-        .map(|machine| build_machine_preemption_carry_fact(program, semantic, machine))
+        .map(|machine| build_machine_activation_carry_fact(program, semantic, machine))
         .collect::<Vec<_>>();
 
     program
         .machines()
         .iter()
-        .map(|machine| join_machine_subtree_preemption(machine.symbol, carry, &direct))
+        .map(|machine| join_machine_subtree_activation_carry(machine.symbol, carry, &direct))
         .collect()
 }
 
-fn join_machine_subtree_preemption(
+fn join_machine_subtree_activation_carry(
     root: SymbolHandle,
     carry: &omega_checked_trees::CarryFacts,
-    direct: &[omega_checked_trees::MachinePreemptionCarryFact],
-) -> omega_checked_trees::MachinePreemptionCarryFact {
-    let mut joined = omega_checked_trees::MachinePreemptionCarryFact {
+    direct: &[omega_checked_trees::MachineActivationCarryFact],
+) -> omega_checked_trees::MachineActivationCarryFact {
+    let mut joined = omega_checked_trees::MachineActivationCarryFact {
         machine: root,
         effective: CarryPolicy::PERMISSIVE,
         analysis_complete: true,
@@ -55,12 +61,12 @@ fn join_machine_subtree_preemption(
     joined
 }
 
-fn build_machine_preemption_carry_fact(
+fn build_machine_activation_carry_fact(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,
     machine: &omega_typed_trees::machine::Machine,
-) -> omega_checked_trees::MachinePreemptionCarryFact {
-    let mut accumulator = PreemptionAccumulator {
+) -> omega_checked_trees::MachineActivationCarryFact {
+    let mut accumulator = ActivationCarryAccumulator {
         program,
         machine_type_parameters: program.machine_type_parameters(machine),
         effective: CarryPolicy::PERMISSIVE,
@@ -69,8 +75,8 @@ fn build_machine_preemption_carry_fact(
         unnamed_strict_values: 0,
     };
 
-    // Persistent activation storage exists independently of lexical use. A
-    // provider moving or migrating a preempted continuation must preserve it.
+    // Persistent activation storage exists independently of lexical use and
+    // contributes to the activation-wide preservation requirement.
     if let Some(attached_name) = machine.attached_data.as_ref()
         && let Some(attached) = program
             .data_definitions()
@@ -112,7 +118,7 @@ fn build_machine_preemption_carry_fact(
         accumulator.effective = accumulator.effective.intersect(claim_policy);
     }
 
-    omega_checked_trees::MachinePreemptionCarryFact {
+    omega_checked_trees::MachineActivationCarryFact {
         machine: machine.symbol,
         effective: accumulator.effective,
         analysis_complete: accumulator.analysis_complete,
@@ -187,7 +193,7 @@ fn fact_point_machine(point: omega_facts::ProgramPoint) -> Option<SymbolHandle> 
     }
 }
 
-struct PreemptionAccumulator<'program> {
+struct ActivationCarryAccumulator<'program> {
     program: &'program omega_typed_trees::TypedTrees,
     machine_type_parameters: &'program [omega_typed_trees::data::TypeParameter],
     effective: CarryPolicy,
@@ -196,7 +202,7 @@ struct PreemptionAccumulator<'program> {
     unnamed_strict_values: usize,
 }
 
-impl PreemptionAccumulator<'_> {
+impl ActivationCarryAccumulator<'_> {
     fn add_machine_type(&mut self, type_reference: TypeReferenceHandle) {
         self.add_type(self.machine_type_parameters, type_reference);
     }

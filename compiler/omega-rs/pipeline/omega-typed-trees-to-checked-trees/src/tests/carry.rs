@@ -761,7 +761,7 @@ fn accepts_restrictive_use_before_nested_suspending_call_in_same_statement() {
 }
 
 #[test]
-fn all_instruction_envelope_is_complete_for_resolved_permissive_machine() {
+fn activation_wide_carry_is_complete_for_resolved_permissive_machine() {
     let checked = lower(
         r#"
         data Job { value: i32; }
@@ -782,8 +782,8 @@ fn all_instruction_envelope_is_complete_for_resolved_permissive_machine() {
     let envelope = checked
         .facts
         .carry
-        .preemption_for_machine(machine.symbol)
-        .expect("all-instruction carry envelope");
+        .activation_carry_for_machine(machine.symbol)
+        .expect("activation-wide carry");
 
     assert!(envelope.analysis_complete);
     assert_eq!(
@@ -795,7 +795,7 @@ fn all_instruction_envelope_is_complete_for_resolved_permissive_machine() {
 }
 
 #[test]
-fn all_instruction_envelope_joins_restrictive_machine_values() {
+fn activation_wide_carry_joins_restrictive_machine_values() {
     let checked = lower(
         r#"
         data Cell { value: i32; }
@@ -815,8 +815,8 @@ fn all_instruction_envelope_joins_restrictive_machine_values() {
     let envelope = checked
         .facts
         .carry
-        .preemption_for_machine(machine.symbol)
-        .expect("all-instruction carry envelope");
+        .activation_carry_for_machine(machine.symbol)
+        .expect("activation-wide carry");
 
     assert!(envelope.analysis_complete);
     assert_eq!(
@@ -874,7 +874,7 @@ fn contained_topology_groups_fields_and_all_attached_machine_targets() {
 }
 
 #[test]
-fn all_instruction_envelope_joins_contained_machine_subtree() {
+fn activation_wide_carry_joins_contained_machine_subtree() {
     let checked = lower(
         r#"
         data Leaf {}
@@ -899,8 +899,8 @@ fn all_instruction_envelope_joins_contained_machine_subtree() {
     let envelope = checked
         .facts
         .carry
-        .preemption_for_machine(root.symbol)
-        .expect("root all-instruction envelope");
+        .activation_carry_for_machine(root.symbol)
+        .expect("root activation-wide carry");
 
     assert!(envelope.analysis_complete);
     assert_eq!(

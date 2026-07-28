@@ -7,6 +7,3 @@ version.workspace = true
 [lib]
 name = "omega_task_plans"
 path = "src/lib.rs"
-
-[dependencies]
-omega-core = { path = "../omega-core" }
