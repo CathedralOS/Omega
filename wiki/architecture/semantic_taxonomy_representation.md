@@ -553,9 +553,11 @@ Program-entry establishments are joined to the normalized platform argument
 writes before either straight-line or dispatched selection begins. A later
 consume cannot retroactively realize StateEntry, and a missing inbound write
 leaves the ledger incomplete rather than treating zero storage as
-establishment. A unique linear obligation returned from a state-local place is
-joined to the caller's receiving establishment without minting a caller-local
-origin. Nontrivial state-exit code actions now target the settled
+establishment. Linear obligations returned from direct state-local paths or
+record-constructor fields are joined to their caller receiving paths without
+minting caller-local identities or origins; opaque n-ary calls reject until
+they publish an explicit normalized output map. Nontrivial state-exit code
+actions now target the settled
 `EdgeCleanupPlan`: materialize outgoing values, commit the transfer map, clean
 the ordered dying affine places, and retain the exact conservation witness.
 Composite per-field debt uses the settled path-indexed frontier: explicit
@@ -563,11 +565,11 @@ nominal linearity contributes one root, transparent aggregates contribute their
 contained child claims. The first implemented slice follows statically named
 transparent-record fields through local construction, whole-record transfer,
 and extraction; moving one field preserves sibling debt, duplicate moves
-reject, and backend permission realizations retain the field paths and
-independent source provenance. Fresh claim identity, active-case and
-fixed-index frontiers, n-ary call/state maps, and per-claim carry remain P1c
-work. Symbol-keyed substitutions already retain contained claims through
-nested generic transparent records.
+reject, and backend permission realizations retain the field paths, independent
+source provenance, and transfer-stable claim identity. Active-case and
+fixed-index frontiers, general n-ary input and explicit call-output maps, and
+per-claim carry remain P1c work. Symbol-keyed substitutions already retain
+contained claims through nested generic transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
 compiler-owned algebra, normalized claim projection and admitted backing,
 root-lineage mapping, and exact separated-conservation witness. The initial

@@ -389,8 +389,9 @@ fn state_call_result_maps_multiple_claims_by_unique_output_path() {
 }
 
 #[test]
-fn state_call_result_rejects_ambiguous_multi_claim_mapping() {
-    let source = r#"
+fn state_call_result_maps_direct_aggregate_constructor_fields() {
+    let checked = checked(
+        r#"
         data Receipt [linear] { code: i32; }
         machine Receipt::ack(self) {}
         data Pair {
@@ -411,13 +412,99 @@ fn state_call_result_rejects_ambiguous_multi_claim_mapping() {
             Receipt::ack(right);
             0
         }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    let (issue_symbol, run_symbol) = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .fold((None, None), |(issue, run), state| {
+            match state.name.as_str() {
+                "issue" => (Some(state.symbol), run),
+                "run" => (issue, Some(state.symbol)),
+                _ => (issue, run),
+            }
+        });
+    let issue_symbol = issue_symbol.expect("issue state");
+    let run_symbol = run_symbol.expect("run state");
+    let callee_transfers = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.state_symbol == issue_symbol
+                && event.kind == PermissionEventKind::Transfer
+                && event.obligation_live
+        })
+        .collect::<Vec<_>>();
+    let caller_establishments = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.state_symbol == run_symbol
+                && event.kind == PermissionEventKind::Establish
+                && matches!(
+                    event.source,
+                    omega_core::semantics::PermissionEventSource::Statement { statement_index: 0 }
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(callee_transfers.len(), 2);
+    assert_eq!(caller_establishments.len(), 2);
+    assert_ne!(
+        caller_establishments[0].claim_identity,
+        caller_establishments[1].claim_identity
+    );
+    assert!(caller_establishments.iter().all(|establishment| {
+        callee_transfers
+            .iter()
+            .any(|transfer| transfer.claim_identity == establishment.claim_identity)
+    }));
+}
+
+#[test]
+fn state_call_result_rejects_opaque_multi_output_call_mapping() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::pack(left: Receipt, right: Receipt) -> Pair {
+            transition { _ -> Pair { left: left, right: right } }
+        }
+        machine Main::issue(&mut self) -> Pair {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            transition { _ -> Main::pack(left, right) }
+        }
+        machine Main::run(&mut self) -> i32 {
+            let returned: Pair = self.issue();
+            let left: Receipt = returned.left;
+            let right: Receipt = returned.right;
+            Receipt::ack(left);
+            Receipt::ack(right);
+            0
+        }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let diagnostics =
-        lower_typed_trees(typed).expect_err("the result needs an explicit n-ary outcome mapping");
+        lower_typed_trees(typed).expect_err("the opaque call needs an explicit n-ary outcome map");
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

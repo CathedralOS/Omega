@@ -219,9 +219,9 @@ pub(crate) fn record_permission_events(
 /// expressions. A zero-argument state call has no caller-side source place,
 /// though: without this join, binding a locally-created linear result in the
 /// caller would mint a second identity and origin even when the target has one
-/// unambiguous outgoing obligation. Ambiguous/multi-resource results remain
-/// conservative until the general resource algebra can publish an explicit
-/// result mapping.
+/// unambiguous outgoing obligation. Direct aggregate construction and
+/// path-aligned results publish structural output paths; opaque multi-output
+/// calls remain conservative until they publish an explicit result mapping.
 fn reconcile_state_call_result_origins(
     program: &omega_typed_trees::TypedTrees,
     segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
@@ -397,18 +397,18 @@ fn state_result_relative_path_for_event(
             .collect(),
         _ => return None,
     };
-    let event_path = segments.span_or_empty(event.segments);
     let mut paths = result_expressions
         .into_iter()
-        .filter_map(|expression| {
-            let place = crate::flow::canonical_place_from_expression_in_state(
+        .flat_map(|expression| {
+            state_result_relative_paths_for_expression(
                 program,
                 state_symbol,
                 statement_index,
                 expression,
-            )?;
-            (place.root == event.root && event_path.starts_with(place.segments.as_slice()))
-                .then(|| event_path[place.segments.len()..].to_vec())
+                event,
+                segments,
+                &[],
+            )
         })
         .fold(Vec::new(), |mut paths, path| {
             if !paths.contains(&path) {
@@ -417,6 +417,85 @@ fn state_result_relative_path_for_event(
             paths
         });
     (paths.len() == 1).then(|| paths.pop().expect("one result-relative path"))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn state_result_relative_paths_for_expression(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    event: &FlowPermissionEventFact,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    output_prefix: &[omega_facts::PlaceSegment],
+) -> Vec<Vec<omega_facts::PlaceSegment>> {
+    let event_path = segments.span_or_empty(event.segments);
+    if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    ) && place.root == event.root
+        && event_path.starts_with(place.segments.as_slice())
+    {
+        let mut output_path = output_prefix.to_vec();
+        output_path.extend_from_slice(&event_path[place.segments.len()..]);
+        return vec![output_path];
+    }
+
+    let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+    else {
+        return Vec::new();
+    };
+    // Active-case paths are a separate frontier slice. Until they exist, a
+    // case constructor cannot claim that its payload map is complete.
+    if literal.case_name.is_some() {
+        return Vec::new();
+    }
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+    else {
+        return Vec::new();
+    };
+
+    program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .flat_map(|literal_field| {
+            let Some(field) =
+                program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(field)
+                            if field.name.as_str() == literal_field.name.as_str() =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    })
+            else {
+                return Vec::new();
+            };
+            let mut field_prefix = output_prefix.to_vec();
+            field_prefix.push(omega_facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            });
+            state_result_relative_paths_for_expression(
+                program,
+                state_symbol,
+                statement_index,
+                literal_field.value,
+                event,
+                segments,
+                &field_prefix,
+            )
+        })
+        .collect()
 }
 
 fn statement_transfers_state_result(

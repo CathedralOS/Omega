@@ -11,10 +11,16 @@ data Pair {
 
 data Main {}
 
+machine Main::pack(left: Receipt, right: Receipt) -> Pair {
+    transition { _ -> Pair { left: left, right: right } }
+}
+
 machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
-    transition { _ -> Pair { left: left, right: right } }
+    // The outer result is an opaque n-ary call until explicit normalized
+    // call-output maps land; argument order is not authority evidence.
+    transition { _ -> Main::pack(left, right) }
 }
 
 machine Main::run(&mut self) -> i32 {

@@ -129,16 +129,19 @@ aggregates still contribute one indivisible nominal root.
 Path-aligned checked state results now infer n-ary claim conservation by exact
 relative output path: each uniquely matched callee claim keeps its identity and
 lineage through caller binding, while ambiguous or non-path-aligned checked
-multi-claim results reject instead of minting replacement claims.
+multi-claim results reject instead of minting replacement claims. Direct record
+constructors now contribute an explicit structural output map by nesting each
+source claim under its named field; nested opaque multi-output calls still
+reject until they publish a normalized outcome map.
 
 This is not full P1c: case and fixed-index paths, general state/call n-ary
-input maps and aggregate-constructor/explicit outcome maps, per-claim carry
-inheritance, content projections/backing, and conservation witnesses remain.
-Symbol-keyed substitutions already retain contained claims through nested
-generic transparent records.
+input maps and explicit call outcome maps, per-claim carry inheritance, content
+projections/backing, and conservation witnesses remain. Symbol-keyed
+substitutions already retain contained claims through nested generic
+transparent records.
 
-- extend inferred outcome mappings beyond direct path-aligned returns to
-  aggregate constructors and explicit normalized maps;
+- publish explicit normalized outcome maps for opaque n-ary calls and consume
+  them at caller result frontiers;
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed vocabulary `Indivisible | Interval<Scalar>`,
