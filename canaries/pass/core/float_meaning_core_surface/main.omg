@@ -1,0 +1,28 @@
+// F7 proof carrier: all four semantic classes are ordinary core sum cases,
+// finite values reuse public signed Rat, and NaN carries no payload.
+use omega::language::core::float_meaning;
+
+machine finite_meaning() -> FloatMeaning {
+    let value: Rat in NonZero = nonzero_rat(
+        Nat::Succ { prev: Nat::Zero },
+        Nat::Zero,
+        Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    );
+    finite_nonzero(value)
+}
+
+machine negative_zero_meaning() -> FloatMeaning {
+    FloatMeaning::Zero { sign: Sign::Negative }
+}
+
+machine positive_infinity_meaning() -> FloatMeaning {
+    FloatMeaning::Infinity { sign: Sign::Positive }
+}
+
+machine payload_erased_nan_meaning() -> FloatMeaning {
+    FloatMeaning::NaN
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1,0 +1,12 @@
+// FloatMeaning is a proof carrier, never a hidden runtime tagged union.
+use omega::language::core::float_meaning;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    meaning: FloatMeaning;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

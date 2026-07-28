@@ -92,7 +92,7 @@ than prose or a four-place relation:
 
 ```omega
 data FloatMeaning {
-    case FiniteNonZero(value: Rat); // signed value, value != 0
+    case FiniteNonZero(value: Rat in NonZero);
     case Zero(sign: Sign);
     case Infinity(sign: Sign);
     case NaN;
@@ -104,6 +104,13 @@ FloatSemantics::add(
     right: FloatMeaning,
 ) -> FloatMeaning;
 ```
+
+Landed 2026-07-28: this is ordinary core proof data.
+`Rat::NonZero` is the checked `num.pos != num.neg` domain;
+`nonzero_rat(negative, positive, denominator)` establishes it from direct Nat
+premises, and the finite case accepts only the qualified result. Because the
+sum contains proof-only `Rat`, attempting to place `FloatMeaning` in runtime
+storage is rejected rather than silently inventing a tagged runtime ABI.
 
 Conceptually, the boundary operator promises:
 
