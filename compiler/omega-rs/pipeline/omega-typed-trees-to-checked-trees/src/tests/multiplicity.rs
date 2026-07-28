@@ -530,3 +530,259 @@ fn nested_linear_record_extraction_stays_conservative_without_field_algebra() {
             .contains("linear value `pair` reaches scope exit")
     }));
 }
+
+#[test]
+fn transparent_record_frontier_preserves_independent_field_origins() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let pair: Pair = Pair { left: left, right: right };
+            let forwarded: Pair = pair;
+            let extracted_left: Receipt = forwarded.left;
+            let extracted_right: Receipt = forwarded.right;
+            Receipt::ack(extracted_left);
+            Receipt::ack(extracted_right);
+            0
+        }
+        "#,
+    );
+
+    use omega_core::semantics::{PermissionAccess, PermissionEventKind};
+    let events = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .filter(|event| event.access == PermissionAccess::Owned)
+        .collect::<Vec<_>>();
+    assert_eq!(events.len(), 16);
+
+    let pair_symbol = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| match statement {
+            omega_typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == "pair" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("pair local");
+    let pair_establishments = events
+        .iter()
+        .copied()
+        .filter(|event| {
+            event.kind == PermissionEventKind::Establish
+                && event.root == omega_facts::PlaceRoot::Symbol(pair_symbol)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        pair_establishments.len(),
+        2,
+        "transparent records establish one frontier entry per contained linear field"
+    );
+    assert!(pair_establishments.iter().all(|event| {
+        checked
+            .facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(event.segments)
+            .len()
+            == 1
+    }));
+    assert_ne!(
+        pair_establishments[0].provenance, pair_establishments[1].provenance,
+        "constructing an aggregate must not collapse independent field lineages"
+    );
+    for establishment in pair_establishments {
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.provenance == establishment.provenance)
+                .count(),
+            8,
+            "each source claim must map through its field and extracted local independently"
+        );
+    }
+}
+
+#[test]
+fn transparent_record_partial_move_leaves_sibling_obligation_live() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let pair: Pair = Pair { left: left, right: right };
+            let extracted: Receipt = pair.left;
+            Receipt::ack(extracted);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the untouched sibling remains an obligation");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("linear value `pair.right` reaches scope exit")
+    }));
+}
+
+#[test]
+fn transparent_record_rejects_duplicate_field_move() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let pair: Pair = Pair { left: left, right: right };
+            let first: Receipt = pair.left;
+            let duplicate: Receipt = pair.left;
+            let remaining: Receipt = pair.right;
+            Receipt::ack(first);
+            Receipt::ack(duplicate);
+            Receipt::ack(remaining);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("one field claim cannot move twice");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("linear value `pair.left` was already transferred")
+    }));
+}
+
+#[test]
+fn transparent_record_sibling_assignment_transfers_the_source_claim() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Pair {
+            left: Receipt;
+            right: Receipt;
+        }
+        data Main {}
+        machine Main::run() -> i32 {
+            let left: Receipt = Receipt { code: 1 };
+            let right: Receipt = Receipt { code: 2 };
+            let pair: Pair = Pair { left: left, right: right };
+            let old_left: Receipt = pair.left;
+            Receipt::ack(old_left);
+            pair.left = pair.right;
+            let forwarded: Receipt = pair.left;
+            Receipt::ack(forwarded);
+            let duplicate: Receipt = pair.right;
+            Receipt::ack(duplicate);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("assigning from a sibling must transfer its claim");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("linear value `pair.right` was already transferred")
+    }));
+}
+
+#[test]
+fn nested_generic_transparent_record_retains_the_concrete_claim_path() {
+    let checked = checked(
+        r#"
+        data Receipt [linear] { code: i32; }
+        machine Receipt::ack(self) {}
+        data Box<T> { value: T; }
+        data Envelope<T> { boxed: Box<T>; }
+        data Main {}
+        machine Main::run() -> i32 {
+            let issued: Receipt = Receipt { code: 7 };
+            let boxed: Box<Receipt> = Box { value: issued };
+            let envelope: Envelope<Receipt> = Envelope { boxed: boxed };
+            let extracted: Receipt = envelope.boxed.value;
+            Receipt::ack(extracted);
+            0
+        }
+        "#,
+    );
+
+    let envelope_symbol = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| match statement {
+            omega_typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == "envelope" =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("envelope local");
+    let establishment = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .map(|(_, event)| event)
+        .find(|event| {
+            event.kind == omega_core::semantics::PermissionEventKind::Establish
+                && event.root == omega_facts::PlaceRoot::Symbol(envelope_symbol)
+        })
+        .expect("nested generic frontier establishment");
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(establishment.segments)
+            .len(),
+        2,
+        "the concrete claim must remain nested under both generic record fields"
+    );
+}

@@ -13,6 +13,10 @@ use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 struct LinearPlace {
     symbol: SymbolHandle,
     name: String,
+    /// Canonical claim path below `symbol`. An empty path is one nominal or
+    /// conditional root claim; transparent records contribute one entry per
+    /// contained linear claim instead of inventing an aggregate root.
+    path: Vec<omega_facts::PlaceSegment>,
     type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
     provenance: Option<PermissionProvenance>,
@@ -26,11 +30,21 @@ struct LinearPlace {
     conditional: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct WrittenLinearTarget {
     root: omega_facts::PlaceRoot,
+    destination_path: Vec<omega_facts::PlaceSegment>,
+    place_index: usize,
     obligation_live: bool,
     provenance: Option<PermissionProvenance>,
+}
+
+#[derive(Debug, Clone)]
+struct LinearClaimTemplate {
+    path: Vec<omega_facts::PlaceSegment>,
+    type_reference: TypeReferenceHandle,
+    multiplicity: Multiplicity,
+    conditional: bool,
 }
 
 pub(crate) fn check_linear_obligations(
@@ -70,6 +84,11 @@ pub(crate) fn record_permission_events(
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
         for place in places.iter().filter(|place| place.ever_established) {
+            let segments = facts
+                .flow
+                .ownership
+                .segments
+                .insert_many(place.path.iter().copied());
             permission_events.push(FlowPermissionEventFact {
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state.symbol,
@@ -79,7 +98,7 @@ pub(crate) fn record_permission_events(
                 access: PermissionAccess::Owned,
                 provenance: place.provenance.expect("entry place has provenance"),
                 root: omega_facts::PlaceRoot::Symbol(place.symbol),
-                segments: HandleSpan::empty(),
+                segments,
                 obligation_live: true,
             });
         }
@@ -314,6 +333,7 @@ pub(crate) fn validate_linear_permission_events(
             apply_recorded_statement_events(
                 statement_index,
                 &events,
+                &facts.flow.ownership.segments,
                 &mut places,
                 &mut diagnostics,
             );
@@ -331,6 +351,7 @@ pub(crate) fn validate_linear_permission_events(
                 apply_recorded_statement_events(
                     statement_index,
                     &events,
+                    &facts.flow.ownership.segments,
                     &mut outcome,
                     &mut diagnostics,
                 );
@@ -361,7 +382,8 @@ pub(crate) fn validate_linear_permission_events(
                             "linear value `{}` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation",
                             places[place_index].name
                         )));
-                        mixed_places.push(places[place_index].symbol);
+                        mixed_places
+                            .push((places[place_index].symbol, places[place_index].path.clone()));
                     } else {
                         places[place_index].live = live;
                         places[place_index].ever_established = outcomes
@@ -372,10 +394,12 @@ pub(crate) fn validate_linear_permission_events(
             }
         }
 
-        for place in places
-            .iter()
-            .filter(|place| place.live && !mixed_places.contains(&place.symbol))
-        {
+        for place in places.iter().filter(|place| {
+            place.live
+                && !mixed_places
+                    .iter()
+                    .any(|(symbol, path)| *symbol == place.symbol && *path == place.path)
+        }) {
             diagnostics.push(Diagnostic::error(format!(
                 "linear value `{}` reaches scope exit without being consumed or transferred",
                 place.name
@@ -403,14 +427,13 @@ fn initial_linear_places(
         if parameter.is_self {
             continue;
         }
-        let multiplicity = type_multiplicity(program, parameter.type_reference);
-        let conditional = type_has_conditional_linear_payload(program, parameter.type_reference);
-        if multiplicity == Multiplicity::Linear || conditional {
+        for claim in linear_claim_frontier(program, parameter.type_reference) {
             places.push(LinearPlace {
                 symbol: parameter.symbol,
-                name: parameter.name.as_str().to_owned(),
-                type_reference: parameter.type_reference,
-                multiplicity,
+                name: claim_place_name(program, parameter.name.as_str(), &claim.path),
+                path: claim.path,
+                type_reference: claim.type_reference,
+                multiplicity: claim.multiplicity,
                 provenance: Some(established_provenance(
                     machine_symbol,
                     state_symbol,
@@ -418,7 +441,7 @@ fn initial_linear_places(
                 )),
                 live: true,
                 ever_established: true,
-                conditional,
+                conditional: claim.conditional,
             });
         }
     }
@@ -426,27 +449,215 @@ fn initial_linear_places(
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
-        let multiplicity = type_multiplicity(program, local.type_reference);
-        let conditional = type_has_conditional_linear_payload(program, local.type_reference);
-        if multiplicity == Multiplicity::Linear || conditional {
+        for claim in linear_claim_frontier(program, local.type_reference) {
             places.push(LinearPlace {
                 symbol: local.symbol,
-                name: local.name.as_str().to_owned(),
-                type_reference: local.type_reference,
-                multiplicity,
+                name: claim_place_name(program, local.name.as_str(), &claim.path),
+                path: claim.path,
+                type_reference: claim.type_reference,
+                multiplicity: claim.multiplicity,
                 provenance: None,
                 live: false,
                 ever_established: false,
-                conditional,
+                conditional: claim.conditional,
             });
         }
     }
     places
 }
 
+fn linear_claim_frontier(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<LinearClaimTemplate> {
+    let mut claims = Vec::new();
+    append_linear_claim_frontier(
+        program,
+        type_reference,
+        &[],
+        &[],
+        &mut Vec::new(),
+        &mut claims,
+    );
+    claims
+}
+
+fn append_linear_claim_frontier(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    path: &[omega_facts::PlaceSegment],
+    visiting: &mut Vec<SymbolHandle>,
+    claims: &mut Vec<LinearClaimTemplate>,
+) {
+    if !type_reference.is_valid() {
+        return;
+    }
+    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
+    if multiplicity == Multiplicity::Linear {
+        claims.push(LinearClaimTemplate {
+            path: path.to_vec(),
+            type_reference,
+            multiplicity,
+            conditional: false,
+        });
+        return;
+    }
+    if conditional_linear_payload_inner(program, type_reference, substitutions, &mut Vec::new()) {
+        claims.push(LinearClaimTemplate {
+            path: path.to_vec(),
+            type_reference,
+            multiplicity,
+            conditional: true,
+        });
+        return;
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            append_linear_claim_frontier(program, *base_type, substitutions, path, visiting, claims)
+        }
+        TypeReferenceNode::Named { symbol, name } => {
+            if let Some(replacement) =
+                substitutions
+                    .iter()
+                    .rev()
+                    .find_map(|(parameter, replacement)| {
+                        (*parameter == *symbol).then_some(*replacement)
+                    })
+                && replacement != type_reference
+            {
+                append_linear_claim_frontier(
+                    program,
+                    replacement,
+                    substitutions,
+                    path,
+                    visiting,
+                    claims,
+                );
+                return;
+            }
+            let Some(definition) = find_data_definition(program, *symbol, name.as_str()) else {
+                return;
+            };
+            append_data_linear_claim_frontier(
+                program,
+                definition,
+                substitutions,
+                path,
+                visiting,
+                claims,
+            );
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } => {
+            let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str())
+            else {
+                return;
+            };
+            let mut instantiated = substitutions.to_vec();
+            instantiated.extend(
+                program
+                    .data_type_parameters(definition)
+                    .iter()
+                    .zip(
+                        program
+                            .type_reference_table
+                            .type_reference_handles(*arguments),
+                    )
+                    .filter_map(|(parameter, argument)| {
+                        matches!(
+                            parameter.kind,
+                            omega_typed_trees::data::TypeParameterKind::Type
+                        )
+                        .then_some((parameter.symbol, *argument))
+                    }),
+            );
+            append_data_linear_claim_frontier(
+                program,
+                definition,
+                &instantiated,
+                path,
+                visiting,
+                claims,
+            );
+        }
+        // Literal fixed-array indices and active sum cases join this same
+        // frontier once their canonical path identities are available.
+        TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn append_data_linear_claim_frontier(
+    program: &omega_typed_trees::TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    path: &[omega_facts::PlaceSegment],
+    visiting: &mut Vec<SymbolHandle>,
+    claims: &mut Vec<LinearClaimTemplate>,
+) {
+    if visiting.contains(&definition.symbol) {
+        return;
+    }
+    visiting.push(definition.symbol);
+    for member in program.data_members(definition) {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            continue;
+        };
+        let mut field_path = path.to_vec();
+        field_path.push(omega_facts::PlaceSegment::Field {
+            symbol: field.symbol,
+        });
+        append_linear_claim_frontier(
+            program,
+            field.type_reference,
+            substitutions,
+            &field_path,
+            visiting,
+            claims,
+        );
+    }
+    visiting.pop();
+}
+
+fn claim_place_name(
+    program: &omega_typed_trees::TypedTrees,
+    root: &str,
+    path: &[omega_facts::PlaceSegment],
+) -> String {
+    let mut name = root.to_owned();
+    for segment in path {
+        match segment {
+            omega_facts::PlaceSegment::Field { symbol } => {
+                let field = program.data_definitions().iter().find_map(|definition| {
+                    program.data_members(definition).iter().find_map(|member| {
+                        let omega_typed_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.symbol == *symbol).then_some(field.name.as_str())
+                    })
+                });
+                name.push('.');
+                name.push_str(field.unwrap_or("<field>"));
+            }
+            omega_facts::PlaceSegment::Index { .. } => name.push_str("[<index>]"),
+        }
+    }
+    name
+}
+
 fn apply_recorded_statement_events(
     statement_index: usize,
     events: &[&FlowPermissionEventFact],
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
     places: &mut [LinearPlace],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -457,7 +668,11 @@ fn apply_recorded_statement_events(
         let omega_facts::PlaceRoot::Symbol(symbol) = event.root else {
             continue;
         };
-        let Some(place) = places.iter_mut().find(|place| place.symbol == symbol) else {
+        let event_path = segments.span_or_empty(event.segments);
+        let Some(place) = places
+            .iter_mut()
+            .find(|place| place.symbol == symbol && place.path.as_slice() == event_path)
+        else {
             continue;
         };
         match event.kind {
@@ -632,7 +847,7 @@ fn permission_source_from_invalidation(
 #[allow(clippy::too_many_arguments)]
 fn apply_statement_permission_production(
     program: &omega_typed_trees::TypedTrees,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
@@ -648,58 +863,74 @@ fn apply_statement_permission_production(
         return;
     }
 
-    let written_target =
-        written_whole_linear_target(program, state_symbol, statement_index, statement, places);
+    let written_targets =
+        written_linear_targets(program, state_symbol, statement_index, statement, places);
 
     // Moves out of initializer/assignment sources happen before the
     // destination becomes established. The old move-only summary also
     // contains a production event *at* the destination; exclude that
     // compatibility event here rather than mistaking creation for use.
-    for event in moves.iter().filter(|event| {
-        event_statement_index(event.source) == Some(statement_index)
-            && written_target.map(|target| target.root) != Some(event.root)
-    }) {
+    for event in moves
+        .iter()
+        .filter(|event| event_statement_index(event.source) == Some(statement_index))
+    {
         let omega_facts::PlaceRoot::Symbol(symbol) = event.root else {
             continue;
         };
-        let Some(place) = places.iter_mut().find(|place| place.symbol == symbol) else {
-            continue;
-        };
-        let segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-        // Whole-place tracking can soundly settle a nested move only for a
-        // conditional sum: its live case carries the single payload debt, so
-        // extracting that payload transfers the root's obligation. Ordinary
-        // linear aggregates need a future per-field resource algebra rather
-        // than pretending one field move consumed every sibling.
-        if !segments.is_empty() && (!place.conditional || written_target.is_none()) {
+        let event_path = facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(event.segments)
+            .to_vec();
+        if written_targets.iter().any(|target| {
+            target.root == event.root && target.destination_path.as_slice() == event_path
+        }) {
             continue;
         }
-        let obligation_live = place.live;
-        permission_events.push(FlowPermissionEventFact {
-            machine_symbol,
-            state_symbol,
-            source: permission_source(event.source),
-            kind: permission_kind_for_move(program, facts, machine_symbol, state_symbol, event),
-            multiplicity: place.multiplicity,
-            access: PermissionAccess::Owned,
-            provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
-            root: event.root,
-            segments: event.segments,
-            obligation_live,
-        });
-        place.live = false;
+        let matching = places
+            .iter()
+            .enumerate()
+            .filter_map(|(index, place)| {
+                (place.symbol == symbol && move_selects_claim(&event_path, place)).then_some(index)
+            })
+            .collect::<Vec<_>>();
+        if matching.is_empty() {
+            continue;
+        }
+        let kind = permission_kind_for_move(program, facts, machine_symbol, state_symbol, event);
+        for index in matching {
+            let claim_path = places[index].path.clone();
+            let segments = facts.flow.ownership.segments.insert_many(claim_path);
+            let place = &mut places[index];
+            let obligation_live = place.live;
+            permission_events.push(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source: permission_source(event.source),
+                kind,
+                multiplicity: place.multiplicity,
+                access: PermissionAccess::Owned,
+                provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
+                root: event.root,
+                segments,
+                obligation_live,
+            });
+            place.live = false;
+        }
     }
 
-    if let Some(WrittenLinearTarget {
-        root: omega_facts::PlaceRoot::Symbol(symbol),
-        obligation_live,
-        provenance,
-    }) = written_target
-    {
-        let place = places
-            .iter_mut()
-            .find(|place| place.symbol == symbol)
-            .expect("written linear target came from the tracked place set");
+    for target in written_targets {
+        let omega_facts::PlaceRoot::Symbol(symbol) = target.root else {
+            continue;
+        };
+        let place_index = target.place_index;
+        let obligation_live = target.obligation_live;
+        let provenance = target.provenance;
+        let claim_path = places[place_index].path.clone();
+        let segments = facts.flow.ownership.segments.insert_many(claim_path);
+        let place = &mut places[place_index];
+        debug_assert_eq!(place.symbol, symbol);
         place.live = obligation_live;
         place.ever_established = true;
         place.provenance = Some(provenance.unwrap_or_else(|| {
@@ -720,10 +951,15 @@ fn apply_statement_permission_production(
                 .provenance
                 .expect("an established place has explicit provenance"),
             root: omega_facts::PlaceRoot::Symbol(symbol),
-            segments: HandleSpan::empty(),
+            segments,
             obligation_live,
         });
     }
+}
+
+fn move_selects_claim(event_path: &[omega_facts::PlaceSegment], claim: &LinearPlace) -> bool {
+    claim.path.starts_with(event_path)
+        || (claim.conditional && event_path.starts_with(claim.path.as_slice()))
 }
 
 fn established_provenance(
@@ -822,117 +1058,165 @@ fn permission_kind_for_move(
     PermissionEventKind::Transfer
 }
 
-fn written_whole_linear_target(
+fn written_linear_targets(
     program: &omega_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
     places: &[LinearPlace],
-) -> Option<WrittenLinearTarget> {
-    match statement {
+) -> Vec<WrittenLinearTarget> {
+    let (target, value) = match statement {
         StatementNode::LocalData(local) => {
-            let tracked = places.iter().find(|place| place.symbol == local.symbol)?;
-            local.initial_value.is_valid().then(|| WrittenLinearTarget {
-                root: omega_facts::PlaceRoot::Symbol(local.symbol),
-                obligation_live: expression_establishes_obligation(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    local.initial_value,
-                    tracked.conditional,
-                    tracked.type_reference,
-                    places,
-                ),
-                provenance: expression_permission_provenance(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    local.initial_value,
-                    places,
-                ),
-            })
+            if !local.initial_value.is_valid() {
+                return Vec::new();
+            }
+            (
+                crate::flow::CanonicalPlace {
+                    root: omega_facts::PlaceRoot::Symbol(local.symbol),
+                    segments: Vec::new(),
+                },
+                local.initial_value,
+            )
         }
         StatementNode::Assignment(assignment) => {
-            let place = crate::flow::canonical_place_from_expression_in_state(
+            let Some(place) = crate::flow::canonical_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
                 assignment.target,
-            )?;
-            if !place.segments.is_empty() {
+            ) else {
+                return Vec::new();
+            };
+            (place, assignment.value)
+        }
+        _ => return Vec::new(),
+    };
+    let omega_facts::PlaceRoot::Symbol(symbol) = target.root else {
+        return Vec::new();
+    };
+
+    places
+        .iter()
+        .enumerate()
+        .filter_map(|(place_index, tracked)| {
+            if tracked.symbol != symbol || !tracked.path.starts_with(target.segments.as_slice()) {
                 return None;
             }
-            let omega_facts::PlaceRoot::Symbol(symbol) = place.root else {
-                return None;
-            };
-            let tracked = places.iter().find(|tracked| tracked.symbol == symbol)?;
+            let relative_path = &tracked.path[target.segments.len()..];
             Some(WrittenLinearTarget {
-                root: place.root,
+                root: target.root,
+                destination_path: target.segments.clone(),
+                place_index,
                 obligation_live: expression_establishes_obligation(
                     program,
                     state_symbol,
                     statement_index,
-                    assignment.value,
+                    value,
                     tracked.conditional,
                     tracked.type_reference,
                     places,
                 ),
-                provenance: expression_permission_provenance(
+                provenance: expression_permission_provenance_for_claim(
                     program,
                     state_symbol,
                     statement_index,
-                    assignment.value,
+                    value,
+                    relative_path,
                     places,
                 ),
             })
-        }
-        _ => None,
-    }
+        })
+        .collect()
 }
 
-fn expression_permission_provenance(
+fn expression_permission_provenance_for_claim(
     program: &omega_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: omega_typed_trees::expression::ExpressionHandle,
+    relative_path: &[omega_facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
-    match program.expression_table.expression(expression) {
-        omega_typed_trees::expression::ExpressionNode::Call(call) => {
-            let mut candidates = Vec::new();
-            if call.receiver.is_valid() {
-                candidates.push(call.receiver);
+    if relative_path.is_empty() {
+        match program.expression_table.expression(expression) {
+            omega_typed_trees::expression::ExpressionNode::Call(call) => {
+                let mut candidates = Vec::new();
+                if call.receiver.is_valid() {
+                    candidates.push(call.receiver);
+                }
+                candidates
+                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
+                return common_permission_provenance(candidates.into_iter().filter_map(
+                    |candidate| {
+                        expression_permission_provenance_for_claim(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            candidate,
+                            &[],
+                            places,
+                        )
+                    },
+                ));
             }
-            candidates
-                .extend_from_slice(program.expression_table.expression_handles(call.arguments));
-            let origins = candidates.into_iter().filter_map(|candidate| {
-                expression_permission_provenance(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    candidate,
-                    places,
-                )
-            });
-            return common_permission_provenance(origins);
+            omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                return common_permission_provenance(
+                    program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .filter_map(|field| {
+                            expression_permission_provenance_for_claim(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                field.value,
+                                &[],
+                                places,
+                            )
+                        }),
+                );
+            }
+            _ => {}
         }
-        omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-            let origins = program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .filter_map(|field| {
-                    expression_permission_provenance(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        field.value,
-                        places,
-                    )
-                });
-            return common_permission_provenance(origins);
-        }
-        _ => {}
+    }
+
+    if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+        && let Some(omega_facts::PlaceSegment::Field { symbol }) = relative_path.first()
+    {
+        let field_name = program.data_definitions().iter().find_map(|definition| {
+            program.data_members(definition).iter().find_map(|member| {
+                let omega_typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                (field.symbol == *symbol).then_some(field.name.as_str())
+            })
+        })?;
+        let field = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| field.name.as_str() == field_name)?;
+        return expression_permission_provenance_for_claim(
+            program,
+            state_symbol,
+            statement_index,
+            field.value,
+            &relative_path[1..],
+            places,
+        );
+    }
+
+    if !relative_path.is_empty()
+        && matches!(
+            program.expression_table.expression(expression),
+            omega_typed_trees::expression::ExpressionNode::Call(_)
+        )
+    {
+        // Multi-output call mappings need the explicit P1c outcome map. Do
+        // not guess a field origin from argument order.
+        return None;
     }
 
     let source = crate::flow::canonical_place_from_expression_in_state(
@@ -944,10 +1228,18 @@ fn expression_permission_provenance(
     let omega_facts::PlaceRoot::Symbol(symbol) = source.root else {
         return None;
     };
-    places
+    let mut source_path = source.segments;
+    source_path.extend_from_slice(relative_path);
+    let matches = places
         .iter()
-        .find(|place| place.symbol == symbol && (source.segments.is_empty() || place.conditional))
-        .and_then(|place| place.provenance)
+        .filter(|place| {
+            place.symbol == symbol
+                && place.live
+                && (place.path == source_path
+                    || (place.conditional && source_path.starts_with(place.path.as_slice())))
+        })
+        .filter_map(|place| place.provenance);
+    common_permission_provenance(matches)
 }
 
 /// Discover ordinary affine cleanup directly from typed ownership rather than
@@ -1011,8 +1303,7 @@ pub(crate) fn type_carries_linear_obligation(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_multiplicity(program, type_reference) == Multiplicity::Linear
-        || type_has_conditional_linear_payload(program, type_reference)
+    !linear_claim_frontier(program, type_reference).is_empty()
 }
 
 fn expression_establishes_obligation(
@@ -1153,13 +1444,6 @@ pub(crate) fn type_multiplicity(
             Multiplicity::Affine
         }
     }
-}
-
-fn type_has_conditional_linear_payload(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    conditional_linear_payload_inner(program, type_reference, &[], &mut Vec::new())
 }
 
 fn conditional_linear_payload_inner(

@@ -217,7 +217,7 @@ unbounded and tooling reports the responsible path.
 
 WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
 depends on the normalized bounded-work plan tracked in
-`OWNER_QUESTIONS.md` #16. Wall-clock conversion additionally requires a
+`OWNER_QUESTIONS.md` #17. Wall-clock conversion additionally requires a
 target timing model and retains that model's trust provenance.
 
 ## Carry Policy Is A Product
@@ -344,7 +344,7 @@ a bounded pool of guarded OS-worker stacks. The safe point is reached when the
 caller parks; native completion, cancellation finalization, retained-loan
 release, and later pool admission remain independent and may be unbounded.
 These are reported separately. The reusable gateway contract remains owner
-question #17, foreign callback entry remains #12, and retained native pointers
+question #18, foreign callback entry remains #12, and retained native pointers
 remain #14.
 
 ## Cancellation Is A Value At The Wait

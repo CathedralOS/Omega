@@ -196,6 +196,15 @@ resources after move:
   .socket → live
 ```
 
+The first implemented frontier slice covers statically named fields of
+transparent records. A record that is not itself declared `[linear]` derives
+its contained linear field claims without adding an aggregate claim; local
+construction, whole-record transfer, and field extraction retain those paths.
+Moving one field therefore leaves its siblings live, and moving the same field
+twice rejects. An explicit `[linear]` record remains one indivisible nominal
+root. Active sum cases and fixed array indices are still conservative until
+their P1c frontier identities and mappings are implemented.
+
 An aggregate with structural field cleanup may be partially moved. Its cleanup
 plan visits only the remaining live fields.
 

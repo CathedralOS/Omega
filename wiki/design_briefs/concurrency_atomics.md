@@ -232,7 +232,7 @@ The compiler never inserts a semantic safe point as an ordinary optimization.
 A hot non-suspending kernel may be architecturally preempted while an outer
 machine places explicit polls between bounded chunks. Maximum abstract work
 between such points depends on the normalized bounded-work plan in
-`OWNER_QUESTIONS.md` #16. Blocking creates no safe point; absent a finite wait
+`OWNER_QUESTIONS.md` #17. Blocking creates no safe point; absent a finite wait
 ceiling, semantic response is unbounded through the named blocking edge.
 
 ## Acceptance cases
@@ -263,7 +263,7 @@ ceiling, semantic response is unbounded through the named blocking edge.
   suspension-safe loans.
 - `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
   start outcome, task/provider provenance, and child-lease accounting.
-- Normalized bounded-work plan after owner question #16.
+- Normalized bounded-work plan after owner question #17.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
 - `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general

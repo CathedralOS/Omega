@@ -112,6 +112,20 @@ ordinary trait visibility do not delegate authority.
 **CLEAR DIRECTION.** Implement path-indexed partial moves and content-conserving
 multi-output transformations.
 
+Implementation checkpoint (2026-07-28): transparent records now derive one
+tracked claim per statically named contained linear field instead of requiring
+an affine wrapper to reject or silently erase the debt. Local construction,
+whole-record transfer, and field extraction preserve each claim's canonical
+path and transfer-stable provenance independently; partial moves leave sibling
+obligations live; duplicate moves and sibling scope loss reject; and the
+backend permission ledger retains complete path-indexed event realizations.
+Explicit `[linear]` aggregates still contribute one indivisible nominal root.
+This is the first frontier slice, not full P1c: a fresh claim identity distinct
+from provenance/root lineage, case and fixed-index paths, state/call n-ary
+outcome maps, per-claim carry inheritance, content projections/backing, and
+conservation witnesses remain. Symbol-keyed substitutions already retain
+contained claims through nested generic transparent records.
+
 - give every establishment a fresh claim identity while retaining root lineage
   independently from its current canonical place;
 - infer one-to-one and unambiguous aggregate outcome mappings, preserve sibling
@@ -396,17 +410,16 @@ improvements do not change public identity.
   does not republish the authority qualification. Safe-point liveness and
   asynchronous preemption facts consume the resulting per-value policy, and
   artifacts publish both permission evidence and each crossing value's
-  effective axes. Task activation elaboration feeds those policies into the
-  existing normalized safe-point and all-instruction migration demands;
-  `omega-task-plans` already selects the envelope by provider preemption mode
-  and rejects incompatible CPU migration, host-thread migration, or
-  continuation movement. A source-to-artifact canary now pins the restrictive
-  three-axis demand established by an admitted suspension-only permission.
+  effective axes. A source-to-artifact canary pins an admitted
+  suspension-only permission through selected-machine specialization and the
+  canonical safe-point crossing. Its current activation artifact still contains
+  the retired safe-point/all-instruction migration-demand compatibility fields;
+  those fields are not the settled provider contract.
   Remaining CRY work is path-indexed aggregate/partial-move inheritance and
-  conserved multi-output outcome mappings under P1c. Task-runtime provider
-  publication/selection remains owner-blocked on #9, while linear argument
-  custody and conservation remain TR3–TR8 work rather than missing carry
-  admission.
+  conserved multi-output outcome mappings under P1c. TR3–TR8 migrates the
+  activation artifact to `StackPlan`, canonical crossings, and demanded
+  CPU/thread preservation; linear argument custody and conservation remain
+  task-resource work rather than missing carry admission.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;
@@ -420,12 +433,12 @@ improvements do not change public identity.
   CPU/thread preservation; then finish custody, park/resume lowering,
   suspension-safe loans, and reference packages. Authority-value declarations
   follow P1a.
-- **WORKPLAN:** after owner question #16, implement one deterministic
+- **WORKPLAN:** after owner question #17, implement one deterministic
   abstract-work algebra for interrupt roots, work-to-next-safe-point queries,
   and build-evaluator metering. Preserve maximum/unbounded path attribution and
   keep external wait plus wall-clock conversion in separate trust-bearing
   columns.
-- **FFIGATE:** after owner question #17, implement the hosted-FFI gateway as an
+- **FFIGATE:** after owner question #18, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and
   shutdown/quiescence. Callback entry remains blocked on #12 and retained
@@ -546,15 +559,15 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #3 resource frontier and transformations | contained linear debt, cleanup, and authority transformations |
 | #10 primitive float requirement family | float-format providers |
 | #11 wire family/presence/evolution | remaining wire runtime |
 | #12 sealed external entry reference | callbacks and dynamic entry registration |
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
-| #16 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
-| #17 hosted-FFI gateway | reusable native-worker execution and backpressure |
+| #16 delegated canonical qualification | third-party bodyless-domain qualification |
+| #17 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
+| #18 hosted-FFI gateway | reusable native-worker execution and backpressure |
 
 ## Vertical acceptance slices
 

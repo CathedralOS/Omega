@@ -54,52 +54,7 @@ pub(crate) fn validate_data_properties(
         if let Some(carry) = properties.carry {
             validate_carry_policy(program, data_definition, carry, diagnostics);
         }
-        if properties.multiplicity != omega_core::semantics::Multiplicity::Linear {
-            validate_no_linear_erasure(program, symbols, data_definition, diagnostics);
-        }
     }
-}
-
-/// A stored linear obligation makes its enclosing value linear. V1 requires
-/// that propagation to be explicit on the enclosing declaration so a field or
-/// payload can never silently degrade into affine/drop-permitted ownership.
-fn validate_no_linear_erasure(
-    program: &TypedTrees,
-    symbols: &TopLevelSymbols<'_>,
-    data_definition: &DataDefinition,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let type_parameters = program.data_type_parameters(data_definition);
-    for_each_stored_field(
-        program,
-        data_definition,
-        &mut |field, case: Option<&str>| {
-            // A case payload is path-sensitive storage: `Empty | Live(Token)` is
-            // allowed to remain an affine outer sum, with the linear obligation
-            // present only while `Live` is active. Common/record fields have no
-            // inactive case and therefore require unconditional propagation.
-            if case.is_some() {
-                return;
-            }
-            if !type_satisfies_structural_property(
-                program,
-                symbols,
-                type_parameters,
-                field.type_reference,
-                "linear",
-            ) {
-                return;
-            }
-            let place = match case {
-                Some(case) => format!("case `{case}` payload field `{}`", field.name),
-                None => format!("field `{}`", field.name),
-            };
-            diagnostics.push(Diagnostic::error(format!(
-            "data `{}` is affine but {place} carries a linear obligation; add `[linear]` to the enclosing data declaration so the obligation cannot be dropped",
-            data_definition.name
-        )));
-        },
-    );
 }
 
 /// `copy` is compositional: the property holds when every stored

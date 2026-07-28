@@ -153,8 +153,9 @@ through checked control flow. The IR needs:
 - path-sensitive resource state for sums; and
 - explicit create, transfer, consume, and affine-drop events.
 
-Implementation status (CML4 migration, 2026-07-21): these events now survive the full
-semantic pipeline with multiplicity, access, and transfer-stable provenance.
+Implementation status (CML4 migration, through 2026-07-28): these events now
+survive the full semantic pipeline with multiplicity, access, and
+transfer-stable provenance.
 Existing shared/exclusive borrow loans enter the same permission context at
 activation and leave it at weakening; their mature legality checks are not
 reimplemented. The linear judgment reads this context exclusively. Affine
@@ -193,8 +194,15 @@ whole-value cleanup forbids partial extraction; purely structural aggregates
 clean only their remaining live field places. Composite field extraction uses
 one path-indexed frontier: an explicit `[linear]` declaration contributes one
 nominal root, while a transparent aggregate derives contained child claims
-without adding another root. Statically named fields, cases, and indices move
-their claim subtrees and leave sibling obligations live.
+without adding another root. The first live slice covers statically named
+transparent-record fields through local construction, whole-record transfer,
+and extraction: moving one field leaves its sibling obligations live, and
+duplicate moves reject. The permission ledger retains each field path and its
+independently propagated source provenance through backend realization.
+Fresh claim identity distinct from provenance/root lineage, active-case and
+fixed-index frontiers, n-ary call/state outcome mappings, and per-claim carry
+remain subsequent P1c slices. Symbol-keyed substitutions already retain
+contained claims through nested generic transparent records.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

@@ -171,7 +171,7 @@ A hosted gateway is an ordinary boundary provider backed by a bounded native
 worker resource. Reaching its submission safe point does not bound native
 completion, cancellation finalization, retained-loan release, or later gateway
 admission. Pool/queue/backpressure and failure-domain semantics remain owner
-question #17. External callback descriptors and mixed-stack invocation topology
+question #18. External callback descriptors and mixed-stack invocation topology
 remain owner question #12; retained pointer custody remains #14.
 
 ## Foreign data and formats

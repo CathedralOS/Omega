@@ -1,0 +1,25 @@
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data Pair {
+    left: Receipt;
+    right: Receipt;
+}
+
+data Main {}
+
+machine Main::run() -> i32 {
+    let left: Receipt = Receipt { code: 1 };
+    let right: Receipt = Receipt { code: 2 };
+    let pair: Pair = Pair { left: left, right: right };
+    let first: Receipt = pair.left;
+    let duplicate: Receipt = pair.left;
+    let remaining: Receipt = pair.right;
+    Receipt::ack(first);
+    Receipt::ack(duplicate);
+    Receipt::ack(remaining);
+    0
+}

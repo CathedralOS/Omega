@@ -24,7 +24,7 @@ Last pruned: 2026-07-27.
   conservative suspension-safe-loan subset. WCSU derives one fixed nonmoving
   `StackPlan` per lowered activation; settled `suspend` and `block` markers
   acknowledge the exact statically known call envelope.
-- Settle and implement the normalized abstract-work plan in owner question #16,
+- Settle and implement the normalized abstract-work plan in owner question #17,
   including attributed unbounded paths and work-to-next-safe-point queries.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
@@ -47,7 +47,7 @@ Last pruned: 2026-07-27.
   restricted values demand the corresponding preservation evidence.
 - Finish sealed external callback entry under owner question #12 and retained
   foreign-pointer lifetime under #14. The reusable hosted-FFI gateway resource
-  and cancellation contract is separately owner question #17.
+  and cancellation contract is separately owner question #18.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
