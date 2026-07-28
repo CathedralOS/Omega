@@ -176,8 +176,10 @@ question #19.
 
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
-- implement the initial closed vocabulary `Indivisible | Interval<Scalar>`,
-  with indivisible as the default;
+- implement the initial closed normalized vocabulary
+  `Indivisible | Interval<Scalar>` once owner question #19 settles how an
+  authored content clause selects it; never default ordinary linear claims into
+  that vocabulary;
 - require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing;
 - prove all consumed content equals the separated composition of produced
@@ -414,23 +416,9 @@ current consumers happen to align.
   certificates. Delegated package authority is owner-blocked on #16.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
-  rows after migration.
-- **CALLACK:** parse and retain exact `suspend` / `block` call acknowledgements;
-  check them against each call's statically known operational envelope; enforce
-  direct-call position for suspension; reject missing, partial, and redundant
-  acknowledgements; and report compiler-synthesized acknowledgements without
-  changing machine contract identity, ABI, or lowering. Canary the four exact
-  envelope combinations, narrowed refinements, nested-suspension rejection,
-  nested blocking acceptance, task-start distinction, and synthesized adapters.
-
-  Implementation checkpoint (2026-07-28): CALLACK is implemented end to end.
-  Contextual prefixes survive syntax, resolved, typed, operational, checked,
-  snapshot, and visualization artifacts; exact-envelope and suspension-position
-  validation run before continuation planning; synthesized calls carry explicit
-  synthesized acknowledgement facts; and the corpus covers exact combinations,
-  local checked-summary narrowing, nesting, task-start, and adapter cases.
-  Imported transparent-refinement spelling remains owned by STR/EFX; CALLACK
-  consumes the pinned narrowed envelope once that surface supplies one.
+  rows after migration. Imported transparent-refinement spelling must supply the
+  narrowed operational envelope consumed by the completed exact call-
+  acknowledgement checker.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   ranking witnesses into public identity.
 - **GR6:** finish remaining qualification/trust consumers.
@@ -439,45 +427,8 @@ Acceptance: each contract axis normalizes independently; a wrapper cannot
 launder reach; omission remains a strict public guarantee; private proof
 improvements do not change public identity.
 
-### Carry, multiplicity, tasks, and allocation
+### Multiplicity, tasks, and allocation
 
-- **CRY:** implement the four compiler-owned positive carry permissions,
-  `Carry::Portable` expansion, strict accepted-resource origins, checked-origin
-  derivation, permission retention after qualification forgetting, and
-  per-axis inheritance through aggregates and inferred claim transformations.
-  Conserved multi-output inheritance follows P1c; admitted-root and one-to-one
-  inheritance follow P1a.
-
-  Implementation checkpoint (2026-07-28): the compiler now owns a closed,
-  subject-polymorphic vocabulary for the four positive atoms and expands
-  `Carry::Portable` before normalization in contracts, type constraints, and
-  transparent user aliases. Exact owner-authorized boundary result guarantees
-  retain admitted requirement/provider evidence; calling the checked adapter
-  directly grants no permission. Admitted linear bodyless claims receive a
-  separate born-strict `CarryOrigin`, so qualification weakening cannot recover
-  structural mobility. Local assignments and one-to-one state-parameter
-  handoffs retain that origin and its exact permissions. Scalar
-  one-linear-input/one-linear-output calls now infer the same mapping at the
-  call exit for checked, generic-slot, and admitted targets, including chained
-  checked helpers; the independent carry entry survives even when the helper
-  does not republish the authority qualification. Safe-point liveness and
-  activation-wide carry facts consume the resulting per-value policy, and
-  artifacts publish both permission evidence and each crossing value's
-  effective axes. Path-indexed transparent-record frontiers now preserve
-  contained claim identities and permissions through whole-record and field
-  transfers. Checked n-ary outcome maps now retain those identities through
-  opaque and multi-hop calls. Carry-specific inheritance through the current
-  claim maps is complete; content-algebra conservation remains P1c work after
-  owner question #19 settles its authored surface.
-  A source-to-artifact canary pins an admitted suspension-only permission
-  through selected-machine specialization and the canonical safe-point
-  crossing. The activation artifact now carries a fixed-stack `StackPlan`,
-  canonical crossing identities, and demanded CPU/thread preservation; the
-  retired safe-point/all-instruction migration-demand fields and generalized
-  runtime join are gone. Its byte count remains the local machine/park-frontier
-  bridge until whole-call-graph WCSU composition lands. Linear argument custody
-  and conservation remain task-resource work rather than missing carry
-  admission.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;

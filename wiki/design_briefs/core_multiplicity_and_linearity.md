@@ -123,7 +123,9 @@ Divisibility is not implied by linearity. Most linear values are indivisible:
 file handles, acknowledgement tokens, and DMA completions have no composition
 operator. A content-bearing qualified claim may separately project into a
 compiler-owned partial composition algebra. The initial closed vocabulary is
-`Indivisible | Interval<Scalar>`, with indivisible as the default.
+`Indivisible | Interval<Scalar>`. Owner question #19 governs the authored
+selection/defaulting rule; ordinary linearity never implies a content
+projection.
 
 Owned decomposition proves one n-ary theorem: the separated composition of all
 consumed content equals all produced content plus any remainder retired through
