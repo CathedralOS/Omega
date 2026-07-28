@@ -573,7 +573,7 @@ macos_arm64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8]
     self.file_fd = file.fd;
     let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -581,7 +581,7 @@ macos_arm64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], of
     self.file_fd = file.fd;
     let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 

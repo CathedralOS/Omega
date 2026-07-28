@@ -422,9 +422,12 @@ Two rules keep it honest:
 > of reading an unmaterialized callee parameter slot. Filesystem metadata
 > consumers likewise use named widening for raw-stat byte decodes, including
 > the byte-assembly setup of the cast-field compatibility regression; that
-> fixture retains only the final cast-valued field it exists to test. Other
-> residual filesystem casts carry explicit count/byte policies or pin a
-> compatibility-specific lowering shape. The domain model reserves
+> fixture retains only the final cast-valued field it exists to test.
+> Nonnegative signed host counts now use named exact narrowing after their
+> dominating guards, including target-specific positioned I/O; nested call
+> contract proof rebinds the target-state parameter through the incoming
+> transition argument. Other residual filesystem casts carry explicit byte
+> policies or pin a compatibility-specific lowering shape. The domain model reserves
 > qualification `as` for changing static facts without changing carrier,
 > payload, or runtime work.
 

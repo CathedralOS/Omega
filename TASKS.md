@@ -379,9 +379,13 @@ ceilings, and publication-before-ledger-record all reject.
   interop legs, the Windows SetFileTime round trip, and the raw byte-assembly
   setup of the cast-field payload regression. A checked-tree cohort covers all
   19 and the complete native filesystem/GUI suite still passes.
-  Residual filesystem casts are deliberately separate work: signed host counts
-  entering unsigned slice capacities, explicitly wrapping byte
-  encoders/cross-signed narrowing, and compatibility-specific casts whose
+  Guarded nonnegative filesystem host counts now use exact `i64`-to-`u64`
+  narrowing in the portable facade and every target implementation. Incoming
+  guard proof now instantiates the nested callee contract and rebinds target
+  state parameters through the transition arguments; a focused proof regression
+  and Linux x64/AArch64 plus Windows checked-tree cohort pin the route. Residual
+  filesystem casts are deliberately separate work: explicitly wrapping byte
+  encoders/cross-signed narrowing and compatibility-specific casts whose
   authored shape pins legacy lowering. The cast-field migration exposed and
   now pins a compiler fix for terminal branch substates with several
   assignment-value calls in one local initializer: branch storage reserves

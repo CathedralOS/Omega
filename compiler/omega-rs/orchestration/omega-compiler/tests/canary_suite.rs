@@ -33938,6 +33938,37 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
 }
 
 #[test]
+fn named_integer_conversion_filesystem_count_cross_targets_reach_checked_trees() {
+    let canary = pass_canary("filesystem/windows_positioned_io_exit");
+    for target in ["linux_x64", "linux_arm64", "windows_x64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-fs-count-conversion-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("filesystem count conversion source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy positioned-I/O canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write cross-target build manifest");
+
+        compile_to_checked(&source_dir.join("main.omg"), Some(target)).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "named integer-conversion filesystem count cohort should reach checked trees \
+                     for {target}: {diagnostics:#?}"
+                )
+            },
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
 fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
     // A guarded transition on a value call whose NESTED inline value call
     // returns a comparison against the CALLER's fold-only local (`chance`'s

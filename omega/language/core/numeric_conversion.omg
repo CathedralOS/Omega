@@ -1008,7 +1008,7 @@ pub machine narrow_i64_to_u32_trapping(value: i64) -> u32 {
 
 pub machine narrow_i64_to_u64_exact(value: i64) -> u64
 requires
-    value >= 0 && value <= 9223372036854775807;
+    value >= 0;
 {
     value as u64
 }
