@@ -6,15 +6,21 @@ use omega::language::core::task;
 boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
 
-data Job {
-    value: i32;
+data Token {
+    id: u64;
+}
+
+boundary trait TokenIssuer {
+    machine issue(id: u64) -> Token
+    ensures
+        result in Carry::AcrossSuspend;
 }
 
 data Worker { }
-machine Worker::run(job: Job) -> i32 suspends; {
-    let value: i32 = job.value;
-    Sleeper::park(value);
-    value
+machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends; {
+    let carried: Token = token;
+    Sleeper::park(7);
+    carried
 }
 
 // Provider dispatch is deliberately outside this frontend/plan canary. This
@@ -23,17 +29,18 @@ machine Task::settle<T>(self) { }
 
 data Main {
     runtime: &TaskRuntime;
+    issuer: TokenIssuer;
 }
 
 machine Main::probe(&mut self) {
-    let job: Job = Job { value: 7 };
-    let task: Task<i32> = self.runtime.start<Worker::run>(job);
+    let token: Token = self.issuer.issue(7);
+    let task: Task<Token> = self.runtime.start<Worker::run>(token);
     Task::settle(task);
 
-    let retry: Job = Job { value: 9 };
-    let outcome: StartOutcome<i32, Job> =
+    let retry: Token = self.issuer.issue(9);
+    let outcome: StartOutcome<Token, Token> =
         self.runtime.try_start<Worker::run>(retry);
-    let retry_task: Task<i32> = outcome.task;
+    let retry_task: Task<Token> = outcome.task;
     Task::settle(retry_task);
 }
 

@@ -37553,6 +37553,24 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
         assert_eq!(target.name.as_str(), "Worker::run");
         assert!(activation.plan.candidate().may_suspend);
         assert!(!activation.plan.candidate().may_block);
+        assert_eq!(
+            activation.plan.candidate().safe_point_migration,
+            omega_task_plans::MigrationDemand {
+                cpu: omega_task_plans::SameCpuDemand::Same,
+                thread: omega_task_plans::SameThreadDemand::Same,
+                address: omega_task_plans::AddressStabilityDemand::Stable,
+            },
+            "the admitted value has only suspension permission, so the other axes must constrain safe-point runtime admission"
+        );
+        assert_eq!(
+            activation.plan.candidate().asynchronous_migration,
+            Some(omega_task_plans::MigrationDemand {
+                cpu: omega_task_plans::SameCpuDemand::Same,
+                thread: omega_task_plans::SameThreadDemand::Same,
+                address: omega_task_plans::AddressStabilityDemand::Stable,
+            }),
+            "the same per-claim restrictions must reach the all-instruction preemption envelope"
+        );
         assert_ne!(
             activation.plan.normalized_identity().normalized_identity(),
             0,
@@ -37586,6 +37604,18 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     );
     assert_eq!(manifest.matches("\"may_suspend\": true").count(), 2);
     assert_eq!(manifest.matches("\"may_block\": false").count(), 2);
+    assert_eq!(
+        manifest
+            .matches("\"safe_point_migration\": {\"cpu\": \"same\", \"thread\": \"same\", \"address\": \"stable\"}")
+            .count(),
+        2
+    );
+    assert_eq!(
+        manifest
+            .matches("\"asynchronous_migration\": {\"cpu\": \"same\", \"thread\": \"same\", \"address\": \"stable\"}")
+            .count(),
+        2
+    );
     assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
     assert_eq!(
         manifest

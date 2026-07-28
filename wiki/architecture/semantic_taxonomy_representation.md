@@ -320,9 +320,16 @@ Canonical suspension liveness records and checks each live value's effective
 claim policy, while asynchronous preemption envelopes conservatively join
 established claim origins and permissions. Qualification and carry artifacts
 expose the admitted atom and the effective crossing policy. Remaining work is
-path-indexed aggregate and partial-move propagation, conserved multi-output
-mappings under P1c, and admission of the CPU/thread/address demands against
-selected runtime behavior.
+path-indexed aggregate and partial-move propagation plus conserved multi-output
+mappings under P1c. The normalized runtime admission join is already live:
+task activation elaboration converts the checked safe-point and all-instruction
+policies into CPU/thread/address migration demands, and `omega-task-plans`
+selects the envelope by provider preemption granularity before rejecting
+incompatible CPU migration, host-thread migration, or continuation movement.
+The task source/artifact canary pins that path with an admitted
+suspension-only permission, whose other three axes remain restrictive.
+Provider publication/selection is the separate owner-blocked task-runtime
+decision; linear task-argument custody remains TR work.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
