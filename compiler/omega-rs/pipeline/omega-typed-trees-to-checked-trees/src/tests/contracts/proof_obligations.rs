@@ -1854,3 +1854,78 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
         "expected the bounded-assignment refusal, got {diagnostics:#?}"
     );
 }
+
+#[test]
+fn incoming_guard_survives_pure_value_call_before_bounded_assignment() {
+    let source = r#"
+        machine widen(value: i32) -> i64 {
+            value as i64
+        }
+
+        data Main {
+            i: i32 [0..=2];
+            scratch: i64;
+        }
+
+        machine Main::main(&mut self) {
+            self.i = 0;
+            transition { _ -> step() }
+
+            state step(&mut self) {
+                transition self.i < 2 { true -> add() _ -> done() }
+            }
+
+            state add(&mut self) {
+                self.scratch = widen(self.i);
+                self.i = self.i + 1;
+                transition { _ -> step() }
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a pure value-call frame should preserve the incoming counter guard");
+}
+
+#[test]
+fn incoming_guard_dies_when_value_call_writes_guarded_place() {
+    let source = r#"
+        data Main {
+            i: i32 [0..=2];
+            scratch: i64;
+        }
+
+        machine Main::main(&mut self) {
+            self.i = 0;
+            transition { _ -> step() }
+
+            state step(&mut self) {
+                transition self.i < 2 { true -> add() _ -> done() }
+            }
+
+            state add(&mut self) {
+                self.scratch = self.touch_i();
+                self.i = self.i + 1;
+                transition { _ -> step() }
+            }
+
+            state touch_i(&mut self) -> i64 {
+                self.i = 2;
+                0
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an overlapping value-call frame must invalidate the incoming guard");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}

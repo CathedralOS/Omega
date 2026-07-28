@@ -1000,13 +1000,6 @@ fn guarded_integer_range_for_assignment(
     Some(range)
 }
 
-/// Whether the incoming-edge guard's facts survive from state entry to THIS
-/// assignment: every earlier statement in the state must be a transparent
-/// (call-free) local/assignment whose written place is provably DISJOINT from
-/// every place the guard condition or the assignment value reads. Prefix
-/// member paths alias (`self.state` vs `self.state.count`); distinct roots do
-/// not (`self.pixels[i]` vs `self.i` -- the render-loop shape stays provable).
-/// Unresolvable shapes and calls are opaque: the guard is dropped (sound).
 /// Whether an operand place's DECLARED primitive is unsigned (its type
 /// floor is 0) -- lets an ensures upper witness pair with the natural
 /// lower bound.
@@ -1067,6 +1060,14 @@ fn operand_declared_primitive(
     None
 }
 
+/// Whether the incoming-edge guard's facts survive from state entry to THIS
+/// assignment: every earlier statement in the state must have a complete write
+/// frame provably DISJOINT from every place the guard condition or assignment
+/// value reads. Prefix member paths alias (`self.state` vs
+/// `self.state.count`); distinct roots do not (`self.pixels[i]` vs `self.i` --
+/// the render-loop shape stays provable). Resolved pure calls therefore
+/// preserve the guard; opaque frames and unsupported statement shapes still
+/// drop it (sound).
 fn assignment_guard_is_stable(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
@@ -1113,17 +1114,33 @@ fn assignment_guard_is_stable(
         collect_read_place_paths(proof_plan, operands.left, &mut read_paths);
         collect_read_place_paths(proof_plan, operands.right, &mut read_paths);
     }
+    let Some(call_frames) = omega_validation::CallFrameResolver::new(program) else {
+        return false;
+    };
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        let Some(value_written) = call_frames.statement_value_may_write_paths(machine, statement)
+        else {
+            return false;
+        };
+        if resolved_writes_overlap_reads(&value_written, &read_paths) {
+            return false;
+        }
+        if let StatementNode::Call(call) = statement {
+            let Some(statement_written) = call_frames.may_write_paths(machine, call) else {
+                return false;
+            };
+            if resolved_writes_overlap_reads(&statement_written, &read_paths) {
+                return false;
+            }
+        }
+
         match statement {
             StatementNode::Assignment(assignment) => {
                 if assignment.target == obligation.target && assignment.value == obligation.value {
                     // Reached the obligation's own assignment: everything
                     // before it was transparent and disjoint.
                     return true;
-                }
-                if expression_contains_call(proof_plan, assignment.value) {
-                    return false;
                 }
                 let Some(written) = written_place_path(proof_plan, assignment.target) else {
                     return false;
@@ -1136,11 +1153,6 @@ fn assignment_guard_is_stable(
                 }
             }
             StatementNode::LocalData(local) => {
-                if local.initial_value.is_valid()
-                    && expression_contains_call(proof_plan, local.initial_value)
-                {
-                    return false;
-                }
                 // A `let` binds a fresh local name; it cannot alias a field
                 // path. Only a name the GUARD read kills the fact (a body
                 // local shadowing a source-scope name -- by-name matching
@@ -1156,10 +1168,20 @@ fn assignment_guard_is_stable(
                     return false;
                 }
             }
+            StatementNode::Call(_) | StatementNode::Expression(_) => {}
             _ => return false,
         }
     }
     false
+}
+
+fn resolved_writes_overlap_reads(written: &[String], reads: &[Vec<String>]) -> bool {
+    reads.iter().any(|read| {
+        let read = read.join(".");
+        written
+            .iter()
+            .any(|write| omega_validation::frame_paths_overlap(&read, write))
+    })
 }
 
 /// The member path a place expression READS or WRITES, for the aliasing check:

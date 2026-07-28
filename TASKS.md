@@ -348,12 +348,20 @@ ceilings, and publication-before-ledger-record all reject.
   operands, entry results, 16-bit conversions, and signed/unsigned extension.
   A second cohort covers real text algorithms: decimal and binary formatting,
   decimal parsing, FNV hashing, CRC-32, direct indexed byte writes, and explicit
-  trapping versus wrapping narrowing choices.
+  trapping versus wrapping narrowing choices. Seven user-facing samples now
+  use the named surface for widening and trapping conversion: `width_mixer`,
+  `array_sum`, `format_number`, `print_number`, `multiplication_table`,
+  `prime_sieve`, and `maze_flood`.
 - Call-result normalization now materializes a value-machine call directly
   beneath a value cast or qualification through the ordinary synthetic local
   route. Inline named conversion, subsequent arithmetic-policy qualification,
   and enclosing arithmetic therefore preserve the delivered result; the
   indexed narrow/widen canary pins the formerly mislowered shape.
+- Dominating range guards now survive resolved pure or disjoint value-call
+  frames in both the proof-obligation and transitive indexed-range paths.
+  Exact R5 paths invalidate only overlapping evidence; opaque frames still
+  fail closed. Positive/negative regressions pin pure conversion calls versus
+  calls that mutate the guarded place.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
@@ -439,7 +447,10 @@ current consumers happen to align.
 ### Frames, domains, effects, and trust
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
-  Boundary write-frame spelling is owner-blocked on #15.
+  Boundary write-frame spelling is owner-blocked on #15. Exact resolved
+  statement/value-call frames now preserve unrelated incoming range guards in
+  the proof checker and transitive range-fact collector; opaque and overlapping
+  frames remain conservative fences.
 - **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
   certificates. Delegated package authority is owner-blocked on #16.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
