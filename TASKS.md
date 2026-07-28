@@ -44,6 +44,14 @@ The runtime model is specified in
 **CLEAR DIRECTION.** Authority-bearing runtime values use ordinary data fields
 plus bodyless domain facts.
 
+Implementation checkpoint (2026-07-28): semantic facts distinguish evidence
+origin from program-point origin; checked carrier owners may establish their
+own bodyless result facts without bypassing bodyful predicates; transfer
+preserves evidence; admitted facts retain matching granted provider-plan
+receipt identity; and `05_qualification_evidence.json` publishes the result.
+The remaining bullets below still govern completion, especially exact
+owner-authorized admitted-subject matching and the authority migrations.
+
 - represent predicate bodies, semantic roles, establishment routes, and alias
   expansion independently instead of projecting a facet pair from body shape;
 - record proof, owner establishment, checked transformation, and admitted

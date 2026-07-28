@@ -93,7 +93,7 @@ pub(crate) fn canonical_receiver_place_for_call_site(
 
             canonical_place_from_symbol(statement.receiver_symbol)
         }
-        CallSite::Expression(call) => {
+        CallSite::Expression { call, .. } => {
             if call.receiver.is_valid() {
                 return canonical_place_from_expression(program, call.receiver);
             }

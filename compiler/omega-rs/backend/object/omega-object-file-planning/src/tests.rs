@@ -21,6 +21,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
     let mut layouts = LayoutPlan {
         data_layouts: Arena::<DataLayout>::new(),
         fields: Arena::<FieldLayout>::new(),
+        bit_fields: Vec::new(),
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
     };
@@ -230,6 +231,7 @@ fn empty_layouts() -> LayoutPlan {
     LayoutPlan {
         data_layouts: Arena::<DataLayout>::new(),
         fields: Arena::<FieldLayout>::new(),
+        bit_fields: Vec::new(),
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
     }

@@ -56,7 +56,9 @@ pub(crate) fn receiver_place_for_call(
                 .is_valid()
                 .then(|| facts.append_symbol_place(statement.receiver_symbol))
         }
-        super::CallSite::Expression(statement) => {
+        super::CallSite::Expression {
+            call: statement, ..
+        } => {
             if statement.receiver.is_valid() {
                 return Some(facts.append_place_from_expression(program, statement.receiver));
             }

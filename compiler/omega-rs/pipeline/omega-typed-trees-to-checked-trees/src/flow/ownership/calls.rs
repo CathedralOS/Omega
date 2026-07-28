@@ -50,7 +50,7 @@ pub(in crate::flow) fn append_call_ownership_events(
         })
     {
         let receiver = match &call_site {
-            CallSite::Expression(call) => canonical_place_from_expression_in_state(
+            CallSite::Expression { call, .. } => canonical_place_from_expression_in_state(
                 program,
                 state.symbol,
                 borrow_call.statement_index,

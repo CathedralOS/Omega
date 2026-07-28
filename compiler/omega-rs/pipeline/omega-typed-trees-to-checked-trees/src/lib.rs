@@ -53,6 +53,7 @@ pub(crate) use semantic::{
 };
 
 mod proof;
+mod qualification_evidence;
 
 #[cfg(test)]
 pub(crate) use borrow::build_borrow_facts;

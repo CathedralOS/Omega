@@ -760,6 +760,47 @@ impl DomainPredicateBody {
     }
 }
 
+/// Why one checked membership fact may qualify its exact runtime subject.
+///
+/// This is deliberately independent from the fact's program-point origin:
+/// `CallEnsures` says where a fact entered the caller, while this enum says
+/// which semantic route makes that fact trustworthy. `None` is used for
+/// declarations and obligations that do not themselves establish membership.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QualificationEvidenceOrigin {
+    #[default]
+    None,
+    /// A nonempty predicate body was discharged by checked proof.
+    Prover,
+    /// A checked runtime validator established a predicate body.
+    CheckedValidation,
+    /// The domain owner deliberately established a bodyless qualification.
+    OwnerEstablishment,
+    /// Existing evidence was conserved through a checked transformation.
+    CheckedTransformation,
+    /// The fact crossed an admitted boundary under a public contract.
+    AdmittedReceipt,
+    /// Existing evidence was carried without changing its subject.
+    Propagated,
+    /// The core identity qualification conformance established a bodyless fact.
+    CanonicalQualification,
+}
+
+impl QualificationEvidenceOrigin {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Prover => "prover",
+            Self::CheckedValidation => "checked_validation",
+            Self::OwnerEstablishment => "owner_establishment",
+            Self::CheckedTransformation => "checked_transformation",
+            Self::AdmittedReceipt => "admitted_receipt",
+            Self::Propagated => "propagated",
+            Self::CanonicalQualification => "canonical_qualification",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -802,6 +843,26 @@ mod tests {
         assert!(DomainPredicateBody::Present.is_present());
         assert_eq!(DomainPredicateBody::Bodyless.as_str(), "bodyless");
         assert_eq!(DomainPredicateBody::Present.as_str(), "present");
+    }
+
+    #[test]
+    fn qualification_evidence_origins_have_stable_public_names() {
+        use QualificationEvidenceOrigin as Origin;
+
+        assert_eq!(Origin::default(), Origin::None);
+        assert_eq!(Origin::Prover.as_str(), "prover");
+        assert_eq!(Origin::CheckedValidation.as_str(), "checked_validation");
+        assert_eq!(Origin::OwnerEstablishment.as_str(), "owner_establishment");
+        assert_eq!(
+            Origin::CheckedTransformation.as_str(),
+            "checked_transformation"
+        );
+        assert_eq!(Origin::AdmittedReceipt.as_str(), "admitted_receipt");
+        assert_eq!(Origin::Propagated.as_str(), "propagated");
+        assert_eq!(
+            Origin::CanonicalQualification.as_str(),
+            "canonical_qualification"
+        );
     }
 
     #[test]

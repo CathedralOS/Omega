@@ -45,6 +45,7 @@ fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPl
             place: FactPlace::Unknown,
             point,
             origin: FactOrigin::ProofObligation,
+            evidence: QualificationEvidence::default(),
             payload: FactPayload::ProofObligation {
                 kind: semantic_proof_obligation_kind(obligation.kind.clone()),
             },

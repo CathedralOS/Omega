@@ -25,12 +25,27 @@ pub(super) fn check_exit_ensures(
     {
         let context = facts.semantic.contexts.get(ensures_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let satisfied = semantic_contexts_prove_contract_fact(
-                program,
-                &facts.semantic,
-                &entry_contexts,
-                fact,
-            );
+            let owner_establishment = match fact.payload {
+                omega_facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == state_flow.machine_symbol)
+                    .is_some_and(|machine| {
+                        crate::qualification_evidence::machine_owns_bodyless_domain(
+                            program,
+                            machine,
+                            domain_symbol,
+                        )
+                    }),
+                _ => false,
+            };
+            let satisfied = owner_establishment
+                || semantic_contexts_prove_contract_fact(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    fact,
+                );
 
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(

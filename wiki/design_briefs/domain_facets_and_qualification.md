@@ -372,8 +372,16 @@ The compiler currently carries an explicit predicate/semantic facet pair and
 special arithmetic-domain paths. Semicolon and empty-braced declarations now
 both normalize to an explicit bodyless predicate-body record in syntax,
 symbol-resolved, and typed trees; an explicit `{ true; }` body remains
-predicate-bearing. This removes fact-count inference for body presence but does
-not yet grant bodyless membership or replace the compatibility facet pair.
+predicate-bearing. This removes fact-count inference for body presence.
+Checked facts now also retain a normalized establishment origin separately
+from their program-point origin. Carrier-owner checked machines can establish
+their own bodyless result facts, while bodyful and unrelated-owner results
+still require ordinary proof; call-result and statement transfer preserve the
+evidence. The checked artifact publishes origin/source/receipt rows, and a
+granted selected provider plan supplies the normalized receipt identity for
+matching admitted facts. This is the first P1a tranche: exact admitted-subject
+authorization, canonical `as`, aliases, and replacement of the compatibility
+facet pair remain.
 Migration should:
 
 1. replace the facet pair with the independent domain-theory records above;

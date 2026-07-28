@@ -191,6 +191,11 @@ pub(super) fn write_checked_snapshot(
     )?;
     write_phase_json(
         options,
+        "05_qualification_evidence.json",
+        &omega_visualizations::qualification_evidence_manifest_json(checked),
+    )?;
+    write_phase_json(
+        options,
         "05_carry_manifest.json",
         &omega_visualizations::carry_manifest_json(checked),
     )?;

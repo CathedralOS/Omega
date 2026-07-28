@@ -15,12 +15,77 @@ pub(crate) fn retain_selected_provider_plan_facts(
     checked: &mut omega_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected_names: &[String],
+    root_grants: &[String],
 ) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
     let facts =
         omega_checked_trees::SelectedProviderPlanFacts::from_selection(candidates, selected_names)
             .map_err(|error| vec![omega_core::diagnostics::Diagnostic::error(error)])?;
+    let granted_receipts = facts
+        .plans()
+        .iter()
+        .filter(|plan| {
+            root_grants
+                .iter()
+                .any(|grant| grant == &plan.name || grant == &plan.schema.trait_name)
+        })
+        .map(|plan| (plan.schema.trait_name.clone(), plan.identity_fingerprint()))
+        .collect::<Vec<_>>();
+    let receipt_updates = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter(|(_, fact)| {
+            fact.evidence.origin
+                == omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt
+                && fact.evidence.receipt_identity == 0
+                && fact.evidence.source_symbol.is_valid()
+        })
+        .filter_map(|(handle, fact)| {
+            granted_receipts
+                .iter()
+                .find(|(boundary, _)| {
+                    evidence_source_names_boundary(checked, fact.evidence.source_symbol, boundary)
+                })
+                .map(|(_, identity)| (handle, *identity))
+        })
+        .collect::<Vec<_>>();
     checked.retain_selected_provider_plans(facts);
+    for (fact, identity) in receipt_updates {
+        checked
+            .facts
+            .semantic
+            .facts
+            .get_mut(fact)
+            .evidence
+            .receipt_identity = identity;
+    }
     Ok(())
+}
+
+fn evidence_source_names_boundary(
+    checked: &omega_checked_trees::CheckedTrees,
+    source_symbol: omega_core::symbols::SymbolHandle,
+    boundary_name: &str,
+) -> bool {
+    if checked.typed.traits().iter().any(|definition| {
+        definition.symbol == source_symbol
+            && same_semantic_name(definition.name.as_str(), boundary_name)
+    }) {
+        return true;
+    }
+    checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_symbol)
+        .is_some_and(|machine| {
+            checked
+                .typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| same_semantic_name(conformance.name.as_str(), boundary_name))
+        })
 }
 
 /// Resolve one external-root boundary slot only from the immutable provider
@@ -577,6 +642,58 @@ mod tests {
                 .expect_err("an ambiguous leaf slot must reject")
                 .0
                 .contains("matches 2 retained selected provider plans")
+        );
+    }
+
+    #[test]
+    fn granted_selected_plan_attaches_receipt_to_matching_admitted_fact() {
+        let boundary_symbol = omega_core::symbols::SymbolHandle::from_arena_index(7);
+        let subject_symbol = omega_core::symbols::SymbolHandle::from_arena_index(8);
+        let domain_symbol = omega_core::symbols::SymbolHandle::from_arena_index(9);
+        let mut checked = omega_checked_trees::CheckedTrees::default();
+        checked
+            .typed
+            .push_trait_definition(omega_typed_trees::trait_definition::TraitDefinition {
+                symbol: boundary_symbol,
+                is_boundary: true,
+                name: omega_typed_trees::name::Identifier::generated("Pair"),
+                ..Default::default()
+            });
+        let place = checked.facts.semantic.append_symbol_place(subject_symbol);
+        let fact = checked.facts.semantic.append_fact(omega_facts::Fact {
+            place: omega_facts::FactPlace::Place(place),
+            point: omega_facts::ProgramPoint::Global,
+            origin: omega_facts::FactOrigin::CallEnsures,
+            evidence: omega_facts::QualificationEvidence::from_origin(
+                omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt,
+                boundary_symbol,
+            ),
+            payload: omega_facts::FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol,
+            },
+        });
+        let selected = selection_plan("FirstProvider", &["first"], &["first"]);
+        let identity = selected.identity_fingerprint();
+
+        retain_selected_provider_plan_facts(
+            &mut checked,
+            std::slice::from_ref(&selected),
+            &["FirstProvider".to_owned()],
+            &["Pair".to_owned()],
+        )
+        .expect("selected granted provider plan");
+
+        assert_eq!(
+            checked
+                .facts
+                .semantic
+                .facts
+                .get(fact)
+                .evidence
+                .receipt_identity,
+            identity
         );
     }
 

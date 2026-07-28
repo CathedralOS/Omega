@@ -1,0 +1,24 @@
+// P1a: a checked machine unrelated to the carrier cannot mint the carrier
+// owner's bodyless qualification merely by writing it in `ensures`.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+data Forger {
+}
+
+machine Forger::issue(&self, value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

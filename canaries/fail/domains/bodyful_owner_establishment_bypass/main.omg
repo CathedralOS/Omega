@@ -1,0 +1,23 @@
+// P1a: attachment to the carrier does not let an owner machine bypass a
+// predicate body. This result still has to prove `self.value > 0`.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Positive {
+    self.value > 0;
+}
+
+machine Token::zero() -> Token
+ensures
+    result in Token::Positive
+{
+    Token { value: 0 }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -25,7 +25,10 @@
 //! such a field cannot falsely discharge.
 
 use omega_core::symbols::SymbolHandle;
-use omega_facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint};
+use omega_facts::{
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
+    QualificationEvidence,
+};
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::ExpressionNode;
@@ -129,6 +132,10 @@ fn append_data_field_domain_facts(
                 origin: FactOrigin::MachineFieldDomain {
                     machine_symbol: machine.symbol,
                 },
+                evidence: QualificationEvidence::from_origin(
+                    omega_core::semantics::QualificationEvidenceOrigin::CheckedValidation,
+                    machine.symbol,
+                ),
                 payload: FactPayload::DomainMembership {
                     value: omega_typed_trees::expression::ExpressionHandle::invalid(),
                     domain: omega_core::arena::HandleSpan::empty(),
@@ -311,6 +318,10 @@ fn append_state_parameter_domain_fact(
             machine_symbol,
             state_symbol,
         },
+        evidence: QualificationEvidence::from_origin(
+            omega_core::semantics::QualificationEvidenceOrigin::Propagated,
+            state_symbol,
+        ),
         payload: FactPayload::DomainMembership {
             value: omega_typed_trees::expression::ExpressionHandle::invalid(),
             domain: omega_core::arena::HandleSpan::empty(),
@@ -402,6 +413,10 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                                 machine_symbol: machine.symbol,
                                 state_symbol: state.symbol,
                             },
+                            evidence: QualificationEvidence::from_origin(
+                                omega_core::semantics::QualificationEvidenceOrigin::Prover,
+                                state.symbol,
+                            ),
                             payload: FactPayload::DomainMembership {
                                 value: omega_typed_trees::expression::ExpressionHandle::invalid(),
                                 domain: omega_core::arena::HandleSpan::empty(),

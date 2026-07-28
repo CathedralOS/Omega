@@ -7,7 +7,10 @@ use traversal::{CallSiteTraversal, find_call_site_in_statement};
 
 pub(crate) enum CallSite<'program> {
     Statement(&'program omega_typed_trees::statement::TableCall),
-    Expression(&'program omega_typed_trees::expression::TableCallExpression),
+    Expression {
+        expression: ExpressionHandle,
+        call: &'program omega_typed_trees::expression::TableCallExpression,
+    },
     TransitionNamed(omega_core::arena::HandleSpan<ExpressionHandle>),
 }
 

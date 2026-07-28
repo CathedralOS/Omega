@@ -421,6 +421,7 @@ impl Compiler {
                 .expect("checked program must be uniquely owned before backend fan-out"),
             &provider_plans,
             &selected_provider_plans,
+            &build_config.grants,
         )?;
         crate::pipeline::task_plans::elaborate_task_activation_plans(
             Arc::get_mut(&mut checked.program)

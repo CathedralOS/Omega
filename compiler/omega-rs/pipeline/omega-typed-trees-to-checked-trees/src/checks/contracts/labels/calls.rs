@@ -63,7 +63,7 @@ fn call_result_label(
                 format!("{receiver}.{}({arguments})", call.target)
             }
         }
-        crate::CallSite::Expression(call) => {
+        crate::CallSite::Expression { call, .. } => {
             let arguments = argument_list(call.arguments);
             if call.receiver.is_valid() {
                 format!(

@@ -22,6 +22,7 @@ pub(super) fn append_contract_semantic_facts(
             place,
             point,
             origin: contract_fact_origin(contract),
+            evidence: QualificationEvidence::default(),
             payload,
         };
         let fact = match contract.kind {
@@ -152,10 +153,17 @@ fn append_call_semantic_contract_refs(
         let contract = proof.contract_facts.get(source_ref.fact);
         let place = instantiate_call_contract_place(program, facts, call, contract);
         let payload = semantic_contract_payload(program, contract);
+        let evidence = crate::qualification_evidence::call_contract_evidence(
+            program,
+            call.target_machine_symbol,
+            payload,
+            matches!(origin, FactOrigin::CallEnsures),
+        );
         let fact = facts.append_fact(Fact {
             place,
             point,
             origin,
+            evidence,
             payload,
         });
         facts.append_ref(refs, fact);

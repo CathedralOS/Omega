@@ -4138,6 +4138,40 @@ fn bodyless_domain_declaration_spellings_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn bodyless_owner_establishment_canaries() {
+    let pass = pass_canary("domains/bodyless_owner_establishment");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bodyless-owner-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: pass.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("a carrier-owner checked machine should establish its bodyless result");
+    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
+        .expect("qualification-evidence artifact");
+    assert!(evidence.contains("\"origin\": \"owner_establishment\""));
+    assert!(evidence.contains("\"program_point\": \"call_ensures\""));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    for name in [
+        "domains/bodyless_nonowner_establishment",
+        "domains/bodyful_owner_establishment_bypass",
+    ] {
+        let diagnostics = compile_canary_without_output(&fail_canary(name))
+            .expect_err("unauthorized establishment must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+            "{name} rejected differently: {diagnostics:#?}"
+        );
+    }
+}
+
 // #66 GAP #4 (slice-`.len`-to-field write): a `&[u8] in Utf8` PARAM is a runtime
 // `{ptr, len}` descriptor in a frame slot, so `self.result = text.len` reads the
 // descriptor's len field (NOT a compile-time constant -- that is GAP #2). This

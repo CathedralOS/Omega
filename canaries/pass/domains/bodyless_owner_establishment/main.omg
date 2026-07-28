@@ -1,0 +1,30 @@
+// P1a: a checked machine attached to the carrier may establish its own
+// bodyless qualification. The call-result fact must follow the returned value
+// into the local so the next call can consume the qualification.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+machine Token::issue(value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Main {
+}
+
+machine Main::consume(&self, token: Token)
+requires
+    token in Token::Issued
+{
+}
+
+machine Main::main(&mut self) {
+    let token: Token = Token::issue(7);
+    self.consume(token);
+}

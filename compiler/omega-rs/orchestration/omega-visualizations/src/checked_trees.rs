@@ -95,6 +95,137 @@ pub fn checked_trees_html(program: &CheckedTrees) -> String {
     diagram.finish()
 }
 
+/// Public checked qualification-evidence surface. The fact's program point and
+/// its establishment origin remain independent, and admitted rows retain their
+/// normalized receipt identity when provider admission supplied one.
+pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
+    use omega_core::semantics::QualificationEvidenceOrigin;
+    use omega_facts::FactPayload;
+
+    let rows = program
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter(|(_, fact)| fact.evidence.origin != QualificationEvidenceOrigin::None)
+        .filter_map(|(_, fact)| {
+            let domain_symbol = match fact.payload {
+                FactPayload::DomainMembership { domain_symbol, .. }
+                | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                _ => return None,
+            };
+            Some((fact, domain_symbol))
+        })
+        .collect::<Vec<_>>();
+
+    let mut json = String::from("{\n  \"qualification_evidence\": [");
+    for (index, (fact, domain_symbol)) in rows.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"subject\": ");
+        push_json_string(&mut json, &qualification_subject(program, fact));
+        json.push_str(",\n      \"domain\": ");
+        push_json_string(
+            &mut json,
+            &qualification_symbol_label(program, *domain_symbol),
+        );
+        json.push_str(",\n      \"origin\": ");
+        push_json_string(&mut json, fact.evidence.origin.as_str());
+        json.push_str(",\n      \"program_point\": ");
+        push_json_string(&mut json, program_point_name(fact.point));
+        json.push_str(",\n      \"source\": ");
+        if fact.evidence.source_symbol.is_valid() {
+            push_json_string(
+                &mut json,
+                &qualification_symbol_label(program, fact.evidence.source_symbol),
+            );
+        } else {
+            json.push_str("null");
+        }
+        json.push_str(",\n      \"receipt_identity\": ");
+        if fact.evidence.receipt_identity == 0 {
+            json.push_str("null");
+        } else {
+            push_json_string(
+                &mut json,
+                &format!("0x{:016x}", fact.evidence.receipt_identity),
+            );
+        }
+        json.push_str("\n    }");
+    }
+    json.push_str("\n  ]\n}\n");
+    json
+}
+
+fn qualification_subject(program: &CheckedTrees, fact: &omega_facts::Fact) -> String {
+    use omega_facts::{FactPlace, PlaceRoot, PlaceSegment};
+
+    let FactPlace::Place(place) = fact.place else {
+        return match fact.place {
+            FactPlace::Symbol(symbol) => qualification_symbol_label(program, symbol),
+            FactPlace::Expression(expression) => program.expression_table.display_name(expression),
+            FactPlace::TypeReference(type_reference) => {
+                program.display_type_reference(type_reference)
+            }
+            FactPlace::Unknown | FactPlace::Place(_) => "<unknown>".to_owned(),
+        };
+    };
+    let place = program.facts.semantic.places.get(place);
+    let mut subject = match place.root {
+        PlaceRoot::Unknown => "<unknown>".to_owned(),
+        PlaceRoot::Symbol(symbol) => qualification_symbol_label(program, symbol),
+        PlaceRoot::Expression(expression) => program.expression_table.display_name(expression),
+        PlaceRoot::TypeReference(type_reference) => program.display_type_reference(type_reference),
+    };
+    for segment in program
+        .facts
+        .semantic
+        .place_segments
+        .span_or_empty(place.segments)
+    {
+        match segment {
+            PlaceSegment::Field { symbol } => {
+                subject.push('.');
+                subject.push_str(&qualification_symbol_label(program, *symbol));
+            }
+            PlaceSegment::Index { expression } => {
+                subject.push('[');
+                subject.push_str(&program.expression_table.display_name(*expression));
+                subject.push(']');
+            }
+        }
+    }
+    subject
+}
+
+fn qualification_symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> String {
+    if !symbol.is_valid() {
+        return "<unknown>".to_owned();
+    }
+    let path = program.symbols.display_path(symbol, "::");
+    if path.is_empty() {
+        format!("#{}", symbol.arena_index())
+    } else {
+        path
+    }
+}
+
+fn program_point_name(point: omega_facts::ProgramPoint) -> &'static str {
+    use omega_facts::ProgramPoint;
+    match point {
+        ProgramPoint::Global => "global",
+        ProgramPoint::Definition { .. } => "definition",
+        ProgramPoint::Machine { .. } => "machine",
+        ProgramPoint::State { .. } => "state",
+        ProgramPoint::Statement { .. } => "statement",
+        ProgramPoint::Call { .. } => "call",
+        ProgramPoint::CallRequires { .. } => "call_requires",
+        ProgramPoint::CallEnsures { .. } => "call_ensures",
+        ProgramPoint::Exit { .. } => "exit",
+    }
+}
+
 /// Checked carry-policy artifact. The authored clause is retained only as a
 /// diagnostic/publication input; `effective` is the checker-derived policy
 /// later liveness, runtime-admission, and model-export consumers must use.
@@ -1443,6 +1574,7 @@ fn push_json_string(output: &mut String, value: &str) {
 mod tests {
     use super::{
         carry_manifest_json, machine_contract_manifest_json, push_termination_interface_json,
+        qualification_evidence_manifest_json,
     };
     use omega_checked_trees::{
         CheckedTrees, DataCarryFact, MachineContractPlan, MachinePreemptionCarryFact,
@@ -1450,13 +1582,55 @@ mod tests {
     };
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
-        CarrySuspension, MachineSupplyMode, MachineTerminationPlan, RankingViewId, RankingWitness,
-        SuspensionInterface, SuspensionPlan, TerminationGuarantee, TerminationInterface,
+        CarrySuspension, MachineSupplyMode, MachineTerminationPlan, QualificationEvidenceOrigin,
+        RankingViewId, RankingWitness, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
+        TerminationInterface,
     };
     use omega_core::symbols::SymbolHandle;
+    use omega_facts::{
+        Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
+    };
     use omega_typed_trees::machine::Machine;
     use omega_typed_trees::name::Identifier;
     use omega_typed_trees::typed_trees::MachineSpecialization;
+
+    #[test]
+    fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
+        let subject = SymbolHandle::from_arena_index(4);
+        let domain = SymbolHandle::from_arena_index(5);
+        let provider = SymbolHandle::from_arena_index(6);
+        let mut program = CheckedTrees::default();
+        let place = program.facts.semantic.append_symbol_place(subject);
+        program.facts.semantic.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point: ProgramPoint::CallEnsures {
+                machine_symbol: subject,
+                state_symbol: subject,
+                statement_index: 2,
+                call_ordinal: 1,
+            },
+            origin: FactOrigin::CallEnsures,
+            evidence: QualificationEvidence {
+                origin: QualificationEvidenceOrigin::AdmittedReceipt,
+                source_symbol: provider,
+                receipt_identity: 0x1234,
+            },
+            payload: FactPayload::DomainMembership {
+                value: Default::default(),
+                domain: Default::default(),
+                domain_symbol: domain,
+            },
+        });
+
+        let json = qualification_evidence_manifest_json(&program);
+
+        assert!(json.contains("\"subject\": \"#4\""));
+        assert!(json.contains("\"domain\": \"#5\""));
+        assert!(json.contains("\"origin\": \"admitted_receipt\""));
+        assert!(json.contains("\"program_point\": \"call_ensures\""));
+        assert!(json.contains("\"source\": \"#6\""));
+        assert!(json.contains("\"receipt_identity\": \"0x0000000000001234\""));
+    }
 
     #[test]
     fn carry_manifest_keeps_authored_and_effective_policies_separate() {
