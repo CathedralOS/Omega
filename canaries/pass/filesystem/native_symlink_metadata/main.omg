@@ -5,6 +5,7 @@
 // and runs on real macOS syscalls, distinguishing a symlink from its target.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -32,7 +33,8 @@ machine Main::main(&mut self) {
         transition self.rc == 0 { true -> decodelink() _ -> fail() }
     }
     state decodelink(&mut self) {
-        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.st_mode =
+            widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8);
         // S_IFMT = 0o170000 = 61440; S_IFLNK = 0o120000 = 40960
         self.link_is_symlink = (self.st_mode & 61440) == 40960;
         transition self.link_is_symlink { true -> statfile() _ -> fail() }
@@ -42,7 +44,8 @@ machine Main::main(&mut self) {
         transition self.rc == 0 { true -> decodefile() _ -> fail() }
     }
     state decodefile(&mut self) {
-        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.st_mode =
+            widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8);
         self.file_is_symlink = (self.st_mode & 61440) == 40960;
         self.n = self.fs.remove("/tmp/omega_lstat_link");
         self.n = self.fs.remove("/tmp/omega_lstat.txt");

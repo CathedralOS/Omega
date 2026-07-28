@@ -6,6 +6,7 @@
 // is_char_device()/is_file() decode real device nodes, not just regular files.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -24,7 +25,9 @@ machine Main::main(&mut self) {
     self.rc = self.fs.read_metadata("/dev/null", &mut self.buffer);
     transition self.rc == 0 { true -> checkchar() _ -> fail() }
     state checkchar(&mut self) {
-        self.fmt = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 61440;
+        self.fmt =
+            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+                & 61440;
         transition self.fmt == 8192 { true -> regular() _ -> fail() }
     }
     state regular(&mut self) {
@@ -37,7 +40,9 @@ machine Main::main(&mut self) {
         transition self.rc == 0 { true -> checkreg() _ -> fail() }
     }
     state checkreg(&mut self) {
-        self.fmt = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 61440;
+        self.fmt =
+            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+                & 61440;
         transition self.fmt == 32768 { true -> good() _ -> fail() }
     }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }

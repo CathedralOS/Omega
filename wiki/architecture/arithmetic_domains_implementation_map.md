@@ -72,6 +72,11 @@
 > follows binary/member argument structure and substitutes its bare parameter
 > root, preventing a nested conversion in a mutating value machine from reading
 > an unused cloned parameter slot; a focused native canary retains that fix.
+> The filesystem consumer cohort now names every raw-stat `u8` widening across
+> 15 native macOS canaries and the Windows SetFileTime round trip. All 16 reach
+> checked trees, and the full native filesystem/GUI suite remains green.
+> Remaining filesystem casts are policy-bearing count/byte conversions or the
+> compatibility-cast regression itself, not unclassified metadata widening.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

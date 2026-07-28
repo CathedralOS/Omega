@@ -4,6 +4,7 @@
 // Exercises the stat op + runtime bitwise |, <<, and & on real macOS syscalls.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -28,7 +29,8 @@ machine Main::main(&mut self) {
     self.n = self.fs.remove("/tmp/omega_ro.txt");
     transition self.rc == 0 { true -> decode() _ -> fail() }
     state decode(&mut self) {
-        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.st_mode =
+            widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8);
         self.write_bit = self.st_mode & 128;   // owner-write (S_IWUSR)
         transition self.write_bit == 0 { true -> good() _ -> fail() }
     }

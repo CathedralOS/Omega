@@ -33864,6 +33864,44 @@ fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
 }
 
 #[test]
+fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
+    for relative in [
+        "canaries/pass/filesystem/native_copy_preserve",
+        "canaries/pass/filesystem/native_filetype",
+        "canaries/pass/filesystem/native_fs_workflow",
+        "canaries/pass/filesystem/native_fstat",
+        "canaries/pass/filesystem/native_metadata_blocks",
+        "canaries/pass/filesystem/native_metadata_ctime_dev",
+        "canaries/pass/filesystem/native_metadata_ino",
+        "canaries/pass/filesystem/native_metadata_modified",
+        "canaries/pass/filesystem/native_metadata_nlink",
+        "canaries/pass/filesystem/native_metadata_readonly",
+        "canaries/pass/filesystem/native_metadata_times",
+        "canaries/pass/filesystem/native_open_create",
+        "canaries/pass/filesystem/native_set_times",
+        "canaries/pass/filesystem/native_stat",
+        "canaries/pass/filesystem/native_symlink_metadata",
+    ] {
+        let main_path = repo_root().join(relative).join("main.omg");
+        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "named integer-conversion filesystem decode canary {relative} should reach \
+                 checked trees: {diagnostics:#?}"
+            )
+        });
+    }
+
+    let windows_relative = "canaries/pass/filesystem/windows_set_file_time_exit";
+    let windows_main = repo_root().join(windows_relative).join("main.omg");
+    compile_to_checked(&windows_main, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "named integer-conversion filesystem decode canary {windows_relative} should reach \
+             checked trees: {diagnostics:#?}"
+        )
+    });
+}
+
+#[test]
 fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
     // A guarded transition on a value call whose NESTED inline value call
     // returns a comparison against the CALLER's fold-only local (`chance`'s

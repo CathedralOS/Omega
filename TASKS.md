@@ -374,6 +374,14 @@ ceilings, and publication-before-ledger-record all reject.
   a mutating value machine reads the caller's aliased state instead of an
   unused cloned parameter slot. A focused native regression pins the formerly
   crashing shape beside the existing dungeon-derived call/dispatch tests.
+- Filesystem metadata consumers now use named `u8` widening for every raw
+  stat-record byte decode, across 15 native macOS canaries and the Windows
+  SetFileTime round-trip canary. A checked-tree cohort covers all 16 and the
+  complete native filesystem/GUI suite still passes. Residual filesystem casts
+  are deliberately separate work: signed host counts entering unsigned slice
+  capacities, explicitly wrapping byte encoders/cross-signed narrowing, and
+  the cast-valued wrapper regression that specifically pins compatibility
+  lowering.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
