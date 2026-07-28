@@ -1,0 +1,34 @@
+// A qualification introduced after machine entry is required only by the
+// internal states that carry it. The outer caller need not supply the future
+// state parameter, while every transition still forwards established evidence.
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+machine Token::issue(value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Main {}
+
+machine Main::run(&self, value: u64) {
+    let token: Token = Token::issue(value);
+    transition { _ -> hold(token) }
+
+    state hold(token: Token in Issued) {
+        transition { _ -> done(token) }
+    }
+
+    state done(token: Token in Issued) {
+    }
+}
+
+machine Main::main(&mut self) {
+    self.run(7);
+}

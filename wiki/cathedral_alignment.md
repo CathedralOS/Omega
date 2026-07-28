@@ -135,12 +135,15 @@ implementation work. Each one gets more expensive to retrofit every month.
    (interim: `==` against a payload-bearing case is a compile error). See
    chapter 1 + TASKS.md frozen decisions 7/8.
 
-## The boot ladder — UEFI/QEMU (status 2026-07-18)
+## The boot ladder — UEFI/QEMU (status 2026-07-28)
 
 The Omega-emitted UEFI application now boots under QEMU/OVMF, owns the final
-memory map, exits firmware, receives its first physical Extent under an admitted
-handoff receipt, writes through its own
-16550 serial path, and idles with `hlt`. Harness:
+memory map, exits firmware, constructs inert shared `Extent` geometry, receives
+its first `Extent in Granted` under the selected
+`ExtentRootProvider::grant` receipt, carries that same linear root through its
+own 16550 serial path, and retains it while idling with `hlt`. Physical-space,
+rights, and backing-containment facts remain later resource-frontier work.
+Harness:
 `qemu-system-x86_64 -bios OVMF.fd -drive
 format=raw,file=fat:rw:dir` — OVMF loads `\EFI\BOOT\BOOTX64.EFI` and calls
 its PE entry as an ordinary MS-x64 function: ImageHandle in RCX, SystemTable
@@ -150,8 +153,9 @@ in RDX; no reset-vector path is involved.
 PE32+ EFI application emission, and runtime table-function calls serve.
 
 **Milestone 2 — own the machine** (`GetMemoryMap` → `ExitBootServices` →
-first admitted physical `Extent`): COMPLETE with positive firmware-return evidence and a
-98-descriptor runtime-stride walk.
+first admitted `Extent in Granted`): COMPLETE with positive firmware-return
+evidence, a 98-descriptor runtime-stride walk, exact provider-plan receipt
+identity, and state-local qualification forwarding into owned idle.
 
 **Milestone 3 — alive after firmware dies:** serial + idle COMPLETE; timer tick
 REMAINS. Generic `Calling<C>` trait composition, source-policy evaluation,
