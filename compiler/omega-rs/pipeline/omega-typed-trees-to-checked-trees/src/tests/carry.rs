@@ -494,6 +494,113 @@ fn checked_one_to_one_call_infers_the_claims_exact_carry_policy() {
 }
 
 #[test]
+fn checked_nary_call_inherits_each_claims_exact_carry_policy() {
+    let diagnostics = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue_safe(id: u64) -> Token
+            ensures
+                result in Token::Issued
+                    & Carry::AcrossSuspend;
+            machine issue_strict(id: u64) -> Token
+            ensures
+                result in Token::Issued;
+        }
+        data Pair {
+            left: Token;
+            right: Token;
+        }
+        machine pack(left: Token, right: Token) -> Pair {
+            Pair { left: left, right: right }
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Pair {
+            let left: Token = self.issuer.issue_safe(1);
+            let right: Token = self.issuer.issue_strict(2);
+            let packed: Pair = pack(left, right);
+            suspend self.scheduler.park();
+            transition { _ -> packed }
+        }
+        "#,
+    )
+    .expect_err("an n-ary helper must retain the stricter carried claim");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`packed` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+        }),
+        "expected the strict child claim to reject the crossing, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn checked_nary_call_retains_distinct_claim_policy_facts() {
+    let checked = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued
+                    & Carry::AcrossSuspend;
+        }
+        data Pair {
+            left: Token;
+            right: Token;
+        }
+        machine pack(left: Token, right: Token) -> Pair {
+            Pair { left: left, right: right }
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Pair {
+            let left: Token = self.issuer.issue(1);
+            let right: Token = self.issuer.issue(2);
+            let packed: Pair = pack(left, right);
+            suspend self.scheduler.park();
+            transition { _ -> packed }
+        }
+        "#,
+    )
+    .expect("every child claim independently permits suspension");
+
+    let crossing = checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter()
+        .find(|crossing| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == crossing.machine)
+                .is_some_and(|machine| machine.name.as_str() == "Main::run")
+        })
+        .expect("claim suspension crossing");
+    assert_eq!(
+        crossing.effective.suspension,
+        omega_core::semantics::CarrySuspension::Allowed
+    );
+    let carried = checked
+        .facts
+        .carry
+        .claim_policies
+        .iter()
+        .filter(|fact| fact.effective.suspension == omega_core::semantics::CarrySuspension::Allowed)
+        .collect::<Vec<_>>();
+    assert!(
+        carried.len() >= 2,
+        "both independently mapped claims must retain policy facts: {carried:#?}"
+    );
+    assert_ne!(carried[0].claim_identity, carried[1].claim_identity);
+}
+
+#[test]
 fn checked_one_to_one_call_cannot_erase_a_strict_claim_origin() {
     let diagnostics = lower(
         r#"

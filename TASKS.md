@@ -109,8 +109,13 @@ ordinary trait visibility do not delegate authority.
 
 #### P1c — composite resource frontiers
 
-**CLEAR DIRECTION.** Implement path-indexed partial moves and content-conserving
-multi-output transformations.
+**PARTIALLY CLEAR.** Implement path-indexed partial moves and normalized
+multi-output claim transformations. Active-case and fixed-index frontiers and
+per-claim carry inheritance have settled semantics. The source surface that
+marks a qualification as content-bearing and authors its projection, admitted
+backing, retirement, and conservation contract is **DESIGN BLOCKED —
+`OWNER_QUESTIONS.md` #19**; do not infer content from multiplicity or invent a
+declaration spelling.
 
 Implementation checkpoint (2026-07-28): transparent records now derive one
 tracked claim per statically named contained linear field instead of requiring
@@ -139,10 +144,18 @@ retain exact claim identity and provenance across multi-hop wrappers. Bodyless
 or ambiguous targets remain fail-closed. The checked proof/debug surface retains
 the structured maps in `05_claim_outcomes.json`.
 
-This is not full P1c: case and fixed-index paths, per-claim carry inheritance,
-content projections/backing, and conservation witnesses remain. Symbol-keyed
-substitutions already retain contained claims through nested generic transparent
-records.
+Carry policy now follows the exact claim identity independently of the
+carrier's structural policy. Each qualification-evidence origin begins strict,
+its own positive permissions relax only that origin, and distinct origins and
+distinct claims intersect. Because n-ary outcome-map rewrites preserve claim
+identity, checked multi-output helpers cannot erase or exchange child carry
+policies. Checked facts and the carry artifact retain the effective policy per
+claim.
+
+This is not full P1c: case and fixed-index paths, content
+projections/backing, and conservation witnesses remain. Symbol-keyed
+substitutions already retain contained claims through nested generic
+transparent records. Content authoring remains blocked on owner question #19.
 
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;

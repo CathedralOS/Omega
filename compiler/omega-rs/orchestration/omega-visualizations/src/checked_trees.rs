@@ -532,6 +532,19 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
         push_carry_policy_json(&mut json, fact.effective);
         json.push_str("\n    }");
     }
+    json.push_str("\n  ],\n  \"claim_policies\": [");
+    for (index, fact) in program.facts.carry.claim_policies.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"claim_identity\": ");
+        push_claim_identity_json(&mut json, program, fact.claim_identity);
+        json.push_str(",\n      \"contributing_origins\": ");
+        json.push_str(&fact.contributing_origins.to_string());
+        json.push_str(",\n      \"effective\": ");
+        push_carry_policy_json(&mut json, fact.effective);
+        json.push_str("\n    }");
+    }
     json.push_str("\n  ],\n  \"safe_point_crossings\": [");
     for (index, fact) in program.facts.carry.suspension_crossings.iter().enumerate() {
         if index > 0 {
@@ -1845,9 +1858,9 @@ mod tests {
         push_termination_interface_json, qualification_evidence_manifest_json,
     };
     use omega_checked_trees::{
-        CheckedTrees, DataCarryFact, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact,
-        FlowClaimOutcomeSource, MachineActivationCarryFact, MachineContractPlan,
-        MachineTerminationFact,
+        CheckedTrees, ClaimCarryPolicyFact, DataCarryFact, FlowClaimOutcomeEntryFact,
+        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
+        MachineContractPlan, MachineTerminationFact,
     };
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
@@ -2009,6 +2022,15 @@ mod tests {
                 contributing_types: Vec::new(),
                 unnamed_strict_values: 1,
             });
+        program
+            .facts
+            .carry
+            .claim_policies
+            .push(ClaimCarryPolicyFact {
+                claim_identity: omega_core::semantics::PermissionClaimIdentity::Unknown,
+                effective: CarryPolicy::STRICT,
+                contributing_origins: 2,
+            });
 
         let json = carry_manifest_json(&program);
 
@@ -2023,6 +2045,9 @@ mod tests {
         assert!(json.contains("\"analysis_complete\": true"));
         assert!(json.contains("\"subtree_machine_count\": 1"));
         assert!(json.contains("\"unnamed_strict_values\": 1"));
+        assert!(json.contains("\"claim_policies\": ["));
+        assert!(json.contains("\"claim_identity\": {\"kind\": \"unknown\"}"));
+        assert!(json.contains("\"contributing_origins\": 2"));
     }
 
     #[test]

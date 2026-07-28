@@ -7,6 +7,11 @@ mod intra_statement;
 
 struct ClaimCarryContext<'facts> {
     semantic: &'facts omega_facts::FactPlan,
+    ownership: &'facts omega_checked_trees::FlowOwnershipFacts,
+    claim_policies: &'facts [omega_checked_trees::ClaimCarryPolicyFact],
+    state_symbol: omega_core::symbols::SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
     entry_contexts: Vec<omega_facts::FactContextHandle>,
 }
 
@@ -22,6 +27,22 @@ impl ClaimCarryContext<'_> {
         value_name: &str,
         structural: CarryPolicy,
     ) -> CarryPolicy {
+        let claim_identities = self.live_claim_identities(program, value_name);
+        let claim_policies = claim_identities
+            .iter()
+            .filter_map(|identity| {
+                self.claim_policies
+                    .iter()
+                    .find(|fact| fact.claim_identity == *identity)
+                    .map(|fact| fact.effective)
+            })
+            .collect::<Vec<_>>();
+        if !claim_policies.is_empty() {
+            return claim_policies
+                .into_iter()
+                .fold(CarryPolicy::PERMISSIVE, CarryPolicy::intersect);
+        }
+
         let mut origins = Vec::<(QualificationEvidence, CarryPolicy)>::new();
 
         for context_handle in &self.entry_contexts {
@@ -80,6 +101,104 @@ impl ClaimCarryContext<'_> {
                 })
         }
     }
+
+    fn live_claim_identities(
+        &self,
+        program: &omega_typed_trees::TypedTrees,
+        value_name: &str,
+    ) -> Vec<omega_core::semantics::PermissionClaimIdentity> {
+        let mut latest_by_path = Vec::<(
+            String,
+            (usize, usize, usize),
+            omega_core::semantics::PermissionClaimIdentity,
+        )>::new();
+
+        for (event_index, event) in self
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .enumerate()
+        {
+            if event.state_symbol != self.state_symbol
+                || event.access != omega_core::semantics::PermissionAccess::Owned
+                || event.kind != omega_core::semantics::PermissionEventKind::Establish
+                || !event.obligation_live
+                || event.claim_identity == omega_core::semantics::PermissionClaimIdentity::Unknown
+            {
+                continue;
+            }
+            let Some(order) = permission_event_order_before_call(
+                event.source,
+                self.statement_index,
+                self.call_ordinal,
+                event_index,
+            ) else {
+                continue;
+            };
+            let label = crate::labels::canonical_place_label_from_parts(
+                program,
+                event.root,
+                self.ownership.segments.span_or_empty(event.segments),
+            );
+            if label != value_name
+                && !label
+                    .strip_prefix(value_name)
+                    .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))
+            {
+                continue;
+            }
+            if let Some((_, previous_order, identity)) = latest_by_path
+                .iter_mut()
+                .find(|(candidate, _, _)| *candidate == label)
+            {
+                if order >= *previous_order {
+                    *previous_order = order;
+                    *identity = event.claim_identity;
+                }
+            } else {
+                latest_by_path.push((label, order, event.claim_identity));
+            }
+        }
+
+        latest_by_path
+            .into_iter()
+            .fold(Vec::new(), |mut identities, (_, _, identity)| {
+                if !identities.contains(&identity) {
+                    identities.push(identity);
+                }
+                identities
+            })
+    }
+}
+
+fn permission_event_order_before_call(
+    source: omega_core::semantics::PermissionEventSource,
+    statement_index: usize,
+    call_ordinal: usize,
+    event_index: usize,
+) -> Option<(usize, usize, usize)> {
+    use omega_core::semantics::PermissionEventSource;
+    match source {
+        PermissionEventSource::StateEntry => Some((0, 0, event_index)),
+        PermissionEventSource::Statement {
+            statement_index: event_statement,
+        } if event_statement <= statement_index => {
+            Some((event_statement.saturating_add(1), usize::MAX, event_index))
+        }
+        PermissionEventSource::Call {
+            statement_index: event_statement,
+            call_ordinal: event_call,
+            ..
+        } if event_statement < statement_index
+            || (event_statement == statement_index && event_call <= call_ordinal) =>
+        {
+            Some((event_statement.saturating_add(1), event_call, event_index))
+        }
+        PermissionEventSource::Statement { .. }
+        | PermissionEventSource::Call { .. }
+        | PermissionEventSource::StateExit => None,
+    }
 }
 
 struct CrossingAccumulator {
@@ -105,6 +224,7 @@ pub(super) fn check_suspension_carry(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut omega_checked_trees::CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    facts.carry.claim_policies = derive_claim_carry_policies(facts);
     let activation_wide_carry =
         activation::build_machine_activation_carry_facts(program, &facts.carry, &facts.semantic);
     facts.carry.activation_wide_carry = activation_wide_carry;
@@ -184,6 +304,11 @@ pub(super) fn check_suspension_carry(
             let mut crossing = CrossingAccumulator::default();
             let claim_carry = ClaimCarryContext {
                 semantic: &facts.semantic,
+                ownership: &facts.flow.ownership,
+                claim_policies: &facts.carry.claim_policies,
+                state_symbol: state.symbol,
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
                 entry_contexts: facts
                     .flow
                     .state_call_entry_semantic_contexts(
@@ -253,6 +378,87 @@ pub(super) fn check_suspension_carry(
     } else {
         Err(diagnostics)
     }
+}
+
+fn derive_claim_carry_policies(
+    facts: &omega_checked_trees::CheckFacts,
+) -> Vec<omega_checked_trees::ClaimCarryPolicyFact> {
+    let mut origins = Vec::<(
+        omega_core::semantics::PermissionClaimIdentity,
+        QualificationEvidence,
+        CarryPolicy,
+    )>::new();
+
+    for (_, fact) in facts.semantic.facts.iter() {
+        if fact.evidence.origin == omega_core::semantics::QualificationEvidenceOrigin::None {
+            continue;
+        }
+        let permission = match fact.payload {
+            FactPayload::CarryPermission { permission, .. }
+            | FactPayload::ContractCarryPermission { permission, .. } => Some(permission),
+            FactPayload::CarryOrigin { .. } => None,
+            _ => continue,
+        };
+        let FactPlace::Place(place) = fact.place else {
+            continue;
+        };
+        let place = facts.semantic.places.get(place);
+        let place_segments = facts.semantic.place_segments.span_or_empty(place.segments);
+
+        for event in facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.access == omega_core::semantics::PermissionAccess::Owned
+                    && event.kind == omega_core::semantics::PermissionEventKind::Establish
+                    && event.obligation_live
+                    && event.claim_identity
+                        != omega_core::semantics::PermissionClaimIdentity::Unknown
+            })
+        {
+            if event.root != place.root
+                || facts.flow.ownership.segments.span_or_empty(event.segments) != place_segments
+            {
+                continue;
+            }
+            if let Some((_, _, policy)) = origins.iter_mut().find(|(identity, evidence, _)| {
+                *identity == event.claim_identity && *evidence == fact.evidence
+            }) {
+                if let Some(permission) = permission {
+                    *policy = permission.relax(*policy);
+                }
+            } else {
+                origins.push((
+                    event.claim_identity,
+                    fact.evidence,
+                    permission
+                        .map(|permission| permission.relax(CarryPolicy::STRICT))
+                        .unwrap_or(CarryPolicy::STRICT),
+                ));
+            }
+        }
+    }
+
+    let mut policies = Vec::<omega_checked_trees::ClaimCarryPolicyFact>::new();
+    for (claim_identity, _, origin_policy) in origins {
+        if let Some(fact) = policies
+            .iter_mut()
+            .find(|fact| fact.claim_identity == claim_identity)
+        {
+            fact.effective = fact.effective.intersect(origin_policy);
+            fact.contributing_origins = fact.contributing_origins.saturating_add(1);
+        } else {
+            policies.push(omega_checked_trees::ClaimCarryPolicyFact {
+                claim_identity,
+                effective: origin_policy,
+                contributing_origins: 1,
+            });
+        }
+    }
+    policies
 }
 
 fn append_call_carried_argument_diagnostics(

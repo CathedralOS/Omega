@@ -569,10 +569,13 @@ contained child claims. The first implemented slice follows statically named
 transparent-record fields through local construction, whole-record transfer,
 and extraction; moving one field preserves sibling debt, duplicate moves
 reject, and backend permission realizations retain the field paths, independent
-source provenance, and transfer-stable claim identity. Active-case and
-fixed-index frontiers and per-claim carry remain P1c work. Symbol-keyed
-substitutions already retain contained claims through nested generic transparent
-records.
+source provenance, and transfer-stable claim identity. Carry policy now indexes
+that exact identity as a separate checked axis, so n-ary outcome maps preserve
+each child policy and suspension checks intersect the policies of every live
+claim below an aggregate place. The carry artifact retains each effective
+claim policy and its contributing-origin count. Active-case and fixed-index
+frontiers remain P1c work. Symbol-keyed substitutions already retain contained
+claims through nested generic transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
 compiler-owned algebra, normalized claim projection and admitted backing,
 root-lineage mapping, and exact separated-conservation witness. The initial

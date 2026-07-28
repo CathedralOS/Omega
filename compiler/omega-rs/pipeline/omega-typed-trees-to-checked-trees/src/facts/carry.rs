@@ -25,6 +25,7 @@ pub(super) fn build_carry_facts(program: &TypedTrees) -> CarryFacts {
         contained_targets,
         suspension_crossings: Vec::new(),
         activation_wide_carry: Vec::new(),
+        claim_policies: Vec::new(),
     }
 }
 
