@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-07-27. This brief defines the durable extern model. Concrete
+Current as of 2026-07-28. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -141,6 +141,24 @@ entry stub implement the pinned boundary-machine contract. See
 The evaluated plan belongs to the satisfied requirement through ordinary
 `Calling<C>` policy composition. The old `boundary(<Plan>)` marker is retired;
 `boundary` identifies the trust/supply edge and does not carry deployment data.
+
+### Floating control state
+
+`f32` and `f64` requirements assume Omega's canonical semantic floating-control
+configuration. A native boundary must therefore state how the relevant control
+bits cross it:
+
+- a preserving binding proves that the foreign call leaves the masked
+  MXCSR/FPCR semantic controls unchanged;
+- a general binding saves and restores those controls in its trampoline; and
+- an inbound callback establishes the canonical Omega controls before checked
+  code runs, then restores the foreign controls on exit.
+
+Sticky floating status flags are not part of this semantic invariant.
+Directed-rounding operations do not alter ambient control state, and
+`Trapping` does not unmask hardware exceptions. A library or callback that
+silently enables FTZ/DAZ cannot leave behind a valid Omega hardware-float
+realization.
 
 ## Foreign execution placement and stack accounting
 

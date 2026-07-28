@@ -489,8 +489,27 @@ and allocation handles expose no compiler-owned stack/control storage.
   partial lifted operation as acceptance drivers.
 - **N8:** expand the construction corpus and proof-engine support needed by
   layouts, quotients, and `Real`.
-- **F7:** implement float-format providers after owner question #10 determines
-  the primitive-operation requirement family.
+- **F7:** replace hardcoded float lowering with the settled ordinary
+  boundary-operator/provider-plan architecture in this strict order:
+  1. extend the N6 rational carrier to signed values while preserving the
+     existing `rat_gap` metric theorems;
+  2. add the proof-level `FloatMeaning` sum (`FiniteNonZero(SignedRat)`,
+     signed zero, signed infinity, and payload-erased NaN);
+  3. implement executable per-operation `FloatSemantics` functions and make
+     build-time folding plus the interpreter consume them;
+  4. implement checked arithmetic-policy adapters, including result-checked
+     `Trapping` and overflow-only `Saturating`;
+  5. add explicit target satisfiers and selected `ProviderPlan` realization for
+     x86-64, AArch64, and checked software fallbacks, including canonical
+     floating-control-state preconditions and foreign-boundary restoration; and
+  6. ship differential validation evidence for every admitted hardware
+     realization.
+  Keep `f32` and `f64` permanently bound to binary32 and binary64. Keep
+  multiply-then-add, fused multiply-add, directed-rounding variants,
+  comparisons, conversions, and classification as distinct named requirements.
+  A representation-sensitive consumer of a possibly-NaN result must prove
+  non-NaN, canonicalize, or demand an exact raw-NaN refinement; the base
+  arithmetic contract exposes only `FloatMeaning`.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -574,7 +593,6 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #10 primitive float requirement family | float-format providers |
 | #11 wire family/presence/evolution | remaining wire runtime |
 | #12 sealed external entry reference | callbacks and dynamic entry registration |
 | #13 portable atomic fence | standalone fence surface |
