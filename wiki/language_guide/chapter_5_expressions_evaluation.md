@@ -409,8 +409,9 @@ Two rules keep it honest:
 > conversion and the not-yet-migrated corpus still use compatibility `as` while
 > their named operations land. The migrated integer cohort covers guard,
 > comparison, bitwise, entry-result, indexed-operand, and signedness-sensitive
-> lowering shapes. The domain model reserves qualification `as` for changing
-> static facts without changing carrier, payload, or runtime work.
+> lowering shapes plus decimal/binary formatting, decimal parsing, hashing, and
+> checksums. The domain model reserves qualification `as` for changing static
+> facts without changing carrier, payload, or runtime work.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.
