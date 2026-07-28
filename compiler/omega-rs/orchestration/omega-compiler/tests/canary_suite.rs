@@ -33881,6 +33881,8 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
         "canaries/pass/filesystem/native_set_times",
         "canaries/pass/filesystem/native_stat",
         "canaries/pass/filesystem/native_symlink_metadata",
+        "canaries/pass/time/runtime_fs_mtime_interop_windows_exit",
+        "canaries/pass/time/runtime_fs_mtime_system_time_interop_exit",
     ] {
         let main_path = repo_root().join(relative).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {

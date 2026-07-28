@@ -374,14 +374,20 @@ ceilings, and publication-before-ledger-record all reject.
   a mutating value machine reads the caller's aliased state instead of an
   unused cloned parameter slot. A focused native regression pins the formerly
   crashing shape beside the existing dungeon-derived call/dispatch tests.
-- Filesystem metadata consumers now use named `u8` widening for every raw
-  stat-record byte decode, across 15 native macOS canaries and the Windows
-  SetFileTime round-trip canary. A checked-tree cohort covers all 16 and the
-  complete native filesystem/GUI suite still passes. Residual filesystem casts
-  are deliberately separate work: signed host counts entering unsigned slice
-  capacities, explicitly wrapping byte encoders/cross-signed narrowing, and
-  the cast-valued wrapper regression that specifically pins compatibility
-  lowering.
+- Filesystem metadata consumers now use named `u8` widening for raw stat-record
+  byte decoding across 15 native macOS canaries, both filesystem-to-time
+  interop legs, and the Windows SetFileTime round trip. A checked-tree cohort
+  covers all 18 and the complete native filesystem/GUI suite still passes.
+  Residual filesystem casts are deliberately separate work: signed host counts
+  entering unsigned slice capacities, explicitly wrapping byte
+  encoders/cross-signed narrowing, and cast-heavy compatibility regressions
+  whose authored shape specifically pins legacy lowering. A migration probe of
+  the cast-field payload fixture also exposed an implementation gap: a terminal
+  branch substate with several assignment-value calls in one local initializer
+  currently models only the first call in its branch prelude, so the full
+  initializer does not materialize on the native path. Keep that fixture's
+  authored casts until nested leaf-call execution handles the full expression;
+  this is compiler work, not a language-design question.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
