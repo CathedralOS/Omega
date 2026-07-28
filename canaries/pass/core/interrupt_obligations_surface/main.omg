@@ -5,8 +5,8 @@ use omega::language::core::interrupt;
 data Main {}
 
 machine Main::settle(
-    guard: InterruptMaskGuard,
-    acknowledgement: InterruptAcknowledgement
+    guard: InterruptMaskGuard in Active,
+    acknowledgement: InterruptAcknowledgement in Pending
 )
 effects MachineControl + PortIo
 {

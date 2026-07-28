@@ -2,7 +2,21 @@ use omega::language::core::interrupt;
 
 data Main {}
 
+machine Main::settle(acknowledgement: InterruptAcknowledgement in Pending)
+effects PortIo
+{
+    acknowledgement.complete();
+}
+
 machine Main::main(&mut self) {
-    // Only the admitted interrupt provider may mint an acknowledgement.
-    let forged: InterruptAcknowledgement = InterruptAcknowledgement {};
+    // Matching runtime fields do not establish the provider-owned `Pending`
+    // qualification required by a settlement path.
+    let forged: InterruptAcknowledgement = InterruptAcknowledgement {
+        root: 1,
+        provider_execution: 2,
+        invocation: 3,
+        policy: 4,
+        acknowledgement: 5,
+    };
+    self.settle(forged);
 }

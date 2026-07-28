@@ -102,11 +102,12 @@ operations with explicit `MachineOwner` authority, target applicability, and
 RFLAGS.IF transitions (including STI's delayed recognition rule). Structured
 `pushfq <destination>`/`popfq <source>` operations preserve RSP, use exact
 `u64` places, and give restore the same `MachineControl`/`MachineOwner`
-contract. Their higher-level saved-mask/restore protocol remains an ordinary
-linear value whose runtime field records the prior mask state and whose
-qualification records valid issuance. Its compatibility source contract is
-live as the `InterruptMaskControl`/`InterruptMaskGuard` pair in
-`omega::language::core::interrupt`; provider lowering remains.
+contract. Their higher-level saved-mask/restore protocol is ordinary linear
+`InterruptMaskGuard` data: compact runtime fields identify the exact
+root/invocation/control, guard, and mask states, while bodyless `Active`
+records valid issuance. Its compatibility source contract is live with
+`InterruptMaskControl` in `omega::language::core::interrupt`; provider
+establishment and lowering remain.
 
 `omega::language::core::assembly` now defines the canonical empty boundary
 traits `MachineControl` and `PortIo`. Compiler-known asm calls resolve those

@@ -2,7 +2,7 @@ use omega::language::core::interrupt;
 
 data Main {}
 
-machine Main::leak(guard: InterruptMaskGuard) {
+machine Main::leak(guard: InterruptMaskGuard in Active) {
     // A forgotten restore is a linearity error, never implicit drop cleanup.
 }
 

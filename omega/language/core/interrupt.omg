@@ -6,15 +6,23 @@
 // unconditional `enable` operation. An acknowledgement is minted by an inbound
 // interrupt provider and must be completed exactly once.
 //
-// Both obligations are linear data. Boundary evidence establishes the live
-// obligation; the mask guard carries the exact prior state, while an
-// acknowledgement carries any source/provider identity its protocol needs.
-// The declarations below retain the compiler's current boundary-data spelling
-// until ordinary authority-value domains land.
+// Both obligations are ordinary linear data. Their fields carry the runtime
+// identities needed by the selected provider; bodyless domains record valid
+// issuance. Reconstructing the same fields therefore does not recreate either
+// obligation.
 
 use omega::language::core::assembly;
 
-boundary data InterruptMaskGuard [linear];
+data InterruptMaskGuard [linear] {
+    root: u64;
+    invocation: u64;
+    control: u64;
+    guard: u64;
+    prior_state: u64;
+    masked_state: u64;
+}
+
+pub domain InterruptMaskGuard::Active;
 
 // The capability that may change the current activation's interrupt mask.
 // Saving returns the only authority that can restore that exact prior state.
@@ -26,10 +34,22 @@ ensures true;
 
 boundary machine InterruptMaskGuard::restore(self)
 effects MachineControl
+requires
+    self in InterruptMaskGuard::Active
 ensures true;
 
-boundary data InterruptAcknowledgement [linear];
+data InterruptAcknowledgement [linear] {
+    root: u64;
+    provider_execution: u64;
+    invocation: u64;
+    policy: u64;
+    acknowledgement: u64;
+}
+
+pub domain InterruptAcknowledgement::Pending;
 
 boundary machine InterruptAcknowledgement::complete(self)
 effects PortIo
+requires
+    self in InterruptAcknowledgement::Pending
 ensures true;
