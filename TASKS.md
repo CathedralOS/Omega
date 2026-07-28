@@ -83,8 +83,8 @@ composite claim-frontier work remain.
   cannot settle either obligation.
 - connect installed-root entry receipts to those interrupt facts, add their
   compiler-owned carry policy and authority-flow rows, and migrate the
-  `TaskRuntime` handle after its behavior-publication contract is settled.
-  **DESIGN BLOCKED for `TaskRuntime` — OWNER_QUESTIONS #9.**
+  `TaskRuntime` handle through the ordinary selected-provider behavior evidence,
+  stack-resource, and custody work tracked under TR3–TR8.
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
 an owner machine cannot satisfy a bodyful result without proving its body; an
@@ -466,8 +466,9 @@ improvements do not change public identity.
   effective axes. Path-indexed transparent-record frontiers now preserve
   contained claim identities and permissions through whole-record and field
   transfers. Checked n-ary outcome maps now retain those identities through
-  opaque and multi-hop calls; remaining CRY work is per-origin carry inheritance
-  across those maps plus content-algebra conservation.
+  opaque and multi-hop calls. Carry-specific inheritance through the current
+  claim maps is complete; content-algebra conservation remains P1c work after
+  owner question #19 settles its authored surface.
   A source-to-artifact canary pins an admitted suspension-only permission
   through selected-machine specialization and the canonical safe-point
   crossing. The activation artifact now carries a fixed-stack `StackPlan`,
@@ -658,6 +659,7 @@ blocked work.
 | #16 delegated canonical qualification | third-party bodyless-domain qualification |
 | #17 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
 | #18 hosted-FFI gateway | reusable native-worker execution and backpressure |
+| #19 claim-content projection and backing | P1c content algebra and conservation |
 
 ## Vertical acceptance slices
 
