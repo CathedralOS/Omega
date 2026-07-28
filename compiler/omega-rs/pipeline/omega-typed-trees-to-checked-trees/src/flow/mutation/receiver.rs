@@ -150,9 +150,7 @@ fn canonical_self_receiver_path(
                     .then_some(statement.receiver_symbol)
             })
             .unwrap_or_else(SymbolHandle::invalid);
-        place
-            .segments
-            .push(omega_facts::PlaceSegment::Field { symbol });
+        crate::flow::push_field_place_segments(program, &mut place.segments, symbol);
     }
 
     Some(place)

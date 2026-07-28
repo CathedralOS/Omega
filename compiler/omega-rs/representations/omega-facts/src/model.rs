@@ -25,6 +25,12 @@ pub enum PlaceSegment {
     Field {
         symbol: SymbolHandle,
     },
+    /// Compiler-normalized identity for one statically selected sum case.
+    /// Payload fields follow this segment, so otherwise identical field
+    /// spellings in distinct variants cannot alias.
+    Case {
+        variant: SymbolHandle,
+    },
     /// Compiler-normalized identity for one statically known fixed-array
     /// element. Unlike `Index`, this is independent of expression handles and
     /// can therefore appear in a type-derived ownership frontier.

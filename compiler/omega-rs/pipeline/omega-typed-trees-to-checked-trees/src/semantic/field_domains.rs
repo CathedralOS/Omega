@@ -115,7 +115,13 @@ fn append_data_field_domain_facts(
             // a `self.a.b` read exactly where the nested write established it.
             let place = facts.append_symbol_place(self_symbol);
             for segment in prefix {
+                if let Some(variant) = omega_facts::payload_variant_for_field(program, *segment) {
+                    facts.push_place_segment(place, PlaceSegment::Case { variant });
+                }
                 facts.push_place_segment(place, PlaceSegment::Field { symbol: *segment });
+            }
+            if let Some(variant) = omega_facts::payload_variant_for_field(program, field.symbol) {
+                facts.push_place_segment(place, PlaceSegment::Case { variant });
             }
             facts.push_place_segment(
                 place,
@@ -203,6 +209,7 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                         domain_symbol,
                     );
                     append_state_parameter_domain_fact(
+                        program,
                         facts,
                         machine.symbol,
                         state.symbol,
@@ -390,6 +397,7 @@ fn append_state_parameter_data_field_domain_facts(
             let mut path = prefix.to_vec();
             path.push(field.symbol);
             append_state_parameter_domain_fact(
+                program,
                 facts,
                 machine_symbol,
                 state_symbol,
@@ -423,6 +431,7 @@ fn append_state_parameter_data_field_domain_facts(
 }
 
 fn append_state_parameter_domain_fact(
+    program: &omega_typed_trees::TypedTrees,
     facts: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -433,6 +442,9 @@ fn append_state_parameter_domain_fact(
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
     for field in fields {
+        if let Some(variant) = omega_facts::payload_variant_for_field(program, *field) {
+            facts.push_place_segment(place, PlaceSegment::Case { variant });
+        }
         facts.push_place_segment(place, PlaceSegment::Field { symbol: *field });
     }
     let fact = facts.append_fact(Fact {
@@ -524,6 +536,12 @@ pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts
                         // segment for the variant's payload field, matching how a
                         // destructured payload arg resolves at the call site.
                         let place = facts.append_symbol_place(local_data.symbol);
+                        facts.push_place_segment(
+                            place,
+                            PlaceSegment::Case {
+                                variant: variant.symbol,
+                            },
+                        );
                         facts.push_place_segment(
                             place,
                             PlaceSegment::Field {

@@ -411,6 +411,10 @@ fn collect_data_return_lifetimes(
         match member {
             omega_typed_trees::data::DataMember::Field(field) => {
                 let mut field_path = owner_path.to_vec();
+                if let Some(variant) = omega_facts::payload_variant_for_field(program, field.symbol)
+                {
+                    field_path.push(BorrowOwnerSegment::Case(variant));
+                }
                 field_path.push(BorrowOwnerSegment::Field(field.symbol));
                 collect_type_return_lifetimes(
                     program,
@@ -425,6 +429,11 @@ fn collect_data_return_lifetimes(
             omega_typed_trees::data::DataMember::Variant(variant) => {
                 for field in program.data_payload_fields(variant) {
                     let mut field_path = owner_path.to_vec();
+                    if let Some(variant) =
+                        omega_facts::payload_variant_for_field(program, field.symbol)
+                    {
+                        field_path.push(BorrowOwnerSegment::Case(variant));
+                    }
                     field_path.push(BorrowOwnerSegment::Field(field.symbol));
                     collect_type_return_lifetimes(
                         program,

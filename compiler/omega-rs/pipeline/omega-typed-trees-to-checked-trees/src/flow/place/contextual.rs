@@ -49,9 +49,7 @@ pub(super) fn contextual_canonical_place_from_expression(
                         resolve_member_symbol_from_place(program, &place, member_name.as_str())
                     })
                     .unwrap_or_else(SymbolHandle::invalid);
-                place
-                    .segments
-                    .push(omega_facts::PlaceSegment::Field { symbol });
+                push_field_place_segments(program, &mut place.segments, symbol);
             }
             Some(place)
         }
@@ -71,9 +69,7 @@ pub(super) fn contextual_canonical_place_from_expression(
                         .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            place
-                .segments
-                .push(omega_facts::PlaceSegment::Field { symbol });
+            push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -149,6 +145,7 @@ fn resolve_member_symbol_from_place(
 
     for segment in &place.segments {
         match segment {
+            omega_facts::PlaceSegment::Case { .. } => {}
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = resolution::symbol_type_symbol(program, *symbol)?;
             }

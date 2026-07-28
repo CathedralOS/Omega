@@ -16,11 +16,10 @@ use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 struct LinearPlace {
     symbol: SymbolHandle,
     name: String,
-    /// Canonical claim path below `symbol`. An empty path is one nominal or
-    /// conditional root claim; transparent records contribute one entry per
-    /// contained linear claim instead of inventing an aggregate root.
+    /// Canonical claim path below `symbol`. An empty path is one nominal claim;
+    /// transparent records, active cases, and fixed arrays contribute one
+    /// entry per contained linear claim instead of inventing an aggregate root.
     path: Vec<omega_facts::PlaceSegment>,
-    type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
     claim_identity: Option<PermissionClaimIdentity>,
     provenance: Option<PermissionProvenance>,
@@ -47,7 +46,6 @@ struct WrittenLinearTarget {
 #[derive(Debug, Clone)]
 struct LinearClaimTemplate {
     path: Vec<omega_facts::PlaceSegment>,
-    type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
     conditional: bool,
 }
@@ -260,11 +258,74 @@ fn reconcile_state_call_result_origins(
     for _ in 0..iteration_limit {
         let maps = derive_checked_claim_outcome_maps(program, segments, permission_events);
         let rewrites = call_result_origin_rewrites(program, segments, permission_events, &maps);
-        if !apply_claim_origin_rewrites(permission_events, &rewrites) {
+        let origins_changed = apply_claim_origin_rewrites(permission_events, &rewrites);
+        let liveness_changed =
+            apply_statically_inactive_call_results(program, segments, permission_events, &maps);
+        if !origins_changed && !liveness_changed {
             return derive_checked_claim_outcome_maps(program, segments, permission_events);
         }
     }
     derive_checked_claim_outcome_maps(program, segments, permission_events)
+}
+
+fn apply_statically_inactive_call_results(
+    program: &omega_typed_trees::TypedTrees,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+    permission_events: &mut [FlowPermissionEventFact],
+    maps: &[CheckedClaimOutcomeMap],
+) -> bool {
+    let inactive_identities = permission_events
+        .iter()
+        .filter_map(|event| {
+            if event.kind != PermissionEventKind::Establish
+                || event.access != PermissionAccess::Owned
+                || !event.obligation_live
+            {
+                return None;
+            }
+            let PermissionEventSource::Statement { statement_index } = event.source else {
+                return None;
+            };
+            let state = crate::find_state(program, event.state_symbol)?;
+            let statement = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(statement_index)?;
+            let expression = match statement {
+                StatementNode::LocalData(local) => local.initial_value,
+                StatementNode::Assignment(assignment) => assignment.value,
+                _ => return None,
+            };
+            let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            let target = crate::find_state(program, call.target_symbol)?;
+            let map = maps.iter().find(|map| map.state_symbol == target.symbol)?;
+            let receiving_path = segments.span_or_empty(event.segments);
+            (!map
+                .entries
+                .iter()
+                .any(|entry| entry.output_path == receiving_path))
+            .then_some(event.claim_identity)
+        })
+        .filter(|identity| *identity != PermissionClaimIdentity::Unknown)
+        .collect::<Vec<_>>();
+    if inactive_identities.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    for event in permission_events.iter_mut().filter(|event| {
+        event.access == PermissionAccess::Owned
+            && inactive_identities.contains(&event.claim_identity)
+    }) {
+        changed |=
+            event.obligation_live || event.claim_identity != PermissionClaimIdentity::Unknown;
+        event.obligation_live = false;
+        event.claim_identity = PermissionClaimIdentity::Unknown;
+    }
+    changed
 }
 
 fn derive_checked_claim_outcome_maps(
@@ -320,7 +381,11 @@ fn derive_checked_claim_outcome_map(
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let mut entries = state_result_expressions(program, statements)
+    let result_expressions = state_result_expressions(program, statements);
+    let named_transitions = state_result_named_transitions(program, statements);
+    let mut entries = result_expressions
+        .iter()
+        .copied()
         .into_iter()
         .flat_map(|(statement_index, expression)| {
             claim_outcomes_for_expression(
@@ -334,22 +399,20 @@ fn derive_checked_claim_outcome_map(
                 &[],
             )
         })
-        .chain(
-            state_result_named_transitions(program, statements)
-                .into_iter()
-                .flat_map(|(statement_index, target_symbol, arguments)| {
-                    claim_outcomes_for_named_transition(
-                        program,
-                        state,
-                        statement_index,
-                        target_symbol,
-                        arguments,
-                        segments,
-                        permission_events,
-                        known_maps,
-                    )
-                }),
-        )
+        .chain(named_transitions.iter().copied().flat_map(
+            |(statement_index, target_symbol, arguments)| {
+                claim_outcomes_for_named_transition(
+                    program,
+                    state,
+                    statement_index,
+                    target_symbol,
+                    arguments,
+                    segments,
+                    permission_events,
+                    known_maps,
+                )
+            },
+        ))
         .fold(Vec::new(), |mut entries, entry| {
             if !entries.contains(&entry) {
                 entries.push(entry);
@@ -369,6 +432,17 @@ fn derive_checked_claim_outcome_map(
                 sources
             });
         if sources.len() != 1 {
+            if sources.is_empty()
+                && claim_path_is_statically_inactive(
+                    program,
+                    path,
+                    &result_expressions,
+                    &named_transitions,
+                    known_maps,
+                )
+            {
+                continue;
+            }
             return None;
         }
     }
@@ -379,31 +453,147 @@ fn derive_checked_claim_outcome_map(
             .count()
             == 1
     });
-    if entries.len() != expected_paths.len() {
-        return None;
-    }
     entries.sort_by_key(|entry| {
         expected_paths
             .iter()
             .position(|path| *path == entry.output_path)
             .unwrap_or(usize::MAX)
     });
-    let sources = entries
-        .iter()
-        .map(|entry| &entry.source)
-        .collect::<Vec<_>>();
-    if sources
-        .iter()
-        .enumerate()
-        .any(|(index, source)| sources[index + 1..].contains(source))
-    {
-        return None;
+    for (index, entry) in entries.iter().enumerate() {
+        if entries[index + 1..].iter().any(|candidate| {
+            candidate.source == entry.source
+                && !claim_paths_are_case_alternatives(&entry.output_path, &candidate.output_path)
+        }) {
+            return None;
+        }
     }
     Some(CheckedClaimOutcomeMap {
         machine_symbol,
         state_symbol: state.symbol,
         entries,
     })
+}
+
+fn claim_paths_are_case_alternatives(
+    left: &[omega_facts::PlaceSegment],
+    right: &[omega_facts::PlaceSegment],
+) -> bool {
+    left.iter()
+        .zip(right)
+        .find_map(|(left, right)| {
+            if left == right {
+                return None;
+            }
+            Some(matches!(
+                (left, right),
+                (
+                    omega_facts::PlaceSegment::Case {
+                        variant: left_variant
+                    },
+                    omega_facts::PlaceSegment::Case {
+                        variant: right_variant
+                    }
+                ) if left_variant != right_variant
+            ))
+        })
+        .unwrap_or(false)
+}
+
+fn claim_path_is_statically_inactive(
+    program: &omega_typed_trees::TypedTrees,
+    path: &[omega_facts::PlaceSegment],
+    result_expressions: &[(usize, omega_typed_trees::expression::ExpressionHandle)],
+    named_transitions: &[(
+        usize,
+        SymbolHandle,
+        HandleSpan<omega_typed_trees::expression::ExpressionHandle>,
+    )],
+    known_maps: &[CheckedClaimOutcomeMap],
+) -> bool {
+    if result_expressions.is_empty() && named_transitions.is_empty() {
+        return false;
+    }
+    result_expressions.iter().all(|(_, expression)| {
+        expression_statically_excludes_claim_path(program, *expression, path, known_maps)
+    }) && named_transitions.iter().all(|(_, target_symbol, _)| {
+        crate::find_state(program, *target_symbol)
+            .and_then(|target| {
+                known_maps
+                    .iter()
+                    .find(|map| map.state_symbol == target.symbol)
+            })
+            .is_some_and(|map| !map.entries.iter().any(|entry| entry.output_path == path))
+    })
+}
+
+fn expression_statically_excludes_claim_path(
+    program: &omega_typed_trees::TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    path: &[omega_facts::PlaceSegment],
+    known_maps: &[CheckedClaimOutcomeMap],
+) -> bool {
+    match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+            let mut remaining = path;
+            if literal.case_name.is_some() {
+                let Some(omega_facts::PlaceSegment::Case { variant }) = remaining.first() else {
+                    return false;
+                };
+                if literal_variant(program, literal).map(|candidate| candidate.symbol)
+                    != Some(*variant)
+                {
+                    return true;
+                }
+                remaining = &remaining[1..];
+            }
+            let Some(omega_facts::PlaceSegment::Field { symbol }) = remaining.first() else {
+                return false;
+            };
+            let Some(field_name) = data_field_name(program, *symbol) else {
+                return false;
+            };
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|field| field.name.as_str() == field_name)
+                .is_some_and(|field| {
+                    expression_statically_excludes_claim_path(
+                        program,
+                        field.value,
+                        &remaining[1..],
+                        known_maps,
+                    )
+                })
+        }
+        omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            let Some(omega_facts::PlaceSegment::FixedIndex { index }) = path.first() else {
+                return false;
+            };
+            program
+                .expression_table
+                .expression_handles(*values)
+                .get(*index)
+                .is_some_and(|value| {
+                    expression_statically_excludes_claim_path(
+                        program,
+                        *value,
+                        &path[1..],
+                        known_maps,
+                    )
+                })
+        }
+        omega_typed_trees::expression::ExpressionNode::Call(call) => {
+            crate::find_state(program, call.target_symbol)
+                .and_then(|target| {
+                    known_maps
+                        .iter()
+                        .find(|map| map.state_symbol == target.symbol)
+                })
+                .is_some_and(|map| !map.entries.iter().any(|entry| entry.output_path == path))
+        }
+        _ => false,
+    }
 }
 
 fn state_result_expressions(
@@ -583,6 +773,44 @@ fn claim_outcomes_for_expression(
                 )
             })
             .collect(),
+        omega_typed_trees::expression::ExpressionNode::StructLiteral(literal)
+            if literal.case_name.is_some() =>
+        {
+            let Some(variant) = literal_variant(program, literal) else {
+                return Vec::new();
+            };
+            let mut case_prefix = output_prefix.to_vec();
+            case_prefix.push(omega_facts::PlaceSegment::Case {
+                variant: variant.symbol,
+            });
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .filter_map(|field| {
+                    let value = program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .find(|literal_field| literal_field.name == field.name)?
+                        .value;
+                    let mut field_prefix = case_prefix.clone();
+                    field_prefix.push(omega_facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    });
+                    Some(claim_outcomes_for_expression(
+                        program,
+                        state,
+                        statement_index,
+                        value,
+                        segments,
+                        permission_events,
+                        known_maps,
+                        &field_prefix,
+                    ))
+                })
+                .flatten()
+                .collect()
+        }
         omega_typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_none() =>
         {
@@ -1265,7 +1493,6 @@ fn initial_linear_places(
                 symbol: parameter.symbol,
                 name: claim_place_name(program, parameter.name.as_str(), &claim.path),
                 path: claim.path,
-                type_reference: claim.type_reference,
                 multiplicity: claim.multiplicity,
                 claim_identity: None,
                 provenance: Some(established_provenance(
@@ -1288,7 +1515,6 @@ fn initial_linear_places(
                 symbol: local.symbol,
                 name: claim_place_name(program, local.name.as_str(), &claim.path),
                 path: claim.path,
-                type_reference: claim.type_reference,
                 multiplicity: claim.multiplicity,
                 claim_identity: None,
                 provenance: None,
@@ -1386,22 +1612,13 @@ fn append_linear_claim_frontier(
     if multiplicity == Multiplicity::Linear {
         claims.push(LinearClaimTemplate {
             path: path.to_vec(),
-            type_reference,
             multiplicity,
-            conditional: false,
+            conditional: path
+                .iter()
+                .any(|segment| matches!(segment, omega_facts::PlaceSegment::Case { .. })),
         });
         return;
     }
-    if conditional_linear_payload_inner(program, type_reference, substitutions, &mut Vec::new()) {
-        claims.push(LinearClaimTemplate {
-            path: path.to_vec(),
-            type_reference,
-            multiplicity,
-            conditional: true,
-        });
-        return;
-    }
-
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { .. } => unreachable!("handled before multiplicity"),
         TypeReferenceNode::Named { symbol, name } => {
@@ -1458,8 +1675,6 @@ fn append_linear_claim_frontier(
             // Const-parameter lengths must become literal before this stage
             // can enumerate the complete fixed-index ownership frontier.
         }
-        // Active sum cases join this same frontier once their canonical path
-        // identities and conditional outcome maps are available.
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
@@ -1480,21 +1695,42 @@ fn append_data_linear_claim_frontier(
     }
     visiting.push(definition.symbol);
     for member in program.data_members(definition) {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
-            continue;
-        };
-        let mut field_path = path.to_vec();
-        field_path.push(omega_facts::PlaceSegment::Field {
-            symbol: field.symbol,
-        });
-        append_linear_claim_frontier(
-            program,
-            field.type_reference,
-            substitutions,
-            &field_path,
-            visiting,
-            claims,
-        );
+        match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                let mut field_path = path.to_vec();
+                field_path.push(omega_facts::PlaceSegment::Field {
+                    symbol: field.symbol,
+                });
+                append_linear_claim_frontier(
+                    program,
+                    field.type_reference,
+                    substitutions,
+                    &field_path,
+                    visiting,
+                    claims,
+                );
+            }
+            omega_typed_trees::data::DataMember::Variant(variant) => {
+                let mut case_path = path.to_vec();
+                case_path.push(omega_facts::PlaceSegment::Case {
+                    variant: variant.symbol,
+                });
+                for field in program.data_payload_fields(variant) {
+                    let mut field_path = case_path.clone();
+                    field_path.push(omega_facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    });
+                    append_linear_claim_frontier(
+                        program,
+                        field.type_reference,
+                        substitutions,
+                        &field_path,
+                        visiting,
+                        claims,
+                    );
+                }
+            }
+        }
     }
     visiting.pop();
 }
@@ -1507,15 +1743,20 @@ fn claim_place_name(
     let mut name = root.to_owned();
     for segment in path {
         match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
-                let field = program.data_definitions().iter().find_map(|definition| {
+            omega_facts::PlaceSegment::Case { variant } => {
+                let case = program.data_definitions().iter().find_map(|definition| {
                     program.data_members(definition).iter().find_map(|member| {
-                        let omega_typed_trees::data::DataMember::Field(field) = member else {
+                        let omega_typed_trees::data::DataMember::Variant(candidate) = member else {
                             return None;
                         };
-                        (field.symbol == *symbol).then_some(field.name.as_str())
+                        (candidate.symbol == *variant).then_some(candidate.name.as_str())
                     })
                 });
+                name.push_str("::");
+                name.push_str(case.unwrap_or("<case>"));
+            }
+            omega_facts::PlaceSegment::Field { symbol } => {
+                let field = data_field_name(program, *symbol);
                 name.push('.');
                 name.push_str(field.unwrap_or("<field>"));
             }
@@ -1558,7 +1799,7 @@ fn apply_recorded_statement_events(
                         "linear value `{}` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here",
                         place.name
                     )));
-                } else if !place.live && !place.conditional {
+                } else if !place.live {
                     diagnostics.push(Diagnostic::error(format!(
                         "linear value `{}` was already transferred or consumed; it cannot be moved here",
                         place.name
@@ -1778,6 +2019,7 @@ fn apply_statement_permission_production(
             .segments
             .span_or_empty(event.segments)
             .to_vec();
+        select_static_case_alternative(symbol, &event_path, places);
         if written_targets.iter().any(|target| {
             target.root == event.root && target.destination_path.as_slice() == event_path
         }) {
@@ -1796,6 +2038,14 @@ fn apply_statement_permission_production(
         let kind = permission_kind_for_move(program, facts, machine_symbol, state_symbol, event);
         for index in matching {
             let claim_path = places[index].path.clone();
+            if !places[index].live
+                && places[index].conditional
+                && !event_path
+                    .iter()
+                    .any(|segment| matches!(segment, omega_facts::PlaceSegment::Case { .. }))
+            {
+                continue;
+            }
             let segments = facts.flow.ownership.segments.insert_many(claim_path);
             let place = &mut places[index];
             let obligation_live = place.live;
@@ -1871,6 +2121,42 @@ fn apply_statement_permission_production(
 fn move_selects_claim(event_path: &[omega_facts::PlaceSegment], claim: &LinearPlace) -> bool {
     claim.path.starts_with(event_path)
         || (claim.conditional && event_path.starts_with(claim.path.as_slice()))
+}
+
+fn select_static_case_alternative(
+    symbol: SymbolHandle,
+    event_path: &[omega_facts::PlaceSegment],
+    places: &mut [LinearPlace],
+) {
+    let Some((case_index, selected_variant)) =
+        event_path
+            .iter()
+            .enumerate()
+            .find_map(|(index, segment)| match segment {
+                omega_facts::PlaceSegment::Case { variant } => Some((index, *variant)),
+                _ => None,
+            })
+    else {
+        return;
+    };
+    let prefix = &event_path[..case_index];
+    for place in places {
+        if place.symbol != symbol
+            || place.path.get(..case_index) != Some(prefix)
+            || place.path.get(case_index)
+                == Some(&omega_facts::PlaceSegment::Case {
+                    variant: selected_variant,
+                })
+        {
+            continue;
+        }
+        if matches!(
+            place.path.get(case_index),
+            Some(omega_facts::PlaceSegment::Case { .. })
+        ) {
+            place.live = false;
+        }
+    }
 }
 
 fn established_provenance(
@@ -2023,8 +2309,7 @@ fn written_linear_targets(
                     state_symbol,
                     statement_index,
                     value,
-                    tracked.conditional,
-                    tracked.type_reference,
+                    relative_path,
                     places,
                 ),
                 claim_identity: expression_permission_claim_identity_for_claim(
@@ -2118,6 +2403,23 @@ fn expression_permission_claim_identity_for_claim(
         }
     }
 
+    if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+        && let Some(omega_facts::PlaceSegment::Case { variant }) = relative_path.first()
+    {
+        if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
+            return None;
+        }
+        return expression_permission_claim_identity_for_claim(
+            program,
+            state_symbol,
+            statement_index,
+            expression,
+            &relative_path[1..],
+            places,
+        );
+    }
+
     if let omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
         program.expression_table.expression(expression)
         && let Some(omega_facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
@@ -2140,14 +2442,7 @@ fn expression_permission_claim_identity_for_claim(
         program.expression_table.expression(expression)
         && let Some(omega_facts::PlaceSegment::Field { symbol }) = relative_path.first()
     {
-        let field_name = program.data_definitions().iter().find_map(|definition| {
-            program.data_members(definition).iter().find_map(|member| {
-                let omega_typed_trees::data::DataMember::Field(field) = member else {
-                    return None;
-                };
-                (field.symbol == *symbol).then_some(field.name.as_str())
-            })
-        })?;
+        let field_name = data_field_name(program, *symbol)?;
         let field = program
             .expression_table
             .struct_fields(literal.fields)
@@ -2265,6 +2560,23 @@ fn expression_permission_provenance_for_claim(
         }
     }
 
+    if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+        && let Some(omega_facts::PlaceSegment::Case { variant }) = relative_path.first()
+    {
+        if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
+            return None;
+        }
+        return expression_permission_provenance_for_claim(
+            program,
+            state_symbol,
+            statement_index,
+            expression,
+            &relative_path[1..],
+            places,
+        );
+    }
+
     if let omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
         program.expression_table.expression(expression)
         && let Some(omega_facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
@@ -2287,14 +2599,7 @@ fn expression_permission_provenance_for_claim(
         program.expression_table.expression(expression)
         && let Some(omega_facts::PlaceSegment::Field { symbol }) = relative_path.first()
     {
-        let field_name = program.data_definitions().iter().find_map(|definition| {
-            program.data_members(definition).iter().find_map(|member| {
-                let omega_typed_trees::data::DataMember::Field(field) = member else {
-                    return None;
-                };
-                (field.symbol == *symbol).then_some(field.name.as_str())
-            })
-        })?;
+        let field_name = data_field_name(program, *symbol)?;
         let field = program
             .expression_table
             .struct_fields(literal.fields)
@@ -2423,96 +2728,104 @@ fn expression_establishes_obligation(
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: omega_typed_trees::expression::ExpressionHandle,
-    conditional: bool,
-    target_type_reference: TypeReferenceHandle,
+    relative_path: &[omega_facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> bool {
-    if !conditional {
-        return true;
-    }
-
     if let Some(source) = crate::flow::canonical_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
         expression,
-    ) && source.segments.is_empty()
-        && let omega_facts::PlaceRoot::Symbol(symbol) = source.root
-        && let Some(place) = places.iter().find(|place| place.symbol == symbol)
+    ) && let omega_facts::PlaceRoot::Symbol(symbol) = source.root
     {
-        return place.live;
+        let mut source_path = source.segments;
+        source_path.extend_from_slice(relative_path);
+        if let Some(place) = places
+            .iter()
+            .find(|place| place.symbol == symbol && place.path == source_path)
+        {
+            return place.live;
+        }
     }
 
-    if let omega_typed_trees::expression::ExpressionNode::Name(path) =
+    if let omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
         program.expression_table.expression(expression)
-        && let Some(variant) = program.data_definitions().iter().find_map(|definition| {
-            program
-                .data_members(definition)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Variant(variant)
-                        if variant.symbol == path.symbol =>
-                    {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
-        })
+        && let Some(omega_facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
-        return variant_carries_linear_obligation(program, variant, target_type_reference);
+        return program
+            .expression_table
+            .expression_handles(*values)
+            .get(*index)
+            .is_some_and(|value| {
+                expression_establishes_obligation(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    *value,
+                    &relative_path[1..],
+                    places,
+                )
+            });
     }
 
-    let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+    if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(expression)
-    else {
-        // A call/boundary result has an unknown active case. Conservatively
-        // retain a possible obligation until result-case narrowing lands.
-        return true;
-    };
-    let Some(case_name) = literal.case_name.as_ref() else {
-        return true;
-    };
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == literal.type_name.as_str())
-    else {
-        return true;
-    };
-    let Some(variant) = program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            omega_typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == case_name.as_str() =>
+    {
+        let mut remaining = relative_path;
+        if literal.case_name.is_some() {
+            let Some(omega_facts::PlaceSegment::Case { variant }) = remaining.first() else {
+                return remaining.is_empty();
+            };
+            if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant)
             {
-                Some(variant)
+                return false;
             }
-            _ => None,
-        })
-    else {
-        return true;
-    };
-
-    variant_carries_linear_obligation(program, variant, target_type_reference)
-}
-
-fn variant_carries_linear_obligation(
-    program: &omega_typed_trees::TypedTrees,
-    variant: &omega_typed_trees::data::DataVariant,
-    instantiated_type: TypeReferenceHandle,
-) -> bool {
-    let substitutions = substitutions_for_instantiated_data(program, instantiated_type);
-    program.data_payload_fields(variant).iter().any(|field| {
-        type_multiplicity_with_substitutions(program, field.type_reference, &substitutions)
-            == Multiplicity::Linear
-            || conditional_linear_payload_inner(
+            remaining = &remaining[1..];
+        }
+        if let Some(omega_facts::PlaceSegment::Field { symbol }) = remaining.first() {
+            let Some(field_name) = data_field_name(program, *symbol) else {
+                return false;
+            };
+            let Some(field) = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|field| field.name.as_str() == field_name)
+            else {
+                return false;
+            };
+            return expression_establishes_obligation(
                 program,
-                field.type_reference,
-                &substitutions,
-                &mut Vec::new(),
-            )
-    })
+                state_symbol,
+                statement_index,
+                field.value,
+                &remaining[1..],
+                places,
+            );
+        }
+        return remaining.is_empty();
+    }
+
+    if matches!(
+        program.expression_table.expression(expression),
+        omega_typed_trees::expression::ExpressionNode::Name(path)
+            if program.data_definitions().iter().any(|definition| {
+                program.data_members(definition).iter().any(|member| {
+                    matches!(
+                        member,
+                        omega_typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == path.symbol
+                    )
+                })
+            })
+    ) {
+        return false;
+    }
+
+    // Calls and boundary results have unknown active cases. Every case path is
+    // retained as a possible obligation until a static case projection selects
+    // one alternative.
+    true
 }
 
 pub(crate) fn type_multiplicity(
@@ -2558,141 +2871,6 @@ pub(crate) fn type_multiplicity(
     }
 }
 
-fn conditional_linear_payload_inner(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    visiting: &mut Vec<SymbolHandle>,
-) -> bool {
-    if !type_reference.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            conditional_linear_payload_inner(program, *base_type, substitutions, visiting)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            conditional_linear_payload_inner(program, *element_type, substitutions, visiting)
-        }
-        TypeReferenceNode::Named { symbol, name } => {
-            if let Some(replacement) =
-                substitutions
-                    .iter()
-                    .rev()
-                    .find_map(|(parameter, replacement)| {
-                        (*parameter == *symbol).then_some(*replacement)
-                    })
-                && replacement != type_reference
-            {
-                return conditional_linear_payload_inner(
-                    program,
-                    replacement,
-                    substitutions,
-                    visiting,
-                );
-            }
-            conditional_linear_payload_named(
-                program,
-                *symbol,
-                name.as_str(),
-                substitutions,
-                visiting,
-            )
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            arguments,
-            ..
-        } => conditional_linear_payload_generic(
-            program,
-            *base_symbol,
-            base_name.as_str(),
-            *arguments,
-            substitutions,
-            visiting,
-        ),
-        _ => false,
-    }
-}
-
-fn conditional_linear_payload_named(
-    program: &omega_typed_trees::TypedTrees,
-    symbol: SymbolHandle,
-    name: &str,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    visiting: &mut Vec<SymbolHandle>,
-) -> bool {
-    let Some(definition) = find_data_definition(program, symbol, name) else {
-        return false;
-    };
-    conditional_linear_payload_definition(program, definition, substitutions, visiting)
-}
-
-fn conditional_linear_payload_generic(
-    program: &omega_typed_trees::TypedTrees,
-    symbol: SymbolHandle,
-    name: &str,
-    arguments: HandleSpan<TypeReferenceHandle>,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    visiting: &mut Vec<SymbolHandle>,
-) -> bool {
-    let Some(definition) = find_data_definition(program, symbol, name) else {
-        return false;
-    };
-    let mut instantiated = substitutions.to_vec();
-    instantiated.extend(
-        program
-            .data_type_parameters(definition)
-            .iter()
-            .zip(
-                program
-                    .type_reference_table
-                    .type_reference_handles(arguments),
-            )
-            .filter_map(|(parameter, argument)| {
-                matches!(
-                    parameter.kind,
-                    omega_typed_trees::data::TypeParameterKind::Type
-                )
-                .then_some((parameter.symbol, *argument))
-            }),
-    );
-    conditional_linear_payload_definition(program, definition, &instantiated, visiting)
-}
-
-fn conditional_linear_payload_definition(
-    program: &omega_typed_trees::TypedTrees,
-    definition: &omega_typed_trees::data::DataDefinition,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    visiting: &mut Vec<SymbolHandle>,
-) -> bool {
-    if visiting.contains(&definition.symbol) {
-        return false;
-    }
-    if definition.properties.multiplicity == Multiplicity::Linear {
-        return false;
-    }
-    visiting.push(definition.symbol);
-    let result = program.data_members(definition).iter().any(|member| {
-        let omega_typed_trees::data::DataMember::Variant(variant) = member else {
-            return false;
-        };
-        program.data_payload_fields(variant).iter().any(|field| {
-            type_multiplicity_with_substitutions(program, field.type_reference, substitutions)
-                == Multiplicity::Linear
-                || conditional_linear_payload_inner(
-                    program,
-                    field.type_reference,
-                    substitutions,
-                    visiting,
-                )
-        })
-    });
-    visiting.pop();
-    result
-}
-
 fn type_multiplicity_with_substitutions(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -2722,40 +2900,6 @@ fn type_multiplicity_with_substitutions(
     }
 }
 
-fn substitutions_for_instantiated_data(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        base_name,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return Vec::new();
-    };
-    let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str()) else {
-        return Vec::new();
-    };
-    program
-        .data_type_parameters(definition)
-        .iter()
-        .zip(
-            program
-                .type_reference_table
-                .type_reference_handles(*arguments),
-        )
-        .filter_map(|(parameter, argument)| {
-            matches!(
-                parameter.kind,
-                omega_typed_trees::data::TypeParameterKind::Type
-            )
-            .then_some((parameter.symbol, *argument))
-        })
-        .collect()
-}
-
 fn find_data_definition<'program>(
     program: &'program omega_typed_trees::TypedTrees,
     symbol: SymbolHandle,
@@ -2763,6 +2907,45 @@ fn find_data_definition<'program>(
 ) -> Option<&'program omega_typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|definition| {
         (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
+    })
+}
+
+fn literal_variant<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    literal: &omega_typed_trees::expression::TableStructLiteral,
+) -> Option<&'program omega_typed_trees::data::DataVariant> {
+    let case_name = literal.case_name.as_ref()?;
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name == literal.type_name)?;
+    program.data_members(definition).iter().find_map(|member| {
+        let omega_typed_trees::data::DataMember::Variant(variant) = member else {
+            return None;
+        };
+        (variant.name == *case_name).then_some(variant)
+    })
+}
+
+fn data_field_name(
+    program: &omega_typed_trees::TypedTrees,
+    field_symbol: SymbolHandle,
+) -> Option<&str> {
+    program.data_definitions().iter().find_map(|definition| {
+        program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(field) => {
+                    (field.symbol == field_symbol).then_some(field.name.as_str())
+                }
+                omega_typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find_map(|field| {
+                        (field.symbol == field_symbol).then_some(field.name.as_str())
+                    }),
+            })
     })
 }
 

@@ -117,6 +117,7 @@ fn fact_place_type_symbol(
 
     for segment in facts.place_segments.span_or_empty(place.segments) {
         match segment {
+            omega_facts::PlaceSegment::Case { .. } => {}
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = symbol_type_symbol(program, *symbol)?;
             }

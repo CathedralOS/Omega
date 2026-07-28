@@ -62,6 +62,7 @@ pub(crate) fn project_type_reference_from_segments(
 ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
     for segment in segments {
         match segment {
+            omega_facts::PlaceSegment::Case { .. } => {}
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = field_type_reference(program, current, *symbol)?;
             }
@@ -205,10 +206,16 @@ fn data_field_type_reference(
         return None;
     }
 
-    program.data_members(data).iter().find_map(|member| {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
-        (field.symbol == field_symbol).then_some(field.type_reference)
-    })
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                (field.symbol == field_symbol).then_some(field.type_reference)
+            }
+            omega_typed_trees::data::DataMember::Variant(variant) => program
+                .data_payload_fields(variant)
+                .iter()
+                .find_map(|field| (field.symbol == field_symbol).then_some(field.type_reference)),
+        })
 }

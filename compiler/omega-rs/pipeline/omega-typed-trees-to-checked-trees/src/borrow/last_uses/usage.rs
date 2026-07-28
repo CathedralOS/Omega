@@ -227,6 +227,12 @@ pub(super) fn owner_path_overlaps_place_segments(
                 },
             ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
             (
+                BorrowOwnerSegment::Case(owner_variant),
+                omega_facts::PlaceSegment::Case {
+                    variant: place_variant,
+                },
+            ) => owner_variant == place_variant,
+            (
                 BorrowOwnerSegment::FixedIndex(owner_index),
                 omega_facts::PlaceSegment::FixedIndex { index: place_index },
             ) => owner_index == place_index,

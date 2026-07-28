@@ -35,8 +35,21 @@ pub(crate) fn instantiate_call_contract_expression_place(
                     .unwrap_or_else(SymbolHandle::invalid)
                 }
             };
-            let segment = omega_facts::PlaceSegment::Field { symbol };
-            Some(super::append_place_segment(facts, receiver, segment))
+            let receiver =
+                if let Some(variant) = omega_facts::payload_variant_for_field(program, symbol) {
+                    super::append_place_segment(
+                        facts,
+                        receiver,
+                        omega_facts::PlaceSegment::Case { variant },
+                    )
+                } else {
+                    receiver
+                };
+            Some(super::append_place_segment(
+                facts,
+                receiver,
+                omega_facts::PlaceSegment::Field { symbol },
+            ))
         }
         ExpressionNode::Indexed(indexed) => {
             let receiver = instantiate_call_contract_expression_place(
@@ -124,6 +137,13 @@ fn instantiate_call_contract_name_path_place(
                 super::resolve_place_member_symbol(program, facts, place, member_name.as_str())
             })
             .unwrap_or_else(SymbolHandle::invalid);
+        if let Some(variant) = omega_facts::payload_variant_for_field(program, symbol) {
+            place = super::append_place_segment(
+                facts,
+                place,
+                omega_facts::PlaceSegment::Case { variant },
+            );
+        }
         place =
             super::append_place_segment(facts, place, omega_facts::PlaceSegment::Field { symbol });
     }

@@ -12,6 +12,14 @@ pub(crate) fn canonical_place_segments_equal(
             },
         ) => left_symbol == right_symbol,
         (
+            omega_facts::PlaceSegment::Case {
+                variant: left_variant,
+            },
+            omega_facts::PlaceSegment::Case {
+                variant: right_variant,
+            },
+        ) => left_variant == right_variant,
+        (
             omega_facts::PlaceSegment::FixedIndex { index: left_index },
             omega_facts::PlaceSegment::FixedIndex { index: right_index },
         ) => left_index == right_index,
@@ -107,6 +115,14 @@ fn canonical_place_segment_pair_may_overlap(
                 symbol: right_symbol,
             },
         ) => left_symbol == right_symbol,
+        (
+            omega_facts::PlaceSegment::Case {
+                variant: left_variant,
+            },
+            omega_facts::PlaceSegment::Case {
+                variant: right_variant,
+            },
+        ) => left_variant == right_variant,
         (
             omega_facts::PlaceSegment::FixedIndex { index: left_index },
             omega_facts::PlaceSegment::FixedIndex { index: right_index },

@@ -49,8 +49,8 @@ pub struct FlowPermissionEventFact {
     pub provenance: omega_core::semantics::PermissionProvenance,
     pub root: omega_facts::PlaceRoot,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
-    /// `Empty` conditional sums establish/transfer a value while carrying no
-    /// payload debt. Keep the event and record whether an obligation existed.
+    /// Inactive sum alternatives establish/transfer a carrier while carrying
+    /// no payload debt. Keep the event and record whether an obligation existed.
     pub obligation_live: bool,
 }
 
@@ -79,9 +79,10 @@ pub struct FlowClaimOutcomeEntryFact {
     pub source: FlowClaimOutcomeSource,
 }
 
-/// Complete path-indexed claim mapping published by one checked state result.
-/// Absence means the state has no live linear result frontier or could not
-/// prove one unique mapping for every output claim.
+/// Path-indexed live-claim mapping published by one checked state result.
+/// Statically inactive case alternatives are intentionally absent. Absence of
+/// the map means the state has no live linear result frontier or could not
+/// prove one unique mapping for every possibly-live output claim.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowClaimOutcomeMapFact {
     pub machine_symbol: SymbolHandle,

@@ -39,6 +39,23 @@ pub(super) fn canonical_place_overlaps_loan(
                             borrow.loan_segments(loan),
                         )
                 }
+                Some((
+                    omega_facts::PlaceSegment::Case { .. },
+                    [
+                        omega_facts::PlaceSegment::Field {
+                            symbol: field_symbol,
+                        },
+                        remaining @ ..,
+                    ],
+                )) if *field_symbol == loan.root_symbol => {
+                    place_segments_may_overlap(program, remaining, borrow.loan_segments(loan))
+                        || place_segments_share_dependent_fact(
+                            program,
+                            loan.root_symbol,
+                            remaining,
+                            borrow.loan_segments(loan),
+                        )
+                }
                 _ => false,
             }
         }

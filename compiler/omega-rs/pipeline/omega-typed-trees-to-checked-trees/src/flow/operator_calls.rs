@@ -453,7 +453,7 @@ fn operator_contract_relative_place(
                     .get(offset)
                     .copied()
                     .filter(|symbol| symbol.is_valid())?;
-                segments.push(omega_facts::PlaceSegment::Field { symbol });
+                crate::flow::push_field_place_segments(program, &mut segments, symbol);
             }
             Some(CanonicalPlace {
                 root: omega_facts::PlaceRoot::Symbol(parameter.symbol),
@@ -466,9 +466,7 @@ fn operator_contract_relative_place(
                 .member_symbol
                 .is_valid()
                 .then_some(member.member_symbol)?;
-            place
-                .segments
-                .push(omega_facts::PlaceSegment::Field { symbol });
+            crate::flow::push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
