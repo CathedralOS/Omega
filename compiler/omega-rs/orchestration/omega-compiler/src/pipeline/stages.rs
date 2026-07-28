@@ -78,7 +78,14 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         imports.seed(root);
     }
 
-    let mut source_storage = SourceStorage::default();
+    let root_package = root_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let mut source_storage = SourceStorage::for_compilation(
+        root_package,
+        crate::pipeline::frontend::bundled_omega_root(),
+    );
     // depend-mapping (M2 blocker 3): `b.depend("alias", path("dir"))` rows
     // collected from every loaded build machine, alias -> directory. Each
     // frontier collects BEFORE resolving its uses, so a build.omg companion
@@ -100,6 +107,9 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             &source_storage.syntax_trees,
             &mut depend_aliases,
         );
+        for (_, directory) in &depend_aliases {
+            source_storage.register_package_root(directory.clone());
+        }
         let discovered_imports = discover_imports(
             &parsed,
             &source_storage.syntax_trees,

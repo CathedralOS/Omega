@@ -395,6 +395,8 @@ fn rewrite_children(
                     target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 }),
             );

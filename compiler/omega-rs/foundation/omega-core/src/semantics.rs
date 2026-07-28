@@ -821,6 +821,34 @@ pub enum DomainEstablishmentRoute {
     },
 }
 
+/// Compiler-owned meaning attached to a shipped core trait declaration.
+///
+/// Recognition happens once from trusted source provenance. Downstream
+/// consumers use this closed role instead of treating a user-spellable trait
+/// name as authority.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TraitSemanticRole {
+    #[default]
+    Ordinary,
+    RepresentationQualification,
+}
+
+/// Normalized meaning of one machine-level `satisfies` clause.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TraitConformanceSemanticRole {
+    #[default]
+    Ordinary,
+    RepresentationQualification {
+        /// The one bodyless domain added by the qualified type argument.
+        /// Invalid until/when the argument normalizes to that exact shape.
+        domain: crate::symbols::SymbolHandle,
+        /// Whether the satisfier is in the domain-owning package. Explicit
+        /// delegation will set this through its future owner-authorized
+        /// package record rather than weakening this bit.
+        home_authorized: bool,
+    },
+}
+
 impl DomainEstablishmentRoute {
     pub const fn kind_name(self) -> &'static str {
         match self {

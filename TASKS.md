@@ -61,8 +61,7 @@ atomic facts. Establishment relationships now normalize independently as exact
 owner-machine, domain-operator, or boundary-requirement identities; alias
 guarantees expand to atomic routes, typed constraints and snapshots preserve
 them, and checked consumers no longer reconstruct authority from names.
-Package-owner coherence, canonical qualification, compiler-owned carry atoms,
-and the authority migrations remain.
+Compiler-owned carry atoms and the authority migrations remain.
 
 - migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
   tokens to ordinary data declarations with their required fields;
@@ -77,19 +76,19 @@ requirement; receipts and authority-flow reports identify every accepted
 origin; and Cathedral obtains one qualified root at a time from its admitted
 memory provider without split, merge, or an array of checked claims.
 
-#### P1b — canonical bodyless `as`
+#### P1b — delegated canonical qualification
 
-**CLEAR DIRECTION.** Add the core representation-qualification requirement
-described in chapter 8. Its conformance validator checks the qualified-type
-delta, unchanged value lineage, domain-owner coherence, termination, and the
-absence of effects, suspension, blocking, mutation, trap, failure, and abort.
-One visible home satisfier enables `as`; ambiguous sites call a named satisfier.
-All uses erase.
+**DESIGN BLOCKED — OWNER_QUESTIONS #16.** Decide the owner-authored source and
+package-identity relationship that delegates canonical qualification authority.
+Until then, only the domain-owning package may publish an implicitly eligible
+`RepresentationQualification<Q>` satisfier; all third-party conformers fail
+closed.
 
-Acceptance: a `Km`-style bodyless domain supports `5 as ...` through one home
-satisfier; adding a second makes only the shorthand ambiguous; a bodyful domain
-still requires proof; a transformed or reconstructed return cannot satisfy the
-core requirement; and a third party cannot open another package's domain.
+Acceptance: an explicit delegation opens exactly the named bodyless domain for
+exactly the delegated package, survives separate compilation by normalized
+identity, is visible in qualification artifacts, and is non-transitive unless
+the settled design says otherwise. Imports, aliases, matching names, and
+ordinary trait visibility do not delegate authority.
 
 #### P1c — composite resource frontiers
 
@@ -258,7 +257,6 @@ ceilings, and publication-before-ledger-record all reject.
 
 ### Domain theory and numeric conversion
 
-- Implement the core canonical qualification conformance from P1b.
 - Define ordinary core numeric conversion machines, with explicit narrowing
   policy, then migrate width and float/integer conversion away from the legacy
   `as` spelling.
@@ -339,9 +337,8 @@ current consumers happen to align.
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
   Boundary write-frame spelling is owner-blocked on #15.
-- **DOM1/DOM2/DOM3/DOM5:** implement the canonical core qualification
-  conformance, operator ownership, package-owner coherence, and weakening
-  certificates.
+- **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
+  certificates. Delegated package authority is owner-blocked on #16.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration.

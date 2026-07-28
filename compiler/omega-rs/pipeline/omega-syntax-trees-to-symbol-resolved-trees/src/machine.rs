@@ -18,7 +18,7 @@ pub(crate) fn lower_machine_into(
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
     lowerer.current_machine_is_boundary = false;
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
-    let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
+    let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =
         lower_machine_decrease_order(lowerer, syntax_trees, machine.decrease_order);
@@ -401,10 +401,15 @@ fn lower_machine_trait_conformances(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     satisfies: HandleSpan<syntax::item::SatisfiesClause>,
-) -> HandleSpan<TraitConformance> {
+) -> Result<HandleSpan<TraitConformance>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for clause in syntax_trees.items.satisfies_clauses(satisfies) {
+        let arguments = crate::type_reference::lower_child_type_references(
+            lowerer,
+            syntax_trees,
+            clause.arguments,
+        )?;
         lowerer
             .symbol_resolved_trees
             .tables
@@ -415,6 +420,8 @@ fn lower_machine_trait_conformances(
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(&clause.trait_name),
+                    arguments,
+                    semantic_role: omega_core::semantics::TraitConformanceSemanticRole::Ordinary,
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),
                     via: clause
@@ -425,7 +432,7 @@ fn lower_machine_trait_conformances(
             );
     }
 
-    span
+    Ok(span)
 }
 
 fn lower_machine_states(

@@ -75,11 +75,25 @@ pub(crate) fn lower_machine(
         .source_trees
         .machine_trait_conformances(machine.satisfies)
     {
+        let mut arguments = omega_core::arena::HandleSpan::empty();
+        for argument in lowerer
+            .source_trees
+            .child_type_references(conformance.arguments)
+        {
+            let argument =
+                crate::type_reference::lower_type_reference_into_table(lowerer, argument)?;
+            lowerer
+                .typed_trees
+                .type_reference_table
+                .push_type_reference_handle(&mut arguments, argument);
+        }
         lowerer.typed_trees.push_machine_trait_conformance(
             &mut typed_machine,
             typed::machine::TraitConformance {
                 symbol: conformance.symbol,
                 name: crate::name::lower_name(&conformance.name),
+                arguments,
+                semantic_role: conformance.semantic_role,
                 requirement: conformance
                     .requirement
                     .as_ref()

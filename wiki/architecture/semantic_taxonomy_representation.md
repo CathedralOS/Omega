@@ -143,7 +143,8 @@ consume the declaration's stable semantic identity, qualification consults
 predicate-body presence for proof, and operator selection consumes semantic
 roles. Domain conjunction validation permits contributions in different roles
 (`Degrees & Wrapping`) and rejects multiple distinct contributors to one role.
-The checked core qualification relationship remains.
+The checked core qualification relationship is a trusted semantic role rather
+than a name convention.
 
 Implementation status (DOM1 body presence, 2026-07-28): `domain T::Fact;` and
 `domain T::Fact {}` both parse as an explicit bodyless predicate-body record,
@@ -163,7 +164,8 @@ Granted selected provider plans attach their normalized plan fingerprint to
 matching admitted facts, and checked artifacts publish
 `05_qualification_evidence.json` with origin, source, program point, and receipt
 identity. Exact owner-authorized admitted-subject matching is now live.
-Canonical qualification conformance remains P1 work.
+Canonical qualification uses now retain the normalized domain and selected
+satisfier in checked facts before both shorthand casts and named calls erase.
 
 Implementation status (P1a establishment routes, 2026-07-28):
 `DomainEstablishmentRoute` records the exact symbol identity of an
@@ -175,8 +177,9 @@ Resolved and typed domain definitions, typed binding-site constraints, and
 structural snapshots preserve the records. Checked owner and boundary
 qualification consumers consult only the normalized route identity instead of
 reconstructing permission from attachment names or contract placement.
-Canonical-qualification routes and package-owner coherence remain P1b/P1a
-work, respectively.
+Canonical-qualification routes and package-owner coherence are normalized in
+the same pass. The unresolved authoring surface for an explicit cross-package
+delegate is tracked in `OWNER_QUESTIONS.md` #16 and fails closed meanwhile.
 
 Implementation status (DOM alias expansion, 2026-07-28): transparent
 declared-domain aliases retain independent syntax, resolved, and typed records.

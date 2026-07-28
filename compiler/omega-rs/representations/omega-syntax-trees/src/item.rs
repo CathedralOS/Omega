@@ -650,6 +650,7 @@ impl Default for ProofMembershipFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SatisfiesClause {
     pub trait_name: Identifier,
+    pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
     /// PRV4 step 1: `satisfies Requirement via <Binding>` -- the irreducible

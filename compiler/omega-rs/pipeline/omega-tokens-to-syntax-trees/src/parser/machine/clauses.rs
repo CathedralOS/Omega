@@ -503,7 +503,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
 
     loop {
         let (trait_name, rest) = input.take_identifier()?;
-        let mut rest = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+        let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
 
         // The single-requirement binding (rearrange settle 2026-07-18):
         // `satisfies Trait::requirement [as Alias]` conforms THIS machine to
@@ -535,6 +535,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
 
         let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
             trait_name,
+            arguments,
             requirement,
             alias,
             via,
@@ -566,14 +567,22 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
 fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+) -> Result<
+    (
+        HandleSpan<omega_syntax_trees::types::TypeReferenceHandle>,
+        Input<'tokens, 'source>,
+    ),
+    crate::parse_error::ParseError,
+> {
     if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok(input);
+        return Ok((HandleSpan::empty(), input));
     }
 
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
+    let mut arguments = Vec::new();
     loop {
-        let (_argument, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        let (argument, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        arguments.push(argument);
         input = rest;
 
         if input.at_punctuation(PunctuationKind::Comma) {
@@ -581,6 +590,12 @@ fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
             continue;
         }
 
-        return input.take_punctuation(PunctuationKind::Greater, ">");
+        let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+        return Ok((
+            syntax_trees
+                .type_references
+                .insert_type_reference_handles(arguments),
+            input,
+        ));
     }
 }

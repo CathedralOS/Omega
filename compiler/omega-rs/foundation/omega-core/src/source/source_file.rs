@@ -4,10 +4,22 @@ use std::sync::Arc;
 use crate::Span;
 use crate::source::{SourceId, SourceSpan};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SourceOrigin {
+    #[default]
+    User,
+    Toolchain,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub source_id: SourceId,
     pub path: PathBuf,
+    /// Canonical package directory selected by the frontend. Source files are
+    /// package members by location, so ownership must not be inferred from a
+    /// declaration spelling later in the pipeline.
+    pub package_root: PathBuf,
+    pub origin: SourceOrigin,
     pub source: Arc<str>,
 }
 
@@ -66,6 +78,8 @@ mod tests {
         let file = SourceFile {
             source_id: SourceId(7),
             path: PathBuf::from("main.omg"),
+            package_root: PathBuf::from("."),
+            origin: crate::source::SourceOrigin::User,
             source: Arc::from("machine main {}"),
         };
         let span = file.source_span(Span::new(8, 12));

@@ -295,6 +295,8 @@ impl ExpressionTable {
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 }))
             }
@@ -1206,6 +1208,8 @@ impl ExpressionTable {
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 }))
             }
@@ -1404,6 +1408,8 @@ impl ExpressionTable {
                     // Tree-built casts are compiler-internal (tests/builders)
                     // and never carry the qualification suffix.
                     semantic_domain: HandleSpan::empty(),
+                    semantic_domain_symbol: SymbolHandle::invalid(),
+                    qualification_satisfier: SymbolHandle::invalid(),
                     form: cast.form,
                 }))
             }
@@ -1799,6 +1805,12 @@ pub struct TableCastExpression {
     /// spelling (decision 19), judged at validation (the staged mint fence).
     /// EMPTY = no suffix.
     pub semantic_domain: HandleSpan<Identifier>,
+    /// Carrier-aware declared-domain identity, normalized once before
+    /// validation. Invalid for an unknown or ambiguous spelling.
+    pub semantic_domain_symbol: SymbolHandle,
+    /// Unique canonical home satisfier selected for bodyless shorthand.
+    /// Invalid for bodyful, absent, or ambiguous routes.
+    pub qualification_satisfier: SymbolHandle,
     /// Value conversion vs §5b borrow recast (`&x as &T`). Only `Value`
     /// survives past the typed trees today: the resolved->typed lowering is
     /// the recast judgment's choke point (rung A).

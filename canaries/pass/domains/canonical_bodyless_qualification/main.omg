@@ -1,0 +1,17 @@
+// One package-local canonical satisfier opens bodyless `as`. A named call to
+// the same satisfier is also legal and has the same erased identity meaning.
+use omega::language::core::qualification;
+
+domain i64::Km;
+
+machine qualify_km(value: i64) -> i64 in Km
+satisfies RepresentationQualification<i64 in Km>::qualify {
+    value
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let implicit: i64 in Km = 5 as i64 in Km;
+    let named: i64 in Km = qualify_km(6);
+}

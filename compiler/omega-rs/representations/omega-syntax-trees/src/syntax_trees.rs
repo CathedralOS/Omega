@@ -379,7 +379,13 @@ impl SyntaxTrees {
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_mapped_span(
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
-                |_, clause| clause,
+                |this, clause| crate::item::SatisfiesClause {
+                    trait_name: clause.trait_name,
+                    arguments: this.copy_type_reference_handle_span(other, clause.arguments),
+                    requirement: clause.requirement,
+                    alias: clause.alias,
+                    via: clause.via,
+                },
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),
             terminates: machine.terminates,

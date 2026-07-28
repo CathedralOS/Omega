@@ -170,6 +170,15 @@ impl SymbolTable {
             .unwrap_or("")
     }
 
+    /// Compare declaration provenance at the package boundary. Source-free
+    /// lowering is used by focused representation tests; those trees model
+    /// one package and retain the historical all-local behavior.
+    pub fn same_source_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
+        self.sources
+            .as_deref()
+            .is_none_or(|sources| sources.same_package(left, right))
+    }
+
     pub fn root(&self) -> SymbolHandle {
         self.root
     }

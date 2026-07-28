@@ -92,10 +92,12 @@ irreducible external realization uses `via <Binding>;` instead of a body.
 
 ### Core qualification conformance
 
-Chapter 8's canonical bodyless qualification uses one blessed core trait
-relationship between carrier `Self` and qualified type `Q`. It follows the
-ordinary named-satisfier rule: one visible home satisfier enables implicit
-`as`; several require a direct call to the chosen satisfier.
+Chapter 8's canonical bodyless qualification uses the blessed core
+`RepresentationQualification<Q>` trait relationship between carrier `Self`
+and qualified type `Q`. A machine binds the sole requirement with
+`satisfies RepresentationQualification<Q>::qualify`. It follows the ordinary
+named-satisfier rule: one visible home satisfier enables implicit `as`; several
+require a direct call to the chosen satisfier.
 
 This conformance has an additional closed validator because it licenses erased
 qualification. `Q` must erase to `Self` with one added bodyless domain, the

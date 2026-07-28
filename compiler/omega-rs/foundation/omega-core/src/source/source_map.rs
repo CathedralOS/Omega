@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::source::{SourceFile, SourceId, SourceSpan};
+use crate::source::{SourceFile, SourceId, SourceOrigin, SourceSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
@@ -14,9 +14,25 @@ impl SourceMap {
     }
 
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
+        let package_root = path
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."));
+        self.add_with_metadata(path, source, package_root, SourceOrigin::User)
+    }
+
+    pub fn add_with_metadata(
+        &mut self,
+        path: PathBuf,
+        source: String,
+        package_root: PathBuf,
+        origin: SourceOrigin,
+    ) -> &SourceFile {
         self.files.push(SourceFile {
             source_id: SourceId(self.files.len()),
             path,
+            package_root,
+            origin,
             source: Arc::from(source),
         });
 
@@ -27,6 +43,17 @@ impl SourceMap {
 
     pub fn get(&self, source_id: SourceId) -> Option<&SourceFile> {
         self.files.get(source_id.0)
+    }
+
+    pub fn file_at(&self, source_span: SourceSpan) -> Option<&SourceFile> {
+        self.get(source_span.source_id)
+    }
+
+    pub fn same_package(&self, left: SourceSpan, right: SourceSpan) -> bool {
+        match (self.file_at(left), self.file_at(right)) {
+            (Some(left), Some(right)) => left.package_root == right.package_root,
+            _ => false,
+        }
     }
 
     pub fn len(&self) -> usize {

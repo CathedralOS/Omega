@@ -349,15 +349,63 @@ fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut V
 /// SemanticDomainTable identity. Sorted + deduped; cast-free machines carry
 /// no entry.
 fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::QualificationFacts {
+    use omega_checked_trees::{CanonicalQualificationUse, CanonicalQualificationUseKind};
+    use omega_core::semantics::DomainEstablishmentRoute;
     use omega_core::semantics::SemanticDomainTable;
-    use omega_typed_trees::expression::ExpressionNode;
+    use omega_core::symbols::SymbolHandle;
+    use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+    use std::collections::HashSet;
+
+    fn canonical_call(
+        program: &TypedTrees,
+        target: SymbolHandle,
+    ) -> Option<(SymbolHandle, SymbolHandle)> {
+        let satisfier = program
+            .machines()
+            .iter()
+            .find(|machine| {
+                machine.symbol == target
+                    || program
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == target)
+            })?
+            .symbol;
+        let domains = program
+            .domain_definitions()
+            .iter()
+            .filter_map(|domain| {
+                domain
+                    .establishment_routes
+                    .iter()
+                    .any(|route| {
+                        matches!(
+                            route,
+                            DomainEstablishmentRoute::CanonicalQualification {
+                                satisfier: candidate
+                            } if *candidate == satisfier
+                        )
+                    })
+                    .then_some(domain.symbol)
+            })
+            .collect::<Vec<_>>();
+        let [domain] = domains.as_slice() else {
+            return None;
+        };
+        Some((*domain, satisfier))
+    }
 
     fn collect_casts(
         program: &TypedTrees,
-        expression: omega_typed_trees::expression::ExpressionHandle,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: u32,
+        expression: ExpressionHandle,
         committed: &mut Vec<omega_core::semantics::SemanticDomainId>,
+        canonical_uses: &mut Vec<CanonicalQualificationUse>,
+        visited: &mut HashSet<u32>,
     ) {
-        if !expression.is_valid() {
+        if !expression.is_valid() || !visited.insert(expression.arena_index()) {
             return;
         }
         match program.expression_table.expression(expression) {
@@ -377,60 +425,201 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                 if let Some(policy) = policy {
                     committed.push(policy);
                 }
-                // A DECLARED-domain qualification (the mint, decision 19):
-                // the cast carries the domain's SHORT name; resolve it to
-                // the declaration (exact or `Carrier::Name` suffix -- the
-                // validation judge's rule) and take its interned identity.
-                // Compiled programs only carry ACCEPTED mints -- a failed
-                // mint refuses at validation.
-                if cast.semantic_domain.count() > 0
-                    && let Some(name) = program
-                        .expression_table
-                        .name_path_members(cast.semantic_domain)
-                        .first()
-                    && let Some(domain) = program.domain_definitions().iter().find(|domain| {
-                        domain.name.as_str() == name.as_str()
-                            || domain
-                                .name
-                                .as_str()
-                                .ends_with(&format!("::{}", name.as_str()))
-                    })
+                // Declared-domain casts already carry the normalized symbol
+                // selected before validation. Checked facts consume that
+                // identity directly rather than repeating short-name lookup.
+                if cast.semantic_domain_symbol.is_valid()
+                    && let Some(domain) = program
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == cast.semantic_domain_symbol)
                 {
                     if domain.semantic_id.is_valid() {
                         committed.push(domain.semantic_id);
                     }
                 }
-                collect_casts(program, cast.value, committed);
+                if cast.qualification_satisfier.is_valid()
+                    && let Some((domain, satisfier)) =
+                        canonical_call(program, cast.qualification_satisfier)
+                {
+                    canonical_uses.push(CanonicalQualificationUse {
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        domain,
+                        satisfier,
+                        kind: CanonicalQualificationUseKind::ImplicitCast,
+                    });
+                }
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    cast.value,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
             }
             ExpressionNode::Binary(binary) => {
-                collect_casts(program, binary.left, committed);
-                collect_casts(program, binary.right, committed);
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    binary.left,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    binary.right,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
             }
-            ExpressionNode::Unary(unary) => collect_casts(program, unary.operand, committed),
-            ExpressionNode::Member(member) => collect_casts(program, member.receiver, committed),
-            ExpressionNode::Mutable(inner) => collect_casts(program, *inner, committed),
+            ExpressionNode::Unary(unary) => collect_casts(
+                program,
+                machine,
+                state,
+                statement_index,
+                unary.operand,
+                committed,
+                canonical_uses,
+                visited,
+            ),
+            ExpressionNode::Member(member) => collect_casts(
+                program,
+                machine,
+                state,
+                statement_index,
+                member.receiver,
+                committed,
+                canonical_uses,
+                visited,
+            ),
+            ExpressionNode::Mutable(inner) => collect_casts(
+                program,
+                machine,
+                state,
+                statement_index,
+                *inner,
+                committed,
+                canonical_uses,
+                visited,
+            ),
             ExpressionNode::Indexed(indexed) => {
-                collect_casts(program, indexed.collection, committed);
-                collect_casts(program, indexed.index, committed);
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    indexed.collection,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    indexed.index,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
             }
             ExpressionNode::Range(range) => {
-                collect_casts(program, range.start, committed);
-                collect_casts(program, range.end, committed);
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    range.start,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    range.end,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
             }
             ExpressionNode::Call(call) => {
-                collect_casts(program, call.receiver, committed);
+                if let Some((domain, satisfier)) = canonical_call(program, call.target_symbol) {
+                    canonical_uses.push(CanonicalQualificationUse {
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        domain,
+                        satisfier,
+                        kind: CanonicalQualificationUseKind::NamedSatisfierCall,
+                    });
+                }
+                collect_casts(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call.receiver,
+                    committed,
+                    canonical_uses,
+                    visited,
+                );
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    collect_casts(program, *argument, committed);
+                    collect_casts(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        *argument,
+                        committed,
+                        canonical_uses,
+                        visited,
+                    );
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in program.expression_table.struct_fields(literal.fields) {
-                    collect_casts(program, field.value, committed);
+                    collect_casts(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        field.value,
+                        committed,
+                        canonical_uses,
+                        visited,
+                    );
                 }
             }
             ExpressionNode::ArrayLiteral(items) => {
                 for item in program.expression_table.expression_handles(*items) {
-                    collect_casts(program, *item, committed);
+                    collect_casts(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        *item,
+                        committed,
+                        canonical_uses,
+                        visited,
+                    );
                 }
             }
             _ => {}
@@ -438,33 +627,109 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
     }
 
     let mut machines = Vec::new();
+    let mut canonical_uses = Vec::new();
     for machine in program.machines() {
         let mut committed = Vec::new();
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 use omega_typed_trees::statement::StatementNode;
+                let statement_index =
+                    u32::try_from(statement_index).expect("qualification statement index overflow");
+                let mut visited = HashSet::new();
                 match statement {
                     StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
-                        collect_casts(program, assignment.target, &mut committed);
-                        collect_casts(program, assignment.value, &mut committed);
+                        collect_casts(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            assignment.target,
+                            &mut committed,
+                            &mut canonical_uses,
+                            &mut visited,
+                        );
+                        collect_casts(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            assignment.value,
+                            &mut committed,
+                            &mut canonical_uses,
+                            &mut visited,
+                        );
                     }
                     StatementNode::Expression(expression) => {
-                        collect_casts(program, *expression, &mut committed);
+                        collect_casts(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            *expression,
+                            &mut committed,
+                            &mut canonical_uses,
+                            &mut visited,
+                        );
                     }
                     StatementNode::LocalData(local) => {
-                        collect_casts(program, local.initial_value, &mut committed);
+                        collect_casts(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            local.initial_value,
+                            &mut committed,
+                            &mut canonical_uses,
+                            &mut visited,
+                        );
                     }
                     StatementNode::Call(call) => {
+                        if let Some((domain, satisfier)) =
+                            canonical_call(program, call.target_symbol)
+                        {
+                            canonical_uses.push(CanonicalQualificationUse {
+                                machine: machine.symbol,
+                                state: state.symbol,
+                                statement_index,
+                                expression: ExpressionHandle::invalid(),
+                                domain,
+                                satisfier,
+                                kind: CanonicalQualificationUseKind::NamedSatisfierCall,
+                            });
+                        }
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            collect_casts(program, *argument, &mut committed);
+                            collect_casts(
+                                program,
+                                machine.symbol,
+                                state.symbol,
+                                statement_index,
+                                *argument,
+                                &mut committed,
+                                &mut canonical_uses,
+                                &mut visited,
+                            );
                         }
                     }
                     StatementNode::Transition(transition) => {
                         if let omega_typed_trees::statement::TransitionGuardNode::When(guard) =
                             &transition.guard
                         {
-                            collect_casts(program, *guard, &mut committed);
+                            collect_casts(
+                                program,
+                                machine.symbol,
+                                state.symbol,
+                                statement_index,
+                                *guard,
+                                &mut committed,
+                                &mut canonical_uses,
+                                &mut visited,
+                            );
                         }
                         for target in [transition.target, transition.continuation] {
                             if !target.is_valid() {
@@ -473,7 +738,16 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                             match program.statement_table.transition_target(target) {
                                 omega_typed_trees::statement::TransitionTargetNode::Value(
                                     value,
-                                ) => collect_casts(program, *value, &mut committed),
+                                ) => collect_casts(
+                                    program,
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    *value,
+                                    &mut committed,
+                                    &mut canonical_uses,
+                                    &mut visited,
+                                ),
                                 omega_typed_trees::statement::TransitionTargetNode::Named {
                                     arguments,
                                     ..
@@ -481,7 +755,16 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                     for argument in
                                         program.statement_table.expression_handles(*arguments)
                                     {
-                                        collect_casts(program, *argument, &mut committed);
+                                        collect_casts(
+                                            program,
+                                            machine.symbol,
+                                            state.symbol,
+                                            statement_index,
+                                            *argument,
+                                            &mut committed,
+                                            &mut canonical_uses,
+                                            &mut visited,
+                                        );
                                     }
                                 }
                                 _ => {}
@@ -500,7 +783,10 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
             });
         }
     }
-    omega_checked_trees::QualificationFacts { machines }
+    omega_checked_trees::QualificationFacts {
+        machines,
+        canonical_uses,
+    }
 }
 
 /// Build the boundary-symbol service fixed point without consulting the

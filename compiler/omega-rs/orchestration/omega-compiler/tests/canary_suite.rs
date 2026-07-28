@@ -4173,6 +4173,60 @@ fn bodyless_owner_establishment_canaries() {
 }
 
 #[test]
+fn canonical_bodyless_qualification_single_satisfier_compiles() {
+    let canary = pass_canary("domains/canonical_bodyless_qualification");
+    let checked = compile_to_checked(&canary.join("main.omg"), None).expect(
+        "one package-local canonical satisfier should open bodyless `as` and remain callable",
+    );
+    let uses = &checked.facts.qualifications.canonical_uses;
+    assert_eq!(
+        uses.len(),
+        2,
+        "implicit and named uses must both be retained"
+    );
+    assert!(uses.iter().any(|use_fact| {
+        use_fact.kind == omega_checked_trees::CanonicalQualificationUseKind::ImplicitCast
+    }));
+    assert!(uses.iter().any(|use_fact| {
+        use_fact.kind == omega_checked_trees::CanonicalQualificationUseKind::NamedSatisfierCall
+    }));
+    assert_eq!(uses[0].domain, uses[1].domain);
+    assert_eq!(uses[0].satisfier, uses[1].satisfier);
+    let evidence = omega_visualizations::qualification_evidence_manifest_json(&checked);
+    assert!(evidence.contains("\"kind\": \"implicit_cast\""));
+    assert!(evidence.contains("\"kind\": \"named_satisfier_call\""));
+    assert!(evidence.contains("\"satisfier\": \"qualify_km\""));
+
+    let satisfier = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "qualify_km")
+        .expect("canonical satisfier");
+    let entry = checked
+        .machine_states(satisfier)
+        .first()
+        .expect("canonical satisfier entry")
+        .symbol;
+    assert!(
+        checked
+            .expression_table
+            .expression_entries()
+            .all(|(_, expression)| {
+                !matches!(
+                    expression,
+                    omega_checked_trees::expression::ExpressionNode::Call(call)
+                        if call.target_symbol == entry
+                ) && !matches!(
+                    expression,
+                    omega_checked_trees::expression::ExpressionNode::Cast(cast)
+                        if cast.qualification_satisfier == satisfier.symbol
+                )
+            }),
+        "checked lowering must erase both implicit casts and direct calls through the canonical satisfier"
+    );
+}
+
+#[test]
 fn boundary_qualification_evidence_names_exact_requirement() {
     let pass = pass_canary("capabilities/derives_authority_via_boundary");
     let build_dir = std::env::temp_dir().join(format!(
@@ -37710,6 +37764,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_struct_view",
     "termination/runtime_recursive_result_roles_exit",
     "domains/bodyless_domain_declarations_exit",
+    "domains/canonical_bodyless_qualification",
     "domains/contracts_domain_membership_surface",
     "domains/domain_operator_spelling_selected",
     "domains/domain_operator_proven_fact_selects_meaning",
@@ -38435,6 +38490,12 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "atomics/atomic_compare_exchange_failure_release_rejected",
     "atomics/atomic_compare_exchange_failure_stronger_rejected",
     "atomics/atomic_unknown_ordering_rejected",
+    "domains/canonical_qualification_ambiguous",
+    "domains/canonical_qualification_transformed",
+    "domains/canonical_qualification_reconstructed",
+    "domains/canonical_qualification_bodyful",
+    "domains/canonical_qualification_third_party",
+    "domains/canonical_qualification_lookalike_trait",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",

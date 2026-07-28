@@ -100,6 +100,7 @@ fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
 fn explicit_mint_initializer_selects_domain_operator() {
     let source = r#"
         domain i32::Degrees {
+            self >= 0;
             operator add(left: i32, right: i32) -> i32 spelling +;
         }
 
