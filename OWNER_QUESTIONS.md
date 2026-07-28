@@ -355,3 +355,43 @@ services. Treat a guard as enforced stack containment and an overflow as an
 abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
+
+## 19. How are claim-content projections and backing authored?
+
+The resource semantics are settled: content is independent of multiplicity,
+each content-bearing qualification publishes one normalized projection into
+the compiler-owned `Indivisible | Interval<Scalar>` vocabulary, admission
+supplies backing in the same algebra, and checked transformations prove n-ary
+conservation plus authorized retirement. The current source language does not
+say how any of those facts are declared. Defaulting every linear claim to
+`Indivisible` would incorrectly turn ordinary ownership debt into resource
+content, while recognizing particular domain or field names would make
+authority depend on convention.
+
+Decide:
+
+- how a domain owner marks one exact qualification as content-bearing, and
+  whether an omitted algebra means ordinary non-content qualification or an
+  `Indivisible` content claim;
+- the source grammar for selecting `Indivisible` or `Interval<Scalar>`, naming
+  the scalar type and coordinate-space identity, and expressing subject-relative
+  half-open bounds;
+- how a bodyless requirement or provider result authors algebra-denominated
+  backing, including which result claim and admission identity it establishes;
+- how checked machines declare or derive authorized retirement and an explicit
+  `partitions`-style conservation contract when the ordinary outcome map is not
+  sufficient;
+- how several independent projections and one joint correspondence-bearing
+  projection are distinguished without conflating domain facets; and
+- which normalized projection identity is part of the semantic interface so
+  separate compilation, versioning, aliases, and proof/debug artifacts agree.
+
+Recommendation: add one owner-only content clause to the atomic qualification
+declaration, with omission meaning that the qualification is not content
+bearing. Let the clause choose the closed algebra and define a pure projection
+over the qualified subject; make `Indivisible` an explicit or clause-local
+default, never a default for linearity in general. Use separate requirement
+postconditions for admitted backing and authorized retirement, normalize all
+references by semantic identity, and keep the authored surface small enough
+that the compiler can decide equality, containment, restriction, and separated
+composition without executing owner-defined code.

@@ -27,6 +27,20 @@ pub struct CarryFacts {
     /// only the CPU/thread preservation this envelope demands; fixed,
     /// nonmoving stack storage supplies address stability structurally.
     pub activation_wide_carry: Vec<MachineActivationCarryFact>,
+    /// Effective carry policy retained by the exact linear claim identity.
+    /// This is independent of the carrier's structural policy and survives
+    /// path-indexed n-ary transformations through the ownership outcome map.
+    pub claim_policies: Vec<ClaimCarryPolicyFact>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClaimCarryPolicyFact {
+    pub claim_identity: omega_core::semantics::PermissionClaimIdentity,
+    pub effective: CarryPolicy,
+    /// Number of independent qualification evidence origins intersected to
+    /// produce `effective`. Each origin begins strict and is relaxed only by
+    /// its own exact positive permissions.
+    pub contributing_origins: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

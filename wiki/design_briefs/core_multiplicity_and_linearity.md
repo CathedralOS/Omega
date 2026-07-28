@@ -208,9 +208,14 @@ entries retain their exact identity and provenance, and fixed-point composition
 covers expression calls, qualified tail transitions, and multi-hop wrappers.
 Ambiguous or bodyless targets remain fail-closed. The structured maps are
 retained in the checked `05_claim_outcomes.json` proof/debug artifact.
-Active-case and fixed-index frontiers and per-claim carry remain subsequent P1c
-slices. Symbol-keyed substitutions already retain contained claims through
-nested generic transparent records.
+Carry policy is retained independently by transfer-stable claim identity:
+every qualification-evidence origin starts strict, exact positive permissions
+relax only that origin, and both multiple origins and multiple claims
+intersect. The identity-preserving n-ary outcome maps therefore preserve each
+child's policy without copying domain membership, and checked carry artifacts
+publish the effective policy per claim. Active-case and fixed-index frontiers
+remain subsequent P1c slices. Symbol-keyed substitutions already retain
+contained claims through nested generic transparent records.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
