@@ -1,1 +1,1 @@
-identical layout geometry and representation-equivalent leaf facts
+mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions

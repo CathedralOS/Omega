@@ -1,1 +1,1 @@
-no domain declaration names `Miles`
+unknown cast domain `Miles` for target `i64`
