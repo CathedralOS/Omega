@@ -187,9 +187,12 @@ pub(crate) fn lower_machine(
             .push_machine_state(&mut typed_machine, state);
     }
 
-    // #66/DOM1: every predicate-bearing domain on a parameter typed `T in A & B`
+    // #66/DOM1/P1a: every declared domain on a parameter typed `T in A & B`
     // desugars to an implicit `requires <param> in <domain>` MACHINE contract.
-    // Bodyless domains remain qualifications and never become obligations.
+    // Predicate-bearing domains discharge by proof; bodyless domains discharge
+    // only from retained qualification evidence. Without the latter obligation,
+    // a raw reconstruction of an authority carrier could cross a constrained
+    // parameter boundary solely because its runtime base type matches.
     // Collected first (immutable read of the lowered states/params) then synthesized,
     // to keep the typed-tree borrow disjoint from the contract construction.
     let mut domain_constrained_parameters: Vec<(
@@ -200,10 +203,9 @@ pub(crate) fn lower_machine(
     )> = Vec::new();
     for state in lowerer.typed_trees.machine_states(&typed_machine) {
         for parameter in lowerer.typed_trees.state_parameters(state) {
-            for (domain_symbol, domain_full_name) in crate::state::predicate_domain_constraints(
-                &lowerer.typed_trees,
-                parameter.type_reference,
-            ) {
+            for (domain_symbol, domain_full_name) in
+                crate::state::domain_constraints(&lowerer.typed_trees, parameter.type_reference)
+            {
                 domain_constrained_parameters.push((
                     parameter.symbol,
                     parameter.name.clone(),

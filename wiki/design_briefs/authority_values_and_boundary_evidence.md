@@ -1,7 +1,8 @@
 # Design Brief: Authority Values And Boundary Evidence
 
-Status: semantic direction settled 2026-07-26. Declaration, checker, and
-artifact work remains staged in `TASKS.md`.
+Status: semantic direction settled 2026-07-26. The core `Extent` declaration
+and constrained-parameter evidence boundary are live; further carrier,
+resource-frontier, and artifact work remains staged in `TASKS.md`.
 
 ## Purpose
 

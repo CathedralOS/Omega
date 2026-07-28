@@ -9,11 +9,16 @@
 // debt or another exclusive authority. Zero-filled storage does not establish
 // an `Extent`; APIs that need an honest zero/empty state use `ExtentSlot`.
 //
-// The declaration below is the current compiler compatibility spelling.
-// Migration to ordinary data follows bodyless/boundary-domain evidence and
-// resource-frontier outcome mappings.
+data Extent [linear] {
+    base: addr;
+    length: u64;
+}
 
-boundary data Extent [linear];
+// `Granted` is authority evidence, not a structural invariant. Constructing
+// the geometry above does not establish it; checked transformations must
+// conserve an existing claim and admitted roots must inherit the exact
+// owner-authored boundary requirement.
+pub domain Extent::Granted;
 
 data ExtentSlot {
     case Empty;

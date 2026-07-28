@@ -270,26 +270,24 @@ pub(crate) fn data_definition_for_field_type<'program>(
         .find(|data| data.name.as_str() == name.as_str())
 }
 
-/// The carrier-aware normalized declaration symbols for every predicate-bearing
-/// member of a type-reference domain conjunction. Bodyless domains remain
-/// binding qualifications, not proof facts, and are deliberately absent. This never
-/// re-resolves a short name globally.
-pub(crate) fn predicate_domain_constraint_symbols(
+/// The carrier-aware normalized declaration symbols for every declared-domain
+/// member of a type-reference conjunction. Arithmetic-policy constraints are a
+/// distinct node and are deliberately absent. This never re-resolves a short
+/// name globally.
+pub(crate) fn domain_constraint_symbols(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<SymbolHandle> {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            predicate_domain_constraint_symbols(program, *referee)
+            domain_constraint_symbols(program, *referee)
         }
         TypeReferenceNode::Constrained { constraints, .. } => program
             .type_reference_table
             .constraints(*constraints)
             .iter()
             .filter_map(|constraint| match constraint {
-                TypeConstraintNode::Domain(domain)
-                    if domain.symbol.is_valid() && domain.predicate_body.is_present() =>
-                {
+                TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
                     Some(domain.symbol)
                 }
                 _ => None,
@@ -297,6 +295,25 @@ pub(crate) fn predicate_domain_constraint_symbols(
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// The predicate-bearing subset of [`domain_constraint_symbols`]. Bodyless
+/// domains are binding qualifications whose facts must come from retained
+/// establishment evidence, not from predicate proof.
+pub(crate) fn predicate_domain_constraint_symbols(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<SymbolHandle> {
+    domain_constraint_symbols(program, type_reference)
+        .into_iter()
+        .filter(|symbol| {
+            program
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.symbol == *symbol)
+                .is_some_and(|domain| domain.predicate_body.is_present())
+        })
+        .collect()
 }
 
 /// Whether one declared domain implies another by normalized semantic identity

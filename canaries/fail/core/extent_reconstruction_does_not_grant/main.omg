@@ -1,0 +1,15 @@
+use omega::language::core::extent;
+
+machine consume_granted(extent: Extent in Granted) -> Extent {
+    extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let reconstructed: Extent = Extent {
+        base: 0 as addr,
+        length: 4096,
+    };
+    let returned: Extent = consume_granted(reconstructed);
+}

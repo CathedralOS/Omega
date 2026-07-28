@@ -61,10 +61,14 @@ atomic facts. Establishment relationships now normalize independently as exact
 owner-machine, domain-operator, or boundary-requirement identities; alias
 guarantees expand to atomic routes, typed constraints and snapshots preserve
 them, and checked consumers no longer reconstruct authority from names.
-Compiler-owned carry atoms and the authority migrations remain.
+Core `Extent` now exposes its ordinary `{ base: addr, length: u64 }` geometry
+and carries authority through bodyless `Extent::Granted`; every declared-domain
+parameter constraint becomes an implicit caller obligation, so matching runtime
+geometry cannot cross a qualified boundary without evidence. Compiler-owned
+carry atoms and the remaining authority migrations remain.
 
-- migrate `Extent`, task-runtime handles, interrupt guards, and acknowledgement
-  tokens to ordinary data declarations with their required fields;
+- migrate task-runtime handles, interrupt guards, and acknowledgement tokens to
+  ordinary data declarations with their required fields;
 - connect provider receipts, linearity, carry policy, and authority-flow
   reporting; and
 - migrate Cathedral's temporary Extent model onto the shared declaration.
