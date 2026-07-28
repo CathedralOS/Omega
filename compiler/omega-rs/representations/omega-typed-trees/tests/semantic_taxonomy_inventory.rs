@@ -27,6 +27,10 @@ fn domain_definition_carries_normalized_facet_roles() {
             symbol: _,
             name: _,
             target_type: _,
+            is_public: _,
+            // Transparent alias theory is retained independently from facts,
+            // so aliases cannot masquerade as bodyless establishment.
+            alias: _,
             predicate_body: _,
             // STR4 checked plans (2026-07-19): the normalized SemanticDomainId
             // landed -- LOSS 1's "no normalized SemanticDomainId" clause is

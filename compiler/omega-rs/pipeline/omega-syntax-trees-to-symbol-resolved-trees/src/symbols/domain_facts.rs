@@ -14,6 +14,43 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
             )
         })
         .collect::<Vec<_>>();
+    let alias_symbols = program
+        .domain_definitions
+        .iter()
+        .map(|domain| {
+            domain
+                .alias
+                .as_ref()
+                .map(|alias| {
+                    alias
+                        .constituents
+                        .iter()
+                        .map(|constituent| {
+                            let name = program
+                                .domain_path_members(constituent.domain)
+                                .iter()
+                                .map(|member| member.as_str())
+                                .collect::<Vec<_>>()
+                                .join("::");
+                            resolve_domain_symbol(symbols, &domain_symbols, &name)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
+    let mut alias_symbols = alias_symbols.into_iter();
+    program.domain_definitions.for_each_mut(|domain| {
+        let resolved = alias_symbols
+            .next()
+            .expect("one alias-resolution set per domain");
+        let Some(alias) = domain.alias.as_mut() else {
+            return;
+        };
+        for (constituent, symbol) in alias.constituents.iter_mut().zip(resolved) {
+            constituent.domain_symbol = symbol;
+        }
+    });
     let mut domain_fact_spans = program
         .domain_definitions
         .iter()

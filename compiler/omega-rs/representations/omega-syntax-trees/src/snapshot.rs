@@ -74,6 +74,9 @@ pub enum ItemSnapshot {
     Domain {
         name: IdentifierSnapshot,
         target_type: TypeReferenceSnapshot,
+        is_public: bool,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        alias: Vec<Vec<IdentifierSnapshot>>,
         predicate_body: &'static str,
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
@@ -645,6 +648,22 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(&value.name),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
+            is_public: value.is_public,
+            alias: value
+                .alias
+                .as_ref()
+                .map(|alias| {
+                    alias
+                        .constituents
+                        .iter()
+                        .map(|constituent| {
+                            snapshot_identifier_slice(
+                                syntax_trees.items.identifier_path_members(*constituent),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
             predicate_body: value.predicate_body.as_str(),
             facts: snapshot_proof_facts(syntax_trees, value.facts),
             operators: syntax_trees

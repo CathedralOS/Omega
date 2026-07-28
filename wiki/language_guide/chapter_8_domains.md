@@ -281,6 +281,15 @@ a conjunct strengthens requirements and guarantees; removing one weakens them.
 The resulting compatibility effects are reported at the affected callers,
 implementations, or consumers.
 
+> **Surface status (2026-07-28).** Declared-domain aliases are implemented
+> across parsing, resolved and typed domain theory, constrained-type identity,
+> proof/contract compatibility, admission, executable membership, validation,
+> and atomic diagnostics. `pub` legality is retained for domain aliases:
+> publishing a private declared constituent rejects. The compiler-owned
+> `Carry` atoms and their standard `Carry::Portable` declaration land with the
+> separate per-claim carry migration; aliases over ordinary declared atoms work
+> now.
+
 ### Weakening
 
 A semantic domain weakens implicitly to its carrier only if (1) the identity

@@ -9,6 +9,10 @@ pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub target_type: TypeReferenceHandle,
+    pub is_public: bool,
+    /// Authored transparent alias theory. Semantic consumers expand this
+    /// record before normalization rather than treating the alias as evidence.
+    pub alias: Option<DomainAliasDefinition>,
     /// Explicit predicate-body presence copied from the resolved theory.
     pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
@@ -29,12 +33,34 @@ impl Default for DomainDefinition {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             target_type: TypeReferenceHandle::invalid(),
+            is_public: false,
+            alias: None,
             predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 0,
             semantic_id: omega_core::semantics::SemanticDomainId::NULL,
             facets: omega_core::semantics::DomainFacets::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainAliasDefinition {
+    pub constituents: Vec<DomainAliasConstituent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DomainAliasConstituent {
+    pub domain: HandleSpan<Identifier>,
+    pub domain_symbol: SymbolHandle,
+}
+
+impl Default for DomainAliasConstituent {
+    fn default() -> Self {
+        Self {
+            domain: HandleSpan::empty(),
+            domain_symbol: SymbolHandle::invalid(),
         }
     }
 }
@@ -114,6 +140,14 @@ pub fn declared_domain_implies(
             return false;
         };
         if source.semantic_id.is_valid() && source.semantic_id == target.semantic_id {
+            return true;
+        }
+
+        if source.alias.as_ref().is_some_and(|alias| {
+            alias.constituents.iter().any(|constituent| {
+                inner(program, constituent.domain_symbol, target_domain, visited)
+            })
+        }) {
             return true;
         }
 

@@ -14,6 +14,7 @@ pub(crate) fn validate_domain_definitions(
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_domain_aliases(program, diagnostics);
     validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
 
     for domain in program.domain_definitions() {
@@ -38,6 +39,118 @@ pub(crate) fn validate_domain_definitions(
     }
 
     validate_domain_membership_cycles(program, fact_plan, diagnostics);
+}
+
+fn validate_domain_aliases(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for domain in program.domain_definitions() {
+        let Some(alias) = domain.alias.as_ref() else {
+            continue;
+        };
+        if alias.constituents.is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain alias `{}` must name at least one constituent",
+                domain.name
+            )));
+        }
+        if domain.predicate_body.is_present()
+            || !program.proof_facts(domain).is_empty()
+            || !program.domain_operators(domain).is_empty()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain alias `{}` must be transparent; it cannot also declare predicate facts or operators",
+                domain.name
+            )));
+        }
+
+        for constituent in &alias.constituents {
+            let Some(referenced) = domain_definition_by_symbol(program, constituent.domain_symbol)
+            else {
+                let label = program
+                    .domain_path_members(constituent.domain)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                diagnostics.push(Diagnostic::error(format!(
+                    "domain alias `{}` references unknown domain `{label}`",
+                    domain.name
+                )));
+                continue;
+            };
+            if !type_references_match(program, domain.target_type, referenced.target_type) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "domain alias `{}` includes `{}` but they classify different types: `{}` vs `{}`",
+                    domain.name,
+                    referenced.name,
+                    type_reference_label(program, domain.target_type),
+                    type_reference_label(program, referenced.target_type)
+                )));
+            }
+            if domain.is_public && !referenced.is_public {
+                diagnostics.push(Diagnostic::error(format!(
+                    "public domain alias `{}` cannot publish private constituent `{}`",
+                    domain.name, referenced.name
+                )));
+            }
+        }
+    }
+
+    let mut reported = Vec::new();
+    for domain in program.domain_definitions() {
+        validate_domain_alias_cycle_from(
+            program,
+            domain.symbol,
+            &mut Vec::new(),
+            &mut reported,
+            diagnostics,
+        );
+    }
+}
+
+fn validate_domain_alias_cycle_from(
+    program: &TypedTrees,
+    domain_symbol: SymbolHandle,
+    path: &mut Vec<SymbolHandle>,
+    reported: &mut Vec<SymbolHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !domain_symbol.is_valid() || reported.contains(&domain_symbol) {
+        return;
+    }
+    if let Some(cycle_start) = path.iter().position(|symbol| *symbol == domain_symbol) {
+        let cycle_symbols = path[cycle_start..]
+            .iter()
+            .copied()
+            .chain(std::iter::once(domain_symbol))
+            .collect::<Vec<_>>();
+        let cycle = cycle_symbols
+            .iter()
+            .filter_map(|symbol| domain_definition_by_symbol(program, *symbol))
+            .map(|domain| domain.name.to_string())
+            .collect::<Vec<_>>()
+            .join(" -> ");
+        diagnostics.push(Diagnostic::error(format!("domain alias cycle: {cycle}")));
+        reported.extend(cycle_symbols);
+        return;
+    }
+
+    let Some(domain) = domain_definition_by_symbol(program, domain_symbol) else {
+        return;
+    };
+    let Some(alias) = domain.alias.as_ref() else {
+        return;
+    };
+    path.push(domain_symbol);
+    for constituent in &alias.constituents {
+        validate_domain_alias_cycle_from(
+            program,
+            constituent.domain_symbol,
+            path,
+            reported,
+            diagnostics,
+        );
+    }
+    path.pop();
 }
 
 fn validate_repeated_normalized_domain_identities(

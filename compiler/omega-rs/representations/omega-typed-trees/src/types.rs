@@ -191,6 +191,43 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Every constrained node together with its carrier and constraint span.
+    /// The node handle permits pre-normalization rewrites such as transparent
+    /// alias expansion.
+    pub fn constrained_type_reference_sites(
+        &self,
+    ) -> Vec<(
+        TypeReferenceHandle,
+        TypeReferenceHandle,
+        HandleSpan<TypeConstraintNode>,
+    )> {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => Some((handle, *base_type, *constraints)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn set_constraint_span(
+        &mut self,
+        handle: TypeReferenceHandle,
+        constraints: HandleSpan<TypeConstraintNode>,
+    ) {
+        let TypeReferenceNode::Constrained {
+            constraints: current,
+            ..
+        } = self.type_references.get_mut(handle)
+        else {
+            panic!("set_constraint_span called on a non-constrained type reference");
+        };
+        *current = constraints;
+    }
+
     pub fn constraints_mut(
         &mut self,
         span: HandleSpan<TypeConstraintNode>,

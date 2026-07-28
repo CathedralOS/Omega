@@ -1,0 +1,17 @@
+data Socket {}
+data Session {}
+
+pub domain Socket::Connected {
+    true;
+}
+
+pub domain Session::Authenticated {
+    true;
+}
+
+pub domain Socket::Usable =
+    Socket::Connected & Session::Authenticated;
+
+data Main {}
+
+machine Main::main(&mut self) {}

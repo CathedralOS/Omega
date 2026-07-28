@@ -1,0 +1,1 @@
+domain alias `Socket::Usable` includes `Session::Authenticated` but they classify different types

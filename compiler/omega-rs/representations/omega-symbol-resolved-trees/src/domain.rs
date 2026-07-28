@@ -8,6 +8,9 @@ pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub target_type: TypeReference,
+    pub is_public: bool,
+    /// Authored transparent alias theory, independent from predicate facts.
+    pub alias: Option<DomainAliasDefinition>,
     /// Explicit predicate-body presence from the source declaration.
     pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
@@ -21,6 +24,28 @@ pub struct DomainDefinition {
     /// at syntax->resolved and copied downstream; consumers must not infer a
     /// role from the presence of facts or operators.
     pub facets: omega_core::semantics::DomainFacets,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainAliasDefinition {
+    /// Nonempty by grammar. Symbols are assigned after all domain declarations
+    /// have received their top-level symbols.
+    pub constituents: Vec<DomainAliasConstituent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DomainAliasConstituent {
+    pub domain: HandleSpan<DiagnosticName>,
+    pub domain_symbol: SymbolHandle,
+}
+
+impl Default for DomainAliasConstituent {
+    fn default() -> Self {
+        Self {
+            domain: HandleSpan::empty(),
+            domain_symbol: SymbolHandle::invalid(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -288,9 +288,10 @@ fn lower_state_parameter(
 ) -> Result<typed::signature::StateParameter, Diagnostic> {
     let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
     crate::domain_constraints::normalize_domain_constraints_for_type(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
-    );
+    )?;
     Ok(typed::signature::StateParameter {
         symbol: parameter.symbol,
         name: crate::name::lower_name(&parameter.name),

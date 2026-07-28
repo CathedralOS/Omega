@@ -2,7 +2,7 @@ use super::{
     MachineSupplySnapshot, TypeConstraintSnapshot, TypedTreesSnapshot, type_constraint_snapshot,
 };
 use crate::TypedTrees;
-use crate::domain::DomainDefinition;
+use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
 use crate::machine::Machine;
 use crate::name::Identifier;
 use crate::types::{DomainConstraint, TypeConstraintNode};
@@ -37,6 +37,40 @@ fn snapshots_normalized_domain_facets() {
     assert!(!domain.facets.predicate);
     assert_eq!(domain.facets.semantic, Some(23));
     assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
+fn snapshots_transparent_alias_theory_independently_from_facts() {
+    let mut program = TypedTrees::default();
+    let atom_symbol = omega_core::symbols::SymbolHandle::from_arena_index(41);
+    let mut domain = omega_core::arena::HandleSpan::empty();
+    program
+        .domain_path_members
+        .append_to_span(&mut domain, Identifier::generated("Socket"));
+    program
+        .domain_path_members
+        .append_to_span(&mut domain, Identifier::generated("Connected"));
+    program.push_domain_definition(DomainDefinition {
+        name: Identifier::generated("Socket::Usable"),
+        is_public: true,
+        alias: Some(DomainAliasDefinition {
+            constituents: vec![DomainAliasConstituent {
+                domain,
+                domain_symbol: atom_symbol,
+            }],
+        }),
+        ..Default::default()
+    });
+
+    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+    let [alias] = snapshot.roots.domain_definitions.as_slice() else {
+        panic!("one alias snapshot")
+    };
+    assert!(alias.is_public);
+    assert_eq!(alias.alias.len(), 1);
+    assert_eq!(alias.alias[0].domain, ["Socket", "Connected"]);
+    assert_eq!(alias.alias[0].domain_symbol, atom_symbol.arena_index());
+    assert!(alias.facts.is_empty());
 }
 
 #[test]

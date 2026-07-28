@@ -578,10 +578,23 @@ pub struct DataVariant {
 pub struct DomainDefinition {
     pub name: Identifier,
     pub target_type: crate::types::TypeReferenceHandle,
+    /// Retained for transparent-alias publication legality. General module
+    /// export semantics remain owned by explicit `export` items.
+    pub is_public: bool,
+    /// An authored transparent predicate alias. Kept independently from
+    /// predicate facts so an alias can never be mistaken for a bodyless
+    /// establishment route.
+    pub alias: Option<DomainAliasDefinition>,
     pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
     pub body_token_count: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DomainAliasDefinition {
+    /// Nonempty by grammar. Each constituent is an authored domain-name path.
+    pub constituents: Vec<HandleSpan<Identifier>>,
 }
 
 impl Default for DomainDefinition {
@@ -589,6 +602,8 @@ impl Default for DomainDefinition {
         Self {
             name: Identifier::generated(""),
             target_type: crate::types::TypeReferenceHandle::invalid(),
+            is_public: false,
+            alias: None,
             predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),

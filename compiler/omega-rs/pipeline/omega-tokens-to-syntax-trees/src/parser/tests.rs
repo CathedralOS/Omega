@@ -2212,6 +2212,49 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
 }
 
 #[test]
+fn parses_transparent_domain_alias_as_an_independent_record() {
+    let source = r#"
+        pub domain Socket::Usable =
+            Socket::Connected & Socket::Authenticated;
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let domain = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("alias domain");
+
+    let alias = domain.alias.as_ref().expect("transparent alias record");
+    assert!(domain.is_public);
+    let paths = alias
+        .constituents
+        .iter()
+        .map(|path| {
+            parsed
+                .items
+                .identifier_path_members(*path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths, ["Socket::Connected", "Socket::Authenticated"]);
+    assert_eq!(
+        domain.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Bodyless
+    );
+    assert!(domain.facts.is_empty());
+    assert!(domain.operators.is_empty());
+}
+
+#[test]
 fn parses_self_parameter_with_dedicated_self_type() {
     let source = r#"
         data Main {

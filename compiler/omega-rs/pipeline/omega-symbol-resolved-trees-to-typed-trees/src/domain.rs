@@ -10,15 +10,110 @@ use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
 
+#[derive(Debug, Clone)]
+pub(crate) struct ExpandedDomainReference {
+    pub(crate) symbol: omega_core::symbols::SymbolHandle,
+    pub(crate) path: Vec<resolved::name::DiagnosticName>,
+}
+
+/// Expand a transparent domain alias to its atomic declared domains. This is
+/// the shared pre-normalization operation for proof facts, executable
+/// membership, and constrained types.
+pub(crate) fn expand_domain_reference(
+    program: &resolved::SymbolResolvedTrees,
+    symbol: omega_core::symbols::SymbolHandle,
+    path: Vec<resolved::name::DiagnosticName>,
+) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
+    fn expand(
+        program: &resolved::SymbolResolvedTrees,
+        symbol: omega_core::symbols::SymbolHandle,
+        path: Vec<resolved::name::DiagnosticName>,
+        stack: &mut Vec<omega_core::symbols::SymbolHandle>,
+    ) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
+        let Some(domain) = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.symbol == symbol)
+        else {
+            // Preserve unresolved spellings for the validation layer, which
+            // owns the ordinary unknown-domain diagnostic.
+            return Ok(vec![ExpandedDomainReference { symbol, path }]);
+        };
+        let Some(alias) = domain.alias.as_ref() else {
+            return Ok(vec![ExpandedDomainReference { symbol, path }]);
+        };
+        if let Some(cycle_start) = stack.iter().position(|candidate| *candidate == symbol) {
+            let cycle = stack[cycle_start..]
+                .iter()
+                .copied()
+                .chain(std::iter::once(symbol))
+                .filter_map(|candidate| {
+                    program
+                        .domain_definitions
+                        .iter()
+                        .find(|domain| domain.symbol == candidate)
+                })
+                .map(|domain| domain.name.to_string())
+                .collect::<Vec<_>>()
+                .join(" -> ");
+            return Err(Diagnostic::error(format!("domain alias cycle: {cycle}")));
+        }
+        if alias.constituents.is_empty() {
+            return Err(Diagnostic::error(format!(
+                "domain alias `{}` must name at least one constituent",
+                domain.name
+            )));
+        }
+
+        stack.push(symbol);
+        let mut expanded = Vec::new();
+        for constituent in &alias.constituents {
+            let constituent_path = program.domain_path_members(constituent.domain).to_vec();
+            expanded.extend(expand(
+                program,
+                constituent.domain_symbol,
+                constituent_path,
+                stack,
+            )?);
+        }
+        stack.pop();
+        Ok(expanded)
+    }
+
+    expand(program, symbol, path, &mut Vec::new())
+}
+
 pub(crate) fn lower_domain_definition(
     lowerer: &mut Lowerer,
     domain: &resolved::domain::DomainDefinition,
 ) -> Result<typed::domain::DomainDefinition, Diagnostic> {
     let facts = lower_proof_facts(lowerer, domain.facts)?;
+    let alias = domain.alias.as_ref().map(|alias| {
+        let constituents = alias
+            .constituents
+            .iter()
+            .map(|constituent| {
+                let mut path = HandleSpan::empty();
+                for member in lowerer.source_trees.domain_path_members(constituent.domain) {
+                    lowerer
+                        .typed_trees
+                        .domain_path_members
+                        .append_to_span(&mut path, lower_name(member));
+                }
+                typed::domain::DomainAliasConstituent {
+                    domain: path,
+                    domain_symbol: constituent.domain_symbol,
+                }
+            })
+            .collect();
+        typed::domain::DomainAliasDefinition { constituents }
+    });
     let mut typed_domain = typed::domain::DomainDefinition {
         symbol: domain.symbol,
         name: lower_name(&domain.name),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
+        is_public: domain.is_public,
+        alias,
         predicate_body: domain.predicate_body,
         facts,
         operators: Default::default(),
@@ -45,7 +140,7 @@ pub(crate) fn lower_proof_facts(
     let mut lowered = HandleSpan::empty();
 
     for fact in lowerer.source_trees.proof_facts(facts) {
-        let fact = match fact {
+        match fact {
             resolved::domain::ProofFact::Expression(expression) => {
                 let expression = lower_expression_handle_from_table_in_fact_position(
                     lowerer.source_trees,
@@ -53,7 +148,10 @@ pub(crate) fn lower_proof_facts(
                     &mut lowerer.typed_trees,
                     *expression,
                 )?;
-                typed::domain::ProofFact::Expression(expression)
+                lowerer.typed_trees.proof_facts.append_to_span(
+                    &mut lowered,
+                    typed::domain::ProofFact::Expression(expression),
+                );
             }
             resolved::domain::ProofFact::Membership(membership) => {
                 let value = lower_expression_handle_from_table(
@@ -61,25 +159,34 @@ pub(crate) fn lower_proof_facts(
                     &mut lowerer.typed_trees,
                     membership.value,
                 )?;
-                let mut domain = HandleSpan::empty();
-                for member in lowerer.source_trees.domain_path_members(membership.domain) {
-                    lowerer
-                        .typed_trees
-                        .domain_path_members
-                        .append_to_span(&mut domain, lower_name(member));
+                let authored_path = lowerer
+                    .source_trees
+                    .domain_path_members(membership.domain)
+                    .to_vec();
+                let expanded = expand_domain_reference(
+                    lowerer.source_trees,
+                    membership.domain_symbol,
+                    authored_path,
+                )?;
+                for atom in expanded {
+                    let mut domain = HandleSpan::empty();
+                    for member in atom.path {
+                        lowerer
+                            .typed_trees
+                            .domain_path_members
+                            .append_to_span(&mut domain, lower_name(&member));
+                    }
+                    lowerer.typed_trees.proof_facts.append_to_span(
+                        &mut lowered,
+                        typed::domain::ProofFact::Membership(typed::domain::ProofMembershipFact {
+                            value,
+                            domain,
+                            domain_symbol: atom.symbol,
+                        }),
+                    );
                 }
-                typed::domain::ProofFact::Membership(typed::domain::ProofMembershipFact {
-                    value,
-                    domain,
-                    domain_symbol: membership.domain_symbol,
-                })
             }
-        };
-
-        lowerer
-            .typed_trees
-            .proof_facts
-            .append_to_span(&mut lowered, fact);
+        }
     }
 
     Ok(lowered)

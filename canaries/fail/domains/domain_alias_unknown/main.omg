@@ -1,0 +1,12 @@
+data Socket {}
+
+pub domain Socket::Connected {
+    true;
+}
+
+pub domain Socket::Usable =
+    Socket::Connected & Socket::Missing;
+
+data Main {}
+
+machine Main::main(&mut self) {}

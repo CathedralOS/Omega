@@ -160,9 +160,19 @@ Call-result binding and ordinary statement transfer preserve the evidence.
 Granted selected provider plans attach their normalized plan fingerprint to
 matching admitted facts, and checked artifacts publish
 `05_qualification_evidence.json` with origin, source, program point, and receipt
-identity. Exact owner-authorized admitted-subject matching, canonical
-qualification conformance, aliases, and the full independent domain-theory
-record remain P1 work.
+identity. Exact owner-authorized admitted-subject matching is now live.
+Canonical qualification conformance and the remaining independent
+domain-theory records remain P1 work.
+
+Implementation status (DOM alias expansion, 2026-07-28): transparent
+declared-domain aliases retain independent syntax, resolved, and typed records.
+Their constituent symbols resolve after the complete declaration set exists;
+uses expand recursively to atomic facts before constrained-type and contract
+identity, compatibility, admission, and executable predicate lowering.
+Validation rejects empty, unknown, cross-carrier, cyclic, and public-to-private
+expansions, while call diagnostics name the unmet atom. Compiler-owned `Carry`
+atoms and `Carry::Portable` remain part of the separate per-claim carry
+migration.
 
 Implementation status (DOM1 generic propagation, 2026-07-23): typed
 `TypeConstraintNode::Domain` is a normalized binding-site record, not a bare

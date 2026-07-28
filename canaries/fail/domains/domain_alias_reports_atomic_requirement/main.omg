@@ -1,0 +1,32 @@
+data Socket {
+    connected: bool;
+    authenticated: bool;
+}
+
+pub domain Socket::Connected {
+    self.connected;
+}
+
+pub domain Socket::Authenticated {
+    self.authenticated;
+}
+
+pub domain Socket::Usable =
+    Socket::Connected & Socket::Authenticated;
+
+machine consume(socket: Socket)
+requires
+    socket in Socket::Usable
+{
+}
+
+data Main {
+    socket: Socket;
+}
+
+machine Main::main(&mut self)
+requires
+    self.socket in Socket::Connected
+{
+    consume(self.socket);
+}
