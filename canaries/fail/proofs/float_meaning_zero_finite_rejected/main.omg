@@ -1,0 +1,15 @@
+// Rational zero has its own signed Zero cases and cannot inhabit FiniteNonZero.
+use omega::language::core::float_meaning;
+
+machine invalid_finite_zero() -> FloatMeaning {
+    let value: Rat in NonZero = nonzero_rat(
+        Nat::Zero,
+        Nat::Zero,
+        Nat::Succ { prev: Nat::Zero }
+    );
+    finite_nonzero(value)
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -500,16 +500,14 @@ and allocation handles expose no compiler-owned stack/control storage.
   layouts, quotients, and `Real`.
 - **F7:** replace hardcoded float lowering with the settled ordinary
   boundary-operator/provider-plan architecture in this strict remaining order:
-  1. add the proof-level `FloatMeaning` sum (`FiniteNonZero(Rat)`,
-     signed zero, signed infinity, and payload-erased NaN);
-  2. implement executable per-operation `FloatSemantics` functions and make
+  1. implement executable per-operation `FloatSemantics` functions and make
      build-time folding plus the interpreter consume them;
-  3. implement checked arithmetic-policy adapters, including result-checked
+  2. implement checked arithmetic-policy adapters, including result-checked
      `Trapping` and overflow-only `Saturating`;
-  4. add explicit target satisfiers and selected `ProviderPlan` realization for
+  3. add explicit target satisfiers and selected `ProviderPlan` realization for
      x86-64, AArch64, and checked software fallbacks, including canonical
      floating-control-state preconditions and foreign-boundary restoration; and
-  5. ship differential validation evidence for every admitted hardware
+  4. ship differential validation evidence for every admitted hardware
      realization.
   Keep `f32` and `f64` permanently bound to binary32 and binary64. Keep
   multiply-then-add, fused multiply-add, directed-rounding variants,

@@ -2096,6 +2096,22 @@ fn signed_rat_metric_canaries_compile_in_isolation() {
 }
 
 #[test]
+fn float_meaning_core_surface_compiles_in_isolation() {
+    let canary = pass_canary("core/float_meaning_core_surface");
+    if let Err(diagnostics) = compile_canary_without_output(&canary) {
+        panic!(
+            "expected FloatMeaning core canary {} to compile, but got diagnostics:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+}
+
+#[test]
 fn capability_manifest_reports_authority_flow_verbs() {
     for (canary_name, verb) in [
         ("capabilities/acquires_filesystem_authority", "acquires"),
@@ -38386,6 +38402,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_comparison_guard_exit",
     "core/array_core_surface",
     "core/float_format_core_surface",
+    "core/float_meaning_core_surface",
     "core/zii_default_composite_exit",
     "core/fixed_vec_core_surface",
     "core/arena_core_surface",
@@ -38967,6 +38984,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/cauchy_zero_precision_rejected",
+    "proofs/float_meaning_runtime_consumption_rejected",
+    "proofs/float_meaning_zero_finite_rejected",
     "proofs/cauchy_triangle_wrong_middle_den_rejected",
     "proofs/conditional_ih_requires_discharge",
     "proofs/core_nat_runtime_consumption_rejected",

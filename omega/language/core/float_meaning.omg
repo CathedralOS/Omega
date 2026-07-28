@@ -1,0 +1,56 @@
+// Core proof meaning for floating-point values.
+//
+// Runtime float carriers retain their exact target-format bits. This sum is
+// the payload-stable proof view consumed by executable FloatSemantics:
+// finite nonzero values embed in signed Rat, zero and infinity retain their
+// sign, and NaN intentionally erases representation-specific payload bits.
+//
+// FloatMeaning is proof-only because its finite case contains Rat, whose Nat
+// recursion has no runtime layout. Target providers expose equality against
+// this carrier in contracts; they do not pass it across runtime boundaries.
+
+use omega::language::core::rat;
+
+data Sign [copy] {
+    case Negative;
+    case Positive;
+}
+
+// The finite case is domain-qualified so rational zero cannot overlap either
+// signed Zero case. A caller may establish this body from an ordinary checked
+// fact; no compiler-known float or rational predicate is involved.
+domain Rat::NonZero {
+    self.num.pos != self.num.neg;
+}
+
+data FloatMeaning {
+    case FiniteNonZero(value: Rat in NonZero);
+    case Zero(sign: Sign);
+    case Infinity(sign: Sign);
+    case NaN;
+}
+
+// Construction starts from explicit signed coordinates so the domain
+// premise is a direct Nat inequality rather than an opaque predicate over an
+// already packaged Rat.
+machine nonzero_rat(
+    negative: Nat,
+    positive: Nat,
+    denominator: Nat
+) -> Rat in NonZero
+requires
+    positive != negative;
+    (sub(Nat::Succ { prev: Nat::Zero }, denominator)) == Nat::Zero
+{
+    Rat {
+        num: IntPair {
+            neg: negative,
+            pos: positive
+        },
+        den: denominator
+    }
+}
+
+machine finite_nonzero(value: Rat in NonZero) -> FloatMeaning {
+    FloatMeaning::FiniteNonZero { value: value }
+}

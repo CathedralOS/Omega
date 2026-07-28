@@ -495,7 +495,7 @@ semantic function:
 
 ```omega
 data FloatMeaning {
-    case FiniteNonZero(value: Rat); // signed value, value != 0
+    case FiniteNonZero(value: Rat in NonZero);
     case Zero(sign: Sign);
     case Infinity(sign: Sign);
     case NaN;
@@ -505,9 +505,13 @@ ensures meaning(result)
     == FloatSemantics::add(Binary32, meaning(left), meaning(right));
 ```
 
-Subnormals inhabit `FiniteNonZero`; signed zero is separate because operations
-such as reciprocal observe the sign. NaN payloads do not enter the base proof
-meaning, although the concrete runtime value retains its honest bits.
+`Rat::NonZero` prevents rational zero from overlapping the two signed-zero
+cases; core's checked `nonzero_rat` constructor establishes it from the signed
+Nat coordinates and a positive denominator. Subnormals inhabit
+`FiniteNonZero`; signed zero is separate because operations such as reciprocal
+observe the sign. NaN payloads do not enter the base proof meaning, although
+the concrete runtime value retains its honest bits. `FloatMeaning` is
+proof-only and therefore has no runtime tagged-union ABI.
 
 ### Value domains — wellness facts
 
