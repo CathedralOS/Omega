@@ -1,11 +1,9 @@
 // Format a number as text -- the reverse of parse_number, and the core of printing
 // numbers. The tens and ones digits are extracted with `/ 10` and `% 10`, turned
-// into their character codes by adding '0' (48), narrowed to bytes with `as u8`,
-// and written into the carrier at positions 0 and 1. The result is verified with
-// `==`: 25 formats to "25". (A cast result cannot yet be written DIRECTLY to a
-// carrier byte position -- `buffer[i] = expr as u8` fails to lower -- so the byte is
-// staged through an intermediate u8 field first, which works. Verification uses `==`
-// rather than write_line because a raw byte write cannot be PROVEN valid Utf8.)
+// into their character codes by adding '0' (48), narrowed through the named
+// trapping operation, and written into the carrier at positions 0 and 1. The
+// result is verified with `==`: 25 formats to "25". Verification uses `==`
+// rather than write_line because a raw byte write cannot be PROVEN valid Utf8.
 // Expected exit: 70.
 
 domain [u8]::Utf8 {
@@ -15,6 +13,7 @@ domain [u8; 8]::Utf8 {
     valid_utf8(self);
 }
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -34,11 +33,11 @@ machine Main::main(&mut self) {
 
     self.tens = self.value / 10;
     self.tens = self.tens + 48;
-    self.tens_byte = self.tens as u8;
+    self.tens_byte = narrow_i32_to_u8_trapping(self.tens);
 
     self.ones = self.value % 10;
     self.ones = self.ones + 48;
-    self.ones_byte = self.ones as u8;
+    self.ones_byte = narrow_i32_to_u8_trapping(self.ones);
 
     self.buffer[0] = self.tens_byte;
     self.buffer[1] = self.ones_byte;

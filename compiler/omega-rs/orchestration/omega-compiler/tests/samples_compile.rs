@@ -21,7 +21,7 @@
 //!    that text — exit code alone passes even when a RENDERER silently draws
 //!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
-use omega_compiler::{CompileOptions, compile};
+use omega_compiler::{CompileOptions, compile, compile_to_checked};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -170,6 +170,27 @@ fn all_samples_compile() {
         sample_mains.len(),
         failures.join("\n")
     );
+}
+
+#[test]
+fn named_integer_conversion_samples_reach_checked_trees() {
+    for relative in [
+        "cli/probes/width_mixer",
+        "cli/collections/array_sum",
+        "cli/text/format_number",
+        "cli/basics/print_number",
+        "cli/basics/multiplication_table",
+        "cli/arithmetic/prime_sieve",
+        "cli/algorithms/maze_flood",
+    ] {
+        let main_path = repo_root().join("samples").join(relative).join("main.omg");
+        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "named integer-conversion sample {relative} should reach checked trees: \
+                 {diagnostics:#?}"
+            )
+        });
+    }
 }
 
 #[test]

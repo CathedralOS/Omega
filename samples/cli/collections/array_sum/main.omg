@@ -3,16 +3,16 @@
 // 2_200_000_000 exceeds i32's max (2_147_483_647); widening each element to i64
 // first keeps the running total in range. The result is checked to equal 2.2e9.
 //
-// The element is read and widened INLINE -- `sum + nums[i] as i64 in Wrapping` --
-// a runtime-indexed read now works as a sub-expression operand. The `in Wrapping`
-// matches the accumulator's domain (decision 17: arithmetic operands must share
-// an arithmetic domain). Wrapping is DECLARED on the accumulator because array
-// elements carry no range facts yet, so the sum cannot prove its bounds; the
-// loop counter is a guard-proven Exact range.
+// The element is read and widened INLINE through `widen_i32_to_i64`, then the
+// Exact result is qualified `in Wrapping` to match the accumulator's arithmetic
+// domain. Wrapping is DECLARED on the accumulator because array elements carry
+// no range facts yet, so the sum cannot prove its bounds; the loop counter is a
+// guard-proven Exact range.
 //
 // Expected exit: 70.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -41,7 +41,9 @@ machine Main::main(&mut self) {
     }
 
     state add(&mut self) {
-        self.sum = self.sum + self.nums[self.i] as i64 in Wrapping;
+        self.sum =
+            self.sum
+            + (widen_i32_to_i64(self.nums[self.i]) as i64 in Wrapping);
         self.i = self.i + 1;
         transition {
             _ -> step()

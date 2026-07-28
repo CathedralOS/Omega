@@ -51,12 +51,12 @@ struct Edge {
     guard: Option<(ExpressionHandle, bool)>,
 }
 
-/// The machine fields a state's statements may write.
+/// The caller-visible machine paths a state's statements may write.
 enum StateWrites {
-    /// A call (or bare expression statement) may mutate any field.
+    /// At least one nested or statement-position call has an opaque frame.
     Any,
-    /// Exactly these fields are assigned.
-    Fields(Vec<SymbolHandle>),
+    /// Exact caller-visible paths assigned directly or through calls.
+    Paths(Vec<String>),
 }
 
 /// Collect, for every state, the guards that provably hold at its entry by
@@ -72,11 +72,11 @@ enum StateWrites {
 /// a loop bound past a conditional branch -- e.g. the swap state of an in-place
 /// sort, reached via `compare`'s `a > b` arm, still sees the inner loop's
 /// `j < n - 1`. The reassignment check is the soundness gate: a state that
-/// reassigns `j` (or makes any call) blocks `j < n - 1` from crossing it.
+/// reassigns `j` (directly or through a call whose frame overlaps it) blocks
+/// `j < n - 1` from crossing it.
 ///
-/// Facts are keyed by symbol, so a guard naming a source-state local (a
-/// different symbol than anything in the target) is inert rather than unsound;
-/// only machine fields (`self.x`), shared across states, actually carry.
+/// Only machine-field paths (`self.x`), shared across states, participate in
+/// the rewrite check. Source-state locals do not carry into target states.
 pub(in crate::checks) fn collect_incoming_guard_facts(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
@@ -128,17 +128,23 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
         }
     }
 
+    let call_frames = omega_validation::CallFrameResolver::new(program);
     let writes: Vec<(SymbolHandle, StateWrites)> = program
         .machine_states(machine)
         .iter()
-        .map(|state| (state.symbol, state_writes(program, state)))
+        .map(|state| {
+            (
+                state.symbol,
+                state_writes(program, machine, state, call_frames.as_ref()),
+            )
+        })
         .collect();
 
     let mut result = Vec::new();
     for state in program.machine_states(machine) {
         // Walk back from `state`, accumulating the fields rewritten between the
         // edge under consideration and `state`'s entry.
-        let mut written: Vec<SymbolHandle> = Vec::new();
+        let mut written: Vec<String> = Vec::new();
         let mut written_any = false;
         let mut visited: Vec<SymbolHandle> = vec![state.symbol];
         let mut current = state.symbol;
@@ -159,7 +165,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts(
             // descendants reach `state`'s entry, so they gate guards deeper up
             // the chain.
             match state_field_writes(&writes, edge.source) {
-                Some(StateWrites::Fields(fields)) => written.extend(fields.iter().copied()),
+                Some(StateWrites::Paths(paths)) => extend_unique(&mut written, paths),
                 _ => written_any = true,
             }
 
@@ -232,12 +238,12 @@ fn edge_carried_facts(
     writes: &[(SymbolHandle, StateWrites)],
     edge: &Edge,
 ) -> Vec<(ExpressionHandle, bool)> {
-    let (written, written_any): (Vec<SymbolHandle>, bool) =
-        match state_field_writes(writes, edge.source) {
-            Some(StateWrites::Fields(fields)) => (fields.clone(), false),
-            // Not found, or a call/expression state that may clobber any field.
-            _ => (Vec::new(), true),
-        };
+    let (written, written_any): (Vec<String>, bool) = match state_field_writes(writes, edge.source)
+    {
+        Some(StateWrites::Paths(paths)) => (paths.clone(), false),
+        // Not found, or a state with an opaque call frame.
+        _ => (Vec::new(), true),
+    };
     let mut carried: Vec<(ExpressionHandle, bool)> = walk_facts
         .iter()
         .filter(|fact| fact.state == edge.source)
@@ -289,77 +295,108 @@ fn state_field_writes(
 }
 
 /// Whether `guard` still holds after the rewrites recorded so far: it must name
-/// no rewritten field, and the chain must not have crossed a field-clobbering
-/// (call-bearing) state. An un-analyzable guard only survives at the immediate
+/// no overlapping rewritten path, and the chain must not have crossed an
+/// opaque call frame. An un-analyzable guard only survives at the immediate
 /// edge (nothing written yet).
 fn guard_survives(
     program: &omega_typed_trees::TypedTrees,
     guard: ExpressionHandle,
-    written: &[SymbolHandle],
+    written: &[String],
     written_any: bool,
 ) -> bool {
     if written_any {
         return false;
     }
-    match guard_member_symbols(program, guard) {
-        Some(fields) => fields.iter().all(|field| !written.contains(field)),
+    match guard_member_paths(program, guard) {
+        Some(paths) => paths.iter().all(|guard_path| {
+            written
+                .iter()
+                .all(|write_path| !omega_validation::frame_paths_overlap(guard_path, write_path))
+        }),
         None => written.is_empty(),
     }
 }
 
-/// The machine fields a state assigns. Any call (or bare expression statement)
-/// may mutate `self`, so such a state clobbers everything.
-fn state_writes(program: &omega_typed_trees::TypedTrees, state: &State) -> StateWrites {
-    let mut fields = Vec::new();
+/// Exact caller-visible paths a state may write. Direct assignments contribute
+/// their authored `self` place; nested and statement-position calls contribute
+/// the shared R5 normalized frame. Opaque calls fail closed.
+fn state_writes(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call_frames: Option<&omega_validation::CallFrameResolver<'_>>,
+) -> StateWrites {
+    let Some(call_frames) = call_frames else {
+        return StateWrites::Any;
+    };
+    let mut paths = Vec::new();
     for statement in program.statement_table.statements(state.statement_nodes) {
-        match statement {
-            StatementNode::Assignment(assignment) => {
-                if let ExpressionNode::Member(member) =
-                    program.expression_table.expression(assignment.target)
-                {
-                    fields.push(member.member_symbol);
-                }
-                // A name (local) target is not a machine field.
+        let Some(value_writes) = call_frames.statement_value_may_write_paths(machine, statement)
+        else {
+            return StateWrites::Any;
+        };
+        extend_unique(&mut paths, &value_writes);
+
+        if let StatementNode::Call(call) = statement {
+            let Some(statement_writes) = call_frames.may_write_paths(machine, call) else {
+                return StateWrites::Any;
+            };
+            extend_unique(&mut paths, &statement_writes);
+        }
+
+        if let StatementNode::Assignment(assignment) = statement {
+            let target = program.expression_table.display_name(assignment.target);
+            if target.starts_with("self.") && !paths.contains(&target) {
+                paths.push(target);
             }
-            StatementNode::Call(_) | StatementNode::Expression(_) => return StateWrites::Any,
-            _ => {}
         }
     }
-    StateWrites::Fields(fields)
+    StateWrites::Paths(paths)
 }
 
-/// The set of machine fields a guard names, or `None` if it contains a node we
+fn extend_unique(target: &mut Vec<String>, additions: &[String]) {
+    for path in additions {
+        if !target.contains(path) {
+            target.push(path.clone());
+        }
+    }
+}
+
+/// The set of machine-field paths a guard names, or `None` if it contains a node we
 /// cannot conservatively analyze (a call, range, literal aggregate, ...).
-fn guard_member_symbols(
+fn guard_member_paths(
     program: &omega_typed_trees::TypedTrees,
     guard: ExpressionHandle,
-) -> Option<Vec<SymbolHandle>> {
-    let mut fields = Vec::new();
-    collect_member_symbols(program, guard, &mut fields).then_some(fields)
+) -> Option<Vec<String>> {
+    let mut paths = Vec::new();
+    collect_member_paths(program, guard, &mut paths).then_some(paths)
 }
 
-/// Collect every `self.field` symbol the expression names; returns false if it
+/// Collect every `self.field` path the expression names; returns false if it
 /// contains a node that might reference a field through a path we do not walk.
-fn collect_member_symbols(
+fn collect_member_paths(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    fields: &mut Vec<SymbolHandle>,
+    paths: &mut Vec<String>,
 ) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
-            fields.push(member.member_symbol);
-            collect_member_symbols(program, member.receiver, fields)
+            let path = program.expression_table.display_name(expression);
+            if path.starts_with("self.") && !paths.contains(&path) {
+                paths.push(path);
+            }
+            collect_member_paths(program, member.receiver, paths)
         }
         ExpressionNode::Binary(binary) => {
-            collect_member_symbols(program, binary.left, fields)
-                && collect_member_symbols(program, binary.right, fields)
+            collect_member_paths(program, binary.left, paths)
+                && collect_member_paths(program, binary.right, paths)
         }
         ExpressionNode::Indexed(indexed) => {
-            collect_member_symbols(program, indexed.collection, fields)
-                && collect_member_symbols(program, indexed.index, fields)
+            collect_member_paths(program, indexed.collection, paths)
+                && collect_member_paths(program, indexed.index, paths)
         }
-        ExpressionNode::Unary(unary) => collect_member_symbols(program, unary.operand, fields),
-        ExpressionNode::Cast(cast) => collect_member_symbols(program, cast.value, fields),
+        ExpressionNode::Unary(unary) => collect_member_paths(program, unary.operand, paths),
+        ExpressionNode::Cast(cast) => collect_member_paths(program, cast.value, paths),
         // A bare name is a local or `self` -- neither is a machine field, and a
         // local does not carry across states (keyed by a distinct symbol).
         ExpressionNode::Name(_)

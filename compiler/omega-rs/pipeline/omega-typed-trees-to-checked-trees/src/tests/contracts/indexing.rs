@@ -844,6 +844,81 @@ fn value_vs_value_guard_transfers_the_range_endpoint() {
 }
 
 #[test]
+fn transitive_guard_survives_disjoint_pure_value_call_frame() {
+    let source = r#"
+        machine widen(value: u32) -> u64 {
+            value as u64
+        }
+
+        data Main {
+            buf: [u8; 4];
+            i: u32;
+            scratch: u64;
+        }
+
+        machine Main::main(&mut self) {
+            self.i = 0;
+            transition self.i < 4 { true -> prepare() _ -> done() }
+
+            state prepare(&mut self) {
+                self.scratch = widen(self.i);
+                transition { _ -> put() }
+            }
+
+            state put(&mut self) {
+                self.buf[self.i] = 7;
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a disjoint pure value-call frame should preserve the transitive index guard");
+}
+
+#[test]
+fn transitive_guard_dies_when_value_call_writes_guarded_place() {
+    let source = r#"
+        data Main {
+            buf: [u8; 4];
+            i: u32;
+            scratch: u64;
+        }
+
+        machine Main::main(&mut self) {
+            self.i = 0;
+            transition self.i < 4 { true -> prepare() _ -> done() }
+
+            state prepare(&mut self) {
+                self.scratch = self.touch_i();
+                transition { _ -> put() }
+            }
+
+            state touch_i(&mut self) -> u64 {
+                self.i = 4;
+                0
+            }
+
+            state put(&mut self) {
+                self.buf[self.i] = 7;
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an overlapping value-call frame must invalidate the transitive guard");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove index `self.i` is within length 4")),
+        "expected the index refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn value_vs_value_endpoint_one_past_the_region_refuses() {
     // `k: u32 [0..=9]` transfers i <= 8 -- index 8 into length 8 refuses.
     let source = r#"
