@@ -22,11 +22,50 @@ Packages expose public data, machines, traits, domains, wire schemas, and
 boundary surfaces.
 
 A package's dependencies — the external packages it may reach — are declared in
-its **`build.omg`**, a build-time-admissible machine that augments a `Build` (see
+its **`build.omg`**, a capability-checked build-entry machine that augments a
+`Build` (see
 [`../design_briefs/build_and_package_model.md`](../design_briefs/build_and_package_model.md)).
 Each dependency is a local alias bound to a pinned source (content hash), so
 code names a stable alias while the binding is what moves. There is no version
 solving and no separate lockfile — the pins live in `build.omg`.
+
+### Build orchestration is not semantic evaluation
+
+Two kinds of Omega code run before the final program:
+
+| | `build.omg` | Compiler semantic evaluation |
+|---|---|---|
+| World | build host | selected target semantics |
+| Reach | explicit admitted capabilities | hermetic |
+| Work | dependencies, target selection, staging | constants, proofs, plans, generators |
+| Output | `Build`, staged artifacts, receipts | values and checked evidence |
+
+`build.omg` is Omega's capability-audited build-script surface. Its entry may
+receive selected `Filesystem`, `Network`, `Console`, process, signing, or other
+build providers. None is ambient, and each operation remains visible in the
+normalized contract and artifact. Semantic evaluation cannot call those
+services. A host observation reaches a proof, type, layout, or constant only
+after `build.omg` turns it into an explicit recorded build input.
+
+Build operations publish an observation ceiling:
+
+```text
+Hermetic < Receipted < Volatile
+```
+
+The compiler records the join of statically reachable operations, the narrower
+class actually reached, and the receipts. A release may reject a
+volatile-capable build before running it. The artifact separately reports:
+
+- **Replayable from record:** this exact compilation can be replayed from the
+  stored inputs and receipts.
+- **Rebuildable from source:** the complete dependency/toolchain/provider graph
+  traces to declared reproducible roots.
+
+A hash-pinned dependency artifact can satisfy the first even when its own build
+used a volatile observation, in which case the graph fails the second. See the
+[build/package brief](../design_briefs/build_and_package_model.md) and the
+[semantic-evaluation brief](../design_briefs/build_time_evaluation.md).
 
 ## Path separator: `::` for names, `.` for values
 

@@ -438,7 +438,9 @@ structural-work ceiling/realized composed demand/control-flow evidence, and
 `StatePlan` ceiling/realized footprint/codegen evidence. Reports retain ceilings,
 realized facts, and validation receipts; private rankings and codegen proofs stay
 behind the evidence firewall. Structural work proves only a finite admitted
-operation path, not target WCET.
+operation path, not target WCET. Its current fixed provider-summary composer is
+the implementation precursor to the general bounded-work algebra in
+`OWNER_QUESTIONS.md` #16, not an independent permanent cost model.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,

@@ -64,7 +64,7 @@ name denotes.
 | Loans | Not owned. |
 | Moves | Not owned. |
 | Drops | Not owned. |
-| Calls | Syntactic call expressions/statements. |
+| Calls | Syntactic call expressions/statements plus ordered `suspend` / `block` acknowledgements. |
 | Transitions | Syntactic transition statements and targets. |
 | Effects | Effect clauses as unresolved names. |
 | Boundary edges | Parsed `boundary` traits, operators, authority contracts, library entries, and target policies. |

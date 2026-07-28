@@ -213,6 +213,29 @@ Rules:
   trusts only particular instances must expose and grant non-generic accepted
   facts instead of granting the universal template.
 
+### Proof-family index telescopes
+
+Proof-side proposition and quotient machinery reads a generic proof carrier as
+a family with one typed index telescope:
+
+```text
+Rat                         ()
+CauchySeq<machine S>        (machine S : Nat -> Rat)
+```
+
+The telescope is the declaration's complete ordered static-parameter list; it
+is not stored metadata. Relation laws quantify a fresh index pack for each
+representative, so `CauchySeq<A>` may relate to `CauchySeq<B>` without erasing
+either generator identity. A nullary carrier such as `Rat` uses the same rule
+with empty packs.
+
+This is a proof-stratum interpretation of the machine parameters already
+defined above, not a runtime machine value and not a runtime-dependent carrier.
+The proposition-family extension that consumes these telescopes is ordered
+ahead of quotient implementation and lives in
+[chapter 10](chapter_10_compile_time_proofs.md) and the
+[law-bearing relation brief](../design_briefs/law_bearing_relations_and_quotients.md).
+
 ## Where Clauses
 
 `where` clauses describe requirements on generic parameters.
@@ -321,6 +344,11 @@ requirement publishes the service reach and `suspends`/`blocks` possibilities
 of calls through it, and a caller must admit every axis. Allocation capacity
 and owned-resource cleanup are not service or operational clauses: they travel
 through explicit capability contracts and the multiplicity/ownership rules.
+
+A generic call also uses `suspend`, `block`, or both according to that abstract
+envelope. This is not unavoidable pessimism: when the algorithm requires a
+non-suspending or nonblocking operation, a transparent refinement narrows the
+bound and removes the corresponding marker as well as the possibility.
 
 ## Associated Types
 

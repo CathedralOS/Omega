@@ -108,6 +108,9 @@ Likewise, drop guarantees only that the program relinquishes ownership of an
 affine handle. It does not promise that buffered bytes reached durable storage.
 Fallible or suspending work is an explicit `flush`, `close`, `commit`,
 `finish`, or cancellation/settlement machine with an ordinary result contract.
+If that consumer may suspend or block, its call uses the ordinary `suspend` or
+`block` acknowledgement; acknowledgement does not itself discharge the
+obligation.
 
 ## Relationship to dependent types and resources
 

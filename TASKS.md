@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-26.
+Last pruned: 2026-07-27.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -357,6 +357,13 @@ current consumers happen to align.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration.
+- **CALLACK:** parse and retain exact `suspend` / `block` call acknowledgements;
+  check them against each call's statically known operational envelope; enforce
+  direct-call position for suspension; reject missing, partial, and redundant
+  acknowledgements; and report compiler-synthesized acknowledgements without
+  changing machine contract identity, ABI, or lowering. Canary the four exact
+  envelope combinations, narrowed refinements, nested-suspension rejection,
+  nested blocking acceptance, task-start distinction, and synthesized adapters.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   ranking witnesses into public identity.
 - **GR6:** finish remaining qualification/trust consumers.
@@ -407,21 +414,51 @@ improvements do not change public identity.
   nominal-drop partial-move rejection; repeated-cycle resource composition;
   and conservation-witness/backend-ledger reporting. Composite resource
   frontier transformations follow P1c.
-- **TR3–TR8:** finish task activation, custody, continuations, suspension-safe
-  loans, and reference packages. Runtime provider publication is owner-blocked
-  on #9; authority-value declarations follow P1a.
+- **TR3–TR8:** migrate task activation from the retired generalized
+  `TaskRuntimeContract` join to WCSU-derived fixed nonmoving `StackPlan`,
+  `StackLease` reservation, canonical suspension crossings, and demand-driven
+  CPU/thread preservation; then finish custody, park/resume lowering,
+  suspension-safe loans, and reference packages. Authority-value declarations
+  follow P1a.
+- **WORKPLAN:** after owner question #16, implement one deterministic
+  abstract-work algebra for interrupt roots, work-to-next-safe-point queries,
+  and build-evaluator metering. Preserve maximum/unbounded path attribution and
+  keep external wait plus wall-clock conversion in separate trust-bearing
+  columns.
+- **FFIGATE:** after owner question #17, implement the hosted-FFI gateway as an
+  ordinary bounded native-worker provider with explicit queue admission,
+  stack provision, cancellation disposition, retained-loan custody, and
+  shutdown/quiescence. Callback entry remains blocked on #12 and retained
+  pointer lifetime on #14.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to qualified `Extent` after P1.
 - Implement owned `Vec<T>` and then `Vec<u8> in Utf8` through ordinary data and
   domain qualification.
 
 Acceptance: linear debt cannot disappear through aggregation or bulk reclaim;
-carry demands are checked against runtime behavior at admission; task and
-allocation handles expose no compiler-owned continuation/control storage.
+CPU/thread-restricted activations require selected preservation evidence; task
+and allocation handles expose no compiler-owned stack/control storage.
 
 ### Mathematical and float libraries
 
-- **N6:** finish quotient/convergence packaging after owner question #4.
+- **N6:** implement law-bearing relations and quotient evidence in the ordered
+  sequence fixed by
+  `wiki/design_briefs/law_bearing_relations_and_quotients.md`:
+  1. land the proof-side Prop-family/index-telescope fragment;
+  2. add the proof stratum to selected-conformance projection and permit
+     by-value `dyn` only when the complete normalized value has no runtime
+     carrier;
+  3. add transparent proposition aliases plus independent `Reflexive`,
+     `Symmetric`, `Transitive`, and `Antisymmetric` requirements, with
+     `Equivalence`, preorder, and partial-order composition;
+  4. add `Respects` over normalized argument records, checking both
+     representative-invariant semantic preconditions and related results; and
+  5. migrate `%` from executable-`bool` relations and suffix-based law
+     discovery to proposition evidence plus explicit selected conformances.
+  Preserve the existing generic quotient canaries as migration coverage for
+  heterogeneous machine-indexed representatives; add a decidable rational
+  relation, existential Cauchy evidence, a total lifted operation, and a
+  partial lifted operation as acceptance drivers.
 - **N8:** expand the construction corpus and proof-engine support needed by
   layouts, quotients, and `Real`.
 - **F7:** implement float-format providers after owner question #10 determines
@@ -442,9 +479,26 @@ move it to a convenience library.
   transparent trait refinements and named-conformance generic bounds, and
   prototype envelope/effect-row inference before committing the full lowering.
   Local descriptors must not cross replaceable component boundaries. Add owned
-  erased values only after general storage ownership, size/alignment metadata,
-  and cleanup contracts can support them.
-- Extend compiler-run Omega/build-time evaluation after owner question #5.
+  erased **runtime** values only after general storage ownership,
+  size/alignment metadata, and cleanup contracts can support them; N6's
+  carrierless proof-only owned-`dyn` case has no runtime carrier and is ordered
+  separately above.
+- Complete the hermetic semantic-evaluation contract in
+  `wiki/design_briefs/build_time_evaluation.md`: check every normalized
+  admission axis at the concrete invocation, add the sealed target-semantic
+  capsule, split semantic result keys from canonical usage records, publish
+  deterministic live progress, and add constant/runtime equivalence canaries
+  led by `f32`/`f64`. Rename the implementation compatibility variant
+  `EventualTerminal` to the settled `Terminates`; this is vocabulary migration,
+  not a new guarantee. Add optional root-controlled warning and hard-ceiling
+  policy only after the meter/reporting path exists; unlimited terminating
+  evaluation remains legal.
+- Extend `build.omg` provider plans with the normalized
+  `Hermetic | Receipted | Volatile` observation ceiling. Publish static ceiling,
+  realized class, replay receipts, `ReplayableFromRecord`, and transitive
+  `RebuildableFromSource`, with the first failed provenance edge. Build-host
+  services remain explicit capabilities and do not enter the hermetic semantic
+  evaluator.
 - Implement separate compilation and replaceable-realization artifacts without
   new replacement syntax. A component is a selected provider realization plus
   its compiler-validated code/state/resource closure, not a package. Calls
@@ -463,7 +517,6 @@ move it to a convenience library.
 - Portable atomic fences are owner-blocked on #13.
 - Foreign retained-pointer lifetimes are owner-blocked on #14.
 - External entry reification/registration is owner-blocked on #12.
-- Suspension-capable direct-call spelling is owner-blocked on #6.
 
 ### Wire runtime
 
@@ -494,16 +547,14 @@ blocked work.
 | Question | Unblocks |
 |---|---|
 | #3 resource frontier and transformations | contained linear debt, cleanup, and authority transformations |
-| #4 quotient convergence | N6/`Real` quotient packaging |
-| #5 compiler-run Omega | richer build-time policies and generators |
-| #6 suspending direct-call spelling | explicit suspension call surface |
-| #9 task-runtime provider publication | task admission/dispatch |
 | #10 primitive float requirement family | float-format providers |
 | #11 wire family/presence/evolution | remaining wire runtime |
 | #12 sealed external entry reference | callbacks and dynamic entry registration |
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
+| #16 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
+| #17 hosted-FFI gateway | reusable native-worker execution and backpressure |
 
 ## Vertical acceptance slices
 

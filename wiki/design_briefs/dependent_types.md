@@ -1,6 +1,6 @@
 # Design Brief: Dependent Types — the Systems Fragment, Lifetimes, and the Lean Path
 
-Current staged design as of 2026-07-18; implementation remains incomplete.
+Current staged design as of 2026-07-27; implementation remains incomplete.
 Companion to [Chapter 12](../language_guide/chapter_12_dependent_types.md) (the
 user-facing surface) and
 [proof_engine_north_star.md](proof_engine_north_star.md) (the automation/kernel
@@ -80,6 +80,28 @@ under its own names: guard narrowing = flow-sensitive refinement; wire data
 with runtime strides = Sigma types in disguise; store enforcement = the
 ownership-sound strong updates Flux (Liquid Types for Rust, PLDI 2023) showed
 make refinement of mutable memory work; engine-not-terms = perfect erasure.
+
+### The proof-side proposition-family fragment
+
+The systems verdict above remains unchanged for runtime data. The
+law-bearing-quotient ruling adds one ordered proof-side fragment that did not
+exist when the original ladder was sequenced:
+
+```text
+R<I, J>(left: C<I>, right: C<J>) : Proposition
+```
+
+`C` is a proof carrier family with a typed proof-static index telescope, and
+`I`/`J` are independently quantified index packs. Evidence is carrierless,
+erased selected-conformance projection. This is Prop-valued dependency only:
+it does not admit arbitrary value-to-runtime-`Type` computation, runtime proof
+fields, value-directed layout, or general Pi-type normalization.
+
+This fragment is a hard predecessor of evidence-bearing quotients. The
+relation-property hierarchy (`Reflexive`, `Symmetric`, `Transitive`,
+`Equivalence`, and `Respects`) and `%` cannot be implemented independently
+from it. The complete formation and lifting rules live in
+[Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md).
 
 ## 3. (A) The limited systems fragment
 
@@ -397,15 +419,18 @@ The staged path (no rewrite at any stage):
    change to engine algorithms. F* is the cautionary neighbor (no kernel, no
    export, TCB = typechecker + Z3, and no mathematics library at scale;
    automation strength was never its gap).
-4. **The ghost stratum.** Recursive ghost data gated on the existing
-   strict-decrease measure (never definitional unfolding — Lean's lesson);
-   indexed data via the planned const-param machinery; exactly two universe
-   levels until category theory forces more; one quotient lift rule (Lean
-   covers quotients with 4 constants + 1 reduction rule). Opens algebra,
-   combinatorics, number theory, construction of the reals. QTT/Idris 2 is
-   the proof that one calculus hosts erased mathematics beside linear
-   runtime resources; Omega's split is cheaper still because ghost values are
-   never borrowed and need no layout.
+4. **The ghost stratum.** Recursive ghost data is gated on the existing
+   strict-decrease measure (never definitional unfolding — Lean's lesson).
+   Before quotient formation, add the Prop-valued-family/index-telescope
+   fragment and carrierless selected-conformance evidence specified in the
+   law-bearing-relation brief. Relation properties are explicit composable
+   conformances; quotient lifting requires `Respects`, including
+   representative-invariant preconditions for partial machines. Exactly two
+   universe levels remain the starting ceiling until category theory forces
+   more. This opens algebra, combinatorics, number theory, and construction of
+   the reals. QTT/Idris 2 is the proof that one calculus hosts erased
+   mathematics beside linear runtime resources; Omega's split is cheaper still
+   because ghost values are never borrowed and need no layout.
 5. **Proof machines as the escape hatch** — state machines run at compile
    time by the existing interpreter, terminating by the existing ranked-cycle
    discipline, emitting derivation records the checker validates. No foreign
@@ -479,6 +504,16 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   candidates. Normalized per-state frame publication is live and kept outside
   public contract identity. Driver: dependent facts across sibling-machine
   calls.
+- **R6 — Proof propositions and index telescopes:** add Prop-valued families
+  over representative values, typed proof-static carrier-family index packs,
+  and carrierless selected-conformance evidence. Establish one requirement
+  projection with runtime and proof strata; by-value `dyn` is legal only when
+  the complete normalized value has no runtime carrier. Then add the
+  decomposed relation-property hierarchy and `Respects` domain/result laws.
+  This rung is the hard predecessor of N6 quotient migration, not an
+  independently orderable follow-up. Drivers: a decidable rational relation,
+  heterogeneous `CauchySeq<A>`/`CauchySeq<B>` convergence evidence, and a
+  partial lifted operation whose precondition is representative-invariant.
 
 ## 9. Key sources
 

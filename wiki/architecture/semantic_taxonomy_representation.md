@@ -109,6 +109,13 @@ evidence. The owner-authorized requirement and provider receipt contribute to
 trust identity; private proof and transformation witnesses remain
 implementation evidence.
 
+Trust composes by the weakest supporting input, while provenance retains every
+input that caused the downgrade. A derived arithmetic or graph proof over one
+admitted environmental premise produces an admitted composite fact naming
+that premise; a dominant derived input never hides it. This one rule applies
+to content/backing receipts, provider facts, foreign stack/callback plans,
+timing conversion, and later normalized evidence products.
+
 See
 [`../design_briefs/authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
@@ -260,25 +267,32 @@ permission entry live until the underlying claim is discharged. Aggregates
 share a field traversal with other properties but each axis owns its
 composition algebra.
 
-Runtime behavior is a distinct normalized provider-plan record, not a fifth
-carry axis and not a source type property:
+Task-runtime behavior does not form a universal supply record or a fifth carry
+axis. Activation planning derives only the obligations that the target machine
+actually creates:
 
 ```text
-RuntimeBehaviorContract {
-    preemption: SafePoints | Asynchronous,
-    cpu: Preserved | MayMigrate,
-    host_thread: Preserved | MayMigrate,
-    continuation_address: Stable | Movable,
+StackPlan {
+    bytes,                 // whole-call-graph WCSU + entry/calling overhead
+    alignment,             // target/layout derived
+    representation,       // fixed stackful lowering identity
+}
+
+ActivationCarryObligations {
+    preserve_cpu: bool,
+    preserve_host_thread: bool,
 }
 ```
 
-Suspension permission has no runtime counterpart: canonical liveness checks it
-locally against the checked suspension plan. Admission joins the other three
-carry dimensions with runtime behavior, while preemption granularity selects
-the relevant crossing points. Unknown behavior normalizes pessimistically.
-Checked provider evidence may prove a narrower record; accepted evidence needs
-an ordinary admission receipt. No second provider/admission representation is
-introduced.
+The settled stackful representation transfers one fixed, nonmoving
+`StackLease` satisfying `StackPlan`; address stability follows structurally.
+Suspension permission remains a local canonical-liveness judgment. Portable
+activations demand no scheduler fact. An activation that may retain
+`SameCpu`/`SameThread` values requires the selected scheduler to establish the
+corresponding preservation conformance or admission receipt. Cancellation is
+an operation/conformance, stack availability is resource reservation, and
+inline completion belongs to the concrete `start` operation. There is no
+`SafePoints | Asynchronous` provider mode.
 
 Implementation status (2026-07-24): `CarryPolicy` and its four closed axes live
 in the dependency-safe semantic vocabulary and are copied through syntax,
@@ -298,9 +312,11 @@ parser-unreachable resolved/typed contained-machine span has been retired
 end-to-end. Checked `CarryFacts` now derives contained topology exactly once
 from authored attached-data fields whose data type has one or more attached
 machines, storing machine roots, fields, and targets in grouped arenas/spans.
-State-graph metadata and backend reports consume that fact. Safe-point task
-demands join crossings across the cycle-safe descendant closure, while
-asynchronous demands join the descendant all-instruction envelopes. There is
+State-graph metadata and backend reports consume that fact. Canonical semantic
+suspension crossings join across the cycle-safe descendant closure. A target
+that may migrate execution outside those crossings must establish
+activation-wide preservation for any possible CPU/thread-restricted value; it
+does not select an alternate all-instruction runtime-supply envelope. There is
 no separate `contains` source form or compatibility carrier.
 
 Implementation checkpoint (2026-07-28): `CarryPermission` now supplies the
@@ -387,7 +403,7 @@ semantic lowering and carry it thereafter.
 Termination needs an explicit interface/implementation split:
 
 ```text
-TerminationGuarantee = NoGuarantee | EventualTerminal {
+TerminationGuarantee = NoGuarantee | Terminates {
     premises,
     terminal_outcome_contract,
 }
@@ -441,7 +457,9 @@ TaskActivationPlan {
     entry_plan_id,
     argument_layout,
     terminal_outcome_layout,
-    continuation_requirement,
+    stack_plan,
+    canonical_suspension_crossings,
+    cpu_thread_preservation_obligations,
     cancellation_and_effect_contract,
 }
 
@@ -471,17 +489,14 @@ Concrete static-machine specializations retain their executable instance
 symbol. The compiler derives a validated `TaskActivationPlan` for each closed
 TaskRuntime start specialization and emits `05_task_activations.json`. The plan
 uses checked contract/entry/layout/calling identities, the normalized
-transitive suspension plan, canonical crossing liveness/carry facts,
-and concrete target layout to size its continuation. Safe-point migration is
-therefore evidence-backed. A separate checked all-instruction envelope joins
-every persistent slot, parameter, local, call signature, aggregate/cast
-temporary, and reference formation for asynchronous preemption; unresolved
-coverage marks it incomplete and leaves the activation demand absent, so
-admission fails closed. The carry artifact exposes that completeness and
-joined policy. Every activation requires cancellation support because
-cancellation-request authority is part of every `Task<T>` claim. Provider
-admission/dispatch, claim provenance, and lease accounting remain later
-task-runtime rungs.
+transitive suspension plan, canonical crossing liveness/carry facts, whole-call-
+graph WCSU, and concrete target layout. The current implementation still emits
+the retired continuation-size, preemption-mode, and all-instruction
+runtime-supply fields. Migration replaces those with `StackPlan`, canonical
+suspension crossings, and demanded CPU/thread preservation. Every activation
+requires the cancellation operation because cancellation-request authority is
+part of every `Task<T>` claim. Provider admission/dispatch, claim provenance,
+stack leases, and child accounting remain later task-runtime rungs.
 
 ### Multiplicity and permission context
 
@@ -573,6 +588,12 @@ BlockingPlan {
   interface: InternalInferred | PublishedMayBlock(bool),
   checked_may_block: bool,
 }
+
+CallOperationalAcknowledgement {
+  source_or_synthesized: Source | CompilerSynthesized,
+  acknowledges_suspend: bool,
+  acknowledges_block: bool,
+}
 ```
 
 Boundary-trait declarations mint service identities. `suspends;` and `blocks;`
@@ -582,6 +603,13 @@ deterministic normalizer owns service-row and operational contract identity;
 the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
 the positive `terminates` guarantee and private ranking witness.
+
+`CallOperationalAcknowledgement` belongs to syntax/checked-call and diagnostic
+artifacts, not `MachineContractPlan` identity. Validation requires its two bits
+to equal the statically known call envelope. The source order is fixed as
+`suspend block`; a suspending call also carries the direct-position legality
+check needed before continuation planning. Compiler-synthesized adapters record
+the same facts without pretending a source token existed.
 
 Implementation status (EFX symbol-resolved service plans, 2026-07-23): `omega-core` now owns
 distinct `ServiceReachId`/`ServiceReachRowId` identities, deterministic

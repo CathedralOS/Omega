@@ -46,6 +46,17 @@ explicit consuming machine such as `close`, `flush`, `commit`, `finish`, or
 An affine resource may instead have an authorized nonblocking fallback, such as
 abandonment or transfer to a stable custodian.
 
+Such an explicit consumer uses the ordinary call acknowledgement required by
+its contract:
+
+```omega
+let closed: CloseResult = block file.close();
+let outcome: TaskOutcome<T> = suspend task.finish();
+```
+
+The marker makes the waiting site visible; explicit consumption, not the
+marker, discharges the linear obligation.
+
 Enqueuing deferred reclamation transfers the obligation to the queue; it does
 not discharge it. The queue must publish capacity, servicing, progress, and
 resource bounds that cover eventual discharge. Without those contracts it is a

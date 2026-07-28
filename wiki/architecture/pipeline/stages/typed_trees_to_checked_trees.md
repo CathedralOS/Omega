@@ -122,17 +122,20 @@ Current ownership is:
   possible suspension. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state
   transitions. `checks/carry/intra_statement.rs` preserves the shared
-  preorder call identity while walking actual left-to-right evaluation order:
-  restrictive call arguments are carried during a suspending call, and uses
-  in later operands keep a place live across an earlier nested call.
+  preorder call identity while walking actual left-to-right evaluation order.
+  The settled call surface rejects a suspending call nested inside an argument,
+  operator, aggregate, or condition, so partially evaluated operands never
+  become hidden continuation state. Blocking-only calls may remain nested and
+  preserve ordinary left-to-right evaluation.
   Call-argument policy derivation uses the target declaration's generic bounds;
   unrelated caller type parameters cannot qualify the target by name.
   `facts/carry.rs` derives the canonical contained-machine field topology into
-  grouped machine/field/target arenas. `checks/carry/preemption.rs` joins each
-  machine's direct all-instruction envelope across that cycle-safe subtree;
-  task-plan safe-point policy likewise joins descendant crossing facts.
-  CPU/thread/address compatibility with a selected runtime remains
-  provider-admission work.
+  grouped machine/field/target arenas. Canonical semantic suspension crossings
+  join descendant crossing facts. The existing
+  `checks/carry/preemption.rs` all-instruction/runtime-mode path is migration
+  scaffolding: the settled task model instead derives WCSU-backed `StackPlan`
+  and asks only CPU/thread-restricted activations for selected preservation
+  evidence. Address stability follows from the fixed nonmoving stack lease.
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
   `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow

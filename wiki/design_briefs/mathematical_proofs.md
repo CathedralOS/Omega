@@ -154,9 +154,17 @@ The useful staging is:
 1. exact `Nat`, `Int`, and `Rat` libraries;
 2. order and algebraic laws through explicit conformances;
 3. finite-float-to-rational embeddings and error bounds;
-4. sequence/Cauchy/equivalence machinery for `Real`; and
-5. approximation theorems connecting `Real` specifications to `f32`/`f64`
+4. proof-side Prop-valued families, typed index telescopes, and carrierless
+   evidence;
+5. sequence/Cauchy relation evidence, explicit `Equivalence`, quotient
+   formation, and `Respects` lifting for `Real`; and
+6. approximation theorems connecting `Real` specifications to `f32`/`f64`
    implementations.
+
+Items 4 and 5 are ordered: evidence-bearing quotients cannot land before the
+proposition-family/index-telescope fragment. Relation properties are general
+mathematical conformances rather than quotient-private proof slots. See
+[Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md).
 
 ## Still open
 

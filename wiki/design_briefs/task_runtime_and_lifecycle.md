@@ -5,9 +5,8 @@ live; runtime-provider integration and the remaining library surface are still
 under implementation. Chapter 18 is the user-facing authority. This brief
 records the mechanical model so the implementation does not recreate an
 `async machine`/`Future<T>` split, implicit detach, or a mandatory pool
-abstraction. Direct-call suspension acknowledgement is required; only its exact
-spelling and placement remain owner questions, and requiring it does not change
-this task model.
+abstraction. Direct calls use the settled `suspend` and `block`
+acknowledgements. Those markers do not change this task model.
 
 ## Direction
 
@@ -24,9 +23,9 @@ runtime asks an admitted provider to execute a distinct activation.
 
 `TaskRuntime` is the working name for an `omega::core` boundary requirement or
 capability surface, not a new declaration kind. Its operations contribute the
-runtime service's ordinary service reach and operational ceilings and are admitted like other
-providers. A package may wrap that capability with pools or policy without
-changing the normalized task contract.
+runtime service's ordinary service reach and operational ceilings and are
+admitted like other providers. A package may wrap that capability with pools or
+policy without changing the normalized task contract.
 
 A platform profile/provider plan may select a default task runtime at the
 application root, and tests or components may inject a different provider for
@@ -36,9 +35,8 @@ capability.
 
 There is no `async machine` species, `Future<T>` transformation, bare `spawn`
 block, implicit fire-and-forget, or privileged supervisor/task-group construct.
-The pending suspension-keyword design concerns direct-call audibility, not task
-creation or return-type transformation; the requirement for an acknowledgement
-is settled.
+`suspend` and `block` concern direct-call audibility, not task creation or
+return-type transformation.
 
 ## Custody, storage, and claim are separate
 
@@ -48,8 +46,10 @@ Starting a task establishes three relationships that must not be conflated:
    arranges execution, parking, waking, and cancellation according to its
    pinned contract.
 2. A **storage owner** holds the activation's physical state. This may be a
-   caller-provisioned Arena pool, an OS/runtime provider, a remote executor,
-   or no persistent activation storage when execution completes inline.
+   caller-provisioned Arena pool, an OS/runtime provider, or a remote executor.
+   The owner supplies one fixed, nonmoving stack for the settled local
+   representation; inline completion may shorten its lifetime but does not
+   erase the provision.
 3. The owner of **`Task<T>`** holds the linear lifecycle claim: the right and
    obligation to observe, request cancellation of, transfer, or terminally
    settle that activation.
@@ -61,8 +61,8 @@ optimization, but completion never silently settles the linear claim.
 
 All physical storage still has an accountable owner: an Arena-issued
 Allocation, a provider under its admitted resource contract, or the platform
-under a boundary contract. Arena-backed Allocation is the in-model bounded case, not the
-definition of all task storage.
+under a boundary contract. Arena-backed Allocation is the in-model bounded
+case, not the definition of all task storage.
 
 ## Machine target elaboration
 
@@ -78,8 +78,14 @@ activation description containing at least:
 
 - normalized machine-contract and entry identities;
 - argument and terminal-outcome layouts;
-- continuation/frame requirement, alignment, and pinning requirements;
-- cancellation and suspension behavior needed by admission; and
+- a `StackPlan<M>` derived from whole-call-graph WCSU, target alignment, and
+  entry/calling-plan overhead;
+- canonical suspension crossings and the carry obligations induced by values
+  live at each crossing;
+- any activation-wide CPU/thread preservation obligation that the selected
+  scheduler must establish;
+- cancellation and suspension behavior needed by the selected start operation;
+  and
 - the target calling/entry plan.
 
 The provider receives a generated descriptor plus the invocation's moved
@@ -88,34 +94,32 @@ representation-identical, while activation planning creates a distinct
 compiler artifact. The concise `start(M, args)` form may be transparent future
 sugar, but v1 can use the already-honest `start<M>(args)` spelling.
 
-The provider-independent normalized descriptor is live in `omega-task-plans`.
-It records contract/entry/calling-plan identities, argument and terminal
-layouts, continuation size/alignment, cancellation and distinct-activation
-requirements, the local suspension-safety result, and separate migration
-demand envelopes for safe-point versus asynchronous crossings. The validator
-rejects unsafe possible suspension locally before any runtime is considered.
-Compiler elaboration is now live for concrete `TaskRuntime::start<M>` and
-`try_start<M>` specializations. It retains the concrete specialization symbol,
-derives independent `may_suspend` and `may_block` bits from the target's checked
-transitive suspension and blocking plans,
-sizes the continuation from target layout plus canonical crossing live values,
-joins safe-point carry demands, and emits `05_task_activations.json`. Missing
-crossing evidence fails closed. Because every `Task<T>` claim exposes
-cancellation-request authority, every activation plan requires a
-cancellation-capable runtime. The checker also emits one conservative
-all-instruction carry envelope per machine by joining every persistent slot,
-parameter, local, call signature, aggregate/cast temporary, and reference
-formation visible in checked trees. Checked `CarryFacts` also owns the
-field-derived contained-machine topology in grouped arenas. Safe-point demands
-join every descendant machine's crossing policy; asynchronous envelopes join
-every descendant machine's all-instruction policy through the same cycle-safe
-closure. A complete subtree envelope populates the asynchronous migration
-demand; unresolved coverage remains explicitly absent and admission fails
-closed. `05_carry_manifest.json` exposes both completeness, subtree size, and
-the joined policy. It also publishes every canonical safe-point crossing with
-its exact statement/call identity, target, and typed live-value/storage set.
-Formal models and diagnostics consume that checked artifact; they do not
-reinterpret source syntax to rediscover which values cross a park.
+The source truth is deliberately smaller than the current
+`omega-task-plans` prototype. One new activation receives one fixed, nonmoving
+stack sized from WCSU and retains that stack while parked. Direct suspension
+does not negotiate or allocate a second continuation buffer. The activation
+descriptor therefore asks for a `StackLease` satisfying `StackPlan<M>`, not for
+a runtime-authored continuation-capacity record.
+
+Compiler elaboration remains live for concrete `TaskRuntime::start<M>` and
+`try_start<M>` specializations and emits `05_task_activations.json`. The
+implementation currently also emits the superseded continuation-demand and
+`SafePoints | Asynchronous` runtime-join fields. Those are migration scaffolding,
+not the target model: replace them with WCSU-derived stack provision, canonical
+suspension crossings, and demand-driven CPU/thread preservation obligations.
+`05_carry_manifest.json` remains useful because it names each suspension
+crossing and its typed live-value/storage frontier; tools consume that checked
+artifact rather than reinterpret source.
+
+Architectural preemption does not itself create a semantic crossing. A runtime
+may stop and restore opaque register/stack state without changing the
+activation's semantic circumstances. Cancellation delivery, migration,
+replacement progress, and other structured changes occur only at declared
+semantic suspension points or under an explicitly held pin/restriction
+contract. If a target may otherwise migrate an executing activation at an
+arbitrary instruction, it must establish an activation-wide CPU/thread
+preservation claim or reject an activation whose possible live values demand
+one; the language does not publish a generic preemption-granularity mode.
 
 ## Start is transactional
 
@@ -216,21 +220,29 @@ Before a pending `Task<T>` is returned, the provider has accepted custody and
 established compatible storage. That storage may contain:
 
 - moved arguments and captures;
-- live locals and continuation/call state;
+- the activation's fixed stack and live call state;
 - a resume state/program location;
 - scheduler, wake, and cancellation metadata; and
 - a terminal outcome retained until settlement.
 
-A stackful provider may use a stack plus task-control block. A compiler-lowered
-provider may use a bounded continuation frame. A remote provider stores the
-activation elsewhere. An inline provider may finish execution during start
-and return an already-complete, still-unsettled `Task<T>`.
+For the settled local representation, WCSU derives `StackPlan<M>` and the
+provider transfers a matching fixed, nonmoving `StackLease` into the
+activation. A park retains that same lease. A remote provider provisions an
+equivalent stack in its own execution domain. An inline provider may run the
+distinct activation immediately on its provisioned stack and return an
+already-complete, still-unsettled `Task<T>`.
 
-For local machines the compiler derives the activation requirement. The
-provider validates that requirement against its storage plan. Frame size is a
-necessary input, not the whole admission law: alignment, address stability,
-the four-axis carry demand of values live at crossings, continuation
-representation, and provider contract also participate.
+A future stackless representation remains possible, but it is a different
+pre-lowering activation plan. A machine supported under both representations
+is lowered twice; a replaceable runtime cannot reinterpret one lowered
+activation between them. No source/runtime contract advertises a generic
+continuation representation.
+
+The provider validates stack layout and availability plus any demanded
+CPU/thread preservation. Address stability is not an admitted runtime promise:
+it follows from the nonmoving stack lease. `start` requires a reservation or
+proof of availability; `try_start` may return the moved arguments and
+reservation when dynamic capacity is unavailable.
 
 ### Arena-backed reference model
 
@@ -289,46 +301,127 @@ derive from inherited provenance. At each crossing, canonical place liveness
 determines which policies constrain the transition.
 
 Suspension is enforced locally against possible suspension and cannot be
-narrowed away by runtime selection. The provider-side normalized behavior
-contract instead records preemption granularity, CPU migration/pinning,
-host-thread migration/pinning, and continuation-storage movement. Admission
-joins those three carry demands with behavior. Missing external evidence means
-pessimistic behavior; a receipt may authorize reliance on a narrower provider
-claim but never changes the actual runtime. The contract rides the existing
-provider-plan/admission spine for static and dynamically admitted runtimes.
+narrowed away by runtime selection. Runtime admission is demand-driven rather
+than a universal behavior-supply lattice:
 
-The normalized runtime join is live in `omega-task-plans`. It selects the
-correct migration-demand envelope from provider preemption granularity, rejects
-missing all-instruction analysis for asynchronous providers, and checks frame
-size/alignment, cancellation, inline completion, CPU/thread affinity, and
-continuation address stability. Its pessimistic provider contract admits
-nothing accidentally. Each validated demand has a normalized identity over all
-of those checked inputs; a successful admission derives its receipt identity
-from the complete demand and complete runtime behavior contract instead of
-accepting a caller-invented label. Provider-side qualification also uses the
-shared trust spine rather than accepting behavior data as evidence: a freely
-constructed `TaskRuntimeContract` becomes admissible only when an exact
-`ProviderPlan` receipt binds the base plan identity and every behavior promise.
-Any change to capacity, preemption, affinity, continuation movement,
-cancellation, or inline completion changes that statement fingerprint and
-requires re-admission. Receipt provenance is evidence, not runtime identity,
-so switching from own-package development authority to a root grant does not
-change the normalized runtime contract. The activation artifact uses compact
-identities for tooling, while the sealed admission and lifecycle
-carriers retain the complete validated demand and admitted runtime behavior.
-Custody and settlement compare that exact evidence; compact fingerprint
-collisions cannot substitute a different runtime contract or activation plan.
-The artifact reports `pending_provider` until compiler provider selection
-supplies that exact receipt. `TaskRuntime` provider-plan selection/wiring is
-owner-blocked on the checked behavior-publication decision recorded in
-`OWNER_QUESTIONS.md`; the current provider spine selects realizations of
-boundary-trait requirements, while `TaskRuntime` has no checked source surface
-for the capacity, preemption, migration, storage, cancellation, or
-inline-completion statement. Its runtime key/state uses ordinary data and
-bodyless facts established by owner-authorized machines or admitted boundary
-receipts as specified in
+```text
+portable activation
+    -> no migration obligation
+
+activation that may retain SameCpu
+    -> selected runtime must establish CPU preservation
+
+activation that may retain SameThread
+    -> selected runtime must establish host-thread preservation
+```
+
+Checked runtimes derive those conformances from their scheduler construction.
+Opaque hosted providers may require an ordinary admission receipt. Missing
+evidence fails closed, and a receipt authorizes reliance on a provider claim
+without changing its behavior. The selected provider identity and exact
+preservation evidence travel with the activation and `Task<T>` lifecycle
+claim; no freely constructed opaque runtime value can borrow another provider's
+admission.
+
+Cancellation is likewise an operation/conformance, not a boolean field in a
+runtime behavior record. Since the core `Task<T>` surface exposes
+`request_cancel`, its selected runtime must implement the corresponding
+contract. Inline completion is a property of the selected `start` operation,
+not activation storage. Stack capacity is an owned/reserved resource. With
+those facts in their proper homes, `TaskRuntimeContract`,
+`RuntimeBehaviorContract`, and the generalized
+`ActivationDemand <= RuntimeSupply` join have no surviving semantic role.
+
+The current `omega-task-plans` Rust crate still implements that retired join,
+including continuation capacity, preemption granularity, continuation movement,
+and inline-completion fields. It must migrate rather than becoming normative.
+Provider selection, bodyless establishment, transactional start, and the
+provider-provenance/child-lease ledger remain ordinary implementation work
+under the settled model in
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
-Dispatch and transactional start follow those decisions.
+
+## Architectural preemption and semantic safe points
+
+Architectural preemption and semantic suspension are separate:
+
+```text
+architectural preemption
+    pause at any instruction
+    preserve opaque machine state
+    resume without changing semantic circumstances
+
+semantic safe point
+    declared may-suspend operation
+    canonical live frontier is known
+    structured cancellation/migration/quiescence may occur
+```
+
+Hardware or an OS may preempt an Omega activation for fairness without source
+cooperation. That event is not a cancellation point, does not permit claim
+reconstruction, and cannot manufacture CPU/thread migration permission.
+Semantic safe points occur at explicit `suspend` calls such as waits, joins, or
+an authored `scheduler.poll()`. State transitions, loop backedges, ordinary
+calls, allocation, and optimizer-chosen locations are not implicit safe points.
+
+This keeps hot kernels honest. A non-suspending SIMD chunk may be
+architecturally preempted at any instruction; an outer machine places an
+explicit poll between chunks when it wants bounded semantic response.
+The compiler must never insert a may-suspend poll as an ordinary optimization.
+
+`block` creates no semantic safe point. Unless the selected blocking operation
+publishes a finite wait ceiling, cancellation finalization, quiescence, and the
+next structured response remain unbounded through that call. Reports preserve
+the responsible call/path and the bounded computation around it rather than
+collapsing the result to an unattributed infinity.
+
+Maximum abstract work between safe points requires the normalized `WorkPlan`
+and repeated-path algebra in `OWNER_QUESTIONS.md` #16. WCSU proves space, not
+work or wall-clock latency. A target may convert checked work to time only
+through a separately derived or admitted timing model whose trust provenance
+remains visible.
+
+## Foreign calls and stacks
+
+A checked Omega call contributes derived WCSU. An opaque foreign call does not.
+The foreign binding must therefore select an execution placement:
+
+```text
+direct foreign call
+    -> runs on the current activation stack
+    -> admitted foreign stack contribution enters this StackPlan
+
+gateway/component call
+    -> caller accounts for its checked local stub
+    -> foreign provider owns a separately provisioned stack
+```
+
+A same-stack foreign ceiling explicitly excludes Omega callback frames. An
+inline callback continues the current mixed stack chain and contributes its
+derived Omega WCSU there. An entry mode that starts another activation receives
+a separate `StackPlan`. This rule is intentionally stated over entry modes
+rather than assuming those two examples exhaust future targets.
+
+The mixed callback graph combines derived Omega edges with a provider-complete
+admitted upper bound on foreign-to-callback edges. Missing invocation evidence
+means the foreign entry may invoke any registered callback. Prefer proving the
+graph acyclic by excluding re-entering foreign reach from the callback
+contract. Intentional recursion requires an enforced chain-owned depth measure
+and a protocol-valid overflow disposition; otherwise finite stack admission
+rejects. Descriptor, registration, lifetime, and re-entry mechanics remain
+owner question #12.
+
+Trust composes globally by the weakest input while retaining every supporting
+provenance edge. A WCSU arithmetic proof over an admitted foreign ceiling and
+callback-invocation set therefore yields an admitted `StackPlan`, with both
+foreign premises named. A checked Omega provider may derive the same facts from
+its body.
+
+A hosted native-worker gateway is an ordinary boundary provider, not a task
+runtime mode. It can pool guarded native stacks and keep native blocking off
+Omega scheduler workers, but it does not prove completion or cancellation.
+Pool exhaustion, retained loans, cancellation finalization, and shutdown
+remain separate resource obligations. The reusable gateway contract is owner
+question #17; retained foreign pointers remain owner question #14.
 
 The compiler task canary now carries an admitted suspension-only permission
 through a qualified selected-machine entry, local transfer, safe-point
@@ -350,17 +443,25 @@ runtime-behavior join.
 5. Moving a task into a record or supervisor transfers exactly one obligation.
 6. Dropping, overwriting, or losing a live task on one branch is rejected.
 7. A local pool/runtime cannot close while dependent task/storage claims live.
-8. A provider whose storage or operational contract does not admit the derived
-   activation plan is rejected before execution.
+8. A provider that cannot supply a `StackLease` satisfying the WCSU-derived
+   `StackPlan` is rejected before execution.
 9. Arena-, OS-, remote-, and inline-backed providers share one task contract
    without sharing one physical storage representation.
 10. No user program requires `spawn`, implicit detach, or a privileged
-   task-group construct; any future suspension marker acknowledges a direct
-   call and does not create a task.
-11. A provider is rejected when its migration/thread/storage behavior cannot
-    preserve every carry demand in the derived activation plan.
+    task-group construct; `suspend` and `block` acknowledge a direct call and do
+    not create a task.
+11. A provider is rejected when it cannot establish the CPU/thread
+    preservation obligations induced by the activation's possible live values.
 12. A local suspension or migration point rejects when any live value forbids
     it, even if a more capable runtime exists elsewhere.
+13. Architectural preemption neither requires nor creates a semantic safe
+    point; migration and structured cancellation occur only under the relevant
+    checked suspension/pinning contracts.
+14. A blocking call without a finite wait ceiling reports unbounded semantic
+    response with the responsible call path.
+15. A foreign same-stack call contributes admitted stack demand; a foreign
+    gateway owns a separate stack and cannot launder unbounded completion into
+    a bounded suspension claim.
 
 ## Engineering sequence
 
@@ -380,28 +481,29 @@ runtime-behavior join.
 3. Concrete compile-time machine-symbol specializations now retain their
    executable instance identity. `TaskRuntime::start<M>` and `try_start<M>`
    elaborate into validated activation plans and the normalized
-   `05_task_activations.json` artifact, including checked effect reach,
-   continuation layout, safe-point carry demands derived from canonical
-   liveness, and a separately checked all-instruction envelope for
-   asynchronous preemption. Incomplete type coverage remains absent and fails
-   asynchronous admission closed. Every plan requires the cancellation
-   support promised by the Task lifecycle.
-4. The core `TaskRuntime` boundary surface, normalized demand/admission
-   identities, and receipt-qualified runtime behavior are live. The shared
-   provider-plan receipt binds the complete behavior statement and provenance
-   stays outside identity. Unresolved artifacts fail visibly as
-   `pending_provider`. Provider selection/receipt wiring is owner-blocked on the
-   task-runtime provider/behavior-publication question; executable dispatch
-   also awaits authority-value domain evidence. After those surfaces are
-   settled, add transactional `start`/`try_start` ownership.
+   `05_task_activations.json` artifact. Migrate its current continuation-layout,
+   preemption-mode, and all-instruction-supply fields to WCSU-derived
+   `StackPlan`, canonical suspension crossings, and demanded CPU/thread
+   preservation. Keep incomplete derivation fail-closed.
+4. Retire `TaskRuntimeContract`, `AdmittedTaskRuntimeContract`,
+   `PreemptionGranularity`, and the generalized activation/runtime join from
+   `omega-task-plans`. Connect the ordinary selected `TaskRuntime` provider,
+   stack resource/reservation, carry obligations, cancellation conformance, and
+   operation-specific `start` contract. Then add transactional
+   `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
    to selected runtime values and source `Task<T>` after provider selection and
    bodyless establishment land. The ledger already prevents premature
    close/reclaim and preserves a claim on failed settlement.
-6. Implement continuation/frame lowering and a first provider; an inline
-   provider is valid only where the pinned contract permits inline completion.
+6. Implement fixed nonmoving stack lowering, WCSU-backed `StackPlan`, stack
+   reservation, and a first provider. A future stackless plan is a separate
+   lowering, not a runtime contract mode.
 7. Add local carry checking and the conservative suspension-safe-loan subset,
    then expand it without weakening the storage/alias/cancellation theorem.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.
+9. Implement the normalized bounded-work plan after owner question #16; keep
+   work, wait, and timing conversion distinct.
+10. Keep external-entry/callback mechanics under owner question #12 and hosted
+    FFI gateway policy under #17 rather than adding either to `TaskRuntime`.

@@ -34,6 +34,15 @@ heavy/brute-force proof affordable in the steady-state edit-compile loop.
   structure, à la Unison); a structural / spec / checker-version change
   invalidates.
 
+Separate compilation supplies a distinct reuse path. A producer may perform an
+expensive witness search and publish carrierless selected-conformance evidence;
+consumers open the proposition contract and do not rerun the search. That is a
+published proof artifact under the
+[law-bearing relation model](law_bearing_relations_and_quotients.md), not a
+consumer evaluator-cache hit. A cache substitutes for work still belonging to
+the current build graph and retains its recorded logical usage; published
+evidence moves the proved contract into the producer artifact.
+
 ## The practical landing (decided direction, 2026-06-26)
 
 Working the *transmissibility* question end-to-end (a published library shipping a proven fact a consumer must verify) lands hard on one rule: **only *small* certificates are practically useful, so proof-by-exhaustion is not a shippable verification.**

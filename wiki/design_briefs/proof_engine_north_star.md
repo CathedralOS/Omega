@@ -173,8 +173,10 @@ handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
    can it be while still expressing the math we want to port?
 3. **Certificate bridge:** can the existing engine emit kernel-checkable
    certificates (so automation stays the front line under the kernel)?
-4. **`Real` / analysis:** the open `Real` semantics question gates any
-   continuous mathematics.
+4. **`Real` / analysis:** the proof-side Cauchy/evidence/quotient construction
+   is settled; the Prop-family/index-telescope fragment gates its
+   implementation, while the runtime approximation-policy surface remains
+   open.
 5. **Trust story:** is "the engine is the trusted base" acceptable for the
    SPARK/Rust era, with the kernel introduced only when the Lean rung is taken?
 
