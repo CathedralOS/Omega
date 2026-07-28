@@ -311,14 +311,18 @@ provider receipt; a direct call to the checked adapter does not grant it.
 Admitted linear bodyless resource facts additionally seed an independent
 born-strict `CarryOrigin`. Local transfers and one-to-one state-parameter
 handoffs preserve that origin and its exact per-axis relaxations even when the
-qualification fact is later absent. Canonical suspension liveness records and
-checks each live value's effective claim policy, while asynchronous preemption
-envelopes conservatively join established claim origins and permissions.
-Qualification and carry artifacts expose the admitted atom and the effective
-crossing policy. Remaining work is inherited checked-origin derivation without
-explicitly restated permission constraints, path-indexed aggregate and partial
-move propagation, conserved multi-output mappings under P1c, and admission of
-the CPU/thread/address demands against selected runtime behavior.
+qualification fact is later absent. Call exits infer the same carry mapping for
+one scalar linear input and one scalar linear output across checked,
+generic-slot, and admitted targets; conditional aggregates deliberately wait
+for P1c path-indexed mappings. Chained checked helpers therefore preserve the
+claim entry without republishing its authority domain or carry facts.
+Canonical suspension liveness records and checks each live value's effective
+claim policy, while asynchronous preemption envelopes conservatively join
+established claim origins and permissions. Qualification and carry artifacts
+expose the admitted atom and the effective crossing policy. Remaining work is
+path-indexed aggregate and partial-move propagation, conserved multi-output
+mappings under P1c, and admission of the CPU/thread/address demands against
+selected runtime behavior.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
