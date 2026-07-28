@@ -197,7 +197,11 @@ pub(crate) fn record_permission_events(
     }
 
     append_borrow_permission_events(facts, &mut permission_events, &mut claim_identities);
-    reconcile_state_call_result_origins(program, &mut permission_events);
+    reconcile_state_call_result_origins(
+        program,
+        &facts.flow.ownership.segments,
+        &mut permission_events,
+    );
 
     facts.flow.ownership.permissions = omega_core::arena::Arena::default();
     facts
@@ -220,6 +224,7 @@ pub(crate) fn record_permission_events(
 /// result mapping.
 fn reconcile_state_call_result_origins(
     program: &omega_typed_trees::TypedTrees,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
     permission_events: &mut [FlowPermissionEventFact],
 ) {
     let mut rewrites = Vec::new();
@@ -267,6 +272,7 @@ fn reconcile_state_call_result_origins(
         if !type_carries_linear_obligation(program, target_state.return_type) {
             continue;
         }
+        let receiving_path = segments.span_or_empty(event.segments);
 
         let target_statements = program
             .statement_table
@@ -286,8 +292,18 @@ fn reconcile_state_call_result_origins(
                 let PermissionEventSource::Statement { statement_index } = candidate.source else {
                     return None;
                 };
-                statement_transfers_state_result(program, target_statements, statement_index)
-                    .then_some((candidate.provenance, candidate.claim_identity))
+                if !statement_transfers_state_result(program, target_statements, statement_index) {
+                    return None;
+                }
+                let output_path = state_result_relative_path_for_event(
+                    program,
+                    target_state.symbol,
+                    target_statements,
+                    statement_index,
+                    candidate,
+                    segments,
+                );
+                Some((output_path, candidate.provenance, candidate.claim_identity))
             })
             .fold(Vec::new(), |mut origins, origin| {
                 if !origins.contains(&origin) {
@@ -295,8 +311,35 @@ fn reconcile_state_call_result_origins(
                 }
                 origins
             });
-        if let [origin] = origins.as_slice() {
-            rewrites.push((locally_minted, event.claim_identity, origin.0, origin.1));
+        let matching = origins
+            .iter()
+            .filter(|(output_path, _, _)| {
+                output_path
+                    .as_deref()
+                    .is_some_and(|output_path| output_path == receiving_path)
+            })
+            .collect::<Vec<_>>();
+        let origin = if let [origin] = matching.as_slice() {
+            Some((origin.1, origin.2))
+        } else if receiving_path.is_empty() {
+            let distinct = origins
+                .iter()
+                .map(|(_, provenance, identity)| (*provenance, *identity))
+                .fold(Vec::new(), |mut distinct, origin| {
+                    if !distinct.contains(&origin) {
+                        distinct.push(origin);
+                    }
+                    distinct
+                });
+            let [origin] = distinct.as_slice() else {
+                continue;
+            };
+            Some(*origin)
+        } else {
+            None
+        };
+        if let Some((provenance, identity)) = origin {
+            rewrites.push((locally_minted, event.claim_identity, provenance, identity));
         }
     }
 
@@ -325,6 +368,55 @@ fn reconcile_state_call_result_origins(
         event.provenance = provenance;
         event.claim_identity = claim_identity;
     }
+}
+
+fn state_result_relative_path_for_event(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statements: &[StatementNode],
+    statement_index: usize,
+    event: &FlowPermissionEventFact,
+    segments: &omega_core::arena::Arena<omega_facts::PlaceSegment>,
+) -> Option<Vec<omega_facts::PlaceSegment>> {
+    let statement = statements.get(statement_index)?;
+    let result_expressions = match statement {
+        StatementNode::Expression(expression) if statement_index + 1 == statements.len() => {
+            vec![*expression]
+        }
+        StatementNode::Transition(transition) => [transition.target, transition.continuation]
+            .into_iter()
+            .filter(|handle| handle.is_valid())
+            .filter_map(|handle| {
+                let omega_typed_trees::statement::TransitionTargetNode::Value(expression) =
+                    program.statement_table.transition_target(handle)
+                else {
+                    return None;
+                };
+                Some(*expression)
+            })
+            .collect(),
+        _ => return None,
+    };
+    let event_path = segments.span_or_empty(event.segments);
+    let mut paths = result_expressions
+        .into_iter()
+        .filter_map(|expression| {
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state_symbol,
+                statement_index,
+                expression,
+            )?;
+            (place.root == event.root && event_path.starts_with(place.segments.as_slice()))
+                .then(|| event_path[place.segments.len()..].to_vec())
+        })
+        .fold(Vec::new(), |mut paths, path| {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+            paths
+        });
+    (paths.len() == 1).then(|| paths.pop().expect("one result-relative path"))
 }
 
 fn statement_transfers_state_result(
@@ -375,6 +467,13 @@ pub(crate) fn validate_linear_permission_events(
                     .then_some(event)
             })
             .collect::<Vec<_>>();
+        append_unresolved_state_result_mapping_diagnostics(
+            program,
+            state,
+            &events,
+            &facts.flow.ownership.permissions,
+            &mut diagnostics,
+        );
 
         let first_transition = statements
             .iter()
@@ -462,6 +561,75 @@ pub(crate) fn validate_linear_permission_events(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn append_unresolved_state_result_mapping_diagnostics(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    events: &[&FlowPermissionEventFact],
+    all_events: &omega_core::arena::Arena<FlowPermissionEventFact>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut unresolved_statements = Vec::new();
+    for event in events {
+        if event.kind != PermissionEventKind::Establish
+            || event.access != PermissionAccess::Owned
+            || !event.obligation_live
+        {
+            continue;
+        }
+        let PermissionEventSource::Statement { statement_index } = event.source else {
+            continue;
+        };
+        let Some(statement) = statements.get(statement_index) else {
+            continue;
+        };
+        let result_expression = match statement {
+            StatementNode::LocalData(local) => local.initial_value,
+            StatementNode::Assignment(assignment) => assignment.value,
+            _ => continue,
+        };
+        let omega_typed_trees::expression::ExpressionNode::Call(call) =
+            program.expression_table.expression(result_expression)
+        else {
+            continue;
+        };
+        let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+            continue;
+        };
+        if program
+            .statement_table
+            .statements(target_state.statement_nodes)
+            .is_empty()
+            || !type_carries_linear_obligation(program, target_state.return_type)
+        {
+            continue;
+        }
+        let mapped_from_call = all_events.iter().any(|(_, candidate)| {
+            candidate.kind == PermissionEventKind::Transfer
+                && candidate.access == PermissionAccess::Owned
+                && candidate.obligation_live
+                && candidate.claim_identity != PermissionClaimIdentity::Unknown
+                && candidate.claim_identity == event.claim_identity
+                && (candidate.state_symbol == target_state.symbol
+                    || (candidate.state_symbol == state.symbol
+                        && permission_event_statement_index(candidate.source)
+                            == Some(statement_index)))
+        });
+        if mapped_from_call {
+            continue;
+        }
+        if !unresolved_statements.contains(&statement_index) {
+            unresolved_statements.push(statement_index);
+        }
+    }
+
+    for statement_index in unresolved_statements {
+        diagnostics.push(Diagnostic::error(format!(
+            "linear state-call result at statement {statement_index} has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping"
+        )));
     }
 }
 

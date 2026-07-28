@@ -1970,6 +1970,46 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
 }
 
 #[test]
+fn backend_report_preserves_path_aligned_multi_claim_state_result() {
+    let canary = pass_canary("ownership/linear_transparent_record_state_result");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-multi-state-result-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("path-aligned multi-claim state result canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permissions: 16")
+            && report.contains("permission realizations: 16 (complete)")
+            && !report.contains("UNLINKED")
+            && !report.contains("INCOMPLETE"),
+        "the multi-claim result ledger must remain complete\n{report}"
+    );
+    for claim in [
+        "Main::issue::issue at statement 0 #0",
+        "Main::issue::issue at statement 1 #1",
+    ] {
+        assert_eq!(
+            report.matches(&format!("claim={claim},")).count(),
+            8,
+            "each callee-local claim must survive its caller-side path mapping\n{report}"
+        );
+    }
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn capability_pass_canaries_compile_in_isolation() {
     // A focused guard for the capability canaries, independent of the batched
     // `pass_canaries_compile` sweep (which also covers them).
@@ -37689,6 +37729,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/conditional_linear_payload_extraction",
     "ownership/linear_transfer_and_consume",
     "ownership/linear_transparent_record_frontier",
+    "ownership/linear_transparent_record_state_result",
     "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
     "arithmetic/bare_name_scopes",
@@ -38674,6 +38715,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "tasks/task_runtime_machine_selection_effect_mismatch",
     "core/start_outcome_linear_arguments_scope_loss",
     "ownership/copy_linear_conflict",
+    "ownership/linear_ambiguous_state_result_mapping",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
     "ownership/linear_transparent_record_sibling_scope_loss",
