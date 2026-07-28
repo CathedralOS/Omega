@@ -533,6 +533,17 @@ and allocation handles expose no compiler-owned stack/control storage.
   non-NaN, canonicalize, or demand an exact raw-NaN refinement; the base
   arithmetic contract exposes only `FloatMeaning`.
 
+  Implementation checkpoint (2026-07-28): the shared host-independent semantic
+  engine now owns exact decimal landing, binary32/binary64 decode and rounding,
+  base add/subtract/multiply/divide/negate, partial comparisons, the settled
+  min/max choice, and distinct multiply-then-add versus fused-multiply-add.
+  Anonymous-constant landing and the interpreter's landed arithmetic consume
+  that engine, including per-operation binary32 rounding and proof-level NaN
+  payload erasure. Finish rung 1 with named classification, square root,
+  float/integer and format conversions, and directed-rounding operations plus
+  build-time/runtime twins for their edge cases; do not mistake the remaining
+  compatibility `as` consumer for the public conversion surface.
+
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
 

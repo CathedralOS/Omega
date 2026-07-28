@@ -56,6 +56,9 @@ mod host_open_flags {
 }
 use crate::value::{Cell, Value};
 use omega_core::arithmetic::ArithmeticDomain;
+use omega_core::float_semantics::{
+    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics,
+};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
@@ -5924,7 +5927,11 @@ impl<'program> Evaluator<'program> {
                 *raw, primitive, domain,
             )?)),
             Value::Float(f) if primitive == PrimitiveType::F32 => {
-                Ok(Value::Float(*f as f32 as f64))
+                let meaning = FloatMeaning::from_f64(*f);
+                Ok(Value::Float(
+                    FloatSemantics::convert(SemanticFloatFormat::BINARY32, &meaning)
+                        .to_interpreter_value(SemanticFloatFormat::BINARY32),
+                ))
             }
             _ => Ok(value),
         }
@@ -6334,17 +6341,21 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         };
         match target {
-            PrimitiveType::F32 => {
-                let source = value
-                    .as_float()
-                    .ok_or_else(|| Halt::Trap("cast to f32 of non-numeric".to_owned()))?;
-                Ok(Value::Float(source as f32 as f64))
-            }
-            PrimitiveType::F64 => {
-                let source = value
-                    .as_float()
-                    .ok_or_else(|| Halt::Trap("cast to f64 of non-numeric".to_owned()))?;
-                Ok(Value::Float(source))
+            PrimitiveType::F32 | PrimitiveType::F64 => {
+                let format = if target == PrimitiveType::F32 {
+                    SemanticFloatFormat::BINARY32
+                } else {
+                    SemanticFloatFormat::BINARY64
+                };
+                let meaning = match value {
+                    Value::Float(source) => {
+                        FloatSemantics::convert(format, &FloatMeaning::from_f64(source))
+                    }
+                    Value::Int(source) => FloatSemantics::from_decimal(format, &source.to_string())
+                        .expect("every integer spelling is an exact rational"),
+                    _ => return trap(format!("cast to {target:?} of non-numeric")),
+                };
+                Ok(Value::Float(meaning.to_interpreter_value(format)))
             }
             PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
             integer => {
@@ -7906,21 +7917,24 @@ impl<'program> Evaluator<'program> {
         scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
-        // PER-OP rounding at the LANDED width (ch5 / float ladder F2c): an
-        // F32-typed operation rounds its result to f32 at the NODE, exactly as
-        // native f32 hardware ops do (addss/fadd s). Values ride f64 in the
-        // interpreter, but an f32 node's result must be the f32-rounded value
-        // widened exactly -- computing the whole chain at f64 and rounding only
-        // at the store double-rounds (the 2^24 + 1.0 guard face: f32 per-op
-        // says equal, the f64 window says not). Comparisons take the raw
-        // operands (they produce bool, and both sides are already landed).
-        let land = |value: f64| -> f64 {
-            if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
-                value as f32 as f64
+        // Decode landed values to the shared proof meaning, execute exact
+        // arithmetic, and round once through the selected format record. The
+        // interpreter's f64 storage is only a lossless window for f32 values;
+        // it is not the arithmetic definition.
+        let format = if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
+            SemanticFloatFormat::BINARY32
+        } else {
+            SemanticFloatFormat::BINARY64
+        };
+        let decode = |value: f64| {
+            if format == SemanticFloatFormat::BINARY32 {
+                FloatMeaning::from_f32(value as f32)
             } else {
-                value
+                FloatMeaning::from_f64(value)
             }
         };
+        let left = decode(l);
+        let right = decode(r);
         // F5 policies (float brief §8): SATURATING clamps MAGNITUDE OVERFLOW
         // only -- finite operands whose landed result is infinite clamp to
         // +-MAX_FINITE at the width; division by zero and invalid ops keep
@@ -7933,26 +7947,25 @@ impl<'program> Evaluator<'program> {
         } else {
             f64::MAX
         };
-        let arith = |raw: f64| -> EvalResult<Value> {
-            let landed = land(raw);
+        let arith = |meaning: FloatMeaning| -> EvalResult<Value> {
+            let landed = meaning.to_interpreter_value(format);
             match domain {
                 Some(ArithmeticDomain::Saturating)
-                    if landed.is_infinite() && l.is_finite() && r.is_finite() =>
+                    if meaning.is_infinite() && left.is_finite() && right.is_finite() =>
                 {
-                    // Overflow face only: both operands finite, the LANDED
-                    // result left the format (an f32 node can overflow at the
-                    // landing even when the raw f64 stays finite). The
-                    // finite/0.0 divide is fenced by the caller arm below.
-                    let _ = raw;
-                    Ok(Value::Float(max_finite.copysign(landed)))
+                    Ok(Value::Float(if meaning.is_negative() {
+                        -max_finite
+                    } else {
+                        max_finite
+                    }))
                 }
                 Some(ArithmeticDomain::Trapping)
-                    if landed.is_nan() && !l.is_nan() && !r.is_nan() =>
+                    if meaning.is_nan() && !left.is_nan() && !right.is_nan() =>
                 {
                     trap("invalid float operation in Trapping domain".to_owned())
                 }
                 Some(ArithmeticDomain::Trapping)
-                    if landed.is_infinite() && l.is_finite() && r.is_finite() =>
+                    if meaning.is_infinite() && left.is_finite() && right.is_finite() =>
                 {
                     trap("float overflow (or division by zero) in Trapping domain".to_owned())
                 }
@@ -7960,21 +7973,22 @@ impl<'program> Evaluator<'program> {
             }
         };
         Ok(match operator {
-            Add => return arith(l + r),
-            Subtract => return arith(l - r),
-            Multiply => return arith(l * r),
+            Add => return arith(FloatSemantics::add(format, &left, &right)),
+            Subtract => return arith(FloatSemantics::subtract(format, &left, &right)),
+            Multiply => return arith(FloatSemantics::multiply(format, &left, &right)),
             Divide => {
-                if matches!(domain, Some(ArithmeticDomain::Saturating)) && r == 0.0 {
+                let result = FloatSemantics::divide(format, &left, &right);
+                if matches!(domain, Some(ArithmeticDomain::Saturating)) && right.is_zero() {
                     // Division by zero does NOT clamp (the brief's ruling);
                     // the IEEE non-finite passes through.
-                    return Ok(Value::Float(land(l / r)));
+                    return Ok(Value::Float(result.to_interpreter_value(format)));
                 }
-                return arith(l / r);
+                return arith(result);
             }
-            Less => Value::Bool(l < r),
-            LessOrEqual => Value::Bool(l <= r),
-            Greater => Value::Bool(l > r),
-            GreaterOrEqual => Value::Bool(l >= r),
+            Less => Value::Bool(FloatSemantics::less(&left, &right)),
+            LessOrEqual => Value::Bool(FloatSemantics::less_or_equal(&left, &right)),
+            Greater => Value::Bool(FloatSemantics::greater(&left, &right)),
+            GreaterOrEqual => Value::Bool(FloatSemantics::greater_or_equal(&left, &right)),
             Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
                 return unsupported("float modulo/shift/bitwise not supported");
             }
@@ -8002,13 +8016,16 @@ impl<'program> Evaluator<'program> {
             // false for NaN). `minsd` is the mirror. Rust's `f64::max`/`min`
             // differ (they return the non-NaN operand), which would diverge
             // from the backend on a NaN second operand.
-            return Ok(Value::Float(if name == "max" {
-                if l > r { l } else { r }
-            } else if l < r {
-                l
+            let left_meaning = FloatMeaning::from_f64(l);
+            let right_meaning = FloatMeaning::from_f64(r);
+            let pick_left = if name == "max" {
+                FloatSemantics::greater(&left_meaning, &right_meaning)
             } else {
-                r
-            }));
+                FloatSemantics::less(&left_meaning, &right_meaning)
+            };
+            // Preserve the selected runtime operand's honest NaN bits even
+            // though the base FloatMeaning contract erases their payload.
+            return Ok(Value::Float(if pick_left { l } else { r }));
         }
         let l = left
             .as_int()
@@ -8076,7 +8093,9 @@ impl<'program> Evaluator<'program> {
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {
                 if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
-                    left.as_float() == right.as_float()
+                    let left = FloatMeaning::from_f64(left.as_float().unwrap_or(f64::NAN));
+                    let right = FloatMeaning::from_f64(right.as_float().unwrap_or(f64::NAN));
+                    FloatSemantics::equal(&left, &right)
                 } else {
                     left.as_int() == right.as_int()
                 }

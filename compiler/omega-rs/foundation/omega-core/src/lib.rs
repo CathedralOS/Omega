@@ -6,6 +6,7 @@ pub mod bignum;
 pub mod byte_predicates;
 pub mod cast_form;
 pub mod diagnostics;
+pub mod float_semantics;
 pub mod inline_assembly;
 pub mod literals;
 pub mod operations;

@@ -82,6 +82,14 @@ proof of non-NaN, canonicalization, or an exact raw-NaN refinement from the
 selected target realization. Cache keys include that selected realization and
 its semantic control-state identity wherever the refinement matters.
 
+The first shared-engine checkpoint now routes exact decimal landing,
+anonymous-constant landing, and landed interpreter add/subtract/multiply/divide
+through one binary32/binary64 semantic implementation, including per-operation
+binary32 rounding, partial comparisons, min/max, and separate fused and
+unfused multiply-add meanings. Square root, named conversions,
+classification, directed-rounding variants, and their constant/runtime twin
+canaries remain before the floating evaluation lane is complete.
+
 ## Admission uses the complete invocation contract
 
 An empty service-reach row is necessary and nowhere near sufficient.
