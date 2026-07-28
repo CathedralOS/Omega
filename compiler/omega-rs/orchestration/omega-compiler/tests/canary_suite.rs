@@ -4227,6 +4227,13 @@ fn canonical_bodyless_qualification_single_satisfier_compiles() {
 }
 
 #[test]
+fn user_authored_predicate_machine_compiles() {
+    let canary = pass_canary("domains/user_authored_predicate_machine");
+    compile_canary_without_output(&canary)
+        .expect("a domain body may call an ordinary user-authored predicate machine");
+}
+
+#[test]
 fn boundary_qualification_evidence_names_exact_requirement() {
     let pass = pass_canary("capabilities/derives_authority_via_boundary");
     let build_dir = std::env::temp_dir().join(format!(
@@ -37690,6 +37697,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/domain_param_membership_satisfied",
     "domains/domain_param_forwarded",
     "domains/transparent_alias_expansion",
+    "domains/user_authored_predicate_machine",
     "domains/slice_carrier_domain",
     "domains/slice_domain_validator",
     "domains/utf8_slice_ops",
