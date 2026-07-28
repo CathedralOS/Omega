@@ -411,11 +411,14 @@ Two rules keep it honest:
 > comparison, bitwise, entry-result, indexed-operand, and signedness-sensitive
 > lowering shapes plus decimal/binary formatting, decimal parsing, hashing, and
 > checksums. Representative CLI samples now exercise named widening and
-> trapping conversion as user-facing code. A resolved pure or disjoint
-> conversion call preserves unrelated dominating range facts; an opaque call or
-> a frame that overlaps the guarded place invalidates them. The domain model
-> reserves qualification `as` for changing static facts without changing
-> carrier, payload, or runtime work.
+> trapping conversion as user-facing code, and the sample corpus no longer uses
+> compatibility `as` for runtime integer width/signedness conversion. Residual
+> integer-looking spellings are same-carrier qualification (plus a same-type
+> wire-policy compatibility spelling). A resolved pure or disjoint conversion
+> call preserves unrelated dominating range facts; an opaque call or a frame
+> that overlaps the guarded place invalidates them. The domain model reserves
+> qualification `as` for changing static facts without changing carrier,
+> payload, or runtime work.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.

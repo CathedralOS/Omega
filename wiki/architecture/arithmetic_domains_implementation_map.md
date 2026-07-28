@@ -61,10 +61,13 @@
 > call scratch slot instead of the delivered result. The user-facing
 > `width_mixer`, `array_sum`, `format_number`, `print_number`,
 > `multiplication_table`, `prime_sieve`, and `maze_flood` samples now use the
-> named surface. Because these operations are ordinary calls, the proof and
-> indexed-range paths now consult exact R5 write frames: pure/disjoint calls
-> preserve unrelated dominating guards, while opaque or overlapping frames
-> still invalidate them.
+> named surface. A follow-on sweep migrated every remaining runtime integer
+> width/signedness conversion in `samples/`; residual integer-looking casts
+> there are same-carrier policy qualification or a same-type wire-policy
+> compatibility spelling. Because conversion operations are ordinary calls,
+> the proof and indexed-range paths consult exact R5 write frames:
+> pure/disjoint calls preserve unrelated dominating guards, while opaque or
+> overlapping frames still invalidate them.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

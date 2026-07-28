@@ -1,4 +1,5 @@
 use rng::random_state;
+use omega::language::core::numeric_conversion;
 
 data Random {
 }
@@ -20,7 +21,7 @@ machine Random::next_u32(
     state.calls = state.calls + 1;
 
     transition {
-        _ -> ((state.seed >> 32) as u32)
+        _ -> (narrow_u64_to_u32_wrapping(state.seed >> 32))
     }
 }
 
@@ -48,4 +49,3 @@ machine Random::chance(
         _ -> (roll < numerator)
     }
 }
-
