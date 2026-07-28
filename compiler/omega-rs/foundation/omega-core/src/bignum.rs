@@ -528,11 +528,23 @@ pub enum ExactFloat {
 impl ExactFloat {
     pub fn from_decimal_str(text: &str) -> Option<Self> {
         match text {
-            "NaN" | "nan" => Some(Self::NaN),
+            "NaN" | "+NaN" | "-NaN" | "nan" | "+nan" | "-nan" => Some(Self::NaN),
             "inf" | "+inf" | "infinity" | "+infinity" => Some(Self::Infinity { negative: false }),
             "-inf" | "-infinity" => Some(Self::Infinity { negative: true }),
             _ => BigRational::from_decimal_str(text).map(Self::Finite),
         }
+    }
+
+    /// Decode one binary32 value into its exact proof meaning. Finite values
+    /// become dyadic rationals; signed zero, infinity, and NaN retain the
+    /// distinctions needed by the format-independent semantic operators.
+    pub fn from_f32(value: f32) -> Self {
+        Self::from_ieee_bits(u64::from(value.to_bits()), 8, 23)
+    }
+
+    /// Decode one binary64 value into its exact proof meaning.
+    pub fn from_f64(value: f64) -> Self {
+        Self::from_ieee_bits(value.to_bits(), 11, 52)
     }
 
     pub fn add(&self, other: &Self) -> Self {
@@ -663,6 +675,55 @@ impl ExactFloat {
             Self::Infinity { negative: true } => f64::NEG_INFINITY,
             Self::NaN => f64::NAN,
         }
+    }
+
+    fn from_ieee_bits(bits: u64, exponent_bits: u32, fraction_bits: u32) -> Self {
+        let sign_shift = exponent_bits + fraction_bits;
+        let negative = ((bits >> sign_shift) & 1) != 0;
+        let exponent_mask = (1u64 << exponent_bits) - 1;
+        let exponent_field = (bits >> fraction_bits) & exponent_mask;
+        let fraction_mask = (1u64 << fraction_bits) - 1;
+        let fraction = bits & fraction_mask;
+
+        if exponent_field == exponent_mask {
+            return if fraction == 0 {
+                Self::Infinity { negative }
+            } else {
+                Self::NaN
+            };
+        }
+        if exponent_field == 0 && fraction == 0 {
+            return Self::Finite(BigRational::signed_zero(negative));
+        }
+
+        let bias = (1i32 << (exponent_bits - 1)) - 1;
+        let (significand, binary_exponent) = if exponent_field == 0 {
+            (fraction, 1 - bias - fraction_bits as i32)
+        } else {
+            (
+                (1u64 << fraction_bits) | fraction,
+                exponent_field as i32 - bias - fraction_bits as i32,
+            )
+        };
+        let mut numerator = BigInt::from_u64(significand);
+        if negative {
+            numerator = numerator.negate();
+        }
+        let (numerator, denominator) = if binary_exponent >= 0 {
+            (
+                numerator.shl_bits(binary_exponent as usize),
+                BigInt::from_u64(1),
+            )
+        } else {
+            (
+                numerator,
+                BigInt::from_u64(1).shl_bits(binary_exponent.unsigned_abs() as usize),
+            )
+        };
+        Self::Finite(
+            BigRational::new(numerator, denominator)
+                .expect("an IEEE finite value has a positive denominator"),
+        )
     }
 }
 

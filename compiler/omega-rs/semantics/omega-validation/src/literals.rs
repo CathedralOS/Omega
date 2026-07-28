@@ -609,10 +609,17 @@ fn land_float_tree(
     format: omega_core::literals::FloatFormat,
 ) {
     if let Some(exact) = anonymous_exact_float_tree(program, expression) {
-        let value = match format {
-            omega_core::literals::FloatFormat::F32 => f64::from(exact.to_f32()),
-            omega_core::literals::FloatFormat::F64 => exact.to_f64(),
+        let semantic_format = match format {
+            omega_core::literals::FloatFormat::F32 => {
+                omega_core::float_semantics::FloatFormat::BINARY32
+            }
+            omega_core::literals::FloatFormat::F64 => {
+                omega_core::float_semantics::FloatFormat::BINARY64
+            }
         };
+        let value =
+            omega_core::float_semantics::FloatSemantics::round_exact(semantic_format, exact)
+                .to_interpreter_value(semantic_format);
         *program.expression_table.expression_mut(expression) = ExpressionNode::Float(
             omega_core::literals::FloatLiteral::from_f64(value).with_landing(format),
         );

@@ -131,6 +131,17 @@ This replaces the current folder path that can evaluate landed `f32` operations
 through host `f64`: the semantics becomes the folder, so build-time and runtime
 cannot acquire independent definitions.
 
+Implementation checkpoint (2026-07-28): the compiler-side shared engine now
+decodes binary32/binary64 into this payload-erased meaning, performs exact
+rational arithmetic, and rounds through the matching format record. Exact
+decimal landing and anonymous-constant landing use it, as do interpreter
+add/subtract/multiply/divide, partial comparisons, the settled min/max choice,
+and distinct multiply-then-add/fused-multiply-add definitions. Named
+classification, square root, float/integer and format conversions, and
+directed-rounding variants remain part of this first F7 rung. The legacy `as`
+evaluator path is only a compatibility consumer until those named conversion
+requirements land.
+
 ## 2. Domains: the value/policy split
 
 - **Value domains** are unary wellness facts, conjoinable with the landed

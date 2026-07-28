@@ -93,9 +93,9 @@ impl FloatFormat {
 /// A float literal: the canonical SOURCE SPELLING plus an optional format
 /// landing (F2, ch5 two-phase law). The spelling is the exact rational the
 /// author wrote ("unitless until a site requests a type"); each format read
-/// rounds ONCE, correctly, from the decimal spelling -- Rust's std float
-/// parses are correctly rounded per format, so an f32 read NEVER routes
-/// through f64 (the double-rounding residue this type retires). A width
+/// rounds ONCE, correctly, from the decimal spelling through the executable
+/// FloatSemantics engine, so an f32 read NEVER routes through f64 (the
+/// double-rounding residue this type retires). A width
 /// suffix (`1.5f32`) is a parse-site landing, exactly the integer carrier's
 /// CR4a. Equality is TEXT-ONLY like IntegerLiteral: spelling is identity,
 /// the landing is metadata.
@@ -131,8 +131,8 @@ impl FloatLiteral {
     pub fn parse(source: &str) -> Option<Self> {
         let (body, landing) = strip_float_literal_suffix(source);
         // Validate the spelling once; the TEXT stays authoritative (reads
-        // re-parse at their format, each correctly rounded from the source).
-        body.parse::<f64>().ok()?;
+        // re-evaluate it exactly at their requested format).
+        crate::bignum::ExactFloat::from_decimal_str(body)?;
         Some(Self {
             text: Arc::from(body),
             landing,
@@ -151,12 +151,22 @@ impl FloatLiteral {
 
     /// The spelling, correctly rounded to f64.
     pub fn value_f64(&self) -> f64 {
-        self.text.parse().unwrap_or(0.0)
+        crate::float_semantics::FloatSemantics::from_decimal(
+            crate::float_semantics::FloatFormat::BINARY64,
+            &self.text,
+        )
+        .map(|meaning| meaning.to_f64())
+        .unwrap_or(0.0)
     }
 
     /// The spelling, correctly rounded DIRECTLY to f32 (never via f64).
     pub fn value_f32(&self) -> f32 {
-        self.text.parse().unwrap_or(0.0)
+        crate::float_semantics::FloatSemantics::from_decimal(
+            crate::float_semantics::FloatFormat::BINARY32,
+            &self.text,
+        )
+        .map(|meaning| meaning.to_f32())
+        .unwrap_or(0.0)
     }
 
     /// Transitional f64 window for pre-F2 consumers; landed reads go through
@@ -165,17 +175,11 @@ impl FloatLiteral {
         self.value_f64()
     }
 
-    /// The f32 bit pattern this literal stores: an F32-LANDED literal (width
-    /// suffix) is read by its own correctly-rounded f32 parse; an anonymous
-    /// literal keeps the TRANSITIONAL f64-then-narrow read (double-rounding
-    /// on halfway spellings -- consistent across both engines, retired when
-    /// destination stamping lands, F2b). Both engines must key this identical
-    /// decision on the landing, never on position.
+    /// The f32 bit pattern requested from this exact spelling. A format read
+    /// always rounds directly from the rational source, even if a defensive
+    /// backend path encounters an unstamped literal.
     pub fn f32_bits(&self) -> u32 {
-        match self.landing {
-            Some(FloatFormat::F32) => self.value_f32().to_bits(),
-            _ => (self.value_f64() as f32).to_bits(),
-        }
+        self.value_f32().to_bits()
     }
 
     /// The f64 read at the literal's landing: an F32-landed literal reads as
@@ -552,5 +556,16 @@ mod tests {
         assert!(!LandedIntegerType::U32.is_signed());
         assert_eq!(LandedIntegerType::U32.bit_width(), 32);
         assert!(LandedIntegerType::I8.is_signed());
+    }
+
+    #[test]
+    fn float_reads_round_directly_through_executable_semantics() {
+        let witness = FloatLiteral::parse("8388609.499999999999999").unwrap();
+        assert_eq!(witness.f32_bits(), 0x4b00_0001);
+
+        let landed = FloatLiteral::parse("1.000000059604644775390625f32").unwrap();
+        assert_eq!(landed.landing(), Some(FloatFormat::F32));
+        assert_eq!(landed.value_f32().to_bits(), 1.0f32.to_bits());
+        assert_eq!(landed.landed_f64().to_bits(), f64::from(1.0f32).to_bits());
     }
 }
