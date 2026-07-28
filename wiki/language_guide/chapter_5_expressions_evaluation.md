@@ -416,7 +416,10 @@ Two rules keep it honest:
 > integer-looking spellings are same-carrier qualification (plus a same-type
 > wire-policy compatibility spelling). A resolved pure or disjoint conversion
 > call preserves unrelated dominating range facts; an opaque call or a frame
-> that overlaps the guarded place invalidates them. The domain model reserves
+> that overlaps the guarded place invalidates them. PRNG consumers use named
+> wrapping narrowing for high-word extraction; nested conversion arguments
+> retain caller alias substitution through binary/member expressions instead
+> of reading an unmaterialized callee parameter slot. The domain model reserves
 > qualification `as` for changing static facts without changing carrier,
 > payload, or runtime work.
 

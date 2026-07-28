@@ -15036,6 +15036,40 @@ fn runtime_unsigned_modulo_call_argument_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_named_conversion_alias_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nested_named_conversion_alias_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-named-conversion-alias-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested named-conversion alias canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested named-conversion alias canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested conversion to read the caller's RandomState alias \
+         and return its high word (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_unsigned_modulo_cast_operand_exit");
     let main_path = canary.join("main.omg");
@@ -33808,6 +33842,28 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
 }
 
 #[test]
+fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
+    for relative in [
+        "canaries/pass/arithmetic/runtime_contained_range_write",
+        "canaries/pass/arithmetic/runtime_unsigned_modulo_call_argument_exit",
+        "canaries/pass/calls/runtime_call_enum_sequence",
+        "canaries/pass/calls/runtime_nested_named_conversion_alias_exit",
+        "canaries/pass/control_flow/runtime_branching_helper_local_guard_value",
+        "canaries/pass/dungeon/runtime_nested_value_call_caller_local_guard_exit",
+        "canaries/pass/rewards/runtime_contained_reward_table_roll_item",
+        "canaries/pass/rewards/runtime_reward_table_roll_item_shape",
+    ] {
+        let main_path = repo_root().join(relative).join("main.omg");
+        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "named integer-conversion PRNG canary {relative} should reach checked trees: \
+                 {diagnostics:#?}"
+            )
+        });
+    }
+}
+
+#[test]
 fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
     // A guarded transition on a value call whose NESTED inline value call
     // returns a comparison against the CALLER's fold-only local (`chance`'s
@@ -38378,6 +38434,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_field_with_mut_arg",
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
+    "calls/runtime_nested_named_conversion_alias_exit",
     "calls/runtime_call_result_after_splice_mutation_exit",
     "calls/runtime_string_call_result_through_reference_field_exit",
     "calls/runtime_two_string_call_results_through_reference_fields_exit",

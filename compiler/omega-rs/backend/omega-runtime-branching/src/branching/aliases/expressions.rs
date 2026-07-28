@@ -89,6 +89,25 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
     expression_table: &mut ExpressionTable,
 ) -> ExpressionHandle {
     match expression_table.expression(expression).clone() {
+        ExpressionNode::Binary(binary) => {
+            let left = resolve_runtime_branch_alias_expression_handle(
+                binary.left,
+                source_key,
+                aliases,
+                expression_table,
+            );
+            let right = resolve_runtime_branch_alias_expression_handle(
+                binary.right,
+                source_key,
+                aliases,
+                expression_table,
+            );
+            expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator: binary.operator,
+                right,
+            }))
+        }
         ExpressionNode::Mutable(target) => {
             let resolved_target = resolve_runtime_branch_alias_expression_handle(
                 target,
@@ -123,17 +142,35 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 index,
             }))
         }
-        ExpressionNode::Name(path) if path.members.count() > 0 => aliases
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_runtime_branch_alias_expression_handle(
+                member.receiver,
+                source_key,
+                aliases,
+                expression_table,
+            );
+            expression_table.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                member_symbol: member.member_symbol,
+                member: member.member,
+                case_variant: member.case_variant,
+            }))
+        }
+        ExpressionNode::Name(path) => aliases
             .iter()
             .rev()
             .find(|alias| alias.source_key == source_key && alias_matches_table_path(alias, &path))
             .map(|alias| {
-                expression_table.insert_copy_with_member_suffix(
-                    alias.expression,
-                    path.members,
-                    path.member_symbols,
-                    1,
-                )
+                if path.members.count() > 0 {
+                    expression_table.insert_copy_with_member_suffix(
+                        alias.expression,
+                        path.members,
+                        path.member_symbols,
+                        1,
+                    )
+                } else {
+                    alias.expression
+                }
             })
             .unwrap_or(expression),
         _ => expression,

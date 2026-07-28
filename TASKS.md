@@ -368,6 +368,12 @@ ceilings, and publication-before-ledger-record all reject.
   Exact R5 paths invalidate only overlapping evidence; opaque frames still
   fail closed. Positive/negative regressions pin pure conversion calls versus
   calls that mutate the guarded place.
+- The active PRNG canary cohort now uses named wrapping high-word extraction.
+  Runtime branch alias substitution descends through binary/member arguments
+  and replaces their bare parameter roots, so a named conversion nested inside
+  a mutating value machine reads the caller's aliased state instead of an
+  unused cloned parameter slot. A focused native regression pins the formerly
+  crashing shape beside the existing dungeon-derived call/dispatch tests.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
