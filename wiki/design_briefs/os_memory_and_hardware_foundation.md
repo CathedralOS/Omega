@@ -1258,22 +1258,26 @@ The IDT is consequently a first serious customer, not a special construct:
 8. a linear acknowledgement token forces exactly-once completion.
 
 The source obligation contract is live in
-`omega::language::core::interrupt`. `InterruptMaskControl::save_and_mask`
-returns a linear `InterruptMaskGuard` carrying the prior mask state; consuming
-`restore` settles it. An independent linear
-`InterruptAcknowledgement` carries any source/provider identity required by its
-completion protocol and is settled by consuming `complete`. Restoring the
-prior CPU interrupt mask reaches `machine_control`, while acknowledging the
-interrupt source reaches `device_io`. Boundary evidence qualifies live
-obligations, and linearity rejects forgotten settlement and double completion.
+`omega::language::core::interrupt`. `InterruptMaskGuard` is ordinary linear
+data carrying the exact root, invocation, control, guard, prior-state, and
+masked-state identities used at settlement; bodyless `Active` records valid
+issuance and is required by consuming `restore`. An independent ordinary
+linear `InterruptAcknowledgement` carries the exact root, provider execution,
+invocation, policy, and acknowledgement identities; bodyless `Pending` is
+required by consuming `complete`. Reconstructing either field set does not
+reconstruct the fact. Restoring the prior CPU interrupt mask reaches
+`machine_control`, while acknowledging the interrupt source reaches
+`device_io`. Linearity rejects forgotten settlement and double completion.
 The normalized installed-root entry path supplies provider minting and
 settlement: its receipt binds the exact root/entry/code/provider execution,
 invocation, initial mask state, and acknowledgement policy. Replayed
 invocation or acknowledgement identities reject, nested saved-mask guards
 restore only the newest exact prior state, active entries pin root retirement,
 and deriver-owned exit requires the entry mask state plus the exact completed
-acknowledgement. The concrete Cathedral PIC/LAPIC entry implementation remains
-to execute those admitted transitions.
+acknowledgement. Wiring those installed-root receipts into source
+`Active`/`Pending` establishment, carry facts, and authority-flow reporting
+remains, as does the concrete Cathedral PIC/LAPIC entry implementation that
+executes the admitted transitions.
 
 ### OS interrupt policies are consumer-owned
 

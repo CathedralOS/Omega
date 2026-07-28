@@ -2,7 +2,7 @@ use omega::language::core::interrupt;
 
 data Main {}
 
-machine Main::complete_twice(acknowledgement: InterruptAcknowledgement)
+machine Main::complete_twice(acknowledgement: InterruptAcknowledgement in Pending)
 effects PortIo
 {
     acknowledgement.complete();

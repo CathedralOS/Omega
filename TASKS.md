@@ -76,10 +76,15 @@ provider plan, obtains one `Granted` root after `ExitBootServices`, and carries
 that linear value into owned idle. Compiler-owned carry atoms and the remaining
 authority migrations remain.
 
-- migrate task-runtime handles, interrupt guards, and acknowledgement tokens to
-  ordinary data declarations with their required fields;
-- connect provider receipts, linearity, carry policy, and authority-flow
-  reporting.
+- `Task<T>` plus the interrupt mask guard and acknowledgement token are now
+  ordinary linear data. The interrupt carriers expose the compact
+  root/invocation/control-or-policy identities needed for exact settlement and
+  use bodyless `Active`/`Pending` facts, so reconstructing identical fields
+  cannot settle either obligation.
+- connect installed-root entry receipts to those interrupt facts, add their
+  compiler-owned carry policy and authority-flow rows, and migrate the
+  `TaskRuntime` handle after its behavior-publication contract is settled.
+  **DESIGN BLOCKED for `TaskRuntime` — OWNER_QUESTIONS #9.**
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
 an owner machine cannot satisfy a bodyful result without proving its body; an
