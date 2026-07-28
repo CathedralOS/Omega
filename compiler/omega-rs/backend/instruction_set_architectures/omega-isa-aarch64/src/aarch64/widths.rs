@@ -1,6 +1,7 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
 use omega_calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
+use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
@@ -324,6 +325,70 @@ pub fn runtime_text_buffer_materialize_to_runtime_pointee_width(
 
 pub fn runtime_machine_integer_write_width(byte_offset: usize, byte_size: usize) -> usize {
     8 + add_constant_width(byte_offset) + runtime_store_data_width(byte_size)
+}
+
+pub(in crate::aarch64) fn bit_fragment_container_bytes(
+    fragment: &omega_target_operations::RuntimeBitFieldFragment,
+) -> Result<usize, Diagnostic> {
+    match fragment.container_width_bits {
+        8 => Ok(1),
+        16 => Ok(2),
+        32 => Ok(4),
+        64 => Ok(8),
+        width => Err(Diagnostic::error(format!(
+            "AArch64 bit-field container width `{width}` is not 8, 16, 32, or 64"
+        ))),
+    }
+}
+
+pub fn runtime_storage_bit_field_write_width(
+    base_byte_offset: usize,
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+) -> Result<usize, Diagnostic> {
+    if fragments.is_empty() {
+        return Err(Diagnostic::error(
+            "AArch64 bit-field write requires at least one fragment",
+        ));
+    }
+    let mut width = 8;
+    for fragment in fragments {
+        let container_bytes = bit_fragment_container_bytes(fragment)?;
+        let offset = base_byte_offset
+            .checked_add(fragment.container_byte_offset)
+            .ok_or_else(|| Diagnostic::error("AArch64 bit-field offset overflows"))?;
+        width += load_data_offset_width(offset, container_bytes)
+            + 16
+            + 4
+            + 16
+            + 4
+            + store_data_offset_width(offset, container_bytes);
+    }
+    Ok(width)
+}
+
+fn runtime_bit_field_operand_width(
+    base_byte_offset: usize,
+    fragments: &[omega_target_operations::RuntimeBitFieldFragment],
+) -> usize {
+    if fragments.is_empty() {
+        return 0;
+    }
+    let mut width = 12; // relocated base pair + zero destination
+    for fragment in fragments {
+        let Ok(container_bytes) = bit_fragment_container_bytes(fragment) else {
+            return 0;
+        };
+        let Some(offset) = base_byte_offset.checked_add(fragment.container_byte_offset) else {
+            return 0;
+        };
+        width += load_data_offset_width(offset, container_bytes)
+            + usize::from(fragment.destination_lsb != 0) * 4
+            + 16
+            + 4
+            + usize::from(fragment.source_lsb != 0) * 4
+            + 4;
+    }
+    width
 }
 
 pub fn runtime_pointee_integer_write_width(
@@ -2005,6 +2070,10 @@ pub fn runtime_value_operand_width(
         immediate_width(value)
     } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
         8 + add_constant_width(byte_offset) + runtime_load_data_width(byte_size)
+    } else if let Some((_, base_byte_offset, _, fragments)) =
+        runtime_value_operands.bit_field(operand)
+    {
+        runtime_bit_field_operand_width(base_byte_offset, &fragments)
     } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
         runtime_value_operands.pointee(operand)
     {

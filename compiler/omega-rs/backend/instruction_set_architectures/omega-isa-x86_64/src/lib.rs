@@ -7912,7 +7912,7 @@ pub fn encode_runtime_storage_bit_field_write(
         let offset = base_byte_offset
             .checked_add(fragment.container_byte_offset)
             .ok_or_else(|| Diagnostic::error("X86_64 bit-field offset overflows"))?;
-        append_load_reg_from_r15(&mut bytes, Reg64::R11, offset, container_bytes)?;
+        append_load_unsigned_reg_from_r15(&mut bytes, Reg64::R11, offset, container_bytes)?;
         append_mov_rax_imm64(&mut bytes, !destination_mask);
         bytes.extend([0x49, 0x21, 0xc3]); // and r11, rax
         append_mov_rax_imm64(&mut bytes, inserted);
@@ -13893,6 +13893,9 @@ fn runtime_value_operand_value_byte_size(
     if let Some((_, _, byte_size)) = operands.storage(operand) {
         return Some(byte_size);
     }
+    if let Some((_, _, value_byte_size, _)) = operands.bit_field(operand) {
+        return Some(value_byte_size);
+    }
     if let Some((_, _, byte_size)) = operands.pointee(operand) {
         return Some(byte_size);
     }
@@ -16606,6 +16609,17 @@ mod machine_control_tests {
             &self,
             _: RuntimeValueOperandHandle,
         ) -> Option<(RuntimeStorageRegion, usize, usize)> {
+            None
+        }
+        fn bit_field(
+            &self,
+            _: RuntimeValueOperandHandle,
+        ) -> Option<(
+            RuntimeStorageRegion,
+            usize,
+            usize,
+            Vec<omega_target_operations::RuntimeBitFieldFragment>,
+        )> {
             None
         }
         fn pointee(&self, _: RuntimeValueOperandHandle) -> Option<(usize, usize, usize)> {

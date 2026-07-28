@@ -6,8 +6,8 @@
 //! addresses.
 
 use super::primitives::{
-    append_unsigned_immediate_padded, encode_and_x_register, encode_instruction,
-    encode_load_w_from_x, encode_load_x_from_x, encode_lsr_x_immediate, encode_move_x_register,
+    append_unsigned_immediate_padded, encode_and_x_register, encode_load_w_from_x,
+    encode_load_x_from_x, encode_lsl_x_immediate, encode_lsr_x_immediate, encode_move_x_register,
     encode_orr_x_register, encode_store_w_to_x, encode_store_x_to_x,
 };
 use omega_calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
@@ -243,20 +243,6 @@ fn validate_step(
         )));
     }
     Ok(())
-}
-
-/// `LSL Xd, Xn, #shift`, the UBFM alias.
-fn encode_lsl_x_immediate(destination_register: u8, source_register: u8, shift: u8) -> [u8; 4] {
-    debug_assert!((1..64).contains(&shift));
-    let immr = 64_u32 - u32::from(shift);
-    let imms = 63_u32 - u32::from(shift);
-    encode_instruction(
-        0xD340_0000
-            | (immr << 16)
-            | (imms << 10)
-            | (u32::from(source_register) << 5)
-            | u32::from(destination_register),
-    )
 }
 
 const fn low_mask(width: u16) -> u64 {

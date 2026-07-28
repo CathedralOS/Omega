@@ -376,6 +376,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }
                     | SelectedInstructionKind::WritePlaceInteger { .. }
+                    | SelectedInstructionKind::WriteStorageBitField { .. }
                     | SelectedInstructionKind::WritePlaceBinary { .. }
                     | SelectedInstructionKind::WritePlaceString { .. }
                     | SelectedInstructionKind::WritePlaceBoundedBuffer { .. }

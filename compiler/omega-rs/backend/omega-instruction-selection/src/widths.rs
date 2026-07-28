@@ -1,12 +1,13 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
+use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{
-    InstructionOperandLike, RuntimeValueOperandHandle, RuntimeValueOperandSource,
-    StateGuardOperator,
+    InstructionOperandLike, RuntimeBitFieldFragment, RuntimeValueOperandHandle,
+    RuntimeValueOperandSource, StateGuardOperator,
 };
 
 pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
@@ -956,6 +957,22 @@ pub fn runtime_machine_integer_write_width(
             aarch64::runtime_machine_integer_write_width(byte_offset, byte_size)
         }
         Architecture::X86_64 => x86_64::runtime_machine_integer_write_width(byte_offset, byte_size),
+    }
+}
+
+pub fn runtime_storage_bit_field_write_width(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    fragments: &[RuntimeBitFieldFragment],
+) -> Result<usize, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_bit_field_write_width(base_byte_offset, fragments)
+        }
+        Architecture::X86_64 => {
+            let _ = base_byte_offset;
+            x86_64::runtime_storage_bit_field_write_width(fragments)
+        }
     }
 }
 
