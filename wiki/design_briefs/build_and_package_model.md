@@ -1,9 +1,14 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-07-18. `build.omg` is ordinary Omega code interpreted in a
-restricted build-time context. It produces inspectable build data and may stage
-assets through explicitly supplied services; it is not a second configuration
-language.
+Current as of 2026-07-27. `build.omg` is ordinary Omega code interpreted in an
+explicit build-host context. It produces inspectable build data and may stage
+assets or obtain external inputs through supplied services; it is not a second
+configuration language.
+
+`build.omg` is build orchestration, not the compiler's hermetic
+[semantic evaluator](build_time_evaluation.md). The former may reach admitted
+host services and records their observations. The latter evaluates constants,
+proofs, plans, and generators under target semantics with no host reach.
 
 ## Build entry
 
@@ -91,22 +96,110 @@ do not repeat every default and cannot append or mutate derived plan rows.
 
 ## Build-time authority and execution split
 
-`build.omg` may perform authorized package-local staging itself. It does not
-directly fetch arbitrary network dependencies, invoke an unchecked compiler, or
-link the image unless those services are explicitly admitted in a future build
-contract.
+`build.omg` may perform authorized package-local staging and may use filesystem,
+network, process, signing, or other build services when their requirements are
+explicitly selected and admitted. No such service is ambient. Package
+resolution still consumes exact source identities; granting a general network
+operation does not turn an unpinned response into a dependency identity.
 
 ```text
 tool-in-hand
-  -> interprets build.omg with pinned Filesystem/Console slots
-  -> receives augmented Build data and staged package-local assets
+  -> interprets build.omg with selected build-host service slots
+  -> receives augmented Build data, staged assets, and observation receipts
   -> resolves/fetches pinned dependencies
   -> compiles, links, emits, and records artifacts
 ```
 
-Build-time admissibility uses the complete normalized machine contract, not
-only an empty effect row. Provider trust, authority roots, resource bounds,
-failure, and termination must fit the build evaluator's contract floor.
+Build-entry admissibility uses the complete normalized machine contract for the
+selected build-host providers. Unlike semantic evaluation, its service reach
+need not be empty. Provider trust, authority roots, retained storage, resource
+bounds, failure, and ordinary `terminates` guarantees must fit the build
+executor's policy. A blocking service must publish the progress/failure premise
+under which the build entry can satisfy `terminates`.
+
+## Build observations and reproducibility
+
+Reproducibility is a property of selected build operations and their evidence,
+not of a service name. Reading a content-captured file and enumerating a live
+directory may both use `Filesystem` while providing different replay
+guarantees. Fetching an expected content hash and requesting an unpinned
+`latest` document may both use `Network` with the same distinction.
+
+Every build-host operation publishes one normalized observation ceiling:
+
+```text
+BuildObservationClass =
+    Hermetic
+  | Receipted
+  | Volatile
+
+Hermetic < Receipted < Volatile
+```
+
+- **Hermetic:** the operation observes no external build-host state.
+- **Receipted:** every possible observation returns sufficient value/content
+  evidence for replay.
+- **Volatile:** some possible observation lacks complete replay evidence.
+
+This is an operational-contract axis on the requirement/provider plan, not a
+keyword in `build.omg`. Selected implementations must refine the requirement's
+published ceiling.
+
+The build entry records the same three columns used by other resource and
+operational plans:
+
+```text
+ceiling    join of statically reachable operation classes
+realized   join of operations actually reached
+evidence   observation records and replay receipts
+```
+
+The ceiling is computed for the concrete build invocation after selected target
+and configuration values are known. A branch proven unreachable contributes
+nothing; an unresolved branch contributes conservatively. Release policy may
+therefore reject `ceiling > Receipted` before executing a long build. The
+realized class still reports what happened and may be narrower than the
+ceiling.
+
+Calling a volatile operation is observable even when its returned value is
+discarded. Effectful observations are never removed merely because their value
+looks dead.
+
+### Record replay and source rebuildability
+
+Two graph verdicts remain separate:
+
+```text
+ReplayableFromRecord(build) =
+    realized <= Receipted
+    and every recorded input is available
+
+RebuildableFromSource(build) =
+    ReplayableFromRecord(build)
+    and every input receipt traces to a declared reproducible root
+    and every dependency artifact is RebuildableFromSource
+    and toolchain/target-provider inputs are pinned
+```
+
+A current build that consumes a hashed dependency artifact may be replayable
+from its record even when that dependency was produced using a volatile clock
+or unreceipted network response. The whole graph is then not rebuildable from
+source. Recording a volatile value makes it auditable; it does not manufacture
+source provenance.
+
+The unified artifact publishes:
+
+- the static observation ceiling;
+- the realized observation class;
+- receipt and recorded-input identities;
+- `ReplayableFromRecord`;
+- `RebuildableFromSource`; and
+- the first failing provenance edge for either verdict.
+
+Policy can consequently distinguish an ordinary development build, a release
+that requires record replay, and a supply-chain release that requires
+transitive source rebuildability. These are graph checks, not transitive
+mutation of one package's local class.
 
 ## Dependencies and the lock artifact
 
@@ -119,6 +212,8 @@ The unified lock artifact records the resolved closure:
 - content/package identities;
 - toolchain identity;
 - mutable-reference resolutions, if permitted;
+- build observation ceilings, realized classes, and replay receipts;
+- record-replay and source-rebuildability verdicts;
 - boundary/provider trust receipts;
 - accepted proof/grant identities; and
 - component/build contract identities needed for reproducibility.
@@ -182,7 +277,7 @@ the build tool discovers the nearest enclosing workspace/build entry.
 ## Current engineering delta
 
 The interpreter already has real/virtual filesystem modes and a scoped
-filesystem-backed build evaluator. Remaining work:
+filesystem-backed build executor. Remaining work:
 
 - adopt the `build(b, fs)` entry and standard provider injection;
 - replace the retired empty-effect gate with decision-22 normalized ceiling
@@ -192,7 +287,9 @@ filesystem-backed build evaluator. Remaining work:
 - expose target-profile defaults and type-per-slot provider overrides through
   ordinary `Build` library machines;
 - make name resolution consult the declared dependency aliases;
-- generate/check the unified lock and trust artifact; and
+- generate/check the unified lock and trust artifact;
+- publish build-observation ceilings, realized receipt evidence, and both
+  reproducibility verdicts; and
 - remove target-block and hand-written BuildLog compatibility paths.
 
 ## Still open
@@ -200,5 +297,8 @@ filesystem-backed build evaluator. Remaining work:
 - final `Build` schema and ergonomic library calls;
 - mutable dependency references and update policy;
 - workspace inheritance/ceiling details;
-- which additional services a build may request beyond Filesystem/Console; and
-- exact build-entry discovery and default-entry behavior.
+- which additional standard provider families ship beyond Filesystem/Console;
+- exact build-entry discovery and default-entry behavior;
+- initial root policy profiles for volatile-capable, record-replayable, and
+  source-rebuildable builds; and
+- UX for displaying the first failed provenance edge.

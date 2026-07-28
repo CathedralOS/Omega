@@ -8,7 +8,7 @@ let task: Task<WorkResult> =
 
 do_other_work();
 
-let outcome: TaskOutcome<WorkResult> = task.finish();
+let outcome: TaskOutcome<WorkResult> = suspend task.finish();
 ```
 
 `Worker::run` is not a special async function. Calling `Worker::run(job)` runs
@@ -20,8 +20,8 @@ The model has no bare `spawn` block, `async machine`, `Future<T>`, implicit
 detach, or privileged task group. Starting, cancellation, completion, storage
 provisioning, and supervision are ordinary contracted operations over explicit
 capabilities and linear data. A direct call whose contract permits suspension
-will carry a source acknowledgement keyword for searchability and review
-visibility. Its spelling remains open; it will not create a future or a
+uses `suspend`; one that permits worker blocking uses `block`; one that permits
+both uses `suspend block`. These acknowledgements create neither a future nor a
 distinct activation.
 
 `TaskRuntime` is a working core boundary requirement/capability, not a new
@@ -44,6 +44,11 @@ transition runtime.try_start<Worker::run>(move job) {
 }
 ```
 
+The reference `start`/`try_start` contract shown here neither parks nor blocks
+the current activation, so these calls are unmarked. Another admitted operation
+with a wider contract would use the corresponding marker; the behavior of
+`Worker::run` after activation does not affect the start call.
+
 A rejected start returns every moved argument and caller-supplied reservation.
 Start is an ownership transaction: no value or linear obligation disappears
 into a provider that failed to establish the activation.
@@ -51,9 +56,10 @@ into a provider that failed to establish the activation.
 The `<Worker::run>` spelling uses the compile-time machine-parameter mechanism
 from chapter 13. It is not a runtime function pointer or inferred capture. The
 compiler monomorphizes the target and emits a static activation plan containing
-the normalized contract, entry identity, argument/result layouts, and
-continuation/storage requirements. The provider receives that plan plus the
-invocation's moved arguments.
+the normalized contract, entry identity, argument/result layouts, and a
+`StackPlan` derived from whole-call-graph WCSU. The provider receives that plan
+plus the invocation's moved arguments and must supply a matching fixed,
+nonmoving `StackLease`.
 
 ## Task Is A Linear Lifecycle Claim
 
@@ -78,18 +84,15 @@ start outcome sums, and opaque `TaskRuntime::start` / `try_start` signatures
 have landed. Qualifier-aware generic payload propagation preserves a
 substituted linear result or rejected argument bundle instead of silently
 losing its obligation through an unconstrained generic field. Concrete static
-targets now produce validated `05_task_activations.json` records with checked
-effect reach, layouts, continuation size, safe-point carry demands, and a
-separate all-instruction carry envelope for asynchronous preemption. The
-envelope conservatively joins every checked storage/call/transient value and
-is omitted when type coverage is incomplete, causing asynchronous runtime
-admission to fail closed.
-Every activation plan requires the cancellation support promised by the Task
-lifecycle. The core lifecycle calls are ownership-checked: receiver types keep
-shared `&self` distinct from consuming `self`, `request_cancel` preserves the
-claim, and `finish` consumes it into the conditional terminal outcome.
-Provider provenance/admission/dispatch and executable continuation lowering
-remain.
+targets produce `05_task_activations.json`, but its current continuation-size,
+preemption-mode, and all-instruction runtime-supply fields predate the settled
+model and must migrate to WCSU-derived `StackPlan`, canonical suspension
+crossings, and demand-driven CPU/thread preservation. Every activation plan
+requires the cancellation operation promised by the `Task` lifecycle. The core
+lifecycle calls are ownership-checked: receiver types keep shared `&self`
+distinct from consuming `self`, `request_cancel` preserves the claim, and
+`finish` consumes it into the conditional terminal outcome. Provider
+provenance/admission/dispatch and executable fixed-stack lowering remain.
 
 `request_cancel()` retains the claim: requesting cancellation does not prove
 that execution stopped. `finish()` may suspend, consumes the claim, and returns
@@ -105,12 +108,13 @@ supervisor.adopt(move task);
 That is ordinary ownership transfer, not detach. The supervisor becomes
 responsible for eventual settlement.
 
-## Suspension (elaboration pending)
+## Suspension, Blocking, And Direct Calls
 
 Suspension is an operational property of an ordinary machine. Decision 22's
 split amendment supplies independent `suspends` and `blocks` clauses; absence
-of each is the corresponding negative guarantee. The continuation, loan, and
-lowering rules remain to be frozen.
+of each is the corresponding negative guarantee. A suspended activation retains
+its fixed nonmoving stack. The remaining suspension work concerns lowering and
+the conservative loan subset that may remain live while that stack is parked.
 
 Decision 23 keeps positive progress separate. Pinned operations/providers may
 carry sealed opaque progress profiles authorized through boundary grants. A
@@ -126,20 +130,95 @@ The constraints that *are* settled are:
   provider that may suspend or block cannot satisfy a slot that omits the
   corresponding clause;
 - suspension composes through ordinary calls through the normalized contract;
-  the pending keyword changes source acknowledgement only, not propagation or
+  `suspend` and `block` change source acknowledgement only, not propagation or
   lowering;
-- automatic cleanup may execute but may never suspend or fail;
+- automatic cleanup may execute but may never suspend, block, or fail;
 - `Task<T>` is linear and must be settled or transferred explicitly; and
 - a loan may cross suspension only when the eventual suspension model can
   prove its storage, pinning, aliasing, and cancellation safety. Blanket
   acceptance and blanket rejection are both premature.
 
 Suspension composes through ordinary calls, with the suspension plan propagated/
-inferred and bounded continuation storage planned by the compiler. Public
-operational clauses are explicit ceilings; private omissions infer. Exact
-continuation lowering and suspension-safe-loan rules remain the queued
-suspension amendment. See
+inferred and WCSU providing the activation's fixed stack bound. Public
+operational clauses are explicit ceilings; private omissions infer. Exact park/
+resume lowering and suspension-safe-loan rules remain the queued suspension
+amendment. See
 [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
+
+### Call-site acknowledgements
+
+Both operational possibilities are explicit at direct calls:
+
+```omega
+operation();
+suspend operation();
+block operation();
+suspend block operation();
+```
+
+The prefixes mean **may**, not **did** or **must**. A suspending or blocking
+operation may complete immediately on a particular invocation. The marker says
+the statically known contract permits the behavior and makes the pause point
+reviewable while borrows, claims, guards, and other live state remain held.
+An unmarked call is statically guaranteed to do neither.
+
+The distinction between the markers remains structural. Suspension parks the
+activation and materializes a continuation, so the call must be a complete
+statement, simple `let` right-hand side, transition subject, or terminal
+expression. Blocking retains the ordinary stack, so a blocking-only call may
+nest. A call that permits both uses the fixed order `suspend block` and follows
+the suspension position rule.
+
+```omega
+let guard: Guard = block mutex.lock();
+let event: Event = suspend inbox.take();
+let wide: Event = suspend block source.take();
+
+// Rejected: partially evaluated expression state would cross suspension.
+let total: u64 = prefix + suspend source.next();
+```
+
+Missing, partial, redundant, and reversed acknowledgements reject against the
+call's statically known operational envelope. A call through an abstract
+requirement carries its published possibilities. Generic code that does not
+need the wide surface may require a transparent `suspends false` or
+`blocks false` refinement and thereby remove the corresponding marker.
+
+The prefixes are not `await`: they create no `Future`, do not change a return
+type, and do not start another activation. `runtime.start<M>` creates a distinct
+activation because that is the operation's meaning. The call to `start` itself
+is marked only if its own contract may suspend or block the current activation;
+the eventual behavior of `M` does not mark the start call.
+
+In I/O-heavy code, `block` may be common. Its purpose remains local: reviewers
+can see the exact waiting sites and, especially, whether a block occurs while a
+guard or scarce authority is live. In such a module the unmarked immediate call
+is itself useful signal.
+
+### Preemption and safe points
+
+Architectural preemption may pause an activation at any instruction, preserve
+its opaque register/stack state, and resume it without changing its semantic
+circumstances. It requires no source safe point. A semantic safe point is
+narrower: an explicit may-suspend operation at which canonical liveness is
+known and structured cancellation, permitted migration, or replacement
+quiescence may occur.
+
+```omega
+process_simd_chunk(buffer);   // suspends false; hardware may still preempt
+suspend scheduler.poll();    // authored semantic safe point
+```
+
+Loops, state transitions, allocation, ordinary calls, and optimizer-selected
+locations are not implicit safe points. The compiler may not insert a
+suspending poll as an ordinary optimization. A blocking call creates no safe
+point; without a finite wait contract, semantic response through that call is
+unbounded and tooling reports the responsible path.
+
+WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
+depends on the normalized bounded-work plan tracked in
+`OWNER_QUESTIONS.md` #16. Wall-clock conversion additionally requires a
+target timing model and retains that model's trust provenance.
 
 ## Carry Policy Is A Product
 
@@ -168,20 +247,25 @@ affinity remains independent of host-thread affinity.
 The enforcement sites are not symmetric. Suspension is a static reach
 question: at a call or park, canonical place liveness plus possible suspension
 decides legality, and provider selection cannot erase that ceiling.
-CPU/thread migration and address movement are runtime behavior, so activation
-admission compares those accumulated demands with the selected provider's
-normalized contract. Preemption granularity determines which points require
-the migration/stability live-value check.
+CPU/thread preservation is demand-driven. A portable activation asks nothing.
+An activation that may retain `SameCpu` or `SameThread` values requires the
+selected runtime to establish the corresponding preservation claim, commonly
+by pinning its worker or activation while that demand is live. A target that
+may otherwise migrate execution at arbitrary instructions must establish
+activation-wide preservation or reject the activation; there is no generic
+`SafePoints | Asynchronous` runtime mode.
 
-Runtime behavior is born pessimistic. Checked providers derive and prove their
-claims; opaque providers require an admission receipt before the checker may
-rely on narrower behavior such as CPU pinning. A missing receipt therefore
-fails closed. The receipt authorizes reliance on a claim; it does not change
-the provider's behavior. Its admitted statement covers the selected provider
-plan identity and every runtime-behavior promise, so reusing an old receipt
-after strengthening a pinning, capacity, preemption, cancellation, or storage
-claim fails as plan drift. Receipt provenance is evidence and does not enter
-normalized runtime identity.
+Checked providers derive preservation from their scheduler construction.
+Opaque providers require an ordinary admission receipt. Missing evidence fails
+closed. The receipt authorizes reliance on the claim without changing provider
+behavior, and its provenance does not enter normalized runtime identity.
+Address stability of stack-resident values follows from the fixed nonmoving
+`StackLease`, not a separate runtime promise.
+
+Cancellation support is a selected operation/conformance, stack capacity is a
+resource reservation, and inline completion belongs to the concrete `start`
+operation. Omega does not combine these independent facts into a universal
+runtime-supply record.
 
 The future temporal/model checker will consume the same policies, provenance
 anchors, operation contracts, effects, and provider hypotheses; carry is an
@@ -199,14 +283,14 @@ Task execution has three deliberately separate owners:
 
 `Task<T>` therefore does not universally contain or borrow a task stack. It is
 normally a small provider/activation identity plus lifecycle authority. Moving
-the handle does not move a parked continuation.
+the handle does not move the activation's stack.
 
-A parked continuation remains compiler/provider-owned control storage. Ordinary
+A parked stack and resume state remain compiler/provider-owned control storage. Ordinary
 Omega code cannot project it from `Task<T>`, recast it as bytes or an address,
 borrow another activation's frames, or mutate its saved return chain. Parking
 does not turn compiler-owned live control state into ordinary addressable data.
-The provider may move, retain, or resume that storage only under the admitted
-activation/runtime contract. This preserves the same return-integrity argument
+The provider may retain and resume that storage but may not move the settled
+stackful representation. This preserves the same return-integrity argument
 across suspension, cancellation, and component replacement that applies while
 the activation is running.
 
@@ -217,19 +301,23 @@ ordinary data locals and parameters, including applied generic carriers, so a
 missing member cannot silently become a zero/default backend value.
 
 Measured, tail-only runtime recursion leaves a bounded lowered call graph. If
-ordinary calls may suspend, a parked continuation can retain a bounded chain
-of compiler-planned frames; bounded does not mean single-frame or free. The
-activation plan records frame/continuation size, alignment, address stability,
-carry demands, and related requirements. The runtime provider must admit that
-plan against its storage contract before returning a pending task.
+ordinary calls may suspend, the parked stack can retain a bounded chain of
+compiler-planned frames; bounded does not mean single-frame or free. WCSU plus
+target calling plans derive stack bytes and alignment. The runtime transfers a
+matching fixed, nonmoving `StackLease` into the activation before returning a
+pending task.
 
 Storage strategy is not fixed by the language:
 
-- a hosted provider may allocate an OS thread stack internally;
-- an Arena-backed provider may lease a pre-provisioned frame slot;
+- a hosted provider may allocate an OS stack internally;
+- an Arena-backed provider may lease a pre-provisioned stack slot;
 - a remote provider may keep no local activation frame; and
 - an inline provider may return an already-complete, still-unsettled task when
   the pinned contract permits inline completion.
+
+A future stackless representation is a distinct pre-lowering plan. Supporting
+both representations means lowering the machine twice; a runtime does not
+choose a representation for already-lowered control state.
 
 `ArenaTaskPool` is the standard bounded-storage reference package and likely
 Cathedral default, not a task primitive. It imposes slot/arena layout and
@@ -243,13 +331,30 @@ storage cannot escape that storage's lifetime, and a pool/runtime cannot close
 while dependent claims or leases remain. The exact child-lease representation
 is part of the permission/resource-algebra implementation.
 
+### Foreign execution
+
+A direct opaque foreign call runs on the current activation stack and therefore
+contributes an admitted same-stack demand to that activation's `StackPlan`.
+Wrapping native code behind an Omega boundary may instead give it a separate
+provider stack. That confines the foreign contribution but does not prove that
+the native operation returns.
+
+A hosted FFI gateway commonly suspends the Omega caller and runs native code on
+a bounded pool of guarded OS-worker stacks. The safe point is reached when the
+caller parks; native completion, cancellation finalization, retained-loan
+release, and later pool admission remain independent and may be unbounded.
+These are reported separately. The reusable gateway contract remains owner
+question #17, foreign callback entry remains #12, and retained native pointers
+remain #14.
+
 ## Cancellation Is A Value At The Wait
 
-There is no unwinding, so a task is never interrupted mid-state. A provider
-whose contract supports cancellation delivers the request at a stated safe
-point, commonly by making the current or next wait return the zero case instead
-of a ready value. The machine transitions to its own cleanup path and drops run
-as frames retire normally:
+There is no unwinding, so cancellation never semantically interrupts a task
+mid-state. Architectural preemption may still preserve and restore opaque state
+there. A provider whose contract supports cancellation delivers the request at
+a stated safe point, commonly by making the current or next wait return the zero
+case instead of a ready value. The machine transitions to its own cleanup path
+and drops run as frames retire normally:
 
 ```omega
 data Take {
@@ -258,8 +363,7 @@ data Take {
 }
 
 machine Worker::run(&mut self, ring: &mut Ring) {
-  // The required suspension acknowledgement keyword is pending.
-  let taken: Take = ring.take();
+    let taken: Take = suspend ring.take();
     transition taken {
         Take::Got(frame) -> work(frame)
         Take::Cancelled  -> cleanup()   // ordinary transition; nothing interrupted
@@ -290,8 +394,7 @@ data Event {
 }
 
 machine Server::run(&mut self) {
-  // One wait source; suspension acknowledgement keyword pending.
-  let event: Event = self.inbox.take();
+    let event: Event = suspend self.inbox.take();
 
     transition event {                       // a completely ordinary transition
         Event::Packet(frame) -> handle(frame)
@@ -309,9 +412,8 @@ nothing.
 
 ## Completion And Supervision
 
-Finishing a task is an ordinary possibly-suspending machine call. It will use
-the required call-site acknowledgement once that keyword is selected; this does
-not turn the result into a future:
+Finishing a task is an ordinary possibly-suspending machine call. It uses the
+ordinary acknowledgement and does not turn the result into a future:
 
 ```omega
 machine Scheduler::run(runtime: &TaskRuntime, job: Job) -> WorkResult {
@@ -320,7 +422,7 @@ machine Scheduler::run(runtime: &TaskRuntime, job: Job) -> WorkResult {
 
     do_other_work();
 
-    transition task.finish() {
+    transition suspend task.finish() {
         Returned(result) -> result
         Cancelled -> cancelled_result()
         Failed(receipt) -> provider_failure(receipt)

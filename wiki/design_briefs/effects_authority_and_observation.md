@@ -1,6 +1,7 @@
 # Design Brief: Service Reach, Operational Ceilings, Authority, And Observation
 
-Revised 2026-07-23 (decision 22 split amendment). This brief defines a service-
+Revised 2026-07-27 (decision 22 split amendment and direct-call
+acknowledgements). This brief defines a service-
 reach `effects` row plus independent `suspends` and `blocks` operational
 ceilings. `terminates` remains the separate positive progress guarantee settled
 by decision 23. It records each axis's propagation/refinement laws and its
@@ -146,6 +147,66 @@ Provider admission is deterministic. A machine compiled against a slot that
 `suspends` but does not `block` remains nonblocking; a provider whose checked or
 accepted contract blocks fails refinement. A slot declaring both clauses
 admits either behavior and its consumers carry both possibilities honestly.
+
+## Call-site acknowledgements
+
+The independent operational axes have independent call-site
+acknowledgements:
+
+```omega
+ordinary_call();
+suspend may_park();
+block may_block_worker();
+suspend block may_do_either();
+```
+
+`suspend` and `block` are prefix markers on the call, not declarations and not
+execution operators. Each says that the call's statically known operational
+envelope permits the corresponding behavior. The invocation may complete
+immediately. The markers do not force a park or wait, alter the inferred
+contract, create a task or future, change the call ABI or result, or enter
+normalized machine identity.
+
+Both markers acknowledge a point where execution may pause while live borrows,
+claims, guards, and authority remain held. The distinction still matters:
+suspension parks the activation and creates a continuation boundary; blocking
+retains the ordinary stack while occupying the worker.
+
+The checker compares the exact marker set with the statically known call
+envelope:
+
+```text
+call may suspend  <=> `suspend` is present
+call may block    <=> `block` is present
+```
+
+Missing, partial, and redundant acknowledgements reject. Local checked calls
+may use the callee's checked summary. Imported operations, requirements,
+generic calls, and boundary operations use their pinned envelope. A dynamic
+call uses the per-requirement envelope statically retained by that value. A
+transparent refinement such as `suspends false` or `blocks false` therefore
+removes the corresponding marker requirement; one lucky non-waiting invocation
+does not.
+
+The canonical combined order is `suspend block`. Because suspension must retain
+all partially evaluated state, a suspending call may appear only as a complete
+statement, a simple `let` right-hand side, a transition subject, or a terminal
+expression. It may not nest inside another call's arguments, an operator,
+aggregate construction, or a condition. A blocking-only call creates no
+continuation boundary and may nest, although a separate binding often improves
+reviewability.
+
+Authored generated code and authored boundary adapters obey the same syntax.
+Compiler-synthesized adapters have no source token, so checked artifacts record
+the synthesized acknowledgement at the call site. That record is diagnostic
+and audit metadata, not semantic identity. Automatic cleanup and hermetic
+semantic evaluation forbid suspension and blocking at their operational floor;
+writing a marker cannot admit either behavior there.
+
+`runtime.start<M>` remains distinct. Supplying `M` starts a new activation and
+does not acknowledge whatever `M` may later do. The call to `start` itself uses
+`suspend`, `block`, both, or neither solely according to what `start` may do to
+the current activation.
 
 Completeness is relative to checked bodies and pinned/accepted contracts. A
 boundary provider may lie about its implementation; that is a trust failure
@@ -301,16 +362,23 @@ identifiers resolve normally; there is no global hard-coded service table.
    across a recursive call component.
 10. Recoverable errors remain result cases; no parallel failure effect is
     introduced.
+11. An unmarked call has a statically known envelope that guarantees neither
+    suspension nor blocking.
+12. A call through a requirement that permits both axes requires
+    `suspend block`, even when one selected provider is currently narrower.
+13. A `suspend` call nested inside an argument or operator rejects before
+    continuation lowering.
 
 ## Deferred, explicitly
 
 - General trace propositions, deadline/starvation contracts, and entailment
   between decision 23's opaque progress profiles.
-- Quantitative resource entries and their sequential/branch/loop/parallel
-  algebra.
+- The normalized abstract-work plan and sequential/branch/SCC composition
+  algebra in `OWNER_QUESTIONS.md` #16.
 - Additional operational-clause declarations.
 - Service-row polymorphism and higher-order/callback row variables.
-- The suspension amendment's continuation storage and suspension-safe loans.
+- Fixed-stack park/resume lowering and suspension-safe loans. WCSU-derived
+  `StackPlan` owns capacity.
 - Component-version budgets and admission mechanics beyond the pinned-row law.
 - Byte-information units as a possible units-family-zero customer; decision 19
   still requires explicit scale conversion when a consumer expects canonical

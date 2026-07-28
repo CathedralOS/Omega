@@ -1,14 +1,14 @@
 # Design Brief: Concurrency And Atomics
 
-Current as of 2026-07-23. This brief records the surviving concurrency model
+Current as of 2026-07-27. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
-[task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). The suspension
-amendment remains open. A direct-call suspension acknowledgement has been
-reopened in `OWNER_QUESTIONS.md`; it would not restore `async machine`,
-`Future<T>`, or spawn-only suspension. Bare `spawn`, single-level carry sets,
-blanket loan death, erased `Join<T>`, implicit detach, and Join-on-drop designs
-are not canon.
+[task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). Continuation
+representation and suspension-safe loans remain open. Direct-call
+acknowledgements are settled and do not restore `async machine`, `Future<T>`,
+or spawn-only suspension. Bare `spawn`, single-level carry sets, blanket loan
+death, erased `Join<T>`, implicit detach, and Join-on-drop designs are not
+canon.
 
 ## Settled language model
 
@@ -27,6 +27,10 @@ are not canon.
 - Suspension and worker blocking are distinct operational possibilities,
   published through independent `suspends;` and `blocks;` clauses. Absence is
   the corresponding negative guarantee.
+- Calls acknowledge those possibilities independently with `suspend` and
+  `block`. A call that may do both is spelled `suspend block operation()`.
+  These are checked may-acknowledgements, not commands and not execution
+  operators.
 - A provider's service and operational ceilings must refine the pinned
   scheduler/wait requirement. A blocking provider cannot satisfy a slot that
   permits suspension but omits blocking.
@@ -41,25 +45,66 @@ are not canon.
   language constructs. `ArenaTaskPool` is the bounded reference package, not
   the universal task model.
 
+## Direct-call acknowledgement
+
+An ordinary call whose statically known operational envelope may park the
+current activation is prefixed with `suspend`. A call whose envelope may occupy
+the current worker while waiting is prefixed with `block`. Both markers are
+required when both possibilities are present:
+
+```omega
+operation();
+suspend operation();
+block operation();
+suspend block operation();
+```
+
+The shared reason is that execution may pause at the marked call while the
+activation's borrows, claims, guards, and other live state remain held. The
+markers describe what the selected contract permits; an individual invocation
+may complete immediately. They do not force waiting, alter propagation, create
+a task or future, change a return type, select a provider, or enter contract
+identity.
+
+The checker uses the statically known call envelope. Local checked calls may
+use their checked summary; imports, requirements, generic calls, and boundary
+operations use their pinned envelope; dynamic calls use the per-requirement
+envelope statically retained by the value. A transparent refinement that proves
+`suspends false` or `blocks false` removes that marker requirement. Missing,
+partial, and redundant markers reject, so an unmarked call guarantees both axes
+false at that site.
+
+Suspension creates a continuation boundary, so a `suspend` call must be the
+whole operation in a statement, simple `let` right-hand side, transition
+subject, or terminal expression. It cannot be nested in an argument, operator,
+aggregate, or condition whose partially evaluated state would become hidden
+continuation state. Blocking preserves the ordinary stack and may nest, though
+binding a result first is often clearer. The canonical order is
+`suspend block`, never `block suspend`.
+
+Compiler-synthesized adapters record the same acknowledgement in checked
+artifacts; authored generator and adapter bodies write the markers normally.
+Automatic cleanup and hermetic semantic evaluation admit neither operational
+possibility, so no marker can make such a call legal there.
+
 ## Suspension amendment still required
 
 Suspension propagates through ordinary calls. The compiler retains the bounded
 chain of planned frames and the machine's suspension plan propagates
-transitively. Such a direct call will carry a source acknowledgement for
-searchability and review visibility; its exact keyword remains an owner
-question. The acknowledgement does not change propagation or lowering.
+transitively. `suspend` makes the direct call searchable and reviewable but does
+not change propagation or lowering.
 
 The amendment must still settle:
 
-- the concrete continuation/frame representation and capacity proof;
+- fixed-stack park/resume lowering against WCSU-derived `StackPlan`;
 - which shared, mutable, pinned, or owned loans may cross suspension;
 - cancellation and failure timing across a suspended call chain;
 - the precise wait-provider contract and positive progress hypotheses.
 
 No implementation may restore an `async machine`/`Future<T>` split, forbid all
 suspending calls, or kill every loan at suspension merely because those rules
-simplify lowering. The call-site acknowledgement is a static check over possible
-suspension, not a future transformation.
+simplify lowering. Call-site acknowledgement is a static check over possible
+suspension and blocking, not a future transformation.
 
 ## Wait substrate
 
@@ -175,9 +220,20 @@ fit ceilings that exclude forbidden suspension/blocking behavior and satisfy
 their target's reentrancy/resource rules. The exact entry and MMIO spellings
 remain open.
 
-Safe-point preemption is the default direction. Fully asynchronous preemption
-requires a separate saved-register/stack-context design and is deferred unless
-hard-real-time requirements force it.
+Architectural preemption may pause and restore opaque machine state at any
+instruction; it does not require a language safe point and does not authorize
+cancellation, migration, or replacement there. Semantic safe points occur only
+at explicit may-suspend operations or authored scheduling constructs. A target
+that may otherwise migrate an activation at arbitrary instructions must pin the
+activation whenever its possible live values demand CPU/thread preservation;
+there is no generic `SafePoints | Asynchronous` runtime mode.
+
+The compiler never inserts a semantic safe point as an ordinary optimization.
+A hot non-suspending kernel may be architecturally preempted while an outer
+machine places explicit polls between bounded chunks. Maximum abstract work
+between such points depends on the normalized bounded-work plan in
+`OWNER_QUESTIONS.md` #16. Blocking creates no safe point; absent a finite wait
+ceiling, semantic response is unbounded through the named blocking edge.
 
 ## Acceptance cases
 
@@ -195,13 +251,19 @@ hard-real-time requirements force it.
    requirement without sharing one storage representation.
 10. A pool/runtime cannot close while dependent task claims or leases remain.
 11. A suspension or migration rejects when any canonically live value's carry
-    policy forbids it, regardless of whether that value is copyable.
+     policy forbids it, regardless of whether that value is copyable.
+12. Missing or redundant `suspend`/`block` acknowledgements reject against the
+    statically known call envelope.
+13. A suspending call nested inside another expression rejects; a blocking-only
+    call may nest because it creates no continuation boundary.
 
 ## Implementation and deferred design work
 
-- Suspension amendment: continuation representation and suspension-safe loans.
-- `TaskRuntime` requirement, activation-plan artifact, transactional start
-  outcome, task/provider provenance, and child-lease accounting.
+- Suspension amendment: fixed-stack park/resume lowering and
+  suspension-safe loans.
+- `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
+  start outcome, task/provider provenance, and child-lease accounting.
+- Normalized bounded-work plan after owner question #16.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
 - `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general

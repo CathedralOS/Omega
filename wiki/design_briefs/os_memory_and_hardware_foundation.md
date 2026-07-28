@@ -1338,33 +1338,27 @@ carry/runtime compatibility. Crossing shared references additionally requires
 a sanctioned shared-access contract. Copyability remains an independent
 duplication property.
 
-Runtime providers state independent behavior:
+Runtime admission is demand-driven rather than a published behavior lattice.
+Each lowered activation receives one fixed nonmoving stack from
+whole-call-graph WCSU. A portable activation asks the scheduler for no affinity
+fact. An activation that may retain CPU- or thread-restricted values requires
+the selected provider to establish the corresponding preservation claim,
+commonly by consuming or borrowing an affinity/pinning capability.
 
-- safe-point or asynchronous preemption;
-- migration behavior and available affinity/pinning;
-- host-thread behavior; and
-- stable or movable continuation storage.
+The effect row stays static: a live mask or affinity token may make a particular
+call locally inadmissible without editing or masking the machine's published
+effects. A value that forbids suspension is checked locally at explicit
+semantic suspension points; provider selection cannot erase that ceiling.
+Address stability of stack-resident values follows from the fixed nonmoving
+`StackLease`.
 
-Admission joins demand and behavior. The effect row stays static: a live mask
-or affinity token may make a particular call locally inadmissible without
-editing or masking the machine's published effects.
-
-The normalized join is live in `omega-task-plans`: suspension is rejected
-locally against possible park crossings, while provider admission selects a
-safe-point or all-instruction migration envelope and checks CPU/thread
-affinity, continuation stability, frame provisioning, cancellation, and inline
-behavior. Missing opaque-runtime evidence is pessimistic. Compiler liveness
-derivation and provider-plan integration remain.
-
-The enforcement sites are deliberately asymmetric. A value that forbids
-suspension is checked locally against possible suspension; provider
-selection cannot erase that ceiling. CPU affinity, host-thread affinity, and
-address stability instead join the activation's demands with the runtime's
-normalized behavior at admission. Preemption granularity selects which points
-need those live-value checks. Runtime behavior is born pessimistic: a checked
-provider proves narrower behavior, while an opaque provider needs an admission
-receipt authorizing reliance on its narrower claim. The receipt does not change
-behavior; it changes what admission may trust.
+Architectural preemption may pause and restore opaque state at any instruction
+without becoming a semantic suspension point. A host capable of migrating the
+activation outside declared semantic points must establish activation-wide
+CPU/thread preservation whenever the machine may retain a restricted value, or
+reject that activation. Checked providers derive this guarantee; opaque
+providers need an admission receipt. The receipt changes what admission may
+trust, not actual behavior.
 
 Structural composition selects the most restrictive live-field demand on each
 axis; the axes share traversal, not an algebra. Interrupt masking and
@@ -1372,10 +1366,10 @@ scheduler-switch suppression are different linear tokens: the former defers
 delivery; the latter prevents an Omega activation switch but cannot prevent a
 host kernel from preempting its thread.
 
-Cathedral currently chooses safe-point scheduling and stable continuation
-storage in its own hardware/runtime profile. The language representation keeps
-the axes independent so Cathedral or another runtime may admit a stricter
-asynchronous provider without redesigning Omega.
+Cathedral may use arbitrary architectural preemption for scheduling and still
+reserve semantic cancellation, migration, and replacement for explicit
+safe points. Its activation stacks remain fixed and stable by construction;
+there is no provider-selectable continuation-storage mode.
 
 Local checking, runtime admission, and future temporal verification are three
 consumers of the same facts. Local checking combines canonical liveness with

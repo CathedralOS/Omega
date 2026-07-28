@@ -49,6 +49,12 @@ the provider asks no more of its caller. Handoff, remote execution, or a
 scheduler strategy that changes an observable item is a different declared
 contract, not a silent implementation choice.
 
+At a direct call, possible suspension and blocking are acknowledged with the
+independent contextual prefixes `suspend` and `block`. These prefixes mirror
+the statically known call envelope and change neither the machine contract nor
+the invocation model. They are call-site audit syntax, not additional machine
+species.
+
 This is refinement, not signature equality. Mechanically, each contract axis
 keeps the same substitution direction:
 

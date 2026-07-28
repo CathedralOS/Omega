@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-22.
+Last pruned: 2026-07-27.
 
 ## Effects, resources, and progress
 
@@ -20,10 +20,12 @@ Last pruned: 2026-07-22.
 - Defer additional operational clauses and service-row polymorphism
   until a concrete customer forces their declaration, coherence, and
   separate-compilation rules.
-- Finish the suspension implementation brief: continuation layout and capacity,
-  cancellation behavior, and suspension-safe loans. Ordinary calls compose
-  suspension through the normalized contract; `OWNER_QUESTIONS.md` selects the
-  required direct-call acknowledgement keyword and its exact placement.
+- Finish fixed-stack park/resume lowering, cancellation behavior, and the
+  conservative suspension-safe-loan subset. WCSU derives one fixed nonmoving
+  `StackPlan` per lowered activation; settled `suspend` and `block` markers
+  acknowledge the exact statically known call envelope.
+- Settle and implement the normalized abstract-work plan in owner question #16,
+  including attributed unbounded paths and work-to-next-safe-point queries.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
 
@@ -39,11 +41,13 @@ Last pruned: 2026-07-22.
   relaxed visibility in concurrency proofs. The integer
   load/store/RMW family already preserves validated orderings into exact
   x86_64/aarch64 lowering; checked ISA and device/DMA barriers remain distinct.
-- Implement normalized runtime behavior in the existing provider-plan and
-  admission spine. Suspension is checked locally against effects; CPU/thread/
-  address demands join provider behavior plus preemption granularity.
-  Unproved behavior is pessimistic unless an admission receipt authorizes
-  reliance on a narrower claim.
+- Migrate the task-plan prototype away from generalized runtime supply.
+  Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
+  WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
+  restricted values demand the corresponding preservation evidence.
+- Finish sealed external callback entry under owner question #12 and retained
+  foreign-pointer lifetime under #14. The reusable hosted-FFI gateway resource
+  and cancellation contract is separately owner question #17.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no

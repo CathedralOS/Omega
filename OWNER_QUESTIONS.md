@@ -5,191 +5,7 @@ Settled decisions live in the language guide and design briefs; implementation
 and deliberately deferred research live in `TASKS.md`. Question numbers remain
 stable when a resolved entry is removed, so gaps are intentional.
 
-Last pruned: 2026-07-26.
-
-## 4. How is quantified convergence packaged as a quotient relation?
-
-The checked construction corpus now proves rational closeness transitivity and
-its pointwise sequence form for arbitrary precision and indices. That is not
-yet the proposition required by `data Real = CauchySeq %
-converges_together`. A Cauchy certificate has the logical shape "there exists a
-modulus such that, for every positive precision and every pair of later
-indices, the samples are close"; heterogeneous convergence has the same
-existential/universal shape. Current machine parameters quantify only across a
-theorem declaration. They cannot package an existential static-machine witness
-and its universal proof as a value or as the checked pure binary `bool`
-relation the quotient validator requires.
-
-Decide:
-
-- whether the general source surface is a proof-only proposition/certificate
-  type, explicit quantifiers, or an existential package of static machine
-  witnesses plus checked theorem schemas;
-- whether a sequence's modulus and Cauchy proof participate in
-  `CauchySeq<...>` family identity, remain erased evidence attached to one
-  representative, or use a separate normalized proposition identity;
-- how `converges_together<A, B>(a, b)` binds or receives its joint modulus and
-  proof while remaining the binary relation shape required by quotient
-  formation;
-- how reflexivity, symmetry, and transitivity compose existential witnesses
-  without a compiler-known Cauchy rule, and how their certificates are exposed
-  to the existing quotient equivalence checker; and
-- which termination, universe, coherence, and separate-compilation rules keep
-  quantified certificates ordinary checked Omega declarations rather than a
-  hidden trusted logic.
-
-Recommendation: add one general proof-only quantified-certificate mechanism,
-not Real-specific syntax. It should existentially package erased static-machine
-witnesses with checked universal theorem schemas, give the resulting
-proposition a normalized identity, and let quotient relations consume that
-proposition plus ordinary equivalence witnesses. Keep all moduli and proof
-machines out of runtime layout. Do not admit an always-true executable relation,
-an implicit compiler quantifier, or a boundary axiom as a temporary Real
-implementation: each would change or assume the semantics the construction is
-supposed to prove.
-
-## 5. What are the semantic world and resource policy for compiler-run Omega code?
-
-Build-time evaluation executes ordinary machines in constant positions and
-compiler-owned generator sites. Eligibility can require a checked
-`EventualTerminal` summary, but termination proves only that work eventually
-finishes; it does not make brute-force proof search, layout generation, or a
-dependency-supplied computation affordable. Wall-clock limits would be
-nondeterministic, while an unbounded evaluator permits accidental or hostile
-compile-time cost.
-
-The evaluator process runs on the build host but must interpret the selected
-target's Omega world. Target integer widths, overflow and float behavior,
-layout, endianness, calling-plan inputs, and other admitted target facts must
-therefore be explicit semantic inputs. Accidentally consulting host width,
-layout, environment, clock, filesystem, or floating-point behavior is a
-correctness bug, not an implementation detail; a cross-build must compute the
-same value as an equivalent evaluator hosted on the target.
-
-Decide:
-
-- which target facts compiler-run code may observe, how they enter the
-  evaluation context, and which host observations remain categorically
-  unavailable;
-- how target-world inputs and evaluator-semantics version enter cache and
-  diagnostic identity so a host or target change cannot reuse a stale result;
-- which deterministic work unit the evaluator charges (machine transitions,
-  reduced terms, proof-engine steps, or a normalized weighted combination);
-- whether budgets are per invocation, package, compilation, or a hierarchy of
-  all three, and how parallel evaluation preserves deterministic accounting;
-- how a root project raises a budget deliberately without allowing a dependency
-  to raise or consume an unreviewed amount silently;
-- whether approaching a budget emits warnings, whether exhaustion is always a
-  hard error, and how diagnostics render the expensive call chain and cache
-  misses;
-- how target-dependent operation costs interact with target-world semantic
-  evaluation without turning the limit into target-specific wall time; and
-- which results and certificates are Merkle-cached, and how cache identity
-  includes target facts, evaluator semantics, and the granted budget where it
-  can affect strategy.
-
-Recommendation: require an available `EventualTerminal` guarantee for every
-compiler-run invocation, including a local checked summary for an acyclic body;
-this is admission, not budgeting. Charge a deterministic semantic-work counter,
-apply conservative per-invocation and aggregate project ceilings, and let only
-the root project grant explicit named increases. Exhaustion reports a
-build-resource limit, never divergence or a failed termination proof. Cache
-repeatable results by semantic inputs. Encourage expensive searches to emit
-compact certificates consumed by cheaper checked verifiers, while still
-allowing an owner-approved high budget for deliberate brute-force work.
-
-## 6. Which keyword acknowledges a suspension-capable direct call?
-
-Omega intentionally avoids `async machine` and `Future<T>`: one ordinary
-machine can run in the current activation or be supplied to `runtime.start<M>`
-for a distinct activation. That does not require possible parking to be hidden
-at an ordinary-looking direct call. Suspension changes latency, cancellation
-timing, continuation retention, and which loans and linear values cross a
-scheduler boundary. Hiding those facts behind a local-call-shaped API conflicts
-with Omega's bias toward explicit high-consequence behavior.
-
-The direction is deliberate: Omega will require a source keyword at a direct
-call whose selected contract may suspend. This makes latency-bearing calls
-searchable, keeps suspension visible in code review, and prevents an ordinary-
-looking API from hiding scheduler and continuation consequences. The previous
-no-call-site-marker ruling was flawed because it optimized away exactly the
-explicitness Omega normally requires. What remains deferred is the keyword and
-its precise treatment of blocking, expression position, and generated code,
-not whether suspension should be acknowledged.
-
-Decide:
-
-- whether possible blocking requires its own acknowledgement, shares one
-  latency-bearing-call marker with suspension, or remains visible only through
-  the contract and tooling; a shared marker is terser but hides whether the
-  runtime may park the activation or occupy its worker;
-- the spelling (`suspend`, `await`, or another term), especially since the call
-  may complete immediately and returns an ordinary value rather than a future;
-- how the checker derives the requirement from the normalized selected
-  contract, so a concrete checked non-suspending refinement needs no marker
-  while a call through a suspension-capable requirement does;
-- how calls in expressions, transition subjects and arguments, generated code,
-  proof/build-time evaluation, cleanup, and boundary adapters spell or forbid
-  the acknowledgement;
-- how artifacts record the marker's source acknowledgement while it affects
-  only source legality and diagnostics, with no new machine identity, ABI,
-  return type, activation, or lowering semantics; and
-- how task start is distinguished: `runtime.start<M>` acknowledges creation of
-  a distinct activation, while the call to `start` itself needs the suspension
-  marker only when `start` may park the current activation.
-
-Recommendation: treat the keyword as an audibility check over the normalized
-suspension contract, not an execution operator: it does not force a park,
-create a future, or change synchronous/direct invocation.
-Calling `M(args)` still runs `M` in the current activation; `runtime.start<M>`
-still creates another activation. A genuinely non-suspending API must expose a
-narrower checked contract, commonly through a `try_` operation, rather than
-promising that one invocation of a suspension-capable requirement happens not to park.
-This follows the distributed-systems lesson that local and latency-bearing
-operations should not be made syntactically indistinguishable; the closest
-classic reference is Waldo et al., *A Note on Distributed Computing*.
-
-## 9. How does a task-runtime provider publish checked behavior?
-
-The normalized activation/runtime join and receipt qualification exist, but no
-source or checked-plan carrier can currently supply the runtime side of that
-join. `TaskRuntime` has ordinary runtime fields plus attached boundary machines;
-canonical provider selection owns requirement realizations derived from
-`satisfies` closures. No existing declaration or derived contract states a
-runtime's continuation capacity/alignment, preemption granularity, CPU/thread
-migration, continuation movement, cancellation support, or inline-completion
-behavior. Those facts cannot be inferred from `suspends`, `blocks`, calling
-conventions, target identity, or a provider plan's callable rows.
-
-Decide:
-
-- whether `TaskRuntime` becomes or is paired with an ordinary boundary-trait
-  requirement realization, or whether provider plans gain a general nominal boundary-data
-  requirement without introducing a task-only selection mechanism;
-- which checked provider declarations/evidence derive each behavior field, and
-  which fields may remain opaque claims requiring a root grant;
-- how capacity and alignment claims bind to provider storage/arena plans rather
-  than unaudited integer literals;
-- whether `start` and `try_start` share one runtime behavior contract or may
-  select distinct contracts, especially for inline completion and transactional
-  rejection;
-- how the behavior statement, provider-plan identity, selected realization, opaque
-  runtime representation plan, and executable dispatch identity compose into
-  one receipt without circularly treating a claim as its own proof; and
-- how a selected runtime value carries that admitted provider provenance to
-  `Task<T>` while preventing arbitrary opaque values from borrowing another
-  provider's admission.
-
-Recommendation: make task runtime an ordinary selected provider realization and add a
-normalized provider-behavior evidence record to the common provider plan. Derive
-capacity/alignment from an admitted storage plan and operational behavior from
-checked provider contracts where possible; require the normal trust receipt for
-opaque residual claims. One admitted runtime contract should cover both start
-operations, with `try_start` additionally required to prove transactional
-argument/lease return. Keep the current provider-independent activation demand
-and join unchanged. Do not infer behavior from target names, manufacture a
-compiler-only default provider, or add a parallel task-specific selection or
-grant table.
+Last pruned: 2026-07-27.
 
 ## 10. What requirement family supplies primitive float operations?
 
@@ -297,7 +113,16 @@ Decide:
   edge, and how replacement or revocation removes that root safely;
 - how the private ABI lowering materializes the native callback pointer only
   inside the admitted foreign binding, including callback-specific context,
-  lifetime, thread, and reentrancy contracts; and
+  lifetime, thread, and reentrancy contracts;
+- how each callback entry mode declares whether it continues the current stack
+  chain or starts a distinct activation with its own `StackPlan`, without
+  assuming those are the only modes a future target may define;
+- how a foreign provider publishes a complete upper bound on which entries may
+  synchronously invoke which registered callbacks, with missing evidence
+  conservatively meaning any callback rather than an unsound empty set;
+- how the checker prefers static callback-cycle exclusion, and how an
+  intentionally recursive callback uses chain-owned enforced depth plus a
+  protocol-valid overflow disposition when exclusion is impossible; and
 - which local descriptor machinery from language-guide chapter 14 may be shared
   without making an external callback merely a `dyn Trait` descriptor entry or
   erasing the internal-versus-external calling distinction.
@@ -308,9 +133,14 @@ admitted selected `satisfies` edge whose requirement pins the evaluated
 have the registration boundary consume separate scoped authority and return a
 linear registration receipt that owns the foreign-held root until explicit
 revocation and quiescence. Materialize a native code pointer only inside that
-admitted binding. Reuse sealed satisfier identity and root-ledger machinery,
-but do not add raw machine addresses, integer conversion, an arbitrary
-function-pointer type, or a Win32-specific callback construct.
+admitted binding. Make the entry mode determine stack accounting: continuing
+entry joins the current mixed call chain, while a new activation receives a
+separately provisioned `StackPlan`. Require a provider-complete admitted
+callback-invocation upper bound; prefer proving the mixed graph acyclic, and
+admit bounded re-entry only through an enforced chain-owned measure whose
+overflow action is valid for that protocol. Reuse sealed satisfier identity and
+root-ledger machinery, but do not add raw machine addresses, integer conversion,
+an arbitrary function-pointer type, or a Win32-specific callback construct.
 
 ## 13. What is the portable standalone atomic-fence contract?
 
@@ -464,3 +294,107 @@ admission inputs, and retained in every delegated qualification-use artifact.
 Do not derive authority from imports, build dependency aliases, public trait
 visibility, carrier ownership, or the presence of a conformer. Until this
 surface settles, third-party canonical satisfiers must continue to fail closed.
+
+## 17. What is the normalized bounded-work plan and composition algebra?
+
+WCSU gives Omega a static space bound: a closed activation can reserve one
+fixed, nonmoving stack and retain it across suspension. It says nothing about
+execution work. Three independent customers now need that time-dual:
+resource-bounded interrupt roots, maximum work between semantic safe points,
+and the deterministic cost vocabulary used by build-time evaluation. Reusing
+the phrase "bounded work" without one normalized plan would let those lanes
+quietly charge different units and compose loops differently.
+
+The required distinction is already clear. Abstract work is deterministic and
+target-parameterized; it is not wall-clock time. Sequential work adds, branch
+work takes the maximum reachable arm, and an SCC requires the same authored
+ranking/measure discipline used for termination. A blocking edge without a
+finite wait contract does not become a large work number: semantic response is
+unbounded for a named reason. A target may convert work to time only through a
+derived or admitted timing model whose trust provenance remains visible.
+
+`omega-external-roots` already contains a provider-local `FixedWork` composer
+and a `StructuralWorkResourceColumn`. That is useful implementation evidence,
+not a second work semantics: this question decides how it migrates into the
+general machine/control-flow plan, gains measured SCC and selected-point
+queries, and shares one cost vocabulary with the other customers.
+
+Decide:
+
+- the canonical abstract primitive-cost vocabulary and which target facts may
+  parameterize it without making acceptance depend on host load or elapsed
+  time;
+- the exact normalized `WorkPlan` shape, including ceiling, realized work,
+  evidence, and the path/cycle witness retained for a maximum or unbounded
+  result;
+- composition across calls, branches, loops, mutually recursive SCCs, indirect
+  dispatch envelopes, cleanup edges, interrupts, and component boundaries;
+- how to query maximum work between selected semantic points without making
+  every loop backedge or state transition an implicit scheduling safe point;
+- how external waits and foreign calls contribute a finite ceiling, a named
+  unbounded edge, or a separately retained completion obligation;
+- how target timing conversion records cache/frequency/platform premises and
+  composes trust by the weakest input; and
+- which common cost algebra is shared with build-time metering while still
+  allowing build evaluation to report realized work without requiring a static
+  hard ceiling.
+
+Recommendation: add one compiler-normalized `WorkPlan` over deterministic
+abstract steps. Sum along an edge/path, take maxima at alternatives, and use an
+authored measure for repeated SCC composition. Preserve attribution instead of
+collapsing an unbounded result to bare infinity. Keep work, external wait, and
+wall-clock conversion as distinct report columns; a timing number is only as
+trusted as its weakest timing premise. Do not use elapsed compiler time, infer
+safe points from optimizer placement, or make build evaluation's optional
+budget policy the language's work semantics.
+
+## 18. What is the reusable hosted-FFI execution and gateway contract?
+
+An opaque native function supplies neither checked WCSU nor Omega's blocking,
+cancellation, retention, callback, and failure guarantees. A direct adapter can
+run it on the current activation stack under an admitted foreign-call plan. A
+gateway can instead suspend the Omega caller and execute the function on a
+bounded pool of native worker stacks. That confines stack accounting and keeps
+native blocking off Omega scheduler workers, but relocates rather than removes
+unboundedness: a hung call retains one worker, may retain loans indefinitely,
+and can exhaust the shared pool.
+
+This choice cannot be a compiler heuristic. Some foreign APIs require the
+initiating thread, thread-local state, a UI/COM apartment, or synchronous
+callbacks. Others are best served by an ordinary worker gateway. Hostile code
+needs a process or hardware protection boundary rather than a declared stack
+number. Guarded stacks detect ordinary exhaustion but prove containment, not
+successful completion.
+
+Decide:
+
+- how a binding selects direct execution, a pinned or general native-worker
+  gateway, or an isolated process without creating a second component model;
+- the normalized foreign-call plan for direct execution, including admitted
+  same-stack contribution, blocking/failure behavior, callback topology, and
+  target calling plan;
+- the normalized gateway resource plan: worker count, worker stack provision,
+  queue capacity, admission/exhaustion behavior, scheduling partitions,
+  cancellation disposition, retained-loan custody, and shutdown/quiescence;
+- whether the common API exposes both bounded `try_submit -> Accepted | Busy`
+  and possibly-unbounded `suspend submit`, and how moved arguments return on
+  failed admission;
+- how cancellation distinguishes native acknowledged cancellation, legal
+  detachment under gateway-owned storage, deferred finalization, and
+  process-level termination;
+- how reports keep time-to-safe-point, operation completion, cancellation
+  finalization, retained-resource release, and gateway admission latency
+  separate and attributed; and
+- which stack-guard/failure-domain facts are derived or admitted per target,
+  without claiming that a guard makes arbitrary in-process native corruption
+  recoverable.
+
+Recommendation: model a gateway as an ordinary boundary provider backed by a
+bounded native-worker resource, not as a new call kind. Let binding packages
+select the execution disposition explicitly. Provide bounded admission and
+backpressure, retain exact loan/custody paths until native completion, and
+partition unknown or blocking libraries away from latency-sensitive platform
+services. Treat a guard as enforced stack containment and an overflow as an
+abnormal exit; it does not prove the foreign call's WCSU or permit resuming
+possibly corrupted in-process state. Keep direct FFI available for audited
+leaf calls and require process isolation for hostile native code.

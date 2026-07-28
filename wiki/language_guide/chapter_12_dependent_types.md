@@ -264,7 +264,7 @@ machine Kernel::walk_map(&self) {
 }
 ```
 
-The recast borrow (chapters 21/21) discharges its bounds obligation from the
+The recast borrow (Chapter 20) discharges its bounds obligation from the
 arm guard plus the coupling. Striding by the compile-time size of
 `EfiMemoryDescriptor` instead does not compile: no fact ties that constant to
 `len`.
@@ -401,16 +401,25 @@ explicit, both already in the language:
 
 ## Scope
 
-This chapter is intentionally narrow:
+The implemented systems fragment in this chapter is intentionally narrow:
 
 - **No type-level computation.** A type never runs a machine. Layouts and
   facts are parameterized by values, never computed by arbitrary code.
-- **No quantifiers.** Array-wide facts are element ranges and domains carried
-  on the type (store-enforced), not `forall` propositions.
-- **No proof objects.** Proofs remain engine-internal and erased. The
-  small-kernel endgame
-  ([proof_engine_north_star.md](../design_briefs/proof_engine_north_star.md))
-  layers under this surface without changing it.
+- **No runtime-general quantifiers.** Array-wide facts are element ranges and
+  domains carried on the type (store-enforced), not hidden runtime loops.
+- **No runtime proof objects.** Runtime dependent data acquires no hidden proof
+  field, layout, or cleanup.
+
+The proof stratum now has one ordered extension beyond that systems fragment:
+proposition-valued families over representative values, with typed
+proof-static index telescopes and carrierless erased evidence. It admits
+`R(left, right) : Proposition`; it does not admit arbitrary
+value-to-runtime-`Type` computation. This fragment must land before
+evidence-bearing quotients and is specified in
+[Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
+The small-kernel endgame
+([proof_engine_north_star.md](../design_briefs/proof_engine_north_star.md))
+layers under both surfaces.
 
 ## Relationship To Other Chapters
 
@@ -423,10 +432,12 @@ This chapter is intentionally narrow:
 - Chapter 10 owns proof machines and evidence; a dependent contract may cite
   a theorem — a fact justified by a proof machine, instantiated at the
   operands — including refinement facts equating a runtime place with a pure
-  machine's result.
+  machine's result. It also owns the proof-only proposition-family extension;
+  this chapter does not generalize that extension into runtime dependent
+  types.
 - Chapter 13 owns the static lowering; const parameters are witnesses the
   compiler evaluates away.
-- Chapters 21/21 own layout and the recast borrow; dynamic strides are their
+- Chapter 20 owns layout and the recast borrow; dynamic strides are its
   runtime face.
 - The index/count model brief (§8, shape-typed views) is the planned home
   for multidimensional index sugar over the raw `y*width + x` spelling.

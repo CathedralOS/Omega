@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-07-18. This brief defines the durable extern model. Concrete
+Current as of 2026-07-27. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -141,6 +141,38 @@ entry stub implement the pinned boundary-machine contract. See
 The evaluated plan belongs to the satisfied requirement through ordinary
 `Calling<C>` policy composition. The old `boundary(<Plan>)` marker is retired;
 `boundary` identifies the trust/supply edge and does not carry deployment data.
+
+## Foreign execution placement and stack accounting
+
+The binding package selects where an opaque call executes; the compiler does
+not guess from a DLL name or signature.
+
+```text
+direct
+    foreign frames continue the current activation's stack chain
+    an admitted foreign ceiling enters that StackPlan
+
+gateway/component
+    the caller accounts for its checked local stub
+    the provider owns a separately provisioned native stack
+
+isolated
+    the call crosses a process or hardware protection boundary
+```
+
+A boundary requirement's resource ceiling is not evidence that an opaque
+implementation fits it. Checked Omega realizations derive WCSU. A native
+binding needs admitted foreign demand, or an enforced guarded capacity whose
+overflow remains an abnormal-exit route rather than proof of successful
+completion. Trust composes by the weakest input and reports the exact foreign
+premise.
+
+A hosted gateway is an ordinary boundary provider backed by a bounded native
+worker resource. Reaching its submission safe point does not bound native
+completion, cancellation finalization, retained-loan release, or later gateway
+admission. Pool/queue/backpressure and failure-domain semantics remain owner
+question #17. External callback descriptors and mixed-stack invocation topology
+remain owner question #12; retained pointer custody remains #14.
 
 ## Foreign data and formats
 

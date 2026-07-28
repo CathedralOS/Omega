@@ -97,10 +97,14 @@ of a retired subtraction subject is reconstructed from the normalized witness,
 not from compatibility spans.
 
 Checked-artifact status (2026-07-17): every acyclic body records a local
-`EventualTerminal` summary, including an unannotated private body. The
+`Terminates` summary, including an unannotated private body. The
 normalized machine contract independently records only the authored promise;
 omission therefore remains published `NoGuarantee`. One regression test pins
 both halves so body inference cannot silently become interface authorship.
+
+The implementation's current compatibility enum still spells this positive
+case `EventualTerminal`; migrate it to `Terminates`. There is no second
+completion guarantee behind the older name.
 
 Visual artifact status (2026-07-17): `05_machine_contracts.json` serializes
 that split explicitly. Each machine has an authored `contract` object

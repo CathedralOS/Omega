@@ -47,6 +47,60 @@ self.view.render_room(&self.room);
 Argument evaluation order should be specified and stable. The initial policy
 should be left-to-right because it is easiest to reason about and diagnose.
 
+Calls whose statically known operational envelope may pause execution while
+live state remains held require an exact acknowledgement:
+
+```omega
+ordinary_call();                 // guaranteed neither
+suspend may_park();              // may suspend the activation
+block may_block_worker();        // may block the current worker
+suspend block may_do_either();   // may do either
+```
+
+`suspend` and `block` are contextual prefixes recognized immediately before a
+call; they do not become global declaration modifiers. These prefixes
+acknowledge possibilities, not events guaranteed to happen.
+They do not force waiting, create a task or future, alter the call's contract,
+change its result, or select an implementation. Missing, partial, redundant,
+or out-of-order markers reject against the call's statically known envelope.
+The combined spelling is always `suspend block`.
+
+Suspension creates a continuation boundary. A call carrying `suspend` must
+therefore be the complete operation in one of these positions:
+
+```omega
+suspend inbox.wait();                    // statement
+let event: Event = suspend inbox.take(); // simple let right-hand side
+transition suspend inbox.take() { ... }  // transition subject
+suspend compute_result()                 // terminal expression
+```
+
+It may not be nested inside another argument, operator, aggregate, condition,
+or other partially evaluated expression:
+
+```omega
+// Rejected: the left operand would become hidden continuation state.
+let total: u64 = prefix + suspend source.next();
+
+// Bind first.
+let next: u64 = suspend source.next();
+let total: u64 = prefix + next;
+```
+
+A blocking-only call retains the ordinary stack and creates no continuation
+boundary, so it may nest:
+
+```omega
+let total: u64 = prefix + block source.next();
+```
+
+A separate binding is still often clearer, especially under a held guard. The
+checker uses local checked summaries where available and pinned envelopes for
+imports, requirements, generic calls, and boundary operations. Dynamic calls
+use the per-requirement envelope statically retained by the value.
+Consequently, transparent `suspends false` and `blocks false` refinements remove
+the corresponding marker requirement.
+
 ## Operators
 
 Operators are typed operations.

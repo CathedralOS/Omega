@@ -1,122 +1,229 @@
 # Design Brief: Build-Time Evaluation — Const Evaluation + Trait Generators
 
-Current design as of 2026-07-23. Omega uses **build-time evaluation**, with no
-`comptime`, macro, or `#run` keyword. The staging section below records the
-remaining engineering sequence.
+Current design as of 2026-07-27. This brief resolves former owner question 5.
+Omega uses hermetic **semantic evaluation** for constants, proofs, plans, and
+trait generators. It has no `comptime`, macro, or `#run` keyword.
 
-## The settled model (2026-07-02)
+Do not confuse this facility with [`build.omg`](build_and_package_model.md).
+`build.omg` is build orchestration in a build-host world with explicitly
+injected capabilities. Semantic evaluation is the compiler's target-semantic,
+hermetic evaluator. They happen before runtime for different reasons and
+have different admissibility and reproducibility contracts.
 
-- **No declaration marker.** Build-time-evaluability is derived from the
-  complete normalized machine contract. Empty service reach plus absence of
-  `suspends` and `blocks` are necessary but not by themselves sufficient: trust
-  reach, authority inputs, resources,
-  failure/control outcomes, and termination must also fit the build-time
-  context. A keyword would restate a checked contract judgment.
-- **Evaluation time is a fact of the POSITION, not the declaration.** A
-  position that needs a value during compilation (an array length, a const
-  type argument, a `Layout` policy's `plan()` consumed by the deriver)
-  evaluates there; the compiler checks every machine reached against the
-  build-time contract floor and errors at the use site otherwise, rendering
-  the CHAIN from the position to the offending contract axis.
-- **The trait signature is the stability contract.** `Layout::plan` has empty
-  published service reach, omits `suspends` and `blocks`, and carries a build-
-  time-compatible contract; conformance
-  requires signature agreement, so an implementation growing an effect breaks at ITS declaration
-  — exactly where a keyword would have put the error, with zero new surface.
-- **Cross-compilation**: build-time evaluation runs on the host but computes
-  TARGET facts — inputs arrive target-resolved (see recommendation 4), and the
-  reference interpreter's semantics are target-agnostic.
-- The one existing compile-time spelling in the grammar stays: `const N: u64`
-  type parameters (a POSITION, on a parameter — never a marker on a machine).
+## Governing laws
 
-## Current State
+> Evaluating an eligible runtime-capable machine during compilation produces
+> exactly the value that executing the same machine, with the same arguments,
+> selected conformances/providers, and target semantics, would produce on the
+> target.
 
-- Direction frozen (decision 8 / chapter 14): NO macros, NO #run. Const
-  evaluation = build-time-admissible machines in constant positions; trait
-  generators = trait-machine bodies using `Self::fields` reflection,
-  expanded per conformance, declarer-only, and build-time-admissible.
-- Landed precedent: Equatable synthesis (equatable.rs +
-  structural_equality.rs) — hand-rolled inline expansion at resolved→typed
-  lowering. Trait generators would GENERALIZE and eventually replace it.
-- The reference interpreter is the landed engine: contract-gated,
-  deterministic, and differential-oracle-proven; no second evaluation
-  machinery was introduced.
-- Fixed-array lengths and const-generic call leaves evaluate zero-argument
-  machines. Machine-backed const-domain facts evaluate one checked integer
-  operand. Layout, wire, and calling-policy derivation invoke their selected
-  policy machines against compiler-materialized values.
-- Decision 22's normalized row plus the other machine-contract axes supply the
-  admission check; empty reach alone is not the whole gate.
-- The shared admission floor now consumes canonical effective service reach
-  and independent recursive suspension/blocking summaries; these six clients
-  no longer consult the legacy global `EffectSet`. Authority, trust, resource,
-  failure/control, termination, and escaping-mutation checks remain to complete
-  the contract.
-- First heavyweight client landed: programmable layouts
-  ([`programmable_layouts.md`](programmable_layouts.md)) — the compiler
-  invokes `Layout::plan(schema)` at build time and derives codecs,
-  projections, and value types from the validated Plan.
+Evaluation changes *when*, never *what*. There is no `is_build_time()`
+predicate or other phase observation. A proof-only machine may have no runtime
+representation, but it follows the same core value semantics and cannot observe
+that the compiler is evaluating it.
 
-## Recommendations
+> The position requests evaluation. The concrete invocation's complete
+> normalized contract decides whether evaluation is legal.
 
-1. **First position: fixed-array lengths** (`[T; N]` where N is a
-   build-time-admissible machine call). Lowest coupling, biggest proof leverage
-   (lengths drive index facts). Const type params follow in stage 3. Data field
-   defaults are forbidden; constructor machines may still be evaluated in
-   legitimate constant positions. (The LAYOUTS client needs none of these first: the compiler
-   itself invokes `plan()` — a blessed-trait call site, not a general const
-   position — so the layouts ladder can start on the interpreter entry point
-   alone.)
-2. **Admission gate: reuse the complete normalized contract** —
-  build-time-evaluable(callee) requires empty service reach, no possible
-  suspension or blocking, build-time-valid authority/trust/resource/failure
-  behavior, termination, and no escaping runtime mutation. No annotation; the
-   position makes it build-time, the contract system makes it legal.
-3. **Termination and evaluator budget**: every compiler-run invocation must
-  have an `EventualTerminal` guarantee available from its visible contract or
-  checked local summary. Recursive calls carry checked decreasing measures;
-  runtime lowering additionally requires tail position, while proof/build-time
-  evaluation may use measured non-tail recursion. A deterministic evaluator
-  work budget remains an independent resource policy: fuel does not make a
-  partial machine admissible, and exhausting it reports a build-resource limit,
-  never semantic divergence or a failed termination proof. The exact surface
-  for raising a project budget and constraining dependency-supplied evaluation
-  remains to be settled; expensive repeatable work should be Merkle-cached,
-  and proof searches may instead produce a certificate for a cheaper checked
-  verifier.
-4. **Determinism**: emulate TARGET integer widths in the build-time evaluator
-   (the interpreter already has signedness/width adjustment — audit and
-   reuse). Host-width leakage is a correctness bug; cross-compilation is a
-   stage-1 goal.
-5. **`Self::fields` exposes names + types only** (stage 1); offsets/case
-   reflection deferred. Access spelling: bracket form `self.[field]` —
-   syntactically distinguishes the build-time-unrolled access from static
-   field access.
-6. **equatable.rs is temporary**: stage 2 rewrites `Equatable` as a core
-   trait with a generator body and retires the hand-rolled path. One
-   mechanism, no special cases.
-7. **Failure UX**: compile error at the const site naming the position and
-   the failing machine (no silent fallback), with the call chain to the
-   offending contract axis.
+No declaration marker restates that judgment.
 
-## Touches
+## Two pre-runtime execution worlds
 
-omega-symbol-resolved-trees (const queries), omega-interpreter (build-time
-evaluation entry point + error reporting), resolved→typed lowering
-(array-length const pass; generator expansion pass), omega-validation
-(witness facts from const results, later).
+| Property | Semantic evaluation | `build.omg` orchestration |
+|---|---|---|
+| Purpose | constants, proofs, plans, generators | dependencies, target selection, staging |
+| World | selected target semantics | build-host services |
+| Reach | hermetic | explicit scoped capabilities |
+| External input | compiler-materialized values | provider operations and receipts |
+| Result | value/evidence consumed by compilation | `Build`, staged artifacts, lock inputs |
+| Reproducibility | semantic cache identity | operation ceiling + realized receipts |
 
-## Staging
+`build.omg` may read files or use an admitted network provider. A proof machine
+cannot. The handoff is explicit:
 
-1. Build-time evaluation entry point + normalized service/operational gate +
-   target-width audit + failure diagnostics are landed for the current const
-   and policy clients. Complete the remaining contract axes; the layouts
-   `plan()` call site is the pilot client
-   (see programmable_layouts.md) alongside or ahead of array lengths;
-   Equatable-via-generator as a hand-wired pilot.
-2. General generator expansion framework; Hashable; retire equatable.rs.
-3. Const type parameters + substitution; `terminates by`-gated recursion;
-   const-driven proof witnesses.
+```text
+build.omg observation
+  -> staged value/artifact plus receipt
+  -> recorded build input
+  -> compiler materializes an ordinary value
+  -> semantic evaluation consumes that value
+```
+
+There is no route from an ambient host observation directly into a proof,
+layout, type, or constant.
+
+## Target-semantic world
+
+The evaluator process runs on the host but interprets the selected target's
+Omega world. Its sealed semantic input includes:
+
+- language/evaluator semantics version;
+- target primitive semantics required by the program;
+- selected conformance and provider-plan identities;
+- normalized machine implementations; and
+- explicit compiler-materialized arguments.
+
+It cannot observe host filesystem, environment, clock, randomness, network,
+pointer width, floating-point behavior, or process state. Target facts used as
+ordinary data arrive as explicit values or selected requirement inputs. The
+sealed target capsule is an evaluator/cache input, not a general source-visible
+`BuildWorld`.
+
+Target equivalence is an acceptance requirement. In particular, build-time
+`f32`/`f64` arithmetic must match target execution bit-for-bit wherever the
+language specifies a result. Constant/runtime twin canaries must cover rounding
+boundaries, subnormals, overflow/underflow, signed zero, infinities, NaN policy,
+and fused-versus-unfused operations. Computing target `f32` through host `f64`
+without an exact equivalence proof is a compiler bug.
+
+## Admission uses the complete invocation contract
+
+An empty service-reach row is necessary and nowhere near sufficient.
+Suspension, blocking, failure/control outcomes, authority, trust, escaping
+mutation, and termination are independent contract axes.
+
+The compiler specializes the selected machine contract at the concrete
+arguments and available facts, then requires:
+
+- ordinary checked termination;
+- empty runtime service reach;
+- no possible suspension or blocking;
+- no unhandled failure, trap, or abort route for the demanded value;
+- no runtime authority acquisition/consumption;
+- no escaping runtime mutation; and
+- only proof/build-admissible trust and resource inputs.
+
+This is invocation-sensitive. A generally trap-capable `divide` may evaluate at
+`divide(10, 2)` when the nonzero obligation is discharged. A position demanding
+`divide(10, 0)` rejects before evaluation and names the undischarged route and
+call chain. If the evaluator nevertheless reaches a forbidden terminal route,
+it reports the trace as a checker/accepted-assumption consistency failure.
+Handled result sums remain ordinary values.
+
+Trait requirements pin the public floor. A conformance cannot grow an
+incompatible axis unnoticed; it fails at the conformance declaration.
+
+## Ordinary termination, not compile-time totality
+
+Semantic evaluation requires the existing `terminates` guarantee. There is no
+second compile-time completion concept:
+
+```text
+TerminationGuarantee = NoGuarantee | Terminates
+```
+
+An acyclic checked body supplies a local `Terminates` summary without source
+annotation. A cyclic body supplies `terminates by ...`. An open or separately
+compiled contract writes `terminates;` when consumers may rely on it. This is
+the normal infer-when-closed, declare-when-open split.
+
+Termination proves eventual completion, not affordability. A deliberately
+hours-long terminating proof is legal.
+
+## Deterministic work observation and optional policy
+
+The evaluator maintains a deterministic usage record independent of host speed,
+thread scheduling, optimization, and target cycle cost. The initial normalized
+record should retain canonical counts rather than one permanently weighted
+scalar:
+
+```text
+EvaluationUsage {
+    evaluation_steps;
+    logical_words_processed;
+    aggregate_elements_constructed;
+    peak_live_cells;
+    result_cells;
+}
+```
+
+This meter supports three policies without becoming program semantics:
+
+1. live progress attribution;
+2. deterministic large-work warnings; and
+3. optional root-selected hard ceilings.
+
+The root may raise or remove ceilings. Dependencies may publish expected usage
+but cannot grant themselves more. Evaluation code cannot inspect remaining
+work, branch on policy, catch exhaustion, or request an increase. Exhaustion is
+a build-resource error, never divergence, a failed termination proof, or a
+machine result.
+
+Progress reporting names the stable invocation, sponsor package, accumulated
+usage, and largest active call path. Wall-clock elapsed time may be displayed
+but never affects admission or accounting. Parallel scheduling changes neither
+the canonical counts nor aggregate verdict.
+
+Runtime WCET and target instruction cost remain a different resource theory.
+
+## Result caching and usage accounting
+
+Semantic identity and accounting identity are separate:
+
+```text
+ResultKey =
+    normalized implementation closure
+  + arguments
+  + selected conformances/providers
+  + target semantic capsule
+  + evaluator semantics version
+
+UsageRecord =
+    ResultKey
+  + usage-schema version
+  + canonical usage counts
+
+PolicyCharge =
+    interpret(UsageRecord, selected cost policy)
+```
+
+Changing accounting weights must not invalidate a result computed under
+unchanged semantics. If a future policy needs counts an older usage schema did
+not retain, usage may need remeasurement; the semantic result remains valid.
+
+When a cache hit substitutes for an evaluation in the current build graph, it
+receives the recorded logical charge. Warm and cold builds therefore make the
+same hard-ceiling decision. Merely linking an already-built dependency does not
+charge the historical cost of producing that artifact.
+
+## Published evidence is not a consumer cache
+
+An expensive producer-side proof may publish carrierless selected-conformance
+evidence under the
+[law-bearing relation model](law_bearing_relations_and_quotients.md). The
+producer performs the witness search while building its artifact; a consumer
+opens the published proposition contract and never reruns that search. Cheap
+artifact/kernel verification may remain.
+
+That is separate compilation of proof evidence, not an evaluator-cache escape
+hatch. A local cache substitutes for work still belonging to the current build
+graph; published evidence moves the proved contract into the producer's
+artifact.
+
+## Current state and implementation sequence
+
+- Constant positions, const-generic leaves, machine-backed domain facts, and
+  layout/wire/calling policy sites already use the reference interpreter.
+- Canonical service reach plus recursive suspension/blocking summaries are
+  checked. Authority, trust, termination, abnormal-outcome, resource, and
+  escaping-mutation axes still need to complete the common admission floor.
+- The implementation currently calls its positive normalized termination
+  variant `EventualTerminal`; migrate snapshots, artifacts, diagnostics, and
+  code to the settled `Terminates` vocabulary.
+- Add the target semantic capsule and split semantic result keys from canonical
+  usage records.
+- Add constant/runtime target-equivalence canaries, with float operations as
+  the sharpest customer.
+- Add deterministic progress reporting before optional warning/ceiling policy.
+- Generalize trait-generator expansion; migrate `Equatable` and `Hashable` off
+  hand-written compiler synthesis.
+- Complete const type parameters and `terminates by`-gated recursive
+  proof/constant evaluation.
+
+Touches: symbol-resolved const queries, the interpreter's semantic-evaluation
+entry point, normalized contract admission, resolved-to-typed generator
+expansion, validation of facts derived from results, cache/provenance artifacts,
+and build-progress reporting.
 
 ## Trait-body and reflection rules
 

@@ -63,15 +63,16 @@ implementation work. Each one gets more expensive to retrofit every month.
 
    **Companion — the build & package model, SETTLED
    (`design_briefs/build_and_package_model.md`, 2026-07-02).** The per-package
-   boundary manifest this item calls for is **`build.omg`** — an effect-free
-   Omega function returning a typed `BuildDescription`, *interpreted* at build
-   time (config-as-code with analyzable output; no TOML, no `build.rs` cliff).
-   Pure plan / effectful executor: `build.omg` describes, the toolchain fetches
-   and builds. No toolchain seed and no lockfile (interpreting a pure function
-   is version-invariant, so `build.omg` can name its own toolchain without
-   circularity; pins live in the manifest). Dependencies are local aliases bound
-   to pinned sources — no semver solving. ch15 updated to end-state (package =
-   reach boundary; imports resolve only against declared deps). **Remaining
+   boundary manifest this item calls for is **`build.omg`** — an ordinary Omega
+   build entry augmenting typed `Build` data, interpreted with explicit scoped
+   build-host providers (config-as-code with analyzable effects and output; no
+   TOML and no unchecked `build.rs` cliff). Filesystem, network, process, and
+   similar reach is admitted and receipted rather than ambient. Dependencies
+   are local aliases bound to pinned sources — no semver solving — and the
+   toolchain emits a unified lock/provenance artifact rather than asking the
+   author to maintain a second configuration language. ch15 is updated to the
+   end-state (package = reach boundary; imports resolve only against declared
+   deps). **Remaining
    implementation ask — the import-side gate:** ch15 name resolution must
    consult the declared set so a fully-qualified path cannot bypass it
    (undeclared reach *unresolvable*, not lint-flagged), making the layer law
@@ -85,17 +86,24 @@ implementation work. Each one gets more expensive to retrofit every month.
    consumption.
   Decision 22's split amendment supplies independent `suspends` / `blocks`
   clauses and pinned-ceiling laws. Suspension composes through ordinary calls;
-  a searchable direct-call acknowledgement is required, with its keyword still
-  pending. Continuation storage and suspension-safe loans still require their
-  amendment brief.
+  `suspend` and `block` are exact searchable direct-call acknowledgements over
+  the statically known call envelope. Suspension is restricted to direct-call
+  positions because it creates a continuation boundary; blocking-only calls
+  may nest. WCSU now derives one fixed nonmoving `StackPlan` per local
+  activation; park/resume lowering and suspension-safe loans still require
+  their amendment brief. Architectural preemption may occur anywhere and
+  preserves opaque state; semantic cancellation, migration, and replacement
+  occur only at explicit suspension points or under checked pinning contracts.
+  A `block` without a finite wait ceiling makes structured response unbounded
+  through that named call.
 
    Still compatible: a futex-shaped scheduler boundary, cancellation as an
    explicit outcome, ordinary machines started through an admitted
    `TaskRuntime`, linear `Task<T>` claims, compiler-planned local activation
    requirements, bounded Arena-backed provider packages, and one-mailbox
    sums. Bare/scoped `spawn` is retired; conservative suspension-safe loans
-   replace its special borrowing rule. Remaining: suspension elaboration,
-   continuation layout, child-lease accounting, and cross-suspension loans.
+   replace its special borrowing rule. Remaining: fixed-stack park/resume
+   lowering, child-lease accounting, and cross-suspension loans.
 
 6. **Atomics and a memory model** — direction scouted + chapter 18 now
    carries the Rust-like atomics section (distinct core types, five C11

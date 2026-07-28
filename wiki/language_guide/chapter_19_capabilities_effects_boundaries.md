@@ -193,7 +193,7 @@ machine LoggingProxy::write(&self, text: &[u8])
     effects LoggingService
     suspends
 {
-    self.service.write(text);
+    suspend self.service.write(text);
 }
 ```
 
@@ -226,6 +226,22 @@ union; suspension and blocking accumulate independently by boolean may. If
 `blocks` is omitted from a public contract, no checked callee or admitted
 provider may block a worker. If `Writable` is absent from `effects`, the machine
 cannot reach that service even when it possesses Writable authority.
+
+At a direct call, those two possibilities are acknowledged independently:
+
+```omega
+operation();
+suspend may_park();
+block may_block_worker();
+suspend block may_do_either();
+```
+
+The prefixes mirror the statically known call envelope exactly. They describe
+what may happen, not what must happen, and change neither propagation nor ABI.
+Suspension creates a continuation boundary and is therefore restricted to a
+complete statement, simple `let` right-hand side, transition subject, or
+terminal expression. Blocking-only calls retain the ordinary stack and may
+nest. Chapter 18 gives the full call-site rules.
 
 Internal service and operational fields may be inferred. Exports, trait
 requirements, and boundary operations publish them; omission means empty

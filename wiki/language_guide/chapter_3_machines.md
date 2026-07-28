@@ -160,18 +160,24 @@ Ordinary call syntax enters a machine and creates a call frame.
 
 ```omega
 let command: Command = self.parser.resolve(&self.line);
+let guard: Guard = block mutex.lock();
+let event: Event = suspend inbox.take();
 ```
 
 Calls and transitions are different. A call enters another machine. A transition
 jumps to a state inside the current machine. Chapter 4 introduces states and
-transitions directly.
+transitions directly. `suspend` and `block` acknowledge possible waiting at a
+direct call; they do not create another machine species or change the result
+type. Chapter 5 defines their call-position rules, and chapter 18 explains the
+concurrency consequences.
 
 ## Termination And Ranked Cycles
 
-A machine may promise eventual terminal progress with `terminates`. Checked
-acyclic bodies derive that guarantee without annotation. Every cycle in a
-terminating machine instead needs an authored, checker-verified ranking
-witness written with `terminates by` (chapter 9):
+A machine may promise termination with `terminates`: every invocation reaches
+a terminal outcome under its declared progress premises. Checked acyclic bodies
+derive that guarantee without annotation. Every cycle in a terminating machine
+instead needs an authored, checker-verified ranking witness written with
+`terminates by` (chapter 9):
 
 A machine may call itself, directly or through a mutual cycle, when every
 cycle through the call graph strictly decreases a well-founded rank and
@@ -235,8 +241,10 @@ Working rules:
 Proof-stratum machines (chapter 10) use the same clause and legality rule with
 no tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),
 Tree::depth(node.right))`, induction over a tree — are legal there, because
-fact-only machines evaluate at compile time under the checker's fuel budget
-and never lower. No frame ever materializes.
+fact-only machines evaluate in the compiler's hermetic semantic evaluator and
+never lower. Their ordinary termination proof is mandatory; deterministic work
+metering supports progress, warnings, and optional root policy without creating
+a second notion of termination. No runtime frame ever materializes.
 
 The ranking witness is implementation evidence, not public contract identity.
 Changing a valid witness revalidates the implementation without changing what

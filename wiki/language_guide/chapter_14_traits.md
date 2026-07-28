@@ -1,4 +1,4 @@
-# Chapter 14: Traits And Runtime Dispatch
+# Chapter 14: Traits And Erased Dispatch
 
 Omega traits should describe required machine surfaces.
 
@@ -413,11 +413,17 @@ selected conformance, and normalized contracts rather than a table address.
 Adding a conformance therefore does not change the layout of the concrete
 type.
 
-The source dynamic form described here is borrowed. An owned erased value
-additionally needs a storage owner, size/alignment metadata, and checked
+The runtime dynamic form described here is borrowed. An owned erased runtime
+value additionally needs a storage owner, size/alignment metadata, and checked
 cleanup. Those compose with the same selected-conformance table after the
 general owned-storage and cleanup contracts land; they do not change local
 dispatch or make the value component-safe.
+
+There is one exact by-value case that needs none of that machinery. When the
+entire normalized dynamic value has no runtime carrier — no instance and no
+runtime table slots — owned `dyn` is a proof-only evidence term and erases.
+Absence of slots alone is insufficient because an ordinary runtime instance
+may still have unknown size and cleanup.
 
 ### Dynamic surface
 
@@ -445,6 +451,27 @@ One conformance supplies the complete dynamic surface. A table never mixes
 requirements from different conformances, because contracts may relate
 several requirements within one conformance.
 
+### Proof projection and carrierless evidence
+
+Dynamic erasure uses one per-requirement projection with two strata. A
+carrier-bearing eligible machine contributes a runtime slot. A carrierless
+machine contributes a stable opaque proof symbol plus its normalized contract.
+A law contributes only its contract. A trait may contain both strata; they are
+not independently authored surfaces.
+
+Opening the same carrierless evidence term twice yields the same opaque proof
+symbols. Distinct evidence terms remain distinct to proof construction even
+when they establish the same proof-irrelevant proposition. Because the
+evidence has no runtime carrier, it may be passed and returned as owned `dyn`
+without allocation or cleanup. Transparent proposition aliases hide that
+mechanism in mathematical APIs.
+
+This is the existential evidence used by proposition-valued relations and
+law-bearing quotients. It never makes a carrierless machine runtime-callable,
+and it never permits a local dynamic descriptor to cross a component boundary.
+See [chapter 10](chapter_10_compile_time_proofs.md) and
+[Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
+
 ### Operational envelopes
 
 Erasing implementation identity must not erase the static facts needed to
@@ -461,6 +488,11 @@ obligations combine permissively by union or maximum; guarantees combine
 conservatively by conjunction or intersection. In particular, carry
 permissions intersect and termination survives only when every alternative
 guarantees it.
+
+A dynamic call's `suspend` and `block` acknowledgements are checked against
+this retained per-requirement envelope, not merely against the widest base-trait
+declaration. A narrowed dynamic value therefore keeps the narrower call surface
+without adding runtime metadata.
 
 An unannotated dynamic parameter is implicitly polymorphic over fitting
 envelopes. Only requirements reachable through the machine's call graph
@@ -553,7 +585,7 @@ machine LoggingProxy::write(&self, text: &[u8])
     effects LoggingService
     suspends
 {
-    self.service.write(text);
+    suspend self.service.write(text);
 }
 
 let logger: &dyn Logger =
@@ -627,6 +659,11 @@ ordinary trait is not automatically a service member: it may state a service-
 reach ceiling for its machines, but only a boundary trait contributes a service
 identity. Omission on a trait requirement means an empty service row,
 never-suspends, or never-blocks on the corresponding axis.
+
+Calls through the requirement acknowledge its statically retained operational
+envelope with `suspend` and `block`. A concrete or transparent refinement that
+statically removes one possibility removes only that call-site marker; it does
+not rewrite the base trait's published contract.
 
 For hot swapping and driver-like code, trait effects may be part of replacement
 safety:
