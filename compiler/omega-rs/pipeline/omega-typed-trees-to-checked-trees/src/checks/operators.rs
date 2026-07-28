@@ -35,7 +35,7 @@ pub(crate) fn check_operator_resolution(
 
 /// The binding-site rule (chapter 8): a domain-owned meaning participates only
 /// when an operand declaration, mint, or signature `requires` selects its
-/// semantic facet. This use has domain candidates, none selected, and no
+/// semantic role. This use has domain candidates, none selected, and no
 /// builtin/root fallback.
 fn inadmissible_operator_diagnostic(
     program: &omega_typed_trees::TypedTrees,

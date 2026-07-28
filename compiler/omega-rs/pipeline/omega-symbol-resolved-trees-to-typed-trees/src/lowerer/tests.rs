@@ -175,9 +175,8 @@ fn lowers_domain_definitions() {
         .iter()
         .find(|candidate| candidate.name.as_str() == "Player::Alive")
         .expect("resolved alive domain");
-    assert_eq!(domain.facets, resolved_domain.facets);
-    assert!(domain.facets.predicate);
-    assert_eq!(domain.facets.semantic, Some(domain.semantic_id));
+    assert_eq!(domain.semantic_roles, resolved_domain.semantic_roles);
+    assert!(domain.semantic_roles.is_empty());
     let tagged = typed_trees
         .domain_definitions()
         .iter()
@@ -187,8 +186,7 @@ fn lowers_domain_definitions() {
         tagged.predicate_body,
         omega_core::semantics::DomainPredicateBody::Bodyless
     );
-    assert!(!tagged.facets.predicate);
-    assert_eq!(tagged.facets.semantic, Some(tagged.semantic_id));
+    assert!(tagged.semantic_roles.is_empty());
 }
 
 #[test]
@@ -227,8 +225,14 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
         .iter()
         .find(|domain| domain.name.as_str() == "u64::Tagged")
         .expect("unsigned domain");
-    assert!(!signed_domain.facets.predicate);
-    assert!(unsigned_domain.facets.predicate);
+    assert_eq!(
+        signed_domain.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Bodyless
+    );
+    assert_eq!(
+        unsigned_domain.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Present
+    );
 
     let holder = typed
         .data_definitions()
@@ -263,12 +267,14 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
     let signed = constraint_for(fields["signed"]);
     assert_eq!(signed.symbol, signed_domain.symbol);
     assert_eq!(signed.semantic_id, signed_domain.semantic_id);
-    assert_eq!(signed.facets, signed_domain.facets);
+    assert_eq!(signed.predicate_body, signed_domain.predicate_body);
+    assert_eq!(signed.semantic_roles, signed_domain.semantic_roles);
 
     let unsigned = constraint_for(fields["unsigned"]);
     assert_eq!(unsigned.symbol, unsigned_domain.symbol);
     assert_eq!(unsigned.semantic_id, unsigned_domain.semantic_id);
-    assert_eq!(unsigned.facets, unsigned_domain.facets);
+    assert_eq!(unsigned.predicate_body, unsigned_domain.predicate_body);
+    assert_eq!(unsigned.semantic_roles, unsigned_domain.semantic_roles);
 
     let omega_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = typed
         .type_reference_table
@@ -284,7 +290,8 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
     };
     let boxed_signed = constraint_for(*argument);
     assert_eq!(boxed_signed.symbol, signed_domain.symbol);
-    assert_eq!(boxed_signed.facets, signed_domain.facets);
+    assert_eq!(boxed_signed.predicate_body, signed_domain.predicate_body);
+    assert_eq!(boxed_signed.semantic_roles, signed_domain.semantic_roles);
 }
 
 #[test]
@@ -527,6 +534,11 @@ fn preserves_domain_operator_declarations() {
     let operators = typed_trees.domain_operators(domain);
 
     assert_eq!(operators.len(), 1);
+    assert_eq!(
+        domain.semantic_roles.denotation_dimension,
+        Some(domain.semantic_id)
+    );
+    assert!(domain.semantic_roles.arithmetic_policy.is_none());
     assert!(operators[0].symbol.is_valid());
     assert_eq!(
         typed_trees

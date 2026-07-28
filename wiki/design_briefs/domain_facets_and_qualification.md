@@ -373,8 +373,8 @@ Required tests:
 
 ## Implementation staging
 
-The compiler currently carries an explicit predicate/semantic facet pair and
-special arithmetic-domain paths. Semicolon and empty-braced declarations now
+The compiler now carries independent predicate-body and closed semantic-role
+records alongside special arithmetic-domain paths. Semicolon and empty-braced declarations now
 both normalize to an explicit bodyless predicate-body record in syntax,
 symbol-resolved, and typed trees; an explicit `{ true; }` body remains
 predicate-bearing. This removes fact-count inference for body presence.
@@ -389,17 +389,19 @@ authorization and transparent declared-domain aliases are now implemented.
 Aliases retain independent syntax/resolved/typed records, expand to atoms
 before type and contract identity, compatibility, admission, and executable
 predicate lowering, validate nonempty/acyclic/same-carrier/public expansions,
-and diagnose unmet atoms. Canonical `as`, compiler-owned `Carry` atoms, and
-replacement of the compatibility facet pair remain.
+and diagnose unmet atoms. Operator-bearing declarations contribute the
+`DenotationDimension` role once during syntax lowering; arithmetic domains
+contribute `ArithmeticPolicy`; different roles compose and same-role
+collisions reject. Canonical `as`, establishment-route identities, and
+compiler-owned `Carry` atoms remain.
 Migration should:
 
-1. replace the facet pair with the independent domain-theory records above;
-2. add bodyless-domain establishment and evidence-source identity;
+1. add normalized bodyless-domain establishment-route identities;
+2. complete evidence-source identity across every establishment route;
 3. publish and validate the core representation-qualification trait;
-4. add role-keyed semantic contribution and collision checking;
-5. preserve normalized qualification through generics, contracts, artifacts,
+4. preserve normalized qualification through generics, contracts, artifacts,
    and separate compilation; and
-6. migrate numeric width conversions away from the qualification spelling once
+5. migrate numeric width conversions away from the qualification spelling once
    their named operations are fixed.
 
 General open operator-family linking, external unit-kind equations, authored

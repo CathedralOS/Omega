@@ -20,13 +20,12 @@ rather than extending old booleans and bitsets by convention.
 
 `omega-symbol-resolved-trees/src/domain.rs` and
 `omega-typed-trees/src/domain.rs` represent every domain as one
-`DomainDefinition` containing invariant `facts`, `operators`, and an explicit
-normalized predicate/semantic facet pair. The pair is a transitional
-compatibility projection populated once at syntax-to-resolved lowering and
-copied to typed trees. It does not yet represent:
+`DomainDefinition` containing independent predicate-body, semantic-role, alias,
+fact, and operator records. Operator-bearing source declarations are projected
+once during syntax-to-resolved lowering into the closed
+`DenotationDimension` role; downstream consumers do not infer semantic roles
+from operator presence. The record does not yet represent:
 
-- an optional predicate body;
-- semantic contributions keyed by compiler-owned roles;
 - owner-authorized establishment relationships;
 - denotation schema and implicit-weakening certificate/sealed theory;
 - the distinction between flow knowledge and binding-site semantic
@@ -35,11 +34,12 @@ copied to typed trees. It does not yet represent:
   and admitted receipt.
 
 `omega-checked-trees::DomainFacts` is appropriately fact-shaped for predicate
-membership, while qualification casts and emitted semantic commitments now
-consult the explicit semantic facet. There is no complete role-keyed
-semantic-qualification plan yet. Arithmetic policies survive through
-compiler-specific `ArithmeticDomain` paths, which is useful bootstrap behavior
-but not the general domain model.
+membership, while qualification casts and emitted semantic commitments consume
+the declaration's stable semantic identity and inspect predicate-body presence
+only when a proof obligation is required. Operator selection consumes the
+explicit semantic-role record. Arithmetic policies survive through
+compiler-specific `ArithmeticDomain` paths and contribute the closed
+`ArithmeticPolicy` role during conjunction validation.
 
 ### Machines
 
@@ -132,22 +132,24 @@ qualification; flow facts carry proven membership. The deterministic
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
 
-Implementation status (DOM1/STR2, 2026-07-23): core, symbol-resolved, and typed
-layers carry the normalized facet pair. Syntax lowering is the sole legacy
-shape projection; downstream tree propagation copies it verbatim and both
-resolved/typed structural snapshots publish it beside the semantic identity.
-Semantic qualification and trust publication currently consume
-`facets.semantic`, and qualification demands proof only when
-`facets.predicate` is active. Repeated normalized declarations compare the
-pair. Role-keyed semantic contributions, bodyless establishment routes,
-receipt origins, and the checked core qualification relationship remain.
+Implementation status (DOM1/STR2 semantic roles, 2026-07-28): core,
+symbol-resolved, and typed layers carry `DomainPredicateBody` and the closed
+`DomainSemanticRoles` record independently. Syntax lowering is the sole
+temporary projection from a domain-owned operator to
+`DenotationDimension`; downstream propagation and resolved/typed snapshots
+copy and publish the explicit role record. Qualification and trust publication
+consume the declaration's stable semantic identity, qualification consults
+predicate-body presence for proof, and operator selection consumes semantic
+roles. Domain conjunction validation permits contributions in different roles
+(`Degrees & Wrapping`) and rejects multiple distinct contributors to one role.
+Bodyless establishment routes and the checked core qualification relationship
+remain.
 
 Implementation status (DOM1 body presence, 2026-07-28): `domain T::Fact;` and
 `domain T::Fact {}` both parse as an explicit bodyless predicate-body record,
 while `{ true; }` is explicitly predicate-bearing. Syntax, symbol-resolved, and
-typed trees plus their snapshots preserve that record, and the compatibility
-predicate facet is projected from it rather than reconstructed from fact
-count.
+typed trees plus their snapshots preserve that record. Predicate consumers
+inspect it directly rather than reconstructing body presence from fact count.
 
 Implementation status (P1a evidence origin, 2026-07-28): checked semantic facts
 now carry an establishment-evidence axis independent of their program-point
@@ -178,22 +180,22 @@ Implementation status (DOM1 generic propagation, 2026-07-23): typed
 `TypeConstraintNode::Domain` is a normalized binding-site record, not a bare
 name. A post-lowering pass resolves the short name only against declarations
 whose target matches the constraint's carrier, then stores the declaration
-symbol, semantic identity, and facet pair. Nested generic arguments and all
+symbol, semantic identity, predicate-body record, and semantic roles. Nested generic arguments and all
 type-table copy paths preserve the record. Validation checks the record against
 the carrier declaration; checked field/contract facts and byte predicates use
 the stored symbol directly instead of repeating a global short-name lookup.
 Typed snapshots publish the full record. Generic substitution is therefore no
-longer a facet-loss boundary.
+longer a domain-theory loss boundary.
 
-Implementation status (DOM1 per-axis composition, 2026-07-23): a constrained
+Implementation status (DOM1 per-axis composition, 2026-07-28): a constrained
 type's domain chain is no longer projected to its first member. Predicate
-facets compose conjunctively through implicit parameter requirements, checked
+theories compose conjunctively through implicit parameter requirements, checked
 writes and constructions, entry/read facts, return/parameter implication, and
 post-write re-establishment. Members without predicate bodies never enter that
-fact lattice; their normalized identities remain on the type for semantic
-qualification consumers. The remaining DOM1 work is to replace the
-factful=hybrid/factless=semantic-only compatibility projection with the
-independent domain-theory records.
+fact lattice; their normalized identities and role contributions remain on the
+type for qualification and operator consumers. Semantic roles compose by key,
+with same-role collisions rejected. Establishment-route identities remain the
+next independent domain-theory record.
 
 Implementation status (DOM2 binding activation, 2026-07-23): checked operator
 selection reads only static binding sources: normalized declared constraints,

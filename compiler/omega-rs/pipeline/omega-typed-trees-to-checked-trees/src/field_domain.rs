@@ -270,9 +270,9 @@ pub(crate) fn data_definition_for_field_type<'program>(
         .find(|data| data.name.as_str() == name.as_str())
 }
 
-/// The carrier-aware normalized declaration symbols for every PREDICATE facet
-/// in a type-reference domain conjunction. Semantic-only facets are binding
-/// qualifications, not proof facts, and are deliberately absent. This never
+/// The carrier-aware normalized declaration symbols for every predicate-bearing
+/// member of a type-reference domain conjunction. Bodyless domains remain
+/// binding qualifications, not proof facts, and are deliberately absent. This never
 /// re-resolves a short name globally.
 pub(crate) fn predicate_domain_constraint_symbols(
     program: &omega_typed_trees::TypedTrees,
@@ -288,7 +288,7 @@ pub(crate) fn predicate_domain_constraint_symbols(
             .iter()
             .filter_map(|constraint| match constraint {
                 TypeConstraintNode::Domain(domain)
-                    if domain.symbol.is_valid() && domain.facets.predicate =>
+                    if domain.symbol.is_valid() && domain.predicate_body.is_present() =>
                 {
                     Some(domain.symbol)
                 }
@@ -306,7 +306,7 @@ pub(crate) fn predicate_domain_constraint_symbols(
 /// operator lookup can still select the declaration for `[u8; 8]` versus
 /// `[u8; 16]`. Their shared `semantic_id`, however, is the proof identity:
 /// validation requires repeated declarations with that identity to have equal
-/// facets and normalized fact sets. Consequently a value established in one
+/// predicate bodies, semantic roles, and normalized fact sets. Consequently a value established in one
 /// carrier specialization satisfies the same semantic domain on another
 /// carrier. Comparing only symbols would make the documented
 /// `[u8; N]::Utf8` family fracture at every borrow, concat, or call boundary.

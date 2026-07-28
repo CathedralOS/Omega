@@ -73,7 +73,7 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
 }
 
 #[test]
-fn semantic_only_declared_type_selects_domain_operator() {
+fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
     let source = r#"
         domain i32::Degrees {
             operator add(left: i32, right: i32) -> i32 spelling +;

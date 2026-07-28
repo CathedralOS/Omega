@@ -723,17 +723,6 @@ impl SemanticDomainTable {
     }
 }
 
-/// The domain-theory facet PAIR (record §Domain theory): optional facets,
-/// NOT a mutually exclusive enum — hybrids are first-class. The facet
-/// bodies land with STR3+ (they need tree vocabulary); the skeleton lands
-/// now so no checked-stage query ever infers predicate-vs-semantic behavior
-/// by testing whether a domain happens to have facts or operators.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct DomainFacets {
-    pub predicate: bool,
-    pub semantic: Option<SemanticDomainId>,
-}
-
 /// Whether a declared domain carries a predicate body.
 ///
 /// This is explicit domain-theory metadata rather than something consumers
@@ -756,6 +745,51 @@ impl DomainPredicateBody {
         match self {
             Self::Bodyless => "bodyless",
             Self::Present => "present",
+        }
+    }
+}
+
+/// One compiler-owned semantic contribution role.
+///
+/// Roles are closed because their consumers and composition laws are
+/// compiler semantics. Packages contribute theories within these roles; they
+/// cannot mint new role kinds by name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DomainSemanticRole {
+    DenotationDimension,
+    ArithmeticPolicy,
+}
+
+impl DomainSemanticRole {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DenotationDimension => "denotation_dimension",
+            Self::ArithmeticPolicy => "arithmetic_policy",
+        }
+    }
+}
+
+/// Role-keyed semantic contributions of one declared domain.
+///
+/// Predicate membership is deliberately absent: it lives in
+/// [`DomainPredicateBody`] and the proof-fact lattice. Fixed fields make the
+/// initial closed vocabulary explicit while allowing a hybrid domain to
+/// contribute independently on each axis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DomainSemanticRoles {
+    pub denotation_dimension: Option<SemanticDomainId>,
+    pub arithmetic_policy: Option<SemanticDomainId>,
+}
+
+impl DomainSemanticRoles {
+    pub const fn is_empty(self) -> bool {
+        self.denotation_dimension.is_none() && self.arithmetic_policy.is_none()
+    }
+
+    pub const fn contribution(self, role: DomainSemanticRole) -> Option<SemanticDomainId> {
+        match role {
+            DomainSemanticRole::DenotationDimension => self.denotation_dimension,
+            DomainSemanticRole::ArithmeticPolicy => self.arithmetic_policy,
         }
     }
 }

@@ -173,9 +173,9 @@ pub(crate) fn lower_machine(
             .push_machine_state(&mut typed_machine, state);
     }
 
-    // #66/DOM1: every predicate facet on a parameter typed `T in A & B`
+    // #66/DOM1: every predicate-bearing domain on a parameter typed `T in A & B`
     // desugars to an implicit `requires <param> in <domain>` MACHINE contract.
-    // Semantic-only facets remain qualifications and never become obligations.
+    // Bodyless domains remain qualifications and never become obligations.
     // Collected first (immutable read of the lowered states/params) then synthesized,
     // to keep the typed-tree borrow disjoint from the contract construction.
     let mut domain_constrained_parameters: Vec<(

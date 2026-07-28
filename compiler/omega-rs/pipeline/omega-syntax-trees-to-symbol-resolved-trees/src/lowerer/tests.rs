@@ -207,8 +207,7 @@ fn lowers_domain_definitions() {
         domain.predicate_body,
         omega_core::semantics::DomainPredicateBody::Present
     );
-    assert!(domain.facets.predicate, "factful domains are hybrids");
-    assert_eq!(domain.facets.semantic, Some(domain.semantic_id));
+    assert!(domain.semantic_roles.is_empty());
     let tagged = program
         .domain_definitions
         .iter()
@@ -219,11 +218,7 @@ fn lowers_domain_definitions() {
         omega_core::semantics::DomainPredicateBody::Bodyless
     );
     assert_eq!(tagged.body_token_count, 0);
-    assert!(
-        !tagged.facets.predicate,
-        "factless domains are semantic-only"
-    );
-    assert_eq!(tagged.facets.semantic, Some(tagged.semantic_id));
+    assert!(tagged.semantic_roles.is_empty());
     assert!(
         program
             .symbols
@@ -356,6 +351,11 @@ fn preserves_domain_operator_declarations() {
     let operators = program.operator_definitions(domain.operators);
 
     assert_eq!(operators.len(), 1);
+    assert_eq!(
+        domain.semantic_roles.denotation_dimension,
+        Some(domain.semantic_id)
+    );
+    assert!(domain.semantic_roles.arithmetic_policy.is_none());
     assert!(operators[0].symbol.is_valid());
     assert_eq!(
         program

@@ -22,9 +22,9 @@ pub struct DomainDefinition {
     /// the program's SemanticDomainTable (populated ONCE at
     /// syntax->resolved, copied downstream; NULL only pre-lowering).
     pub semantic_id: omega_core::semantics::SemanticDomainId,
-    /// DOM1/STR2: the normalized predicate/semantic role pair copied from the
-    /// resolved declaration without re-derivation.
-    pub facets: omega_core::semantics::DomainFacets,
+    /// Role-keyed semantic contributions copied from the resolved declaration
+    /// without re-derivation.
+    pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
 }
 
 impl Default for DomainDefinition {
@@ -40,7 +40,7 @@ impl Default for DomainDefinition {
             operators: HandleSpan::empty(),
             body_token_count: 0,
             semantic_id: omega_core::semantics::SemanticDomainId::NULL,
-            facets: omega_core::semantics::DomainFacets::default(),
+            semantic_roles: omega_core::semantics::DomainSemanticRoles::default(),
         }
     }
 }
@@ -102,7 +102,7 @@ impl Default for ProofMembershipFact {
 /// carrier-specific symbols so operator lookup can still select the declaration
 /// for `[u8; 8]` versus `[u8; 16]`; their shared `semantic_id` is the proof
 /// identity. Validation separately requires declarations sharing that identity
-/// to have equal facets and normalized fact sets.
+/// to have equal predicate bodies, semantic roles, and normalized fact sets.
 pub fn declared_domain_implies(
     program: &TypedTrees,
     source_domain: SymbolHandle,

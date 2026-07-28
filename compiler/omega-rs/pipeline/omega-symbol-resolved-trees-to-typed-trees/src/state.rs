@@ -112,9 +112,9 @@ pub(crate) fn lower_state_signature(
             .append_to_span(&mut typed_signature.type_parameters, parameter);
     }
 
-    // #66/DOM1: collect every predicate facet on constrained parameters. Each
+    // #66/DOM1: collect every predicate-bearing domain on constrained parameters. Each
     // desugars below into its own implicit `requires <param> in <domain>`
-    // membership contract; semantic-only facets do not enter the fact lattice.
+    // membership contract; bodyless domains do not enter the fact lattice.
     let mut domain_constrained_parameters: Vec<(
         omega_core::symbols::SymbolHandle,
         typed::name::Identifier,
@@ -169,7 +169,7 @@ pub(crate) fn lower_state_signature(
         );
     }
 
-    // #66/DOM1: desugar each predicate facet into an implicit `requires
+    // #66/DOM1: desugar each predicate-bearing domain into an implicit `requires
     // <param> in <domain>` membership contract (here on a trait/platform
     // signature; the regular-machine path is `lower_machine`).
     for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
@@ -189,8 +189,8 @@ pub(crate) fn lower_state_signature(
     Ok(typed_signature)
 }
 
-/// Every normalized predicate facet on a parameter type, looking through a
-/// leading reference. Semantic-only qualifications never synthesize proof
+/// Every normalized predicate-bearing domain on a parameter type, looking through a
+/// leading reference. Bodyless qualifications never synthesize proof
 /// contracts.
 pub(crate) fn predicate_domain_constraints(
     typed_trees: &typed::TypedTrees,
@@ -209,7 +209,7 @@ pub(crate) fn predicate_domain_constraints(
             .iter()
             .filter_map(|constraint| match constraint {
                 typed::types::TypeConstraintNode::Domain(domain)
-                    if domain.symbol.is_valid() && domain.facets.predicate =>
+                    if domain.symbol.is_valid() && domain.predicate_body.is_present() =>
                 {
                     typed_trees
                         .domain_definitions()

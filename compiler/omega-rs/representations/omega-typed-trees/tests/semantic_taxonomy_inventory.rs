@@ -14,14 +14,12 @@ use omega_typed_trees::domain::DomainDefinition;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::DomainConstraint;
 
-/// LOSS 1 -- PARTIALLY RE-PINNED (DOM1/STR2, 2026-07-23): every domain now
-/// carries the normalized predicate/semantic facet pair. Introduction policy,
-/// mint authority, denotation schema, and full facet bodies remain absent.
-/// The pair is not an enum: hybrids are first-class. No checked-stage query
-/// may infer a facet role by testing whether facts or operators happen to be
-/// present.
+/// LOSS 1 -- PARTIALLY RE-PINNED (DOM role records, 2026-07-28): predicate
+/// body and role-keyed semantic contributions are independent records.
+/// Introduction policy, mint authority, and denotation schema remain absent.
+/// No checked-stage query may infer either record from facts or operators.
 #[test]
-fn domain_definition_carries_normalized_facet_roles() {
+fn domain_definition_carries_independent_predicate_and_semantic_role_records() {
     fn witness(definition: DomainDefinition) {
         let DomainDefinition {
             symbol: _,
@@ -32,12 +30,11 @@ fn domain_definition_carries_normalized_facet_roles() {
             // so aliases cannot masquerade as bodyless establishment.
             alias: _,
             predicate_body: _,
-            // STR4 checked plans (2026-07-19): the normalized SemanticDomainId
-            // landed -- LOSS 1's "no normalized SemanticDomainId" clause is
-            // re-pinned. It remains a compatibility identity beside the
-            // normalized facet pair until downstream migration completes.
+            // The normalized identity remains independent from contribution
+            // roles: qualification and trust can name a declaration even when
+            // it contributes no operator-selection role.
             semantic_id: _,
-            facets: _,
+            semantic_roles: _,
             facts: _,
             operators: _,
             body_token_count: _,
@@ -47,13 +44,14 @@ fn domain_definition_carries_normalized_facet_roles() {
 }
 
 #[test]
-fn domain_constraint_carries_carrier_resolved_identity_and_facets() {
+fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
     fn witness(constraint: DomainConstraint) {
         let DomainConstraint {
             name: _,
             symbol: _,
             semantic_id: _,
-            facets: _,
+            predicate_body: _,
+            semantic_roles: _,
         } = constraint;
     }
     let _ = witness;

@@ -17,13 +17,13 @@ fn snapshots_empty_typed_tree_as_json() {
 }
 
 #[test]
-fn snapshots_normalized_domain_facets() {
+fn snapshots_normalized_domain_semantic_roles() {
     let mut program = TypedTrees::default();
     program.push_domain_definition(DomainDefinition {
         semantic_id: omega_core::semantics::SemanticDomainId(23),
-        facets: omega_core::semantics::DomainFacets {
-            predicate: false,
-            semantic: Some(omega_core::semantics::SemanticDomainId(23)),
+        semantic_roles: omega_core::semantics::DomainSemanticRoles {
+            denotation_dimension: Some(omega_core::semantics::SemanticDomainId(23)),
+            arithmetic_policy: None,
         },
         ..Default::default()
     });
@@ -34,8 +34,8 @@ fn snapshots_normalized_domain_facets() {
     };
     assert_eq!(domain.semantic_id, 23);
     assert_eq!(domain.predicate_body, "bodyless");
-    assert!(!domain.facets.predicate);
-    assert_eq!(domain.facets.semantic, Some(23));
+    assert_eq!(domain.semantic_roles.denotation_dimension, Some(23));
+    assert_eq!(domain.semantic_roles.arithmetic_policy, None);
     assert!(snapshot.to_json_pretty().is_ok());
 }
 
@@ -74,7 +74,7 @@ fn snapshots_transparent_alias_theory_independently_from_facts() {
 }
 
 #[test]
-fn snapshots_normalized_domain_constraint_identity_and_facets() {
+fn snapshots_normalized_domain_constraint_identity_and_roles() {
     let program = TypedTrees::default();
     let symbol = omega_core::symbols::SymbolHandle::from_arena_index(31);
     let semantic_id = omega_core::semantics::SemanticDomainId(7);
@@ -84,9 +84,10 @@ fn snapshots_normalized_domain_constraint_identity_and_facets() {
             name: Identifier::generated("Utf8"),
             symbol,
             semantic_id,
-            facets: omega_core::semantics::DomainFacets {
-                predicate: true,
-                semantic: Some(semantic_id),
+            predicate_body: omega_core::semantics::DomainPredicateBody::Present,
+            semantic_roles: omega_core::semantics::DomainSemanticRoles {
+                denotation_dimension: Some(semantic_id),
+                arithmetic_policy: None,
             },
         }),
     );
@@ -97,8 +98,11 @@ fn snapshots_normalized_domain_constraint_identity_and_facets() {
             name,
             symbol: 31,
             semantic_id: 7,
-            predicate_facet: true,
-            semantic_facet: Some(7),
+            predicate_body: "present",
+            semantic_roles: super::DomainSemanticRolesSnapshot {
+                denotation_dimension: Some(7),
+                arithmetic_policy: None,
+            },
         } if name == "Utf8"
     ));
 }
