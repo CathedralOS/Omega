@@ -132,6 +132,9 @@ impl Lowerer {
 
     pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        crate::domain_establishment::normalize_domain_establishment_routes(
+            &mut self.symbol_resolved_trees,
+        );
         crate::service_reaches::normalize_service_reaches(&mut self.symbol_resolved_trees);
         self.symbol_resolved_trees.rebuild_tables();
         let SymbolResolvedTrees {

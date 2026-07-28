@@ -794,6 +794,62 @@ impl DomainSemanticRoles {
     }
 }
 
+/// One normalized relationship authorized to introduce domain membership.
+///
+/// These are declaration identities, not evidence origins. A checked fact
+/// still records whether membership arrived through proof, propagation,
+/// transformation, or a receipt; this record answers which authored
+/// relationship was allowed to introduce it in the first place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainEstablishmentRoute {
+    /// A checked machine owned by the domain carrier.
+    OwnerCheckedMachine {
+        machine: crate::symbols::SymbolHandle,
+    },
+    /// An operator declared inside the domain theory.
+    OwnerOperator {
+        operator: crate::symbols::SymbolHandle,
+    },
+    /// An exact result guarantee on an owner-authored boundary requirement.
+    BoundaryRequirement {
+        boundary_trait: crate::symbols::SymbolHandle,
+        requirement: crate::symbols::SymbolHandle,
+    },
+    /// The core representation-qualification relationship (P1b).
+    CanonicalQualification {
+        satisfier: crate::symbols::SymbolHandle,
+    },
+}
+
+impl DomainEstablishmentRoute {
+    pub const fn kind_name(self) -> &'static str {
+        match self {
+            Self::OwnerCheckedMachine { .. } => "owner_checked_machine",
+            Self::OwnerOperator { .. } => "owner_operator",
+            Self::BoundaryRequirement { .. } => "boundary_requirement",
+            Self::CanonicalQualification { .. } => "canonical_qualification",
+        }
+    }
+
+    pub const fn source_symbol(self) -> crate::symbols::SymbolHandle {
+        match self {
+            Self::OwnerCheckedMachine { machine } => machine,
+            Self::OwnerOperator { operator } => operator,
+            Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
+            Self::CanonicalQualification { satisfier } => satisfier,
+        }
+    }
+
+    pub const fn requirement_symbol(self) -> crate::symbols::SymbolHandle {
+        match self {
+            Self::BoundaryRequirement { requirement, .. } => requirement,
+            Self::OwnerCheckedMachine { .. }
+            | Self::OwnerOperator { .. }
+            | Self::CanonicalQualification { .. } => crate::symbols::SymbolHandle::invalid(),
+        }
+    }
+}
+
 /// Why one checked membership fact may qualify its exact runtime subject.
 ///
 /// This is deliberately independent from the fact's program-point origin:
@@ -865,6 +921,25 @@ mod tests {
         assert_eq!(table.intern("Wrapping"), SemanticDomainTable::WRAPPING);
         assert_eq!(table.name(SemanticDomainId::NULL), None);
         assert_eq!(table.lookup("Miles"), None);
+    }
+
+    #[test]
+    fn establishment_routes_keep_source_and_requirement_identity_independent() {
+        let boundary_trait = crate::symbols::SymbolHandle::from_arena_index(11);
+        let requirement = crate::symbols::SymbolHandle::from_arena_index(12);
+        let route = DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait,
+            requirement,
+        };
+        assert_eq!(route.kind_name(), "boundary_requirement");
+        assert_eq!(route.source_symbol(), boundary_trait);
+        assert_eq!(route.requirement_symbol(), requirement);
+
+        let owner = DomainEstablishmentRoute::OwnerCheckedMachine {
+            machine: crate::symbols::SymbolHandle::from_arena_index(13),
+        };
+        assert_eq!(owner.kind_name(), "owner_checked_machine");
+        assert!(!owner.requirement_symbol().is_valid());
     }
 
     #[test]

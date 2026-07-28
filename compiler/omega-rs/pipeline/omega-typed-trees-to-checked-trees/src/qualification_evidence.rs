@@ -1,6 +1,8 @@
 use omega_checked_trees::{BoundaryQualificationAuthorization, ContractProofFact};
 use omega_core::arena::Handle;
-use omega_core::semantics::{DomainPredicateBody, MachineSupplyMode, QualificationEvidenceOrigin};
+use omega_core::semantics::{
+    DomainEstablishmentRoute, DomainPredicateBody, MachineSupplyMode, QualificationEvidenceOrigin,
+};
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, QualificationEvidence};
 use omega_typed_trees::TypedTrees;
@@ -42,11 +44,22 @@ fn machine_matches_bodyless_domain_owner(
     if domain.predicate_body != DomainPredicateBody::Bodyless {
         return false;
     }
-    let Some(attached) = machine.attached_data.as_ref() else {
-        return false;
-    };
-    named_carrier(program, domain.target_type)
-        .is_some_and(|carrier| same_semantic_name(attached.as_str(), carrier))
+    domain.establishment_routes.iter().any(|route| {
+        let DomainEstablishmentRoute::OwnerCheckedMachine {
+            machine: route_machine,
+        } = route
+        else {
+            return false;
+        };
+        *route_machine == machine.symbol
+            || program
+                .machine_specializations
+                .iter()
+                .any(|specialization| {
+                    specialization.template == *route_machine
+                        && specialization.instance == machine.symbol
+                })
+    })
 }
 
 pub(crate) fn boundary_qualification_authorization(
@@ -73,6 +86,17 @@ pub(crate) fn boundary_qualification_authorization(
         return None;
     }
     let domain = domain_definition(program, membership.domain_symbol)?;
+    if !domain.establishment_routes.iter().any(|route| {
+        matches!(
+            route,
+            DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait,
+                requirement,
+            } if *boundary_trait == owner_symbol && *requirement == signature.symbol
+        )
+    }) {
+        return None;
+    }
     if !unwrapped_type_references_match(program, signature.return_type, domain.target_type) {
         return None;
     }
@@ -180,12 +204,12 @@ pub(crate) fn operator_contract_evidence(
         );
     }
 
-    let operator_is_owned_by_domain = program.domain_definitions().iter().any(|owner| {
-        owner.symbol == domain_symbol
-            && program
-                .domain_operators(owner)
-                .iter()
-                .any(|operator| operator.symbol == operator_symbol)
+    let operator_is_owned_by_domain = domain.establishment_routes.iter().any(|route| {
+        matches!(
+            route,
+            DomainEstablishmentRoute::OwnerOperator { operator }
+                if *operator == operator_symbol
+        )
     });
     QualificationEvidence::from_origin(
         if operator_is_owned_by_domain {
@@ -195,15 +219,6 @@ pub(crate) fn operator_contract_evidence(
         },
         operator_symbol,
     )
-}
-
-fn named_carrier(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
-        TypeReferenceNode::Reference { referee, .. } => named_carrier(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => named_carrier(program, *base_type),
-        _ => None,
-    }
 }
 
 fn expression_is_bare_result(
@@ -246,25 +261,5 @@ fn unwrapped_type_reference(
             unwrapped_type_reference(program, *base_type)
         }
         _ => Some(type_reference),
-    }
-}
-
-fn same_semantic_name(left: &str, right: &str) -> bool {
-    left == right
-        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
-        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::same_semantic_name;
-
-    #[test]
-    fn owner_name_matching_accepts_only_equal_or_unqualified_paths() {
-        assert!(same_semantic_name("Token", "Token"));
-        assert!(same_semantic_name("Token", "pkg::Token"));
-        assert!(same_semantic_name("pkg::Token", "Token"));
-        assert!(!same_semantic_name("left::Token", "right::Token"));
-        assert!(!same_semantic_name("Token", "Other"));
     }
 }

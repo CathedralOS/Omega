@@ -24,6 +24,9 @@ pub struct DomainDefinition {
     /// and copied downstream. Predicate membership remains independent in
     /// `predicate_body`.
     pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
+    /// Normalized authored relationships that may introduce membership.
+    /// Populated once after symbol assignment and copied downstream.
+    pub establishment_routes: Vec<omega_core::semantics::DomainEstablishmentRoute>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

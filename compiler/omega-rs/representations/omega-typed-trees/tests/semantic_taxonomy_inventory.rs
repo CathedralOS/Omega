@@ -14,12 +14,13 @@ use omega_typed_trees::domain::DomainDefinition;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::DomainConstraint;
 
-/// LOSS 1 -- PARTIALLY RE-PINNED (DOM role records, 2026-07-28): predicate
-/// body and role-keyed semantic contributions are independent records.
-/// Introduction policy, mint authority, and denotation schema remain absent.
-/// No checked-stage query may infer either record from facts or operators.
+/// LOSS 1 -- PARTIALLY RE-PINNED (DOM theory records, 2026-07-28): predicate
+/// body, role-keyed semantic contributions, and normalized establishment
+/// relationships are independent records. Canonical qualification, package
+/// owner coherence, and denotation schema remain absent. No checked-stage
+/// query may infer these records from facts, operators, or attachment names.
 #[test]
-fn domain_definition_carries_independent_predicate_and_semantic_role_records() {
+fn domain_definition_carries_independent_domain_theory_records() {
     fn witness(definition: DomainDefinition) {
         let DomainDefinition {
             symbol: _,
@@ -35,6 +36,7 @@ fn domain_definition_carries_independent_predicate_and_semantic_role_records() {
             // it contributes no operator-selection role.
             semantic_id: _,
             semantic_roles: _,
+            establishment_routes: _,
             facts: _,
             operators: _,
             body_token_count: _,
@@ -52,6 +54,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
             semantic_id: _,
             predicate_body: _,
             semantic_roles: _,
+            establishment_routes: _,
         } = constraint;
     }
     let _ = witness;

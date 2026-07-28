@@ -103,6 +103,11 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         denotation_dimension: Some(semantic_id),
         arithmetic_policy: None,
     };
+    let establishment_routes = vec![
+        omega_core::semantics::DomainEstablishmentRoute::OwnerCheckedMachine {
+            machine: SymbolHandle::from_arena_index(13),
+        },
+    ];
     let constraints = source_types.insert_constraints([
         TypeConstraintNode::Range { minimum, maximum },
         TypeConstraintNode::Domain(DomainConstraint {
@@ -111,6 +116,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
             semantic_id,
             predicate_body,
             semantic_roles,
+            establishment_routes: establishment_routes.clone(),
         }),
     ]);
     let source_root = source_types.insert(TypeReferenceNode::Constrained {
@@ -152,6 +158,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
     assert_eq!(copied_domain.semantic_id, semantic_id);
     assert_eq!(copied_domain.predicate_body, predicate_body);
     assert_eq!(copied_domain.semantic_roles, semantic_roles);
+    assert_eq!(copied_domain.establishment_routes, establishment_routes);
 }
 
 #[test]

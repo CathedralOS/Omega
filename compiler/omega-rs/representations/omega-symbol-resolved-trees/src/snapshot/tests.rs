@@ -82,6 +82,11 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
             denotation_dimension: Some(omega_core::semantics::SemanticDomainId(17)),
             arithmetic_policy: None,
         },
+        establishment_routes: vec![
+            omega_core::semantics::DomainEstablishmentRoute::OwnerCheckedMachine {
+                machine: omega_core::symbols::SymbolHandle::from_arena_index(19),
+            },
+        ],
         ..Default::default()
     });
     program.rebuild_tables();
@@ -109,6 +114,14 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
             .semantic_roles
             .arithmetic_policy,
         None
+    );
+    assert_eq!(
+        snapshot.roots.domain_definitions[0].establishment_routes[0].kind,
+        "owner_checked_machine"
+    );
+    assert_eq!(
+        snapshot.roots.domain_definitions[0].establishment_routes[0].source_symbol,
+        19
     );
     assert_eq!(snapshot.tables.statement_count, 1);
     assert_eq!(snapshot.tables.expression_count, 1);

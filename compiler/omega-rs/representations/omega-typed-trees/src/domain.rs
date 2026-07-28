@@ -25,6 +25,9 @@ pub struct DomainDefinition {
     /// Role-keyed semantic contributions copied from the resolved declaration
     /// without re-derivation.
     pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
+    /// Normalized authored introduction relationships copied from the resolved
+    /// domain theory without re-derivation.
+    pub establishment_routes: Vec<omega_core::semantics::DomainEstablishmentRoute>,
 }
 
 impl Default for DomainDefinition {
@@ -41,6 +44,7 @@ impl Default for DomainDefinition {
             body_token_count: 0,
             semantic_id: omega_core::semantics::SemanticDomainId::NULL,
             semantic_roles: omega_core::semantics::DomainSemanticRoles::default(),
+            establishment_routes: Vec::new(),
         }
     }
 }

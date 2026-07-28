@@ -744,6 +744,7 @@ pub struct DomainConstraint {
     pub semantic_id: omega_core::semantics::SemanticDomainId,
     pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub semantic_roles: omega_core::semantics::DomainSemanticRoles,
+    pub establishment_routes: Vec<omega_core::semantics::DomainEstablishmentRoute>,
 }
 
 impl DomainConstraint {
