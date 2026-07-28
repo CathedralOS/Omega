@@ -35,10 +35,21 @@ pub enum ContractProofFactOwner {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BoundaryQualificationAuthorization {
+    /// The boundary trait that owns the admitted requirement.
+    pub requirement_symbol: SymbolHandle,
+    /// The exact requirement signature whose result is qualified.
+    pub signature_symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ContractProofFact {
     pub kind: ContractProofFactKind,
     pub owner: ContractProofFactOwner,
     pub fact: Handle<omega_typed_trees::domain::ProofFact>,
+    /// Present only for an exact `ensures result in Domain` fact published by
+    /// a boundary requirement whose result carrier matches the domain target.
+    pub qualification_authorization: Option<BoundaryQualificationAuthorization>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

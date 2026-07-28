@@ -1,0 +1,17 @@
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+// External qualification is authorized by an exact boundary requirement, not
+// by placing a membership guarantee directly on an accepted declaration.
+boundary machine issue(value: u64) -> Token
+ensures
+    result in Token::Issued;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

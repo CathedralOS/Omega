@@ -1,8 +1,13 @@
+use omega_checked_trees::{BoundaryQualificationAuthorization, ContractProofFact};
+use omega_core::arena::Handle;
 use omega_core::semantics::{DomainPredicateBody, MachineSupplyMode, QualificationEvidenceOrigin};
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, QualificationEvidence};
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::domain::ProofFact;
+use omega_typed_trees::expression::ExpressionNode;
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::signature::{SignatureContractKind, StateSignature};
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn domain_definition<'program>(
@@ -23,6 +28,14 @@ pub(crate) fn machine_owns_bodyless_domain(
     if machine.supply_mode != MachineSupplyMode::CheckedBody {
         return false;
     }
+    machine_matches_bodyless_domain_owner(program, machine, domain_symbol)
+}
+
+fn machine_matches_bodyless_domain_owner(
+    program: &TypedTrees,
+    machine: &Machine,
+    domain_symbol: SymbolHandle,
+) -> bool {
     let Some(domain) = domain_definition(program, domain_symbol) else {
         return false;
     };
@@ -36,20 +49,56 @@ pub(crate) fn machine_owns_bodyless_domain(
         .is_some_and(|carrier| same_semantic_name(attached.as_str(), carrier))
 }
 
+pub(crate) fn boundary_qualification_authorization(
+    program: &TypedTrees,
+    owner_symbol: SymbolHandle,
+    signature: &StateSignature,
+    contract_kind: SignatureContractKind,
+    fact: Handle<ProofFact>,
+) -> Option<BoundaryQualificationAuthorization> {
+    if contract_kind != SignatureContractKind::Ensures
+        || !program
+            .traits()
+            .iter()
+            .any(|definition| definition.symbol == owner_symbol && definition.is_boundary)
+    {
+        return None;
+    }
+
+    let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
+        return None;
+    };
+    if !membership.domain_symbol.is_valid() || !expression_is_bare_result(program, membership.value)
+    {
+        return None;
+    }
+    let domain = domain_definition(program, membership.domain_symbol)?;
+    if !unwrapped_type_references_match(program, signature.return_type, domain.target_type) {
+        return None;
+    }
+
+    Some(BoundaryQualificationAuthorization {
+        requirement_symbol: owner_symbol,
+        signature_symbol: signature.symbol,
+    })
+}
+
 pub(crate) fn call_contract_evidence(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
+    target_state_symbol: SymbolHandle,
+    contract: &ContractProofFact,
     payload: FactPayload,
     is_ensures: bool,
-) -> QualificationEvidence {
+) -> Option<QualificationEvidence> {
     if !is_ensures {
-        return QualificationEvidence::default();
+        return Some(QualificationEvidence::default());
     }
     let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
-        return QualificationEvidence::default();
+        return Some(QualificationEvidence::default());
     };
     let Some(domain) = domain_definition(program, domain_symbol) else {
-        return QualificationEvidence::default();
+        return Some(QualificationEvidence::default());
     };
 
     if let Some(machine) = program
@@ -57,38 +106,60 @@ pub(crate) fn call_contract_evidence(
         .iter()
         .find(|machine| machine.symbol == target_symbol)
     {
-        let origin = match machine.supply_mode {
+        let checked_body = match machine.supply_mode {
+            MachineSupplyMode::CheckedBody => true,
+            MachineSupplyMode::Boundary => program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == target_state_symbol)
+                .is_some_and(|state| {
+                    !program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .is_empty()
+                }),
             MachineSupplyMode::Accepted
-            | MachineSupplyMode::Boundary
             | MachineSupplyMode::Requirement
-            | MachineSupplyMode::ExternalRealization { .. } => {
-                QualificationEvidenceOrigin::AdmittedReceipt
-            }
-            MachineSupplyMode::CheckedBody if domain.predicate_body.is_present() => {
-                QualificationEvidenceOrigin::Prover
-            }
-            MachineSupplyMode::CheckedBody
-                if machine_owns_bodyless_domain(program, machine, domain_symbol) =>
-            {
-                QualificationEvidenceOrigin::OwnerEstablishment
-            }
-            MachineSupplyMode::CheckedBody => QualificationEvidenceOrigin::CheckedTransformation,
+            | MachineSupplyMode::ExternalRealization { .. } => false,
         };
-        return QualificationEvidence::from_origin(origin, target_symbol);
+        if checked_body {
+            let origin = if domain.predicate_body.is_present() {
+                QualificationEvidenceOrigin::Prover
+            } else if machine_matches_bodyless_domain_owner(program, machine, domain_symbol) {
+                QualificationEvidenceOrigin::OwnerEstablishment
+            } else {
+                QualificationEvidenceOrigin::CheckedTransformation
+            };
+            return Some(QualificationEvidence::from_origin(origin, target_symbol));
+        }
+
+        return contract.qualification_authorization.map(|authorization| {
+            QualificationEvidence::from_admitted_requirement(
+                authorization.requirement_symbol,
+                authorization.signature_symbol,
+            )
+        });
     }
 
-    if program
+    if let Some(trait_definition) = program
         .traits()
         .iter()
-        .any(|definition| definition.symbol == target_symbol && definition.is_boundary)
+        .find(|definition| definition.symbol == target_symbol)
     {
-        return QualificationEvidence::from_origin(
-            QualificationEvidenceOrigin::AdmittedReceipt,
-            target_symbol,
-        );
+        if trait_definition.is_boundary {
+            return contract.qualification_authorization.map(|authorization| {
+                QualificationEvidence::from_admitted_requirement(
+                    authorization.requirement_symbol,
+                    authorization.signature_symbol,
+                )
+            });
+        }
     }
 
-    QualificationEvidence::from_origin(QualificationEvidenceOrigin::Propagated, target_symbol)
+    Some(QualificationEvidence::from_origin(
+        QualificationEvidenceOrigin::Propagated,
+        target_symbol,
+    ))
 }
 
 pub(crate) fn operator_contract_evidence(
@@ -132,6 +203,49 @@ fn named_carrier(program: &TypedTrees, type_reference: TypeReferenceHandle) -> O
         TypeReferenceNode::Reference { referee, .. } => named_carrier(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => named_carrier(program, *base_type),
         _ => None,
+    }
+}
+
+fn expression_is_bare_result(
+    program: &TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return false;
+    };
+    name.as_str() == "result"
+}
+
+fn unwrapped_type_references_match(
+    program: &TypedTrees,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    let Some(left) = unwrapped_type_reference(program, left) else {
+        return false;
+    };
+    let Some(right) = unwrapped_type_reference(program, right) else {
+        return false;
+    };
+    program.normalized_type_identity(left) == program.normalized_type_identity(right)
+}
+
+fn unwrapped_type_reference(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => unwrapped_type_reference(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            unwrapped_type_reference(program, *base_type)
+        }
+        _ => Some(type_reference),
     }
 }
 

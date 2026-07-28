@@ -156,9 +156,14 @@ fn append_call_semantic_contract_refs(
         let evidence = crate::qualification_evidence::call_contract_evidence(
             program,
             call.target_machine_symbol,
+            call.target_state_symbol,
+            contract,
             payload,
             matches!(origin, FactOrigin::CallEnsures),
         );
+        let Some(evidence) = evidence else {
+            continue;
+        };
         let fact = facts.append_fact(Fact {
             place,
             point,

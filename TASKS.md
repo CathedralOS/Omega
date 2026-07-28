@@ -49,8 +49,12 @@ origin from program-point origin; checked carrier owners may establish their
 own bodyless result facts without bypassing bodyful predicates; transfer
 preserves evidence; admitted facts retain matching granted provider-plan
 receipt identity; and `05_qualification_evidence.json` publishes the result.
-The remaining bullets below still govern completion, especially exact
-owner-authorized admitted-subject matching and the authority migrations.
+Boundary admission now also retains the exact authorizing trait and state
+signature, admits only an exact `ensures result in Domain` whose result carrier
+matches the domain target, rejects direct accepted-machine membership claims,
+and publishes the requirement identity beside the receipt. Package-owner
+coherence, the independent domain-theory records, aliases, and the authority
+migrations remain.
 
 - represent predicate bodies, semantic roles, establishment routes, and alias
   expansion independently instead of projecting a facet pair from body shape;

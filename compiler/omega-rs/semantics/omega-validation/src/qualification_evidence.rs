@@ -1,0 +1,128 @@
+use crate::places::unwrapped_type_reference;
+use crate::type_references::type_references_match;
+use omega_core::diagnostics::Diagnostic;
+use omega_core::semantics::MachineSupplyMode;
+use omega_typed_trees::TypedTrees;
+use omega_typed_trees::domain::ProofFact;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::signature::SignatureContractKind;
+
+pub(crate) fn validate_qualification_authorization(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_boundary_requirements(program, diagnostics);
+    validate_external_machine_claims(program, diagnostics);
+}
+
+fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for trait_definition in program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+    {
+        for signature in program.trait_machine_signatures(trait_definition) {
+            for contract in program
+                .state_signature_contracts(signature)
+                .iter()
+                .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+            {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    let ProofFact::Membership(membership) = fact else {
+                        continue;
+                    };
+                    if !membership.domain_symbol.is_valid() {
+                        continue;
+                    }
+                    let Some(domain) = program
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == membership.domain_symbol)
+                    else {
+                        continue;
+                    };
+
+                    if !expression_is_bare_result(program, membership.value) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "boundary requirement `{}::{}` may admit domain `{}` only for its exact `result`; move the membership guarantee to `ensures result in {}`",
+                            trait_definition.name,
+                            signature.name,
+                            domain.name,
+                            domain.name,
+                        )));
+                        continue;
+                    }
+
+                    let return_carrier = unwrapped_type_reference(program, signature.return_type);
+                    let domain_carrier = unwrapped_type_reference(program, domain.target_type);
+                    if !matches!(
+                        (return_carrier, domain_carrier),
+                        (Some(return_carrier), Some(domain_carrier))
+                            if type_references_match(program, return_carrier, domain_carrier)
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "boundary requirement `{}::{}` cannot admit `result in {}`: result carrier `{}` does not match domain target `{}`",
+                            trait_definition.name,
+                            signature.name,
+                            domain.name,
+                            program.display_type_reference_with_constraints(signature.return_type),
+                            program.display_type_reference_with_constraints(domain.target_type),
+                        )));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+    for machine in program.machines().iter().filter(|machine| {
+        matches!(
+            machine.supply_mode,
+            MachineSupplyMode::Accepted
+                | MachineSupplyMode::Requirement
+                | MachineSupplyMode::ExternalRealization { .. }
+        )
+    }) {
+        for contract in program
+            .machine_contracts(machine)
+            .iter()
+            .chain(
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .flat_map(|state| program.state_contracts(state)),
+            )
+            .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                let ProofFact::Membership(membership) = fact else {
+                    continue;
+                };
+                if !membership.domain_symbol.is_valid() {
+                    continue;
+                }
+                let domain_name = program
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == membership.domain_symbol)
+                    .map(|domain| domain.name.as_str())
+                    .unwrap_or("<unknown>");
+                diagnostics.push(Diagnostic::error(format!(
+                    "external machine `{}` cannot directly admit domain membership `{}`; publish `ensures result in {}` on an owner-authorized boundary trait requirement and satisfy that requirement through the provider",
+                    machine.name, domain_name, domain_name,
+                )));
+            }
+        }
+    }
+}
+
+fn expression_is_bare_result(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return false;
+    };
+    name.as_str() == "result"
+}

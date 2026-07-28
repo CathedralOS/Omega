@@ -19,6 +19,7 @@ mod places;
 mod proof_facts;
 mod proof_only_faces;
 mod properties;
+mod qualification_evidence;
 mod quotients;
 mod recasts;
 mod state_signatures;
@@ -128,6 +129,7 @@ fn validate_program_internal(
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
+    qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
     // Math roster N1: recursive data is legal and PROOF-ONLY (computed, never

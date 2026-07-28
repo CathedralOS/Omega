@@ -161,8 +161,13 @@ source:
 | checked transformation | inherited or conserved evidence |
 | admitted receipt | an explicitly accepted external assertion or root |
 
-The artifact records the public origin class and receipt where applicable.
-Private proof steps and implementation witnesses remain private evidence.
+An admitted membership assertion is valid only on the bare result of a
+boundary requirement whose result carrier matches the domain target. A direct
+accepted-machine membership guarantee is not authorization. Checked proof
+facts retain the boundary trait and exact requirement signature, and the
+artifact records that signature, the public origin class, and the selected
+provider receipt where applicable. Private proof steps and implementation
+witnesses remain private evidence.
 
 Reconstructing equal carrier fields does not reproduce qualification. Existing
 qualified values retain their facts through ordinary assignment, move, and

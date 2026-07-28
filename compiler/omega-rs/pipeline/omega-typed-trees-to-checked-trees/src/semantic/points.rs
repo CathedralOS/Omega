@@ -123,6 +123,7 @@ mod tests {
                 operator_symbol,
             },
             fact: Handle::from_arena_index(2),
+            qualification_authorization: None,
         };
 
         assert_eq!(
