@@ -24,9 +24,9 @@ pub(crate) fn borrow_access_place(
                 indexed.collection,
                 machine_symbol,
             )?;
-            place.segments.push(omega_facts::PlaceSegment::Index {
-                expression: indexed.index,
-            });
+            place
+                .segments
+                .push(crate::flow::index_place_segment(program, indexed.index));
             Some(place)
         }
         ExpressionNode::Range(_) => None,

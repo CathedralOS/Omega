@@ -197,9 +197,7 @@ fn contract_expression_place(
             Some(append_place_segment(
                 facts,
                 collection,
-                omega_facts::PlaceSegment::Index {
-                    expression: indexed.index,
-                },
+                crate::flow::index_place_segment(program, indexed.index),
             ))
         }
         _ => None,

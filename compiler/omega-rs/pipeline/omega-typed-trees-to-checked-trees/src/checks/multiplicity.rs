@@ -563,6 +563,26 @@ fn claim_outcomes_for_expression(
     }
 
     match program.expression_table.expression(expression) {
+        omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .enumerate()
+            .flat_map(|(index, value)| {
+                let mut element_prefix = output_prefix.to_vec();
+                element_prefix.push(omega_facts::PlaceSegment::FixedIndex { index });
+                claim_outcomes_for_expression(
+                    program,
+                    state,
+                    statement_index,
+                    *value,
+                    segments,
+                    permission_events,
+                    known_maps,
+                    &element_prefix,
+                )
+            })
+            .collect(),
         omega_typed_trees::expression::ExpressionNode::StructLiteral(literal)
             if literal.case_name.is_none() =>
         {
@@ -1308,6 +1328,60 @@ fn append_linear_claim_frontier(
     if !type_reference.is_valid() {
         return;
     }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            append_linear_claim_frontier(
+                program,
+                *base_type,
+                substitutions,
+                path,
+                visiting,
+                claims,
+            );
+            return;
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
+        } => {
+            for index in 0..*length {
+                let mut element_path = path.to_vec();
+                element_path.push(omega_facts::PlaceSegment::FixedIndex { index });
+                append_linear_claim_frontier(
+                    program,
+                    *element_type,
+                    substitutions,
+                    &element_path,
+                    visiting,
+                    claims,
+                );
+            }
+            return;
+        }
+        TypeReferenceNode::Named { symbol, .. } => {
+            if let Some(replacement) =
+                substitutions
+                    .iter()
+                    .rev()
+                    .find_map(|(parameter, replacement)| {
+                        (*parameter == *symbol).then_some(*replacement)
+                    })
+                && replacement != type_reference
+            {
+                append_linear_claim_frontier(
+                    program,
+                    replacement,
+                    substitutions,
+                    path,
+                    visiting,
+                    claims,
+                );
+                return;
+            }
+        }
+        _ => {}
+    }
+
     let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
     if multiplicity == Multiplicity::Linear {
         claims.push(LinearClaimTemplate {
@@ -1329,29 +1403,8 @@ fn append_linear_claim_frontier(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            append_linear_claim_frontier(program, *base_type, substitutions, path, visiting, claims)
-        }
+        TypeReferenceNode::Constrained { .. } => unreachable!("handled before multiplicity"),
         TypeReferenceNode::Named { symbol, name } => {
-            if let Some(replacement) =
-                substitutions
-                    .iter()
-                    .rev()
-                    .find_map(|(parameter, replacement)| {
-                        (*parameter == *symbol).then_some(*replacement)
-                    })
-                && replacement != type_reference
-            {
-                append_linear_claim_frontier(
-                    program,
-                    replacement,
-                    substitutions,
-                    path,
-                    visiting,
-                    claims,
-                );
-                return;
-            }
             let Some(definition) = find_data_definition(program, *symbol, name.as_str()) else {
                 return;
             };
@@ -1401,10 +1454,13 @@ fn append_linear_claim_frontier(
                 claims,
             );
         }
-        // Literal fixed-array indices and active sum cases join this same
-        // frontier once their canonical path identities are available.
-        TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::Reference { .. }
+        TypeReferenceNode::FixedArray { .. } => {
+            // Const-parameter lengths must become literal before this stage
+            // can enumerate the complete fixed-index ownership frontier.
+        }
+        // Active sum cases join this same frontier once their canonical path
+        // identities and conditional outcome maps are available.
+        TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => {}
@@ -1462,6 +1518,11 @@ fn claim_place_name(
                 });
                 name.push('.');
                 name.push_str(field.unwrap_or("<field>"));
+            }
+            omega_facts::PlaceSegment::FixedIndex { index } => {
+                name.push('[');
+                name.push_str(&index.to_string());
+                name.push(']');
             }
             omega_facts::PlaceSegment::Index { .. } => name.push_str("[<index>]"),
         }
@@ -2035,8 +2096,44 @@ fn expression_permission_claim_identity_for_claim(
                         }),
                 );
             }
+            omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+                return common_permission_claim_identity(
+                    program
+                        .expression_table
+                        .expression_handles(*values)
+                        .iter()
+                        .filter_map(|value| {
+                            expression_permission_claim_identity_for_claim(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                *value,
+                                &[],
+                                places,
+                            )
+                        }),
+                );
+            }
             _ => {}
         }
+    }
+
+    if let omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
+        program.expression_table.expression(expression)
+        && let Some(omega_facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+    {
+        let value = *program
+            .expression_table
+            .expression_handles(*values)
+            .get(*index)?;
+        return expression_permission_claim_identity_for_claim(
+            program,
+            state_symbol,
+            statement_index,
+            value,
+            &relative_path[1..],
+            places,
+        );
     }
 
     if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
@@ -2146,8 +2243,44 @@ fn expression_permission_provenance_for_claim(
                         }),
                 );
             }
+            omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+                return common_permission_provenance(
+                    program
+                        .expression_table
+                        .expression_handles(*values)
+                        .iter()
+                        .filter_map(|value| {
+                            expression_permission_provenance_for_claim(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                *value,
+                                &[],
+                                places,
+                            )
+                        }),
+                );
+            }
             _ => {}
         }
+    }
+
+    if let omega_typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
+        program.expression_table.expression(expression)
+        && let Some(omega_facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+    {
+        let value = *program
+            .expression_table
+            .expression_handles(*values)
+            .get(*index)?;
+        return expression_permission_provenance_for_claim(
+            program,
+            state_symbol,
+            statement_index,
+            value,
+            &relative_path[1..],
+            places,
+        );
     }
 
     if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =

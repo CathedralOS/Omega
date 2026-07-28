@@ -383,6 +383,11 @@ fn borrow_place_label(
                 label.push('.');
                 label.push_str(&symbol_name_for_state(graph, machine, state, *symbol));
             }
+            omega_facts::PlaceSegment::FixedIndex { index } => {
+                label.push('[');
+                label.push_str(&index.to_string());
+                label.push(']');
+            }
             omega_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
                 label.push_str(&expression_label(graph, *expression));

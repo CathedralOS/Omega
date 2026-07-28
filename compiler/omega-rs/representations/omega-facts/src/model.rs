@@ -22,8 +22,21 @@ pub enum PlaceRoot {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlaceSegment {
-    Field { symbol: SymbolHandle },
-    Index { expression: ExpressionHandle },
+    Field {
+        symbol: SymbolHandle,
+    },
+    /// Compiler-normalized identity for one statically known fixed-array
+    /// element. Unlike `Index`, this is independent of expression handles and
+    /// can therefore appear in a type-derived ownership frontier.
+    FixedIndex {
+        index: usize,
+    },
+    /// A runtime or otherwise non-normalized index expression. Ownership
+    /// decomposition treats this conservatively as potentially selecting any
+    /// element.
+    Index {
+        expression: ExpressionHandle,
+    },
 }
 
 impl Default for PlaceSegment {

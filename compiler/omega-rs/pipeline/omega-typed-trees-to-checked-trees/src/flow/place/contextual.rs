@@ -83,9 +83,9 @@ pub(super) fn contextual_canonical_place_from_expression(
                 statement_index,
                 indexed.collection,
             )?;
-            place.segments.push(omega_facts::PlaceSegment::Index {
-                expression: indexed.index,
-            });
+            place
+                .segments
+                .push(index_place_segment(program, indexed.index));
             Some(place)
         }
         _ => None,
@@ -152,7 +152,8 @@ fn resolve_member_symbol_from_place(
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = resolution::symbol_type_symbol(program, *symbol)?;
             }
-            omega_facts::PlaceSegment::Index { .. } => return None,
+            omega_facts::PlaceSegment::FixedIndex { .. }
+            | omega_facts::PlaceSegment::Index { .. } => return None,
         }
     }
 

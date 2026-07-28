@@ -122,6 +122,10 @@ fn borrow_owner_path_overlaps_place(
                 ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
                 (
                     omega_checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                    omega_facts::PlaceSegment::FixedIndex { index: place_index },
+                ) => owner_index == place_index,
+                (
+                    omega_checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner_index),
                     omega_facts::PlaceSegment::Index { expression },
                 ) => program
                     .expression_table
@@ -130,7 +134,8 @@ fn borrow_owner_path_overlaps_place(
                     .is_none_or(|place_index| *owner_index == place_index),
                 (
                     omega_checked_trees::BorrowLoanOwnerSegment::DynamicIndex,
-                    omega_facts::PlaceSegment::Index { .. },
+                    omega_facts::PlaceSegment::FixedIndex { .. }
+                    | omega_facts::PlaceSegment::Index { .. },
                 ) => true,
                 _ => false,
             })

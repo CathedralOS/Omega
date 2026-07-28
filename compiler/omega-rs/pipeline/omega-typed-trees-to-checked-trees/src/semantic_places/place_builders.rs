@@ -120,7 +120,8 @@ fn fact_place_type_symbol(
             omega_facts::PlaceSegment::Field { symbol } => {
                 current = symbol_type_symbol(program, *symbol)?;
             }
-            omega_facts::PlaceSegment::Index { .. } => {
+            omega_facts::PlaceSegment::FixedIndex { .. }
+            | omega_facts::PlaceSegment::Index { .. } => {
                 return None;
             }
         }

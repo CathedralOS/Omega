@@ -202,8 +202,11 @@ its contained linear field claims without adding an aggregate claim; local
 construction, whole-record transfer, and field extraction retain those paths.
 Moving one field therefore leaves its siblings live, and moving the same field
 twice rejects. An explicit `[linear]` record remains one indivisible nominal
-root. Active sum cases and fixed array indices are still conservative until
-their P1c frontier identities and mappings are implemented.
+root. Literal-length fixed arrays likewise expose one canonical path per
+contained element: literal-index extraction leaves sibling obligations live,
+while runtime-indexed owned extraction remains conservative because it cannot
+name one unique element. Active sum cases remain conservative until their P1c
+frontier identities and mappings are implemented.
 
 An aggregate with structural field cleanup may be partially moved. Its cleanup
 plan visits only the remaining live fields.

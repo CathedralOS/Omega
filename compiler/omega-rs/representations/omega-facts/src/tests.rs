@@ -241,7 +241,7 @@ fn expression_places_preserve_roots_and_segments() {
             symbol: field_symbol
         }
     );
-    assert_eq!(segments[1], PlaceSegment::Index { expression: index });
+    assert_eq!(segments[1], PlaceSegment::FixedIndex { index: 0 });
     assert_eq!(
         segments[2],
         PlaceSegment::Field {

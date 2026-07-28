@@ -213,9 +213,12 @@ every qualification-evidence origin starts strict, exact positive permissions
 relax only that origin, and both multiple origins and multiple claims
 intersect. The identity-preserving n-ary outcome maps therefore preserve each
 child's policy without copying domain membership, and checked carry artifacts
-publish the effective policy per claim. Active-case and fixed-index frontiers
-remain subsequent P1c slices. Symbol-keyed substitutions already retain
-contained claims through nested generic transparent records.
+publish the effective policy per claim. Literal-length fixed arrays now
+enumerate canonical fixed-index paths through construction, literal-index
+extraction, partial moves, and n-ary output maps; runtime-indexed owned
+extraction remains fail-closed. Active-case frontiers remain a subsequent P1c
+slice. Symbol-keyed substitutions already retain contained claims through
+nested generic transparent records.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally

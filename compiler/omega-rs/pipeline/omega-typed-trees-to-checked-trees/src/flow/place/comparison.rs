@@ -12,6 +12,10 @@ pub(crate) fn canonical_place_segments_equal(
             },
         ) => left_symbol == right_symbol,
         (
+            omega_facts::PlaceSegment::FixedIndex { index: left_index },
+            omega_facts::PlaceSegment::FixedIndex { index: right_index },
+        ) => left_index == right_index,
+        (
             omega_facts::PlaceSegment::Index {
                 expression: left_expression,
             },
@@ -104,6 +108,18 @@ fn canonical_place_segment_pair_may_overlap(
             },
         ) => left_symbol == right_symbol,
         (
+            omega_facts::PlaceSegment::FixedIndex { index: left_index },
+            omega_facts::PlaceSegment::FixedIndex { index: right_index },
+        ) => left_index == right_index,
+        (
+            omega_facts::PlaceSegment::FixedIndex { index },
+            omega_facts::PlaceSegment::Index { expression },
+        )
+        | (
+            omega_facts::PlaceSegment::Index { expression },
+            omega_facts::PlaceSegment::FixedIndex { index },
+        ) => expression_static_index(program, expression).is_none_or(|value| value == index),
+        (
             omega_facts::PlaceSegment::Index {
                 expression: left_expression,
             },
@@ -113,6 +129,16 @@ fn canonical_place_segment_pair_may_overlap(
         ) => index_expressions_may_overlap(program, left_expression, right_expression),
         _ => false,
     }
+}
+
+fn expression_static_index(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<usize> {
+    program
+        .expression_table
+        .constant_integer_value(expression)
+        .and_then(|value| usize::try_from(value).ok())
 }
 
 #[cfg(test)]
