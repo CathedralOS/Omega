@@ -1,13 +1,15 @@
-// RUN canary: the `as`-widen is the sanctioned way to compare different-width
-// integers (see the fail canary mismatched_width_comparison_rejected). This locks
-// that the widened compare evaluates CORRECTLY -- i.e. the wider operand is NOT
-// truncated to the narrower width.
+// RUN canary: an ordinary named widening conversion is the sanctioned way to
+// compare different-width integers (see the fail canary
+// mismatched_width_comparison_rejected). This locks that the widened compare
+// evaluates CORRECTLY -- i.e. the wider operand is NOT truncated to the
+// narrower width.
 //
 // `self.small` is i8 44; `self.big` is i32 300 (low byte 0x2C == 44). A truncating
 // compare (the rejected bug) would read `44 == (300 & 0xFF == 44)` -> TRUE; the
 // correct widened compare reads `44 == 300` -> FALSE. A second check confirms the
 // widen still matches a genuinely equal value (44 == 44). Both correct -> exit 70.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -22,11 +24,11 @@ machine Main::main(&mut self) {
     self.same = 44;
 
     // Widened 44 must NOT equal 300 (truncation would make it equal).
-    transition self.small as i32 == self.big { true -> truncated() _ -> confirm_equal() }
+    transition widen_i8_to_i32(self.small) == self.big { true -> truncated() _ -> confirm_equal() }
 
     // Widened 44 MUST equal 44 (the widen preserves the value).
     state confirm_equal(&mut self) {
-        transition self.small as i32 == self.same { true -> correct() _ -> missed() }
+        transition widen_i8_to_i32(self.small) == self.same { true -> correct() _ -> missed() }
     }
 
     state correct(&mut self) { self.console.exit_process(70); }

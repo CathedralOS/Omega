@@ -1,8 +1,11 @@
-// A runtime cast terminal converts into entry-result scratch and returns the
-// widened value through the native result register.
+// A named runtime widening conversion used as the terminal expression returns
+// through entry-result scratch and the native result register.
+use omega::language::core::numeric_conversion;
+
 data Main { value: u8; }
 
 machine Main::main(&mut self) -> i32 {
     self.value = 70;
-    transition { _ -> (self.value as i32) }
+    let result: i32 = widen_u8_to_i32(self.value);
+    transition { _ -> (result) }
 }

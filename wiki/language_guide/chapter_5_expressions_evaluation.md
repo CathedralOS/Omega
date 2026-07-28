@@ -406,9 +406,11 @@ Two rules keep it honest:
 > Saturating, or Trapping narrowing. Exact carries a proven representability
 > contract, and every result returns to ordinary Exact arithmetic.
 > Checked-result narrowing remains design-open in the appendix; float/integer
-> conversion and the remaining corpus still use compatibility `as` while their
-> named operations land. The domain model reserves qualification `as` for
-> changing static facts without changing carrier, payload, or runtime work.
+> conversion and the not-yet-migrated corpus still use compatibility `as` while
+> their named operations land. The migrated integer cohort covers guard,
+> comparison, bitwise, entry-result, indexed-operand, and signedness-sensitive
+> lowering shapes. The domain model reserves qualification `as` for changing
+> static facts without changing carrier, payload, or runtime work.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.

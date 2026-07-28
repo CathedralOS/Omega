@@ -1,12 +1,11 @@
-// A numeric `as` cast used DIRECTLY in a guard subject (`transition self.x as u8 == c`),
-// newly supported. The guard value-operand path wraps the cast in a Convert (mirroring the
-// write-path resolver) and the guard compare derives its width from the cast's TARGET type.
-// Values are built at runtime so the casts run in codegen, not const-folded. Previously the
-// dispatch-guard blocker rejected any cast in a guard subject (former
-// canaries/fail/arithmetic/cast_in_guard_rejected); the workaround was to cast into a field
-// first. The differential oracle also checks native==interpreter.
+// Named integer conversions used DIRECTLY in guard subjects. Values are built
+// at runtime so the checked core conversion bodies and call-result guard path
+// both run rather than const-folding. This replaces the compatibility-cast
+// spelling while retaining narrowing, signed widening, and unsigned widening
+// coverage. The differential oracle also checks native==interpreter.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -32,20 +31,27 @@ machine Main::main(&mut self) {
 
     // big = 300 at runtime from here on.
     state narrow_guard(&mut self) {
-        // narrowing cast in a guard subject: 300 as u8 == 44 (low byte of 0x12C).
-        transition self.big as u8 in Wrapping == 44 { true -> widen_signed_guard() _ -> bad() }
+        // Explicit wrapping narrowing: 300 -> u8 44 (low byte of 0x12C).
+        transition narrow_i32_to_u8_wrapping(self.big) == 44 {
+            true -> widen_signed_guard()
+            _ -> bad()
+        }
     }
     state widen_signed_guard(&mut self) {
         self.neg = 0 - 4;
-        // widening SIGNED cast (sign-extend): (-4 as i32) as i64 == -4, not a huge
-        // zero-extended value.
-        transition self.neg as i64 == 0 - 4 { true -> widen_unsigned_guard() _ -> bad() }
+        // Signed widening sign-extends -4 rather than zero-extending it.
+        transition widen_i32_to_i64(self.neg) == 0 - 4 {
+            true -> widen_unsigned_guard()
+            _ -> bad()
+        }
     }
     state widen_unsigned_guard(&mut self) {
         self.small = 200;
-        // widening UNSIGNED cast (zero-extend): 200u8 as i32 == 200 (not sign-extended
-        // to a negative i32).
-        transition self.small as i32 == 200 { true -> good() _ -> bad() }
+        // Unsigned widening zero-extends 200 rather than sign-extending it.
+        transition widen_u8_to_i32(self.small) == 200 {
+            true -> good()
+            _ -> bad()
+        }
     }
 
     state good(&mut self) {
