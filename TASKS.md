@@ -553,13 +553,20 @@ and allocation handles expose no compiler-owned stack/control storage.
   Implementation checkpoint (2026-07-28): the shared host-independent semantic
   engine now owns exact decimal landing, binary32/binary64 decode and rounding,
   base add/subtract/multiply/divide/negate, partial comparisons, the settled
-  min/max choice, and distinct multiply-then-add versus fused-multiply-add.
+  min/max choice, distinct multiply-then-add versus fused-multiply-add,
+  classification, correctly rounded square root, exact/saturating/trapping
+  float-to-integer conversion, integer-to-float rounding from exact integers,
+  format conversion, and explicit directed-rounding variants.
   Anonymous-constant landing and the interpreter's landed arithmetic consume
-  that engine, including per-operation binary32 rounding and proof-level NaN
-  payload erasure. Finish rung 1 with named classification, square root,
-  float/integer and format conversions, and directed-rounding operations plus
-  build-time/runtime twins for their edge cases; do not mistake the remaining
-  compatibility `as` consumer for the public conversion surface.
+  that engine, including per-operation binary32 rounding, square root,
+  conversion policy edges, full unsigned-64 conversion, and proof-level NaN
+  payload erasure. The compatibility x86-64 and AArch64 conversion lowerings
+  now distinguish signed from unsigned sources through the full 64-bit range.
+  Finish rung 1 by publishing the source-visible executable core operation
+  identities, routing the remaining FMA/classification/directed call surfaces
+  through them, and adding build-time/runtime twins for every edge family; do
+  not mistake the remaining compatibility `as` consumer for the public
+  conversion surface.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.

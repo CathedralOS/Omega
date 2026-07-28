@@ -86,9 +86,14 @@ The first shared-engine checkpoint now routes exact decimal landing,
 anonymous-constant landing, and landed interpreter add/subtract/multiply/divide
 through one binary32/binary64 semantic implementation, including per-operation
 binary32 rounding, partial comparisons, min/max, and separate fused and
-unfused multiply-add meanings. Square root, named conversions,
-classification, directed-rounding variants, and their constant/runtime twin
-canaries remain before the floating evaluation lane is complete.
+unfused multiply-add meanings. The same engine now supplies correctly rounded
+square root, classification, float/integer and format conversion, and explicit
+directed-rounding definitions; the interpreter's square-root and compatibility
+conversion consumers use them without host arithmetic. Compatibility x86-64
+and AArch64 integer-to-float lowering now preserves source signedness through
+the full 64-bit range as well. Source-visible named operation identities,
+remaining call-surface routing, and constant/runtime twin canaries still
+remain before the floating evaluation lane is complete.
 
 ## Admission uses the complete invocation contract
 

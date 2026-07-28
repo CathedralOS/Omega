@@ -22,6 +22,7 @@ data Main {
     fr: f32;
     i: i32 in Wrapping;
     ri: i32 in Wrapping;
+    wide: u64;
     v: Vec2;
 }
 
@@ -57,7 +58,17 @@ machine Main::main(&mut self) {
     state float_to_int(&mut self) {
         self.a = 3.75;
         self.ri = self.a as i32 in Saturating; // F4: float casts have no Wrapping reading
-        transition self.ri == 3 { true -> nested_dot() _ -> bad() }
+        transition self.ri == 3 { true -> wide_int_to_float() _ -> bad() }
+    }
+    state wide_int_to_float(&mut self) {
+        // The interpreter's scalar payload is i64-shaped, but conversion must
+        // use the SOURCE primitive identity: u64::MAX rounds to 2^64, not -1.
+        self.wide = 18446744073709551615;
+        self.r = self.wide as f64;
+        transition self.r == 18446744073709551616.0 {
+            true -> nested_dot()
+            _ -> bad()
+        }
     }
     state nested_dot(&mut self) {
         // nested-field float arithmetic: a 3-4-5 dot product, x*x + y*y == 25.0.

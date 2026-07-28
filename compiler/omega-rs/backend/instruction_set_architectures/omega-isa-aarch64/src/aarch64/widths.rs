@@ -451,8 +451,15 @@ fn runtime_convert_operation_width(
     saturating: bool,
 ) -> usize {
     match (source_is_float, target_is_float) {
-        // int -> float: SCVTF (4) + FMOV result back to GPR (4).
-        (false, true) => 8,
+        // int -> float: optional narrow signed extension + SCVTF/UCVTF +
+        // FMOV result back to GPR.
+        (false, true) => {
+            8 + if source_signed && matches!(source_byte_size, 1 | 2) {
+                4
+            } else {
+                0
+            }
+        }
         // float -> int: FMOV bits into FP bank (4) + [F4 Trapping value
         // guard] + FCVTZS (4).
         (true, false) => {
