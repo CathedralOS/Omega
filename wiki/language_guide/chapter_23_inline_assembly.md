@@ -222,6 +222,15 @@ SIMD-free: optimization, register allocation, and callees may introduce SIMD.
 The backend therefore emits an actual footprint certificate and final-artifact
 validation checks it against the state ceiling.
 
+Floating arithmetic instruction contracts additionally require the target's
+canonical masked semantic-control state. For binary32/binary64 this includes
+the selected rounding rule and gradual-underflow controls such as x86 FTZ/DAZ
+or their AArch64 equivalents; sticky status flags remain outside the invariant.
+An admitted instruction satisfier is valid only under that precondition.
+Checked assembly that changes the relevant controls must establish the matching
+state transition and cannot return to ordinary Omega code without restoring the
+canonical state.
+
 ## Memory and hardware instructions
 
 Assembly loads/stores do not manufacture authority from an integer address.

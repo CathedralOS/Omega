@@ -1,4 +1,4 @@
-# Float Semantics — the design record (settled 2026-07-18)
+# Float Semantics — the design record (settled 2026-07-28)
 
 This is the settled float model. Chapter 5's Float Facts section is the
 user-facing surface; this file records the rationale and implementation laws.
@@ -12,7 +12,7 @@ arithmetic composed with one lossy, well-behaved rounding operator,
 parameterized by a format record {radix, precision, emin, emax,
 special-values policy, rounding rule}. Omega adopts that shape outright,
 because the pieces already exist: exact arithmetic is the N2 bignum
-engine, finite-floats-embed-exactly-in-Rat is the settled roster fact, and
+engine, finite nonzero floats embed exactly in signed Rat, and
 per-target binding tables are the landed compatibility mechanism being
 migrated to explicit conformances from which the toolchain derives typed
 `ProviderPlan` artifacts.
@@ -20,20 +20,23 @@ migrated to explicit conformances from which the toolchain derives typed
 The model has three layers:
 
 - **Language** (representation-free): floats are format-parameterized
-  rounded-Rat carriers; finite values embed exactly in Rat; comparisons
-  may be partial. No NaN, no infinity, no IEEE anywhere in the grammar.
+  approximation carriers; finite nonzero values embed exactly in signed Rat,
+  signed zero/infinity/NaN live in the proof-level `FloatMeaning` sum, and
+  comparisons may be partial. No target instruction or ambient mode is part of
+  the grammar.
 - **Core**: format RECORDS (what Binary32 IS — radix 2, p=24, explicit
   normal/subnormal exponent bounds, IEEE specials, round-to-nearest-even)
   are target-independent semantic data living in omega::core beside Nat/Rat;
   `FloatFormat::BINARY32` and `FloatFormat::BINARY64` are now ordinary core
-  constants. The engine's round(format) and the proof stratum's decode->Rat
-  consume them.
+  constants. The engine's `FloatSemantics` functions and the proof stratum's
+  bit-pattern-to-meaning decoder consume them.
 - **Targets**: checked software machines and checked target instructions
   (`f32.add` -> the FPU operation) live in target packages as explicit
   conformances. Irreducible target operations use parsed, contract-emitting
-  `asm { ... }`; the toolchain derives the selected `ProviderPlan`. Hardware bindings are ACCEPTED-tier
-  (the settled "FPU rounds correctly" permanent boundary); software
-  implementations are PROVEN-tier; the trust report shows which.
+  `asm { ... }`; the toolchain derives the selected `ProviderPlan`. Hardware
+  semantic claims are admitted because the vendor supplies the silicon fact;
+  checked software implementations may be derived against the same executable
+  contract. The trust report distinguishes them.
 
 Rows SELECT among compiler-known lowerings and declare contracts + trust;
 they never TEACH the backend encodings (an .omg that emits arbitrary bytes
@@ -44,10 +47,82 @@ former `Binding::Instruction` compatibility carrier is already retired.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A
-posit-native target provides p32 in hardware (accepted) and f32 in
-software (proven) — the trust polarity flips and the report shows it.
+posit-native target provides p32 through an admitted hardware semantic claim
+and may provide f32 through a derived checked software realization — the trust
+polarity flips and the report shows it.
 Rebinding `f32` to posits would silently invalidate every proof written
 against IEEE contracts: the bleed the design exists to prevent, reversed.
+
+### Ordinary operator resolution, not float magic
+
+Primitive float spellings use the same operand-driven operator resolution as
+integers and authored semantic-facet domains. There is no float-only resolver,
+runtime operation tag, or `FloatOperations<F>` bundle.
+
+```text
+left + right
+    -> resolve the complete static carrier/domain tuple
+    -> select the named Float::add requirement
+    -> select a target satisfier and normalized ProviderPlan
+    -> realize ADDSS, FADD, or a checked software machine
+```
+
+The format comes from the permanent carrier identity. The domains qualify the
+operation. Selection is static; ordinary arithmetic never forms `dyn` and
+carries no runtime table.
+
+Arithmetic, comparison, conversion, classification, multiply-then-add, fused
+multiply-add, and directed-rounding operations have separate normalized
+requirement identities. In particular:
+
+```text
+multiply_then_add = round(round(a * b) + c)
+fused_multiply_add = round(a * b + c)
+```
+
+The compiler cannot contract the first into the second because they are
+different operations, not alternative realizations of one requirement.
+Nearest-even is the ordinary arithmetic contract. Toward-zero and the other
+directed modes are separately named operations, never ambient control state.
+
+### One executable semantic definition
+
+The public contract is an equality against an executable core function rather
+than prose or a four-place relation:
+
+```omega
+data FloatMeaning {
+    case FiniteNonZero(value: SignedRat); // value != 0
+    case Zero(sign: Sign);
+    case Infinity(sign: Sign);
+    case NaN;
+}
+
+FloatSemantics::add(
+    format: FloatFormat,
+    left: FloatMeaning,
+    right: FloatMeaning,
+) -> FloatMeaning;
+```
+
+Conceptually, the boundary operator promises:
+
+```omega
+ensures meaning(result)
+    == FloatSemantics::add(format_of(result), meaning(left), meaning(right));
+```
+
+`FiniteNonZero` excludes rational zero so the sum has no overlapping
+representations. Subnormals are ordinary nonzero signed rationals. Signed zero
+remains separate because operations such as reciprocal observe its sign.
+Infinity and NaN have no rational embedding. NaN payloads collapse only in the
+proof stratum; the runtime carrier retains its honest bits.
+
+The same semantic function is consumed by proof checking, build-time folding,
+the interpreter, checked software realizations, and target-validation tools.
+This replaces the current folder path that can evaluate landed `f32` operations
+through host `f64`: the semantics becomes the folder, so build-time and runtime
+cannot acquire independent definitions.
 
 ## 2. Domains: the value/policy split
 
@@ -71,15 +146,22 @@ against IEEE contracts: the bleed the design exists to prevent, reversed.
 
 A decimal literal is a rational, exactly. Pipeline: parse -> exact Rat ->
 compile-time arithmetic in Rat -> round ONCE at the landing site to the
-landing type's format; where the exact op is undefined/overflowing, apply
-the format's specials — compile-time equals runtime bit-for-bit by
-construction. Constants are unitless until a site requests a type: deferred
-typing resolves once at the requesting site, and arithmetic on the anonymous
-value is exact.
+landing type's format. After landing, every operation evaluates through its
+format's executable `FloatSemantics` function, including undefined finite
+arithmetic and special values. Constants are unitless until a site requests a
+type: deferred typing resolves once at the requesting site, and arithmetic on
+the anonymous value is exact.
 Conversion vs reinterpretation stays two mechanisms: the value-invariant
 mint (`1/3` renders differently per format) is this pipeline; the
 bits-invariant read is the recast (`&self.bits as &f32`), footprint-checked,
 separate.
+
+Semantic results therefore match target execution by construction. Exact raw
+NaN bits require a stronger representation refinement: a build-time raw-bit
+observation of a computed possibly-NaN result must prove non-NaN, canonicalize,
+or select a realization publishing exact NaN-bit behavior. Runtime recast may
+always inspect the bits actually present but promises no cross-target or
+cross-build identity.
 
 One rule retires three pinned residues: FloatLiteral-stored-as-f64-bits
 (f32 literal double-rounding hazard), the guard folder computing f32
@@ -122,16 +204,18 @@ Julia muladd vs fma, C23 _Float32, HLSL float16_t. Rules:
   static-machine selection in interpreter/native differential execution over
   both NaN signs and payload directions, infinities, and `-0.0 < +0.0`; no
   float-order intrinsic or ambient comparison mode exists.
-- NaN payloads: unspecified after every op, never proof-observable
-  (Rust RFC 3514's enumerated-nondeterminism, taken at the contract
-  level); recast reads honest bits. `f != f` is demoted to IEEE-binding
+- NaN payloads: absent from the base semantic contract and never
+  proof-observable through `FloatMeaning`. A representation-sensitive consumer
+  raises the obligation and must prove non-NaN, canonicalize, or demand a
+  realization-specific exact-bit refinement. Runtime recast still reads honest
+  bits. `f != f` is demoted to IEEE-binding
   detail; `is_finite` is the portable spelling (posits have NaR and a
   native total order — the idiom never fires there).
 
 ## 6. Extensibility ladder (user float types) + the posit future
 
 - Rung 1 (available under today's design): a float type as a LIBRARY —
-  encoding-domain carrier + proven software ops with decode->Rat
+  encoding-domain carrier + proven software ops with decode-to-meaning
   contracts. Zero compiler cooperation.
 - Rung 2: first-class literals/const-eval by supplying a FORMAT RECORD;
   the engine's generic round(format) covers any fixed-precision radix-2
@@ -180,6 +264,11 @@ makes format-as-data descriptive, not speculative.
    has no defensible clamp; half-measures rejected). `Finite &
    Saturating` composes (value + policy = different axes) and is the
    ergonomic pairing: magnitude proofs vanish, wellness stays proven.
+   For `a / b -> f32 in Finite`, bare finite operands still require proof that
+   `b` is neither signed zero and that the rounded quotient does not overflow.
+   Saturating discharges the magnitude-overflow branch but not the nonzero
+   divisor obligation. A result-checked Trapping qualification may instead
+   trap before returning a non-finite value.
    Chain rule recorded: any number of value domains, at most one policy
    per `&` chain. The cast's NaN->0 stays cast-specific.
 3. **Shift counts use proof-or-policy** (recorded in chapter 5's integer
@@ -190,8 +279,27 @@ makes format-as-data descriptive, not speculative.
    operand validity). The ISA's silent masking under Exact is an invented
    number and never adopted. Retires the shift entry of the
    underspecified-numerics family; native==interp by definition.
-4. Engineering: the stale bounded_float canary family (the `0.0f` suffix
-   no longer lexes) — cleanup rung; F7's remaining work is replacing the
-   hardcoded IEEE lowering bootstrap with checked target conformances and
-   checked assembly. The core format-record vocabulary v1 is live and covers
-   fixed-precision radix-2.
+4. **Canonical hardware state.** Every checked Omega activation uses one
+   canonical semantic floating-control configuration. On x86-64 this excludes
+   FTZ/DAZ and fixes nearest-even in the relevant MXCSR control mask; on
+   AArch64 it fixes the corresponding FPCR control bits. Sticky status flags are
+   not part of the invariant. Directed rounding remains a distinct operation,
+   not a control-word mutation. The scheduler therefore need not switch
+   semantic modes between Omega activations. A foreign binding must either
+   prove preservation or save/restore the relevant control state; callbacks
+   re-establish Omega state on entry and restore foreign state on exit.
+5. **Trapping is a result adapter.** It checks the semantic result rather than
+   unmasking hardware floating exceptions. Unmasking does not implement
+   Omega's precise policy and would destroy the canonical-control invariant.
+   A target may fuse the adapter only with proof against the same contract.
+6. **Admitted realization validation.** Executable semantics make vendor
+   hardware claims empirically testable even though they remain admitted.
+   Target providers retain differential-suite identity and results covering
+   normal/subnormal boundaries, ties, overflow/underflow, signed zero,
+   infinities, NaNs, and policy edges. Raw-bit comparison is required only when
+   an exact NaN representation refinement is claimed.
+7. **Engineering order.** Signed Rat -> `FloatMeaning` -> executable semantic
+   functions -> policy adapters -> target conformances -> differential
+   validation. Signed Rat belongs to the quotient/Real lane and is a hard F7
+   dependency. The stale bounded-float canaries remain a cleanup rung; the core
+   format-record vocabulary v1 already covers fixed-precision radix-2.

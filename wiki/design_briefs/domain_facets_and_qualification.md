@@ -266,11 +266,19 @@ vocabulary. Qualifying a value with one of them performs no runtime work.
 Subsequent operations use the selected behavior:
 
 - `Wrapping` reduces at the declared machine width;
-- `Saturating` clamps overflow;
-- `Trapping` emits a runtime overflow check and terminal trap.
+- `Saturating` clamps representable-range overflow;
+- `Trapping` emits a runtime result check and terminal trap.
 
 The later operation may therefore cost work or terminate abnormally even
 though qualification itself cannot.
+
+The same policy role applies to integer and float carriers through their
+ordinary operator requirements; it does not imply identical failure sets.
+Float `Saturating` clamps magnitude overflow but does not assign a value to an
+invalid operation such as `0.0 / 0.0`. Float `Trapping` rejects a non-finite
+semantic result through the checked adapter; it never mutates the hardware
+exception mask. `Finite & Saturating` therefore removes magnitude-overflow
+proofs while retaining obligations such as a nonzero divisor.
 
 Mixed arithmetic policies reject. Arithmetic-policy removal or replacement
 changes only future operator selection; it does not reinterpret an already
