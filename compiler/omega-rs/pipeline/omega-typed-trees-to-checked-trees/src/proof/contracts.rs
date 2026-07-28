@@ -24,6 +24,7 @@ pub(crate) fn append_machine_contract_facts(
                     machine_symbol: machine.symbol,
                 },
                 fact,
+                qualification_authorization: None,
             });
         }
     }
@@ -44,6 +45,7 @@ pub(crate) fn append_state_contract_facts(
                     state_symbol: state.symbol,
                 },
                 fact,
+                qualification_authorization: None,
             });
         }
     }
@@ -58,6 +60,14 @@ pub(crate) fn append_state_signature_contract_facts(
     for signature in signatures {
         for contract in program.state_signature_contracts(signature) {
             for fact in super::fact_handles(contract.facts) {
+                let qualification_authorization =
+                    crate::qualification_evidence::boundary_qualification_authorization(
+                        program,
+                        owner_symbol,
+                        signature,
+                        contract.kind,
+                        fact,
+                    );
                 contract_facts.append(ContractProofFact {
                     kind: super::contract_fact_kind(contract.kind),
                     owner: ContractProofFactOwner::StateSignature {
@@ -65,6 +75,7 @@ pub(crate) fn append_state_signature_contract_facts(
                         state_symbol: signature.symbol,
                     },
                     fact,
+                    qualification_authorization,
                 });
             }
         }

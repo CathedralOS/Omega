@@ -3,6 +3,81 @@ use omega_core::semantics::QualificationEvidenceOrigin;
 use omega_facts::{FactOrigin, FactPayload};
 
 #[test]
+fn boundary_result_authorization_retains_requirement_identity() {
+    let source = r#"
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+boundary trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
+
+data Main {
+    issuer: TokenIssuer;
+}
+
+machine Main::run(&mut self) {
+    let token: Token = self.issuer.issue(7);
+}
+"#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an exact boundary result qualification should lower");
+    let issuer = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "TokenIssuer")
+        .expect("issuer trait");
+    let issue = checked
+        .trait_machine_signatures(issuer)
+        .iter()
+        .find(|signature| signature.name.as_str() == "issue")
+        .expect("issue requirement");
+    let authorization = checked
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find_map(|fact| fact.qualification_authorization)
+        .expect("checked proof fact retains boundary authorization");
+    assert_eq!(authorization.requirement_symbol, issuer.symbol);
+    assert_eq!(authorization.signature_symbol, issue.symbol);
+
+    let issued = checked
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Issued")
+        .expect("issued domain");
+    let call_fact = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| {
+            fact.origin == FactOrigin::CallEnsures
+                && matches!(
+                    fact.payload,
+                    FactPayload::ContractDomainMembership { domain_symbol, .. }
+                        if domain_symbol == issued.symbol
+                )
+        })
+        .expect("authorized call guarantee is materialized");
+    assert_eq!(
+        call_fact.evidence.origin,
+        QualificationEvidenceOrigin::AdmittedReceipt
+    );
+    assert_eq!(call_fact.evidence.source_symbol, issuer.symbol);
+    assert_eq!(call_fact.evidence.requirement_symbol, issue.symbol);
+}
+
+#[test]
 fn carrier_owner_establishes_bodyless_result_and_call_retains_origin() {
     let source = r#"
 data Token {

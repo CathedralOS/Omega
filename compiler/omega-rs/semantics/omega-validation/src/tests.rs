@@ -15,6 +15,95 @@ fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
 }
 
 #[test]
+fn boundary_requirement_may_authorize_its_exact_qualified_result() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        domain Token::Issued;
+
+        boundary trait TokenIssuer {
+            machine issue() -> Token
+            ensures
+                result in Token::Issued;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("exact boundary result qualification should validate");
+}
+
+#[test]
+fn boundary_requirement_cannot_admit_an_argument_qualification() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        domain Token::Issued;
+
+        boundary trait TokenIssuer {
+            machine issue(candidate: Token) -> Token
+            ensures
+                candidate in Token::Issued;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a boundary requirement may authorize only its exact result");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("may admit domain `Token::Issued` only for its exact `result`")
+    }));
+}
+
+#[test]
+fn boundary_requirement_result_must_match_the_domain_carrier() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        data Receipt {}
+        domain Token::Issued;
+
+        boundary trait TokenIssuer {
+            machine issue() -> Receipt
+            ensures
+                result in Token::Issued;
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("the admitted result must use the domain carrier");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("result carrier `Receipt` does not match domain target `Token`")
+    }));
+}
+
+#[test]
+fn accepted_machine_cannot_directly_admit_domain_membership() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        domain Token::Issued;
+
+        boundary machine issue() -> Token
+        ensures
+            result in Token::Issued;
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("direct accepted qualification must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("external machine `issue` cannot directly admit domain membership")
+    }));
+}
+
+#[test]
 fn declared_lifetime_parameters_survive_lowering_and_validate() {
     let typed = typed_program_from_source(
         r#"

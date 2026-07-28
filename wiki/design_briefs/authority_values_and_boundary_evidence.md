@@ -58,6 +58,15 @@ satisfies that requirement, and admission records its receipt. A third party
 cannot make its own declaration an implicit establishment route for someone
 else's domain.
 
+The compiler therefore does not treat a bodyless `boundary machine` guarantee
+as domain evidence merely because the machine is accepted. An admitted
+membership guarantee must be inherited from a boundary requirement, must spell
+the bare `result` as its subject, and must return the carrier targeted by the
+domain. Checked proof facts retain both the authorizing boundary trait and the
+exact requirement signature; the qualification-evidence artifact publishes
+that signature with the selected provider-plan receipt. Package-owner
+coherence remains a separate declaration-ownership gate.
+
 This keeps crossing semantics on machines and requirements. Internal checked
 operations may still transfer the same fact, subject to resource-frontier
 validation.

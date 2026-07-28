@@ -240,6 +240,13 @@ fact and subject. Provider selection and admission produce the receipt. The
 receipt records external trust; `boundary` remains on the machine or
 requirement where the crossing occurs.
 
+For admitted qualification, “exact subject” means the requirement spells the
+bare `result`, and the result's unqualified carrier matches the domain target.
+A membership `ensures` written directly on an accepted machine is not an
+establishment route; the provider inherits the guarantee by satisfying the
+boundary requirement. Checked artifacts retain the authorizing trait,
+requirement signature, and provider receipt independently.
+
 Predicate and authority evidence remains erased. Runtime data discovered at a
 boundary, such as a firmware range's base and length, remains in the carrier.
 

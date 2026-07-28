@@ -1,0 +1,19 @@
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+boundary trait TokenIssuer {
+    // A boundary receipt may establish the requirement's result, not an
+    // arbitrary parameter selected by the provider.
+    machine issue(candidate: Token) -> Token
+    ensures
+        candidate in Token::Issued;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

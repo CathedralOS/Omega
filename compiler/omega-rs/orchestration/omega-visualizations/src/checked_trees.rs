@@ -143,6 +143,15 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         } else {
             json.push_str("null");
         }
+        json.push_str(",\n      \"requirement\": ");
+        if fact.evidence.requirement_symbol.is_valid() {
+            push_json_string(
+                &mut json,
+                &qualification_symbol_label(program, fact.evidence.requirement_symbol),
+            );
+        } else {
+            json.push_str("null");
+        }
         json.push_str(",\n      \"receipt_identity\": ");
         if fact.evidence.receipt_identity == 0 {
             json.push_str("null");
@@ -1613,6 +1622,7 @@ mod tests {
             evidence: QualificationEvidence {
                 origin: QualificationEvidenceOrigin::AdmittedReceipt,
                 source_symbol: provider,
+                requirement_symbol: SymbolHandle::invalid(),
                 receipt_identity: 0x1234,
             },
             payload: FactPayload::DomainMembership {
@@ -1629,6 +1639,7 @@ mod tests {
         assert!(json.contains("\"origin\": \"admitted_receipt\""));
         assert!(json.contains("\"program_point\": \"call_ensures\""));
         assert!(json.contains("\"source\": \"#6\""));
+        assert!(json.contains("\"requirement\": null"));
         assert!(json.contains("\"receipt_identity\": \"0x0000000000001234\""));
     }
 

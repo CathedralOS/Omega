@@ -161,6 +161,8 @@ pub enum FactOrigin {
 ///
 /// `source_symbol` names the checked machine, boundary requirement, operator,
 /// or declaration that supplied the evidence when one exists.
+/// `requirement_symbol` names the exact boundary state signature for admitted
+/// qualification evidence; it is invalid for non-admitted evidence.
 /// `receipt_identity == 0` means no admitted receipt was retained for this
 /// compilation; admitted provider selection fills the normalized receipt
 /// identity after the checked program retains its selected provider plans.
@@ -168,6 +170,7 @@ pub enum FactOrigin {
 pub struct QualificationEvidence {
     pub origin: omega_core::semantics::QualificationEvidenceOrigin,
     pub source_symbol: SymbolHandle,
+    pub requirement_symbol: SymbolHandle,
     pub receipt_identity: u64,
 }
 
@@ -179,6 +182,19 @@ impl QualificationEvidence {
         Self {
             origin,
             source_symbol,
+            requirement_symbol: SymbolHandle::invalid(),
+            receipt_identity: 0,
+        }
+    }
+
+    pub const fn from_admitted_requirement(
+        source_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            origin: omega_core::semantics::QualificationEvidenceOrigin::AdmittedReceipt,
+            source_symbol,
+            requirement_symbol,
             receipt_identity: 0,
         }
     }

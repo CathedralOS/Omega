@@ -4172,6 +4172,30 @@ fn bodyless_owner_establishment_canaries() {
     }
 }
 
+#[test]
+fn boundary_qualification_evidence_names_exact_requirement() {
+    let pass = pass_canary("capabilities/derives_authority_via_boundary");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-boundary-qualification-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: pass.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("an exact boundary-result qualification should compile");
+
+    let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
+        .expect("qualification-evidence artifact");
+    assert!(evidence.contains("\"origin\": \"admitted_receipt\""));
+    assert!(evidence.contains("\"source\": \"Filesystem\""));
+    assert!(evidence.contains("\"requirement\": \"Filesystem::open\""));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 GAP #4 (slice-`.len`-to-field write): a `&[u8] in Utf8` PARAM is a runtime
 // `{ptr, len}` descriptor in a frame slot, so `self.result = text.len` reads the
 // descriptor's len field (NOT a compile-time constant -- that is GAP #2). This
@@ -38398,6 +38422,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "capabilities/boundary_qualification_subject_rejected",
+    "capabilities/direct_accepted_qualification_rejected",
     "capabilities/native_slice_external_leaf_rejected",
     "capabilities/native_bounded_text_external_leaf_rejected",
     "capabilities/native_vector_external_leaf_rejected",
