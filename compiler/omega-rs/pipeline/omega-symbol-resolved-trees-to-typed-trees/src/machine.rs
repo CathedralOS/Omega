@@ -156,9 +156,6 @@ pub(crate) fn lower_machine(
             .push_machine_effect(&mut typed_machine, effect);
     }
 
-    // (#66 Phase 1 synthesizes additional implicit `requires <param> in Domain`
-    // machine contracts AFTER the states are lowered -- see the loop below the
-    // states loop, which needs the lowered params to detect Domain constraints.)
     for contract in lowerer.source_trees.machine_contracts(machine) {
         let facts = lower_proof_facts(lowerer, contract.facts)?;
         lowerer.typed_trees.push_machine_contract(
@@ -185,48 +182,6 @@ pub(crate) fn lower_machine(
         lowerer
             .typed_trees
             .push_machine_state(&mut typed_machine, state);
-    }
-
-    // #66/DOM1/P1a: every declared domain on a parameter typed `T in A & B`
-    // desugars to an implicit `requires <param> in <domain>` MACHINE contract.
-    // Predicate-bearing domains discharge by proof; bodyless domains discharge
-    // only from retained qualification evidence. Without the latter obligation,
-    // a raw reconstruction of an authority carrier could cross a constrained
-    // parameter boundary solely because its runtime base type matches.
-    // Collected first (immutable read of the lowered states/params) then synthesized,
-    // to keep the typed-tree borrow disjoint from the contract construction.
-    let mut domain_constrained_parameters: Vec<(
-        omega_core::symbols::SymbolHandle,
-        typed::name::Identifier,
-        omega_core::symbols::SymbolHandle,
-        String,
-    )> = Vec::new();
-    for state in lowerer.typed_trees.machine_states(&typed_machine) {
-        for parameter in lowerer.typed_trees.state_parameters(state) {
-            for (domain_symbol, domain_full_name) in
-                crate::state::domain_constraints(&lowerer.typed_trees, parameter.type_reference)
-            {
-                domain_constrained_parameters.push((
-                    parameter.symbol,
-                    parameter.name.clone(),
-                    domain_symbol,
-                    domain_full_name,
-                ));
-            }
-        }
-    }
-    for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
-    {
-        let contract = crate::state::build_domain_membership_contract(
-            lowerer,
-            param_symbol,
-            param_name,
-            domain_symbol,
-            &domain_full_name,
-        );
-        lowerer
-            .typed_trees
-            .push_machine_contract(&mut typed_machine, contract);
     }
 
     // #66 Phase 1 (returns) NOT YET: synthesizing an `ensures result in Domain`

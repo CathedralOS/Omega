@@ -446,8 +446,9 @@ fn parameter_domain_conjunction_synthesizes_each_membership_contract() {
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let machine = typed.machines().first().expect("inspect machine");
+    let state = typed.machine_states(machine).first().expect("entry state");
     let names: Vec<_> = typed
-        .machine_contracts(machine)
+        .state_contracts(state)
         .iter()
         .map(|contract| {
             let [omega_typed_trees::domain::ProofFact::Membership(membership)] =
@@ -470,6 +471,43 @@ fn parameter_domain_conjunction_synthesizes_each_membership_contract() {
         names,
         ["[u8]::Meaning", "[u8]::Utf8", "[u8]::NoNul"],
         "bodyless and predicate-bearing constraints are all call-boundary obligations"
+    );
+}
+
+#[test]
+fn internal_state_domain_constraint_does_not_leak_to_machine_entry() {
+    let source = r#"
+    data Token {
+        value: u64;
+    }
+
+    domain Token::Issued;
+
+    machine carry(seed: u64) {
+        transition { _ -> hold(Token { value: seed }) }
+
+        state hold(token: Token in Issued) {
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed.machines().first().expect("carry machine");
+    assert!(
+        typed.machine_contracts(machine).is_empty(),
+        "an internal state's constraint must not become a machine-wide entry contract"
+    );
+    let [entry, hold] = typed.machine_states(machine) else {
+        panic!("entry and hold states")
+    };
+    assert!(typed.state_contracts(entry).is_empty());
+    assert_eq!(
+        typed.state_contracts(hold).len(),
+        1,
+        "the constrained state retains its own implicit membership requirement"
     );
 }
 

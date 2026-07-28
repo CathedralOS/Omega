@@ -25,8 +25,28 @@ pub(crate) fn lower_state(
         statement_nodes: Default::default(),
     };
 
+    // #66/DOM1/P1a: a constrained parameter is an obligation on exactly this
+    // callable state boundary. Keeping the synthesized contract state-local is
+    // essential for graph machines: a qualification introduced in one state
+    // must not become a prerequisite of the machine's unrelated entry state.
+    let mut domain_constrained_parameters: Vec<(
+        omega_core::symbols::SymbolHandle,
+        typed::name::Identifier,
+        omega_core::symbols::SymbolHandle,
+        String,
+    )> = Vec::new();
     for parameter in lowerer.source_trees.state_parameters(state.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
+        for (domain_symbol, domain_full_name) in
+            domain_constraints(&lowerer.typed_trees, parameter.type_reference)
+        {
+            domain_constrained_parameters.push((
+                parameter.symbol,
+                parameter.name.clone(),
+                domain_symbol,
+                domain_full_name,
+            ));
+        }
         lowerer
             .typed_trees
             .push_state_parameter(&mut typed_state, parameter);
@@ -52,6 +72,20 @@ pub(crate) fn lower_state(
                 token_count: contract.token_count,
             },
         );
+    }
+
+    for (param_symbol, param_name, domain_symbol, domain_full_name) in domain_constrained_parameters
+    {
+        let contract = build_domain_membership_contract(
+            lowerer,
+            param_symbol,
+            param_name,
+            domain_symbol,
+            &domain_full_name,
+        );
+        lowerer
+            .typed_trees
+            .push_state_contract(&mut typed_state, contract);
     }
 
     for statement in lowerer

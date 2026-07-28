@@ -68,14 +68,18 @@ geometry cannot cross a qualified boundary without evidence. Core now also
 owns `ExtentRootProvider::grant`: a selected, build-admitted checked adapter may
 originate exactly its qualified result with the authorizing requirement and
 provider-plan receipt retained, while calling that adapter directly does not
-mint `Granted`. Compiler-owned carry atoms and the remaining authority
-migrations remain.
+mint `Granted`. Constrained parameters are scoped to their exact callable
+state, so a graph may introduce a qualification after entry and must forward it
+across each later transition without leaking that obligation onto the machine's
+outer caller. Cathedral now imports the shared carrier, admits its checked
+provider plan, obtains one `Granted` root after `ExitBootServices`, and carries
+that linear value into owned idle. Compiler-owned carry atoms and the remaining
+authority migrations remain.
 
 - migrate task-runtime handles, interrupt guards, and acknowledgement tokens to
   ordinary data declarations with their required fields;
 - connect provider receipts, linearity, carry policy, and authority-flow
-  reporting; and
-- migrate Cathedral's temporary Extent model onto the shared declaration.
+  reporting.
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
 an owner machine cannot satisfy a bodyful result without proving its body; an

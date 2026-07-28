@@ -1,0 +1,19 @@
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+data Main {}
+
+machine Main::run(&self, value: u64) {
+    let raw: Token = Token { value: value };
+    transition { _ -> hold(raw) }
+
+    state hold(token: Token in Issued) {
+    }
+}
+
+machine Main::main(&mut self) {
+    self.run(7);
+}

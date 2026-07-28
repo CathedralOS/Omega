@@ -169,6 +169,12 @@ callee may then treat the immutable parameter as qualified and forward that
 fact. Matching the runtime representation of `T` never satisfies this
 obligation by itself.
 
+For a graph machine this obligation belongs to the exact state declaring the
+parameter. A qualification introduced after machine entry may therefore cross
+later constrained states without becoming a prerequisite of the machine's
+outer entry call. Every transition into those states still proves the
+state-local obligation.
+
 ### `as`
 
 `as` applies a compiler-known coercion after statically discharging its

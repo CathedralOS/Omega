@@ -95,7 +95,13 @@ in that backing.
 
 The live source declaration is in `omega::language::core::extent` together
 with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
-`Arena` returns and reclaims qualified Extents.
+`Arena` returns and reclaims qualified Extents. Cathedral's UEFI boot package
+now supplies the selected checked `ExtentRootProvider` adapter, admits that
+provider plan in `build.omg`, obtains one qualified root after
+`ExitBootServices`, and threads it through every post-grant graph state into
+owned idle. Physical-space, rights, and algebra-denominated backing remain
+later qualification/frontier work rather than facts inferred from the firmware
+geometry.
 
 Address space, permissions, provenance, and mapping era are domain facts on the
 carrier. Physical, virtual, I/O-port, and provider-defined spaces share the
