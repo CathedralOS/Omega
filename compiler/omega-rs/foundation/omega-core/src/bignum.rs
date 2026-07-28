@@ -14,6 +14,18 @@
 use std::cmp::Ordering;
 use std::fmt;
 
+/// The four IEEE rounding directions used by executable float operations.
+///
+/// This is an explicit operation input inside the semantic engine, never an
+/// ambient host-process mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IeeeRounding {
+    NearestTiesToEven,
+    TowardZero,
+    TowardPositive,
+    TowardNegative,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BigInt {
     negative: bool,
@@ -346,6 +358,10 @@ impl BigRational {
         Some(value)
     }
 
+    pub fn from_integer(value: BigInt) -> Self {
+        Self::new(value, BigInt::from_u64(1)).expect("one is a nonzero denominator")
+    }
+
     pub fn add(&self, other: &Self) -> Self {
         let numerator = self
             .numerator
@@ -402,6 +418,15 @@ impl BigRational {
         self.numerator.is_negative() || (self.numerator.is_zero() && self.negative_zero)
     }
 
+    /// Truncate toward zero, matching the language's float-to-integer
+    /// conversion rule.
+    pub fn truncate_to_integer(&self) -> BigInt {
+        self.numerator
+            .div_rem(&self.denominator)
+            .expect("a rational denominator is nonzero")
+            .0
+    }
+
     pub fn negate(&self) -> Self {
         let mut result = self.clone();
         if result.numerator.is_zero() {
@@ -413,11 +438,19 @@ impl BigRational {
     }
 
     pub fn to_f32(self) -> f32 {
-        f32::from_bits(self.to_ieee_bits(8, 23) as u32)
+        self.to_f32_with_rounding(IeeeRounding::NearestTiesToEven)
     }
 
     pub fn to_f64(self) -> f64 {
-        f64::from_bits(self.to_ieee_bits(11, 52))
+        self.to_f64_with_rounding(IeeeRounding::NearestTiesToEven)
+    }
+
+    pub fn to_f32_with_rounding(self, rounding: IeeeRounding) -> f32 {
+        f32::from_bits(self.to_ieee_bits(8, 23, rounding) as u32)
+    }
+
+    pub fn to_f64_with_rounding(self, rounding: IeeeRounding) -> f64 {
+        f64::from_bits(self.to_ieee_bits(11, 52, rounding))
     }
 
     fn new(mut numerator: BigInt, mut denominator: BigInt) -> Option<Self> {
@@ -447,7 +480,7 @@ impl BigRational {
         result
     }
 
-    fn to_ieee_bits(&self, exponent_bits: u32, fraction_bits: u32) -> u64 {
+    fn to_ieee_bits(&self, exponent_bits: u32, fraction_bits: u32, rounding: IeeeRounding) -> u64 {
         let sign_shift = exponent_bits + fraction_bits;
         let sign = u64::from(self.is_negative()) << sign_shift;
         if self.numerator.is_zero() {
@@ -476,6 +509,8 @@ impl BigRational {
                     &numerator,
                     denominator,
                     (fraction_bits as i32 - minimum_exponent) as isize,
+                    self.is_negative(),
+                    rounding,
                 ),
                 true,
             )
@@ -485,6 +520,8 @@ impl BigRational {
                     &numerator,
                     denominator,
                     (precision as i32 - 1 - exponent) as isize,
+                    self.is_negative(),
+                    rounding,
                 ),
                 false,
             )
@@ -508,7 +545,13 @@ impl BigRational {
         }
         if exponent > maximum_exponent {
             let all_exponent_bits = (1u64 << exponent_bits) - 1;
-            return sign | (all_exponent_bits << fraction_bits);
+            return if rounding_overflows_to_infinity(self.is_negative(), rounding) {
+                sign | (all_exponent_bits << fraction_bits)
+            } else {
+                let maximum_finite_exponent = all_exponent_bits - 1;
+                let maximum_finite_fraction = (1u64 << fraction_bits) - 1;
+                sign | (maximum_finite_exponent << fraction_bits) | maximum_finite_fraction
+            };
         }
         let exponent_field = u64::try_from(exponent + bias).expect("normal exponent is positive");
         let fraction = significand - (1u64 << fraction_bits);
@@ -660,8 +703,12 @@ impl ExactFloat {
     }
 
     pub fn to_f32(&self) -> f32 {
+        self.to_f32_with_rounding(IeeeRounding::NearestTiesToEven)
+    }
+
+    pub fn to_f32_with_rounding(&self, rounding: IeeeRounding) -> f32 {
         match self {
-            Self::Finite(value) => value.clone().to_f32(),
+            Self::Finite(value) => value.clone().to_f32_with_rounding(rounding),
             Self::Infinity { negative: false } => f32::INFINITY,
             Self::Infinity { negative: true } => f32::NEG_INFINITY,
             Self::NaN => f32::NAN,
@@ -669,8 +716,12 @@ impl ExactFloat {
     }
 
     pub fn to_f64(&self) -> f64 {
+        self.to_f64_with_rounding(IeeeRounding::NearestTiesToEven)
+    }
+
+    pub fn to_f64_with_rounding(&self, rounding: IeeeRounding) -> f64 {
         match self {
-            Self::Finite(value) => value.clone().to_f64(),
+            Self::Finite(value) => value.clone().to_f64_with_rounding(rounding),
             Self::Infinity { negative: false } => f64::INFINITY,
             Self::Infinity { negative: true } => f64::NEG_INFINITY,
             Self::NaN => f64::NAN,
@@ -742,7 +793,13 @@ fn pow10(mut exponent: usize) -> BigInt {
     result
 }
 
-fn rounded_scaled_quotient(numerator: &BigInt, denominator: &BigInt, binary_shift: isize) -> u64 {
+fn rounded_scaled_quotient(
+    numerator: &BigInt,
+    denominator: &BigInt,
+    binary_shift: isize,
+    negative: bool,
+    rounding: IeeeRounding,
+) -> u64 {
     let (scaled_numerator, scaled_denominator) = if binary_shift >= 0 {
         (
             numerator.shl_bits(binary_shift as usize),
@@ -759,12 +816,28 @@ fn rounded_scaled_quotient(numerator: &BigInt, denominator: &BigInt, binary_shif
         .expect("rational denominator is nonzero");
     let mut quotient = quotient.to_u64().expect("IEEE significand fits in one u64");
     let twice_remainder = remainder.add(&remainder);
-    if twice_remainder > scaled_denominator
-        || (twice_remainder == scaled_denominator && quotient & 1 == 1)
-    {
+    let increment = match rounding {
+        IeeeRounding::NearestTiesToEven => {
+            twice_remainder > scaled_denominator
+                || (twice_remainder == scaled_denominator && quotient & 1 == 1)
+        }
+        IeeeRounding::TowardZero => false,
+        IeeeRounding::TowardPositive => !negative && !remainder.is_zero(),
+        IeeeRounding::TowardNegative => negative && !remainder.is_zero(),
+    };
+    if increment {
         quotient += 1;
     }
     quotient
+}
+
+fn rounding_overflows_to_infinity(negative: bool, rounding: IeeeRounding) -> bool {
+    match rounding {
+        IeeeRounding::NearestTiesToEven => true,
+        IeeeRounding::TowardZero => false,
+        IeeeRounding::TowardPositive => !negative,
+        IeeeRounding::TowardNegative => negative,
+    }
 }
 
 impl PartialOrd for BigInt {

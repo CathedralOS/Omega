@@ -136,10 +136,18 @@ decodes binary32/binary64 into this payload-erased meaning, performs exact
 rational arithmetic, and rounds through the matching format record. Exact
 decimal landing and anonymous-constant landing use it, as do interpreter
 add/subtract/multiply/divide, partial comparisons, the settled min/max choice,
-and distinct multiply-then-add/fused-multiply-add definitions. Named
-classification, square root, float/integer and format conversions, and
-directed-rounding variants remain part of this first F7 rung. The legacy `as`
-evaluator path is only a compatibility consumer until those named conversion
+and distinct multiply-then-add/fused-multiply-add definitions. The engine also
+now defines named classification, correctly rounded square root, float/integer
+and format conversions, and explicit directed-rounding variants. The
+interpreter consumes the shared square-root and conversion definitions,
+including full unsigned-64 bounds and the settled saturating/trapping edges.
+The compatibility x86-64 lowering uses a sticky-half-then-double sequence for
+upper-half `u64` inputs, while AArch64 selects `UCVTF`; both now preserve source
+signedness instead of routing every integer through a signed conversion.
+Publishing the source-visible executable operation identities, routing the
+remaining FMA/classification/directed call surfaces, and adding their
+build-time/runtime twins remain part of this first F7 rung. The legacy `as`
+evaluator path is only a compatibility consumer until the named conversion
 requirements land.
 
 ## 2. Domains: the value/policy split

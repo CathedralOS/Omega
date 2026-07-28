@@ -266,6 +266,21 @@ pub(in crate::aarch64) fn encode_signed_int_to_float(
     ))
 }
 
+/// `UCVTF Vd, Rn` — convert an unsigned integer in a GPR to a float in an FP
+/// register. Width selection mirrors [`encode_signed_int_to_float`].
+pub(in crate::aarch64) fn encode_unsigned_int_to_float(
+    int_byte_size: usize,
+    float_byte_size: usize,
+    destination_fp_register: u8,
+    source_gpr: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let sf = int_width_sf_bit(int_byte_size)?;
+    let base = 0x1E23_0000 | sf | float_type_field(float_byte_size)?;
+    Ok(encode_instruction(
+        base | (u32::from(source_gpr) << 5) | u32::from(destination_fp_register),
+    ))
+}
+
 /// `FCVTZS Rd, Vn` — convert a float to a signed integer, rounding toward zero.
 /// `float_byte_size` selects the source precision and `int_byte_size` the GPR
 /// width (4 → `Wd`, 8 → `Xd`).
@@ -307,7 +322,7 @@ pub(in crate::aarch64) fn encode_float_to_unsigned_int(
 #[allow(dead_code)]
 fn int_width_sf_bit(int_byte_size: usize) -> Result<u32, Diagnostic> {
     match int_byte_size {
-        1 | 4 => Ok(0),
+        1 | 2 | 4 => Ok(0),
         8 => Ok(1 << 31),
         _ => Err(Diagnostic::error(format!(
             "AArch64 encoder only supports 4/8-byte integers in float conversions, got `{int_byte_size}`"
@@ -394,6 +409,20 @@ mod tests {
         assert_eq!(
             word(encode_float_convert_double_to_single(0, 0)),
             0x1e62_4000
+        );
+    }
+
+    #[test]
+    fn unsigned_integer_conversions_match_arm_arm() {
+        assert_eq!(
+            word(encode_unsigned_int_to_float(4, 4, 0, 0).unwrap()),
+            0x1e23_0000,
+            "UCVTF s0, w0",
+        );
+        assert_eq!(
+            word(encode_unsigned_int_to_float(8, 8, 0, 0).unwrap()),
+            0x9e63_0000,
+            "UCVTF d0, x0",
         );
     }
 

@@ -11609,8 +11609,7 @@ fn runtime_convert_operation_width(
                 float_to_int_convert_width(source_byte_size, target_byte_size, target_signed)
             }
         }
-        // cvtsi2sd/ss xmm0,r10 (5) + movq/movd r10,xmm0 (5)
-        (false, true) => 10,
+        (false, true) => int_to_float_conversion_width(source_byte_size, source_signed),
         (true, true) => {
             if source_byte_size == target_byte_size {
                 0 // f64->f64: bits already in r10
@@ -11677,23 +11676,12 @@ fn append_runtime_convert_operation(
             }
         }
         (false, true) => {
-            // int -> float: convert r10 (signed) into xmm0, move bits back to r10.
-            if source_byte_size > 4 {
-                if target_byte_size > 4 {
-                    bytes.extend([0xf2, 0x49, 0x0f, 0x2a, 0xc2]); // cvtsi2sd xmm0, r10
-                } else {
-                    bytes.extend([0xf3, 0x49, 0x0f, 0x2a, 0xc2]); // cvtsi2ss xmm0, r10
-                }
-            } else if target_byte_size > 4 {
-                bytes.extend([0xf2, 0x41, 0x0f, 0x2a, 0xc2]); // cvtsi2sd xmm0, r10d
-            } else {
-                bytes.extend([0xf3, 0x41, 0x0f, 0x2a, 0xc2]); // cvtsi2ss xmm0, r10d
-            }
-            if target_byte_size > 4 {
-                bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10, xmm0
-            } else {
-                bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
-            }
+            append_int_to_float_conversion(
+                bytes,
+                source_byte_size,
+                target_byte_size,
+                source_signed,
+            );
         }
         (true, true) => {
             if source_byte_size == target_byte_size {
@@ -11723,6 +11711,72 @@ fn append_runtime_convert_operation(
                 }
             }
         }
+    }
+}
+
+fn int_to_float_conversion_width(source_byte_size: usize, source_signed: bool) -> usize {
+    if source_byte_size == 8 && !source_signed {
+        // test + jns + unsigned slow path + jump + signed fast path + result move.
+        39
+    } else {
+        let extension = match (source_byte_size, source_signed) {
+            (1 | 2, _) => 4,
+            (4, true) => 3,
+            _ => 0,
+        };
+        extension + 5 + 5
+    }
+}
+
+fn append_int_to_float_conversion(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_signed: bool,
+) {
+    let append_signed_conversion = |bytes: &mut Vec<u8>| {
+        if target_byte_size > 4 {
+            bytes.extend([0xf2, 0x49, 0x0f, 0x2a, 0xc2]); // cvtsi2sd xmm0, r10
+        } else {
+            bytes.extend([0xf3, 0x49, 0x0f, 0x2a, 0xc2]); // cvtsi2ss xmm0, r10
+        }
+    };
+
+    if source_byte_size == 8 && !source_signed {
+        // SSE2 has no u64->float instruction. Values below 2^63 use the signed
+        // conversion directly. For the upper half, convert
+        // ((value >> 1) | (value & 1)) and double the result; the sticky low
+        // bit preserves nearest-even rounding.
+        bytes.extend([0x4d, 0x85, 0xd2]); // test r10, r10
+        bytes.extend([0x79, 0x18]); // jns fast_signed
+        bytes.extend([0x4d, 0x89, 0xd3]); // mov r11, r10
+        bytes.extend([0x49, 0xd1, 0xea]); // shr r10, 1
+        bytes.extend([0x49, 0x83, 0xe3, 0x01]); // and r11, 1
+        bytes.extend([0x4d, 0x09, 0xda]); // or r10, r11
+        append_signed_conversion(bytes);
+        if target_byte_size > 4 {
+            bytes.extend([0xf2, 0x0f, 0x58, 0xc0]); // addsd xmm0, xmm0
+        } else {
+            bytes.extend([0xf3, 0x0f, 0x58, 0xc0]); // addss xmm0, xmm0
+        }
+        bytes.extend([0xeb, 0x05]); // jmp converted
+        append_signed_conversion(bytes);
+    } else {
+        match (source_byte_size, source_signed) {
+            (1, true) => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]), // movsx r10, r10b
+            (1, false) => bytes.extend([0x4d, 0x0f, 0xb6, 0xd2]), // movzx r10, r10b
+            (2, true) => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]), // movsx r10, r10w
+            (2, false) => bytes.extend([0x4d, 0x0f, 0xb7, 0xd2]), // movzx r10, r10w
+            (4, true) => bytes.extend([0x4d, 0x63, 0xd2]),       // movsxd r10, r10d
+            _ => {}
+        }
+        append_signed_conversion(bytes);
+    }
+
+    if target_byte_size > 4 {
+        bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10, xmm0
+    } else {
+        bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
     }
 }
 
@@ -15764,6 +15818,48 @@ mod runtime_operand_load_tests {
             assert_eq!(&bytes[4..], &24i32.to_le_bytes());
             assert_eq!(bytes.len(), load_width(2));
         }
+    }
+}
+
+#[cfg(test)]
+mod integer_to_float_conversion_tests {
+    use super::*;
+
+    #[test]
+    fn conversion_sequences_stay_in_width_lockstep() {
+        for source_byte_size in [1usize, 2, 4, 8] {
+            for source_signed in [false, true] {
+                for target_byte_size in [4usize, 8] {
+                    let mut bytes = Vec::new();
+                    append_int_to_float_conversion(
+                        &mut bytes,
+                        source_byte_size,
+                        target_byte_size,
+                        source_signed,
+                    );
+                    assert_eq!(
+                        bytes.len(),
+                        int_to_float_conversion_width(source_byte_size, source_signed),
+                        "int{} signed={source_signed} -> f{}",
+                        source_byte_size * 8,
+                        target_byte_size * 8,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn unsigned_u64_conversion_has_the_sticky_half_then_double_path() {
+        let mut bytes = Vec::new();
+        append_int_to_float_conversion(&mut bytes, 8, 8, false);
+        assert_eq!(&bytes[..5], &[0x4d, 0x85, 0xd2, 0x79, 0x18]);
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == [0xf2, 0x0f, 0x58, 0xc0]),
+            "upper-half u64 values must double the sticky half conversion",
+        );
     }
 }
 

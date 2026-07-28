@@ -36,7 +36,8 @@ use super::primitives::{
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
     encode_sub_w_register, encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register,
     encode_swp, encode_udiv_w_register, encode_udiv_x_register, encode_umulh_x,
-    encode_unconditional_branch, encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
+    encode_unconditional_branch, encode_unsigned_int_to_float, encode_zero_extend_byte_to_w,
+    encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
@@ -900,14 +901,21 @@ fn append_runtime_convert_operation(
 ) -> Result<(), Diagnostic> {
     match (source_is_float, target_is_float) {
         (false, true) => {
-            // int -> float: SCVTF d0/s0, Xn/Wn (signed int in GPR -> FP), then
-            // FMOV the float bits back into the GPR.
-            bytes.extend(encode_signed_int_to_float(
-                source_byte_size,
-                target_byte_size,
-                0,
-                register,
-            )?);
+            // Normalize narrow signed sources in the W register, select SCVTF
+            // versus UCVTF from the source identity, then move the float bits
+            // back into the GPR.
+            if source_signed {
+                match source_byte_size {
+                    1 => bytes.extend(encode_sign_extend_byte_to_w(register, register)),
+                    2 => bytes.extend(encode_sign_extend_halfword_to_w(register, register)),
+                    _ => {}
+                }
+            }
+            bytes.extend(if source_signed {
+                encode_signed_int_to_float(source_byte_size, target_byte_size, 0, register)?
+            } else {
+                encode_unsigned_int_to_float(source_byte_size, target_byte_size, 0, register)?
+            });
             bytes.extend(encode_float_move_to_gpr(target_byte_size, register, 0)?);
         }
         (true, false) => {
@@ -7358,6 +7366,16 @@ mod tests {
         assert_eq!(scvtf, 0x1e62_0000 | (17 << 5), "SCVTF d0, w17");
         // FMOV x17, d0: base 0x9e660000, Rd=17.
         assert_eq!(fmov_back, 0x9e66_0000 | 17, "FMOV x17, d0");
+
+        // unsigned int(x) -> double selects UCVTF, preserving the upper half
+        // of u64 instead of treating it as a negative signed integer.
+        let (arena, source) = storage_source(8);
+        let bytes = encode_runtime_storage_convert(
+            &arena, 0x10, 8, source, 8, false, true, false, true, false, false,
+        )
+        .unwrap();
+        let ucvtf = word_at(&bytes, 12);
+        assert_eq!(ucvtf, 0x9e63_0000 | (17 << 5), "UCVTF d0, x17");
 
         // double -> int(w): FMOV d0,x17 (0x9e67_0000) + FCVTZS w17,d0
         // (0x1e38_0000 family).

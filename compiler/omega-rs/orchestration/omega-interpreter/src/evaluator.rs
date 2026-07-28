@@ -56,8 +56,10 @@ mod host_open_flags {
 }
 use crate::value::{Cell, Value};
 use omega_core::arithmetic::ArithmeticDomain;
+use omega_core::bignum::BigInt;
 use omega_core::float_semantics::{
-    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics,
+    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics, FloatToIntegerError,
+    IntegerFormat as SemanticIntegerFormat,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
@@ -4832,7 +4834,10 @@ impl<'program> Evaluator<'program> {
                     }
                     return self.eval_recast_to_type(value, cast.target_type);
                 }
-                self.eval_cast(value, target, cast.domain)
+                let source = self
+                    .expression_type_reference(cast.value, frame)
+                    .and_then(|source| self.program.primitive_type_reference(source));
+                self.eval_cast(value, source, target, cast.domain)
             }
             ExpressionNode::Indexed(indexed) => {
                 // A range index `arr[start..end]` produces a SUBSLICE view sharing the
@@ -4923,8 +4928,9 @@ impl<'program> Evaluator<'program> {
                 return self.eval_min_max(target, left, right, unsigned);
             }
         }
-        // Builtin: sqrt over a single float operand (the reference for the
-        // native sqrtsd/sqrtss lowering).
+        // Builtin: sqrt over a single float operand. The interpreter consumes
+        // the same exact semantic function used as the native
+        // sqrtsd/sqrtss contract oracle.
         if target == "sqrt" && call.receiver == ExpressionHandle::invalid() {
             let args = self
                 .program
@@ -4932,8 +4938,26 @@ impl<'program> Evaluator<'program> {
                 .expression_handles(call.arguments)
                 .to_vec();
             if args.len() == 1 {
+                let format = if matches!(
+                    self.expression_scalar_type(args[0], frame),
+                    Some((PrimitiveType::F32, _))
+                ) {
+                    SemanticFloatFormat::BINARY32
+                } else {
+                    SemanticFloatFormat::BINARY64
+                };
                 return match self.eval_expression(args[0], frame)? {
-                    Value::Float(value) => Ok(Value::Float(value.sqrt())),
+                    Value::Float(value) => {
+                        let meaning = if format == SemanticFloatFormat::BINARY32 {
+                            FloatMeaning::from_f32(value as f32)
+                        } else {
+                            FloatMeaning::from_f64(value)
+                        };
+                        Ok(Value::Float(
+                            FloatSemantics::square_root(format, &meaning)
+                                .to_interpreter_value(format),
+                        ))
+                    }
                     other => Err(Halt::Trap(format!(
                         "sqrt expects a float argument, got {other:?}"
                     ))),
@@ -6333,6 +6357,7 @@ impl<'program> Evaluator<'program> {
     fn eval_cast(
         &self,
         value: Value,
+        source: Option<PrimitiveType>,
         target: Option<PrimitiveType>,
         domain: ArithmeticDomain,
     ) -> EvalResult<Value> {
@@ -6351,8 +6376,14 @@ impl<'program> Evaluator<'program> {
                     Value::Float(source) => {
                         FloatSemantics::convert(format, &FloatMeaning::from_f64(source))
                     }
-                    Value::Int(source) => FloatSemantics::from_decimal(format, &source.to_string())
-                        .expect("every integer spelling is an exact rational"),
+                    Value::Int(value) => {
+                        let value = if source.is_some_and(is_unsigned_integer_primitive) {
+                            BigInt::from_u64(value as u64)
+                        } else {
+                            BigInt::from_i64(value)
+                        };
+                        FloatSemantics::from_integer(format, &value)
+                    }
                     _ => return trap(format!("cast to {target:?} of non-numeric")),
                 };
                 Ok(Value::Float(meaning.to_interpreter_value(format)))
@@ -6362,32 +6393,38 @@ impl<'program> Evaluator<'program> {
                 // Int -> int reinterprets at the target width; the result
                 // keeps the target's width tag so later ops/casts wrap.
                 let raw = match value {
-                    // FLOAT -> int is domain-governed (F4, the float->int
-                    // proof-or-policy ruling):
-                    // - Saturating: NaN -> 0 (cast-specific, per the brief),
-                    //   otherwise truncate toward zero and CLAMP to the
-                    //   target's range (aarch64 FCVTZS's native semantics).
-                    // - Trapping: NaN or a truncated value outside the
-                    //   target's range traps.
-                    // - Exact: transitional truncation until the value
-                    //   obligation lands with float constant tracking
-                    //   (Wrapping float sources are rejected at validation:
-                    //   no modular reading of a float).
-                    Value::Float(f) => match domain {
-                        ArithmeticDomain::Saturating => {
-                            return Ok(Value::Int(saturate_float_to_integer(f, integer)));
-                        }
-                        ArithmeticDomain::Trapping => {
-                            if f.is_nan() || !float_fits_integer(f, integer) {
-                                return trap(format!(
-                                    "float-to-int cast out of range in Trapping domain: the \
-                                     value does not fit {integer:?}"
-                                ));
+                    // FLOAT -> int is one of three distinct conversion
+                    // operations. Wrapping has no float reading and is
+                    // rejected by validation.
+                    Value::Float(value) => {
+                        let format = semantic_integer_format(integer)
+                            .expect("a primitive integer has a semantic format");
+                        let meaning = FloatMeaning::from_f64(value);
+                        let converted = match domain {
+                            ArithmeticDomain::Saturating => {
+                                FloatSemantics::to_integer_saturating(&meaning, format)
                             }
-                            truncate_float_to_integer(f, integer)
-                        }
-                        _ => truncate_float_to_integer(f, integer),
-                    },
+                            ArithmeticDomain::Trapping => FloatSemantics::to_integer_trapping(
+                                &meaning, format,
+                            )
+                            .map_err(|reason| {
+                                Halt::Trap(float_to_integer_trap_message(integer, reason, true))
+                            })?,
+                            ArithmeticDomain::Exact => FloatSemantics::to_integer_exact(
+                                &meaning, format,
+                            )
+                            .map_err(|reason| {
+                                Halt::Trap(float_to_integer_trap_message(integer, reason, false))
+                            })?,
+                            ArithmeticDomain::Wrapping => {
+                                return trap(
+                                    "Wrapping float-to-integer conversion has no semantic reading"
+                                        .to_owned(),
+                                );
+                            }
+                        };
+                        return Ok(Value::Int(big_integer_runtime_value(&converted, integer)));
+                    }
                     other => other
                         .as_int()
                         .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
@@ -8444,52 +8481,54 @@ fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
     }
 }
 
-/// F4 Saturating float->int cast: NaN -> 0 (cast-specific, per the float
-/// brief), otherwise truncate toward zero and clamp to the TARGET's range --
-/// exactly aarch64 FCVTZS's native semantics (and Rust's `as`). The u64
-/// target saturates on the u64 range and returns the BIT pattern on the i64
-/// carrier (`u64::MAX` rides as -1), like every other u64-classed value.
-fn saturate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
-    if f.is_nan() {
-        return 0;
-    }
-    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
-        return (f as u64) as i64; // Rust `as` saturates to [0, u64::MAX]
-    }
-    match integer_bounds(ty) {
-        Some((min, max)) => (f as i64).clamp(min, max),
-        None => f.trunc() as i64,
+fn semantic_integer_format(ty: PrimitiveType) -> Option<SemanticIntegerFormat> {
+    match ty {
+        PrimitiveType::I8 => Some(SemanticIntegerFormat::I8),
+        PrimitiveType::I16 => Some(SemanticIntegerFormat::I16),
+        PrimitiveType::I32 => Some(SemanticIntegerFormat::I32),
+        PrimitiveType::I64 => Some(SemanticIntegerFormat::I64),
+        PrimitiveType::U8 => Some(SemanticIntegerFormat::U8),
+        PrimitiveType::U16 => Some(SemanticIntegerFormat::U16),
+        PrimitiveType::U32 => Some(SemanticIntegerFormat::U32),
+        PrimitiveType::U64 | PrimitiveType::Addr => Some(SemanticIntegerFormat::U64),
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => None,
     }
 }
 
-fn truncate_float_to_integer(f: f64, ty: PrimitiveType) -> i64 {
-    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
-        (f.trunc() as u64) as i64
+fn is_unsigned_integer_primitive(ty: PrimitiveType) -> bool {
+    matches!(
+        ty,
+        PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+            | PrimitiveType::Addr
+    )
+}
+
+fn big_integer_runtime_value(value: &BigInt, ty: PrimitiveType) -> i64 {
+    if is_unsigned_integer_primitive(ty) {
+        value
+            .to_u64()
+            .expect("checked unsigned conversion fits its target") as i64
     } else {
-        f.trunc() as i64
+        value
+            .to_i64()
+            .expect("checked signed conversion fits its target")
     }
 }
 
-/// F4 Trapping float->int cast fit check: NaN callers check separately; here
-/// a finite value fits when its TRUNCATION lies in the target's range. The
-/// exclusive-bound float compares are exact (powers of two are representable).
-fn float_fits_integer(f: f64, ty: PrimitiveType) -> bool {
-    if matches!(ty, PrimitiveType::U64 | PrimitiveType::Addr) {
-        // [0, 2^64): -1 < f < 2^64 covers every truncation that fits.
-        return f > -1.0 && f < 18446744073709551616.0;
-    }
-    if ty == PrimitiveType::I64 {
-        // i64::MIN - 1 is not representable in f64 (the subtraction rounds
-        // back to -2^63), so the lower bound is INCLUSIVE: -2^63 itself is
-        // exact and fits.
-        return f >= -9223372036854775808.0 && f < 9223372036854775808.0;
-    }
-    match integer_bounds(ty) {
-        // trunc(f) in [min, max] iff min - 1 < f < max + 1; the +-1 bounds
-        // are exact in f64 for every width up to 32 bits.
-        Some((min, max)) => f > (min as f64) - 1.0 && f < (max as f64) + 1.0,
-        None => true,
-    }
+fn float_to_integer_trap_message(
+    target: PrimitiveType,
+    reason: FloatToIntegerError,
+    trapping: bool,
+) -> String {
+    let operation = if trapping { "Trapping" } else { "Exact" };
+    let reason = match reason {
+        FloatToIntegerError::NonFinite => "the value is not finite",
+        FloatToIntegerError::OutOfRange => "the truncated value is out of range",
+    };
+    format!("float-to-int conversion failed in {operation} domain: {reason} for {target:?}")
 }
 
 /// Apply a write target's arithmetic domain (decision 17) to a raw i64 result,
