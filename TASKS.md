@@ -346,6 +346,9 @@ ceilings, and publication-before-ledger-record all reject.
   to ordinary Exact arithmetic. The first corpus cohort now exercises the named
   surface across indexed operands, guard subjects, comparisons, bitwise
   operands, entry results, 16-bit conversions, and signed/unsigned extension.
+  A second cohort covers real text algorithms: decimal and binary formatting,
+  decimal parsing, FNV hashing, CRC-32, direct indexed byte writes, and explicit
+  trapping versus wrapping narrowing choices.
 - Call-result normalization now materializes a value-machine call directly
   beneath a value cast or qualification through the ordinary synthetic local
   route. Inline named conversion, subsequent arithmetic-policy qualification,

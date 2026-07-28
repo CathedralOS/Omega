@@ -6,6 +6,7 @@
 // running CRC, then for eight bits: shift right one, and XOR the polynomial whenever the
 // bit shifted out was set. CRC-32 of "abc" is 891568578 (verified against zlib). Exits 70.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -28,7 +29,8 @@ machine Main::main(&mut self) {
         transition self.i >= 0 && self.i < 3 { true -> byte_xor() _ -> finalize() }
     }
     state byte_xor(&mut self) {
-        self.b = self.data[self.i] as u32 in Wrapping;
+        self.b =
+            narrow_i32_to_u32_wrapping(self.data[self.i]) as u32 in Wrapping;
         self.crc = self.crc ^ self.b;
         self.k = 0;
         transition { _ -> bit_loop() }

@@ -5,11 +5,12 @@
 // and assert the carrier equals it. Exercises runtime divide/modulo, computed
 // carrier byte writes, and the carrier-vs-literal compare. Exits 70.
 //
-// The digit conversion writes its cast value directly into the runtime-indexed
-// carrier. This pins converted-value lowering at an indexed destination without
-// a field temporary.
+// The digit conversion writes its named wrapping-narrow result directly into
+// the runtime-indexed carrier. This pins value-call-result lowering at an
+// indexed destination without a field temporary.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8 {
     valid_utf8(self);
@@ -63,7 +64,7 @@ machine Main::main(&mut self) {
     }
     state digit_write(&mut self) {
         self.ch = self.d + 48;
-        self.out[self.p] = self.ch as u8 in Wrapping;
+        self.out[self.p] = narrow_u32_to_u8_wrapping(self.ch);
         self.place = self.place / 10;
         self.p = self.p + 1;
         transition { _ -> itoa_loop() }

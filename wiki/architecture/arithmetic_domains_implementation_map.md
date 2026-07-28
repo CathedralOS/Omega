@@ -52,7 +52,10 @@
 > named operations and retirement of compatibility numeric `as` remain. The
 > first migration cohort covers indexed operands, guard subjects, comparisons,
 > bitwise operands, entry results, 16-bit conversions, and signed/unsigned
-> extension. A value-machine call directly beneath a value cast or
+> extension. A second cohort covers decimal/binary formatting, decimal parsing,
+> FNV hashing, CRC-32, and direct indexed byte writes, with trapping versus
+> wrapping narrowing selected by the algorithm. A value-machine call directly
+> beneath a value cast or
 > qualification is now normalized through a synthetic local, so an indexed
 > conversion may be requalified inline inside arithmetic without consuming the
 > call scratch slot instead of the delivered result.
