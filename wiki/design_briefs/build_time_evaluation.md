@@ -69,12 +69,18 @@ ordinary data arrive as explicit values or selected requirement inputs. The
 sealed target capsule is an evaluator/cache input, not a general source-visible
 `BuildWorld`.
 
-Target equivalence is an acceptance requirement. In particular, build-time
-`f32`/`f64` arithmetic must match target execution bit-for-bit wherever the
-language specifies a result. Constant/runtime twin canaries must cover rounding
-boundaries, subnormals, overflow/underflow, signed zero, infinities, NaN policy,
-and fused-versus-unfused operations. Computing target `f32` through host `f64`
-without an exact equivalence proof is a compiler bug.
+Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
+arithmetic evaluates the same executable `FloatSemantics` functions that define
+the target operation contracts. Constant/runtime twin canaries cover rounding
+boundaries, subnormals, overflow/underflow, signed zero, infinities, NaN
+semantics, and fused-versus-unfused operations. Computing target `f32` through
+host `f64` without an exact equivalence proof is a compiler bug.
+
+The base promise is equality of `FloatMeaning`, not arbitrary NaN payload bits.
+A build-time raw-bit observation of a computed possibly-NaN result requires
+proof of non-NaN, canonicalization, or an exact raw-NaN refinement from the
+selected target realization. Cache keys include that selected realization and
+its semantic control-state identity wherever the refinement matters.
 
 ## Admission uses the complete invocation contract
 

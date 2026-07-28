@@ -221,8 +221,11 @@ Rejected today:
 - No quantifiers in contracts; sorting-style global facts are unstatable.
 - Proof views (`Seq`/`Bag`/`Range`) are documented and parse, but have no
   lowering or semantics; `Sorted` and friends do not exist.
-- `Real` approximation semantics are an open design question; float contract
-  facts only have the bounded-type interval checks.
+- `Real` quotient semantics and the float approximation architecture are
+  settled, but their proof-side Prop-family/index-telescope, signed-Rat,
+  `FloatMeaning`, executable operation semantics, and quotient implementation
+  remain. Current float contract facts still have only bounded-type interval
+  checks.
 - Machine-int wrapping: contract arithmetic over `u64` does not yet emit
   overflow obligations, and the constant folder in the refutation pass uses
   checked i64 (it stands down on overflow rather than wrapping).

@@ -144,16 +144,20 @@ Artifacts should expose:
 
 ## Real-number direction
 
-Runtime floats are finite rounded carriers; exact proof reasoning embeds them
-in rational arithmetic with explicit rounding/error contracts. `Real` is a
-proof-side abstraction built from ordinary core mathematical data and quotient/
-equivalence machinery, not a runtime primitive or compiler float mode.
+Runtime floats are fixed-format approximation carriers. Exact proof reasoning
+maps them into `FloatMeaning`: finite nonzero values embed in signed rational
+arithmetic, while signed zero, infinity, and NaN remain explicit sum cases.
+Executable per-operation semantics perform exact rational work plus one format
+rounding step on the finite branch. `Real` is a proof-side abstraction built
+from ordinary core mathematical data and quotient/equivalence machinery, not a
+runtime primitive or compiler float mode.
 
 The useful staging is:
 
 1. exact `Nat`, `Int`, and `Rat` libraries;
 2. order and algebraic laws through explicit conformances;
-3. finite-float-to-rational embeddings and error bounds;
+3. signed rational support, `FloatMeaning`, executable operation semantics,
+   finite-float embeddings, and error bounds;
 4. proof-side Prop-valued families, typed index telescopes, and carrierless
    evidence;
 5. sequence/Cauchy relation evidence, explicit `Equivalence`, quotient
