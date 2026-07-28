@@ -250,6 +250,15 @@ pub(crate) fn domain_constraints(
                         .find(|definition| definition.symbol == domain.symbol)
                         .map(|definition| (domain.symbol, definition.name.as_str().to_owned()))
                 }
+                typed::types::TypeConstraintNode::Domain(domain)
+                    if omega_core::semantics::CarryPermission::from_name(domain.name.as_str())
+                        .is_some() =>
+                {
+                    Some((
+                        omega_core::symbols::SymbolHandle::invalid(),
+                        domain.name.as_str().to_owned(),
+                    ))
+                }
                 _ => None,
             })
             .collect(),

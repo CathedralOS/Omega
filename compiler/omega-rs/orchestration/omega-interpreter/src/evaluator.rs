@@ -5833,6 +5833,8 @@ impl<'program> Evaluator<'program> {
             .any(|constraint| match constraint {
                 omega_typed_trees::types::TypeConstraintNode::Domain(name) => {
                     !omega_typed_trees::wire::is_layout_domain_name(name.as_str())
+                        && omega_core::semantics::CarryPermission::from_name(name.as_str())
+                            .is_none()
                 }
                 _ => false,
             });

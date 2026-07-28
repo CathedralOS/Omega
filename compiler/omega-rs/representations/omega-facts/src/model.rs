@@ -237,6 +237,16 @@ pub enum FactPayload {
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
     },
+    CarryPermission {
+        value: ExpressionHandle,
+        permission: omega_core::semantics::CarryPermission,
+    },
+    /// An undischarged resource provenance with a born-strict carry policy.
+    /// This is independent of the current qualification fact set so
+    /// qualification weakening cannot silently recover structural mobility.
+    CarryOrigin {
+        value: ExpressionHandle,
+    },
     TypeConstraint {
         constraint: Handle<TypeConstraintNode>,
     },
@@ -261,6 +271,12 @@ pub enum FactPayload {
         value: ExpressionHandle,
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
+    },
+    ContractCarryPermission {
+        kind: ContractFactKind,
+        fact: Handle<ProofFact>,
+        value: ExpressionHandle,
+        permission: omega_core::semantics::CarryPermission,
     },
     InvariantDefinition {
         constraint_count: usize,

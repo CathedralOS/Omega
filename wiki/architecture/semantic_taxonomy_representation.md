@@ -303,6 +303,23 @@ demands join crossings across the cycle-safe descendant closure, while
 asynchronous demands join the descendant all-instruction envelopes. There is
 no separate `contains` source form or compatibility carrier.
 
+Implementation checkpoint (2026-07-28): `CarryPermission` now supplies the
+closed compiler vocabulary, including parser expansion of `Carry::Portable`
+and transparent user aliases over the atoms. Boundary call guarantees admit
+only an exact owner-authorized result permission and retain its requirement and
+provider receipt; a direct call to the checked adapter does not grant it.
+Admitted linear bodyless resource facts additionally seed an independent
+born-strict `CarryOrigin`. Local transfers and one-to-one state-parameter
+handoffs preserve that origin and its exact per-axis relaxations even when the
+qualification fact is later absent. Canonical suspension liveness records and
+checks each live value's effective claim policy, while asynchronous preemption
+envelopes conservatively join established claim origins and permissions.
+Qualification and carry artifacts expose the admitted atom and the effective
+crossing policy. Remaining work is inherited checked-origin derivation without
+explicitly restated permission constraints, path-indexed aggregate and partial
+move propagation, conserved multi-output mappings under P1c, and admission of
+the CPU/thread/address demands against selected runtime behavior.
+
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
 may be installed. Backward-edge return integrity in checked Omega is derived,

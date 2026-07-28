@@ -940,6 +940,109 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
 }
 
 #[test]
+fn parses_compiler_owned_carry_atoms_and_expands_portable() {
+    let source = r#"
+        data Sample {
+            local: u64 in Carry::MovableAddress;
+            portable: u64 in Carry::Portable;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let data = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("data root item");
+    let fields = parsed
+        .items
+        .data_members(data.members)
+        .iter()
+        .filter_map(|member| match member {
+            omega_syntax_trees::item::DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let names = |field: &omega_syntax_trees::item::DataField| {
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            parsed.type_references.type_reference(field.type_reference)
+        else {
+            panic!("carry permission should produce a constrained type");
+        };
+        parsed
+            .type_references
+            .constraints(*constraints)
+            .iter()
+            .map(|constraint| match constraint {
+                omega_syntax_trees::types::TypeConstraintNode::Domain(name) => {
+                    name.as_str().to_owned()
+                }
+                other => panic!("carry permission became {other:?}"),
+            })
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(names(fields[0]), ["Carry::MovableAddress"]);
+    assert_eq!(
+        names(fields[1]),
+        omega_core::semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
+    );
+}
+
+#[test]
+fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
+    let source = r#"
+        machine grant(value: u64) -> u64
+        ensures
+            result in Carry::Portable;
+        {
+            transition { _ -> value }
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let [contract] = parsed.items.capability_contracts(machine.contracts) else {
+        panic!("one ensures contract");
+    };
+    let domains = parsed
+        .items
+        .proof_facts(contract.facts)
+        .iter()
+        .map(|fact| match fact {
+            omega_syntax_trees::item::ProofFact::Membership(membership) => parsed
+                .items
+                .identifier_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::"),
+            other => panic!("portable atom became {other:?}"),
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        domains,
+        omega_core::semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
+    );
+}
+
+#[test]
 fn rejects_bare_arrow_transition_in_explicit_state_body() {
     let source = r#"
         machine Main::main(&mut self) {

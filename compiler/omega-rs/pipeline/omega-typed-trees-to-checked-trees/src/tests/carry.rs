@@ -227,6 +227,190 @@ fn checked_crossing_records_canonical_site_and_joined_policy() {
 }
 
 #[test]
+fn admitted_across_suspend_permission_relaxes_only_the_claim_suspension_axis() {
+    let checked = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Carry::AcrossSuspend;
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            self.scheduler.park();
+            transition { _ -> token }
+        }
+        "#,
+    )
+    .expect("the exact admitted claim permission allows suspension");
+
+    let crossing = checked
+        .facts
+        .carry
+        .suspension_crossings
+        .iter()
+        .find(|crossing| {
+            checked
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == crossing.machine)
+                .is_some_and(|machine| machine.name.as_str() == "Main::run")
+        })
+        .expect("claim suspension crossing");
+    let token = crossing
+        .live_values
+        .iter()
+        .find(|value| {
+            checked
+                .display_type_reference(value.type_reference)
+                .as_str()
+                == "Token"
+                && value.storage == omega_checked_trees::SuspensionCrossingStorage::Local
+        })
+        .expect("live admitted token");
+    assert_eq!(
+        token.effective,
+        omega_core::semantics::CarryPolicy {
+            suspension: omega_core::semantics::CarrySuspension::Allowed,
+            ..omega_core::semantics::CarryPolicy::STRICT
+        }
+    );
+    assert_eq!(crossing.effective, token.effective);
+}
+
+#[test]
+fn non_suspension_claim_permission_does_not_relax_suspension() {
+    let diagnostics = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Carry::MovableAddress;
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            self.scheduler.park();
+            transition { _ -> token }
+        }
+        "#,
+    )
+    .expect_err("movable address is not permission to cross suspension");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`token` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+                && diagnostic.message.contains("address: movable")
+        }),
+        "expected an axis-specific claim carry diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn admitted_linear_bodyless_claim_without_permissions_is_born_strict() {
+    let diagnostics = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued;
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            self.scheduler.park();
+            transition { _ -> token }
+        }
+        "#,
+    )
+    .expect_err("an admitted resource claim starts with no carry permissions");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`token` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+                && diagnostic.message.contains("cpu: same")
+                && diagnostic.message.contains("address: stable")
+        }),
+        "expected a born-strict admitted claim diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
+    let diagnostics = lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued;
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            transition { _ -> hold(token) }
+
+            state hold(token: Token in Token::Issued) -> Token {
+                self.scheduler.park();
+                transition { _ -> token }
+            }
+        }
+        "#,
+    )
+    .expect_err("a one-to-one state handoff must retain the claim's strict carry origin");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`token` remains live")
+                && diagnostic.message.contains("suspension: forbidden")
+                && diagnostic.message.contains("cpu: same")
+                && diagnostic.message.contains("address: stable")
+        }),
+        "expected a retained state-parameter claim diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn state_parameter_claim_retains_its_exact_carry_permission() {
+    lower(
+        r#"
+        data Token [linear] { id: u64; }
+        domain Token::Issued;
+        boundary trait TokenIssuer {
+            machine issue(id: u64) -> Token
+            ensures
+                result in Token::Issued
+                    & Carry::AcrossSuspend;
+        }
+        boundary trait Scheduler { machine park() suspends; }
+        data Main { issuer: TokenIssuer; scheduler: Scheduler; }
+        machine Main::run(&mut self) -> Token {
+            let token: Token = self.issuer.issue(7);
+            transition { _ -> hold(token) }
+
+            state hold(token: Token in Token::Issued & Carry::AcrossSuspend) -> Token {
+                self.scheduler.park();
+                transition { _ -> token }
+            }
+        }
+        "#,
+    )
+    .expect("a one-to-one state handoff must retain its exact suspension permission");
+}
+
+#[test]
 fn rejects_transitive_suspension_reach_with_live_restrictive_value() {
     let diagnostics = lower(
         r#"

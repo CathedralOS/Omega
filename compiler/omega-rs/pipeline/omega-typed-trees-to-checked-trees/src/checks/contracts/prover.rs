@@ -108,6 +108,26 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                     })
             })
         }
+        FactPayload::ContractCarryPermission { permission, .. } => {
+            let FactPlace::Place(place) = fact.place else {
+                return false;
+            };
+            entry_contexts.iter().any(|entry_context| {
+                let context = semantic.contexts.get(*entry_context);
+                semantic.context_view(context).facts().any(|candidate| {
+                    let candidate_permission = match candidate.payload {
+                        FactPayload::CarryPermission { permission, .. }
+                        | FactPayload::ContractCarryPermission { permission, .. } => permission,
+                        _ => return false,
+                    };
+                    let FactPlace::Place(candidate_place) = candidate.place else {
+                        return false;
+                    };
+                    candidate_permission == permission
+                        && semantic.places_match(program, candidate_place, place)
+                })
+            })
+        }
         FactPayload::ContractBooleanExpression { expression, .. } => {
             matches!(
                 program.expression_table.expression(expression),

@@ -162,6 +162,7 @@ fn bounded_byte_buffer_capacity(
         .any(|constraint| match constraint {
             TypeConstraintNode::Domain(name) => {
                 !omega_typed_trees::wire::is_layout_domain_name(name.as_str())
+                    && omega_core::semantics::CarryPermission::from_name(name.as_str()).is_none()
             }
             _ => false,
         });

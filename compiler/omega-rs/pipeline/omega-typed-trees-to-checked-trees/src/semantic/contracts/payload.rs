@@ -15,6 +15,22 @@ pub(super) fn semantic_contract_payload(
             }
         }
         omega_typed_trees::domain::ProofFact::Membership(membership) => {
+            let carry_permission = program
+                .domain_path_members(membership.domain)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if let Some(permission) =
+                omega_core::semantics::CarryPermission::from_name(&carry_permission)
+            {
+                return FactPayload::ContractCarryPermission {
+                    kind,
+                    fact: contract.fact,
+                    value: membership.value,
+                    permission,
+                };
+            }
             FactPayload::ContractDomainMembership {
                 kind,
                 fact: contract.fact,

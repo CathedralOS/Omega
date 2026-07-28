@@ -9,6 +9,8 @@ pub(crate) mod termination;
 
 use omega_core::diagnostics::Diagnostic;
 
+pub(crate) use multiplicity::type_multiplicity;
+
 #[cfg(test)]
 pub(crate) use multiplicity::{record_permission_events, validate_linear_permission_events};
 

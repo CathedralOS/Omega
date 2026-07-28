@@ -63,6 +63,7 @@ pub(crate) fn validate_domain_fact_payloads(
     for membership in fact_plan.domain_memberships_for_symbol(symbol) {
         if membership.domain_symbol.is_valid()
             || is_implicit_case_domain(program, membership.domain)
+            || carry_permission(program, membership.domain).is_some()
         {
             continue;
         }
@@ -93,6 +94,7 @@ pub(crate) fn validate_proof_facts(
             ProofFact::Membership(membership) => {
                 if membership.domain_symbol.is_valid()
                     || is_implicit_case_domain(program, membership.domain)
+                    || carry_permission(program, membership.domain).is_some()
                 {
                     continue;
                 }
@@ -104,6 +106,14 @@ pub(crate) fn validate_proof_facts(
             }
         }
     }
+}
+
+pub(crate) fn carry_permission(
+    program: &TypedTrees,
+    domain: omega_core::arena::HandleSpan<Identifier>,
+) -> Option<omega_core::semantics::CarryPermission> {
+    let name = domain_path_label(program, domain);
+    omega_core::semantics::CarryPermission::from_name(&name)
 }
 
 fn is_implicit_case_domain(

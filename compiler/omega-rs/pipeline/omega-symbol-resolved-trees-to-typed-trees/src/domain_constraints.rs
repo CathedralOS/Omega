@@ -71,7 +71,8 @@ fn normalize_constraint_span(
             .iter()
             .filter(|domain| {
                 let full = domain.name.as_str();
-                full.rsplit("::").next().unwrap_or(full) == domain_constraint.name.as_str()
+                let authored = domain_constraint.name.as_str();
+                (full == authored || full.rsplit("::").next().unwrap_or(full) == authored)
                     && program.display_type_reference_with_constraints(domain.target_type)
                         == carrier
             })
@@ -108,11 +109,20 @@ fn normalize_constraint_span(
             domain.symbol,
             vec![source_domain.name.clone()],
         )? {
-            let name = atom
-                .path
-                .last()
-                .map(crate::name::lower_name)
-                .unwrap_or_else(|| Identifier::generated(""));
+            let name = if atom.symbol.is_valid() {
+                atom.path
+                    .last()
+                    .map(crate::name::lower_name)
+                    .unwrap_or_else(|| Identifier::generated(""))
+            } else {
+                Identifier::generated(
+                    atom.path
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                )
+            };
             let declaration = program
                 .domain_definitions()
                 .iter()

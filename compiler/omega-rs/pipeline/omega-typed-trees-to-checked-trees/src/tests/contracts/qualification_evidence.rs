@@ -86,6 +86,91 @@ machine Main::run(&mut self) {
 }
 
 #[test]
+fn boundary_carry_permission_is_admitted_and_transfers_by_exact_atom() {
+    let source = r#"
+data Token [linear] {
+    value: u64;
+}
+
+boundary trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Carry::MovableAddress;
+}
+
+data Main {
+    issuer: TokenIssuer;
+}
+
+machine Main::consume(&self, token: Token in Carry::MovableAddress) -> Token {
+    token
+}
+
+machine Main::run(&mut self) -> Token {
+    let token: Token = self.issuer.issue(7);
+    let returned: Token = self.consume(token);
+    transition { _ -> returned }
+}
+"#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an exact boundary result may admit one compiler carry permission");
+    let issuer = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "TokenIssuer")
+        .expect("issuer trait");
+    let issue = checked
+        .trait_machine_signatures(issuer)
+        .iter()
+        .find(|signature| signature.name.as_str() == "issue")
+        .expect("issue requirement");
+
+    let call_fact = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| {
+            fact.origin == FactOrigin::CallEnsures
+                && matches!(
+                    fact.payload,
+                    FactPayload::ContractCarryPermission {
+                        permission: omega_core::semantics::CarryPermission::MovableAddress,
+                        ..
+                    }
+                )
+        })
+        .expect("authorized call carry guarantee is materialized");
+    assert_eq!(
+        call_fact.evidence.origin,
+        QualificationEvidenceOrigin::AdmittedReceipt
+    );
+    assert_eq!(call_fact.evidence.source_symbol, issuer.symbol);
+    assert_eq!(call_fact.evidence.requirement_symbol, issue.symbol);
+
+    let transferred = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| {
+            fact.origin == FactOrigin::StatementTransfer
+                && matches!(
+                    fact.payload,
+                    FactPayload::CarryPermission {
+                        permission: omega_core::semantics::CarryPermission::MovableAddress,
+                        ..
+                    }
+                )
+        })
+        .expect("assignment transfer preserves the carry permission");
+    assert_eq!(transferred.evidence, call_fact.evidence);
+}
+
+#[test]
 fn carrier_owner_establishes_bodyless_result_and_call_retains_origin() {
     let source = r#"
 data Token {

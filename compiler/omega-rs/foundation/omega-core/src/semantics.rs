@@ -165,6 +165,64 @@ impl std::fmt::Display for CarryPolicy {
     }
 }
 
+/// One compiler-owned positive permission that relaxes an accepted resource
+/// claim's born-strict carry policy. These are closed semantic atoms rather
+/// than user-declared domains because each changes liveness or migration
+/// admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CarryPermission {
+    AcrossSuspend,
+    AnyCpu,
+    AnyThread,
+    MovableAddress,
+}
+
+impl CarryPermission {
+    pub const ALL: [Self; 4] = [
+        Self::AcrossSuspend,
+        Self::AnyCpu,
+        Self::AnyThread,
+        Self::MovableAddress,
+    ];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::AcrossSuspend => "Carry::AcrossSuspend",
+            Self::AnyCpu => "Carry::AnyCpu",
+            Self::AnyThread => "Carry::AnyThread",
+            Self::MovableAddress => "Carry::MovableAddress",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "Carry::AcrossSuspend" => Some(Self::AcrossSuspend),
+            "Carry::AnyCpu" => Some(Self::AnyCpu),
+            "Carry::AnyThread" => Some(Self::AnyThread),
+            "Carry::MovableAddress" => Some(Self::MovableAddress),
+            _ => None,
+        }
+    }
+
+    /// Apply this positive permission to one policy while leaving the other
+    /// independent axes untouched.
+    pub const fn relax(self, mut policy: CarryPolicy) -> CarryPolicy {
+        match self {
+            Self::AcrossSuspend => policy.suspension = CarrySuspension::Allowed,
+            Self::AnyCpu => policy.cpu = CarryCpu::Any,
+            Self::AnyThread => policy.host_thread = CarryHostThread::Any,
+            Self::MovableAddress => policy.address = CarryAddress::Movable,
+        }
+        policy
+    }
+}
+
+impl std::fmt::Display for CarryPermission {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name().fmt(formatter)
+    }
+}
+
 /// Semantic ownership-event roles. Shared by checked flow and every lowered
 /// semantic summary so no stage can reinterpret a generic move/drop marker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1149,5 +1207,20 @@ mod tests {
         assert!(CarryPolicy::PERMISSIVE.permits(cpu_local));
         assert!(!CarryPolicy::STRICT.permits(cpu_local));
         assert_eq!(CarryPolicy::default(), CarryPolicy::STRICT);
+    }
+
+    #[test]
+    fn carry_permissions_are_closed_named_positive_relaxations() {
+        let mut policy = CarryPolicy::STRICT;
+        for permission in CarryPermission::ALL {
+            assert_eq!(
+                CarryPermission::from_name(permission.name()),
+                Some(permission)
+            );
+            policy = permission.relax(policy);
+        }
+        assert_eq!(policy, CarryPolicy::PERMISSIVE);
+        assert_eq!(CarryPermission::from_name("Carry::Portable"), None);
+        assert_eq!(CarryPermission::from_name("Carry::Anywhere"), None);
     }
 }

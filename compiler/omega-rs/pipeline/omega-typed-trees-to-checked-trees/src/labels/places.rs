@@ -33,6 +33,19 @@ pub(crate) fn semantic_fact_requirement_label(
                 symbol_name(program, domain_symbol)
             )
         }
+        FactPayload::ContractCarryPermission { permission, .. }
+        | FactPayload::CarryPermission { permission, .. } => {
+            let place = match fact.place {
+                omega_facts::FactPlace::Place(place) => place,
+                _ => return "unknown carry permission".to_owned(),
+            };
+            let place = semantic.places.get(place);
+            format!(
+                "{} in {}",
+                requirement_place_label(program, semantic, place),
+                permission.name()
+            )
+        }
         FactPayload::ContractBooleanExpression { .. } | FactPayload::BooleanExpression(_) => {
             semantic_boolean_fact_label(program, semantic, fact)
                 .unwrap_or_else(|| "unknown boolean expression".to_owned())

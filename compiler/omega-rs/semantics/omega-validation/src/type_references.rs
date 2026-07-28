@@ -932,6 +932,18 @@ fn validate_type_constraints_node(
                 }
             }
             TypeConstraintNode::Named(_) => {}
+            // Carry permissions are compiler-owned, subject-polymorphic
+            // positive facts. They classify any carrier and therefore do not
+            // resolve through the storage-bound declared-domain table.
+            TypeConstraintNode::Domain(name)
+                if omega_core::semantics::CarryPermission::from_name(name.as_str()).is_some() => {}
+            TypeConstraintNode::Domain(name) if name.as_str().starts_with("Carry::") => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses unknown compiler carry permission `{name}`; expected \
+                     `Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, \
+                     `Carry::MovableAddress`, or the `Carry::Portable` alias",
+                )));
+            }
             // Compiler-known value domains are authored with the honest
             // domain spelling (`f64 in Finite`) but do not require a user
             // `domain` declaration.  Their carrier restrictions remain

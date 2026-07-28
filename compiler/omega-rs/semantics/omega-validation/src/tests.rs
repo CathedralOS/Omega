@@ -246,6 +246,127 @@ fn carry_policy_survives_lowering_and_derives_through_transparent_data() {
 }
 
 #[test]
+fn compiler_carry_permissions_are_subject_polymorphic_and_portable_is_canonical() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {
+            explicit: u64 in Carry::AcrossSuspend
+                           & Carry::AnyCpu
+                           & Carry::AnyThread
+                           & Carry::MovableAddress;
+            portable: u64 in Carry::Portable;
+        }
+        "#,
+    );
+    validate_program(&typed).expect("compiler-owned carry permissions classify any carrier");
+
+    let carrier = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Carrier")
+        .expect("Carrier");
+    let fields = typed
+        .data_members(carrier)
+        .iter()
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        typed.normalized_type_identity(fields[0].type_reference),
+        typed.normalized_type_identity(fields[1].type_reference),
+    );
+}
+
+#[test]
+fn unknown_compiler_carry_permission_rejects_with_closed_vocabulary() {
+    let typed = typed_program_from_source(
+        r#"
+        data Carrier {
+            value: u64 in Carry::Anywhere;
+        }
+        "#,
+    );
+    let diagnostics =
+        validate_program(&typed).expect_err("the compiler-owned carry vocabulary is closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("unknown compiler carry permission `Carry::Anywhere`")
+    }));
+}
+
+#[test]
+fn transparent_domain_alias_may_expand_compiler_carry_portable() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        domain Token::Portable = Carry::Portable;
+        machine carry(token: Token in Token::Portable) -> Token {
+            transition { _ -> token }
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("a declared alias may bundle compiler carry permissions");
+    let carry = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "carry")
+        .expect("carry machine");
+    let token = typed
+        .state_parameters(
+            typed
+                .machine_states(carry)
+                .first()
+                .expect("carry entry state"),
+        )
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "token")
+        .expect("token parameter");
+    let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+        .type_reference_table
+        .type_reference(token.type_reference)
+    else {
+        panic!("portable alias should remain a constrained type");
+    };
+    let names = typed
+        .type_reference_table
+        .constraints(*constraints)
+        .iter()
+        .map(|constraint| match constraint {
+            omega_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                domain.name.as_str().to_owned()
+            }
+            other => panic!("portable alias atom became {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        names,
+        omega_core::semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
+    );
+}
+
+#[test]
+fn transparent_domain_alias_rejects_unknown_compiler_carry_atom() {
+    let typed = typed_program_from_source(
+        r#"
+        data Token {}
+        domain Token::Anywhere = Carry::Anywhere;
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("aliases cannot extend the compiler carry vocabulary");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("unknown compiler carry permission `Carry::Anywhere`")
+    }));
+}
+
+#[test]
 fn authored_carry_floor_rejects_a_stricter_stored_borrow() {
     let typed = typed_program_from_source(
         r#"
