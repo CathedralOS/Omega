@@ -131,11 +131,11 @@ Current ownership is:
   unrelated caller type parameters cannot qualify the target by name.
   `facts/carry.rs` derives the canonical contained-machine field topology into
   grouped machine/field/target arenas. Canonical semantic suspension crossings
-  join descendant crossing facts. The existing
-  `checks/carry/preemption.rs` all-instruction/runtime-mode path is migration
-  scaffolding: the settled task model instead derives WCSU-backed `StackPlan`
-  and asks only CPU/thread-restricted activations for selected preservation
-  evidence. Address stability follows from the fixed nonmoving stack lease.
+  join descendant crossing facts. `checks/carry/activation.rs` derives the
+  activation-wide CPU/thread preservation obligations without inventing a
+  provider preemption mode. The settled task model combines those obligations
+  with a WCSU-backed `StackPlan`; address stability follows from the fixed
+  nonmoving stack lease.
 - `omega-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
   `omega-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
