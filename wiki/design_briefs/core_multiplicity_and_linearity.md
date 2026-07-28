@@ -198,19 +198,24 @@ without adding another root. The first live slice covers statically named
 transparent-record fields through local construction, whole-record transfer,
 and extraction: moving one field leaves its sibling obligations live, and
 duplicate moves reject. The permission ledger retains each field path and its
-independently propagated source provenance through backend realization.
-Fresh claim identity distinct from provenance/root lineage, active-case and
-fixed-index frontiers, n-ary call/state outcome mappings, and per-claim carry
-remain subsequent P1c slices. Symbol-keyed substitutions already retain
-contained claims through nested generic transparent records.
+independently propagated source provenance through backend realization. Fresh
+claim identity is distinct from provenance/root lineage and survives those
+local transformations. Checked state results conserve multiple claims when
+direct paths or record-constructor fields provide a unique structural output
+map; opaque multi-output calls reject rather than minting replacement claims.
+Active-case and fixed-index frontiers, general n-ary input and explicit
+call-output maps, and per-claim carry remain subsequent P1c slices. Symbol-keyed
+substitutions already retain contained claims through nested generic
+transparent records.
 
 Consuming calls are classified from result flow: if a by-value `self` call
 returns a type carrying the obligation, it transfers rather than terminally
 consumes. One unambiguous moved input preserves its origin into the result;
-one unambiguous obligation transferred through a target state's result also
-preserves its callee origin when the caller binds it. Ambiguous multi-resource
-results reject. Content-bearing n-to-m transformations additionally discharge
-the selected compiler-owned algebra's conservation theorem.
+claims transferred through a target state's direct path or record-constructor
+result preserve their callee identities and origins when the caller binds the
+matching paths. Opaque multi-resource calls without a normalized output map
+reject. Content-bearing n-to-m transformations additionally discharge the
+selected compiler-owned algebra's conservation theorem.
 
 Generic conditional sums resolve payload multiplicity through symbol-keyed
 type-argument substitution. Consequently `TaskOutcome<LinearT>::Returned` and

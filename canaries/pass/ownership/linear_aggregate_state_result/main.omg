@@ -1,3 +1,5 @@
+// A direct aggregate result is an explicit structural outcome map: each
+// source claim is nested under its named result field.
 data Receipt [linear] {
     code: i32;
 }
@@ -11,16 +13,10 @@ data Pair {
 
 data Main {}
 
-machine Main::pack(left: Receipt, right: Receipt) -> Pair {
-    transition { _ -> Pair { left: left, right: right } }
-}
-
 machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
-    // The outer result is an opaque n-ary call until explicit normalized
-    // call-output maps land; argument order is not authority evidence.
-    transition { _ -> Main::pack(left, right) }
+    transition { _ -> Pair { left: left, right: right } }
 }
 
 machine Main::run(&mut self) -> i32 {
