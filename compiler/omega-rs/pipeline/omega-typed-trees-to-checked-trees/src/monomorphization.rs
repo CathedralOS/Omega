@@ -489,10 +489,17 @@ fn collect_machine_proposals_for_callee(
             .iter()
             .zip(program.state_parameters(actual_state))
         {
+            // The selected entry's refinement remains part of its machine
+            // contract. Generic specialization binds the underlying runtime
+            // carrier so a qualified entry still matches the ordinary value
+            // supplied at the selecting call site.
+            let actual_type =
+                omega_validation::unwrapped_type_reference(program, actual.type_reference)
+                    .unwrap_or(actual.type_reference);
             infer_type_bindings(
                 program,
                 required.type_reference,
-                actual.type_reference,
+                actual_type,
                 &candidate.type_parameters,
                 callee.candidate_index,
                 type_proposals,

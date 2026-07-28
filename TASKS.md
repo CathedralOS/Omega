@@ -389,9 +389,17 @@ improvements do not change public identity.
   does not republish the authority qualification. Safe-point liveness and
   asynchronous preemption facts consume the resulting per-value policy, and
   artifacts publish both permission evidence and each crossing value's
-  effective axes. Remaining CRY work is path-indexed aggregate/partial-move
-  inheritance, conserved multi-output outcome mappings under P1c, and final
-  runtime-behavior admission for the CPU, host-thread, and address axes.
+  effective axes. Task activation elaboration feeds those policies into the
+  existing normalized safe-point and all-instruction migration demands;
+  `omega-task-plans` already selects the envelope by provider preemption mode
+  and rejects incompatible CPU migration, host-thread migration, or
+  continuation movement. A source-to-artifact canary now pins the restrictive
+  three-axis demand established by an admitted suspension-only permission.
+  Remaining CRY work is path-indexed aggregate/partial-move inheritance and
+  conserved multi-output outcome mappings under P1c. Task-runtime provider
+  publication/selection remains owner-blocked on #9, while linear argument
+  custody and conservation remain TR3–TR8 work rather than missing carry
+  admission.
 - **CML4:** finish structural multiplicity migration. Implement checked
   `EdgeCleanupPlan` construction after outgoing-value materialization and
   transfer-map commitment; deterministic reverse-declaration cleanup;

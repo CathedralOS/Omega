@@ -330,6 +330,16 @@ receipts as specified in
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
 Dispatch and transactional start follow those decisions.
 
+The compiler task canary now carries an admitted suspension-only permission
+through a qualified selected-machine entry, local transfer, safe-point
+liveness, both migration envelopes, and `05_task_activations.json`. The
+resulting runtime demand is same CPU, same host thread, and stable continuation
+address. Static-machine specialization normalizes the qualified entry back to
+its underlying runtime carrier while retaining the qualification as proof
+evidence. This fixture is intentionally affine: conservation and provider
+custody for linear task arguments remain TR3–TR8 work, not a gap in the
+runtime-behavior join.
+
 ## Acceptance register
 
 1. Direct `Worker::run(job)` is an ordinary call; only
