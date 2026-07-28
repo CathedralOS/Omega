@@ -1,11 +1,13 @@
 // Widening an inline narrow integer operand must extend correctly by SIGNEDNESS:
 // an unsigned u8 byte > 127 ZERO-extends, a signed i8 < 0 SIGN-extends. The
-// named conversion in operand position (`sum + widen_u8_to_u32(nums[i])`) goes
-// through the ordinary call-result path and the core conversion's checked body,
-// whose narrow (1/2-byte) source must be movzx/movsx-extended. Before the
-// underlying fix it was left un-extended (upper bits garbage), silently
-// miscompiling any byte > 127 -- latent because string samples only use bytes
-// below 128.
+// named conversion and subsequent policy qualification in operand position
+// (`sum + (widen_u8_to_u32(nums[i]) as u32 in Wrapping)`) must first
+// materialize the delivered call result, then feed the enclosing arithmetic.
+// It also reaches the core conversion's checked body, whose narrow (1/2-byte)
+// source must be movzx/movsx-extended. Before the underlying extension fix it
+// was left un-extended (upper bits garbage), silently miscompiling any byte
+// above 127. Before Cast(Call(..)) normalization, the enclosing addition
+// consumed the call scratch result incorrectly and exited 71.
 //
 //  unsigned: [200,201,202,203] read as u32 sum to 806 (zero-extend);
 //  signed:   i8 -5 read as i32 is -5 (sign-extend).
@@ -41,8 +43,7 @@ machine Main::main(&mut self) {
 
     state store(&mut self) {
         let narrowed: u8 = narrow_i32_to_u8_wrapping(self.i);
-        self.v =
-            (narrowed as u8 in Wrapping) + 200;
+        self.v = (narrowed as u8 in Wrapping) + 200;
         self.nums[self.i] = self.v;
         self.i = self.i + 1;
         transition {
@@ -66,10 +67,9 @@ machine Main::main(&mut self) {
     }
 
     state add(&mut self) {
-        let widened: u32 = widen_u8_to_u32(self.nums[self.i]);
         self.sum =
             self.sum
-            + (widened as u32 in Wrapping);
+            + (widen_u8_to_u32(self.nums[self.i]) as u32 in Wrapping);
         self.i = self.i + 1;
         transition {
             _ -> sum_loop()
