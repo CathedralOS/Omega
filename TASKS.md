@@ -376,18 +376,20 @@ ceilings, and publication-before-ledger-record all reject.
   crashing shape beside the existing dungeon-derived call/dispatch tests.
 - Filesystem metadata consumers now use named `u8` widening for raw stat-record
   byte decoding across 15 native macOS canaries, both filesystem-to-time
-  interop legs, and the Windows SetFileTime round trip. A checked-tree cohort
-  covers all 18 and the complete native filesystem/GUI suite still passes.
+  interop legs, the Windows SetFileTime round trip, and the raw byte-assembly
+  setup of the cast-field payload regression. A checked-tree cohort covers all
+  19 and the complete native filesystem/GUI suite still passes.
   Residual filesystem casts are deliberately separate work: signed host counts
   entering unsigned slice capacities, explicitly wrapping byte
-  encoders/cross-signed narrowing, and cast-heavy compatibility regressions
-  whose authored shape specifically pins legacy lowering. A migration probe of
-  the cast-field payload fixture also exposed an implementation gap: a terminal
-  branch substate with several assignment-value calls in one local initializer
-  currently models only the first call in its branch prelude, so the full
-  initializer does not materialize on the native path. Keep that fixture's
-  authored casts until nested leaf-call execution handles the full expression;
-  this is compiler work, not a language-design question.
+  encoders/cross-signed narrowing, and compatibility-specific casts whose
+  authored shape pins legacy lowering. The cast-field migration exposed and
+  now pins a compiler fix for terminal branch substates with several
+  assignment-value calls in one local initializer: branch storage reserves
+  every result ordinal, leaf-only nested call trees execute, top-level
+  `Machine::entry` calls resolve by machine identity, and the full enclosing
+  initializer materializes after its operands. Its final `mode as u32` remains
+  intentionally because that cast-valued payload field is the regression's
+  subject; the raw byte widening no longer waits on compiler work.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation

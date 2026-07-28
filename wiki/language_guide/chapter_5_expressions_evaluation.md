@@ -420,9 +420,11 @@ Two rules keep it honest:
 > wrapping narrowing for high-word extraction; nested conversion arguments
 > retain caller alias substitution through binary/member expressions instead
 > of reading an unmaterialized callee parameter slot. Filesystem metadata
-> consumers likewise use named widening for raw-stat byte decodes outside
-> dedicated compatibility-lowering regressions; other residual filesystem
-> casts carry explicit count/byte policies. The domain model reserves
+> consumers likewise use named widening for raw-stat byte decodes, including
+> the byte-assembly setup of the cast-field compatibility regression; that
+> fixture retains only the final cast-valued field it exists to test. Other
+> residual filesystem casts carry explicit count/byte policies or pin a
+> compatibility-specific lowering shape. The domain model reserves
 > qualification `as` for changing static facts without changing carrier,
 > payload, or runtime work.
 

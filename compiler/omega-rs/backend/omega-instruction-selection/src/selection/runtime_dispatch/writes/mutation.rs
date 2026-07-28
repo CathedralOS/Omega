@@ -177,14 +177,17 @@ fn state_call_matches_expression(
     target: &str,
     receiver_path: &[&str],
 ) -> bool {
-    let (_, target_state) = input
+    let (target_machine, target_state) = input
         .control_flow
         .state_names_by_key_cloned(state_call.target_key);
     let planned_receiver_path = input
         .state_calls
         .receiver_path_segments
         .span_or_empty(state_call.receiver_path);
-    target_state.as_str() == target
+    // Methods are named by their target state. A top-level named machine is
+    // called by machine name and enters its canonical `entry` state.
+    (target_state.as_str() == target
+        || (target_state.as_str() == "entry" && target_machine.as_str() == target))
         && receiver_path.len() == planned_receiver_path.len()
         && receiver_path
             .iter()
