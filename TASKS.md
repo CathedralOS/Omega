@@ -116,18 +116,21 @@ Implementation checkpoint (2026-07-28): transparent records now derive one
 tracked claim per statically named contained linear field instead of requiring
 an affine wrapper to reject or silently erase the debt. Local construction,
 whole-record transfer, and field extraction preserve each claim's canonical
-path and transfer-stable provenance independently; partial moves leave sibling
-obligations live; duplicate moves and sibling scope loss reject; and the
-backend permission ledger retains complete path-indexed event realizations.
-Explicit `[linear]` aggregates still contribute one indivisible nominal root.
-This is the first frontier slice, not full P1c: a fresh claim identity distinct
-from provenance/root lineage, case and fixed-index paths, state/call n-ary
-outcome maps, per-claim carry inheritance, content projections/backing, and
-conservation witnesses remain. Symbol-keyed substitutions already retain
+path, transfer-stable claim identity, and root-lineage provenance independently;
+partial moves leave sibling obligations live; duplicate moves and sibling scope
+loss reject; and the backend permission ledger retains complete path-indexed
+event realizations with claim identity rendered separately from provenance.
+Fresh linear resources and borrow loans mint deterministic identities;
+destination bindings, aggregate fields, loan weakenings, and unique state-call
+results preserve them. Multiple contained claims established at one state entry
+share root lineage but retain distinct identities. Explicit `[linear]`
+aggregates still contribute one indivisible nominal root.
+
+This is not full P1c: case and fixed-index paths, general state/call n-ary
+input/outcome maps, per-claim carry inheritance, content projections/backing,
+and conservation witnesses remain. Symbol-keyed substitutions already retain
 contained claims through nested generic transparent records.
 
-- give every establishment a fresh claim identity while retaining root lineage
-  independently from its current canonical place;
 - infer one-to-one and unambiguous aggregate outcome mappings, preserve sibling
   obligations on partial moves, and reject ambiguous mappings;
 - make content-bearing qualified claim kinds publish one normalized projection

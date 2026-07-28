@@ -2,8 +2,8 @@ use omega_checked_trees::{CheckFacts, FlowOwnershipEventSource, FlowPermissionEv
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{
-    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
-    PermissionProvenance,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, PermissionProvenance,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::statement::StatementNode;
@@ -19,6 +19,7 @@ struct LinearPlace {
     path: Vec<omega_facts::PlaceSegment>,
     type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
+    claim_identity: Option<PermissionClaimIdentity>,
     provenance: Option<PermissionProvenance>,
     live: bool,
     /// Parameters are established on entry. A local is established only by an
@@ -36,6 +37,7 @@ struct WrittenLinearTarget {
     destination_path: Vec<omega_facts::PlaceSegment>,
     place_index: usize,
     obligation_live: bool,
+    claim_identity: Option<PermissionClaimIdentity>,
     provenance: Option<PermissionProvenance>,
 }
 
@@ -45,6 +47,32 @@ struct LinearClaimTemplate {
     type_reference: TypeReferenceHandle,
     multiplicity: Multiplicity,
     conditional: bool,
+}
+
+#[derive(Debug, Default)]
+struct ClaimIdentityAllocator {
+    next_ordinal: u32,
+}
+
+impl ClaimIdentityAllocator {
+    fn mint(
+        &mut self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        source: PermissionEventSource,
+    ) -> PermissionClaimIdentity {
+        let ordinal = self.next_ordinal;
+        self.next_ordinal = self
+            .next_ordinal
+            .checked_add(1)
+            .expect("permission claim identity ordinal overflow");
+        PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source,
+            ordinal,
+        }
+    }
 }
 
 pub(crate) fn check_linear_obligations(
@@ -60,6 +88,7 @@ pub(crate) fn record_permission_events(
     facts: &mut CheckFacts,
 ) {
     let mut permission_events = Vec::new();
+    let mut claim_identities = ClaimIdentityAllocator::default();
 
     let state_flows = facts
         .flow
@@ -83,7 +112,13 @@ pub(crate) fn record_permission_events(
         let mut places =
             initial_linear_places(program, state, state_flow.machine_symbol, state.symbol);
 
-        for place in places.iter().filter(|place| place.ever_established) {
+        for place in places.iter_mut().filter(|place| place.ever_established) {
+            let claim_identity = claim_identities.mint(
+                state_flow.machine_symbol,
+                state.symbol,
+                PermissionEventSource::StateEntry,
+            );
+            place.claim_identity = Some(claim_identity);
             let segments = facts
                 .flow
                 .ownership
@@ -96,6 +131,7 @@ pub(crate) fn record_permission_events(
                 kind: PermissionEventKind::Establish,
                 multiplicity: place.multiplicity,
                 access: PermissionAccess::Owned,
+                claim_identity,
                 provenance: place.provenance.expect("entry place has provenance"),
                 root: omega_facts::PlaceRoot::Symbol(place.symbol),
                 segments,
@@ -125,6 +161,7 @@ pub(crate) fn record_permission_events(
                 statement,
                 &mut places,
                 &mut permission_events,
+                &mut claim_identities,
             );
         }
 
@@ -145,6 +182,7 @@ pub(crate) fn record_permission_events(
                     &statements[statement_index],
                     &mut outcome,
                     &mut permission_events,
+                    &mut claim_identities,
                 );
             }
         }
@@ -158,8 +196,8 @@ pub(crate) fn record_permission_events(
         );
     }
 
-    append_borrow_permission_events(facts, &mut permission_events);
-    reconcile_state_call_result_provenance(program, &mut permission_events);
+    append_borrow_permission_events(facts, &mut permission_events, &mut claim_identities);
+    reconcile_state_call_result_origins(program, &mut permission_events);
 
     facts.flow.ownership.permissions = omega_core::arena::Arena::default();
     facts
@@ -169,16 +207,18 @@ pub(crate) fn record_permission_events(
         .insert_many(permission_events);
 }
 
-/// Join a state call's receiving establishment to the unique obligation that
-/// the target state transferred through its result.
+/// Join a state call's receiving establishment to the unique claim and
+/// root-lineage provenance that the target state transferred through its
+/// result.
 ///
 /// Intra-state production can propagate provenance directly through source
 /// expressions. A zero-argument state call has no caller-side source place,
 /// though: without this join, binding a locally-created linear result in the
-/// caller would mint a second origin even when the target has one unambiguous
-/// outgoing obligation. Ambiguous/multi-resource results remain conservative
-/// until the general resource algebra can publish an explicit result mapping.
-fn reconcile_state_call_result_provenance(
+/// caller would mint a second identity and origin even when the target has one
+/// unambiguous outgoing obligation. Ambiguous/multi-resource results remain
+/// conservative until the general resource algebra can publish an explicit
+/// result mapping.
+fn reconcile_state_call_result_origins(
     program: &omega_typed_trees::TypedTrees,
     permission_events: &mut [FlowPermissionEventFact],
 ) {
@@ -196,7 +236,9 @@ fn reconcile_state_call_result_provenance(
         };
         let locally_minted =
             established_provenance(event.machine_symbol, event.state_symbol, event.source);
-        if event.provenance != locally_minted {
+        if event.provenance != locally_minted
+            || event.claim_identity == PermissionClaimIdentity::Unknown
+        {
             continue;
         }
         let Some(state) = crate::find_state(program, event.state_symbol) else {
@@ -237,6 +279,7 @@ fn reconcile_state_call_result_provenance(
                     || candidate.access != PermissionAccess::Owned
                     || !candidate.obligation_live
                     || candidate.provenance == PermissionProvenance::Unknown
+                    || candidate.claim_identity == PermissionClaimIdentity::Unknown
                 {
                     return None;
                 }
@@ -244,7 +287,7 @@ fn reconcile_state_call_result_provenance(
                     return None;
                 };
                 statement_transfers_state_result(program, target_statements, statement_index)
-                    .then_some(candidate.provenance)
+                    .then_some((candidate.provenance, candidate.claim_identity))
             })
             .fold(Vec::new(), |mut origins, origin| {
                 if !origins.contains(&origin) {
@@ -253,7 +296,7 @@ fn reconcile_state_call_result_provenance(
                 origins
             });
         if let [origin] = origins.as_slice() {
-            rewrites.push((locally_minted, *origin));
+            rewrites.push((locally_minted, event.claim_identity, origin.0, origin.1));
         }
     }
 
@@ -262,17 +305,25 @@ fn reconcile_state_call_result_provenance(
         .filter(|event| event.access == PermissionAccess::Owned)
     {
         let mut provenance = event.provenance;
+        let mut claim_identity = event.claim_identity;
         for _ in 0..rewrites.len() {
-            let Some((_, replacement)) = rewrites.iter().find(|(source, _)| *source == provenance)
+            let Some((_, _, replacement_provenance, replacement_identity)) =
+                rewrites
+                    .iter()
+                    .find(|(source_provenance, source_identity, _, _)| {
+                        *source_provenance == provenance && *source_identity == claim_identity
+                    })
             else {
                 break;
             };
-            if *replacement == provenance {
+            if *replacement_provenance == provenance && *replacement_identity == claim_identity {
                 break;
             }
-            provenance = *replacement;
+            provenance = *replacement_provenance;
+            claim_identity = *replacement_identity;
         }
         event.provenance = provenance;
+        event.claim_identity = claim_identity;
     }
 }
 
@@ -434,6 +485,7 @@ fn initial_linear_places(
                 path: claim.path,
                 type_reference: claim.type_reference,
                 multiplicity: claim.multiplicity,
+                claim_identity: None,
                 provenance: Some(established_provenance(
                     machine_symbol,
                     state_symbol,
@@ -456,6 +508,7 @@ fn initial_linear_places(
                 path: claim.path,
                 type_reference: claim.type_reference,
                 multiplicity: claim.multiplicity,
+                claim_identity: None,
                 provenance: None,
                 live: false,
                 ever_established: false,
@@ -700,6 +753,7 @@ fn apply_recorded_statement_events(
                 }
                 place.live = event.obligation_live;
                 place.ever_established = true;
+                place.claim_identity = Some(event.claim_identity);
                 place.provenance = Some(event.provenance);
             }
             PermissionEventKind::AffineDrop => {}
@@ -720,6 +774,7 @@ fn permission_event_statement_index(source: PermissionEventSource) -> Option<usi
 fn append_borrow_permission_events(
     facts: &mut CheckFacts,
     permission_events: &mut Vec<FlowPermissionEventFact>,
+    claim_identities: &mut ClaimIdentityAllocator,
 ) {
     // Clone only the small state/span index so the ownership-segment arena can
     // be extended while the already-built borrow facts remain immutable.
@@ -738,6 +793,7 @@ fn append_borrow_permission_events(
         })
         .collect::<Vec<_>>();
 
+    let mut loan_claim_identities = Vec::new();
     for (machine_symbol, state_symbol, activations, weakenings) in states {
         for activation in facts
             .flow
@@ -746,6 +802,12 @@ fn append_borrow_permission_events(
             .span_or_empty(activations)
             .to_vec()
         {
+            let claim_identity = claim_identities.mint(
+                machine_symbol,
+                state_symbol,
+                permission_source_from_invalidation(activation.source),
+            );
+            loan_claim_identities.push((activation.loan, claim_identity));
             append_borrow_permission_event(
                 facts,
                 permission_events,
@@ -754,6 +816,7 @@ fn append_borrow_permission_events(
                 activation.loan,
                 permission_source_from_invalidation(activation.source),
                 PermissionEventKind::Establish,
+                claim_identity,
             );
         }
         for weakening in facts
@@ -769,6 +832,11 @@ fn append_borrow_permission_events(
                 } else {
                     permission_source_from_invalidation(weakening.source)
                 };
+            let claim_identity = loan_claim_identities
+                .iter()
+                .rev()
+                .find_map(|(loan, identity)| (*loan == weakening.loan).then_some(*identity))
+                .unwrap_or(PermissionClaimIdentity::Unknown);
             append_borrow_permission_event(
                 facts,
                 permission_events,
@@ -777,6 +845,7 @@ fn append_borrow_permission_events(
                 weakening.loan,
                 source,
                 PermissionEventKind::Consume,
+                claim_identity,
             );
         }
     }
@@ -790,6 +859,7 @@ fn append_borrow_permission_event(
     loan_handle: omega_core::arena::Handle<omega_checked_trees::BorrowLoanFact>,
     source: PermissionEventSource,
     kind: PermissionEventKind,
+    claim_identity: PermissionClaimIdentity,
 ) {
     let loan = facts.borrow.loans.get(loan_handle).clone();
     let segments = facts
@@ -812,6 +882,7 @@ fn append_borrow_permission_event(
         kind,
         multiplicity,
         access,
+        claim_identity,
         provenance: established_provenance(
             machine_symbol,
             state_symbol,
@@ -855,6 +926,7 @@ fn apply_statement_permission_production(
     statement: &StatementNode,
     places: &mut [LinearPlace],
     permission_events: &mut Vec<FlowPermissionEventFact>,
+    claim_identities: &mut ClaimIdentityAllocator,
 ) {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
@@ -911,6 +983,9 @@ fn apply_statement_permission_production(
                 kind,
                 multiplicity: place.multiplicity,
                 access: PermissionAccess::Owned,
+                claim_identity: place
+                    .claim_identity
+                    .unwrap_or(PermissionClaimIdentity::Unknown),
                 provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
                 root: event.root,
                 segments,
@@ -926,6 +1001,17 @@ fn apply_statement_permission_production(
         };
         let place_index = target.place_index;
         let obligation_live = target.obligation_live;
+        let claim_identity = target.claim_identity.unwrap_or_else(|| {
+            obligation_live
+                .then(|| {
+                    claim_identities.mint(
+                        machine_symbol,
+                        state_symbol,
+                        PermissionEventSource::Statement { statement_index },
+                    )
+                })
+                .unwrap_or(PermissionClaimIdentity::Unknown)
+        });
         let provenance = target.provenance;
         let claim_path = places[place_index].path.clone();
         let segments = facts.flow.ownership.segments.insert_many(claim_path);
@@ -933,6 +1019,7 @@ fn apply_statement_permission_production(
         debug_assert_eq!(place.symbol, symbol);
         place.live = obligation_live;
         place.ever_established = true;
+        place.claim_identity = Some(claim_identity);
         place.provenance = Some(provenance.unwrap_or_else(|| {
             established_provenance(
                 machine_symbol,
@@ -947,6 +1034,7 @@ fn apply_statement_permission_production(
             kind: PermissionEventKind::Establish,
             multiplicity: place.multiplicity,
             access: PermissionAccess::Owned,
+            claim_identity,
             provenance: place
                 .provenance
                 .expect("an established place has explicit provenance"),
@@ -1116,6 +1204,14 @@ fn written_linear_targets(
                     tracked.type_reference,
                     places,
                 ),
+                claim_identity: expression_permission_claim_identity_for_claim(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    value,
+                    relative_path,
+                    places,
+                ),
                 provenance: expression_permission_provenance_for_claim(
                     program,
                     state_symbol,
@@ -1127,6 +1223,117 @@ fn written_linear_targets(
             })
         })
         .collect()
+}
+
+fn expression_permission_claim_identity_for_claim(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    relative_path: &[omega_facts::PlaceSegment],
+    places: &[LinearPlace],
+) -> Option<PermissionClaimIdentity> {
+    if relative_path.is_empty() {
+        match program.expression_table.expression(expression) {
+            omega_typed_trees::expression::ExpressionNode::Call(call) => {
+                let mut candidates = Vec::new();
+                if call.receiver.is_valid() {
+                    candidates.push(call.receiver);
+                }
+                candidates
+                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
+                return common_permission_claim_identity(candidates.into_iter().filter_map(
+                    |candidate| {
+                        expression_permission_claim_identity_for_claim(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            candidate,
+                            &[],
+                            places,
+                        )
+                    },
+                ));
+            }
+            omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                return common_permission_claim_identity(
+                    program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .filter_map(|field| {
+                            expression_permission_claim_identity_for_claim(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                field.value,
+                                &[],
+                                places,
+                            )
+                        }),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    if let omega_typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+        && let Some(omega_facts::PlaceSegment::Field { symbol }) = relative_path.first()
+    {
+        let field_name = program.data_definitions().iter().find_map(|definition| {
+            program.data_members(definition).iter().find_map(|member| {
+                let omega_typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                (field.symbol == *symbol).then_some(field.name.as_str())
+            })
+        })?;
+        let field = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| field.name.as_str() == field_name)?;
+        return expression_permission_claim_identity_for_claim(
+            program,
+            state_symbol,
+            statement_index,
+            field.value,
+            &relative_path[1..],
+            places,
+        );
+    }
+
+    if !relative_path.is_empty()
+        && matches!(
+            program.expression_table.expression(expression),
+            omega_typed_trees::expression::ExpressionNode::Call(_)
+        )
+    {
+        return None;
+    }
+
+    let source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    let omega_facts::PlaceRoot::Symbol(symbol) = source.root else {
+        return None;
+    };
+    let mut source_path = source.segments;
+    source_path.extend_from_slice(relative_path);
+    let matches = places
+        .iter()
+        .filter(|place| {
+            place.symbol == symbol
+                && place.live
+                && (place.path == source_path
+                    || (place.conditional && source_path.starts_with(place.path.as_slice())))
+        })
+        .filter_map(|place| place.claim_identity);
+    common_permission_claim_identity(matches)
 }
 
 fn expression_permission_provenance_for_claim(
@@ -1268,6 +1475,7 @@ fn append_affine_cleanup_permission_events(
             kind: PermissionEventKind::AffineDrop,
             multiplicity: Multiplicity::Affine,
             access: PermissionAccess::Owned,
+            claim_identity: PermissionClaimIdentity::Unknown,
             provenance: PermissionProvenance::Unknown,
             root: omega_facts::PlaceRoot::Symbol(symbol),
             segments: HandleSpan::empty(),
@@ -1297,6 +1505,15 @@ fn common_permission_provenance(
 ) -> Option<PermissionProvenance> {
     let first = origins.next()?;
     origins.all(|origin| origin == first).then_some(first)
+}
+
+fn common_permission_claim_identity(
+    mut identities: impl Iterator<Item = PermissionClaimIdentity>,
+) -> Option<PermissionClaimIdentity> {
+    let first = identities.next()?;
+    identities
+        .all(|identity| identity == first)
+        .then_some(first)
 }
 
 pub(crate) fn type_carries_linear_obligation(

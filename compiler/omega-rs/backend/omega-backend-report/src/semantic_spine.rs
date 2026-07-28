@@ -47,7 +47,7 @@ fn write_ownership_events(output: &mut String, backend_plan: &BackendReportInput
             .map(|(_, realization)| permission_realization_text(ownership, realization.kind))
             .unwrap_or_else(|| "UNLINKED".to_owned());
         output.push_str(&format!(
-            "- {kind:?} `{place}` in machine `{machine_name}` state `{state_name}` at {source} (multiplicity={multiplicity:?}, access={access:?}, provenance={provenance}, obligation_live={live}) realization={realization}\n",
+            "- {kind:?} `{place}` in machine `{machine_name}` state `{state_name}` at {source} (multiplicity={multiplicity:?}, access={access:?}, claim={claim}, provenance={provenance}, obligation_live={live}) realization={realization}\n",
             kind = event.kind,
             place = ownership_place_text(
                 backend_plan,
@@ -58,9 +58,34 @@ fn write_ownership_events(output: &mut String, backend_plan: &BackendReportInput
             source = permission_source_text(event.source),
             multiplicity = event.multiplicity,
             access = event.access,
+            claim = permission_claim_identity_text(backend_plan, event.claim_identity),
             provenance = permission_provenance_text(backend_plan, event.provenance),
             live = event.obligation_live,
         ));
+    }
+}
+
+fn permission_claim_identity_text(
+    backend_plan: &BackendReportInput<'_>,
+    identity: omega_core::semantics::PermissionClaimIdentity,
+) -> String {
+    use omega_core::semantics::PermissionClaimIdentity;
+    match identity {
+        PermissionClaimIdentity::Unknown => "unknown".to_owned(),
+        PermissionClaimIdentity::Established {
+            machine_symbol,
+            state_symbol,
+            source,
+            ordinal,
+        } => {
+            let names = backend_plan
+                .control_flow
+                .state_key_by_symbols(machine_symbol, state_symbol)
+                .and_then(|key| backend_plan.control_flow.state_names_by_key(key))
+                .map(|(machine, state)| format!("{machine}::{state}"))
+                .unwrap_or_else(|| "<unknown>".to_owned());
+            format!("{names} at {} #{ordinal}", permission_source_text(source))
+        }
     }
 }
 

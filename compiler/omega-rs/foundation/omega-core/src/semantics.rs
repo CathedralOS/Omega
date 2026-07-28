@@ -287,6 +287,26 @@ pub enum PermissionProvenance {
     },
 }
 
+/// Identity of one permission/resource claim, independent of its current place
+/// and root-lineage provenance. Transfers preserve this identity. A resource
+/// transformation may establish fresh child identities while retaining the
+/// same [`PermissionProvenance`] lineage.
+///
+/// The ordinal distinguishes claims established at the same semantic source
+/// (for example, multiple linear fields entering one state). It is allocated
+/// deterministically by the checked ownership pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PermissionClaimIdentity {
+    #[default]
+    Unknown,
+    Established {
+        machine_symbol: crate::symbols::SymbolHandle,
+        state_symbol: crate::symbols::SymbolHandle,
+        source: PermissionEventSource,
+        ordinal: u32,
+    },
+}
+
 /// How a machine is supplied to its consumers (record §Machines). The old
 /// `boundary: bool` conflates all four; provider admission, proof
 /// artifacts, manifests, and lowering must consume THIS, not re-derive

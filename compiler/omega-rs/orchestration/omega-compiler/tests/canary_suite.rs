@@ -1508,9 +1508,9 @@ fn backend_report_renders_ownership_summary_events() {
     );
     assert!(
         report.contains(
-            "- Establish `<unnamed>` in machine `Main::run` state `run` at statement 0 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Establish `<unnamed>` in machine `Main::run` state `run` at statement 0 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
         ),
-        "spine should record linear establishment and its provenance\n{}",
+        "spine should record linear establishment, claim identity, and provenance\n{}",
         report
     );
     assert!(
@@ -1523,21 +1523,21 @@ fn backend_report_renders_ownership_summary_events() {
     );
     assert!(
         report.contains(
-            "- Transfer `<unnamed>` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Transfer `<unnamed>` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
         ),
-        "spine should record transfer without minting new provenance\n{}",
+        "spine should record transfer without minting a new claim or provenance\n{}",
         report
     );
     assert!(
         report.contains(
-            "- Establish `forwarded` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Establish `forwarded` in machine `Main::run` state `run` at statement 1 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
         ),
         "spine should record the receiving place's established obligation\n{}",
         report
     );
     assert!(
         report.contains(
-            "- Consume `forwarded` in machine `Main::run` state `run` at call ordinal 0 in statement 2 (multiplicity=Linear, access=Owned, provenance=Main::run::run at statement 0, obligation_live=true)"
+            "- Consume `forwarded` in machine `Main::run` state `run` at call ordinal 0 in statement 2 (multiplicity=Linear, access=Owned, claim=Main::run::run at statement 0 #0, provenance=Main::run::run at statement 0, obligation_live=true)"
         ),
         "spine should record terminal consumption\n{}",
         report
@@ -1588,6 +1588,30 @@ fn backend_report_renders_transparent_record_claim_paths() {
             report.contains(&format!("- Establish `{place}`"))
                 && report.contains(&format!("- Transfer `{place}`")),
             "the backend artifact must retain path-indexed events for `{place}`\n{report}"
+        );
+    }
+    let mut claims = report
+        .lines()
+        .filter(|line| line.starts_with("- ") && line.contains("multiplicity=Linear"))
+        .filter_map(|line| {
+            line.split_once("claim=")
+                .and_then(|(_, rest)| rest.split_once(", provenance="))
+                .map(|(claim, _)| claim)
+        })
+        .collect::<Vec<_>>();
+    claims.sort_unstable();
+    claims.dedup();
+    assert_eq!(
+        claims.len(),
+        2,
+        "the two contained resources need distinct claim identities\n{report}"
+    );
+    assert!(claims.iter().all(|claim| *claim != "unknown"));
+    for claim in claims {
+        assert_eq!(
+            report.matches(&format!("claim={claim},")).count(),
+            8,
+            "each identity must survive every aggregate/local transfer\n{report}"
         );
     }
     assert!(
@@ -1936,8 +1960,9 @@ fn backend_report_preserves_fresh_state_call_result_origin() {
             .find(|line| line.contains(event_prefix))
             .expect("fresh-result permission event should remain visible");
         assert!(
-            event.contains("provenance=Main::issue::issue at statement 0"),
-            "the event must preserve the callee-local origin, got:\n{event}"
+            event.contains("claim=Main::issue::issue at statement 0 #0")
+                && event.contains("provenance=Main::issue::issue at statement 0"),
+            "the event must preserve the callee-local claim and origin, got:\n{event}"
         );
     }
 

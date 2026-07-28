@@ -40,6 +40,7 @@ pub struct StatePermissionEvent {
     pub kind: omega_core::semantics::PermissionEventKind,
     pub multiplicity: omega_core::semantics::Multiplicity,
     pub access: omega_core::semantics::PermissionAccess,
+    pub claim_identity: omega_core::semantics::PermissionClaimIdentity,
     pub provenance: omega_core::semantics::PermissionProvenance,
     pub root: omega_facts::PlaceRoot,
     pub segments: HandleSpan<omega_facts::PlaceSegment>,
