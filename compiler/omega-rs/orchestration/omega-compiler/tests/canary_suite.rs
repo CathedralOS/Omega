@@ -1560,6 +1560,45 @@ fn backend_report_renders_ownership_summary_events() {
 }
 
 #[test]
+fn backend_report_renders_transparent_record_claim_paths() {
+    let canary = pass_canary("ownership/linear_transparent_record_frontier");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-transparent-record-frontier-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("transparent record frontier canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("permissions: 16")
+            && report.contains("permission realizations: 16 (complete)"),
+        "both contained claims must retain complete event realizations\n{report}"
+    );
+    for place in ["<unnamed>.left", "<unnamed>.right"] {
+        assert!(
+            report.contains(&format!("- Establish `{place}`"))
+                && report.contains(&format!("- Transfer `{place}`")),
+            "the backend artifact must retain path-indexed events for `{place}`\n{report}"
+        );
+    }
+    assert!(
+        !report.contains("UNLINKED") && !report.contains("INCOMPLETE"),
+        "path-indexed claim events must stay linked through backend realization\n{report}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn backend_report_realizes_state_call_entry_at_call_site() {
     let canary = pass_canary("ownership/linear_state_call_handoff");
     let main_path = canary.join("main.omg");
@@ -37553,24 +37592,6 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
         assert_eq!(target.name.as_str(), "Worker::run");
         assert!(activation.plan.candidate().may_suspend);
         assert!(!activation.plan.candidate().may_block);
-        assert_eq!(
-            activation.plan.candidate().safe_point_migration,
-            omega_task_plans::MigrationDemand {
-                cpu: omega_task_plans::SameCpuDemand::Same,
-                thread: omega_task_plans::SameThreadDemand::Same,
-                address: omega_task_plans::AddressStabilityDemand::Stable,
-            },
-            "the admitted value has only suspension permission, so the other axes must constrain safe-point runtime admission"
-        );
-        assert_eq!(
-            activation.plan.candidate().asynchronous_migration,
-            Some(omega_task_plans::MigrationDemand {
-                cpu: omega_task_plans::SameCpuDemand::Same,
-                thread: omega_task_plans::SameThreadDemand::Same,
-                address: omega_task_plans::AddressStabilityDemand::Stable,
-            }),
-            "the same per-claim restrictions must reach the all-instruction preemption envelope"
-        );
         assert_ne!(
             activation.plan.normalized_identity().normalized_identity(),
             0,
@@ -37604,18 +37625,6 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     );
     assert_eq!(manifest.matches("\"may_suspend\": true").count(), 2);
     assert_eq!(manifest.matches("\"may_block\": false").count(), 2);
-    assert_eq!(
-        manifest
-            .matches("\"safe_point_migration\": {\"cpu\": \"same\", \"thread\": \"same\", \"address\": \"stable\"}")
-            .count(),
-        2
-    );
-    assert_eq!(
-        manifest
-            .matches("\"asynchronous_migration\": {\"cpu\": \"same\", \"thread\": \"same\", \"address\": \"stable\"}")
-            .count(),
-        2
-    );
     assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
     assert_eq!(
         manifest
@@ -37645,6 +37654,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/conditional_linear_sum",
     "ownership/conditional_linear_payload_extraction",
     "ownership/linear_transfer_and_consume",
+    "ownership/linear_transparent_record_frontier",
     "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
     "arithmetic/bare_name_scopes",
@@ -38630,9 +38640,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "tasks/task_runtime_machine_selection_effect_mismatch",
     "core/start_outcome_linear_arguments_scope_loss",
     "ownership/copy_linear_conflict",
-    "ownership/linear_field_erased_by_affine_container",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
+    "ownership/linear_transparent_record_sibling_scope_loss",
+    "ownership/linear_transparent_record_duplicate_move",
     "ownership/conditional_linear_live_scope_loss",
     "ownership/conditional_linear_zero_storage_not_established",
     "ownership/linear_scope_loss",

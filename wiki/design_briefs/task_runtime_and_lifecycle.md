@@ -375,7 +375,7 @@ the responsible call/path and the bounded computation around it rather than
 collapsing the result to an unattributed infinity.
 
 Maximum abstract work between safe points requires the normalized `WorkPlan`
-and repeated-path algebra in `OWNER_QUESTIONS.md` #16. WCSU proves space, not
+and repeated-path algebra in `OWNER_QUESTIONS.md` #17. WCSU proves space, not
 work or wall-clock latency. A target may convert checked work to time only
 through a separately derived or admitted timing model whose trust provenance
 remains visible.
@@ -421,17 +421,17 @@ runtime mode. It can pool guarded native stacks and keep native blocking off
 Omega scheduler workers, but it does not prove completion or cancellation.
 Pool exhaustion, retained loans, cancellation finalization, and shutdown
 remain separate resource obligations. The reusable gateway contract is owner
-question #17; retained foreign pointers remain owner question #14.
+question #18; retained foreign pointers remain owner question #14.
 
 The compiler task canary now carries an admitted suspension-only permission
-through a qualified selected-machine entry, local transfer, safe-point
-liveness, both migration envelopes, and `05_task_activations.json`. The
-resulting runtime demand is same CPU, same host thread, and stable continuation
-address. Static-machine specialization normalizes the qualified entry back to
+through a qualified selected-machine entry, local transfer, canonical
+safe-point liveness, and the current `05_task_activations.json` compatibility
+artifact. Static-machine specialization normalizes the qualified entry back to
 its underlying runtime carrier while retaining the qualification as proof
-evidence. This fixture is intentionally affine: conservation and provider
-custody for linear task arguments remain TR3–TR8 work, not a gap in the
-runtime-behavior join.
+evidence. The canary deliberately does not make the retired preemption-mode,
+all-instruction, or continuation-address fields normative. This fixture is
+intentionally affine: conservation and provider custody for linear task
+arguments remain TR3–TR8 work.
 
 ## Acceptance register
 
@@ -503,7 +503,7 @@ runtime-behavior join.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.
-9. Implement the normalized bounded-work plan after owner question #16; keep
+9. Implement the normalized bounded-work plan after owner question #17; keep
    work, wait, and timing conversion distinct.
 10. Keep external-entry/callback mechanics under owner question #12 and hosted
-    FFI gateway policy under #17 rather than adding either to `TaskRuntime`.
+    FFI gateway policy under #18 rather than adding either to `TaskRuntime`.

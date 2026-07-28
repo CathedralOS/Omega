@@ -337,15 +337,15 @@ claim policy, while asynchronous preemption envelopes conservatively join
 established claim origins and permissions. Qualification and carry artifacts
 expose the admitted atom and the effective crossing policy. Remaining work is
 path-indexed aggregate and partial-move propagation plus conserved multi-output
-mappings under P1c. The normalized runtime admission join is already live:
-task activation elaboration converts the checked safe-point and all-instruction
-policies into CPU/thread/address migration demands, and `omega-task-plans`
-selects the envelope by provider preemption granularity before rejecting
-incompatible CPU migration, host-thread migration, or continuation movement.
-The task source/artifact canary pins that path with an admitted
-suspension-only permission, whose other three axes remain restrictive.
-Provider publication/selection is the separate owner-blocked task-runtime
-decision; linear task-argument custody remains TR work.
+mappings under P1c. The task source/artifact canary pins an admitted
+suspension-only permission through qualified selected-machine specialization
+and canonical safe-point liveness. The current activation artifact also carries
+retired safe-point/all-instruction `MigrationDemand` compatibility fields; they
+are migration input, not a settled runtime admission contract. TR replaces them
+with WCSU-derived `StackPlan`, canonical suspension crossings, and demanded
+CPU/thread preservation. Fixed nonmoving stack storage supplies continuation
+address stability structurally; no provider preemption mode selects an
+alternate all-instruction supply envelope.
 
 Executable provenance and control-flow integrity must also remain separate.
 `Artifact::AdmittedExecutable` plus linear placement states prove which bytes
@@ -515,14 +515,14 @@ to multiplicity. Flow joins operate over permission entries with
 path-sensitive sum state. Borrow events remain permission operations, not
 linear obligations by fiat.
 
-Implementation status (CML4 migration, 2026-07-21): checked flow retains normalized
-`Establish | Transfer | Consume | AffineDrop` events, including whether a
-conditional sum event carries live payload debt. CML3's second slice propagates
-the same typed events through state graph, control flow, abstract/target/
-assigned operations, machine instructions/program/bytes, and the backend
-report. The older move/drop arenas remain compatibility output only through
-control flow and are dropped at the abstract-operation boundary; no backend
-representation carries them, and no semantic producer or consumer may
+Implementation status (CML4 migration, through 2026-07-28): checked flow retains
+normalized `Establish | Transfer | Consume | AffineDrop` events, including
+whether a conditional sum event carries live payload debt. CML3's second slice
+propagates the same typed events through state graph, control flow,
+abstract/target/assigned operations, machine instructions/program/bytes, and
+the backend report. The older move/drop arenas remain compatibility output only
+through control flow and are dropped at the abstract-operation boundary; no
+backend representation carries them, and no semantic producer or consumer may
 reconstruct permission kind from that lossy pair.
 
 CML4's backend-realization slice preserves the control-flow arena identity on
@@ -558,7 +558,14 @@ origin. Nontrivial state-exit code actions now target the settled
 the ordered dying affine places, and retain the exact conservation witness.
 Composite per-field debt uses the settled path-indexed frontier: explicit
 nominal linearity contributes one root, transparent aggregates contribute their
-contained child claims, and static field/case/index moves preserve siblings.
+contained child claims. The first implemented slice follows statically named
+transparent-record fields through local construction, whole-record transfer,
+and extraction; moving one field preserves sibling debt, duplicate moves
+reject, and backend permission realizations retain the field paths and
+independent source provenance. Fresh claim identity, active-case and
+fixed-index frontiers, n-ary call/state maps, and per-claim carry remain P1c
+work. Symbol-keyed substitutions already retain contained claims through
+nested generic transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
 compiler-owned algebra, normalized claim projection and admitted backing,
 root-lineage mapping, and exact separated-conservation witness. The initial

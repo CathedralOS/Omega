@@ -1,1 +1,0 @@
-is affine but field `receipt` carries a linear obligation
