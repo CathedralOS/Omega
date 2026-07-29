@@ -34430,6 +34430,38 @@ fn float_operator_spellings_record_named_core_identities() {
     );
 }
 
+#[test]
+fn float_policy_operator_uses_record_checked_result_adapters() {
+    for (canary_name, expected) in [
+        (
+            "float/float_saturating_arithmetic_exit",
+            omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                format: omega_core::float_semantics::FloatFormat::BINARY32,
+            },
+        ),
+        (
+            "float/float_trapping_overflow_traps",
+            omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: omega_core::float_semantics::FloatFormat::BINARY32,
+            },
+        ),
+    ] {
+        let canary = pass_canary(canary_name);
+        let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+            .unwrap_or_else(|diagnostics| {
+                panic!("{canary_name} should compile to checked policy evidence: {diagnostics:?}")
+            });
+        assert!(
+            checked
+                .facts
+                .operators
+                .resolved_uses()
+                .any(|operator_use| operator_use.policy_adapter == expected),
+            "{canary_name} should retain `{expected:?}` beside its selected float operator"
+        );
+    }
+}
+
 // Without a declaration, mint, or signature selection, the domain meaning is
 // inactive and the ordinary builtin operation stays selected.
 // The evidence must say so explicitly (builtin fallback), not pretend the
@@ -37526,6 +37558,8 @@ fn float_trapping_arithmetic_canaries_abort() {
         "float/float_trapping_overflow_traps",
         "float/float_trapping_divide_zero_traps",
         "float/float_trapping_invalid_traps",
+        "float/float_trapping_propagated_nan_traps",
+        "float/float_trapping_propagated_infinity_traps",
     ] {
         let canary = pass_canary(name);
         let leaf = name.rsplit('/').next().unwrap_or("trap");
@@ -39202,6 +39236,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/float_trapping_divide_zero_traps",
     "float/float_trapping_invalid_traps",
     "float/float_trapping_overflow_traps",
+    "float/float_trapping_propagated_nan_traps",
+    "float/float_trapping_propagated_infinity_traps",
     "dependent/data_where_capacity_measure_compile",
     "dependent/data_where_field_read_during_window_compile",
     "float/suffix_f32_single_rounding_exit",

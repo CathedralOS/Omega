@@ -1,8 +1,10 @@
 use omega_checked_trees::{
-    CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
-    CheckedOperatorUseFact, CheckedValueFacts, CheckedValueOrigin,
+    CheckedArithmeticPolicyAdapter, CheckedOperatorCandidateFact, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedValueFacts, CheckedValueOrigin,
 };
 use omega_core::arena::Arena;
+use omega_core::arithmetic::ArithmeticDomain;
+use omega_core::float_semantics::FloatFormat;
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
@@ -10,7 +12,7 @@ use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression,
 };
 use omega_typed_trees::operator::{SpelledOperator, resolve_spelling_for_operands};
-use omega_typed_trees::types::TypeReferenceHandle;
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 mod receiver;
 mod selection;
@@ -238,6 +240,7 @@ fn binary_operator_use_fact(
         expression,
         origin,
         spelling,
+        policy_adapter: arithmetic_policy_adapter(program, spelling, receiver_type),
         selected_operator_symbol,
         candidates: candidate_span,
         candidate_count,
@@ -335,10 +338,47 @@ fn operator_use_fact(
         expression,
         origin,
         spelling,
+        policy_adapter: CheckedArithmeticPolicyAdapter::None,
         selected_operator_symbol,
         candidates: candidate_span,
         candidate_count,
         status,
+    }
+}
+
+fn arithmetic_policy_adapter(
+    program: &TypedTrees,
+    spelling: OperatorSpelling,
+    receiver_type: TypeReferenceHandle,
+) -> CheckedArithmeticPolicyAdapter {
+    if !matches!(
+        spelling,
+        OperatorSpelling::Add
+            | OperatorSpelling::Subtract
+            | OperatorSpelling::Multiply
+            | OperatorSpelling::Divide
+    ) {
+        return CheckedArithmeticPolicyAdapter::None;
+    }
+
+    let format = match program.primitive_type_reference(receiver_type) {
+        Some(PrimitiveType::F32) => FloatFormat::BINARY32,
+        Some(PrimitiveType::F64) => FloatFormat::BINARY64,
+        _ => return CheckedArithmeticPolicyAdapter::None,
+    };
+    match program
+        .type_reference_table
+        .arithmetic_domain(receiver_type)
+    {
+        ArithmeticDomain::Saturating => {
+            CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { format }
+        }
+        ArithmeticDomain::Trapping => {
+            CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { format }
+        }
+        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => {
+            CheckedArithmeticPolicyAdapter::None
+        }
     }
 }
 

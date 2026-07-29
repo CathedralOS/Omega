@@ -1,3 +1,4 @@
+use omega::language::core::float_operations;
 use omega::language::std::console;
 data Main {
     console: Console;

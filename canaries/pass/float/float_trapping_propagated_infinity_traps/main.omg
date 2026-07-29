@@ -1,0 +1,19 @@
+// F7 policy-adapter edge: a pre-existing infinity remains legal data in a
+// bare policy-qualified carrier, but a Trapping operation whose semantic
+// result propagates that infinity must trap. Trapping is a result check, not
+// merely an overflow detector for finite operands.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    quiet: f64;
+    trapped: f64 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.quiet = 1.0 / 0.0;
+    self.trapped = self.quiet;
+    self.trapped = self.trapped + 1.0;
+    self.console.exit_process(70);
+}

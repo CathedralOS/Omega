@@ -1,0 +1,19 @@
+// F7 policy-adapter edge: Trapping checks the semantic RESULT, not whether
+// finite operands newly created the non-finite. A NaN produced under the quiet
+// default may be stored in a policy-qualified carrier, but its next Trapping
+// arithmetic operation must trap instead of propagating it to exit 70.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    quiet: f64;
+    trapped: f64 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.quiet = 0.0 / 0.0;
+    self.trapped = self.quiet;
+    self.trapped = self.trapped + 1.0;
+    self.console.exit_process(70);
+}
