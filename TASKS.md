@@ -358,9 +358,9 @@ ceilings, and publication-before-ledger-record all reject.
 
 ### Domain theory and numeric conversion
 
-- Define ordinary core numeric conversion machines, with explicit narrowing
-  policy, then migrate width and float/integer conversion away from the legacy
-  `as` spelling.
+- Finish the ordinary core float/integer and float-format conversion machines,
+  with explicit narrowing and rounding policy, then retire the legacy numeric
+  `as` spelling after its last compatibility-only consumer.
 - All fixed-width integer pairs are now available from
   `core::numeric_conversion`. Widening is named only where the complete source
   range fits; every other pair—including a signed-to-wider-unsigned conversion
@@ -447,8 +447,9 @@ ceilings, and publication-before-ledger-record all reject.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
-  work is float/integer named operations, broad corpus migration, and retirement
-  of numeric compatibility `as` after its last internal conversion consumer.
+  work is float/integer and float-format named operations, their corpus
+  migration, and retirement of numeric compatibility `as` after its last
+  internal conversion consumer.
   Keep `arithmetic/runtime_integer_casts_exit` on compatibility `as` until that
   retirement: its authored cast-initializer/transition-parameter shape is the
   regression for legacy sign/zero extension and truncation lowering, while the
@@ -679,10 +680,10 @@ and allocation handles expose no compiler-owned stack/control storage.
   operator evidence pins the primitive spelling selections.
   Finish rung 1 by routing the named FMA/classification/directed call surfaces
   through those identities and adding build-time/runtime twins for every edge
-  family. **Language-design blocked:** the public conversion requirement names
-  and signatures are not settled anywhere in the owning brief; only the
-  negative ruling that compatibility `as` is not that surface is settled
-  (`OWNER_QUESTIONS.md` #10).
+  family. **Language-design blocked:** the public float/integer and
+  float-format conversion requirement names and signatures are not settled
+  anywhere in the owning brief; only the negative ruling that compatibility
+  `as` is not that surface is settled (`OWNER_QUESTIONS.md` #10).
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
