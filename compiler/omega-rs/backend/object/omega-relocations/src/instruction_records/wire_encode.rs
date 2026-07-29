@@ -47,6 +47,14 @@ pub(super) fn collect_wire_encode_relocations(
             written_region,
             written_offset,
             ..
+        }
+        | SelectedInstructionKind::AppendWireScalarSlice {
+            source_region,
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+            ..
         } => {
             context.insert_data_address_at_instruction_start(
                 context.storage_region_symbol_handle(*out_region),

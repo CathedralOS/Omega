@@ -2635,6 +2635,36 @@ pub fn append_wire_text_bytes_width(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn append_wire_scalar_slice_width(
+    architecture: Architecture,
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::append_wire_scalar_slice_width(
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset,
+        ),
+        Architecture::X86_64 => x86_64::append_wire_scalar_slice_width(
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn append_wire_repeated_scalar_varint_width(
     architecture: Architecture,
     source_offset: usize,

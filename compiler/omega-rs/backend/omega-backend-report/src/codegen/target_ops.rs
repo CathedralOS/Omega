@@ -437,6 +437,28 @@ fn selected_instruction_name(
                 "wire append text bytes (len varint + raw bytes) {source_symbol}@{source_offset} descriptor -> {out_symbol}@{out_offset} (cap {out_length}) + cursor {written_symbol}@{written_offset}"
             )
         }
+        SelectedInstructionKind::AppendWireScalarSlice {
+            source_region,
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_region,
+            out_offset,
+            out_length,
+            written_region,
+            written_offset,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            let out_symbol =
+                storage_region_symbol_name(*out_region, backend_plan.entry_machine_name());
+            let written_symbol =
+                storage_region_symbol_name(*written_region, backend_plan.entry_machine_name());
+            let encoding = if *zigzag { "zigzag varints" } else { "varints" };
+            format!(
+                "wire append borrowed scalar slice ({encoding}, {element_byte_size}-byte elements, exact two-pass length) {source_symbol}@{source_offset} descriptor -> {out_symbol}@{out_offset} (cap {out_length}) + cursor {written_symbol}@{written_offset}"
+            )
+        }
         SelectedInstructionKind::ReadWireExpectedByte {
             buffer_region,
             buffer_offset,

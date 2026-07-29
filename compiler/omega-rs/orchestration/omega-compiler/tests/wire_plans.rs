@@ -30,6 +30,7 @@ data Packet {
     #1 seed: u64;
     #2 flag: bool;
     #4 samples: FixedVec<i32, 4>;
+    #5 borrowed: &[i32];
 }
 data Main { }
 machine Main::main(&mut self) { }
@@ -57,8 +58,17 @@ machine Main::main(&mut self) { }
             WirePlacement::Varint { tag: 2 },
             WirePlacement::LengthPrefixed { tag: 3 },
             WirePlacement::LengthPrefixed { tag: 4 },
+            WirePlacement::LengthPrefixed { tag: 5 },
         ]
     );
+    let obligations = checked
+        .typed
+        .wire_schema_encode_obligations(schema.symbol)
+        .expect("Packet plan should expose encode obligations");
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(obligations[0].field_number, 5);
+    assert_eq!(obligations[0].element.byte_size, 4);
+    assert!(obligations[0].element.zigzag);
 }
 
 #[test]

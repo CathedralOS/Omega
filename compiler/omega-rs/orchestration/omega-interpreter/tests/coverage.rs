@@ -600,6 +600,66 @@ machine Main::main(&mut self) {
     );
 }
 
+#[test]
+fn wire_borrowed_scalar_slice_encodes_packed_varints() {
+    let main_path = write_program(
+        "wire-borrowed-scalar-slice-encode",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Telemetry {
+    #0 readings: &[i32];
+}
+
+data TelemetrySample {
+    readings: &[i32];
+}
+
+data Main {
+    console: Console;
+    source: [i32; 4];
+    buffer: [u8; 64];
+    written: u64;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = -1;
+    self.source[1] = 64;
+    self.source[2] = -65;
+    let sample: TelemetrySample =
+        TelemetrySample { readings: self.source[0..3] };
+    Telemetry::encode(&sample, &mut self.buffer, &mut self.written);
+
+    let ok: bool = self.written == 8
+        && self.buffer[0] == 0
+        && self.buffer[1] == 0
+        && self.buffer[2] == 5
+        && self.buffer[3] == 1
+        && self.buffer[4] == 128
+        && self.buffer[5] == 1
+        && self.buffer[6] == 129
+        && self.buffer[7] == 1;
+    transition ok {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("borrowed scalar-slice wire program should compile");
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must match the native two-pass packed-varint encoding"
+    );
+}
+
 // ---- std::fs (value-returning FilesystemHost raw seam; matches native) -------
 
 /// The raw `FilesystemHost` boundary (value-returning ints) + a Console for

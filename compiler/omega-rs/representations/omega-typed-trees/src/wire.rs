@@ -37,6 +37,46 @@ impl WirePlacement {
 pub struct WireSchemaPlan {
     pub schema: SymbolHandle,
     pub placements: HandleSpan<WirePlacement>,
+    /// Runtime resource obligations retained by the generated encoder. These
+    /// are derived from carrier semantics, not authored placement policy.
+    pub encode_obligations: HandleSpan<WireEncodeObligation>,
+}
+
+/// A dynamic obligation carried by a normalized wire encoder plan.
+///
+/// A borrowed scalar slice is encoded without allocation by walking the
+/// runtime element count twice: once to measure the exact packed-varint body,
+/// then once to emit it after proving the remaining output capacity covers
+/// the length prefix and body. Retaining this row keeps the generated
+/// requirement honest about dynamic length, work, and output space.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WireEncodeObligation {
+    pub field_number: u64,
+    pub element: WireScalarEncoding,
+    pub length: WireEncodeLengthObligation,
+    pub work: WireEncodeWorkObligation,
+    pub output_capacity: WireEncodeOutputCapacityObligation,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WireEncodeLengthObligation {
+    #[default]
+    RuntimeElementCount,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WireEncodeWorkObligation {
+    /// One exact-size pass and one emission pass over every live element.
+    #[default]
+    TwoPassesPerElement,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WireEncodeOutputCapacityObligation {
+    /// Remaining output covers the exact packed-body byte count plus its
+    /// canonical length varint. The field tag is emitted separately.
+    #[default]
+    ExactPackedPayload,
 }
 
 /// A `wire data` protocol schema carried through the typed stage: stable field
@@ -108,7 +148,7 @@ pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
 /// runtime load width and whether the value zigzags before LEB128. The
 /// vocabulary is shared by validation, instruction selection, and the
 /// reference interpreter so all three agree byte-for-byte.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct WireScalarEncoding {
     pub byte_size: usize,
     pub zigzag: bool,
@@ -418,6 +458,15 @@ pub struct WireRepeatedEncoding {
     pub carrier: WireRepeatedCarrier,
     pub element: WireScalarEncoding,
     pub max_count: usize,
+}
+
+/// The unbounded borrowed scalar-slice encoding. Unlike bounded repeated
+/// carriers, its live count comes from a fat descriptor and no static
+/// `max_count` exists; the corresponding normalized-plan obligation carries
+/// the dynamic work and capacity contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WireBorrowedScalarSliceEncoding {
+    pub element: WireScalarEncoding,
 }
 
 impl WireRepeatedEncoding {

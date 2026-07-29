@@ -56,6 +56,7 @@ pub enum MachineInstructionKind {
     WireLiteralByteAppend,
     WireScalarVarintAppend,
     WireTextBytesAppend,
+    WireScalarSliceAppend,
     WireExpectedByteRead,
     WireScalarVarintRead,
     WireByteSliceRead,

@@ -10204,6 +10204,53 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs() {
+    let canary = pass_canary("wire/runtime_wire_encode_borrowed_scalar_slice_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-borrowed-scalar-slice-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire encode borrowed scalar-slice canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire encode borrowed scalar-slice canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pass scalar-slice encoder to emit exact packed zigzag varints (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
+        .expect("wire protocol report should retain encode obligations");
+    for expected in [
+        "encode requirement: Encode<compact_binary, Telemetry>",
+        "encode requirement identity: 0x",
+        "encode obligations:",
+        "field 0: runtime element count; two scalar passes per element; remaining output capacity covers exact packed payload",
+    ] {
+        assert!(
+            report.contains(expected),
+            "wire report should contain `{expected}`\n{report}"
+        );
+    }
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_decode_byte_slice_exit_canary_runs() {
     // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode: `decode` reads
     // a byte-length varint and stores a fat `{ptr, len}` descriptor viewing the
@@ -38850,6 +38897,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",
     "wire/runtime_wire_encode_byte_slice_exit",
+    "wire/runtime_wire_encode_borrowed_scalar_slice_exit",
     "wire/runtime_wire_decode_byte_slice_exit",
     "wire/runtime_wire_decoded_byte_slice_len_exit",
     "wire/runtime_wire_decoded_byte_slice_index_exit",
@@ -39283,7 +39331,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/encode_nested_in_nested",
     "wire/repeated_text_element",
     "wire/repeated_nested_element",
-    "wire/repeated_without_max",
+    "wire/borrowed_scalar_slice_decode_requires_storage",
     "capabilities/unapproved_host_call",
     "comptime/effectful_const_array_length",
     "comptime/negative_const_array_length",

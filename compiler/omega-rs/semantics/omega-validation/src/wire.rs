@@ -239,6 +239,9 @@ fn validate_scope_field_types(
         // scalar slice has no such bound in the current encode requirement.
         if program.wire_field_is_unbounded_slice(field)
             && !program.is_borrowed_byte_slice(field.type_reference)
+            && program
+                .wire_field_borrowed_scalar_slice_encoding(field)
+                .is_none()
         {
             // A borrowed byte slice `&[u8]` is the zero-copy RAW-bytes/text
             // field (length varint + raw bytes, runtime-bounded like the old
@@ -246,15 +249,10 @@ fn validate_scope_field_types(
             // that bounded repeated scalar carriers obey. Any OTHER bare
             // slice still rejects -- it has no finite worst case.
             diagnostics.push(Diagnostic::error(format!(
-                "{} field `{}`: the current compact_binary generated realization needs a statically bounded repeated carrier (`[{}; N]` or `FixedVec<{}, N>`); borrowed scalar slices await explicit runtime length, work, and output-capacity obligations",
+                "{} field `{}`: compact_binary cannot encode the unbounded slice `{}`; borrowed slices require a stage 2 scalar element (i32, i64, u32, u64, bool), while repeated text and nested-message elements still need an owned/bounded carrier",
                 scope_label(schema, scope),
                 field.name,
-                program.display_type_reference(field.type_reference)
-                    .trim_start_matches('[')
-                    .trim_end_matches(']'),
-                program.display_type_reference(field.type_reference)
-                    .trim_start_matches('[')
-                    .trim_end_matches(']')
+                program.display_type_reference(field.type_reference),
             )));
         }
     }
@@ -534,6 +532,10 @@ fn validate_wire_encode_call(
     let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
     let mut repeated_fields: Vec<(&WireField, omega_typed_trees::wire::WireRepeatedEncoding)> =
         Vec::new();
+    let mut scalar_slice_fields: Vec<(
+        &WireField,
+        omega_typed_trees::wire::WireBorrowedScalarSliceEncoding,
+    )> = Vec::new();
     let mut text_fields: Vec<&WireField> = Vec::new();
     // Borrowed byte slices `&[u8]`: the zero-copy RAW-bytes/text field. Encodes
     // as length varint + raw bytes, rides the same runtime-sized Text constraints
@@ -581,6 +583,17 @@ fn validate_wire_encode_call(
                 + omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH;
             text_fields.push(field);
             byte_slice_fields.push(field);
+            continue;
+        }
+        // A borrowed scalar slice is allocation-free but runtime-sized. Its
+        // normalized plan retains the descriptor length, two-pass work, and
+        // exact remaining-output-capacity obligation.
+        if let Some(slice) = program.wire_field_borrowed_scalar_slice_encoding(field) {
+            max_field_number = max_field_number.max(field.number);
+            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number).len()
+                + omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH;
+            text_fields.push(field);
+            scalar_slice_fields.push((field, slice));
             continue;
         }
         let primitive = program.primitive_type_reference(field.type_reference);
@@ -766,6 +779,42 @@ fn validate_wire_encode_call(
                 diagnostics,
             );
         }
+        for (field, schema_slice) in &scalar_slice_fields {
+            let Some(value_field) =
+                program
+                    .data_members(value_data)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == field.name =>
+                        {
+                            Some(data_field)
+                        }
+                        _ => None,
+                    })
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode` value type `{}` has no field `{}` to encode (schema field {} is a borrowed scalar slice)",
+                    schema.name, value_data.name, field.name, field.number
+                )));
+                continue;
+            };
+            let mut runtime_field = (*field).clone();
+            runtime_field.type_reference = value_field.type_reference;
+            if program.wire_field_borrowed_scalar_slice_encoding(&runtime_field)
+                != Some(*schema_slice)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode` value field `{}.{}` is `{}`, but the schema declares borrowed scalar slice field {} as `{}`; the value field must use the same borrowed slice element type",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number,
+                    program.display_type_reference(field.type_reference)
+                )));
+            }
+        }
     }
 
     // Out argument: `&mut [u8; N]` with N covering the worst case.
@@ -887,6 +936,17 @@ fn validate_wire_decode_call(
         // An owned-copy destination would instead need allocator/package policy.)
         if program.is_borrowed_byte_slice(field.type_reference) {
             byte_slice_fields.push(field);
+            continue;
+        }
+        if program
+            .wire_field_borrowed_scalar_slice_encoding(field)
+            .is_some()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` field `{}` is a borrowed scalar slice: compact_binary can encode it from its runtime descriptor, but cannot decode packed varints into a borrowed view without owned/preallocated destination storage",
+                schema.name, field.name
+            )));
+            schema_rejects = true;
             continue;
         }
         let primitive = program.primitive_type_reference(field.type_reference);

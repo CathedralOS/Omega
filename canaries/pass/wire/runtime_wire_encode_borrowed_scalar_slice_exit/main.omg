@@ -1,0 +1,62 @@
+// A borrowed scalar slice carries its runtime element count in the fat
+// descriptor. compact_binary measures the exact packed-varint body, proves
+// the trailing output capacity, then walks the elements again to emit them.
+//
+// readings = [-1, 64, -65] as zigzag i32:
+//   era 0         00
+//   tag 0         00
+//   body length 5 05
+//   -1            01
+//   64            80 01
+//   -65           81 01
+// Total: 8 bytes.
+
+use omega::language::std::console;
+
+data Telemetry {
+    #0 readings: &[i32];
+}
+
+data TelemetrySample {
+    readings: &[i32];
+}
+
+data Main {
+    console: Console;
+    source: [i32; 4];
+    buffer: [u8; 64];
+    written: u64;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = -1;
+    self.source[1] = 64;
+    self.source[2] = -65;
+    let sample: TelemetrySample =
+        TelemetrySample { readings: self.source[0..3] };
+
+    Telemetry::encode(&sample, &mut self.buffer, &mut self.written);
+
+    let ok: bool = self.written == 8
+        && self.buffer[0] == 0
+        && self.buffer[1] == 0
+        && self.buffer[2] == 5
+        && self.buffer[3] == 1
+        && self.buffer[4] == 128
+        && self.buffer[5] == 1
+        && self.buffer[6] == 129
+        && self.buffer[7] == 1;
+
+    transition ok {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

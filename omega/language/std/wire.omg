@@ -46,6 +46,15 @@ pub data Relayed<T> {
     remainder: OpaqueWireRemainder;
 }
 
+// Encode through a validated policy plan. Dynamic carriers retain their
+// runtime length, work, and remaining-output-capacity obligations in that
+// plan. In particular, a borrowed scalar slice requires two allocation-free
+// passes per live element (exact packed-size measurement, then emission) and
+// enough output for the canonical length prefix plus exact packed body.
+pub trait Encode<Policy, Value> {
+    machine encode(value: &Value, out: &mut [u8], written: &mut u64);
+}
+
 // Reject every unknown field or case and establish `Value` only after
 // validating the complete input.
 pub trait StrictDecode<Policy, Value> {

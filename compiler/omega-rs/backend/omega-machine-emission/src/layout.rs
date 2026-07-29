@@ -623,6 +623,23 @@ fn machine_instruction_width(
             *out_length,
             *written_offset,
         ),
+        SelectedInstructionKind::AppendWireScalarSlice {
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset,
+            ..
+        } => omega_instruction_selection::append_wire_scalar_slice_width(
+            input.target.architecture,
+            *source_offset,
+            *element_byte_size,
+            *zigzag,
+            *out_offset,
+            *out_length,
+            *written_offset,
+        ),
         SelectedInstructionKind::ReadWireExpectedByte {
             buffer_offset,
             buffer_length,

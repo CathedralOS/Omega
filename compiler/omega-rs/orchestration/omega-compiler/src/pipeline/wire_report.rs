@@ -100,11 +100,34 @@ fn build_wire_protocol_report(
         schema.codec_requirement_identity = Some(codec_requirement_identity(
             schema.normalized_schema_identity,
         ));
+        schema.encode_requirement = Some(format!("Encode<compact_binary, {}>", schema.name));
+        schema.encode_requirement_identity = Some(encode_requirement_identity(
+            schema.normalized_schema_identity,
+        ));
+        schema.encode_obligations = typed
+            .wire_schema_encode_obligations(source_schema.symbol)
+            .unwrap_or_default()
+            .iter()
+            .map(|obligation| {
+                format!(
+                    "field {}: runtime element count; two scalar passes per element; remaining output capacity covers exact packed payload (element width {}, max varint bytes {})",
+                    obligation.field_number,
+                    obligation.element.byte_size,
+                    obligation.element.max_varint_length()
+                )
+            })
+            .collect();
         schema.normalized_plan_identity =
             typed
                 .wire_schema_plan(source_schema.symbol)
                 .map(|placements| {
-                    normalized_wire_plan_identity(schema.normalized_schema_identity, placements)
+                    normalized_wire_plan_identity(
+                        schema.normalized_schema_identity,
+                        placements,
+                        typed
+                            .wire_schema_encode_obligations(source_schema.symbol)
+                            .unwrap_or_default(),
+                    )
                 });
         schema.realization_origin = Some(WireRealizationOrigin::Generated {
             generator: "Omega compiler compact_binary generator".to_owned(),
@@ -138,11 +161,23 @@ fn codec_requirement_identity(schema_identity: u64) -> u64 {
     )
 }
 
+fn encode_requirement_identity(schema_identity: u64) -> u64 {
+    stable_wire_identity(
+        b"omega.encode.requirement.v1",
+        [
+            b"Encode".as_slice(),
+            b"compact_binary".as_slice(),
+            &schema_identity.to_le_bytes(),
+        ],
+    )
+}
+
 fn normalized_wire_plan_identity(
     schema_identity: u64,
     placements: &[omega_typed_trees::wire::WirePlacement],
+    obligations: &[omega_typed_trees::wire::WireEncodeObligation],
 ) -> u64 {
-    let mut parts = Vec::with_capacity(placements.len() + 1);
+    let mut parts = Vec::with_capacity(placements.len() + obligations.len() + 1);
     let schema_bytes = schema_identity.to_le_bytes();
     parts.push(schema_bytes.to_vec());
     for placement in placements {
@@ -153,6 +188,16 @@ fn normalized_wire_plan_identity(
         let mut bytes = Vec::with_capacity(9);
         bytes.push(kind);
         bytes.extend_from_slice(&tag.to_le_bytes());
+        parts.push(bytes);
+    }
+    for obligation in obligations {
+        let mut bytes = Vec::with_capacity(20);
+        bytes.push(2);
+        bytes.extend_from_slice(&obligation.field_number.to_le_bytes());
+        bytes.extend_from_slice(&(obligation.element.byte_size as u64).to_le_bytes());
+        bytes.push(u8::from(obligation.element.zigzag));
+        bytes.push(2); // two scalar passes per element
+        bytes.push(1); // exact packed-payload capacity formula
         parts.push(bytes);
     }
     stable_wire_identity(b"omega.wire.plan.v1", parts.iter().map(Vec::as_slice))
@@ -485,7 +530,10 @@ fn ordinary_data_schema_report_entry(
         encoding: None,
         codec_requirement: None,
         codec_requirement_identity: None,
+        encode_requirement: None,
+        encode_requirement_identity: None,
         normalized_plan_identity: None,
+        encode_obligations: Vec::new(),
         realization_origin: None,
         trust_class: None,
         realization_evidence: Vec::new(),
@@ -572,7 +620,10 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
             .map(|encoding| encoding.to_string()),
         codec_requirement: None,
         codec_requirement_identity: None,
+        encode_requirement: None,
+        encode_requirement_identity: None,
         normalized_plan_identity: None,
+        encode_obligations: Vec::new(),
         realization_origin: None,
         trust_class: None,
         realization_evidence: Vec::new(),
@@ -666,7 +717,9 @@ fn compatibility_verdicts(
 
 #[cfg(test)]
 mod tests {
-    use super::{codec_requirement_identity, normalized_wire_plan_identity};
+    use super::{
+        codec_requirement_identity, encode_requirement_identity, normalized_wire_plan_identity,
+    };
     use omega_typed_trees::wire::WirePlacement;
 
     #[test]
@@ -679,6 +732,15 @@ mod tests {
             codec_requirement_identity(11),
             codec_requirement_identity(11)
         );
+        assert_ne!(
+            encode_requirement_identity(11),
+            encode_requirement_identity(12)
+        );
+        assert_ne!(
+            encode_requirement_identity(11),
+            codec_requirement_identity(11),
+            "encode and strict-decode are distinct requirement identities"
+        );
     }
 
     #[test]
@@ -687,10 +749,26 @@ mod tests {
         let length = [WirePlacement::LengthPrefixed { tag: 1 }];
         let retagged = [WirePlacement::Varint { tag: 2 }];
 
-        let identity = normalized_wire_plan_identity(7, &scalar);
-        assert_eq!(identity, normalized_wire_plan_identity(7, &scalar));
-        assert_ne!(identity, normalized_wire_plan_identity(8, &scalar));
-        assert_ne!(identity, normalized_wire_plan_identity(7, &length));
-        assert_ne!(identity, normalized_wire_plan_identity(7, &retagged));
+        let identity = normalized_wire_plan_identity(7, &scalar, &[]);
+        assert_eq!(identity, normalized_wire_plan_identity(7, &scalar, &[]));
+        assert_ne!(identity, normalized_wire_plan_identity(8, &scalar, &[]));
+        assert_ne!(identity, normalized_wire_plan_identity(7, &length, &[]));
+        assert_ne!(identity, normalized_wire_plan_identity(7, &retagged, &[]));
+
+        let obligation = omega_typed_trees::wire::WireEncodeObligation {
+            field_number: 1,
+            element: omega_typed_trees::wire::WireScalarEncoding {
+                byte_size: 4,
+                zigzag: false,
+            },
+            length: omega_typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
+            work: omega_typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
+            output_capacity:
+                omega_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
+        };
+        assert_ne!(
+            identity,
+            normalized_wire_plan_identity(7, &scalar, &[obligation])
+        );
     }
 }
