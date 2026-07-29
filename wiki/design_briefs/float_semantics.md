@@ -150,11 +150,17 @@ The compatibility `Math::fused_multiply_add` value call now routes through the
 shared fused definition in the interpreter, while the native libm binding and
 the interpreter are pinned by an edge where fused evaluation leaves a positive
 `2^-104` residual and multiply-then-add produces zero.
-Publishing the source-visible executable operation identities, routing the
-remaining FMA/classification/directed call surfaces, and adding their
-build-time/runtime twins remain part of this first F7 rung. The legacy `as`
-evaluator path is only a compatibility consumer until the named conversion
-requirements land.
+`omega::language::core::float_operations` now publishes the pure
+`FloatSemantics` identities and contracted f32/f64 boundary requirements for
+primitive arithmetic/comparison spellings, distinct multiply-then-add/FMA,
+classification, and directed rounding. Checked operator evidence records the
+selected primitive identities while hardcoded instruction selection remains
+the bootstrap realization. Routing the remaining named
+FMA/classification/directed call surfaces and adding their build-time/runtime
+twins remain part of this first F7 rung. The legacy `as` evaluator path is only
+a compatibility consumer; exact public conversion requirement names and
+signatures remain a language-design blocker because the settled record excludes
+`as` without selecting its replacement surface.
 
 ## 2. Domains: the value/policy split
 

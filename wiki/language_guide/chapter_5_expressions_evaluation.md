@@ -513,6 +513,14 @@ observe the sign. NaN payloads do not enter the base proof meaning, although
 the concrete runtime value retains its honest bits. `FloatMeaning` is
 proof-only and therefore has no runtime tagged-union ABI.
 
+The current core declarations live in
+`omega::language::core::float_operations`. They publish pure
+`FloatSemantics` identities and contracted f32/f64 boundary requirements for
+the arithmetic/comparison spellings, multiply-then-add versus FMA,
+classification, and directed rounding. Checked operator evidence records the
+primitive identity selected at each use; hardcoded target lowering remains only
+the bootstrap realization until explicit target satisfiers replace it.
+
 ### Value domains — wellness facts
 
 ```omega
