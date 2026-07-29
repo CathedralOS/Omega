@@ -639,9 +639,10 @@ layouts brief. Complete the implementation in dependency order:
 - [done] make compatibility checks consume channel/store demands and report
   directional readability, writability, unknown preservation, canonicality,
   and migration coverage; and
-- retain realization origin separately from trust, classifying the current
-  generated `compact_binary` codec as compiler-admitted until its generated
-  body is independently checked against the public codec requirement.
+- [done] retain realization origin separately from trust, classifying the
+  current generated `compact_binary` codec as compiler-admitted until its
+  generated body is independently checked against the public codec
+  requirement.
 
 Keep `compact_binary` strict while extending its normalized plan and generated
 realizations. Additional native or ecosystem codec families are ordinary

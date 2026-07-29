@@ -2,7 +2,8 @@ use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, WireCaseReportEntry, WireCompatibilityDemandReportEntry,
     WireCompatibilityFactReport, WireCompatibilityVerdicts, WireFieldReportEntry,
-    WireProtocolReport, WireSchemaReportEntry, WireVersionReportEntry,
+    WireProtocolReport, WireRealizationOrigin, WireSchemaReportEntry, WireTrustClass,
+    WireVersionReportEntry,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -84,12 +85,93 @@ fn build_wire_protocol_report(
             schemas.push(ordinary);
         }
     }
+    for schema in &mut schemas {
+        if !schema.synthesized_codec {
+            continue;
+        }
+        let Some(source_schema) = typed
+            .wire_schemas()
+            .iter()
+            .find(|candidate| candidate.name.as_str() == schema.name)
+        else {
+            continue;
+        };
+        schema.codec_requirement = Some(format!("StrictDecode<compact_binary, {}>", schema.name));
+        schema.codec_requirement_identity = Some(codec_requirement_identity(
+            schema.normalized_schema_identity,
+        ));
+        schema.normalized_plan_identity =
+            typed
+                .wire_schema_plan(source_schema.symbol)
+                .map(|placements| {
+                    normalized_wire_plan_identity(schema.normalized_schema_identity, placements)
+                });
+        schema.realization_origin = Some(WireRealizationOrigin::Generated {
+            generator: "Omega compiler compact_binary generator".to_owned(),
+        });
+        schema.trust_class = Some(WireTrustClass::Admitted {
+            authority: "Omega compiler".to_owned(),
+        });
+        schema.realization_evidence = vec![
+            "normalized compact_binary plan validated against the schema walk".to_owned(),
+            "generated body is not yet independently checked against the public codec requirement"
+                .to_owned(),
+            "differential canaries are validation evidence, not derived-contract proof".to_owned(),
+        ];
+    }
     schemas.sort_by(|left, right| left.name.cmp(&right.name));
     let demands = compatibility_demands
         .iter()
         .map(|demand| compatibility_demand_report(typed, &schemas, demand))
         .collect();
     WireProtocolReport { schemas, demands }
+}
+
+fn codec_requirement_identity(schema_identity: u64) -> u64 {
+    stable_wire_identity(
+        b"omega.codec.requirement.v1",
+        [
+            b"StrictDecode".as_slice(),
+            b"compact_binary".as_slice(),
+            &schema_identity.to_le_bytes(),
+        ],
+    )
+}
+
+fn normalized_wire_plan_identity(
+    schema_identity: u64,
+    placements: &[omega_typed_trees::wire::WirePlacement],
+) -> u64 {
+    let mut parts = Vec::with_capacity(placements.len() + 1);
+    let schema_bytes = schema_identity.to_le_bytes();
+    parts.push(schema_bytes.to_vec());
+    for placement in placements {
+        let (kind, tag) = match placement {
+            omega_typed_trees::wire::WirePlacement::Varint { tag } => (0u8, *tag),
+            omega_typed_trees::wire::WirePlacement::LengthPrefixed { tag } => (1u8, *tag),
+        };
+        let mut bytes = Vec::with_capacity(9);
+        bytes.push(kind);
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        parts.push(bytes);
+    }
+    stable_wire_identity(b"omega.wire.plan.v1", parts.iter().map(Vec::as_slice))
+}
+
+fn stable_wire_identity<'a>(domain: &[u8], parts: impl IntoIterator<Item = &'a [u8]>) -> u64 {
+    fn bytes(hash: &mut u64, value: &[u8]) {
+        for byte in value {
+            *hash ^= u64::from(*byte);
+            *hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+    let mut hash = 0xcbf29ce484222325u64;
+    bytes(&mut hash, domain);
+    for part in parts {
+        bytes(&mut hash, &(part.len() as u64).to_le_bytes());
+        bytes(&mut hash, part);
+    }
+    if hash == 0 { 1 } else { hash }
 }
 
 fn compatibility_demand_report(
@@ -401,6 +483,12 @@ fn ordinary_data_schema_report_entry(
         normalized_schema_identity: super::layout_plans::normalized_schema_identity(typed, data),
         synthesized_codec: false,
         encoding: None,
+        codec_requirement: None,
+        codec_requirement_identity: None,
+        normalized_plan_identity: None,
+        realization_origin: None,
+        trust_class: None,
+        realization_evidence: Vec::new(),
         current_era: 0,
         fields,
         reserved,
@@ -482,6 +570,12 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
             .encoding
             .as_ref()
             .map(|encoding| encoding.to_string()),
+        codec_requirement: None,
+        codec_requirement_identity: None,
+        normalized_plan_identity: None,
+        realization_origin: None,
+        trust_class: None,
+        realization_evidence: Vec::new(),
         current_era: typed.wire_schema_current_era(schema),
         fields: current.fields,
         reserved: current.reserved,
@@ -568,4 +662,35 @@ fn compatibility_verdicts(
     }
 
     verdicts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{codec_requirement_identity, normalized_wire_plan_identity};
+    use omega_typed_trees::wire::WirePlacement;
+
+    #[test]
+    fn codec_requirement_identity_binds_the_normalized_schema() {
+        assert_ne!(
+            codec_requirement_identity(11),
+            codec_requirement_identity(12)
+        );
+        assert_eq!(
+            codec_requirement_identity(11),
+            codec_requirement_identity(11)
+        );
+    }
+
+    #[test]
+    fn normalized_wire_plan_identity_binds_kind_tag_and_schema() {
+        let scalar = [WirePlacement::Varint { tag: 1 }];
+        let length = [WirePlacement::LengthPrefixed { tag: 1 }];
+        let retagged = [WirePlacement::Varint { tag: 2 }];
+
+        let identity = normalized_wire_plan_identity(7, &scalar);
+        assert_eq!(identity, normalized_wire_plan_identity(7, &scalar));
+        assert_ne!(identity, normalized_wire_plan_identity(8, &scalar));
+        assert_ne!(identity, normalized_wire_plan_identity(7, &length));
+        assert_ne!(identity, normalized_wire_plan_identity(7, &retagged));
+    }
 }
