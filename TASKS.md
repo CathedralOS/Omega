@@ -682,9 +682,16 @@ and allocation handles expose no compiler-owned stack/control storage.
   through one ambiguity-checked operator rule shared by validation, checked
   flow, and the interpreter; arguments and declared result formats remain
   type-checked, unknown requirements fail closed, and the interpreter consumes
-  the shared semantics rather than host arithmetic.
-  Finish rung 1 by adding build-time/runtime twins for every remaining edge
-  family. **Language-design blocked:** the public float/integer and
+  the shared semantics rather than host arithmetic. One zero-argument semantic
+  machine now executes in both a fixed-array-length build-time position and at
+  runtime, covering f32/f64 rounding boundaries, subnormal underflow, overflow,
+  signed zero, infinities, NaN comparisons and min/max, classification, square
+  root, directed add/subtract/multiply/divide/sqrt/FMA, and fused-versus-unfused
+  behavior. Hermetic core float requirements no longer trip the interpreter's
+  host-boundary purity backstop; compatibility imports still do.
+  Rung 1 is complete for the settled operation surface. Continue with rung 2's
+  checked arithmetic-policy adapters. **Language-design blocked:** the public
+  float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief; only the negative ruling that compatibility
   `as` is not that surface is settled (`OWNER_QUESTIONS.md` #10).

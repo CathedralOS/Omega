@@ -37712,6 +37712,23 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
 }
 
 #[test]
+fn build_runtime_float_semantics_twins_agree() {
+    let canary = pass_canary("float/build_runtime_semantics_twins");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("float semantic twins should compile and evaluate their array length");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.error, None,
+        "the runtime half of the float semantic twins should interpret"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "build-time and runtime f32/f64 edge families should agree"
+    );
+}
+
+#[test]
 fn plan_laid_value_field_exit_canary_runs() {
     // PLAN-LAID VALUE TYPES (layouts L4): `gdt: Spread16<Gdtish>` places every
     // field on its own 16-byte slot -- deliberately NOT the native packing --

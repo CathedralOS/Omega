@@ -162,11 +162,15 @@ the bootstrap realization. Named F32/F64 FMA, classification, and directed
 rounding calls now use the same unique path-and-arity resolution in validation,
 checked flow, and the interpreter. The call boundary checks argument and result
 types, unknown names remain rejected, and executable results come from
-`FloatSemantics`. Adding the remaining build-time/runtime twins remains part
-of this first F7 rung. The legacy `as` evaluator path is only a compatibility
-consumer; exact public float-conversion requirement names and signatures remain
-a language-design blocker because the settled record excludes `as` without
-selecting its replacement surface.
+`FloatSemantics`. One semantic machine now runs both as a fixed-array-length
+build-time invocation and as an interpreted runtime call, with f32/f64 twins
+for rounding boundaries, subnormal underflow, overflow, signed zero,
+infinities, NaN comparison and min/max behavior, classification, square root,
+the directed arithmetic families, and fused-versus-unfused results. This
+completes F7 rung 1 for the settled operation surface. The legacy `as`
+evaluator path is only a compatibility consumer; exact public float-conversion
+requirement names and signatures remain a language-design blocker because the
+settled record excludes `as` without selecting its replacement surface.
 
 ## 2. Domains: the value/policy split
 

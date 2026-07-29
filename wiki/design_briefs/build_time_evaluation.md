@@ -103,11 +103,16 @@ multiply-then-add/FMA, classification, and directed rounding. Named F32/F64
 FMA, classification, and directed-rounding calls now share one
 ambiguity-checked resolver across validation, checked flow, and the interpreter,
 which evaluates them through `FloatSemantics`; argument and result types remain
-checked and unknown requirements reject. Constant/runtime twin canaries for the
-remaining edge families still precede completion. The exact public
-float-conversion requirement family is a language-design blocker: the settled
-record excludes compatibility `as` but does not choose the replacement names
-or signatures.
+checked and unknown requirements reject. A fixed-array-length invocation and
+its runtime call now execute the same zero-argument semantic machine across
+both permanent formats, pinning rounding boundaries, subnormal underflow,
+overflow, signed zero, infinities, NaN comparisons and min/max, classification,
+square root, every directed arithmetic family, and fused-versus-unfused
+behavior. Core float requirements backed by the hermetic semantic engine do
+not count as host observation; compatibility imports retain the dynamic host-
+boundary purity fence. The exact public float-conversion requirement family is
+a language-design blocker: the settled record excludes compatibility `as` but
+does not choose the replacement names or signatures.
 
 ## Admission uses the complete invocation contract
 
