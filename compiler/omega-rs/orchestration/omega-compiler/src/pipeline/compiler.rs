@@ -416,6 +416,7 @@ impl Compiler {
             &selected_provider_plans,
             &build_config.grants,
         )?;
+        let selected_provider_plan_facts = checked.program.selected_provider_plans().clone();
         // PRV4 adapter dispatch (both engines, after checking): semantic facts
         // stay attached to the admitted boundary requirement, while execution
         // alone is redirected to the uniquely selected checked adapter.
@@ -423,8 +424,7 @@ impl Compiler {
             &mut Arc::get_mut(&mut checked.program)
                 .expect("checked program must be uniquely owned before backend fan-out")
                 .typed,
-            &selected_provider_plans,
-            self.options.target_name.as_deref(),
+            &selected_provider_plan_facts,
         )?;
         crate::pipeline::task_plans::elaborate_task_activation_plans(
             Arc::get_mut(&mut checked.program)

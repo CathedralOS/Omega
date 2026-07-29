@@ -98,6 +98,15 @@ construction resolves its boundary slot against this carrier and copies the
 resulting plan identity into the root candidate before validation; an absent or
 ambiguous retained selection rejects.
 
+Checked-adapter dispatch consumes that retained carrier as well. When a slot has
+a selected plan, only an exact `CheckedAdapter` row in that plan may rewrite the
+corresponding boundary call; an unrelated free adapter cannot overlay the
+selection. The rewrite retains the selected entry-state symbol and complete
+nominal machine name for both statement and value calls. A free adapter remains
+a temporary compatibility fallback only when the slot has no selected source
+provider; standard Console will remove that fallback when its target packages
+publish complete provider closures over the native byte leaves.
+
 The static build-root spelling is
 `b.select_provider<BoundaryTrait, ProviderType>();`. Both arguments are types,
 not static machine parameters. The declaration is harvested only from the

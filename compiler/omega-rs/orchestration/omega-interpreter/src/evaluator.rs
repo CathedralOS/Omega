@@ -1928,8 +1928,12 @@ impl<'program> Evaluator<'program> {
         }
 
         let target = call.target.as_str();
-        let (machine, state_name, instance) =
-            self.resolve_state_call(call.receiver, target, frame)?;
+        let (machine, state_name, instance) = if call.receiver.is_empty() {
+            self.resolve_entry_state_symbol(call.target_symbol, frame)
+                .map_or_else(|| self.resolve_state_call(call.receiver, target, frame), Ok)?
+        } else {
+            self.resolve_state_call(call.receiver, target, frame)?
+        };
 
         let mut args = Vec::new();
         for argument in self
@@ -1942,6 +1946,33 @@ impl<'program> Evaluator<'program> {
 
         self.run_state_collect(&machine, &state_name, instance, args)
             .map(|value| value.unwrap_or(Value::Unit))
+    }
+
+    /// Resolve a receiverless direct call through its exact entry-state
+    /// symbol. Selected checked adapters and static-machine specialization
+    /// retain this identity specifically so attached/plural realizations do
+    /// not fall back to ambiguous display-name lookup.
+    fn resolve_entry_state_symbol(
+        &self,
+        target_symbol: SymbolHandle,
+        frame: &Frame,
+    ) -> Option<(Machine, String, Cell)> {
+        if !target_symbol.is_valid() {
+            return None;
+        }
+        self.program.machines().iter().find_map(|machine| {
+            self.program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == target_symbol)
+                .map(|state| {
+                    (
+                        machine.clone(),
+                        state.name.as_str().to_owned(),
+                        Rc::clone(&frame.self_cell),
+                    )
+                })
+        })
     }
 
     /// Resolve a call target -- a state name with an optional receiver path -- to the
@@ -5205,21 +5236,10 @@ impl<'program> Evaluator<'program> {
         // insufficient for attached or plural satisfiers.  Receiverless calls
         // can dispatch directly through that resolved symbol; receiver calls
         // still need the runtime instance logic below.
-        if !call.receiver.is_valid() && call.target_symbol.is_valid() {
-            for machine in self.program.machines() {
-                if let Some(state) = self
-                    .program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == call.target_symbol)
-                {
-                    return Ok((
-                        machine.clone(),
-                        state.name.as_str().to_owned(),
-                        Rc::clone(&frame.self_cell),
-                    ));
-                }
-            }
+        if !call.receiver.is_valid()
+            && let Some(resolved) = self.resolve_entry_state_symbol(call.target_symbol, frame)
+        {
+            return Ok(resolved);
         }
 
         // Whether this call is on `self` (or receiverless). A NON-self receiver

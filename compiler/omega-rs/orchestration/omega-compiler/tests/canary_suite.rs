@@ -15400,6 +15400,47 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_selected_provider_adapter_exit_canary_runs() {
+    // PRV4b/4c composition: a retained whole-provider selection is
+    // authoritative for adapter dispatch. The source also declares a free
+    // compatibility adapter for the same requirement; selecting
+    // SecondProvider must ignore that adapter and FirstProvider in both
+    // engines.
+    let canary = pass_canary("providers/provider_type_slot_selected");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("selected-provider adapter canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must dispatch only the selected SecondProvider adapter; error: {:?}",
+        outcome.error
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-selected-provider-adapter-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("selected-provider adapter canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("selected-provider adapter canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native dispatch must use only the selected SecondProvider adapter"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
     // PRV4 standard self-forwarding adapter: the receiver forwards as argument
     // 0, and std Console::write reaches the write_byte leaf through that same

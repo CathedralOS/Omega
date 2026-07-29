@@ -27,7 +27,7 @@ use omega_typed_trees::TypedTrees;
 struct AdapterRow {
     trait_leaf: String,
     requirement: String,
-    adapter_leaf: String,
+    adapter_target: String,
     symbol: omega_core::symbols::SymbolHandle,
     /// Self-forwarding shape: prepend the call's receiver as argument 0.
     forward_receiver: bool,
@@ -35,8 +35,7 @@ struct AdapterRow {
 
 pub(crate) fn rewrite_adapter_calls(
     typed: &mut TypedTrees,
-    selected_plan_names: &[String],
-    selected_target: Option<&str>,
+    selected_plans: &omega_checked_trees::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     // (trait leaf, method) -> selected adapter row: machines with a body and a
     // requirement-named satisfies edge (no via) over a BOUNDARY trait. A
@@ -54,37 +53,43 @@ pub(crate) fn rewrite_adapter_calls(
             if conformance.via.is_some() {
                 continue;
             }
-            let trait_leaf = conformance.name.as_str().to_owned();
-            let Some(definition) = typed.traits().iter().find(|definition| {
-                definition.is_boundary
-                    && definition
-                        .name
-                        .as_str()
-                        .rsplit("::")
-                        .next()
-                        .is_some_and(|leaf| leaf == trait_leaf)
-            }) else {
+            let Some(definition) = typed
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == conformance.symbol)
+                .filter(|definition| definition.is_boundary)
+            else {
                 continue;
             };
-            let provider_type = machine
-                .attached_data
-                .as_ref()
-                .map(|name| name.as_str())
-                .unwrap_or_default();
-            let plan_name = crate::pipeline::provider_plans::satisfies_plan_name(
-                selected_target.unwrap_or_default(),
-                &trait_leaf,
-                provider_type,
-            );
-            // Anonymous FREE adapters are the PRV4b migration bridge: a
-            // partial checked Console composite currently overlays the
-            // built-in primitive provider. Nominal provider-type adapters,
-            // however, participate only through their selected whole closure.
-            if !provider_type.is_empty()
-                && !selected_plan_names
-                    .iter()
-                    .any(|selected| selected == &plan_name)
-            {
+            let trait_leaf = definition
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .unwrap_or(definition.name.as_str())
+                .to_owned();
+            let selected_slot = selected_plans
+                .plans()
+                .iter()
+                .find(|plan| plan.schema.trait_name == definition.name.as_str());
+            let selected_row = selected_slot.is_some_and(|plan| {
+                plan.rows.iter().any(|row| {
+                    row.method == requirement.as_str()
+                        && matches!(
+                            &row.binding,
+                            omega_effects::provider_plan::ProviderBinding::CheckedAdapter {
+                                machine: selected_machine,
+                            } if selected_machine == machine.name.as_str()
+                        )
+                })
+            });
+            let is_free_adapter = machine.attached_data.is_none();
+            // A retained whole-provider selection is authoritative: activate
+            // only the exact checked-adapter rows copied into that immutable
+            // plan. Free adapters remain a compatibility fallback solely for
+            // slots with no selected source provider (the standard Console
+            // composites currently sit over built-in native byte leaves).
+            if !selected_row && !(selected_slot.is_none() && is_free_adapter) {
                 continue;
             }
             // Self-forwarding: entry takes the trait itself first, then the
@@ -102,13 +107,11 @@ pub(crate) fn rewrite_adapter_calls(
                         parameter_type_leaf(typed, parameter) == Some(trait_leaf.clone())
                     })
             });
-            let leaf_name = machine
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .unwrap_or(machine.name.as_str())
-                .to_owned();
+            // Preserve the complete selected machine identity. Free adapters
+            // already have a one-segment name; nominal provider adapters need
+            // their owner path (`Provider::method`) to remain executable after
+            // the boundary receiver is removed.
+            let leaf_name = machine.name.as_str().to_owned();
             if let Some(existing) = adapters
                 .iter()
                 .find(|row| row.trait_leaf == trait_leaf && row.requirement == requirement.as_str())
@@ -118,15 +121,15 @@ pub(crate) fn rewrite_adapter_calls(
                      (`{}` and `{leaf_name}`) -- adapter dispatch is \
                      implicit only when unique",
                     requirement.as_str(),
-                    existing.adapter_leaf,
+                    existing.adapter_target,
                 )));
                 continue;
             }
             adapters.push(AdapterRow {
                 trait_leaf,
                 requirement: requirement.as_str().to_owned(),
-                adapter_leaf: leaf_name,
-                symbol: machine.symbol,
+                adapter_target: leaf_name,
+                symbol: entry_state.symbol,
                 forward_receiver,
             });
         }
@@ -242,7 +245,7 @@ pub(crate) fn rewrite_adapter_calls(
                 rewritten.receiver = omega_core::arena::HandleSpan::empty();
                 rewritten.receiver_symbol = omega_core::symbols::SymbolHandle::invalid();
                 rewritten.target =
-                    omega_typed_trees::name::Identifier::generated(row.adapter_leaf.clone());
+                    omega_typed_trees::name::Identifier::generated(row.adapter_target.clone());
                 rewritten.target_symbol = row.symbol;
                 typed.statement_table.statements_mut(span)[index] =
                     omega_typed_trees::statement::StatementNode::Call(rewritten);
@@ -292,7 +295,7 @@ pub(crate) fn rewrite_adapter_calls(
                     row.trait_leaf == *trait_leaf && row.requirement == call.target.as_str()
                 })
             })
-            .map(|row| (row.symbol, row.adapter_leaf.clone(), row.forward_receiver))
+            .map(|row| (row.symbol, row.adapter_target.clone(), row.forward_receiver))
         else {
             continue;
         };

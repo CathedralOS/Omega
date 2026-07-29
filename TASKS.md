@@ -382,6 +382,12 @@ retain one requirement identity.
 Reference: `wiki/design_briefs/extern_boundary_and_format_domains.md`.
 
 - **PRV4b:** finish checked Console adapters over selected native leaves.
+  Adapter dispatch now consumes the exact checked-adapter rows retained in the
+  selected whole-provider plan; a free compatibility adapter cannot overlay a
+  selected nominal or external realization. Receiverless statement and value
+  calls retain the selected entry symbol and full nominal target. The remaining
+  Console slice is to replace its no-selected-plan free-adapter fallback with
+  complete target provider closures over the native byte leaves.
 - **PRV4c:** finish target defaults and type-per-slot overrides.
 - **PRV4e:** migrate remaining foreign offsets/flags into format/layout policy.
 - **PRV4f:** delete compatibility `provides`, `call_shape`, and host-operation
