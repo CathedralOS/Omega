@@ -177,7 +177,7 @@ Still required:
 - the remaining fetch-and-modify surface;
 - contention tests once concurrent activation is runnable;
 - standalone portable atomic fences and target lowering proofs
-  (**OWNER-BLOCKED:** `OWNER_QUESTIONS.md` #13). Checked ISA fences already
+  (**OWNER-BLOCKED:** `OWNER_QUESTIONS.md` #1). Checked ISA fences already
   retain their target-specific instruction contracts, but they must not be
   treated as the portable atomic-memory-model operation until its source,
   ordering, and scope contract is settled;
@@ -232,7 +232,7 @@ The compiler never inserts a semantic safe point as an ordinary optimization.
 A hot non-suspending kernel may be architecturally preempted while an outer
 machine places explicit polls between bounded chunks. Maximum abstract work
 between such points depends on the normalized bounded-work plan in
-`OWNER_QUESTIONS.md` #17. Blocking creates no safe point; absent a finite wait
+`OWNER_QUESTIONS.md` #5. Blocking creates no safe point; absent a finite wait
 ceiling, semantic response is unbounded through the named blocking edge.
 
 ## Acceptance cases
@@ -263,7 +263,7 @@ ceiling, semantic response is unbounded through the named blocking edge.
   suspension-safe loans.
 - `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
   start outcome, task/provider provenance, and child-lease accounting.
-- Normalized bounded-work plan after owner question #17.
+- Normalized bounded-work plan after owner question #5.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
 - `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general

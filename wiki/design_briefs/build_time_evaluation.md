@@ -1,6 +1,7 @@
 # Design Brief: Build-Time Evaluation — Const Evaluation + Trait Generators
 
-Current design as of 2026-07-27. This brief resolves former owner question 5.
+Current design as of 2026-07-27. This brief resolves the former build-time
+evaluation owner question.
 Omega uses hermetic **semantic evaluation** for constants, proofs, plans, and
 trait generators. It has no `comptime`, macro, or `#run` keyword.
 

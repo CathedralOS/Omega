@@ -1,6 +1,7 @@
 # Law-Bearing Relations, Evidence, And Quotients
 
-Current design as of 2026-07-27. This brief resolves former owner question 4. It
+Current design as of 2026-07-27. This brief resolves the former law-bearing
+relations and quotients owner question. It
 supersedes the current quotient pilot's executable-`bool` relation and
 suffix-based discovery of `_reflexive`, `_symmetric`, `_transitive`, and
 respect proof machines.

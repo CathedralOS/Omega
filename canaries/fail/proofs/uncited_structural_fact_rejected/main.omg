@@ -1,5 +1,5 @@
-// The CITATION discipline's negative space (ch10 "Citing Proofs"; the
-// OWNER_QUESTIONS #14 answer): core add_zero_right PROVES the law
+// The CITATION discipline's negative space (ch10 "Citing Proofs"; the settled
+// proof-citation rule): core add_zero_right PROVES the law
 // `add(a, Zero) == a`, and pass/proofs/proof_nat_structural_lemmas'
 // cite_zero discharges this exact goal by CITING it -- but nothing is
 // global and nothing applies silently, so the same goal WITHOUT the
