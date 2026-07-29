@@ -249,14 +249,14 @@ None block current compiler development; all should stay visible.
   `ResourceProfile`, Extent-loan admission, and `Placed<P, T>` field access.
   The source model is in chapter 20 and the OS foundation brief;
   implementation is tracked in `TASKS.md`.
-- **TBD: runtime sealed entry references** — driver dispatch tables and
-  dynamic callbacks need a stored, identity-bearing callable carrier.
-  Compile-time machine parameters already select and invoke static symbols but
-  deliberately do not reify them into values, addresses, or relocation sources.
-  Local `dyn Trait` uses a selected-conformance table within one artifact; it
-  deliberately cannot serve as an external callback or cross a replaceable
-  component boundary. External entry identity, registration, and revocation
-  remain the separate owner question.
+- **DECIDED, engineering pending: registered callback entry** — a callback is
+  an ordinary boundary requirement carrying `Calling<C>`; a named static
+  boundary machine explicitly satisfies it, and the registration parameter
+  gives the compiler the exact context for private thunk/relocation lowering.
+  Durable protocols return a linear registration value and keep instance state
+  in Omega behind an inert context token or generational handle. Platform
+  adapters normalize native re-entry into locally checked handler surfaces.
+  General runtime function values remain a separate facility.
 - **TBD: const evaluation** — const params are structural; compile-time
   function evaluation is unspecified. Kernels lean on this hard.
 - **TBD: authority-flow completeness** — facts through returns/derives across

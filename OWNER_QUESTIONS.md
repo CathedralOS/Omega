@@ -7,63 +7,6 @@ stable when a resolved entry is removed, so gaps are intentional.
 
 Last pruned: 2026-07-28.
 
-## 12. How does checked source obtain and register a sealed external entry reference?
-
-`boundary machine` already declares an exported callable, and normalized
-`CallPlan + StatePlan` data already drives ordinary inbound ABI lowering.
-Static artifact derivation may retain an entry identity privately. The Windows
-WndProc customer requires the stronger operation that was previously deferred:
-`RegisterClassEx` stores a callback value and invokes it later. Omega cannot
-currently turn a selected machine into a runtime value, and exposing its code
-address would bypass requirement identity, forward-edge integrity, effects,
-and external-root accounting.
-
-Decide:
-
-- which existing requirement/satisfier relationship authorizes derivation of a
-  callback reference, and whether the source-visible carrier belongs to the
-  same sealed satisfier-identity family as local dynamic dispatch while retaining a
-  distinct external-entry lowering;
-- how the carrier binds requirement identity, selected satisfier, evaluated
-  boundary-entry plan, artifact/version identity, and permitted audience
-  without exposing a numeric address or a public constructor;
-- whether registration borrows a reusable immutable entry reference or consumes
-  a scoped registration authority, and which linear receipt represents the
-  OS-held callback until unregistration/quiescence;
-- when registration adds the callback to the external-root ledger, how effects,
-  stack/work/state ceilings remain visible while the foreign caller owns the
-  edge, and how replacement or revocation removes that root safely;
-- how the private ABI lowering materializes the native callback pointer only
-  inside the admitted foreign binding, including callback-specific context,
-  lifetime, thread, and reentrancy contracts;
-- how each callback entry mode declares whether it continues the current stack
-  chain or starts a distinct activation with its own `StackPlan`, without
-  assuming those are the only modes a future target may define;
-- how a foreign provider publishes a complete upper bound on which entries may
-  synchronously invoke which registered callbacks, with missing evidence
-  conservatively meaning any callback rather than an unsound empty set;
-- how the checker prefers static callback-cycle exclusion, and how an
-  intentionally recursive callback uses chain-owned enforced depth plus a
-  protocol-valid overflow disposition when exclusion is impossible; and
-- which local descriptor machinery from language-guide chapter 14 may be shared
-  without making an external callback merely a `dyn Trait` descriptor entry or
-  erasing the internal-versus-external calling distinction.
-
-Recommendation: derive an opaque, non-forgeable entry reference only from an
-admitted selected `satisfies` edge whose requirement pins the evaluated
-`CallPlan + StatePlan`. Keep the artifact/entry value reusable and immutable;
-have the registration boundary consume separate scoped authority and return a
-linear registration receipt that owns the foreign-held root until explicit
-revocation and quiescence. Materialize a native code pointer only inside that
-admitted binding. Make the entry mode determine stack accounting: continuing
-entry joins the current mixed call chain, while a new activation receives a
-separately provisioned `StackPlan`. Require a provider-complete admitted
-callback-invocation upper bound; prefer proving the mixed graph acyclic, and
-admit bounded re-entry only through an enforced chain-owned measure whose
-overflow action is valid for that protocol. Reuse sealed satisfier identity and
-root-ledger machinery, but do not add raw machine addresses, integer conversion,
-an arbitrary function-pointer type, or a Win32-specific callback construct.
-
 ## 13. What is the portable standalone atomic-fence contract?
 
 Atomic load/store/RMW operations already name the closed C11/Rust ordering
@@ -115,10 +58,11 @@ has no normalized contract fact that distinguishes those APIs, so it cannot
 reject a call-scoped pointer passed to a retaining leaf without guessing from
 ABI shape, suspension, or a raw address.
 
-This is the data-lifetime sibling of question 12, not the same decision. A
-sealed external entry reference governs foreign control entering Omega;
-retention governs foreign custody of Omega storage after an outbound call.
-Some APIs use both and need two independently auditable contracts.
+This is the data-lifetime sibling of the settled registered-callback model, not
+the same decision. A callback requirement and linear registration govern
+foreign control entering Omega; retention governs foreign custody of Omega
+storage after an outbound call. Some APIs use both and need two independently
+auditable contracts.
 
 Decide:
 
@@ -360,3 +304,70 @@ postconditions for admitted backing and authorized retirement, normalize all
 references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, and separated
 composition without executing owner-defined code.
+
+## 20. How are opaque in-process executable dependencies surfaced and refused?
+
+The boundary-provider report already names imported symbols, selected
+providers, and admission receipts. That makes an opaque native dependency
+auditable, but the root contract and build-profile rejection surface are not
+settled. An in-process native binary joins the program's trusted computing base:
+an ABI wrapper can validate calls and manage lifetimes, but cannot stop that
+binary from writing arbitrary process memory. A process-isolated provider has a
+different trust consequence even when it exposes the same abstract service.
+
+Decide:
+
+- whether transitive in-process native use appears in the machine's operational
+  effect/reach contract, a separate root trust clause, only the selected-provider
+  manifest, or a composed combination that does not conflate service reach with
+  trust;
+- how the report names the exact provider or binary rather than collapsing all
+  native dependencies into one boolean category;
+- how target-platform providers already accepted by the deployment profile are
+  distinguished from additional third-party binaries without making every
+  hosted program carry a useless universal warning;
+- how a checked adapter may narrow the public API while remaining unable to
+  launder the underlying in-process trust dependency;
+- how moving the provider behind a process, address-space, or hardware
+  isolation boundary changes the reported dependency to an endpoint rather
+  than an in-process TCB expansion; and
+- how a safety profile rejects forbidden dependencies before artifact
+  production, independently of whether a source author acknowledged them.
+
+Recommendation: retain exact provider identity and trust provenance
+transitively, publish a root-level TCB bill of materials, and let build profiles
+reject disallowed in-process providers. Treat platform baselines, third-party
+in-process binaries, and isolated endpoints as different admitted relationships.
+Do not let an ordinary wrapper erase the selected provider's trust class.
+
+## 21. What does contained execution failure do to outstanding obligations?
+
+Process-wide nuclear abort leaves no continuing runtime. A contained activation,
+callback, component, or worker may instead be force-terminated while the rest of
+the system survives. Execution quiescence then does not imply obligation
+quiescence: the dead execution may have held a lock, carried a linear claim,
+owned a retained foreign loan, or been responsible for a provider entry pin.
+Reclaiming its artifact merely because no instruction is still executing would
+silently orphan those obligations.
+
+Decide:
+
+- which obligations are owned by the execution, its component cohort, a stable
+  provider ledger, or another named custodian at the instant of forced exit;
+- which obligations may be mechanically returned by runtime teardown and which
+  require semantic code that can no longer run;
+- whether an unresolved obligation poisons the execution, registration,
+  component version, isolation domain, or whole process;
+- which reclamation and replacement operations remain blocked by that poison,
+  and which explicit recovery authority may clear or transfer it;
+- how forced-exit reports name the originating execution and every retained
+  holding path instead of presenting only a generic non-quiescent status; and
+- how this composes with nuclear abort, ordinary edge cleanup, foreign-worker
+  failure, callback drain, and component replacement without inventing cleanup
+  that did not execute.
+
+Recommendation: separate execution quiescence from obligation quiescence.
+Runtime teardown may discharge only obligations whose provider contract
+explicitly assigns teardown that authority. Everything else remains attributed,
+poisons the owning cohort, and blocks reclamation until an authorized recovery
+or a wider failure boundary retires the cohort.

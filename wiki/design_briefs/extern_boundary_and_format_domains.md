@@ -135,6 +135,14 @@ A checked wrapper may refine operational behavior or reduce trust expenditure;
 it does not erase the abstract service reach from callers compiled against that
 trait.
 
+An opaque in-process executable provider is part of the artifact's trusted
+computing base. Checked ABI adaptation, lifetime accounting, and stack
+containment do not prevent that binary from modifying arbitrary process memory.
+The selected-provider manifest retains its exact identity and trust receipt.
+Process- or hardware-isolated providers instead remain external endpoints.
+The root declaration and build-profile rejection surface for these transitive
+trust dependencies remains owner question #20.
+
 ## Calling plans
 
 Boundary-entry behavior is one normalized artifact with independent `CallPlan`
@@ -198,8 +206,46 @@ A hosted gateway is an ordinary boundary provider backed by a bounded native
 worker resource. Reaching its submission safe point does not bound native
 completion, cancellation finalization, retained-loan release, or later gateway
 admission. Pool/queue/backpressure and failure-domain semantics remain owner
-question #18. External callback descriptors and mixed-stack invocation topology
-remain owner question #12; retained pointer custody remains #14.
+question #18. Retained pointer custody remains owner question #14.
+
+## Registered callbacks
+
+A callback protocol is declared by an ordinary boundary requirement carrying
+its `Calling<C>` policy. A named static `boundary machine` explicitly satisfies
+that requirement. Passing the machine to a registration operation selects the
+conformance, validates its `CallPlan + StatePlan`, and lets the compiler
+materialize the foreign ABI thunk and relocation inside that exact binding. The
+source surface does not need a general function-pointer value.
+
+Durable registration returns an ordinary linear package value. It owns the
+foreign registration and any code/component lease needed to keep the entry
+valid; its explicit terminal operation unregisters before releasing those
+obligations. Call-scoped callback parameters remain borrowed for the call.
+Foreign context storage carries an inert protocol token or generational handle,
+while the owning state remains in an Omega registry or another ordinary
+package-owned value.
+
+Hosted callback entry may continue on the provider stack, preflight its
+remaining capacity against the exact Omega WCSU and target reserve, or enter a
+target-supported owned stack. Preflight proves the predicted segment fits; an
+owned hard-limited stack additionally detects underestimation at its own
+boundary. Foreign calls made by a separated-stack callback return to the
+provider stack domain before entering opaque code.
+
+Native protocols may synchronously re-enter application callbacks. A platform
+adapter defines a safer handler requirement, classifies which of its own
+operations can re-enter, and checks each ordinary Omega handler's inferred
+reach locally. It may answer synchronous platform queries through restricted
+handlers and queue ordinary application events until the outermost native
+dispatch returns. This package-local construction does not require inferring
+the provider's internal call graph or a general higher-order callback-cycle
+analysis.
+
+A raw opaque callback remains trust-relative. Its binding may enforce a
+chain-scoped active/depth limit only when the protocol supplies a valid
+unavailable result. Otherwise finite mixed-chain admission requires a checked
+provider contract or structural isolation; a handwritten native header does
+not become proof of non-re-entry.
 
 ## Foreign data and formats
 
@@ -264,12 +310,13 @@ policy publishes their ABI. Fixed arrays and records, by contrast, may be
 structurally classified because their public normalized shape determines the
 aggregate facts the policy consumes. Omega never performs C array decay.
 
-Every installed callback/interrupt entry is also an external artifact root.
-Because no Omega call edge reaches it, the root ledger must include its effects,
-authority/trust receipts, state footprint, stack domain, nesting relation, and
-version pins. Static build plans declare roots during image derivation; dynamic
-admission records them at installation. This reuses provider admission rather
-than creating an entry-specific trust system.
+Every reclaimable installed callback/interrupt entry is also an external
+artifact root. Because no Omega call edge reaches it, the dynamic root ledger
+retains its effects, authority/trust receipts, state footprint, stack domain,
+nesting relation, and version pins until its linear registration proves
+unregistration and required quiescence. A process-lifetime statically linked
+callback needs the same build report but no live replacement ledger. This
+reuses provider admission rather than creating an entry-specific trust system.
 
 ## Process entry
 
@@ -302,14 +349,13 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 ## Still open
 
-- callback registration/revocation and long-lived foreign borrows;
+- retained foreign borrows and their completion/revocation receipts
+  (`OWNER_QUESTIONS.md` #14);
 - dynamic-library loading/unloading under component versioning;
-- source-visible reified entry references. Windows WndProc registration is now
-  the first concrete dynamic-callback customer, so this is no longer deferred
-  for lack of demand; the source and registration-lifetime contract is tracked
-  in `OWNER_QUESTIONS.md` #12. Static machine parameters do not close this
-  item: they substitute a symbol into specialized code but do not produce a
-  runtime carrier, relocation source, or sealed entry identity; and
+- transitive root visibility and profile rejection for opaque in-process
+  executable providers (`OWNER_QUESTIONS.md` #20);
+- contained execution failure with outstanding obligations
+  (`OWNER_QUESTIONS.md` #21); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

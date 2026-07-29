@@ -1170,6 +1170,67 @@ selected by target defaults or an explicit slot-owner override in `build.omg`.
 Advanced users can author libraries for custom OSes, firmware, game consoles,
 or unusual hardware. Doing so explicitly expands the boundary base.
 
+## Foreign callbacks through platform adapters
+
+A foreign callback signature is an ordinary boundary requirement whose parent
+`Calling<C>` policy fixes the target ABI and entry-state contract. A named
+static `boundary machine` explicitly satisfies that requirement:
+
+```omega
+boundary trait WindowProcedure:
+    Calling<MicrosoftX64>
+{
+    machine call(
+        window: HWnd,
+        message: u32,
+        word: WParam,
+        long: LParam,
+    ) -> LResult;
+}
+
+boundary machine ApplicationWindow::dispatch(
+    window: HWnd,
+    message: u32,
+    word: WParam,
+    long: LParam,
+) -> LResult
+    satisfies WindowProcedure::call
+{
+    ...
+}
+```
+
+When a registration operation expects `WindowProcedure`, passing
+`ApplicationWindow::dispatch` selects that conformance. The compiler validates
+the evaluated `CallPlan + StatePlan` and generates the native inbound thunk.
+The native code address exists only in the binding lowering.
+
+A durable registration operation returns a linear package value. Its terminal
+operation unregisters the callback and releases any code or component lease
+owned by the registration. Per-instance state remains an ordinary Omega value;
+the foreign protocol carries an explicit context token or a checked
+generational handle into package-owned state.
+
+Platform packages normally expose a safer handler API above a re-entrant native
+callback. The package knows which of its own operations can synchronously
+re-enter, so the checker can reject those operations from a restricted handler
+using ordinary local reach analysis. Synchronous platform queries use bounded
+handlers; ordinary notifications may be queued until native dispatch returns.
+Applications therefore consume a normal event/handler surface instead of
+participating directly in the platform's recursive callback graph.
+
+The selected entry plan states whether callback execution continues on the
+provider stack, preflights that stack against the Omega WCSU and target reserve,
+or enters a target-supported owned stack. Preflight proves that the predicted
+Omega segment fits. A hard-limited owned stack also detects an underestimated
+WCSU at its own boundary.
+
+An opaque third-party binary loaded in-process remains part of the trusted
+computing base even when a checked adapter wraps it. The boundary manifest names
+that provider and its receipt; an isolated process exposes an endpoint instead.
+The exact root declaration and safety-profile rejection surface remains owner
+question #20.
+
 ## Build Artifacts
 
 Compiler artifacts should list imported libraries, syscall surfaces, the

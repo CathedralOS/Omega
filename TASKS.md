@@ -32,6 +32,24 @@ Compiler validation and code generation may consume general plans. They must
 not acquire customer-shaped semantic types, lifecycle states, writers,
 scanners, or receipts.
 
+## Assumed-but-unbuilt analysis register
+
+Designs may depend on an analysis listed here only by naming the dependency.
+They must not describe its result as something the checker already derives.
+
+- **Normalized `WorkPlan` (#17):** required by bounded interrupt work,
+  work-to-semantic-safe-point reporting, deterministic build-evaluation
+  accounting, and complete foreign/callback work attribution. The current
+  provider-local fixed-work composer is an implementation precursor, not the
+  general analysis.
+- **Higher-order callback operational summaries:** a future direct raw-callback
+  checker may need summaries stating which callback parameters an operation may
+  synchronously invoke, then SCC composition over those summaries. Registered
+  callback safety does not currently depend on this analysis: platform adapters
+  define restricted handler requirements and check ordinary application reach
+  locally. Promote this item only when a concrete non-adapter customer requires
+  modular raw-callback cycle analysis.
+
 ## Priority queue
 
 ### P1 — Authority values and boundary evidence
@@ -377,6 +395,28 @@ Acceptance: forbidden register classes introduced anywhere in the final
 transitive artifact reject, while two legal realizations with the same ceiling
 retain one requirement identity.
 
+#### ENT4 — registered callback lowering and Windows adapter canary
+
+- Allow a foreign registration parameter declared by a callback requirement to
+  select one named static boundary machine satisfying that requirement.
+- Retain the evaluated `Calling<C>` relationship and `CallPlan + StatePlan`;
+  emit the native thunk and relocation only in the selected binding lowering.
+- Model durable registration as an ordinary linear package value with an
+  explicit unregister consumer and optional code/component lease.
+- Implement a Windows message-adapter canary using a generational state handle,
+  provider-stack preflight, locally restricted synchronous handlers, and queued
+  ordinary events. Add depth enforcement or owned-stack switching only if the
+  concrete protocol forces them.
+- Report callback entry plans and process-lifetime versus reclaimable
+  registration roots without requiring a live ledger for statically linked
+  process-lifetime code.
+
+Acceptance: a `Calling<MicrosoftX64>` callback requirement accepts one matching
+named machine, rejects signature/plan mismatch, emits no source-visible code
+address, keeps state ownership in Omega, and cannot release a reclaimable code
+lease before explicit unregistration. The Windows adapter demonstrates that
+application-handler re-entry restrictions use ordinary local reach analysis.
+
 ### Provider plans and retirement of `provides`
 
 Reference: `wiki/design_briefs/extern_boundary_and_format_domains.md`.
@@ -407,8 +447,10 @@ blocker. Distinguish them from runtime reification of machine identity.
   collection slices.
 - Complete backend monomorphization and cache identity for generic data and
   machine instantiations.
-- Keep `Entry::of<H>`-style runtime relocation reification behind owner
-  question #12; type-parameter invocation does not provide it.
+- Keep general `Entry::of<H>`-style runtime relocation reification separate
+  from callback lowering. A callback registration parameter provides the exact
+  requirement context needed to select a named static machine and emit its
+  private relocation; type-parameter invocation alone does not.
 
 Acceptance: a declared `<machine F>` with its required `where machine F(...)`
 contract monomorphizes and calls directly; omitted contracts reject even when
@@ -457,8 +499,8 @@ improvements do not change public identity.
 - **FFIGATE:** after owner question #18, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and
-  shutdown/quiescence. Callback entry remains blocked on #12 and retained
-  pointer lifetime on #14.
+  shutdown/quiescence. Registered callback lowering is ENT4; retained pointer
+  lifetime remains blocked on #14.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to qualified `Extent` after P1.
 - Implement owned `Vec<T>` and then `Vec<u8> in Utf8` through ordinary data and
@@ -576,7 +618,8 @@ move it to a convenience library.
 - Implement serialized capability attenuation/revocation.
 - Portable atomic fences are owner-blocked on #13.
 - Foreign retained-pointer lifetimes are owner-blocked on #14.
-- External entry reification/registration is owner-blocked on #12.
+- Implement registered callback lowering and the Windows adapter canary under
+  ENT4 without introducing a general source-visible code-address value.
 
 ### Wire runtime
 
@@ -624,7 +667,6 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #12 sealed external entry reference | callbacks and dynamic entry registration |
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |
 | #15 boundary write frame | R5 boundary mutation clauses |
@@ -632,6 +674,8 @@ blocked work.
 | #17 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
 | #18 hosted-FFI gateway | reusable native-worker execution and backpressure |
 | #19 claim-content projection and backing | P1c content algebra and conservation |
+| #20 opaque in-process executable trust | root TCB declaration and profile rejection |
+| #21 contained execution failure | obligation poison, recovery, and reclamation |
 
 ## Vertical acceptance slices
 
@@ -657,8 +701,8 @@ blocked work.
   coverage exists; remaining Linux work is path/stat/directory/errno adapters.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
-- Windows GUI callback entry remains blocked on #12; do not pass a raw code
-  address or add a Win32-only callback escape.
+- Build the Windows GUI callback canary through the settled callback-requirement
+  path; do not pass a raw code address or add a Win32-only callback escape.
 
 ## Deferred until a real customer
 

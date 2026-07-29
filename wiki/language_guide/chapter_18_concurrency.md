@@ -347,8 +347,11 @@ a bounded pool of guarded OS-worker stacks. The safe point is reached when the
 caller parks; native completion, cancellation finalization, retained-loan
 release, and later pool admission remain independent and may be unbounded.
 These are reported separately. The reusable gateway contract remains owner
-question #18, foreign callback entry remains #12, and retained native pointers
-remain #14.
+question #18, while retained native pointers remain #14. Registered callback
+entry is settled: a named static machine satisfies the callback requirement,
+the binding emits its plan-driven thunk, and a durable protocol returns a
+linear registration value. Platform adapters normalize native re-entry into
+locally checked handler surfaces.
 
 ## Cancellation Is A Value At The Wait
 
