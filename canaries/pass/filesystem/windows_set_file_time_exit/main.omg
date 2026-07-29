@@ -7,9 +7,8 @@
 // 1_500_000_000 at the windows `_stat64` st_mtime offset (@40) -- the
 // hermetic model converts FILETIME -> unix seconds through the same
 // calibration constants, so a slip on either side breaks its engine.
-// The WRAPPER `set_times` windows migration is BLOCKED on the value-call
-// mutation-heavy-entry face (TASKS windows session record); this raw pin
-// keeps the capability honest meanwhile (the find-trio precedent).
+// The WRAPPER `set_times` path has its own end-to-end canary; this raw pin
+// keeps the admitted seam and FILETIME calibration independently honest.
 // exits: 70 good; 71 setup failed; 72 the bridge returned no handle; 73
 // SetFileTime refused; 74 stat failed; 75 the round-tripped mtime is
 // wrong (a FILETIME calibration slip).

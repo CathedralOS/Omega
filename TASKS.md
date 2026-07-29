@@ -386,10 +386,16 @@ ceilings, and publication-before-ledger-record all reject.
   and Linux x64/AArch64 plus Windows checked-tree cohort pin the route.
   Backend-safe enum construction materializes each converted count under a
   distinct local name; a dynamic native conversion canary and all 88 native
-  filesystem/GUI tests pin the delivered payload. Residual filesystem casts are
-  deliberately separate work: explicitly wrapping byte
-  encoders/cross-signed narrowing and compatibility-specific casts whose
-  authored shape pins legacy lowering. The cast-field migration exposed and
+  filesystem/GUI tests pin the delivered payload. Target `set_times` encoders
+  now name wrapping signed-to-unsigned epoch conversion and byte truncation;
+  POSIX directory walkers name host-count wrapping, byte widening, and
+  cross-signed result conversion; Windows attribute decoding names its byte
+  widening; and portable stat consumers name every width extension. The
+  four-target checked-tree rows and native timestamp/directory workflows pin
+  those policies. Residual filesystem `as` spellings are same-carrier Wrapping
+  qualifications, target-owned boolean-to-foreign-bit encoding, or
+  compatibility-specific casts whose authored shape pins legacy lowering. The
+  cast-field migration exposed and
   now pins a compiler fix for terminal branch substates with several
   assignment-value calls in one local initializer: branch storage reserves
   every result ordinal, leaf-only nested call trees execute, top-level

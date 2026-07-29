@@ -428,10 +428,13 @@ Two rules keep it honest:
 > contract proof rebinds the target-state parameter through the incoming
 > transition argument. The converted count is materialized under a distinct
 > local name before enum construction, preserving the payload through native
-> lowering. Other residual filesystem casts carry explicit byte policies or pin
-> a compatibility-specific lowering shape. The domain model reserves
-> qualification `as` for changing static facts without changing carrier,
-> payload, or runtime work.
+> lowering. Target timestamp byte encoders, POSIX directory counters/record
+> decoders, Windows attribute decoding, and portable stat width extensions now
+> use the named integer surface as well. Residual filesystem `as` spellings are
+> same-carrier Wrapping qualification, target-owned boolean-to-foreign-bit
+> encoding, or a compatibility-specific lowering shape. The domain model
+> reserves qualification `as` for changing static facts without changing
+> carrier, payload, or runtime work.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.
