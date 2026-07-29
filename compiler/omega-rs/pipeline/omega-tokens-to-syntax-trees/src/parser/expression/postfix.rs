@@ -203,6 +203,102 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 continue;
             }
 
+            // CH21 EDGE-SPECIFIC WIRE COMPATIBILITY DEMAND:
+            //
+            // `b.require_wire_compatibility<
+            //     Edge, Lineage, Local, Peer,
+            //     Readable, Writable, PreserveUnknown, Canonical, CompleteMigration
+            // >();`
+            //
+            // The first four arguments name ordinary types. Every following
+            // argument is one requested fact from the closed vocabulary; a
+            // demand spells only the facts its channel/store actually needs.
+            // Like provider selection, this is an authoritative build marker,
+            // not a runtime generic call. The build-config pass harvests the
+            // encoded paths and the interpreter serves it as a no-op.
+            if member.as_str() == "require_wire_compatibility"
+                && rest.at_punctuation(PunctuationKind::Less)
+            {
+                let mut path_input = rest.take_punctuation(PunctuationKind::Less, "<")?;
+                let mut rendered = Vec::new();
+                loop {
+                    let mut path = String::new();
+                    loop {
+                        let (segment, next) = path_input.take_identifier()?;
+                        if !path.is_empty() {
+                            path.push_str("::");
+                        }
+                        path.push_str(segment.as_str());
+                        if next.at_punctuation(PunctuationKind::ColonColon) {
+                            path_input =
+                                next.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                            continue;
+                        }
+                        path_input = next;
+                        break;
+                    }
+                    rendered.push(path);
+                    if path_input.at_punctuation(PunctuationKind::Comma) {
+                        path_input = path_input.take_punctuation(PunctuationKind::Comma, ",")?;
+                        continue;
+                    }
+                    path_input = path_input.take_punctuation(PunctuationKind::Greater, ">")?;
+                    break;
+                }
+                if rendered.len() < 5 {
+                    return Err(path_input.error_here(
+                        "`require_wire_compatibility` takes Edge, Lineage, Local, Peer, \
+                         then at least one requested fact (`Readable`, `Writable`, \
+                         `PreserveUnknown`, `Canonical`, or `CompleteMigration`)",
+                    ));
+                }
+                let mut facts: Vec<&str> = Vec::new();
+                for fact in &rendered[4..] {
+                    if !matches!(
+                        fact.as_str(),
+                        "Readable"
+                            | "Writable"
+                            | "PreserveUnknown"
+                            | "Canonical"
+                            | "CompleteMigration"
+                    ) {
+                        return Err(path_input.error_here(format!(
+                            "unknown wire compatibility fact `{fact}`; expected `Readable`, \
+                             `Writable`, `PreserveUnknown`, `Canonical`, or \
+                             `CompleteMigration`"
+                        )));
+                    }
+                    if facts.contains(&fact.as_str()) {
+                        return Err(path_input.error_here(format!(
+                            "wire compatibility fact `{fact}` is requested twice"
+                        )));
+                    }
+                    facts.push(fact);
+                }
+                let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if !after_open.at_punctuation(PunctuationKind::RightParen) {
+                    return Err(after_open.error_here(
+                        "`require_wire_compatibility` takes types/facts in angle brackets and \
+                         no value arguments",
+                    ));
+                }
+                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                expression =
+                    syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            receiver: expression,
+                            target: omega_syntax_trees::identifier::Identifier::generated(format!(
+                                "wire_compatibility#{}",
+                                rendered.join("#")
+                            )),
+                            machine_arguments: Box::default(),
+                            arguments: HandleSpan::empty(),
+                            operational_acknowledgement: Default::default(),
+                        }));
+                continue;
+            }
+
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the
             // IDENTITY on the place (reads the value). The closed ordering
             // vocabulary is validated before this stage-one desugar erases its

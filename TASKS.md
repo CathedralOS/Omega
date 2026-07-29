@@ -636,7 +636,7 @@ layouts brief. Complete the implementation in dependency order:
   round-trip remainder;
 - [done] represent published historical formats as ordinary immutable data and
   select checked migration machines through format-lineage packages;
-- make compatibility checks consume channel/store demands and report
+- [done] make compatibility checks consume channel/store demands and report
   directional readability, writability, unknown preservation, canonicality,
   and migration coverage; and
 - retain realization origin separately from trust, classifying the current

@@ -232,6 +232,14 @@ The package is the dependency-reach boundary:
 - a subsystem requiring a meaningfully different reach set is a separate
   package rather than a hidden nested manifest.
 
+The same authoritative build surface owns concrete channel/store compatibility
+demands. `b.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`
+requests only the directional wire facts named after the first four type
+arguments. The compiler evaluates those requests against published schema,
+codec, unknown-member, canonicalization, and `FormatMigration` evidence; it
+reports every fact and rejects unmet requested facts. This is edge/deployment
+policy, not intrinsic version metadata on `Local` or `Peer`.
+
 Packages normally compose statically and may optimize across package edges.
 They are not ABI or replacement boundaries merely because they are packages.
 A build may select a provider realization for independent deployment; the

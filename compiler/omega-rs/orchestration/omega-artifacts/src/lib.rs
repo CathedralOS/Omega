@@ -520,6 +520,10 @@ impl ArtifactWriter {
             "identity-keyed schemas: {}\n",
             wire_report.schemas.len()
         ));
+        output.push_str(&format!(
+            "edge compatibility demands: {}\n",
+            wire_report.demands.len()
+        ));
 
         for schema in &wire_report.schemas {
             output.push_str(&format!("\n## data {}\n", schema.name));
@@ -538,17 +542,16 @@ impl ArtifactWriter {
                 output.push_str(&format!("current era: {}\n", schema.current_era));
             }
 
-            // The synthesized codec surface (the derived Grammar-trait
-            // conformance, brief section 2b): readable HERE, not only in a
+            // The generated codec surface: readable HERE, not only in a
             // validator's error strings.
             if schema.synthesized_codec {
-                output.push_str("legacy synthesized:\n");
+                output.push_str("generated codec:\n");
                 output.push_str(&format!(
-                    "  machine {}::encode(&value, &mut out: [u8; N], &mut written: usize)\n",
+                    "  machine {}::encode(&value, &mut out: [u8; N], &mut written: u64)\n",
                     schema.name
                 ));
                 output.push_str(&format!(
-                    "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: usize, &mut verdict: WireVerdict)\n",
+                    "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: u64, &mut verdict: WireVerdict)\n",
                     schema.name
                 ));
             }
@@ -576,6 +579,39 @@ impl ArtifactWriter {
                 push_wire_verdicts(&mut output, "reserved", &version.verdicts.reserved);
                 push_wire_verdicts(&mut output, "incompatible", &version.verdicts.incompatible);
             }
+        }
+
+        for demand in &wire_report.demands {
+            output.push_str(&format!("\n## compatibility demand {}\n", demand.edge));
+            output.push_str(&format!("lineage: {}\n", demand.lineage));
+            output.push_str(&format!("local schema: {}\n", demand.local_schema));
+            output.push_str(&format!("peer schema: {}\n", demand.peer_schema));
+            output.push_str(&format!("codec: {}\n", demand.codec));
+            output.push_str(&format!(
+                "unknown-member behavior: {}\n",
+                demand.unknown_member_behavior
+            ));
+            push_wire_demand_fact(&mut output, "readability", &demand.readability);
+            push_wire_demand_fact(&mut output, "writability", &demand.writability);
+            push_wire_demand_fact(
+                &mut output,
+                "unknown preservation",
+                &demand.unknown_preservation,
+            );
+            push_wire_demand_fact(&mut output, "canonicality", &demand.canonicality);
+            push_wire_demand_fact(
+                &mut output,
+                "migration coverage",
+                &demand.migration_coverage,
+            );
+            output.push_str(&format!(
+                "verdict: {}\n",
+                if demand.satisfied {
+                    "satisfied"
+                } else {
+                    "unsatisfied"
+                }
+            ));
         }
 
         self.write_text("04_wire_protocols.txt", &output)
@@ -1608,6 +1644,19 @@ fn push_wire_verdicts(output: &mut String, label: &str, verdicts: &[String]) {
     }
 }
 
+fn push_wire_demand_fact(output: &mut String, label: &str, fact: &WireCompatibilityFactReport) {
+    output.push_str(&format!(
+        "{label}: {} ({}) -- {}\n",
+        if fact.satisfied { "yes" } else { "no" },
+        if fact.required {
+            "required"
+        } else {
+            "not required"
+        },
+        fact.detail
+    ));
+}
+
 /// Compatibility report for `wire data` protocol schemas (chapter 20): field
 /// tables, retired numbers, declared version eras, and per-era verdicts along
 /// the VERSION CHAIN (each era against its successor; the newest era against
@@ -1616,15 +1665,16 @@ fn push_wire_verdicts(output: &mut String, label: &str, verdicts: &[String]) {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireProtocolReport {
     pub schemas: Vec<WireSchemaReportEntry>,
+    pub demands: Vec<WireCompatibilityDemandReportEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireSchemaReportEntry {
     pub name: String,
     pub normalized_schema_identity: u64,
-    /// Only transitional rows lowered from the retired `wire data` form have
-    /// compiler-synthesized codecs. Ordinary data selects codec policy at use
-    /// sites.
+    /// Whether the compiler exposed generated codec entries for this schema.
+    /// Identity-numbered ordinary data may carry both this realization fact
+    /// and its normalized reflected schema identity in the same merged row.
     pub synthesized_codec: bool,
     pub encoding: Option<String>,
     /// The era discriminator the CURRENT body encodes (decision 10): the
@@ -1675,6 +1725,29 @@ pub struct WireCompatibilityVerdicts {
     pub requires_migration: Vec<String>,
     pub reserved: Vec<String>,
     pub incompatible: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireCompatibilityDemandReportEntry {
+    pub edge: String,
+    pub lineage: String,
+    pub local_schema: String,
+    pub peer_schema: String,
+    pub codec: String,
+    pub unknown_member_behavior: String,
+    pub readability: WireCompatibilityFactReport,
+    pub writability: WireCompatibilityFactReport,
+    pub unknown_preservation: WireCompatibilityFactReport,
+    pub canonicality: WireCompatibilityFactReport,
+    pub migration_coverage: WireCompatibilityFactReport,
+    pub satisfied: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireCompatibilityFactReport {
+    pub required: bool,
+    pub satisfied: bool,
+    pub detail: String,
 }
 
 /// The chapter-10 TRUST REPORT (GR5): one row per admitted semantic

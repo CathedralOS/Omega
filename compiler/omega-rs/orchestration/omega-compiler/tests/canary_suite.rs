@@ -1471,6 +1471,54 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
+    let canary = pass_canary("wire/wire_compatibility_demand_report");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-edge-demand-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("the declared rolling-channel demand should be satisfied");
+
+    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
+        .expect("wire protocol compatibility report should be written");
+    for expected in [
+        "identity-keyed schemas: 2",
+        "edge compatibility demands: 1",
+        "## compatibility demand RollingChannel",
+        "lineage: MessageLineage",
+        "local schema: LocalMessage",
+        "peer schema: PeerMessage",
+        "unknown-member behavior: strict",
+        "readability: yes (required)",
+        "writability: yes (required)",
+        "unknown preservation: no (not required)",
+        "canonicality: yes (required)",
+        "migration coverage: yes (required) -- selected checked route: peer_to_local",
+        "verdict: satisfied",
+    ] {
+        assert!(
+            report.contains(expected),
+            "wire compatibility report should contain `{expected}`\n{report}"
+        );
+    }
+    assert_eq!(
+        report.matches("## data LocalMessage").count(),
+        1,
+        "reflected schema and generated realization facts belong in one row\n{report}"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The canonical permission ledger must stay visible per event in the backend
 // report's Artifact Semantic Spine after surviving the full spine (checked
 // trees -> state graph -> control flow -> abstract -> target -> assigned ->
@@ -38773,6 +38821,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/versioned_match_default_arm",
     "wire/wire_generic_trait",
     "wire/decode_requirement_surface",
+    "wire/wire_compatibility_demand_report",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
     "wire/wire_data_field_numbers",
@@ -39203,6 +39252,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/ring_rearrange_false_shuffle_rejected",
     "expressions/undeclared_two_segment_path_rejected",
     "wire/wire_policy_plan_disagrees",
+    "wire/wire_compatibility_preservation_unmet",
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",

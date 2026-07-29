@@ -1,0 +1,12 @@
+machine build(b: &mut Build) {
+    b.require_wire_compatibility<
+        RollingChannel,
+        MessageLineage,
+        LocalMessage,
+        PeerMessage,
+        Readable,
+        Writable,
+        Canonical,
+        CompleteMigration
+    >();
+}
