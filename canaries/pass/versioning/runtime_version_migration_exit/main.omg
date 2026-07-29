@@ -2,6 +2,10 @@
 // current value drives the exit: count becomes 7 and timestamp becomes 7.
 
 use omega::language::std::console;
+use omega::language::std::format_lineage;
+
+data CounterDisk {
+}
 
 data CounterV1 {
     counter: i32 in Wrapping;
@@ -16,7 +20,9 @@ data Main {
     console: Console;
 }
 
-machine Counter::from_v1(old: CounterV1, out: &mut Counter) {
+machine Counter::from_v1(old: CounterV1, out: &mut Counter)
+satisfies FormatMigration<CounterDisk, CounterV1, Counter>::migrate
+{
     out.count = old.counter + 4;
     out.timestamp = 7;
 }
