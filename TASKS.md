@@ -407,16 +407,22 @@ ceilings, and publication-before-ledger-record all reject.
   signedness conversion. Its remaining integer-looking casts only select or
   forget a same-carrier arithmetic policy. Store-enforced Exact ranged locals
   now discharge nested conversion preconditions; a broader declared range
-  remains insufficient. Flattened nested calls expand compiler-elided local
-  initializers before applying enclosing parameter aliases, including
-  cast/call structure and `min`/`max`/`clamp` scalar classification. The
-  constructor, totals/divide, clock, sleep, cross-target, and filesystem-time
-  canaries pin both proof and native delivery.
+  remains insufficient. Flattened nested calls expand compiler-elided scalar
+  local initializers before applying enclosing parameter aliases, including
+  cast/call structure and `min`/`max`/`clamp` scalar classification. Aggregate
+  locals and value-call-result locals retain their dedicated runtime
+  materialization instead of being mistaken for elided aliases. The constructor,
+  totals/divide, clock, sleep, cross-target, and filesystem-time canaries pin
+  both proof and native delivery.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
   work is float/integer named operations, broad corpus migration, and retirement
   of numeric compatibility `as` after its last internal conversion consumer.
+  Keep `arithmetic/runtime_integer_casts_exit` on compatibility `as` until that
+  retirement: its authored cast-initializer/transition-parameter shape is the
+  regression for legacy sign/zero extension and truncation lowering, while the
+  named surface has separate coverage.
 
 Acceptance: qualification `as` preserves carrier, payload, and runtime work;
 numeric and unit conversions are visible calls; bodyful and bodyless domains
