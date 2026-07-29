@@ -3,7 +3,8 @@ use omega_calling_conventions::{
     Preemption, ValueShape,
 };
 use omega_compiler::{
-    compile_to_checked, evaluate_calling_policy_plan, selected_external_root_provider_plan_id,
+    compile_to_checked, evaluate_calling_policy_plan, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -60,6 +61,7 @@ machine Main::main(&mut self) { }
 
 const INTERRUPT_POLICY: &str = r#"
 use omega::language::std::calling;
+use omega::language::core::interrupt;
 
 data X86InterruptPolicy { }
 
@@ -68,36 +70,73 @@ machine X86InterruptPolicy::plan(
 ) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
-    let mut output: BoundaryEntryPlan;
-    output.call.convention = CallingConvention::SystemVAMD64;
-    output.call.stack_alignment = 16;
-    output.call.entry_control = EntryControl::InterruptReturn;
-    output.state.initial_regime = MachineRegime::X86Long64;
-    output.state.interrupted_state.general_registers = true;
-    output.state.interrupted_state.vector_registers = true;
-    output.state.interrupted_state.flags = true;
-    output.state.interrupted_state.instruction_pointer = true;
-    output.state.interrupted_state.stack_pointer = true;
-    output.state.saved_state.general_registers = true;
-    output.state.saved_state.flags = true;
-    output.state.saved_state.instruction_pointer = true;
-    output.state.saved_state.stack_pointer = true;
-    output.state.restored_state.general_registers = true;
-    output.state.restored_state.flags = true;
-    output.state.restored_state.instruction_pointer = true;
-    output.state.restored_state.stack_pointer = true;
-    output.state.stack = EntryStack::Dedicated { class: 1 };
-    output.state.preemption = Preemption::Masked;
-    BoundaryPlanResult::Accepted { plan: output }
+    transition signature.parameter_count == 1 {
+        true -> accept(signature, signature.parameters[0])
+        _ -> reject()
+    }
+
+    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[root].byte_size,
+            alignment: 8
+        };
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::InterruptReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.interrupted_state.general_registers = true;
+        output.state.interrupted_state.vector_registers = true;
+        output.state.interrupted_state.flags = true;
+        output.state.interrupted_state.instruction_pointer = true;
+        output.state.interrupted_state.stack_pointer = true;
+        output.state.saved_state.general_registers = true;
+        output.state.saved_state.flags = true;
+        output.state.saved_state.instruction_pointer = true;
+        output.state.saved_state.stack_pointer = true;
+        output.state.restored_state.general_registers = true;
+        output.state.restored_state.flags = true;
+        output.state.restored_state.instruction_pointer = true;
+        output.state.restored_state.stack_pointer = true;
+        output.state.stack = EntryStack::Dedicated { class: 1 };
+        output.state.preemption = Preemption::Masked;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "TimerRoot requires exactly one acknowledgement",
+            },
+        }
+    }
 }
 
 boundary trait TimerRoot: Calling<X86InterruptPolicy> {
-    machine tick();
+    machine tick(acknowledgement: InterruptAcknowledgement in Pending)
+    effects PortIo;
 }
 
-machine timer_leaf()
+machine timer_leaf(acknowledgement: InterruptAcknowledgement in Pending)
     satisfies TimerRoot::tick
-    via Binding::VtableSlot(0);
+    effects PortIo
+{
+    acknowledgement.complete();
+}
 
 data Main { }
 machine Main::main(&mut self) { }
@@ -110,7 +149,10 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let validated = evaluate_calling_policy_plan(
         &checked.typed,
         "X86InterruptPolicy::plan",
-        &CallSignature::default(),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(40, 8)],
+            result: None,
+        },
     )
     .expect("interrupt policy should validate");
     let plan = validated.plan();
@@ -150,6 +192,32 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .plan_by_name("satisfies::TimerRoot")
         .expect("selected TimerRoot provider plan");
     assert_eq!(selected.rows.len(), 1);
+    let [tick] = selected.schema.methods.as_slice() else {
+        panic!("TimerRoot must publish one tick requirement");
+    };
+    let [acknowledgement] = tick.parameter_type_identities.as_slice() else {
+        panic!("timer root must bind its acknowledgement parameter identity");
+    };
+    assert!(acknowledgement.contains("InterruptAcknowledgement"));
+    assert!(acknowledgement.contains("Pending"));
+    let mut weakened = selected.clone();
+    weakened.schema.methods[0].parameter_type_identities[0] = "InterruptAcknowledgement".to_owned();
+    assert_ne!(
+        selected.identity_fingerprint(),
+        weakened.identity_fingerprint(),
+        "the provider-plan identity carried into external-root admission must drift if Pending issuance is removed"
+    );
+    let root_selection = selected_external_root_provider_plan(&checked, "TimerRoot")
+        .expect("external-root bridge should retain the qualified timer schema");
+    assert_eq!(
+        root_selection.identity.normalized_identity(),
+        selected.identity_fingerprint()
+    );
+    assert_eq!(
+        root_selection.schema.methods[0].parameter_type_identities,
+        selected.schema.methods[0].parameter_type_identities,
+        "the root bridge must carry the exact qualified source signature beside its receipt identity"
+    );
     assert_eq!(
         selected_external_root_provider_plan_id(&checked, "TimerRoot")
             .expect("external-root bridge should retain the selected timer plan")

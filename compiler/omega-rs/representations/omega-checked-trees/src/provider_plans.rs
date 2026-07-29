@@ -141,7 +141,9 @@ mod tests {
                 methods: vec![ServiceMethod {
                     name: method.into(),
                     parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
                     has_result: false,
+                    result_type_identity: None,
                     service_reach: vec![format!("{name}Service")],
                     may_suspend: false,
                     may_block: false,

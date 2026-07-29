@@ -45,4 +45,7 @@ pub use omega_layout_plans::{
     decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
     normalized_layout_plan_fingerprint,
 };
-pub use provider_plans::selected_external_root_provider_plan_id;
+pub use provider_plans::{
+    SelectedExternalRootProviderPlan, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
+};
