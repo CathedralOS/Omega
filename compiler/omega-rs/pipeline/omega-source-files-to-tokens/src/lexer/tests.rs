@@ -73,6 +73,21 @@ fn tokenizes_multi_character_punctuation() {
 }
 
 #[test]
+fn tokenizes_stable_identity_prefix() {
+    assert_eq!(
+        semantic_kinds("#1"),
+        vec![
+            TokenKind::Punctuation(PunctuationKind::Hash),
+            TokenKind::NumericLiteral(NumericLiteralKind::Integer(IntegerLiteralKind {
+                base: NumericBase::Decimal,
+                empty_digits: false,
+                has_suffix: false,
+            })),
+        ]
+    );
+}
+
+#[test]
 fn preserves_line_comments_and_whitespace() {
     let tokens = Lexer::new("let // comment\n value")
         .tokenize()

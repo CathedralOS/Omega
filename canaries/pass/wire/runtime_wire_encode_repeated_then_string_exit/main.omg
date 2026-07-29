@@ -25,8 +25,8 @@ domain [u8]::Utf8 {
 use omega::language::std::console;
 
 data Report {
-    0: samples: [i32; 4];
-    1: label: &[u8] in Utf8;
+    #0 samples: [i32; 4];
+    #1 label: &[u8] in Utf8;
 }
 
 data ReportValue {

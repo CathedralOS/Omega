@@ -46,6 +46,7 @@ pub(crate) fn data_definition_from_wire_schema(
         .iter()
         .filter_map(|member| match member {
             WireMember::Field(field) => Some(DataField {
+                identity: Some(field.number),
                 symbol: SymbolHandle::invalid(),
                 name: field.name.clone(),
                 type_reference: field.type_reference.clone(),
@@ -72,6 +73,15 @@ pub(crate) fn data_definition_from_wire_schema(
             quotient: None,
             where_facts: omega_core::arena::HandleSpan::empty(),
             zero_gated: false,
+            retired_identities: lowerer
+                .symbol_resolved_trees
+                .wire_members(schema.members)
+                .iter()
+                .filter_map(|member| match member {
+                    WireMember::Reserved(retired) => Some(retired.number),
+                    _ => None,
+                })
+                .collect(),
             properties: DataProperties::default(),
             members,
         },

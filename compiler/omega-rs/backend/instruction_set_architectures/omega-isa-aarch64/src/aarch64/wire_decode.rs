@@ -31,13 +31,13 @@ use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
     encode_add_x_immediate, encode_add_x_register, encode_adrp_placeholder,
     encode_and_x_immediate_low_seven, encode_and_x_register, encode_asr_x_immediate, encode_cbnz_x,
-    encode_compare_w_immediate, encode_compare_x_register, encode_conditional_branch_equal,
-    encode_conditional_branch_higher, encode_conditional_branch_higher_or_same,
-    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
-    encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
-    encode_conditional_branch_not_equal, encode_eor_x_register, encode_load_byte_w_post_increment,
-    encode_lslv_x_register, encode_lsr_x_immediate, encode_movz, encode_orr_x_register,
-    encode_unconditional_branch,
+    encode_compare_w_immediate, encode_compare_x_immediate, encode_compare_x_register,
+    encode_conditional_branch_equal, encode_conditional_branch_higher,
+    encode_conditional_branch_higher_or_same, encode_conditional_branch_less,
+    encode_conditional_branch_less_or_equal, encode_conditional_branch_lower,
+    encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
+    encode_eor_x_register, encode_load_byte_w_post_increment, encode_lslv_x_register,
+    encode_lsr_x_immediate, encode_movz, encode_orr_x_register, encode_unconditional_branch,
 };
 use super::widths::{
     read_wire_byte_slice_width, read_wire_expected_byte_width, read_wire_nested_close_width,
@@ -438,7 +438,11 @@ fn append_wire_varint_read_loop(bytes: &mut Vec<u8>) -> Result<(), Diagnostic> {
     bytes.extend(encode_cbnz_x(19, -60)?);
     bytes.extend(encode_compare_w_immediate(22, 7)?);
     bytes.extend(encode_conditional_branch_equal(16)?);
-    bytes.extend(encode_compare_w_immediate(25, 0)?);
+    // x25 is the SHIFTED terminal payload. At the legal ten-group
+    // u64::MAX boundary it is bit 63, whose low W view is zero; compare the
+    // full X register so that canonical value is not mistaken for an
+    // overlong zero terminal group.
+    bytes.extend(encode_compare_x_immediate(25, 0)?);
     bytes.extend(encode_conditional_branch_not_equal(8)?);
     bytes.extend(encode_movz(23, 0));
     debug_assert_eq!(bytes.len() - start, wire_varint_read_loop_width());

@@ -61,16 +61,12 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
     // arena and the schema tables cannot be borrowed simultaneously.
     let mut classified = Vec::with_capacity(typed.wire_schemas().len());
     for schema in typed.wire_schemas() {
-        let mut fields: Vec<(i64, FieldShape)> = Vec::new();
+        let mut fields: Vec<(u64, FieldShape)> = Vec::new();
         let mut classifiable = true;
         for member in typed.wire_members(schema.members) {
             let WireMember::Field(field) = member else {
                 continue;
             };
-            if field.number < 0 {
-                classifiable = false;
-                break;
-            }
             let shape = if typed.wire_field_repeated_encoding(field).is_some() {
                 FieldShape::Repeated
             } else if typed.wire_field_nested_schema(field).is_some() {
@@ -159,7 +155,7 @@ fn evaluate_wire_policy(
     typed: &TypedTrees,
     admission: &super::build_time_admission::BuildTimeAdmissionPlan,
     schema_name: &str,
-    fields: &[(i64, FieldShape)],
+    fields: &[(u64, FieldShape)],
 ) -> Result<Vec<WirePlacement>, String> {
     let machine = typed
         .machines()
@@ -194,7 +190,7 @@ fn primitive_wire_size(primitive: PrimitiveType) -> u64 {
 
 /// Materialize the schema's facts as the std `Schema` value: field
 /// (size, align, number, KIND) in declaration order, padded to 32.
-fn build_wire_schema_value(fields: &[(i64, FieldShape)]) -> BuildTimeValue {
+fn build_wire_schema_value(fields: &[(u64, FieldShape)]) -> BuildTimeValue {
     let mut cells = Vec::with_capacity(32);
     for index in 0..32usize {
         let (number, shape) = fields
@@ -210,7 +206,9 @@ fn build_wire_schema_value(fields: &[(i64, FieldShape)]) -> BuildTimeValue {
             fields: vec![
                 ("size".to_owned(), BuildTimeValue::Int(size as i64)),
                 ("align".to_owned(), BuildTimeValue::Int(size.max(1) as i64)),
-                ("number".to_owned(), BuildTimeValue::Int(number)),
+                // BuildTimeValue stores integer bits in i64; the policy's
+                // typed u64 view reinterprets this losslessly.
+                ("number".to_owned(), BuildTimeValue::Int(number as i64)),
                 (
                     "kind".to_owned(),
                     BuildTimeValue::Case {

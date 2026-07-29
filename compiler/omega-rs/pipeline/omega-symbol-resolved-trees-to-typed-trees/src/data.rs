@@ -42,6 +42,7 @@ pub(crate) fn lower_data_definition(
         // inert until rung 3's atomic consumer.
         where_facts: crate::domain::lower_proof_facts(lowerer, data_definition.where_facts)?,
         zero_gated: data_definition.zero_gated,
+        retired_identities: data_definition.retired_identities.clone(),
         members: omega_core::arena::HandleSpan::empty(),
     };
 
@@ -107,6 +108,7 @@ fn lower_data_member(
     match member {
         resolved::data::DataMember::Field(field) => {
             Ok(typed::data::DataMember::Field(typed::data::DataField {
+                identity: field.identity,
                 symbol: field.symbol,
                 name: crate::name::lower_name(&field.name),
                 type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
@@ -114,9 +116,11 @@ fn lower_data_member(
         }
         resolved::data::DataMember::Variant(variant) => {
             let mut typed_variant = typed::data::DataVariant {
+                identity: variant.identity,
                 symbol: variant.symbol,
                 name: crate::name::lower_name(&variant.name),
                 payload: omega_core::arena::HandleSpan::empty(),
+                retired_payload_identities: variant.retired_payload_identities.clone(),
             };
             let payload_fields = lowerer
                 .source_trees
@@ -124,6 +128,7 @@ fn lower_data_member(
                 .to_vec();
             for field in &payload_fields {
                 let lowered = typed::data::DataField {
+                    identity: field.identity,
                     symbol: field.symbol,
                     name: crate::name::lower_name(&field.name),
                     type_reference: lower_type_reference_into_table(

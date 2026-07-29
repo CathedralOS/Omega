@@ -212,11 +212,17 @@ pub struct OperatorSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DataMemberSnapshot {
     Field {
+        identity: Option<u64>,
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
     },
     Variant {
+        identity: Option<u64>,
         name: IdentifierSnapshot,
+        retired_payload_identities: Vec<u64>,
+    },
+    Retired {
+        identity: u64,
     },
 }
 
@@ -291,12 +297,12 @@ pub struct TargetHostSettingSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WireDataMemberSnapshot {
     Field {
-        number: i64,
+        number: u64,
         name: IdentifierSnapshot,
         type_reference: TypeReferenceSnapshot,
     },
     Reserved {
-        number: i64,
+        number: u64,
     },
     Version {
         name: IdentifierSnapshot,
@@ -1064,11 +1070,17 @@ fn snapshot_proof_fact(syntax_trees: &SyntaxTrees, fact: &ProofFact) -> ProofFac
 fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> DataMemberSnapshot {
     match member {
         DataMember::Field(field) => DataMemberSnapshot::Field {
+            identity: field.identity,
             name: snapshot_identifier(&field.name),
             type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
+            identity: variant.identity,
             name: snapshot_identifier(&variant.name),
+            retired_payload_identities: variant.retired_payload_identities.clone(),
+        },
+        DataMember::Retired(identity) => DataMemberSnapshot::Retired {
+            identity: *identity,
         },
     }
 }

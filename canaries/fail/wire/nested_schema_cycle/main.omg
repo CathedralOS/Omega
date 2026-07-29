@@ -6,12 +6,12 @@
 use omega::language::std::console;
 
 data PacketHeader {
-    0: parent: Packet;
+    #0 parent: Packet;
 }
 
 data Packet {
-    0: header: PacketHeader;
-    1: depth: i32;
+    #0 header: PacketHeader;
+    #1 depth: i32;
 }
 
 data Main {

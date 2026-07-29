@@ -118,12 +118,12 @@ pub struct WireSchemaSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum WireMemberSnapshot {
     Field {
-        number: i64,
+        number: u64,
         name: String,
         type_reference: TypeReferenceSnapshot,
     },
     Reserved {
-        number: i64,
+        number: u64,
     },
     Version {
         name: String,
@@ -215,6 +215,8 @@ pub struct DataDefinitionSnapshot {
     pub type_parameters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quotient: Option<QuotientDefinitionSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub retired_identities: Vec<u64>,
     pub members: Vec<DataMemberSnapshot>,
 }
 
@@ -229,17 +231,21 @@ pub struct QuotientDefinitionSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DataMemberSnapshot {
     Field {
+        identity: Option<u64>,
         name: String,
         type_reference: TypeReferenceSnapshot,
     },
     Variant {
+        identity: Option<u64>,
         name: String,
         payload: Vec<DataPayloadFieldSnapshot>,
+        retired_payload_identities: Vec<u64>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DataPayloadFieldSnapshot {
+    pub identity: Option<u64>,
     pub name: String,
     pub type_reference: TypeReferenceSnapshot,
 }
@@ -634,6 +640,7 @@ fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> Data
                 relation: quotient.relation.iter().map(ToString::to_string).collect(),
                 relation_symbol: quotient.relation_symbol.arena_index(),
             }),
+        retired_identities: data.retired_identities.clone(),
         members: program
             .data_members(data)
             .iter()
@@ -645,19 +652,23 @@ fn data_definition_snapshot(program: &TypedTrees, data: &DataDefinition) -> Data
 fn data_member_snapshot(program: &TypedTrees, member: &DataMember) -> DataMemberSnapshot {
     match member {
         DataMember::Field(field) => DataMemberSnapshot::Field {
+            identity: field.identity,
             name: field.name.to_string(),
             type_reference: type_reference_snapshot(program, field.type_reference),
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
+            identity: variant.identity,
             name: variant.name.to_string(),
             payload: program
                 .data_payload_fields(variant)
                 .iter()
                 .map(|field| DataPayloadFieldSnapshot {
+                    identity: field.identity,
                     name: field.name.to_string(),
                     type_reference: type_reference_snapshot(program, field.type_reference),
                 })
                 .collect(),
+            retired_payload_identities: variant.retired_payload_identities.clone(),
         },
     }
 }

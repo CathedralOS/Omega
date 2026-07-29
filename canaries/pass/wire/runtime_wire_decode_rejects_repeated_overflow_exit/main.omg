@@ -20,7 +20,7 @@
 use omega::language::std::console;
 
 data Burst {
-    0: samples: [i32; 2];
+    #0 samples: [i32; 2];
 }
 
 data BurstValue {

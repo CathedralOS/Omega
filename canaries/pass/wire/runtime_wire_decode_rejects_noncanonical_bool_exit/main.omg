@@ -5,8 +5,8 @@
 use omega::language::std::console;
 
 data Flags {
-    0: enabled: bool;
-    1: samples: [bool; 2];
+    #0 enabled: bool;
+    #1 samples: [bool; 2];
 }
 
 data FlagValues {

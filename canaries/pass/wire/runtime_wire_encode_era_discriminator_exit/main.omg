@@ -15,11 +15,11 @@ use omega::language::std::console;
 
 data VersionedMessage {
     version v1 {
-        0: counter: i32;
+        #0 counter: i32;
     }
 
-    retired 0;
-    1: counter: u32;
+    retired #0;
+    #1 counter: u32;
 }
 
 data VersionedSample {

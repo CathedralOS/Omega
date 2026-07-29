@@ -4,8 +4,8 @@
 use omega::language::std::console;
 
 data NarrowScalars {
-    0: count: u32;
-    1: delta: i32;
+    #0 count: u32;
+    #1 delta: i32;
 }
 
 data NarrowValues {

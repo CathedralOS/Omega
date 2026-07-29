@@ -2,7 +2,7 @@
 // entries are `Schema::encode` / `Schema::decode`.
 use omega::language::std::console;
 data Msg {
-    0: v: u32;
+    #0 v: u32;
 }
 data Val {
     v: u32;

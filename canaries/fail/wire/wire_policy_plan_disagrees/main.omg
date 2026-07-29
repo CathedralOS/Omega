@@ -3,8 +3,8 @@
 // scalars must be Varint) is a COMPILE ERROR naming both sides, never a
 // silent re-framing of the bytes.
 data Message {
-    0: counter: u32;
-    1: flag: bool;
+    #0 counter: u32;
+    #1 flag: bool;
 }
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }

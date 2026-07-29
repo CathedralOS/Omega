@@ -5,6 +5,84 @@ use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn parses_stable_identities_through_the_full_u64_range() {
+    let source = r#"
+        data MaximumIdentity {
+            #18446744073709551615 value: u8;
+            retired #18446744073709551614;
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    parse_syntax_trees(&tokens).expect("u64 stable identities should parse");
+}
+
+#[test]
+fn rejects_stable_identities_above_u64_max() {
+    let source = "data TooLarge { #18446744073709551616 value: u8; }";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("identity above u64::MAX must fail");
+    assert!(error.message.contains("nonnegative u64"));
+}
+
+#[test]
+fn parses_independently_numbered_cases_and_structured_payloads() {
+    let source = r#"
+        data Lookup<T> {
+            case #1 Found(#1 value: T, retired #2);
+            case #2 Missing;
+            retired #3;
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    parse_syntax_trees(&tokens).expect("numbered cases and payloads should parse");
+}
+
+#[test]
+fn parses_stable_field_identities_on_generic_data() {
+    let source = "data Envelope<T> { #1 value: T; retired #2; }";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    parse_syntax_trees(&tokens).expect("stable identities are ordinary generic data metadata");
+}
+
+#[test]
+fn numbered_mixed_data_is_independent_of_member_order() {
+    for source in [
+        "data Mixed { #1 common: u8; case #1 First; }",
+        "data Mixed { case #1 First; #1 common: u8; }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        parse_syntax_trees(&tokens).expect("field and case identities have independent scopes");
+    }
+}
+
+#[test]
+fn enforces_all_or_nothing_numbering_per_identity_scope() {
+    for source in [
+        "data Bad { case #1 First; case Second; }",
+        "data Bad { case #1 First; case #2 Second; retired #2; }",
+        "data Bad { case #1 First(#1 value: u8, other: u8); }",
+        "data Bad { case First; retired #2; }",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        parse_syntax_trees(&tokens).expect_err("inconsistent stable identities must fail");
+    }
+}
+
+#[test]
 fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
     let source = r#"
         data View<'buf, T> {

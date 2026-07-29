@@ -645,14 +645,11 @@ impl TypedTrees {
             let wire::WireMember::Field(field) = member else {
                 continue;
             };
-            if field.number < 0 {
-                return None;
-            }
             let scalar = self
                 .primitive_type_reference(field.type_reference)
                 .and_then(wire::WireScalarEncoding::for_primitive)?;
             worst_case_bytes +=
-                wire::wire_varint_bytes(field.number as u64).len() + scalar.max_varint_length();
+                wire::wire_varint_bytes(field.number).len() + scalar.max_varint_length();
         }
         Some(worst_case_bytes)
     }

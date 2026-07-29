@@ -929,6 +929,7 @@ fn normalize_generic_template_const_expressions(
                 .filter_map(|member| match member {
                     DataMember::Field(field) => Some(field.type_reference),
                     DataMember::Variant(_) => None,
+                    DataMember::Retired(_) => None,
                 })
                 .collect();
             Some((

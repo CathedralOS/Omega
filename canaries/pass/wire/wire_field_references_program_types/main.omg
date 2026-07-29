@@ -7,12 +7,12 @@ data RoomLabel {
 }
 
 data RoomHeader {
-    0: label: RoomLabel;
+    #0 label: RoomLabel;
 }
 
 data RoomMessage {
-    0: header: RoomHeader;
-    1: depth: i32;
+    #0 header: RoomHeader;
+    #1 depth: i32;
 }
 
 data Main {

@@ -24,13 +24,13 @@
 use omega::language::std::console;
 
 data RoomHeader {
-    0: room_id: u32;
-    1: kind: i32;
+    #0 room_id: u32;
+    #1 kind: i32;
 }
 
 data RoomMessage {
-    0: header: RoomHeader;
-    1: depth: i32;
+    #0 header: RoomHeader;
+    #1 depth: i32;
 }
 
 data RoomHeaderValue {

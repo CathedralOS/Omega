@@ -66,7 +66,7 @@ impl Default for WireMember {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WireField {
-    pub number: i64,
+    pub number: u64,
     pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
 }
@@ -83,7 +83,7 @@ impl Default for WireField {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireReserved {
-    pub number: i64,
+    pub number: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

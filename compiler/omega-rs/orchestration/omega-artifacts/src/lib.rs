@@ -1515,7 +1515,7 @@ pub struct AstFileArtifact {
     pub item_range_valid: bool,
 }
 
-fn push_wire_field_table(output: &mut String, fields: &[WireFieldReportEntry], reserved: &[i64]) {
+fn push_wire_field_table(output: &mut String, fields: &[WireFieldReportEntry], reserved: &[u64]) {
     output.push_str("fields:\n");
     if fields.is_empty() {
         output.push_str("  none\n");
@@ -1569,13 +1569,13 @@ pub struct WireSchemaReportEntry {
     /// number of declared version blocks (0 for an unversioned schema).
     pub current_era: u64,
     pub fields: Vec<WireFieldReportEntry>,
-    pub reserved: Vec<i64>,
+    pub reserved: Vec<u64>,
     pub versions: Vec<WireVersionReportEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireFieldReportEntry {
-    pub number: i64,
+    pub number: u64,
     pub name: String,
     pub type_display: String,
 }
@@ -1590,7 +1590,7 @@ pub struct WireVersionReportEntry {
     /// the following declared version, or `current` for the newest era.
     pub successor: String,
     pub fields: Vec<WireFieldReportEntry>,
-    pub reserved: Vec<i64>,
+    pub reserved: Vec<u64>,
     pub verdicts: WireCompatibilityVerdicts,
 }
 

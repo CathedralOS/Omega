@@ -6,12 +6,12 @@
 use omega::language::std::console;
 
 data Point {
-    0: x: i32;
-    1: y: i32;
+    #0 x: i32;
+    #1 y: i32;
 }
 
 data Polygon {
-    0: points: [Point; 3];
+    #0 points: [Point; 3];
 }
 
 data PointValue {

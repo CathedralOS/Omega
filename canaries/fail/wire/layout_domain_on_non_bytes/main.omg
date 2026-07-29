@@ -3,7 +3,7 @@
 use omega::language::std::console;
 
 data CounterMessage {
-    0: counter: u32;
+    #0 counter: u32;
 }
 
 data Main {

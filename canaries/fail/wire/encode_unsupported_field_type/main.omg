@@ -7,8 +7,8 @@
 use omega::language::std::console;
 
 data SampleMessage {
-    0: count: u32;
-    1: ratio: f64;
+    #0 count: u32;
+    #1 ratio: f64;
 }
 
 data SampleValue {

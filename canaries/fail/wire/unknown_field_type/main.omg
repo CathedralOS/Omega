@@ -2,8 +2,8 @@
 // wire field type must resolve to a declared type.
 
 data CounterMessage {
-    0: counter: i32;
-    1: header: MissingHeader;
+    #0 counter: i32;
+    #1 header: MissingHeader;
 }
 
 data Main {

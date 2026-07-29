@@ -7,18 +7,18 @@
 
 data CounterMessage {
     version v1 {
-        1: counter: i32;
-        2: legacy_flags: i64;
+        #1 counter: i32;
+        #2 legacy_flags: i64;
     }
 
     version v2 {
-        1: counter: i32;
+        #1 counter: i32;
 
-        retired 2;
+        retired #2;
     }
 
-    1: counter: i32;
-    2: retry_count: i32;
+    #1 counter: i32;
+    #2 retry_count: i32;
 }
 
 data Main {

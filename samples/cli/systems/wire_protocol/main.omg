@@ -4,8 +4,8 @@
 // AUTHORED by an explicit `CompactBinary::plan` grammar policy (see below).
 //
 // Wire schema:
-//   RoomHeader  { 0: room_id: u32 }
-//   SensorPacket{ 0: header: RoomHeader; 1: samples: [i32; 4]; 2: depth: i32 }
+//   RoomHeader  { #0 room_id: u32 }
+//   SensorPacket{ #0 header: RoomHeader; #1 samples: [i32; 4]; #2 depth: i32 }
 //
 // Test values:
 //   header.room_id = 300
@@ -21,13 +21,13 @@
 use omega::language::std::console;
 
 data RoomHeader {
-    0: room_id: u32;
+    #0 room_id: u32;
 }
 
 data SensorPacket {
-    0: header: RoomHeader;
-    1: samples: [i32; 4];
-    2: depth: i32;
+    #0 header: RoomHeader;
+    #1 samples: [i32; 4];
+    #2 depth: i32;
 }
 
 data RoomHeaderValue {

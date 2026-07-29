@@ -12,8 +12,8 @@ domain [u8]::Utf8 {
 }
 
 data LabelMessage {
-    0: label: &[u8] in Utf8;
-    1: count: u32;
+    #0 label: &[u8] in Utf8;
+    #1 count: u32;
 }
 
 data LabelSample {

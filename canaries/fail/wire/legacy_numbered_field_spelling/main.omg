@@ -1,0 +1,8 @@
+// FAIL canary: published member identities use the `#N name: Type` spelling.
+// The former `N: name: Type` form gets a directed retirement diagnostic.
+data Save {
+    1: seed: u64;
+}
+
+data Main { }
+machine Main::main(&mut self) { }

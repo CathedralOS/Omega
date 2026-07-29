@@ -7,7 +7,7 @@
 use omega::language::std::console;
 
 data Telemetry {
-    0: readings: [u32];
+    #0 readings: [u32];
 }
 
 data Main {
