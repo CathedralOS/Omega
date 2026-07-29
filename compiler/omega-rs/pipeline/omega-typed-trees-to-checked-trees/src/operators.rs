@@ -1,6 +1,7 @@
 use omega_checked_trees::{
-    CheckedArithmeticPolicyAdapter, CheckedOperatorCandidateFact, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedValueFacts, CheckedValueOrigin,
+    CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedOperatorCandidateFact,
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    CheckedValueFacts, CheckedValueOrigin,
 };
 use omega_core::arena::Arena;
 use omega_core::arithmetic::ArithmeticDomain;
@@ -9,7 +10,7 @@ use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableIndexedExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
 };
 use omega_typed_trees::operator::{SpelledOperator, resolve_spelling_for_operands};
 use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -25,6 +26,7 @@ pub(crate) fn build_operator_facts(
     values: &CheckedValueFacts,
 ) -> CheckedOperatorFacts {
     let mut uses = Arena::default();
+    let mut named_uses = Arena::default();
     let mut candidates = Arena::default();
     let mut seen = Vec::new();
 
@@ -35,11 +37,12 @@ pub(crate) fn build_operator_facts(
             value.origin,
             &mut seen,
             &mut uses,
+            &mut named_uses,
             &mut candidates,
         );
     }
 
-    CheckedOperatorFacts::with_roots(uses, candidates)
+    CheckedOperatorFacts::with_roots(uses, named_uses, candidates)
 }
 
 fn collect_expression_operator_use(
@@ -48,6 +51,7 @@ fn collect_expression_operator_use(
     origin: CheckedValueOrigin,
     seen: &mut Vec<(ExpressionHandle, CheckedValueOrigin)>,
     uses: &mut Arena<CheckedOperatorUseFact>,
+    named_uses: &mut Arena<CheckedNamedOperatorUseFact>,
     candidates: &mut Arena<CheckedOperatorCandidateFact>,
 ) {
     if !expression.is_valid() || seen.iter().any(|seen| *seen == (expression, origin)) {
@@ -56,9 +60,15 @@ fn collect_expression_operator_use(
     seen.push((expression, origin));
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            collect_expression_operator_use(program, atomic.value, origin, seen, uses, candidates)
-        }
+        ExpressionNode::Atomic(atomic) => collect_expression_operator_use(
+            program,
+            atomic.value,
+            origin,
+            seen,
+            uses,
+            named_uses,
+            candidates,
+        ),
         ExpressionNode::Indexed(indexed) => {
             let spelling = indexed_operator_spelling(program, indexed.index);
             let operand_types = indexed_operand_types(program, indexed, origin);
@@ -76,13 +86,24 @@ fn collect_expression_operator_use(
                 origin,
                 seen,
                 uses,
+                named_uses,
                 candidates,
             );
-            collect_expression_operator_use(program, indexed.index, origin, seen, uses, candidates);
+            collect_expression_operator_use(
+                program,
+                indexed.index,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
         }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_expression_operator_use(program, *value, origin, seen, uses, candidates);
+                collect_expression_operator_use(
+                    program, *value, origin, seen, uses, named_uses, candidates,
+                );
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -107,16 +128,49 @@ fn collect_expression_operator_use(
             {
                 uses.append(fact);
             }
-            collect_expression_operator_use(program, binary.left, origin, seen, uses, candidates);
-            collect_expression_operator_use(program, binary.right, origin, seen, uses, candidates);
+            collect_expression_operator_use(
+                program,
+                binary.left,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
+            collect_expression_operator_use(
+                program,
+                binary.right,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
         }
         ExpressionNode::Cast(cast) => {
-            collect_expression_operator_use(program, cast.value, origin, seen, uses, candidates);
+            collect_expression_operator_use(
+                program, cast.value, origin, seen, uses, named_uses, candidates,
+            );
         }
         ExpressionNode::Call(call) => {
-            collect_expression_operator_use(program, call.receiver, origin, seen, uses, candidates);
+            if let Some(named_use) =
+                named_float_operator_use_fact(program, expression, origin, call)
+            {
+                named_uses.append(named_use);
+            }
+            collect_expression_operator_use(
+                program,
+                call.receiver,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_operator_use(program, *argument, origin, seen, uses, candidates);
+                collect_expression_operator_use(
+                    program, *argument, origin, seen, uses, named_uses, candidates,
+                );
             }
         }
         ExpressionNode::Member(member) => {
@@ -126,18 +180,39 @@ fn collect_expression_operator_use(
                 origin,
                 seen,
                 uses,
+                named_uses,
                 candidates,
             );
         }
         ExpressionNode::Mutable(inner) => {
-            collect_expression_operator_use(program, *inner, origin, seen, uses, candidates);
+            collect_expression_operator_use(
+                program, *inner, origin, seen, uses, named_uses, candidates,
+            );
         }
         ExpressionNode::Unary(unary) => {
-            collect_expression_operator_use(program, unary.operand, origin, seen, uses, candidates);
+            collect_expression_operator_use(
+                program,
+                unary.operand,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
         }
         ExpressionNode::Range(range) => {
-            collect_expression_operator_use(program, range.start, origin, seen, uses, candidates);
-            collect_expression_operator_use(program, range.end, origin, seen, uses, candidates);
+            collect_expression_operator_use(
+                program,
+                range.start,
+                origin,
+                seen,
+                uses,
+                named_uses,
+                candidates,
+            );
+            collect_expression_operator_use(
+                program, range.end, origin, seen, uses, named_uses, candidates,
+            );
         }
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
@@ -150,6 +225,7 @@ fn collect_expression_operator_use(
                     origin,
                     seen,
                     uses,
+                    named_uses,
                     candidates,
                 );
             }
@@ -161,6 +237,75 @@ fn collect_expression_operator_use(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
+}
+
+/// Retain the selected identity of one normalized F32/F64 named call. Policy
+/// adaptation is operand-driven for float-returning operations; classification
+/// calls are still recorded but carry no float result adapter.
+fn named_float_operator_use_fact(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    call: &TableCallExpression,
+) -> Option<CheckedNamedOperatorUseFact> {
+    let operator = omega_typed_trees::operator::resolve_named_expression_call(program, call)?;
+    let format = match program
+        .operator_path_members(operator.name)
+        .first()?
+        .as_str()
+    {
+        "F32" => FloatFormat::BINARY32,
+        "F64" => FloatFormat::BINARY64,
+        _ => return None,
+    };
+    let returns_matching_float = matches!(
+        (
+            format,
+            program.primitive_type_reference(operator.return_type)
+        ),
+        (FloatFormat::BINARY32, Some(PrimitiveType::F32))
+            | (FloatFormat::BINARY64, Some(PrimitiveType::F64))
+    );
+    let policy_adapter = if returns_matching_float {
+        named_float_policy_adapter(program, call, origin, format)
+    } else {
+        CheckedArithmeticPolicyAdapter::None
+    };
+
+    Some(CheckedNamedOperatorUseFact {
+        expression,
+        origin,
+        selected_operator_symbol: operator.symbol,
+        policy_adapter,
+    })
+}
+
+fn named_float_policy_adapter(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    origin: CheckedValueOrigin,
+    format: FloatFormat,
+) -> CheckedArithmeticPolicyAdapter {
+    let mut selected_domain = ArithmeticDomain::Exact;
+    for argument in program.expression_table.expression_handles(call.arguments) {
+        let Some(type_reference) = expression_type_reference_for_origin(program, *argument, origin)
+        else {
+            continue;
+        };
+        let domain = program
+            .type_reference_table
+            .arithmetic_domain(type_reference);
+        if domain == ArithmeticDomain::Exact {
+            continue;
+        }
+        if selected_domain != ArithmeticDomain::Exact && selected_domain != domain {
+            // Validation rejects mixed explicit arithmetic policies. Checked
+            // evidence fails closed if lowering is invoked without that gate.
+            return CheckedArithmeticPolicyAdapter::None;
+        }
+        selected_domain = domain;
+    }
+    float_policy_adapter(format, selected_domain)
 }
 
 /// The fixed operator spelling for a binary operator, when one exists.
@@ -366,10 +511,19 @@ fn arithmetic_policy_adapter(
         Some(PrimitiveType::F64) => FloatFormat::BINARY64,
         _ => return CheckedArithmeticPolicyAdapter::None,
     };
-    match program
-        .type_reference_table
-        .arithmetic_domain(receiver_type)
-    {
+    float_policy_adapter(
+        format,
+        program
+            .type_reference_table
+            .arithmetic_domain(receiver_type),
+    )
+}
+
+fn float_policy_adapter(
+    format: FloatFormat,
+    domain: ArithmeticDomain,
+) -> CheckedArithmeticPolicyAdapter {
+    match domain {
         ArithmeticDomain::Saturating => {
             CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { format }
         }

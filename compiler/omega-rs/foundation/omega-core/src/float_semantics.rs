@@ -661,16 +661,18 @@ impl FloatSemantics {
         }
     }
 
-    /// Apply overflow-only `Saturating` to add/subtract/multiply results.
-    /// Infinity clamps only when finite operands produced it by magnitude
-    /// overflow; invalid NaN and non-finite propagation remain unchanged.
+    /// Apply overflow-only `Saturating` to a semantic operation result.
+    /// Infinity clamps only when every operand is finite, which identifies
+    /// magnitude overflow for the non-division float operations. Invalid NaN
+    /// and non-finite propagation remain unchanged. Division uses
+    /// [`Self::apply_saturating_divide_policy`] so a signed-zero divisor is
+    /// excluded explicitly.
     pub fn apply_saturating_policy(
         format: FloatFormat,
-        left: &FloatMeaning,
-        right: &FloatMeaning,
+        operands: &[&FloatMeaning],
         result: FloatMeaning,
     ) -> FloatMeaning {
-        if result.is_infinite() && left.is_finite() && right.is_finite() {
+        if result.is_infinite() && operands.iter().all(|operand| operand.is_finite()) {
             Self::maximum_finite(format, result.is_negative())
         } else {
             result
@@ -689,7 +691,7 @@ impl FloatSemantics {
         if right.is_zero() {
             result
         } else {
-            Self::apply_saturating_policy(format, left, right, result)
+            Self::apply_saturating_policy(format, &[left, right], result)
         }
     }
 
@@ -1140,8 +1142,7 @@ mod tests {
         assert_eq!(
             FloatSemantics::apply_saturating_policy(
                 FloatFormat::BINARY32,
-                &one,
-                &one,
+                &[&one, &one],
                 infinity.clone(),
             )
             .to_f32()
@@ -1151,8 +1152,7 @@ mod tests {
         assert_eq!(
             FloatSemantics::apply_saturating_policy(
                 FloatFormat::BINARY32,
-                &one,
-                &one,
+                &[&one, &one],
                 negative_infinity,
             )
             .to_f32()
@@ -1162,15 +1162,28 @@ mod tests {
         assert_eq!(
             FloatSemantics::apply_saturating_policy(
                 FloatFormat::BINARY32,
-                &infinity,
-                &one,
+                &[&infinity, &one],
                 infinity.clone(),
             ),
             infinity
         );
         assert_eq!(
-            FloatSemantics::apply_saturating_policy(FloatFormat::BINARY32, &one, &one, nan.clone(),),
+            FloatSemantics::apply_saturating_policy(
+                FloatFormat::BINARY32,
+                &[&one, &one],
+                nan.clone(),
+            ),
             nan
+        );
+        assert_eq!(
+            FloatSemantics::apply_saturating_policy(
+                FloatFormat::BINARY32,
+                &[&one, &one, &zero],
+                FloatMeaning::Infinity { negative: false },
+            )
+            .to_f32()
+            .to_bits(),
+            f32::MAX.to_bits()
         );
         assert_eq!(
             FloatSemantics::apply_saturating_divide_policy(

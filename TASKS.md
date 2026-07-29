@@ -699,9 +699,13 @@ and allocation handles expose no compiler-owned stack/control storage.
   `FloatTrappingNonFinite` or `FloatSaturatingOverflowOnly` adapter selected by
   the operand policy. Native and interpreter canaries pin propagated
   non-finites, finite overflow, division by zero, and invalid results.
-  Finish rung 2 by recording policy adaptation for the named/unary operation
-  surfaces and making downstream lowering consume checked adapter evidence
-  instead of reconstructing policy from type domains.
+  Named F32/F64 calls now retain their selected requirement identity and the
+  same adapter in a distinct checked named-use arena. Float-returning unary,
+  binary, ternary, and directed operations apply the shared adapter in the
+  interpreter; classification results carry no float adapter, and mixed
+  explicit operand policies reject statically.
+  Finish rung 2 by carrying and consuming checked adapter evidence through
+  downstream lowering instead of reconstructing policy from type domains.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief; only the negative ruling that compatibility

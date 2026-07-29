@@ -140,6 +140,117 @@ machine Main::main(&mut self) {
 }
 
 #[test]
+fn named_float_saturating_policy_clamps_ternary_overflow() {
+    let main_path = write_program(
+        "named-float-saturating-policy",
+        r#"
+use omega::language::core::float_operations;
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    maximum: f32 in Saturating;
+    two: f32 in Saturating;
+    zero: f32 in Saturating;
+    result: f32 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.maximum = 340282346638528859811704183484516925440.0;
+    self.two = 2.0;
+    self.zero = 0.0;
+    self.result = F32::multiply_then_add(self.maximum, self.two, self.zero);
+    transition self.result == self.maximum {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!("named Saturating float policy should compile: {diagnostics:?}")
+    });
+    assert!(checked.facts.operators.named_uses().any(|operator_use| {
+        operator_use.policy_adapter
+            == omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                format: omega_core::float_semantics::FloatFormat::BINARY32,
+            }
+    }));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "named Saturating float operation should execute: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
+fn named_float_trapping_policy_rejects_propagated_nonfinite() {
+    let main_path = write_program(
+        "named-float-trapping-policy",
+        r#"
+use omega::language::core::float_operations;
+
+data Main {
+    quiet: f64;
+    trapped: f64 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.quiet = 1.0 / 0.0;
+    self.trapped = self.quiet;
+    self.trapped = F64::negate(self.trapped);
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!("named Trapping float policy should compile: {diagnostics:?}")
+    });
+    assert!(checked.facts.operators.named_uses().any(|operator_use| {
+        operator_use.policy_adapter
+            == omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: omega_core::float_semantics::FloatFormat::BINARY64,
+            }
+    }));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        outcome.error.as_deref().is_some_and(|reason| {
+            reason.contains("named float operation `negate`")
+                && reason.contains("infinity")
+                && reason.contains("Trapping")
+        }),
+        "named Trapping result adapter must reject propagated infinity: {:?}",
+        outcome.error
+    );
+}
+
+#[test]
+fn named_float_requirement_rejects_mixed_policies() {
+    frontend_rejects(
+        "named-float-requirement-mixed-policies",
+        r#"
+use omega::language::core::float_operations;
+
+data Main {
+    saturated: f32 in Saturating;
+    trapped: f32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    let value: f32 =
+        F32::multiply_then_add(self.saturated, self.trapped, self.saturated);
+}
+"#,
+    );
+}
+
+#[test]
 fn named_float_requirement_argument_types_remain_checked() {
     frontend_rejects(
         "named-float-requirement-wrong-argument",

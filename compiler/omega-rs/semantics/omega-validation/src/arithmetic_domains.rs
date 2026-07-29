@@ -2044,6 +2044,66 @@ fn analyze(
             }
         }
         ExpressionNode::Call(call) => {
+            // F7 named float requirements use the same operand-driven policy
+            // selection as spellings. Preserve the selected domain for an
+            // enclosing expression and reject two different explicit policies
+            // before checked evidence is built. Classification calls return a
+            // non-float and therefore carry no float result policy.
+            if let Some(operator) =
+                omega_typed_trees::operator::resolve_named_expression_call(program, call)
+                && let Some(return_primitive) =
+                    program.primitive_type_reference(operator.return_type)
+                && matches!(return_primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                && program
+                    .operator_path_members(operator.name)
+                    .first()
+                    .is_some_and(|namespace| {
+                        matches!(
+                            (namespace.as_str(), return_primitive),
+                            ("F32", PrimitiveType::F32) | ("F64", PrimitiveType::F64)
+                        )
+                    })
+            {
+                let mut selected_domain: Option<ArithmeticDomain> = None;
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    let mut throwaway = Vec::new();
+                    let argument = analyze(
+                        program,
+                        machine,
+                        state,
+                        *argument,
+                        env,
+                        target_primitive,
+                        target_domain,
+                        owner,
+                        &mut throwaway,
+                    );
+                    let Some(domain) = argument.domain else {
+                        continue;
+                    };
+                    if let Some(selected) = selected_domain
+                        && selected != domain
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "mixed arithmetic domains in {owner}: named float operation `{}` \
+                             receives both `{}` and `{}` operands. Decision 17 forbids implicit \
+                             domain mixing -- cross domains with an explicit `as` cast, or \
+                             declare every operand in the same domain.",
+                            call.target,
+                            selected.name(),
+                            domain.name(),
+                        )));
+                    } else {
+                        selected_domain = Some(domain);
+                    }
+                }
+                return Analysis {
+                    domain: selected_domain,
+                    interval: Interval::UNBOUNDED,
+                    primitive: Some(return_primitive),
+                };
+            }
+
             // S4: the `min`/`max` builtins bound their result by their operands'
             // intervals (`max(0, x)` is >= 0, `min(x, 100)` is <= 100), so a
             // clamped value can feed exact arithmetic instead of poisoning the

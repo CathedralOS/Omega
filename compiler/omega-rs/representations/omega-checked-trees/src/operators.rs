@@ -68,6 +68,18 @@ pub struct CheckedOperatorUseFact {
     pub status: CheckedOperatorResolutionStatus,
 }
 
+/// One uniquely resolved named operator call retained as checked evidence.
+/// Named calls have no spelling-resolution candidate set, but they still need
+/// the selected semantic identity and any arithmetic-policy result adapter to
+/// survive past typed trees.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CheckedNamedOperatorUseFact {
+    pub expression: ExpressionHandle,
+    pub origin: CheckedValueOrigin,
+    pub selected_operator_symbol: SymbolHandle,
+    pub policy_adapter: CheckedArithmeticPolicyAdapter,
+}
+
 impl Default for CheckedOperatorUseFact {
     fn default() -> Self {
         Self {
@@ -240,15 +252,21 @@ impl CheckedOperatorContractUse<'_> {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,
+    pub named_uses: Arena<CheckedNamedOperatorUseFact>,
     pub candidates: Arena<CheckedOperatorCandidateFact>,
 }
 
 impl CheckedOperatorFacts {
     pub fn with_roots(
         uses: Arena<CheckedOperatorUseFact>,
+        named_uses: Arena<CheckedNamedOperatorUseFact>,
         candidates: Arena<CheckedOperatorCandidateFact>,
     ) -> Self {
-        Self { uses, candidates }
+        Self {
+            uses,
+            named_uses,
+            candidates,
+        }
     }
 
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {
@@ -279,6 +297,37 @@ impl CheckedOperatorFacts {
 
     pub fn resolved_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
         self.uses_with_status(CheckedOperatorResolutionStatus::Resolved)
+    }
+
+    pub fn named_uses(&self) -> impl Iterator<Item = &CheckedNamedOperatorUseFact> {
+        self.named_uses.iter().map(|(_, operator_use)| operator_use)
+    }
+
+    pub fn named_expression_use_in_origin(
+        &self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    ) -> Option<&CheckedNamedOperatorUseFact> {
+        self.named_uses.iter().find_map(|(_, operator_use)| {
+            (operator_use.expression == expression && operator_use.origin == origin)
+                .then_some(operator_use)
+        })
+    }
+
+    /// One query for downstream consumers that do not care whether the source
+    /// selected a spelled or named operator identity.
+    pub fn policy_adapter_for_expression_in_origin(
+        &self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    ) -> CheckedArithmeticPolicyAdapter {
+        self.expression_use_in_origin(expression, origin)
+            .map(|operator_use| operator_use.policy_adapter)
+            .or_else(|| {
+                self.named_expression_use_in_origin(expression, origin)
+                    .map(|operator_use| operator_use.policy_adapter)
+            })
+            .unwrap_or_default()
     }
 
     pub fn missing_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
@@ -423,10 +472,33 @@ mod tests {
             status: CheckedOperatorResolutionStatus::Ambiguous,
         });
 
-        let facts = CheckedOperatorFacts::with_roots(uses.clone(), candidates.clone());
+        let mut named_uses = Arena::with_capacity(1);
+        let named_expression = ExpressionHandle::from_arena_index(7);
+        named_uses.append(CheckedNamedOperatorUseFact {
+            expression: named_expression,
+            origin: CheckedValueOrigin::default(),
+            selected_operator_symbol: SymbolHandle::from_arena_index(8),
+            policy_adapter: CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: FloatFormat::BINARY64,
+            },
+        });
+
+        let facts =
+            CheckedOperatorFacts::with_roots(uses.clone(), named_uses.clone(), candidates.clone());
 
         assert_eq!(facts.uses, uses);
+        assert_eq!(facts.named_uses, named_uses);
         assert_eq!(facts.candidates, candidates);
+        assert_eq!(facts.named_uses().count(), 1);
+        assert_eq!(
+            facts.policy_adapter_for_expression_in_origin(
+                named_expression,
+                CheckedValueOrigin::default(),
+            ),
+            CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: FloatFormat::BINARY64,
+            }
+        );
         assert_eq!(
             facts
                 .expression_use(expression)

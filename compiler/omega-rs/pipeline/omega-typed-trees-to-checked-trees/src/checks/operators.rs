@@ -142,7 +142,11 @@ mod tests {
             status: CheckedOperatorResolutionStatus::Ambiguous,
         });
         let facts = CheckFacts {
-            operators: omega_checked_trees::CheckedOperatorFacts::with_roots(uses, candidates),
+            operators: omega_checked_trees::CheckedOperatorFacts::with_roots(
+                uses,
+                Default::default(),
+                candidates,
+            ),
             ..Default::default()
         };
 
@@ -178,6 +182,7 @@ mod tests {
         let facts = CheckFacts {
             operators: omega_checked_trees::CheckedOperatorFacts::with_roots(
                 uses,
+                Default::default(),
                 Arena::default(),
             ),
             ..Default::default()
