@@ -16,9 +16,9 @@ The baseline model should stay close to Rust:
 Generic data declarations parameterize stored shape.
 
 ```omega
-data Option<T> {
-    has_value: bool;
-    value: T;
+data Optional<T> {
+    case #0 None;
+    case #1 Some(value: T);
 }
 
 data Pair<A, B> {
@@ -33,8 +33,14 @@ Working rules:
 - Each concrete instantiation has a concrete layout after type checking.
 - Generic fields follow the same ownership, move, borrow, and cleanup rules as
   non-generic fields.
-- If `T` has cleanup, then `Option<T>` or `Pair<A, B>` may have structural
+- If `T` has cleanup, then `Optional<T>` or `Pair<A, B>` may have structural
   cleanup obligations.
+
+`Optional<T>` is ordinary cased data rather than a distinct language feature.
+Packages may declare other generic sums with domain-specific cases. Its home
+representation publishes an ordinary machine requirement proving
+`zero_value<Optional<T>>() == Optional::None`; the checker discharges that
+authored obligation from the normalized home layout.
 
 ## Generic Machines
 
@@ -44,7 +50,7 @@ Machines may be generic over types.
 machine Inventory::find<T>(
     items: &[T],
     target: &T,
-    out: &mut Option<u64>
+    out: &mut Optional<u64>
 )
 where
     T: Equatable
@@ -58,7 +64,7 @@ where
         items: &[T],
         target: &T,
         index: u64,
-        out: &mut Option<u64>
+        out: &mut Optional<u64>
     ) {
         let found: bool = items[index].equals(target);
         let next_index: u64 = index + 1;
@@ -71,11 +77,11 @@ where
         }
     }
 
-    state found_at(index: u64, out: &mut Option<u64>) {
+    state found_at(index: u64, out: &mut Optional<u64>) {
         out = Some(index);
     }
 
-    state not_found(out: &mut Option<u64>) {
+    state not_found(out: &mut Optional<u64>) {
         out = None;
     }
 }

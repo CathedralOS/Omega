@@ -117,7 +117,7 @@ data Game {
     phase: GamePhase;
     turns: u64;
     board: Board;
-    winner: Option<PlayerId>;
+    winner: Optional<PlayerId>;
 }
 
 domain Game::NewGame {

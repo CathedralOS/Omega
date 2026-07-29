@@ -574,11 +574,35 @@ move it to a convenience library.
 
 ### Wire runtime
 
-**OWNER-BLOCKED: `OWNER_QUESTIONS.md` #11.**
+The language model is settled in guide chapters 21-22 and the programmable
+layouts brief. Complete the implementation in dependency order:
 
-After the next wire family/presence/evolution ruling, implement remaining wire
-values and codecs through ordinary data plus layout/format policy. Do not
-restore `wire data` or a universal representation.
+- migrate numbered field syntax to `#N name: Type`, add `case #N Name`, and
+  enforce all-or-nothing numbering independently for record fields, sum cases,
+  and structured case-payload fields; make `retired #N;` enter numbered mode;
+- rename the standard cased carrier to `Optional<T>`, retain `None | Some(T)`
+  as ordinary cases, and add the home-representation proof requirement that
+  all-zero storage denotes `None`;
+- reflect stable case identities and retired cases through `Schema`, normalized
+  plan identity, diagnostics, and artifact reports without coupling them to
+  runtime discriminants;
+- replace bounded repeated-field array/count conventions with codec support for
+  `[T; N]`, `FixedVec<T, N>`, borrowed slices, and `Vec<T>` once its allocator
+  obligations are available;
+- expose strict, projecting, and preserving decode requirements; implement the
+  preserving package carrier `Relayed<T>` with an opaque round-trip remainder;
+- represent published historical formats as ordinary immutable data and select
+  checked migration machines through format-lineage packages;
+- make compatibility checks consume channel/store demands and report
+  directional readability, writability, unknown preservation, canonicality,
+  and migration coverage; and
+- retain realization origin separately from trust, classifying the current
+  generated `compact_binary` codec as compiler-admitted until its generated
+  body is independently checked against the public codec requirement.
+
+Keep `compact_binary` strict while extending its normalized plan and generated
+realizations. Additional native or ecosystem codec families are ordinary
+policy packages over the same schema and requirement surface.
 
 ### Admitted executable installation
 
@@ -600,7 +624,6 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #11 wire family/presence/evolution | remaining wire runtime |
 | #12 sealed external entry reference | callbacks and dynamic entry registration |
 | #13 portable atomic fence | standalone fence surface |
 | #14 retained foreign pointer | asynchronous/retained FFI borrows |

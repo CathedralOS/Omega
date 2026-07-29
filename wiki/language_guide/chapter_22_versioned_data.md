@@ -1,9 +1,9 @@
 # Chapter 22: Historical Data And Component Replacement
 
-Omega has no first-class versioned-data container and no replacement DSL.
-Historical formats are ordinary data plus checked conversion machines. Live
-component replacement is a library protocol over boundary runtime services.
-The language supplies the safety substrate; packages choose policy.
+Historical formats are ordinary immutable data plus checked conversion
+machines. Live component replacement is a package protocol over boundary
+runtime services. The language supplies stable identities, checked machines,
+ownership, and artifact evidence; format and deployment packages select policy.
 
 ## Historical Formats Are Ordinary Data
 
@@ -16,17 +16,17 @@ Each published era is an immutable ordinary data declaration:
 
 ```omega
 data CounterDiskV1 {
-    counter: i32;
+    #1 counter: i32;
 }
 
 data CounterDiskV2 {
-    counter: i64;
-    timestamp_seconds: u64;
+    #1 counter: i64;
+    #2 timestamp_seconds: u64;
 }
 
 data CounterDiskKnown {
-    case V1(value: CounterDiskV1);
-    case V2(value: CounterDiskV2);
+    case #1 V1(value: CounterDiskV1);
+    case #2 V2(value: CounterDiskV2);
 }
 
 data Counter {
@@ -38,13 +38,12 @@ data Counter {
 The durable shapes contain durable carriers. Runtime-only types such as
 atomics, locks, handles, and capabilities are converted deliberately rather
 than persisted by accident. Publishing a new era means declaring a new shape,
-adding its envelope case, and writing its conversion. Old declarations are not
-edited in place.
+adding its envelope case, and writing its conversion. Published historical
+declarations remain immutable.
 
 Stable field/case identities, tombstones, layout policies, codecs, and
-publish-time predecessor comparisons are Chapter 21 layout/serialization
-machinery. They are metadata over ordinary declarations, not a versioning type
-system.
+edge-specific compatibility checks are Chapter 21 layout/serialization
+machinery. They operate over ordinary declarations.
 
 ## Decode Is The Open-World Seam
 
@@ -67,8 +66,9 @@ not an inability to construct ordinary data.
 
 Exhaustive matching makes adding a known era loud. A package that needs the
 stronger rule "every known era has an explicit route to the runtime shape" may
-express it as trait-law conformance over the envelope cases. A wildcard arm is
-ordinary matching and does not prove that stronger law.
+express it as selected conformance to ordinary proof-machine requirements over
+the envelope cases. A wildcard arm remains ordinary matching; the selected
+conformance carries the stronger completeness proof.
 
 ## Migration Is Ordinary Checked Code
 
@@ -138,16 +138,14 @@ ordinarily pin the code and metadata of their era. "New routing is active" and
 
 Arena-backed pools, era ledgers, coexistence policy, migration graphs, and
 replacement orchestration are runtime/package concerns. Cathedral is the
-planned first customer. If that implementation discovers a semantic requirement that
-ordinary data, machines, traits, domains, ownership, and boundary providers
-cannot express, that demonstrated requirement may justify new language
-surface. Repeated boilerplate alone does not.
+planned first customer. Its implementation validates that ordinary data,
+machines, traits, domains, ownership, and boundary providers express the
+required protocol.
 
 ## Deliberately Deferred Component Work
 
 The remaining representation work includes the artifact and mapping-cohort
 manifest, entry-acquisition algorithm, era-ledger and disposition receipts,
 bounded live-era policy, outbound calls from old continuations, exact
-liveness accounting, and optional continuation migration. These are
-component-runtime questions, not reasons to restore `Versioned<T>`, `.prev`
-type paths, or `replace` syntax.
+liveness accounting, and optional continuation migration. These complete the
+component-runtime protocol described above.

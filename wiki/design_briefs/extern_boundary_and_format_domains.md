@@ -196,8 +196,8 @@ remain owner question #12; retained pointer custody remains #14.
 
 Foreign layout is expressed by authored programmable layout policies built from
 compiler-known placement primitives. Plain `data` supplies the semantic shape;
-layout policy supplies the foreign byte representation. There is no separate
-`wire data` species and no compiler-owned catalog of every external format.
+layout policy supplies the foreign byte representation. Format packages publish
+their selected plan, codec requirements, realizations, and trust evidence.
 
 Inbound paths are explicit:
 
