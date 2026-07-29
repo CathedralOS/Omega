@@ -1,12 +1,14 @@
-// RUN canary: the `as`-widen is the sanctioned way to bitwise-combine different-
-// width integers (see the fail canary mismatched_width_bitwise_rejected). This
-// locks that the widened bitwise op does NOT truncate the wider operand.
+// RUN canary: a named widening conversion is the sanctioned way to
+// bitwise-combine different-width integers (see the fail canary
+// mismatched_width_bitwise_rejected). This locks that the widened bitwise op
+// does NOT truncate the wider operand.
 //
 // `self.big` is u32 256 (0x100); `self.small` is u8 1. A truncating `|` (the
 // rejected bug) would read `(256 & 0xFF == 0) | 1` -> 1; the correct widened op
 // reads `256 | 1` -> 257 (the u8 zero-extends, the u32's high bits survive).
 // combined == 257 -> exit 70, else the wider operand was truncated -> exit 71.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -21,7 +23,7 @@ machine Main::main(&mut self) {
 
     // Widen the u8 so both operands are u32; the OR must preserve bit 8 (256) AND
     // bit 0 (1) -> 257. A truncation to u8 width would drop the 256 and yield 1.
-    self.combined = self.big | self.small as u32;
+    self.combined = self.big | widen_u8_to_u32(self.small);
 
     transition self.combined == 257 { true -> correct() _ -> truncated() }
 

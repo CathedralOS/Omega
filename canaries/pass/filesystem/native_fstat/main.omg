@@ -5,6 +5,7 @@
 // shape (like read without the count) — lowers and runs on real macOS syscalls.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -28,15 +29,16 @@ machine Main::main(&mut self) {
     self.n = self.fs.remove("/tmp/omega_fstat.txt");
     transition self.rc == 0 { true -> decode() _ -> fail() }
     state decode(&mut self) {
-        self.len = (self.buffer[96] as i64)
-            | ((self.buffer[97] as i64) << 8)
-            | ((self.buffer[98] as i64) << 16)
-            | ((self.buffer[99] as i64) << 24)
-            | ((self.buffer[100] as i64) << 32)
-            | ((self.buffer[101] as i64) << 40)
-            | ((self.buffer[102] as i64) << 48)
-            | ((self.buffer[103] as i64) << 56);
-        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.len = widen_u8_to_i64(self.buffer[96])
+            | (widen_u8_to_i64(self.buffer[97]) << 8)
+            | (widen_u8_to_i64(self.buffer[98]) << 16)
+            | (widen_u8_to_i64(self.buffer[99]) << 24)
+            | (widen_u8_to_i64(self.buffer[100]) << 32)
+            | (widen_u8_to_i64(self.buffer[101]) << 40)
+            | (widen_u8_to_i64(self.buffer[102]) << 48)
+            | (widen_u8_to_i64(self.buffer[103]) << 56);
+        self.st_mode =
+            widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8);
         self.is_dir = (self.st_mode & 61440) == 16384;
         transition self.len == 10 { true -> checkkind() _ -> fail() }
     }

@@ -19,6 +19,7 @@ use omega::language::std::filesystem_host;
 use omega::language::std::time;
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -44,14 +45,14 @@ machine Main::main(&mut self) {
     self.n = self.fs.remove("/tmp/omega_time_interop.txt");
     transition self.rc == 0 { true -> decode() _ -> bad(71) }
     state decode(&mut self) {
-        self.mtime = (self.buffer[48] as i64)
-            | ((self.buffer[49] as i64) << 8)
-            | ((self.buffer[50] as i64) << 16)
-            | ((self.buffer[51] as i64) << 24)
-            | ((self.buffer[52] as i64) << 32)
-            | ((self.buffer[53] as i64) << 40)
-            | ((self.buffer[54] as i64) << 48)
-            | ((self.buffer[55] as i64) << 56);
+        self.mtime = widen_u8_to_i64(self.buffer[48])
+            | (widen_u8_to_i64(self.buffer[49]) << 8)
+            | (widen_u8_to_i64(self.buffer[50]) << 16)
+            | (widen_u8_to_i64(self.buffer[51]) << 24)
+            | (widen_u8_to_i64(self.buffer[52]) << 32)
+            | (widen_u8_to_i64(self.buffer[53]) << 40)
+            | (widen_u8_to_i64(self.buffer[54]) << 48)
+            | (widen_u8_to_i64(self.buffer[55]) << 56);
         self.modified = SystemTime::from_unix_seconds(self.mtime);
         self.now_keep = self.time.system_time_now();
         // Direct call on the NON-FIRST SystemTime field: per-instance

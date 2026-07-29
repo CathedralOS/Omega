@@ -6,6 +6,7 @@
 // timespec-buffer pointer, the fstat operand shape) lowers and runs on macOS.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -41,14 +42,14 @@ machine Main::main(&mut self) {
         transition self.rc == 0 { true -> decode() _ -> fail() }
     }
     state decode(&mut self) {
-        self.got = (self.statbuf[48] as i64)
-            | ((self.statbuf[49] as i64) << 8)
-            | ((self.statbuf[50] as i64) << 16)
-            | ((self.statbuf[51] as i64) << 24)
-            | ((self.statbuf[52] as i64) << 32)
-            | ((self.statbuf[53] as i64) << 40)
-            | ((self.statbuf[54] as i64) << 48)
-            | ((self.statbuf[55] as i64) << 56);
+        self.got = widen_u8_to_i64(self.statbuf[48])
+            | (widen_u8_to_i64(self.statbuf[49]) << 8)
+            | (widen_u8_to_i64(self.statbuf[50]) << 16)
+            | (widen_u8_to_i64(self.statbuf[51]) << 24)
+            | (widen_u8_to_i64(self.statbuf[52]) << 32)
+            | (widen_u8_to_i64(self.statbuf[53]) << 40)
+            | (widen_u8_to_i64(self.statbuf[54]) << 48)
+            | (widen_u8_to_i64(self.statbuf[55]) << 56);
         transition self.got == 1500000000 { true -> good() _ -> fail() }
     }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: set_times set mtime to 1500000000, fstat confirms\n"); }

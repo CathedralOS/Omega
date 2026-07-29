@@ -1418,6 +1418,83 @@ fn accepts_guarded_transition_that_establishes_state_arrival_requires() {
 }
 
 #[test]
+fn incoming_guard_rebinds_state_parameter_for_nested_call_requires() {
+    let source = r#"
+        data Main {
+            observed: i64;
+        }
+
+        machine require_nonnegative(value: i64)
+        requires
+            value >= 0
+        {
+        }
+
+        machine Main::main(&mut self) {
+            transition self.observed >= 0 {
+                true -> accepted(self.observed)
+                false -> done()
+            }
+
+            state accepted(&mut self, count: i64) {
+                require_nonnegative(count);
+            }
+
+            state done(&mut self) {
+            }
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source)).expect(
+        "the incoming guard should rebind the state parameter before proving a nested call contract",
+    );
+}
+
+#[test]
+fn exact_declared_local_range_proves_call_requires() {
+    let source = r#"
+        machine accept(value: i64)
+        requires
+            value >= 0 && value <= 255
+        {
+        }
+
+        machine main(source: i64 [0..=255]) {
+            let bounded: i64 [0..=255] = source;
+            accept(bounded);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a store-enforced Exact local range should prove the callee bounds");
+}
+
+#[test]
+fn broader_declared_local_range_does_not_prove_call_requires() {
+    let source = r#"
+        machine accept(value: i64)
+        requires
+            value >= 0 && value <= 255
+        {
+        }
+
+        machine main(source: i64 [-1..=255]) {
+            let not_nonnegative: i64 [-1..=255] = source;
+            accept(not_nonnegative);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a range containing -1 must not establish nonnegativity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from main")
+            && diagnostic.message.contains("value >= 0")
+    }));
+}
+
+#[test]
 fn rejects_transition_that_does_not_establish_state_arrival_requires() {
     let source = r#"
         data Main {
@@ -1847,6 +1924,81 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
 
     let diagnostics = lower_typed_trees(parse_typed_trees(source))
         .expect_err("an overlapping internal frame must invalidate the range witness");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove assignment value")),
+        "expected the bounded-assignment refusal, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn incoming_guard_survives_pure_value_call_before_bounded_assignment() {
+    let source = r#"
+        machine widen(value: i32) -> i64 {
+            value as i64
+        }
+
+        data Main {
+            i: i32 [0..=2];
+            scratch: i64;
+        }
+
+        machine Main::main(&mut self) {
+            self.i = 0;
+            transition { _ -> step() }
+
+            state step(&mut self) {
+                transition self.i < 2 { true -> add() _ -> done() }
+            }
+
+            state add(&mut self) {
+                self.scratch = widen(self.i);
+                self.i = self.i + 1;
+                transition { _ -> step() }
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a pure value-call frame should preserve the incoming counter guard");
+}
+
+#[test]
+fn incoming_guard_dies_when_value_call_writes_guarded_place() {
+    let source = r#"
+        data Main {
+            i: i32 [0..=2];
+            scratch: i64;
+        }
+
+        machine Main::main(&mut self) {
+            self.i = 0;
+            transition { _ -> step() }
+
+            state step(&mut self) {
+                transition self.i < 2 { true -> add() _ -> done() }
+            }
+
+            state add(&mut self) {
+                self.scratch = self.touch_i();
+                self.i = self.i + 1;
+                transition { _ -> step() }
+            }
+
+            state touch_i(&mut self) -> i64 {
+                self.i = 2;
+                0
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("an overlapping value-call frame must invalidate the incoming guard");
     assert!(
         diagnostics
             .iter()

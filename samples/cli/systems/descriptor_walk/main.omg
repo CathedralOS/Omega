@@ -14,6 +14,7 @@
 //
 // Expected exit: 50
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 data Desc { kind: u32; pages: u64; }
 data Main {
     console: Console;
@@ -43,7 +44,8 @@ machine Main::main(&mut self) {
     }
     state tally(&mut self, off: u32 [0..=32]) {
         let d: &Desc = &self.buf[off] as &Desc;
-        let pages: u32 in Wrapping = d.pages as u32 in Wrapping;
+        let pages: u32 in Wrapping =
+            narrow_u64_to_u32_wrapping(d.pages) as u32 in Wrapping;
         self.total = self.total + pages;
         transition { _ -> step(off) }
     }
@@ -55,7 +57,7 @@ machine Main::main(&mut self) {
         }
     }
     state done(&mut self) {
-        let code: i32 = self.total as i32;
+        let code: i32 = narrow_u32_to_i32_trapping(self.total);
         self.console.exit_process(code);
     }
 }

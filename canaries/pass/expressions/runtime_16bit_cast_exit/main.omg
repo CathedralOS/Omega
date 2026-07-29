@@ -1,8 +1,9 @@
-// 16-bit (i16/u16) integer casts: every cast touching a 2-byte width used to be
-// refused ("state mutation needs lowering") even though the x86_64 convert encoder
-// already handled 2-byte (movzx/movsx-extend a word source; 0x66-prefixed word
-// store). The selection gate only admitted 1/4/8-byte widths; widening it to also
-// admit 2 unlocked the whole family. This locks every direction:
+// 16-bit (i16/u16) named integer conversions: every conversion touching a
+// 2-byte width used to be refused ("state mutation needs lowering") even though
+// the x86_64 convert encoder already handled 2-byte
+// (movzx/movsx-extend a word source; 0x66-prefixed word store). The selection
+// gate only admitted 1/4/8-byte widths; widening it to also admit 2 unlocked the
+// whole family. This locks every direction:
 //   * u16 -> u8   (truncate)        511   -> 255
 //   * i16 -> i32  (sign-extend)     -100  -> -100
 //   * i32 -> i16  (truncate)        70000 -> 4464
@@ -13,6 +14,7 @@
 // All correct -> exit 70.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -34,10 +36,13 @@ machine Main::main(&mut self) {
     self.i32val = 70000;
     self.u8val = 200;
 
-    self.trunc8 = self.u16val as u8 in Wrapping;        // 255
-    self.wide32 = self.i16val as i32 in Trapping;        // -100
-    self.narrow16 = self.i32val as i16 in Wrapping;      // 4464
-    self.widened16 = self.u8val as u16 in Wrapping;      // 200
+    // Conversion policy belongs to the named operation. The result returns to
+    // Exact arithmetic, then is qualified separately for these policy-bearing
+    // storage fields.
+    self.trunc8 = narrow_u16_to_u8_wrapping(self.u16val) as u8 in Wrapping;        // 255
+    self.wide32 = widen_i16_to_i32(self.i16val) as i32 in Trapping;                // -100
+    self.narrow16 = narrow_i32_to_i16_wrapping(self.i32val) as i16 in Wrapping;    // 4464
+    self.widened16 = widen_u8_to_u16(self.u8val) as u16 in Wrapping;                // 200
 
     transition self.trunc8 == 255 {
         true -> check_wide()
@@ -54,12 +59,13 @@ machine Main::main(&mut self) {
     }
     state check_i16_to_i8(&mut self) {
         self.i16val = 200;
-        self.signed8 = self.i16val as i8 in Wrapping;    // -56
+        self.signed8 = narrow_i16_to_i8_wrapping(self.i16val) as i8 in Wrapping;   // -56
         transition self.signed8 == 0 - 56 { true -> check_reinterp() _ -> bad() }
     }
     state check_reinterp(&mut self) {
         self.u16val = 40000;
-        self.reinterp16 = self.u16val as i16 in Wrapping;   // -25536
+        self.reinterp16 =
+            narrow_u16_to_i16_wrapping(self.u16val) as i16 in Wrapping;            // -25536
         transition self.reinterp16 == 0 - 25536 { true -> good() _ -> bad() }
     }
 

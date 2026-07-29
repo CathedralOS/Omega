@@ -6,6 +6,9 @@ mod static_writes;
 mod value_operands;
 
 pub(in crate::selection::runtime_dispatch::writes) use binary_table_writes::select_runtime_atomic_load_or_store_in_table;
+pub(in crate::selection) use operators::{
+    builtin_runtime_call_operator_in_table, builtin_runtime_unary_call_operator_in_table,
+};
 pub(crate) use value_operands::resolve_runtime_value_operand_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::{
     binary_value_operand_byte_width, binary_value_operands_are_float,
@@ -177,14 +180,17 @@ fn state_call_matches_expression(
     target: &str,
     receiver_path: &[&str],
 ) -> bool {
-    let (_, target_state) = input
+    let (target_machine, target_state) = input
         .control_flow
         .state_names_by_key_cloned(state_call.target_key);
     let planned_receiver_path = input
         .state_calls
         .receiver_path_segments
         .span_or_empty(state_call.receiver_path);
-    target_state.as_str() == target
+    // Methods are named by their target state. A top-level named machine is
+    // called by machine name and enters its canonical `entry` state.
+    (target_state.as_str() == target
+        || (target_state.as_str() == "entry" && target_machine.as_str() == target))
         && receiver_path.len() == planned_receiver_path.len()
         && receiver_path
             .iter()

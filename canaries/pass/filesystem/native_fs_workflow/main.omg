@@ -13,6 +13,7 @@
 // Prints PASS iff every step's rc/decoded field matches.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -51,11 +52,13 @@ machine Main::main(&mut self) {
         transition self.rc == 0 { true -> checktype() _ -> fail() }
     }
     state checktype(&mut self) {
-        self.fmt = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 61440;
+        self.fmt =
+            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+                & 61440;
         transition self.fmt == 32768 { true -> checksize() _ -> fail() }
     }
     state checksize(&mut self) {
-        self.size = self.buffer[96] as i32; // st_size low byte (11 < 256)
+        self.size = widen_u8_to_i32(self.buffer[96]); // st_size low byte (11 < 256)
         transition self.size == 11 { true -> link() _ -> fail() }
     }
     state link(&mut self) {
@@ -84,7 +87,9 @@ machine Main::main(&mut self) {
         transition self.rc == 0 { true -> checkro() _ -> fail() }
     }
     state checkro(&mut self) {
-        self.wbits = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 146; // 0o222
+        self.wbits =
+            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+                & 146; // 0o222
         transition self.wbits == 0 { true -> cleanup() _ -> fail() }
     }
     state cleanup(&mut self) {

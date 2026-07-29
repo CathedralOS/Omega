@@ -6878,8 +6878,9 @@ stderr:
 }
 
 // std::time receiverless type-scoped constructors deliver a 16-byte Duration
-// natively (construct-from-LETS shape). from_seconds(2)={2,0},
-// from_milliseconds(3500)={3,500000000} -> exit 70.
+// natively. The milliseconds path narrows a compiler-elided ranged local
+// through a nested named conversion, pinning outer-argument alias composition.
+// from_seconds(2)={2,0}, from_milliseconds(3500)={3,500000000} -> exit 70.
 #[test]
 fn runtime_duration_constructors_exit_canary_runs() {
     let canary = pass_canary("time/runtime_duration_constructors_exit");
@@ -15157,6 +15158,40 @@ fn runtime_unsigned_modulo_call_argument_exit_canary_runs() {
          draws, interpreter semantics; exit 71 = the signed-remainder misfire \
          routed the second event into the enemy arm and drew once extra -- the \
          dungeon seed-7 14-vs-15 residual), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_named_conversion_alias_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nested_named_conversion_alias_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-named-conversion-alias-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested named-conversion alias canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested named-conversion alias canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested conversion to read the caller's RandomState alias \
+         and return its high word (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -23951,7 +23986,7 @@ fn runtime_narrow_widen_cast_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected an inline narrow widening cast to extend by signedness -- u8>127 zero-extends (sum 806), i8<0 sign-extends (-5) (exit 70), got {:?}\nstderr:\n{}",
+        "expected inline named conversion + policy qualification to consume the delivered call result and extend by signedness -- u8>127 zero-extends (sum 806), i8<0 sign-extends (-5) (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -24263,9 +24298,9 @@ fn runtime_slice_index_read_exit_canary_runs() {
 #[test]
 fn runtime_indexed_read_operand_exit_canary_runs() {
     // A runtime-indexed read `self.nums[self.i]` used as a SUB-EXPRESSION OPERAND
-    // (a child of `+` and of an `as i64` cast), hoisted into synthetic
-    // `let __hoist_N = self.nums[self.i];` temps. Exits 70 when acc == 20 and
-    // big == 20.
+    // (a child of `+` and of the ordinary `widen_i32_to_i64` conversion),
+    // hoisted into synthetic `let __hoist_N = self.nums[self.i];` temps.
+    // Exits 70 when acc == 20 and big == 20.
     let canary = pass_canary("slices/runtime_indexed_read_operand_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
@@ -24295,6 +24330,236 @@ fn runtime_indexed_read_operand_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_numeric_conversion_surface_exit_canary_runs() {
+    let canary = pass_canary("core/numeric_conversion_surface");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numeric-conversion-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned numeric conversion surface should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned numeric conversion surface should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected exact/wrapping/saturating/trapping/widening unsigned conversions to agree; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_i64_to_u64_exact_guard_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_i64_to_u64_exact_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-i64-u64-exact-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded dynamic i64-to-u64 exact conversion should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded dynamic i64-to-u64 exact conversion should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected guarded dynamic i64-to-u64 exact conversion to preserve 32; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_numeric_signed_conversion_surface_exit_canary_runs() {
+    let canary = pass_canary("core/numeric_signed_conversion_surface");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numeric-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("signed numeric conversion surface should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("signed numeric conversion surface should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed exact/wrapping/saturating/trapping/widening conversions to agree; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn numeric_trapping_conversion_overflow_aborts() {
+    let canary = pass_canary("core/numeric_trapping_conversion_overflow");
+    let build_dir = std::env::temp_dir().join(format!("omega-numeric-trap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping numeric conversion should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping numeric conversion should run");
+    assert!(
+        !output.status.success() && output.status.code() != Some(7),
+        "expected out-of-range narrowing to trap before returning; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("trapping numeric conversion should reach checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert!(
+        outcome
+            .error
+            .as_deref()
+            .is_some_and(|reason| reason.contains("arithmetic overflow in Trapping domain")),
+        "interpreter must report the same conversion trap, got {:?}",
+        outcome.error
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_numeric_cross_signed_conversion_surface_exit_canary_runs() {
+    let canary = pass_canary("core/numeric_cross_signed_conversion_surface");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numeric-cross-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-signed numeric conversion surface should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-signed numeric conversion surface should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both signedness directions and all explicit policies to agree; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("cross-signed surface should reach checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must agree on cross-signed conversions, got {:?}",
+        outcome.error
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn numeric_cross_signed_trapping_conversions_abort() {
+    for (name, label) in [
+        (
+            "core/numeric_cross_signed_unsigned_overflow_traps",
+            "unsigned upper half to signed",
+        ),
+        (
+            "core/numeric_cross_signed_negative_traps",
+            "negative signed value to unsigned",
+        ),
+    ] {
+        let canary = pass_canary(name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-numeric-cross-trap-{}-{}",
+            label.replace(' ', "-"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{label} trapping conversion should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .unwrap_or_else(|error| panic!("{label} trapping conversion should run: {error}"));
+        assert!(
+            !output.status.success() && output.status.code() != Some(7),
+            "{label} must trap before returning; got {:?}\nstderr:\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let checked = compile_to_checked(&canary.join("main.omg"), None)
+            .unwrap_or_else(|_| panic!("{label} should reach checked trees"));
+        let outcome = omega_interpreter::interpret(&checked, &[]);
+        assert!(
+            outcome
+                .error
+                .as_deref()
+                .is_some_and(|reason| reason.contains("arithmetic overflow in Trapping domain")),
+            "interpreter must report the same {label} trap, got {:?}",
+            outcome.error
+        );
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
 }
 
 #[test]
@@ -29921,9 +30186,8 @@ fn windows_read_dir_nth_exit_canary_runs() {
 
 // The RAW set_file_time seam op (session slice 4b): kernel32 SetFileTime
 // over the handle bridge, hand-built FILETIME, stat round-trip @40. The
-// WRAPPER set_times windows migration is BLOCKED on the value-call
-// mutation-heavy-entry face (TASKS record); this raw pin keeps the
-// capability honest meanwhile. WINDOWS-HOST ONLY (raw windows ops have no
+// wrapper has its own end-to-end round-trip; this raw pin keeps the seam and
+// calibration independently honest. WINDOWS-HOST ONLY (raw windows ops have no
 // posix lowering), outside the cross-host sweep lists like the find trio.
 #[cfg(windows)]
 #[test]
@@ -32285,6 +32549,39 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_branch_leaf_multiple_named_conversion_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_branch_leaf_multiple_named_conversion_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-branch-leaf-multiple-named-conversion-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("branch-leaf multiple named-conversion canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("branch-leaf multiple named-conversion canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both conversion results to materialize before the branch-local binary initializer, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A value-call whose ENTRY host call writes self state (read_line into the
 // carrier) and whose leaf arms build payloads FROM that state: the Ok arm's
 // StructLiteral takes `len` from the host-written carrier; the Error arm's
@@ -33733,6 +34030,100 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
+    for relative in [
+        "canaries/pass/arithmetic/runtime_contained_range_write",
+        "canaries/pass/arithmetic/runtime_unsigned_modulo_call_argument_exit",
+        "canaries/pass/calls/runtime_call_enum_sequence",
+        "canaries/pass/calls/runtime_nested_named_conversion_alias_exit",
+        "canaries/pass/control_flow/runtime_branching_helper_local_guard_value",
+        "canaries/pass/dungeon/runtime_nested_value_call_caller_local_guard_exit",
+        "canaries/pass/rewards/runtime_contained_reward_table_roll_item",
+        "canaries/pass/rewards/runtime_reward_table_roll_item_shape",
+    ] {
+        let main_path = repo_root().join(relative).join("main.omg");
+        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "named integer-conversion PRNG canary {relative} should reach checked trees: \
+                 {diagnostics:#?}"
+            )
+        });
+    }
+}
+
+#[test]
+fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
+    for relative in [
+        "canaries/pass/calls/runtime_value_call_struct_payload_cast_field_exit",
+        "canaries/pass/filesystem/native_copy_preserve",
+        "canaries/pass/filesystem/native_filetype",
+        "canaries/pass/filesystem/native_fs_workflow",
+        "canaries/pass/filesystem/native_fstat",
+        "canaries/pass/filesystem/native_metadata_blocks",
+        "canaries/pass/filesystem/native_metadata_ctime_dev",
+        "canaries/pass/filesystem/native_metadata_ino",
+        "canaries/pass/filesystem/native_metadata_modified",
+        "canaries/pass/filesystem/native_metadata_nlink",
+        "canaries/pass/filesystem/native_metadata_readonly",
+        "canaries/pass/filesystem/native_metadata_times",
+        "canaries/pass/filesystem/native_open_create",
+        "canaries/pass/filesystem/native_set_times",
+        "canaries/pass/filesystem/native_stat",
+        "canaries/pass/filesystem/native_symlink_metadata",
+        "canaries/pass/time/runtime_fs_mtime_interop_windows_exit",
+        "canaries/pass/time/runtime_fs_mtime_system_time_interop_exit",
+    ] {
+        let main_path = repo_root().join(relative).join("main.omg");
+        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!(
+                "named integer-conversion filesystem decode canary {relative} should reach \
+                 checked trees: {diagnostics:#?}"
+            )
+        });
+    }
+
+    let windows_relative = "canaries/pass/filesystem/windows_set_file_time_exit";
+    let windows_main = repo_root().join(windows_relative).join("main.omg");
+    compile_to_checked(&windows_main, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "named integer-conversion filesystem decode canary {windows_relative} should reach \
+             checked trees: {diagnostics:#?}"
+        )
+    });
+}
+
+#[test]
+fn named_integer_conversion_filesystem_cross_targets_reach_checked_trees() {
+    let canary = pass_canary("filesystem/windows_positioned_io_exit");
+    for target in ["linux_x64", "linux_arm64", "windows_x64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-fs-named-conversion-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("filesystem count conversion source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy positioned-I/O canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write cross-target build manifest");
+
+        compile_to_checked(&source_dir.join("main.omg"), Some(target)).unwrap_or_else(
+            |diagnostics| {
+                panic!(
+                    "named integer-conversion filesystem cohort should reach checked trees for \
+                     {target}: {diagnostics:#?}"
+                )
+            },
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
 #[test]
@@ -38076,6 +38467,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/bounded_return_literal",
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
+    "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
@@ -38172,6 +38564,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
+    "calls/runtime_branch_leaf_multiple_named_conversion_exit",
     "calls/runtime_value_call_transition_args_exit",
     "calls/runtime_value_call_transition_args_straight_line_exit",
     "filesystem/windows_raw_breadth_exit",
@@ -38395,6 +38788,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_field_with_mut_arg",
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
+    "calls/runtime_nested_named_conversion_alias_exit",
     "calls/runtime_call_result_after_splice_mutation_exit",
     "calls/runtime_string_call_result_through_reference_field_exit",
     "calls/runtime_two_string_call_results_through_reference_fields_exit",
@@ -38862,6 +39256,12 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_string_literal_dispatch_exit",
     "core/local_value_intro_compile",
     "core/self_read_only_receiver_compile",
+    "core/numeric_conversion_surface",
+    "core/numeric_cross_signed_conversion_surface",
+    "core/numeric_cross_signed_negative_traps",
+    "core/numeric_cross_signed_unsigned_overflow_traps",
+    "core/numeric_signed_conversion_surface",
+    "core/numeric_trapping_conversion_overflow",
     "domains/match_domain_patterns",
     "domains/match_interleaved_domain_data_guard",
     "drops/cleanup_machine_drop_shape",
@@ -39036,6 +39436,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/extent_reconstruction_does_not_grant",
     "core/extent_root_adapter_direct_call_does_not_grant",
     "core/carry_permission_adapter_direct_call_does_not_grant",
+    "core/numeric_exact_narrowing_unproven",
+    "core/numeric_cross_signed_exact_negative_unproven",
+    "core/numeric_cross_signed_exact_unsigned_unproven",
     "domains/domain_when_clause_retired",
     "generics/negative_const_data_argument_unsigned",
     "generics/signed_const_data_argument_out_of_range",

@@ -4,6 +4,7 @@
 // Proves the ctime and dev fields decode from the real stat record on macOS.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -25,17 +26,23 @@ machine Main::main(&mut self) {
     self.fd = self.fs.create("/tmp/omega_cd_b.txt", self.mode);
     self.n = self.fs.close(self.fd);
     self.rc = self.fs.read_metadata("/tmp/omega_cd_a.txt", &mut self.buffer);
-    self.ctime = (self.buffer[64] as i64)
-        | ((self.buffer[65] as i64) << 8)
-        | ((self.buffer[66] as i64) << 16)
-        | ((self.buffer[67] as i64) << 24)
-        | ((self.buffer[68] as i64) << 32)
-        | ((self.buffer[69] as i64) << 40)
-        | ((self.buffer[70] as i64) << 48)
-        | ((self.buffer[71] as i64) << 56);
-    self.dev_a = (self.buffer[0] as i32) | ((self.buffer[1] as i32) << 8) | ((self.buffer[2] as i32) << 16) | ((self.buffer[3] as i32) << 24);
+    self.ctime = widen_u8_to_i64(self.buffer[64])
+        | (widen_u8_to_i64(self.buffer[65]) << 8)
+        | (widen_u8_to_i64(self.buffer[66]) << 16)
+        | (widen_u8_to_i64(self.buffer[67]) << 24)
+        | (widen_u8_to_i64(self.buffer[68]) << 32)
+        | (widen_u8_to_i64(self.buffer[69]) << 40)
+        | (widen_u8_to_i64(self.buffer[70]) << 48)
+        | (widen_u8_to_i64(self.buffer[71]) << 56);
+    self.dev_a = widen_u8_to_i32(self.buffer[0])
+        | (widen_u8_to_i32(self.buffer[1]) << 8)
+        | (widen_u8_to_i32(self.buffer[2]) << 16)
+        | (widen_u8_to_i32(self.buffer[3]) << 24);
     self.rc = self.fs.read_metadata("/tmp/omega_cd_b.txt", &mut self.buffer);
-    self.dev_b = (self.buffer[0] as i32) | ((self.buffer[1] as i32) << 8) | ((self.buffer[2] as i32) << 16) | ((self.buffer[3] as i32) << 24);
+    self.dev_b = widen_u8_to_i32(self.buffer[0])
+        | (widen_u8_to_i32(self.buffer[1]) << 8)
+        | (widen_u8_to_i32(self.buffer[2]) << 16)
+        | (widen_u8_to_i32(self.buffer[3]) << 24);
     self.n = self.fs.remove("/tmp/omega_cd_a.txt");
     self.n = self.fs.remove("/tmp/omega_cd_b.txt");
     transition self.ctime > 1000000000 { true -> checkdev() _ -> fail() }

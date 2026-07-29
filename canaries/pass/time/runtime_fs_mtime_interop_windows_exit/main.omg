@@ -21,6 +21,7 @@ use omega::language::std::filesystem_host;
 use omega::language::std::time;
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -46,14 +47,14 @@ machine Main::main(&mut self) {
     self.n = self.fs.remove("omega_wintime_interop.txt");
     transition self.rc == 0 { true -> decode() _ -> bad(71) }
     state decode(&mut self) {
-        self.mtime = (self.buffer[40] as i64)
-            | ((self.buffer[41] as i64) << 8)
-            | ((self.buffer[42] as i64) << 16)
-            | ((self.buffer[43] as i64) << 24)
-            | ((self.buffer[44] as i64) << 32)
-            | ((self.buffer[45] as i64) << 40)
-            | ((self.buffer[46] as i64) << 48)
-            | ((self.buffer[47] as i64) << 56);
+        self.mtime = widen_u8_to_i64(self.buffer[40])
+            | (widen_u8_to_i64(self.buffer[41]) << 8)
+            | (widen_u8_to_i64(self.buffer[42]) << 16)
+            | (widen_u8_to_i64(self.buffer[43]) << 24)
+            | (widen_u8_to_i64(self.buffer[44]) << 32)
+            | (widen_u8_to_i64(self.buffer[45]) << 40)
+            | (widen_u8_to_i64(self.buffer[46]) << 48)
+            | (widen_u8_to_i64(self.buffer[47]) << 56);
         self.modified = SystemTime::from_unix_seconds(self.mtime);
         self.now_keep = self.time.system_time_now();
         self.diff = self.now_keep.duration_since(self.modified);

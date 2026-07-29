@@ -1,0 +1,13 @@
+// Unsigned -> signed narrowing must trap on the target's excluded upper half.
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let source: u64 = 18446744073709551615;
+    let converted: i64 = narrow_u64_to_i64_trapping(source);
+    self.console.exit_process(7);
+}

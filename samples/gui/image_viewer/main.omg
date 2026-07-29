@@ -17,6 +17,7 @@
 // (The annotation parser substring-matches, so: no exit phrase here.)
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
@@ -174,17 +175,17 @@ machine Main::main(&mut self) {
         transition self.src < 16384 { true -> px_b_go() _ -> load_failed() }
     }
     state px_b_go(&mut self) {
-        self.b = self.buffer[self.src] as i32;
+        self.b = widen_u8_to_i32(self.buffer[self.src]);
         self.src = self.src + 1;
         transition self.src < 16384 { true -> px_g() _ -> load_failed() }
     }
     state px_g(&mut self) {
-        self.g = self.buffer[self.src] as i32;
+        self.g = widen_u8_to_i32(self.buffer[self.src]);
         self.src = self.src + 1;
         transition self.src < 16384 { true -> px_r() _ -> load_failed() }
     }
     state px_r(&mut self) {
-        self.r = self.buffer[self.src] as i32;
+        self.r = widen_u8_to_i32(self.buffer[self.src]);
         self.px = (self.r << 16) | (self.g << 8) | self.b;
         transition self.src < 16384 { true -> px_advance() _ -> load_failed() }
     }

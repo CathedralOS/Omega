@@ -1,0 +1,41 @@
+// RUN CANARY (exit 70). A value machine's terminal branch substate assembles
+// one local from TWO ordinary named conversion calls. Branch-expanded storage
+// must reserve one call-result slot per ordinal; reserving only the first leaves
+// the full binary initializer unresolved and the returned local at ZII.
+
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Probe {
+    bytes: [u8; 2];
+}
+
+machine Probe::decode(&mut self) -> i32 {
+    transition true {
+        true -> decoded()
+        _ -> failed()
+    }
+
+    state decoded(&mut self) -> i32 {
+        let value: i32 = widen_u8_to_i32(self.bytes[0])
+            | (widen_u8_to_i32(self.bytes[1]) << 8);
+        value
+    }
+
+    state failed(&mut self) -> i32 {
+        71
+    }
+}
+
+data Main {
+    console: Console;
+    probe: Probe;
+    code: i32;
+}
+
+machine Main::main(&mut self) {
+    self.probe.bytes[0] = 70;
+    self.probe.bytes[1] = 0;
+    self.code = self.probe.decode();
+    self.console.exit_process(self.code);
+}

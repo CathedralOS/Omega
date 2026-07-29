@@ -5,6 +5,7 @@
 // Expected exit: 0.
 // Expected output contains: 081
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8 {
     valid_utf8(self);
@@ -53,7 +54,7 @@ machine Main::main(&mut self) {
     }
     state digit_write(&mut self) {
         self.ch = self.d + 48;
-        self.byte = self.ch as u8 in Wrapping;
+        self.byte = narrow_u32_to_u8_wrapping(self.ch) as u8 in Wrapping;
         self.out[self.p] = self.byte;
         self.place = self.place / 10;
         self.p = self.p + 1;

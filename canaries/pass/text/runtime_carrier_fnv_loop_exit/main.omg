@@ -11,6 +11,7 @@ domain [u8; 8]::Utf8 {
     valid_utf8(self);
 }
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -40,7 +41,7 @@ machine Main::main(&mut self) {
 
     state body(&mut self) {
         self.b = self.text[self.i];
-        self.bw = self.b as u32;
+        self.bw = widen_u8_to_u32(self.b) as u32 in Wrapping;
         self.hash = self.hash ^ self.bw;
         self.hash = self.hash * 16777619;
         self.i = self.i + 1;

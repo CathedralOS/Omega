@@ -27,6 +27,8 @@
 // (CGContext/CGImage/NSImage) are released each blit and the event pump cycles
 // a rolling autorelease pool, so a long-running app's memory stays flat.
 
+use omega::language::core::numeric_conversion;
+
 domain [u8]::CString {
     no_nul(self);
 }
@@ -82,7 +84,7 @@ data MacosGui {
     // A device-RGB colorspace, created once at window_create and reused per blit.
     space: u64;
     // Staged blit dimensions (a host-call arg must be a storage place / literal,
-    // not a live cast expression, so the `as i64`/`as f64` results land in fields).
+    // not a live conversion expression, so the i64/f64 results land in fields).
     fbw: i64;
     fbh: i64;
     stride: i64;
@@ -211,9 +213,11 @@ machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11],
 // are ignored (the image view auto-scales; macOS is top-down like the source, so
 // NO row flip). `stride = source_width * 4` via `<< 2` (shift is obligation-free).
 machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 {
-    self.fbw = source_width as i64;
-    self.fbh = source_height as i64;
-    self.stride = (source_width as i64) << 2;
+    let source_width_wide: i64 = widen_u32_to_i64(source_width);
+    let source_height_wide: i64 = widen_u32_to_i64(source_height);
+    self.fbw = source_width_wide;
+    self.fbh = source_height_wide;
+    self.stride = source_width_wide << 2;
     self.fbwf = source_width as f64;
     self.fbhf = source_height as f64;
     self.ctx = self.cg.bitmap_context(&pixels, self.fbw, self.fbh, 8, self.stride, self.space, 8198);
@@ -287,7 +291,7 @@ machine MacosGui::msg_dispatch(&mut self, message: [u64; 6]) -> u64 {
 // `Gui::is_window` — liveness. `[window isVisible]` is a live, on-screen window.
 machine MacosGui::is_window(&mut self, window: u64) -> u32 {
     self.rc = self.objc.send(window, self.vsel);
-    self.r32 = self.rc as u32;
+    self.r32 = narrow_u64_to_u32_wrapping(self.rc);
     transition { _ -> ret() }
     state ret(&mut self) -> u32 { self.r32 }
 }

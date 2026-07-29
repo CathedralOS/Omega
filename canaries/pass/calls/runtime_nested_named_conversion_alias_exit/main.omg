@@ -1,0 +1,48 @@
+// A named value conversion nested inside a mutating value machine must read
+// the caller's aliased parameter expression, not the callee clone's unused
+// parameter slot. Runtime branch expansion used to stop alias substitution at
+// the surrounding binary/member expression, so the native program dereferenced
+// a zero `state` pointer and exited by signal.
+
+use omega::language::core::numeric_conversion;
+
+data RandomState {
+    seed: u64 in Wrapping;
+}
+
+data Random {
+}
+
+machine Random::next_u32(
+    &mut self,
+    state: &mut RandomState
+) -> u32 {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+
+    transition {
+        _ -> (narrow_u64_to_u32_wrapping(state.seed >> 32))
+    }
+}
+
+data Main {
+    random: Random;
+}
+
+machine Main::main(&mut self) -> i32 {
+    let state: RandomState;
+    state.seed = 7;
+    let high: u32 = self.random.next_u32(&mut state);
+
+    transition {
+        high == 2118330556 -> correct()
+        _ -> incorrect()
+    }
+
+    state correct(&mut self) {
+        70
+    }
+
+    state incorrect(&mut self) {
+        71
+    }
+}

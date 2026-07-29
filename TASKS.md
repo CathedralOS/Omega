@@ -361,6 +361,98 @@ ceilings, and publication-before-ledger-record all reject.
 - Define ordinary core numeric conversion machines, with explicit narrowing
   policy, then migrate width and float/integer conversion away from the legacy
   `as` spelling.
+- All fixed-width integer pairs are now available from
+  `core::numeric_conversion`. Widening is named only where the complete source
+  range fits; every other pair—including a signed-to-wider-unsigned conversion
+  that excludes negatives—is range-narrowing and explicitly selects Exact,
+  Wrapping, Saturating, or Trapping behavior. Exact narrowing publishes and
+  enforces its representability precondition; every conversion result returns
+  to ordinary Exact arithmetic. The first corpus cohort now exercises the named
+  surface across indexed operands, guard subjects, comparisons, bitwise
+  operands, entry results, 16-bit conversions, and signed/unsigned extension.
+  A second cohort covers real text algorithms: decimal and binary formatting,
+  decimal parsing, FNV hashing, CRC-32, direct indexed byte writes, and explicit
+  trapping versus wrapping narrowing choices. Seven user-facing samples now
+  use the named surface for widening and trapping conversion: `width_mixer`,
+  `array_sum`, `format_number`, `print_number`, `multiplication_table`,
+  `prime_sieve`, and `maze_flood`. The follow-on sweep migrated every remaining
+  runtime integer width/signedness conversion in `samples/`, including byte
+  parsing/rendering, hashing, indexed image decode, descriptor counts, PRNG
+  word extraction, and signed-byte reinterpretation. Integer-looking `as T`
+  spellings that remain in samples are same-carrier arithmetic qualification
+  (or the wire policy's same-type compatibility spelling), not hidden numeric
+  conversion; float conversion remains its own F7 lane.
+- Call-result normalization now materializes a value-machine call directly
+  beneath a value cast or qualification through the ordinary synthetic local
+  route. Inline named conversion, subsequent arithmetic-policy qualification,
+  and enclosing arithmetic therefore preserve the delivered result; the
+  indexed narrow/widen canary pins the formerly mislowered shape.
+- Dominating range guards now survive resolved pure or disjoint value-call
+  frames in both the proof-obligation and transitive indexed-range paths.
+  Exact R5 paths invalidate only overlapping evidence; opaque frames still
+  fail closed. Positive/negative regressions pin pure conversion calls versus
+  calls that mutate the guarded place.
+- The active PRNG canary cohort now uses named wrapping high-word extraction.
+  Runtime branch alias substitution descends through binary/member arguments
+  and replaces their bare parameter roots, so a named conversion nested inside
+  a mutating value machine reads the caller's aliased state instead of an
+  unused cloned parameter slot. A focused native regression pins the formerly
+  crashing shape beside the existing dungeon-derived call/dispatch tests.
+- Filesystem metadata consumers now use named `u8` widening for raw stat-record
+  byte decoding across 15 native macOS canaries, both filesystem-to-time
+  interop legs, the Windows SetFileTime round trip, and the raw byte-assembly
+  setup of the cast-field payload regression. A checked-tree cohort covers all
+  19 and the complete native filesystem/GUI suite still passes.
+  Guarded nonnegative filesystem host counts now use exact `i64`-to-`u64`
+  narrowing in the portable facade and every target implementation. Incoming
+  guard proof now instantiates the nested callee contract and rebinds target
+  state parameters through the transition arguments; a focused proof regression
+  and Linux x64/AArch64 plus Windows checked-tree cohort pin the route.
+  Backend-safe enum construction materializes each converted count under a
+  distinct local name; a dynamic native conversion canary and all 88 native
+  filesystem/GUI tests pin the delivered payload. Target `set_times` encoders
+  now name wrapping signed-to-unsigned epoch conversion and byte truncation;
+  POSIX directory walkers name host-count wrapping, byte widening, and
+  cross-signed result conversion; Windows attribute decoding names its byte
+  widening; and portable stat consumers name every width extension. The
+  four-target checked-tree rows and native timestamp/directory workflows pin
+  those policies. Residual filesystem `as` spellings are same-carrier Wrapping
+  qualifications, target-owned boolean-to-foreign-bit encoding, or
+  compatibility-specific casts whose authored shape pins legacy lowering. The
+  cast-field migration exposed and
+  now pins a compiler fix for terminal branch substates with several
+  assignment-value calls in one local initializer: branch storage reserves
+  every result ordinal, leaf-only nested call trees execute, top-level
+  `Machine::entry` calls resolve by machine identity, and the full enclosing
+  initializer materializes after its operands. Its final `mode as u32` remains
+  intentionally because that cast-valued payload field is the regression's
+  subject; the raw byte widening no longer waits on compiler work.
+- `std::time` now uses the named integer surface for every runtime width or
+  signedness conversion. Its remaining integer-looking casts only select or
+  forget a same-carrier arithmetic policy. Store-enforced Exact ranged locals
+  now discharge nested conversion preconditions; a broader declared range
+  remains insufficient. Flattened nested calls expand compiler-elided scalar
+  local initializers before applying enclosing parameter aliases, including
+  cast/call structure and `min`/`max`/`clamp` scalar classification. Aggregate
+  locals and value-call-result locals retain their dedicated runtime
+  materialization instead of being mistaken for elided aliases. The constructor,
+  totals/divide, clock, sleep, cross-target, and filesystem-time canaries pin
+  both proof and native delivery.
+- `std::macos_gui` now names its integer payload conversions: framebuffer
+  dimensions widen from `u32` to the Core Graphics `i64` ABI fields, and the
+  raw Objective-C liveness result narrows to `u32` with the existing wrapping
+  policy. Its residual numeric casts are the six integer-to-float conversions
+  that belong to F7; the native provider and GUI sample cohort pins the
+  integer migration.
+- Checked-result narrowing is design-blocked on the open arithmetic-library
+  question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
+  result family merely to mirror another language. Remaining implementation
+  work is float/integer named operations, broad corpus migration, and retirement
+  of numeric compatibility `as` after its last internal conversion consumer.
+  Keep `arithmetic/runtime_integer_casts_exit` on compatibility `as` until that
+  retirement: its authored cast-initializer/transition-parameter shape is the
+  regression for legacy sign/zero extension and truncation lowering, while the
+  named surface has separate coverage.
 
 Acceptance: qualification `as` preserves carrier, payload, and runtime work;
 numeric and unit conversions are visible calls; bodyful and bodyless domains
@@ -470,7 +562,10 @@ current consumers happen to align.
 ### Frames, domains, effects, and trust
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
-  Boundary write-frame spelling is owner-blocked on #2.
+  Boundary write-frame spelling is owner-blocked on #2. Exact resolved
+  statement/value-call frames now preserve unrelated incoming range guards in
+  the proof checker and transitive range-fact collector; opaque and overlapping
+  frames remain conservative fences.
 - **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
   certificates. Delegated package authority is owner-blocked on #3.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,

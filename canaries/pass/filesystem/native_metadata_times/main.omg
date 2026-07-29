@@ -6,6 +6,7 @@
 // macOS syscalls.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -30,30 +31,30 @@ machine Main::main(&mut self) {
     self.n = self.fs.remove("/tmp/omega_times.txt");
     transition self.rc == 0 { true -> decode() _ -> fail() }
     state decode(&mut self) {
-        self.atime = (self.buffer[32] as i64)
-            | ((self.buffer[33] as i64) << 8)
-            | ((self.buffer[34] as i64) << 16)
-            | ((self.buffer[35] as i64) << 24)
-            | ((self.buffer[36] as i64) << 32)
-            | ((self.buffer[37] as i64) << 40)
-            | ((self.buffer[38] as i64) << 48)
-            | ((self.buffer[39] as i64) << 56);
-        self.mtime = (self.buffer[48] as i64)
-            | ((self.buffer[49] as i64) << 8)
-            | ((self.buffer[50] as i64) << 16)
-            | ((self.buffer[51] as i64) << 24)
-            | ((self.buffer[52] as i64) << 32)
-            | ((self.buffer[53] as i64) << 40)
-            | ((self.buffer[54] as i64) << 48)
-            | ((self.buffer[55] as i64) << 56);
-        self.btime = (self.buffer[80] as i64)
-            | ((self.buffer[81] as i64) << 8)
-            | ((self.buffer[82] as i64) << 16)
-            | ((self.buffer[83] as i64) << 24)
-            | ((self.buffer[84] as i64) << 32)
-            | ((self.buffer[85] as i64) << 40)
-            | ((self.buffer[86] as i64) << 48)
-            | ((self.buffer[87] as i64) << 56);
+        self.atime = widen_u8_to_i64(self.buffer[32])
+            | (widen_u8_to_i64(self.buffer[33]) << 8)
+            | (widen_u8_to_i64(self.buffer[34]) << 16)
+            | (widen_u8_to_i64(self.buffer[35]) << 24)
+            | (widen_u8_to_i64(self.buffer[36]) << 32)
+            | (widen_u8_to_i64(self.buffer[37]) << 40)
+            | (widen_u8_to_i64(self.buffer[38]) << 48)
+            | (widen_u8_to_i64(self.buffer[39]) << 56);
+        self.mtime = widen_u8_to_i64(self.buffer[48])
+            | (widen_u8_to_i64(self.buffer[49]) << 8)
+            | (widen_u8_to_i64(self.buffer[50]) << 16)
+            | (widen_u8_to_i64(self.buffer[51]) << 24)
+            | (widen_u8_to_i64(self.buffer[52]) << 32)
+            | (widen_u8_to_i64(self.buffer[53]) << 40)
+            | (widen_u8_to_i64(self.buffer[54]) << 48)
+            | (widen_u8_to_i64(self.buffer[55]) << 56);
+        self.btime = widen_u8_to_i64(self.buffer[80])
+            | (widen_u8_to_i64(self.buffer[81]) << 8)
+            | (widen_u8_to_i64(self.buffer[82]) << 16)
+            | (widen_u8_to_i64(self.buffer[83]) << 24)
+            | (widen_u8_to_i64(self.buffer[84]) << 32)
+            | (widen_u8_to_i64(self.buffer[85]) << 40)
+            | (widen_u8_to_i64(self.buffer[86]) << 48)
+            | (widen_u8_to_i64(self.buffer[87]) << 56);
         transition self.atime > self.floor { true -> checkm() _ -> fail() }
     }
     state checkm(&mut self) {

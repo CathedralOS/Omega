@@ -9,6 +9,7 @@
 // Prints PASS iff the destination is byte-exact AND mode-exact.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -38,7 +39,8 @@ machine Main::main(&mut self) {
     self.discard = self.fs.set_permissions("/tmp/omega_cp_src.txt", self.srcperm);
     // stat the source, capture its permission bits
     self.rc = self.fs.read_metadata("/tmp/omega_cp_src.txt", &mut self.buffer);
-    self.srcmode = ((self.buffer[4] as u32) | ((self.buffer[5] as u32) << 8)) & 511;
+    self.srcmode =
+        (widen_u8_to_u32(self.buffer[4]) | (widen_u8_to_u32(self.buffer[5]) << 8)) & 511;
     // read the source bytes
     self.fd = self.fs.open("/tmp/omega_cp_src.txt", self.rdonly);
     self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
@@ -56,8 +58,10 @@ machine Main::main(&mut self) {
         // verify the destination: size 11 and mode 0o640
         self.rc = self.fs.read_metadata("/tmp/omega_cp_dst.txt", &mut self.buffer);
         self.discard = self.fs.remove("/tmp/omega_cp_dst.txt");
-        self.dstmode = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 511;
-        self.size = self.buffer[96] as i32;
+        self.dstmode =
+            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+                & 511;
+        self.size = widen_u8_to_i32(self.buffer[96]);
         transition self.dstmode == 416 { true -> checksize() _ -> fail() }
     }
     state checksize(&mut self) {

@@ -13,6 +13,7 @@
 // Expected exit: 24.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -51,7 +52,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
-        self.result = self.count as i32;
+        self.result = narrow_u32_to_i32_trapping(self.count);
         self.console.write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);

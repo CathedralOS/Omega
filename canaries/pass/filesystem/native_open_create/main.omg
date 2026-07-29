@@ -10,6 +10,7 @@
 // Prints PASS iff all match. Proves the stack-marshalled variadic mode is correct.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -53,7 +54,9 @@ machine Main::main(&mut self) {
     state checkmode(&mut self) {
         // 4. the create mode was applied: perm bits (st_mode & 0o777) == 0o600
         self.rc = self.fs.read_metadata("/tmp/omega_ocr.txt", &mut self.buffer);
-        self.perm = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 511;
+        self.perm =
+            (widen_u8_to_i32(self.buffer[4]) | (widen_u8_to_i32(self.buffer[5]) << 8))
+                & 511;
         self.discard = self.fs.remove("/tmp/omega_ocr.txt");
         transition self.perm == 384 { true -> good() _ -> fail() }
     }

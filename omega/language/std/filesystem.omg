@@ -20,6 +20,7 @@
 // them (rather than re-declaring the trait) and builds `File`/result enums on top.
 use omega::language::std::filesystem_host;
 use omega::language::std::layout;
+use omega::language::core::numeric_conversion;
 
 // The per-target DIRECTORY-WALK implementations (fs portable-contract settle
 // 2026-07-18): target-scoped `<target> machine` items implementing this
@@ -616,7 +617,10 @@ machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: u64) -
     self.file_fd = file.fd;
     let n: i64 = self.host.read(self.file_fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -625,7 +629,10 @@ machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.write(self.file_fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -701,7 +708,10 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
     let n: i64 = self.host.read(fd, buffer, count);
     let rc: i32 = self.host.close(fd);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -757,10 +767,13 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     // elided local folds its computed initializer back into the `set_permissions`
     // argument, which the host-call marshaller rejects (a host arg must be a
     // simple place). `perm_mode` is the same field the set_permissions wrapper uses.
-    self.perm_mode = (stat.value.mode as u32) & 511;
+    self.perm_mode = widen_u16_to_u32(stat.value.mode) & 511;
     let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -806,16 +819,16 @@ machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
 // while lstat can report one, so the same decode remains correct for all three.
 machine Filesystem::decode_metadata(&mut self) -> Metadata {
     let stat: &StatView = &self.stat_buf[0] as &StatView;
-    let mode: u32 = stat.value.mode as u32;
-    let nlink: u64 = stat.value.nlink as u64;
+    let mode: u32 = widen_u16_to_u32(stat.value.mode);
+    let nlink: u64 = widen_u16_to_u64(stat.value.nlink);
     let ino: u64 = stat.value.ino;
     let uid: u32 = stat.value.uid;
     let gid: u32 = stat.value.gid;
-    let dev: u64 = stat.value.dev as u64;
-    let rdev: u64 = stat.value.rdev as u64;
+    let dev: u64 = widen_u32_to_u64(stat.value.dev);
+    let rdev: u64 = widen_u32_to_u64(stat.value.rdev);
     let ctime: i64 = stat.value.ctime;
     let blocks: u64 = stat.value.blocks;
-    let blksize: u64 = stat.value.blksize as u64;
+    let blksize: u64 = widen_u32_to_u64(stat.value.blksize);
     let len: i64 = stat.value.size;
     let is_dir: bool = (mode & 61440) == 16384;
     let is_symlink: bool = (mode & 61440) == 40960;
@@ -1120,7 +1133,10 @@ machine Filesystem::symlink(&mut self, target: &[u8] in Path, link: &[u8] in Pat
 machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
     let n: i64 = self.host.read_link(path, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as u64 } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 

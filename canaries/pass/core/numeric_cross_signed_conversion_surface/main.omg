@@ -1,0 +1,162 @@
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    unsigned_exact: i8;
+    unsigned_exact_wide: i64;
+    unsigned_wrapping: i8;
+    unsigned_saturating: i8;
+    unsigned_saturating_wide: i64;
+    unsigned_trapping: i32;
+    unsigned_widening: i32;
+    signed_exact: u8;
+    signed_exact_wide: u64;
+    signed_wrapping: u8;
+    signed_wrapping_wide: u64;
+    signed_saturating_low: u8;
+    signed_saturating_high: u8;
+    signed_trapping: u32;
+    expected_i64: i64;
+    expected_u64: u64;
+}
+
+machine Main::main(&mut self) {
+    let negative_i8: i8 = 0 - 1;
+    let negative_i16: i16 = 0 - 1;
+    let high_i16: i16 = 300;
+    let max_u64: u64 = 18446744073709551615;
+
+    self.unsigned_exact = narrow_u8_to_i8_exact(100);
+    self.unsigned_exact_wide = narrow_u64_to_i64_exact(5000000000);
+    self.unsigned_wrapping = narrow_u8_to_i8_wrapping(255);
+    self.unsigned_saturating = narrow_u16_to_i8_saturating(300);
+    self.unsigned_saturating_wide = narrow_u64_to_i64_saturating(max_u64);
+    self.unsigned_trapping = narrow_u32_to_i32_trapping(70);
+    self.unsigned_widening = widen_u16_to_i32(65535);
+
+    self.signed_exact = narrow_i16_to_u8_exact(200);
+    self.signed_exact_wide = narrow_i64_to_u64_exact(5000000000);
+    self.signed_wrapping = narrow_i16_to_u8_wrapping(negative_i16);
+    self.signed_wrapping_wide = narrow_i8_to_u64_wrapping(negative_i8);
+    self.signed_saturating_low = narrow_i16_to_u8_saturating(negative_i16);
+    self.signed_saturating_high = narrow_i16_to_u8_saturating(high_i16);
+    self.signed_trapping = narrow_i32_to_u32_trapping(70);
+    self.expected_i64 = 9223372036854775807;
+    self.expected_u64 = max_u64;
+
+    transition self.unsigned_exact == 100 {
+        true -> check_unsigned_exact_wide()
+        _ -> bad1()
+    }
+
+    state check_unsigned_exact_wide(&mut self) {
+        transition self.unsigned_exact_wide == 5000000000 {
+            true -> check_unsigned_wrapping()
+            _ -> bad2()
+        }
+    }
+
+    state check_unsigned_wrapping(&mut self) {
+        transition self.unsigned_wrapping == 0 - 1 {
+            true -> check_unsigned_saturating()
+            _ -> bad3()
+        }
+    }
+
+    state check_unsigned_saturating(&mut self) {
+        transition self.unsigned_saturating == 127 {
+            true -> check_unsigned_saturating_wide()
+            _ -> bad4()
+        }
+    }
+
+    state check_unsigned_saturating_wide(&mut self) {
+        transition self.unsigned_saturating_wide == self.expected_i64 {
+            true -> check_unsigned_trapping()
+            _ -> bad5()
+        }
+    }
+
+    state check_unsigned_trapping(&mut self) {
+        transition self.unsigned_trapping == 70 {
+            true -> check_unsigned_widening()
+            _ -> bad6()
+        }
+    }
+
+    state check_unsigned_widening(&mut self) {
+        transition self.unsigned_widening == 65535 {
+            true -> check_signed_exact()
+            _ -> bad7()
+        }
+    }
+
+    state check_signed_exact(&mut self) {
+        transition self.signed_exact == 200 {
+            true -> check_signed_exact_wide()
+            _ -> bad8()
+        }
+    }
+
+    state check_signed_exact_wide(&mut self) {
+        transition self.signed_exact_wide == 5000000000 {
+            true -> check_signed_wrapping()
+            _ -> bad9()
+        }
+    }
+
+    state check_signed_wrapping(&mut self) {
+        transition self.signed_wrapping == 255 {
+            true -> check_signed_wrapping_wide()
+            _ -> bad10()
+        }
+    }
+
+    state check_signed_wrapping_wide(&mut self) {
+        transition self.signed_wrapping_wide == self.expected_u64 {
+            true -> check_signed_saturating_low()
+            _ -> bad11()
+        }
+    }
+
+    state check_signed_saturating_low(&mut self) {
+        transition self.signed_saturating_low == 0 {
+            true -> check_signed_saturating_high()
+            _ -> bad12()
+        }
+    }
+
+    state check_signed_saturating_high(&mut self) {
+        transition self.signed_saturating_high == 255 {
+            true -> check_signed_trapping()
+            _ -> bad13()
+        }
+    }
+
+    state check_signed_trapping(&mut self) {
+        transition self.signed_trapping == 70 {
+            true -> good()
+            _ -> bad14()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad1(&mut self) { self.console.exit_process(81); }
+    state bad2(&mut self) { self.console.exit_process(82); }
+    state bad3(&mut self) { self.console.exit_process(83); }
+    state bad4(&mut self) { self.console.exit_process(84); }
+    state bad5(&mut self) { self.console.exit_process(85); }
+    state bad6(&mut self) { self.console.exit_process(86); }
+    state bad7(&mut self) { self.console.exit_process(87); }
+    state bad8(&mut self) { self.console.exit_process(88); }
+    state bad9(&mut self) { self.console.exit_process(89); }
+    state bad10(&mut self) { self.console.exit_process(90); }
+    state bad11(&mut self) { self.console.exit_process(91); }
+    state bad12(&mut self) { self.console.exit_process(92); }
+    state bad13(&mut self) { self.console.exit_process(93); }
+    state bad14(&mut self) { self.console.exit_process(94); }
+}

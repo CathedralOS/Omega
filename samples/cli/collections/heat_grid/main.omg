@@ -16,6 +16,7 @@
 //
 // Expected exit: 45
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 data Main {
     console: Console;
     cells: [u8; 12];
@@ -35,11 +36,13 @@ machine Main::main(&mut self) {
         transition { _ -> cell(y, 0) }
     }
     state cell(&mut self, y: u32 [0..=self.max_y], x: u32 [0..=self.max_x]) {
-        let bump: u8 = (y as u8 in Wrapping) + (x as u8 in Wrapping);
+        let bump: u8 =
+            (narrow_u32_to_u8_trapping(y) as u8 in Wrapping)
+            + (narrow_u32_to_u8_trapping(x) as u8 in Wrapping);
         let cur: u8 = self.cells[y * 4 + x];
         let next: u8 = (cur as u8 in Wrapping) + (bump as u8 in Wrapping);
         self.cells[y * 4 + x] = next;
-        let heat: u32 = next as u32;
+        let heat: u32 = widen_u8_to_u32(next);
         transition heat > self.hottest {
             true -> hotter(y, x, heat)
             _ -> step(y, x)
@@ -62,7 +65,7 @@ machine Main::main(&mut self) {
         }
     }
     state done(&mut self) {
-        let code: i32 = self.hottest as i32;
+        let code: i32 = narrow_u32_to_i32_trapping(self.hottest);
         self.console.exit_process(code);
     }
 }
