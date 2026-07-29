@@ -560,8 +560,10 @@ and allocation handles expose no compiler-owned stack/control storage.
   Anonymous-constant landing and the interpreter's landed arithmetic consume
   that engine, including per-operation binary32 rounding, square root,
   conversion policy edges, full unsigned-64 conversion, and proof-level NaN
-  payload erasure. The compatibility x86-64 and AArch64 conversion lowerings
-  now distinguish signed from unsigned sources through the full 64-bit range.
+  payload erasure. Backend guard-constant folding now consumes the same engine
+  instead of host `f64` arithmetic plus narrowing. The compatibility x86-64
+  and AArch64 conversion lowerings now distinguish signed from unsigned sources
+  through the full 64-bit range.
   Finish rung 1 by publishing the source-visible executable core operation
   identities, routing the remaining FMA/classification/directed call surfaces
   through them, and adding build-time/runtime twins for every edge family; do

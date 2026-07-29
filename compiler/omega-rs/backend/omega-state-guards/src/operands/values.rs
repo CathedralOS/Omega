@@ -1,6 +1,9 @@
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
+use omega_core::float_semantics::{
+    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics,
+};
 use omega_layout::{DataShape, LayoutPlan};
 
 /// Whether a guard operand is a CONSTANT float expression (a float literal
@@ -60,13 +63,19 @@ pub(super) fn resolved_guard_operand_value(
 /// binary arithmetic tree over float literals -- to its value, PER-OP at the tree's
 /// LANDED width (ch5 / float ladder F2c): an F32-stamped tree (the comparison adopted
 /// an f32 place's format at validation) rounds every operation to f32, exactly as the
-/// runtime f32 ops would -- folding at a raw f64 window diverges at the f32 precision
-/// cliff (2^24 + 1.0). Returns `None` the moment any leaf is not a constant float
-/// (e.g. a place), so a runtime operand is never mistaken for a constant. Strictly
-/// constant: no place reads, so the folded value matches the runtime value.
+/// runtime f32 ops would -- folding at a raw f64 window diverges at the f32
+/// precision cliff (2^24 + 1.0). The fold consumes the shared executable
+/// `FloatSemantics` definition rather than host arithmetic, keeping this
+/// backend-time consumer identical to landed interpreter evaluation. Returns
+/// `None` the moment any leaf is not a constant float (e.g. a place), so a
+/// runtime operand is never mistaken for a constant. Strictly constant: no
+/// place reads, so the folded value matches the runtime value.
 fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Option<f64> {
-    let format = tree_float_landing(table, expression);
-    const_fold_float_at(table, expression, format)
+    let format = match tree_float_landing(table, expression) {
+        Some(omega_core::literals::FloatFormat::F32) => SemanticFloatFormat::BINARY32,
+        Some(omega_core::literals::FloatFormat::F64) | None => SemanticFloatFormat::BINARY64,
+    };
+    Some(const_fold_float_at(table, expression, format)?.to_interpreter_value(format))
 }
 
 /// The tree's landed format witness: the first landed float literal (left first),
@@ -86,24 +95,25 @@ fn tree_float_landing(
 fn const_fold_float_at(
     table: &ExpressionTable,
     expression: ExpressionHandle,
-    format: Option<omega_core::literals::FloatFormat>,
-) -> Option<f64> {
-    let land = |value: f64| -> f64 {
-        match format {
-            Some(omega_core::literals::FloatFormat::F32) => value as f32 as f64,
-            _ => value,
-        }
-    };
+    format: SemanticFloatFormat,
+) -> Option<FloatMeaning> {
     match table.expression(expression) {
-        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
+        ExpressionNode::Float(literal) => {
+            let value = literal.landed_f64();
+            Some(if format == SemanticFloatFormat::BINARY32 {
+                FloatSemantics::convert(format, &FloatMeaning::from_f64(value))
+            } else {
+                FloatMeaning::from_f64(value)
+            })
+        }
         ExpressionNode::Binary(binary) => {
             let left = const_fold_float_at(table, binary.left, format)?;
             let right = const_fold_float_at(table, binary.right, format)?;
             match binary.operator {
-                BinaryOperator::Add => Some(land(left + right)),
-                BinaryOperator::Subtract => Some(land(left - right)),
-                BinaryOperator::Multiply => Some(land(left * right)),
-                BinaryOperator::Divide => Some(land(left / right)),
+                BinaryOperator::Add => Some(FloatSemantics::add(format, &left, &right)),
+                BinaryOperator::Subtract => Some(FloatSemantics::subtract(format, &left, &right)),
+                BinaryOperator::Multiply => Some(FloatSemantics::multiply(format, &left, &right)),
+                BinaryOperator::Divide => Some(FloatSemantics::divide(format, &left, &right)),
                 _ => None,
             }
         }

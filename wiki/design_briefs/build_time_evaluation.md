@@ -90,11 +90,13 @@ binary32 rounding, partial comparisons, min/max, and separate fused and
 unfused multiply-add meanings. The same engine now supplies correctly rounded
 square root, classification, float/integer and format conversion, and explicit
 directed-rounding definitions; the interpreter's square-root and compatibility
-conversion consumers use them without host arithmetic. Compatibility x86-64
-and AArch64 integer-to-float lowering now preserves source signedness through
-the full 64-bit range as well. Source-visible named operation identities,
-remaining call-surface routing, and constant/runtime twin canaries still
-remain before the floating evaluation lane is complete.
+conversion consumers use them without host arithmetic. Backend guard-constant
+folding also uses the shared engine rather than evaluating on the host and
+narrowing afterward. Compatibility x86-64 and AArch64 integer-to-float
+lowering now preserves source signedness through the full 64-bit range as well.
+Source-visible named operation identities, remaining call-surface routing, and
+constant/runtime twin canaries still remain before the floating evaluation
+lane is complete.
 
 ## Admission uses the complete invocation contract
 
