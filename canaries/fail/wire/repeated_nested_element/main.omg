@@ -21,7 +21,6 @@ data PointValue {
 
 data PolygonValue {
     points: [PointValue; 3];
-    points_count: u64;
 }
 
 data Main {
@@ -36,8 +35,7 @@ machine Main::main(&mut self) {
             PointValue { x: 0, y: 0 },
             PointValue { x: 1, y: 0 },
             PointValue { x: 0, y: 1 }
-        ],
-        points_count: 3
+        ]
     };
 
     Polygon::encode(&msg, &mut self.buffer, &mut self.written);

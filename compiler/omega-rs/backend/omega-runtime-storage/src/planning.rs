@@ -337,12 +337,14 @@ pub fn reserve_wire_nested_scratch(
     use omega_checked_trees::wire::WireMember;
 
     let mut staging_bytes = 0usize;
+    let mut needs_wire_scratch = false;
     for schema in program.wire_schemas() {
         for member in program.wire_members(schema.members) {
             let WireMember::Field(field) = member else {
                 continue;
             };
             if let Some(repeated) = program.wire_field_repeated_encoding(field) {
+                needs_wire_scratch = true;
                 staging_bytes = staging_bytes.max(repeated.worst_case_body_bytes());
                 continue;
             }
@@ -352,10 +354,11 @@ pub fn reserve_wire_nested_scratch(
             let Some(child_worst) = program.wire_schema_scalar_body_worst_case(child) else {
                 continue;
             };
+            needs_wire_scratch = true;
             staging_bytes = staging_bytes.max(child_worst);
         }
     }
-    if staging_bytes == 0 {
+    if !needs_wire_scratch {
         return;
     }
 

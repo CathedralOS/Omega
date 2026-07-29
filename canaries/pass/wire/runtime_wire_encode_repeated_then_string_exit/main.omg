@@ -2,15 +2,15 @@ domain [u8]::Utf8 {
     valid_utf8(self);
 }
 // Wire REPEATED + STRING-LAST in ONE message: a packed repeated field
-// (runtime-sized payload via the count companion) followed by the &[u8] in Utf8
+// (runtime-sized payload via FixedVec's intrinsic length) followed by the &[u8] in Utf8
 // field carrying the highest field number (the &[u8] in Utf8 must encode last --
 // fail/wire/encode_string_field_not_last pins the rejection). Two
 // runtime-sized appends in sequence is the edge: the &[u8] in Utf8's cursor must
 // start wherever the packed payload actually ended, not at a
-// statically-precomputed offset. Encode-only: &[u8] in Utf8 DECODE has not landed
-// (the wire stage-2 &[u8] in Utf8 work is encode-only by design).
+// statically-precomputed offset. Borrowed byte-slice decode is pinned
+// separately by the zero-copy wire canaries.
 //
-// Encoded bytes for { samples: [150, -2], samples_count: 2, label: "hi" }:
+// Encoded bytes for { samples: FixedVec([150, -2], len 2), label: "hi" }:
 //   era 0          -> 0x00        (no version blocks)
 //   tag 0          -> 0x00        (samples)
 //   length 3       -> 0x03        (packed elements below)
@@ -22,16 +22,16 @@ domain [u8]::Utf8 {
 //   'i'            -> 0x69 (105)
 // written = 10.
 
+use omega::language::core::fixed_vec;
 use omega::language::std::console;
 
 data Report {
-    #0 samples: [i32; 4];
+    #0 samples: FixedVec<i32, 4>;
     #1 label: &[u8] in Utf8;
 }
 
 data ReportValue {
-    samples: [i32; 4];
-    samples_count: u64;
+    samples: FixedVec<i32, 4>;
     label: &[u8] in Utf8;
 }
 
@@ -46,8 +46,7 @@ machine Main::main(&mut self) {
     // assignments both lower; assignment keeps parity with the other
     // encode-&[u8] in Utf8 canary).
     let msg: ReportValue;
-    msg.samples = [150, 0 - 2, 0, 0];
-    msg.samples_count = 2;
+    msg.samples = FixedVec { items: [150, 0 - 2, 0, 0], length: 2 };
     msg.label = "hi";
 
     Report::encode(&msg, &mut self.buffer, &mut self.written);

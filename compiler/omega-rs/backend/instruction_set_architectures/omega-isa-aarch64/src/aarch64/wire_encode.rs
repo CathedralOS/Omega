@@ -173,7 +173,7 @@ pub fn encode_append_wire_scalar_varint(
 }
 
 /// LEB128-encode element `index` of a packed repeated field at the cursor,
-/// ONLY IF `index < count` (the count-companion slot, read as unsigned
+/// ONLY IF `index < count` (the FixedVec `length` slot, read as unsigned
 /// 64-bit). A skipped element leaves the cursor untouched, so the staged
 /// payload holds exactly the live elements. Counts past the declared maximum
 /// clamp for free: selection unrolls only `max` of these.

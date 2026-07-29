@@ -234,37 +234,27 @@ fn validate_scope_field_types(
             diagnostics,
         );
 
-        // A repeated field is spelled `[element; max]`. The declared maximum
-        // is part of the wire contract -- it is what gives the packed payload
-        // a finite worst case -- so a bare slice (`[element]`, no maximum)
-        // can never be encoded and is rejected at the declaration, like a
-        // schema cycle. A zero maximum declares a field that can never carry
-        // an element; reject it as a contradiction rather than encode an
-        // always-empty payload.
+        // Bounded repeated carriers (`[T; N]` and `FixedVec<T, N>`) give the
+        // generated realization a finite worst-case byte/work budget. A bare
+        // scalar slice has no such bound in the current encode requirement.
         if program.wire_field_is_unbounded_slice(field)
             && !program.is_borrowed_byte_slice(field.type_reference)
         {
             // A borrowed byte slice `&[u8]` is the zero-copy RAW-bytes/text
             // field (length varint + raw bytes, runtime-bounded like the old
             // runtime-sized text content), so it is exempt from the "needs a maximum" rule
-            // that owned repeated `[scalar; max]` fields obey. Any OTHER bare
+            // that bounded repeated scalar carriers obey. Any OTHER bare
             // slice still rejects -- it has no finite worst case.
             diagnostics.push(Diagnostic::error(format!(
-                "{} field `{}`: a repeated wire field needs a declared maximum element count (`[{}; N]`); a bare slice has no finite worst-case encoding",
+                "{} field `{}`: the current compact_binary generated realization needs a statically bounded repeated carrier (`[{}; N]` or `FixedVec<{}, N>`); borrowed scalar slices await explicit runtime length, work, and output-capacity obligations",
                 scope_label(schema, scope),
                 field.name,
                 program.display_type_reference(field.type_reference)
                     .trim_start_matches('[')
-                    .trim_end_matches(']')
-            )));
-        } else if let Some((_, max_count)) = program.wire_field_fixed_array(field)
-            && max_count == 0
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "{} field `{}`: a repeated wire field's maximum element count must be at least 1, got `{}`",
-                scope_label(schema, scope),
-                field.name,
+                    .trim_end_matches(']'),
                 program.display_type_reference(field.type_reference)
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
             )));
         }
     }
@@ -321,6 +311,13 @@ fn validate_field_type_reference(
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
+                if matches!(
+                    program.type_reference_table.type_reference(*argument),
+                    TypeReferenceNode::Named { name, .. }
+                        if name.as_str().parse::<u64>().is_ok()
+                ) {
+                    continue;
+                }
                 validate_field_type_reference(
                     program,
                     symbols,
@@ -548,14 +545,14 @@ fn validate_wire_encode_call(
         let WireMember::Field(field) = member else {
             continue;
         };
-        // A REPEATED field (`[scalar; max]`) packs LENGTH-delimited: tag +
+        // A bounded repeated scalar carrier packs LENGTH-delimited: tag +
         // byte-length varint + back-to-back element varints (protobuf's
-        // packed encoding). The declared maximum bounds it statically, so it
+        // packed encoding). Its capacity bounds it statically, so it
         // joins the worst-case budget like a scalar and may sit anywhere.
         // Only scalar elements are honest today: a text element is runtime-sized
         // and a nested-message element would need per-element staging, so both
         // reject loudly.
-        if let Some((_, max_count)) = program.wire_field_fixed_array(field) {
+        if let Some((_, _, max_count)) = program.wire_field_repeated_carrier(field) {
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated runtime-sized text and repeated nested messages reject until they have an honest encoding)",
@@ -868,10 +865,10 @@ fn validate_wire_decode_call(
         let WireMember::Field(field) = member else {
             continue;
         };
-        // Mirrors the encoder's repeated gate: `[scalar; max]` decodes as a
+        // Mirrors the encoder's repeated gate: a bounded scalar carrier decodes as a
         // LENGTH-delimited packed payload (bounds-checked loop capped at the
-        // declared maximum); non-scalar elements reject.
-        if program.wire_field_fixed_array(field).is_some() {
+        // declared capacity); non-scalar elements reject.
+        if program.wire_field_repeated_carrier(field).is_some() {
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated runtime-sized text and repeated nested messages reject until they have an honest encoding)",
@@ -1269,12 +1266,9 @@ fn validate_nested_value_field(
     }
 }
 
-/// A repeated wire field's value member must mirror the schema spelling
-/// exactly -- `name: [element; max]` with the SAME element primitive and the
-/// SAME maximum -- and the value type must also declare the COUNT COMPANION
-/// `name_count: usize`: the wire carries the packed byte length, never the
-/// count, so the companion is where the runtime element count lives (the
-/// encoder reads it, the decoder writes it).
+/// A repeated wire field's runtime member must use the same carrier semantics,
+/// scalar element, and capacity as the schema. Fixed arrays are exactly full;
+/// `FixedVec<T, N>` owns its live length in the carrier itself.
 fn validate_repeated_value_field(
     program: &TypedTrees,
     schema: &WireSchema,
@@ -1306,26 +1300,13 @@ fn validate_repeated_value_field(
             )));
         }
         Some(value_field) => {
-            let matches_schema = unwrapped_type_reference(program, value_field.type_reference)
-                .map(|unwrapped| program.type_reference_table.type_reference(unwrapped))
-                .is_some_and(|node| {
-                    matches!(
-                        node,
-                        TypeReferenceNode::FixedArray {
-                            element_type,
-                            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
-                        } if *length == repeated.max_count
-                            && program
-                                .primitive_type_reference(*element_type)
-                                .and_then(
-                                    omega_typed_trees::wire::WireScalarEncoding::for_primitive
-                                )
-                                == Some(repeated.element)
-                    )
-                });
+            let mut runtime_field = field.clone();
+            runtime_field.type_reference = value_field.type_reference;
+            let matches_schema =
+                program.wire_field_repeated_encoding(&runtime_field) == Some(repeated);
             if !matches_schema {
                 diagnostics.push(Diagnostic::error(format!(
-                    "`{}::{machine_name}` value field `{}.{}` is `{}`, but the schema declares repeated field {} as `{}` -- the value array must match the element type and maximum exactly",
+                    "`{}::{machine_name}` value field `{}.{}` is `{}`, but the schema declares repeated field {} as `{}` -- the value carrier, element type, and capacity must match exactly",
                     schema.name,
                     value_data.name,
                     field.name,
@@ -1335,9 +1316,10 @@ fn validate_repeated_value_field(
                 )));
             }
             if machine_name == "decode"
-                && let Some(element_type) = omega_typed_trees::wire::fixed_array_element_type(
+                && let Some(element_type) = omega_typed_trees::wire::repeated_element_type(
                     program,
                     value_field.type_reference,
+                    repeated.carrier,
                 )
                 && omega_typed_trees::wire::type_reference_carries_range(program, element_type)
                 && omega_typed_trees::wire::scalar_decode_range(program, element_type).is_none()
@@ -1349,29 +1331,6 @@ fn validate_repeated_value_field(
                     value_data.name,
                     field.name,
                     program.display_type_reference(element_type)
-                )));
-            }
-        }
-    }
-
-    let count_name = omega_typed_trees::wire::wire_repeated_count_field_name(field.name.as_str());
-    match find_field(&count_name) {
-        None => {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}::{machine_name}` value type `{}` has no field `{count_name}`: a repeated wire field needs a `u64` count companion next to the array (`{count_name}: u64;`) -- the encoder reads it and the decoder writes the decoded element count back",
-                schema.name, value_data.name
-            )));
-        }
-        Some(count_field) => {
-            if !matches!(
-                program.primitive_type_reference(count_field.type_reference),
-                Some(omega_typed_trees::types::PrimitiveType::U64)
-            ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}::{machine_name}` value field `{}.{count_name}` must be `u64` (the repeated field's count companion), got `{}`",
-                    schema.name,
-                    value_data.name,
-                    program.display_type_reference(count_field.type_reference)
                 )));
             }
         }

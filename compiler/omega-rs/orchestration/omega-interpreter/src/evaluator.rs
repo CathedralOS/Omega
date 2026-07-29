@@ -2416,36 +2416,44 @@ impl<'program> Evaluator<'program> {
                     bytes.extend(body);
                 }
                 WireInterpField::Repeated(repeated) => {
-                    // A repeated field packs LENGTH-delimited: the live
-                    // elements (the count companion, capped at the declared
-                    // maximum -- the native unrolled guards clamp the same
-                    // way, comparing the count UNSIGNED) into a staging body
-                    // first, then the byte-LENGTH varint and the body.
-                    let count_name =
-                        omega_typed_trees::wire::wire_repeated_count_field_name(field_name);
-                    let count_cell = match &*value_cell.borrow() {
-                        Value::Struct { fields, .. } => fields
-                            .get(&count_name)
-                            .map(|cell| self.deref_cell(Rc::clone(cell)))
-                            .ok_or_else(|| {
+                    // Fixed arrays are exactly full. FixedVec carries its
+                    // runtime length beside the inline items array.
+                    let (items, live) = match repeated.carrier {
+                        omega_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
+                            (Rc::clone(&raw), repeated.max_count)
+                        }
+                        omega_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
+                            let (items, length) = match &*raw.borrow() {
+                                Value::Struct { fields, .. } => {
+                                    let items = fields.get("items").map(Rc::clone).ok_or_else(|| {
+                                        Halt::Trap(format!(
+                                            "`{schema_name}::encode` FixedVec field `{field_name}` has no `items`"
+                                        ))
+                                    })?;
+                                    let length =
+                                        fields.get("length").map(Rc::clone).ok_or_else(|| {
+                                            Halt::Trap(format!(
+                                                "`{schema_name}::encode` FixedVec field `{field_name}` has no `length`"
+                                            ))
+                                        })?;
+                                    (self.deref_cell(items), self.deref_cell(length))
+                                }
+                                _ => {
+                                    return Err(Halt::Trap(format!(
+                                        "`{schema_name}::encode` repeated field `{field_name}` is not a FixedVec value"
+                                    )));
+                                }
+                            };
+                            let length = length.borrow().as_int().ok_or_else(|| {
                                 Halt::Trap(format!(
-                                    "`{schema_name}::encode` value has no field `{count_name}`"
+                                    "`{schema_name}::encode` FixedVec field `{field_name}.length` is not a scalar value"
                                 ))
-                            })?,
-                        _ => {
-                            return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode` value argument is not a data value"
-                            )));
+                            })? as u64;
+                            (items, length.min(repeated.max_count as u64) as usize)
                         }
                     };
-                    let count = count_cell.borrow().as_int().ok_or_else(|| {
-                        Halt::Trap(format!(
-                            "`{schema_name}::encode` field `{count_name}` is not a scalar value"
-                        ))
-                    })? as u64;
-                    let live = count.min(repeated.max_count as u64) as usize;
                     let mut body = Vec::new();
-                    match &*raw.borrow() {
+                    match &*items.borrow() {
                         Value::Array(elements) => {
                             for element in elements.iter().take(live) {
                                 let element_raw =
@@ -2464,7 +2472,7 @@ impl<'program> Evaluator<'program> {
                         }
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode` repeated field `{field_name}` is not a fixed array value"
+                                "`{schema_name}::encode` repeated field `{field_name}` has no inline array storage"
                             )));
                         }
                     }
@@ -2625,11 +2633,14 @@ impl<'program> Evaluator<'program> {
                 ))
             })?;
             if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
-                let range =
-                    omega_typed_trees::wire::fixed_array_element_type(self.program, target_type)
-                        .and_then(|element| {
-                            omega_typed_trees::wire::scalar_decode_range(self.program, element)
-                        });
+                let range = omega_typed_trees::wire::repeated_element_type(
+                    self.program,
+                    target_type,
+                    repeated.carrier,
+                )
+                .and_then(|element| {
+                    omega_typed_trees::wire::scalar_decode_range(self.program, element)
+                });
                 fields.push((
                     field.name.as_str().to_owned(),
                     field.number,
@@ -2903,15 +2914,11 @@ impl<'program> Evaluator<'program> {
                 }
                 WireInterpScalarField::Repeated { encoding, range } => {
                     // Byte-LENGTH varint, the same OPEN bound checks as a
-                    // nested message, the count companion zeroed, then up to
-                    // `max_count` guarded element reads -- each runs only
-                    // while the cursor sits below the bound, mirroring the
-                    // native unrolled guards: the element value stores and
-                    // the count bumps even when the read itself failed (ok
-                    // is the contract, not the partial payload). The CLOSE
-                    // check rejects a length that disagrees with the
-                    // elements -- including MORE elements than the maximum
-                    // (the cursor stops short of the bound).
+                    // nested message, then the carrier-specific bounded
+                    // reads. Fixed arrays require exactly N elements;
+                    // FixedVec guards on the region end and updates its own
+                    // length. The CLOSE check rejects framing that disagrees
+                    // with either carrier.
                     let length = read_varint(&mut cursor, &mut ok);
                     if length > buffer.len() as u64 {
                         ok = false;
@@ -2920,32 +2927,50 @@ impl<'program> Evaluator<'program> {
                     if end > buffer.len() {
                         ok = false;
                     }
-                    let count_name =
-                        omega_typed_trees::wire::wire_repeated_count_field_name(field_name);
-                    let count_cell = match &*value_cell.borrow() {
-                        Value::Struct { fields, .. } => fields
-                            .get(&count_name)
-                            .map(|cell| self.deref_cell(Rc::clone(cell)))
-                            .ok_or_else(|| {
-                                Halt::Trap(format!(
-                                    "`{schema_name}::decode` value has no field `{count_name}`"
-                                ))
-                            })?,
-                        _ => {
-                            return Err(Halt::Trap(format!(
-                                "`{schema_name}::decode` value argument is not a data value"
-                            )));
+                    let (items_cell, count_cell) = match encoding.carrier {
+                        omega_typed_trees::wire::WireRepeatedCarrier::FixedArray => {
+                            (Rc::clone(&field_cell), None)
+                        }
+                        omega_typed_trees::wire::WireRepeatedCarrier::FixedVec => {
+                            match &*field_cell.borrow() {
+                                Value::Struct { fields, .. } => {
+                                    let items =
+                                        fields.get("items").map(Rc::clone).ok_or_else(|| {
+                                            Halt::Trap(format!(
+                                                "`{schema_name}::decode` FixedVec field `{field_name}` has no `items`"
+                                            ))
+                                        })?;
+                                    let length =
+                                        fields.get("length").map(Rc::clone).ok_or_else(|| {
+                                            Halt::Trap(format!(
+                                                "`{schema_name}::decode` FixedVec field `{field_name}` has no `length`"
+                                            ))
+                                        })?;
+                                    (self.deref_cell(items), Some(self.deref_cell(length)))
+                                }
+                                _ => {
+                                    return Err(Halt::Trap(format!(
+                                        "`{schema_name}::decode` repeated field `{field_name}` is not a FixedVec value"
+                                    )));
+                                }
+                            }
                         }
                     };
                     let mut decoded = 0i64;
-                    *count_cell.borrow_mut() = Value::Int(0);
+                    if let Some(count_cell) = &count_cell {
+                        *count_cell.borrow_mut() = Value::Int(0);
+                    }
                     for index in 0..encoding.max_count {
-                        if cursor >= end {
+                        if matches!(
+                            encoding.carrier,
+                            omega_typed_trees::wire::WireRepeatedCarrier::FixedVec
+                        ) && cursor >= end
+                        {
                             continue;
                         }
                         let raw_value = read_varint(&mut cursor, &mut ok);
                         let decoded_value = wire_decoded_scalar_value(raw_value, encoding.element)?;
-                        let element_cell = match &*field_cell.borrow() {
+                        let element_cell = match &*items_cell.borrow() {
                             Value::Array(elements) => {
                                 elements.get(index).map(Rc::clone).ok_or_else(|| {
                                     Halt::Trap(format!(
@@ -2968,7 +2993,9 @@ impl<'program> Evaluator<'program> {
                             ok = false;
                         }
                         decoded += 1;
-                        *count_cell.borrow_mut() = Value::Int(decoded);
+                        if let Some(count_cell) = &count_cell {
+                            *count_cell.borrow_mut() = Value::Int(decoded);
+                        }
                     }
                     if cursor != end {
                         ok = false;

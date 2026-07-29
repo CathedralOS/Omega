@@ -64,14 +64,15 @@ enum WireReadContent {
         predicate_mask: u8,
     },
     /// A repeated field: a byte-LENGTH varint opens a bounded sub-region,
-    /// then up to `max_count` guarded element reads (each runs only while
-    /// the cursor sits below the bound, bumping the count companion), and
-    /// the exact-end close rejects payloads whose length disagrees with the
-    /// elements -- including MORE elements than the declared maximum.
+    /// then up to `max_count` element reads. Fixed arrays require all N;
+    /// FixedVec guards on the region end and bumps its intrinsic length. The
+    /// exact-end close rejects payloads whose length disagrees with the
+    /// elements -- including MORE elements than the carrier capacity.
     Repeated {
+        carrier: omega_checked_trees::wire::WireRepeatedCarrier,
         element: WireScalarEncoding,
         base: RuntimeStoragePlace,
-        count: RuntimeStoragePlace,
+        count: Option<RuntimeStoragePlace>,
         max_count: usize,
         range: Option<omega_core::wire::WireScalarRange>,
     },
@@ -414,6 +415,7 @@ pub(super) fn select_wire_decode_call(
                 });
             }
             WireReadContent::Repeated {
+                carrier,
                 element,
                 base,
                 count,
@@ -422,13 +424,11 @@ pub(super) fn select_wire_decode_call(
             } => {
                 // Byte-LENGTH varint into the end-bound slot, OPEN bounds it
                 // against the buffer (a hostile length cannot wrap the
-                // 64-bit sum or run past the buffer), the count companion
-                // zeroes, then `max_count` unrolled guarded reads -- each
-                // runs only while the cursor sits below the bound, so the
-                // element count is capped by the declared maximum -- and
-                // CLOSE fails ok unless the cursor landed exactly on the
-                // bound (a payload packing more than `max_count` elements
-                // leaves the cursor short and rejects).
+                // 64-bit sum or run past the buffer), then `max_count`
+                // unrolled reads. Fixed arrays require every element;
+                // FixedVec guards each read on the region end and records the
+                // result in its intrinsic length. CLOSE rejects any byte
+                // length that disagrees with the carrier.
                 push(SelectedInstructionKind::ReadWireScalarVarint {
                     buffer_region: buffer_place.region,
                     buffer_offset: buffer_place.byte_offset,
@@ -454,33 +454,59 @@ pub(super) fn select_wire_decode_call(
                     end_region: RuntimeStorageRegion::RuntimeFrame,
                     end_offset,
                 });
-                push(
-                    crate::selection::runtime_dispatch::write_place_integer_direct(
-                        count.region,
-                        count.byte_offset,
-                        0,
-                        count.byte_count,
-                    ),
-                );
+                if let Some(count) = count {
+                    push(
+                        crate::selection::runtime_dispatch::write_place_integer_direct(
+                            count.region,
+                            count.byte_offset,
+                            0,
+                            count.byte_count,
+                        ),
+                    );
+                }
                 for index in 0..*max_count {
-                    push(SelectedInstructionKind::ReadWireRepeatedScalarVarint {
-                        buffer_region: buffer_place.region,
-                        buffer_offset: buffer_place.byte_offset,
-                        buffer_length,
-                        read_region: read_place.region,
-                        read_offset: read_place.byte_offset,
-                        ok_region: ok_place.region,
-                        ok_offset: ok_place.byte_offset,
-                        end_region: RuntimeStorageRegion::RuntimeFrame,
-                        end_offset,
-                        count_region: count.region,
-                        count_offset: count.byte_offset,
-                        target_region: base.region,
-                        target_offset: base.byte_offset + index * element.byte_size,
-                        byte_size: element.byte_size,
-                        zigzag: element.zigzag,
-                        range: *range,
-                    });
+                    let target_offset = base.byte_offset + index * element.byte_size;
+                    match carrier {
+                        omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => {
+                            push(SelectedInstructionKind::ReadWireScalarVarint {
+                                buffer_region: buffer_place.region,
+                                buffer_offset: buffer_place.byte_offset,
+                                buffer_length,
+                                read_region: read_place.region,
+                                read_offset: read_place.byte_offset,
+                                ok_region: ok_place.region,
+                                ok_offset: ok_place.byte_offset,
+                                target_region: base.region,
+                                target_offset,
+                                byte_size: element.byte_size,
+                                zigzag: element.zigzag,
+                                range: *range,
+                            });
+                        }
+                        omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                            let count = count
+                                .as_ref()
+                                .expect("FixedVec repeated field carries its length place");
+                            push(SelectedInstructionKind::ReadWireRepeatedScalarVarint {
+                                buffer_region: buffer_place.region,
+                                buffer_offset: buffer_place.byte_offset,
+                                buffer_length,
+                                read_region: read_place.region,
+                                read_offset: read_place.byte_offset,
+                                ok_region: ok_place.region,
+                                ok_offset: ok_place.byte_offset,
+                                end_region: RuntimeStorageRegion::RuntimeFrame,
+                                end_offset,
+                                count_region: count.region,
+                                count_offset: count.byte_offset,
+                                target_region: base.region,
+                                target_offset,
+                                byte_size: element.byte_size,
+                                zigzag: element.zigzag,
+                                range: *range,
+                            });
+                        }
+                    }
                 }
                 push(SelectedInstructionKind::ReadWireNestedClose {
                     buffer_region: buffer_place.region,
@@ -533,54 +559,69 @@ fn collect_field_reads(
             field.name.as_str(),
         )?;
 
-        // A repeated field resolves the array member AND its count companion
-        // (`<name>_count`); validation has guaranteed both exist with the
-        // right shapes. Repeated fields live at the top level only -- a
-        // child body admits plain scalars alone.
+        // A repeated field resolves either the exactly-full array member or
+        // a FixedVec's inline `items` plus its own `length`.
         if let Some(repeated) = input.program.wire_field_repeated_encoding(field) {
             if !allow_nested {
                 return None;
             }
+            let (base_handle, count_handle) = match repeated.carrier {
+                omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => (member_handle, None),
+                omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                    let items = expressions.insert(ExpressionNode::Member(
+                        omega_checked_trees::expression::TableMemberExpression {
+                            receiver: member_handle,
+                            member_symbol: SymbolHandle::invalid(),
+                            member: "items".into(),
+                            case_variant: None,
+                        },
+                    ));
+                    let length = expressions.insert(ExpressionNode::Member(
+                        omega_checked_trees::expression::TableMemberExpression {
+                            receiver: member_handle,
+                            member_symbol: SymbolHandle::invalid(),
+                            member: "length".into(),
+                            case_variant: None,
+                        },
+                    ));
+                    (items, Some(length))
+                }
+            };
             let base = resolve_runtime_storage_place_in_table(
                 input,
                 dispatch_index,
                 source_key,
                 expressions,
-                member_handle,
+                base_handle,
             )?;
             if base.byte_count != repeated.max_count * repeated.element.byte_size {
                 return None;
             }
-            let count_name =
-                omega_checked_trees::wire::wire_repeated_count_field_name(field.name.as_str());
-            let count_handle = expressions.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
-                    receiver,
-                    member_symbol: SymbolHandle::invalid(),
-                    member: count_name.as_str().into(),
-                    case_variant: None,
-                },
-            ));
-            let count = resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                count_handle,
-            )?;
-            if count.byte_count != 8 {
+            let count = match count_handle {
+                Some(handle) => Some(resolve_runtime_storage_place_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    handle,
+                )?),
+                None => None,
+            };
+            if count.as_ref().is_some_and(|count| count.byte_count != 8) {
                 return None;
             }
             fields.push(WireFieldRead {
                 number: field.number,
                 content: WireReadContent::Repeated {
+                    carrier: repeated.carrier,
                     element: repeated.element,
                     base,
                     count,
                     max_count: repeated.max_count,
-                    range: omega_checked_trees::wire::fixed_array_element_type(
+                    range: omega_checked_trees::wire::repeated_element_type(
                         input.program,
                         member_type,
+                        repeated.carrier,
                     )
                     .and_then(|element| {
                         omega_checked_trees::wire::scalar_decode_range(input.program, element)

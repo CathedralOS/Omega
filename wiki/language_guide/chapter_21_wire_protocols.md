@@ -120,6 +120,14 @@ Repeated fields use ordinary sequence carriers:
 The selected codec derives framing from the carrier and retains the applicable
 length, allocation, and work obligations in its plan.
 
+Implementation status: `compact_binary`'s generated realization now treats
+`[T; N]` as exactly `N` elements and `FixedVec<T, N>` as a runtime length
+bounded by `N`; neither uses an invented sibling count field. Borrowed byte
+slices already use the zero-copy length-delimited path. General borrowed scalar
+slices still need the generated encode requirement to retain their runtime
+length, work, and output-capacity obligations. Owned `Vec<T>` decode remains
+gated on its explicit allocator contract.
+
 ## Representation Facts And Obligations
 
 The home layout mechanically derives representation facts, including the
@@ -280,7 +288,7 @@ normalized tagged plan currently supports:
 - numbered scalar fields using canonical unsigned LEB128;
 - zigzag encoding for signed integers;
 - canonical `bool` values `0` and `1`;
-- bounded repeated scalar fields;
+- bounded repeated scalar fields carried by exact arrays or `FixedVec`;
 - a trailing runtime-sized UTF-8 byte field;
 - one level of length-delimited nested scalar records; and
 - destination range checks before establishing qualified scalar fields.

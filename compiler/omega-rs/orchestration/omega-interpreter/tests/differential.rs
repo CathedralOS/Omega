@@ -1652,6 +1652,24 @@ fn interpreter_establishes_repeated_wire_element_ranges() {
 }
 
 #[test]
+fn interpreter_roundtrips_fixed_vec_wire_field() {
+    let main_path = pass_canary("wire/runtime_wire_roundtrip_repeated_exit").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "FixedVec wire roundtrip compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "FixedVec wire roundtrip should be supported, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+#[test]
 fn interpreter_rejects_noncanonical_wire_booleans() {
     let main_path =
         pass_canary("wire/runtime_wire_decode_rejects_noncanonical_bool_exit").join("main.omg");

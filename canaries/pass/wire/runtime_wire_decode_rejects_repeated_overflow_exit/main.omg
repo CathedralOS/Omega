@@ -3,10 +3,10 @@
 //
 // Payload 1 (too many elements): [0x00, 0x00, 0x03, 0x02, 0x02, 0x02] -- era
 // 0, tag 0, byte-length 3, then THREE one-byte elements (zigzag(1) = 2) for
-// a `[i32; 2]` field. The two unrolled guarded reads consume two elements
-// (cursor = 5), the third never runs (the maximum is the cap), and the CLOSE
+// a `[i32; 2]` field. The two exact reads consume two elements (cursor = 5),
+// and the CLOSE
 // check clears ok because the cursor stopped short of the declared end bound
-// (6). The count companion reports the two elements actually decoded.
+// (6).
 //
 // Payload 2 (hostile length): [0x00, 0x00, 0x20, 0x02, 0x02, 0x02] -- the
 // byte-length claims 32 where only 3 bytes remain. The OPEN check clears ok
@@ -14,8 +14,7 @@
 // bounds-checked against the buffer, so nothing reads out of bounds, and the
 // decode reports failure.
 //
-// Exit 70 only when BOTH decodes report failure AND the first decode's count
-// companion shows the maximum-capped element count (2, not 3).
+// Exit 70 only when BOTH decodes report failure.
 
 use omega::language::std::console;
 
@@ -25,7 +24,6 @@ data Burst {
 
 data BurstValue {
     samples: [i32; 2];
-    samples_count: u64;
 }
 
 // The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
@@ -41,7 +39,6 @@ data Main {
     verdict_overflow: WireVerdict;
     read_hostile: u64;
     verdict_hostile: WireVerdict;
-    count_capped: bool;
 }
 
 machine Main::main(&mut self) {
@@ -49,13 +46,10 @@ machine Main::main(&mut self) {
     let hostile_payload: [u8; 6] = [0, 0, 32, 2, 2, 2];
 
     let decoded: BurstValue = BurstValue {
-        samples: [0, 0],
-        samples_count: 0
+        samples: [0, 0]
     };
 
     Burst::decode(&mut decoded, &overflow_payload, &mut self.read_overflow, &mut self.verdict_overflow);
-    let capped: bool = decoded.samples_count == 2;
-    self.count_capped = capped;
 
     Burst::decode(&mut decoded, &hostile_payload, &mut self.read_hostile, &mut self.verdict_hostile);
 
@@ -67,14 +61,7 @@ machine Main::main(&mut self) {
     state check_hostile(&mut self) {
         transition self.verdict_hostile {
             WireVerdict::Sound -> bad()
-            WireVerdict::Invalid -> check_cap()
-        }
-    }
-
-    state check_cap(&mut self) {
-        transition self.count_capped {
-            true -> good()
-            false -> bad()
+            WireVerdict::Invalid -> good()
         }
     }
 

@@ -1,13 +1,13 @@
 // Wire NESTED MESSAGE + REPEATED field in ONE message: both features stage
 // runtime-sized payloads (the sub-message replays length-prefixed from the
-// wire scratch; the packed repeated field's length depends on the count
-// companion), so their composition pins that the second runtime-sized region
+// wire scratch; the packed FixedVec field's length is intrinsic), so their
+// composition pins that the second runtime-sized region
 // starts where the first actually ended -- on BOTH the encode and decode
 // sides (the decoder must close the sub-region exactly on its bound, then
 // open the packed region from the live cursor).
 //
-// Encoded bytes for { header: { room_id: 300 }, samples: [150, -2],
-// samples_count: 2, depth: -64 }, hand-computed:
+// Encoded bytes for { header: { room_id: 300 },
+// samples: FixedVec([150, -2], len 2), depth: -64 }, hand-computed:
 //   era 0          -> 0x00        (no version blocks)
 //   tag 0          -> 0x00        (header)
 //   length 3       -> 0x03        (sub-message body below)
@@ -22,6 +22,7 @@
 // written = 13; the decoder consumes the same 13 bytes (read = 13,
 // ok = true) and every decoded field equals the original.
 
+use omega::language::core::fixed_vec;
 use omega::language::std::console;
 
 data RoomHeader {
@@ -30,7 +31,7 @@ data RoomHeader {
 
 data RoomPacket {
     #0 header: RoomHeader;
-    #1 samples: [i32; 4];
+    #1 samples: FixedVec<i32, 4>;
     #2 depth: i32;
 }
 
@@ -40,8 +41,7 @@ data RoomHeaderValue {
 
 data RoomPacketValue {
     header: RoomHeaderValue;
-    samples: [i32; 4];
-    samples_count: u64;
+    samples: FixedVec<i32, 4>;
     depth: i32;
 }
 
@@ -65,8 +65,7 @@ machine Main::main(&mut self) {
         header: RoomHeaderValue {
             room_id: 300
         },
-        samples: [150, 0 - 2, 0, 0],
-        samples_count: 2,
+        samples: FixedVec { items: [150, 0 - 2, 0, 0], length: 2 },
         depth: 0 - 64
     };
 
@@ -76,8 +75,7 @@ machine Main::main(&mut self) {
         header: RoomHeaderValue {
             room_id: 0
         },
-        samples: [0, 0, 0, 0],
-        samples_count: 0,
+        samples: FixedVec { items: [0, 0, 0, 0], length: 0 },
         depth: 0
     };
 
@@ -87,9 +85,9 @@ machine Main::main(&mut self) {
         && self.written == 13
         && self.read == 13
         && decoded.header.room_id == 300
-        && decoded.samples_count == 2
-        && decoded.samples[0] == 150
-        && decoded.samples[1] == 0 - 2
+        && decoded.samples.length == 2
+        && decoded.samples.items[0] == 150
+        && decoded.samples.items[1] == 0 - 2
         && decoded.depth == 0 - 64;
     transition matches {
         true -> good()

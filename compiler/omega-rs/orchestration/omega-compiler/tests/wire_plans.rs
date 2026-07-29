@@ -23,10 +23,13 @@ fn numbered_schemas_get_tag_ordered_placement_plans() {
     let main_path = write_program(
         "mixed",
         r#"
+use omega::language::core::fixed_vec;
+
 data Packet {
-    3: label: &[u8];
-    1: seed: u64;
-    2: flag: bool;
+    #3 label: &[u8];
+    #1 seed: u64;
+    #2 flag: bool;
+    #4 samples: FixedVec<i32, 4>;
 }
 data Main { }
 machine Main::main(&mut self) { }
@@ -45,13 +48,15 @@ machine Main::main(&mut self) { }
         .expect("Packet should carry a derived wire plan");
     // Placements are TAG-ORDERED (the codec emits in field-number order),
     // regardless of declaration order: 1=seed (scalar varint), 2=flag
-    // (scalar varint), 3=label (borrowed bytes, length-prefixed).
+    // (scalar varint), 3=label (borrowed bytes, length-prefixed), 4=samples
+    // (bounded repeated FixedVec, length-prefixed).
     assert_eq!(
         plan,
         [
             WirePlacement::Varint { tag: 1 },
             WirePlacement::Varint { tag: 2 },
             WirePlacement::LengthPrefixed { tag: 3 },
+            WirePlacement::LengthPrefixed { tag: 4 },
         ]
     );
 }
@@ -61,7 +66,7 @@ fn full_width_unsigned_policy_tags_are_not_reinterpreted_as_signed() {
     let main_path = write_program(
         "full-width-tag",
         r#"
-data Packet { 1: value: u8; }
+data Packet { #1 value: u8; }
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }

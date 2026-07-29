@@ -9163,9 +9163,8 @@ fn runtime_case_membership_mixed_shape_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_roundtrip_repeated_max_one_exit_canary_runs() {
-    // Wire repeated field with the DEGENERATE maximum `[u32; 1]`: the
-    // unrolled guarded element ops collapse to one, the count companion
-    // still rules, and the packed framing round-trips (written = read = 6).
+    // Wire exact-array field with the DEGENERATE extent `[u32; 1]`: one
+    // required element, no synthetic count, and packed framing round-trips.
     let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_max_one_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
@@ -9965,13 +9964,13 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
-    // Wire repeated fields: encode { sensor_id: 7, samples: [150, -2, 0, 0],
-    // samples_count: 2, flag: true } into [0x00, 0x00, 0x07, 0x01, 0x03,
+    // Wire FixedVec field: encode { sensor_id: 7, samples: [150, -2] len 2,
+    // flag: true } into [0x00, 0x00, 0x07, 0x01, 0x03,
     // 0xAC, 0x02, 0x03, 0x02, 0x01] (hand-computed in the canary header --
     // the repeated field packs LENGTH-delimited: tag + byte-length varint +
     // the live element varints, no per-element tags), then decode back into
-    // a fresh value: ok = true, read = 10, both live elements and the count
-    // companion round-trip. Exits 70 on a full match.
+    // a fresh value: ok = true, read = 10, both live elements and intrinsic
+    // length round-trip. Exits 70 on a full match.
     let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_exit");
     let main_path = canary.join("main.omg");
     let build_dir =
@@ -38791,6 +38790,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_decoded_byte_slice_len_exit",
     "wire/runtime_wire_decoded_byte_slice_index_exit",
     "wire/runtime_wire_roundtrip_repeated_exit",
+    "wire/runtime_wire_exact_array_without_count_exit",
     "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
     // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
     "wire/runtime_wire_roundtrip_repeated_max_one_exit",
@@ -39219,7 +39219,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/repeated_text_element",
     "wire/repeated_nested_element",
     "wire/repeated_without_max",
-    "wire/repeated_value_missing_count",
     "capabilities/unapproved_host_call",
     "comptime/effectful_const_array_length",
     "comptime/negative_const_array_length",

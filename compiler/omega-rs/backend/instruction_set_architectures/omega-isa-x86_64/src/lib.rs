@@ -10033,7 +10033,7 @@ pub fn wire_decode_nested_end_page_offset(_buffer_offset: usize, _read_offset: u
 // back-to-back element varints). The element count is runtime-sized but
 // bounded by the schema's declared maximum, so selection UNROLLS the maximum
 // and each unrolled operation guards itself: the encode-side append runs only
-// when its compile-time element index is below the count-companion slot's
+// when its compile-time element index is below the FixedVec `length` slot's
 // value; the decode-side read runs only while the cursor sits below the end
 // bound the surrounding nested OPEN stored. Guarding keeps every emitted
 // width compile-time-fixed (the widths invariant) while the wire bytes track
@@ -10066,7 +10066,7 @@ pub fn append_wire_repeated_scalar_varint_width(
 }
 
 /// LEB128-encode element `index` of a packed repeated field at the cursor,
-/// ONLY IF `index < count` (the count-companion slot, read as unsigned
+/// ONLY IF `index < count` (the FixedVec `length` slot, read as unsigned
 /// 64-bit). A skipped element leaves the cursor untouched, so the staged
 /// payload holds exactly the live elements. Counts past the declared maximum
 /// clamp for free: selection unrolls only `max` of these.
@@ -10235,7 +10235,7 @@ pub fn read_wire_repeated_scalar_varint_width(
 /// LEB128-read one packed repeated element at the cursor into the target
 /// slot, ONLY IF the cursor sits strictly below the end bound the
 /// surrounding nested OPEN stored; the taken path also increments the
-/// count-companion slot. A skipped read changes nothing -- the jump lands
+/// FixedVec `length` slot. A skipped read changes nothing -- the jump lands
 /// past the epilogue, so cursor, ok, target, and count all stay put.
 /// Selection unrolls the declared maximum of these, so a payload packing
 /// more elements leaves the cursor short of the bound and the closing
