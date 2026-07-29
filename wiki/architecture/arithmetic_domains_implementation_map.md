@@ -83,10 +83,14 @@
 > nested conversion contract in checked proof. Each converted count is
 > materialized under a payload-distinct local name before enum construction;
 > the dynamic native canary and all 88 native filesystem/GUI rows retain the
-> delivered count. Other remaining filesystem casts are policy-bearing byte
-> conversions or compatibility-specific lowering shapes. The fixture exposed and now pins the
-> backend repair: branch-expanded storage reserves every assignment-value call
-> ordinal; leaf-only nested call trees are selectable root scopes; top-level
+> delivered count. Target timestamp byte encoders, directory-walk host/count
+> conversion, Windows attribute decoding, and portable stat projection now use
+> named conversion operations. Remaining filesystem `as` spellings are
+> same-carrier Wrapping qualification, target-owned boolean-to-foreign-bit
+> encoding, or compatibility-specific lowering shapes. The fixture exposed and
+> now pins the backend repair: branch-expanded storage reserves every
+> assignment-value call ordinal; leaf-only nested call trees are selectable
+> root scopes; top-level
 > `Machine::entry` call results match their machine name; and only a bare-call
 > local initializer is satisfied by a direct result copy. Embedded calls
 > materialize their own result slots before the complete enclosing expression

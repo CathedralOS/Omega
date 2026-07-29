@@ -421,7 +421,7 @@ windows_x64 machine Filesystem::rda_step(&mut self, step: u64) {
     }
     state rds_close(&mut self) {
         self.rda_close_rc = self.host.find_close(self.w_find);
-        self.rd_lou = self.w_attr as u64 in Wrapping;
+        self.rd_lou = widen_u8_to_u64(self.w_attr) as u64 in Wrapping;
         self.rd_hiu = self.rd_lou & 16;
         transition self.rd_hiu == 16 { true -> rds_mark_dir() _ -> rds_mark_file() }
     }
@@ -707,7 +707,7 @@ windows_x64 machine Filesystem::w_scan_step(&mut self, step: u64) {
     state ws_real(&mut self) {
         self.w_scan_count = self.w_scan_count + 1;
         self.w_attr = self.find_buf[0];
-        self.rd_lou = self.w_attr as u64 in Wrapping;
+        self.rd_lou = widen_u8_to_u64(self.w_attr) as u64 in Wrapping;
         self.rd_hiu = self.rd_lou & 16;
         transition self.rd_hiu == 16 { true -> ws_dir() _ -> ws_file() }
     }
@@ -869,26 +869,28 @@ windows_x64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, li
 // i64 Unix-seconds domain;
 // SetFileTime remains the authority on whether a resulting timestamp is valid.
 windows_x64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
-    let accessed_epoch: u64 in Wrapping = (accessed as u64 in Wrapping) + 11644473600;
+    let accessed_epoch: u64 in Wrapping =
+        (narrow_i64_to_u64_wrapping(accessed) as u64 in Wrapping) + 11644473600;
     let accessed_ticks: u64 in Wrapping = accessed_epoch * 10000000;
-    let modified_epoch: u64 in Wrapping = (modified as u64 in Wrapping) + 11644473600;
+    let modified_epoch: u64 in Wrapping =
+        (narrow_i64_to_u64_wrapping(modified) as u64 in Wrapping) + 11644473600;
     let modified_ticks: u64 in Wrapping = modified_epoch * 10000000;
-    self.access_filetime[0] = accessed_ticks as u8 in Wrapping;
-    self.access_filetime[1] = (accessed_ticks >> 8) as u8 in Wrapping;
-    self.access_filetime[2] = (accessed_ticks >> 16) as u8 in Wrapping;
-    self.access_filetime[3] = (accessed_ticks >> 24) as u8 in Wrapping;
-    self.access_filetime[4] = (accessed_ticks >> 32) as u8 in Wrapping;
-    self.access_filetime[5] = (accessed_ticks >> 40) as u8 in Wrapping;
-    self.access_filetime[6] = (accessed_ticks >> 48) as u8 in Wrapping;
-    self.access_filetime[7] = (accessed_ticks >> 56) as u8 in Wrapping;
-    self.modified_filetime[0] = modified_ticks as u8 in Wrapping;
-    self.modified_filetime[1] = (modified_ticks >> 8) as u8 in Wrapping;
-    self.modified_filetime[2] = (modified_ticks >> 16) as u8 in Wrapping;
-    self.modified_filetime[3] = (modified_ticks >> 24) as u8 in Wrapping;
-    self.modified_filetime[4] = (modified_ticks >> 32) as u8 in Wrapping;
-    self.modified_filetime[5] = (modified_ticks >> 40) as u8 in Wrapping;
-    self.modified_filetime[6] = (modified_ticks >> 48) as u8 in Wrapping;
-    self.modified_filetime[7] = (modified_ticks >> 56) as u8 in Wrapping;
+    self.access_filetime[0] = narrow_u64_to_u8_wrapping(accessed_ticks);
+    self.access_filetime[1] = narrow_u64_to_u8_wrapping(accessed_ticks >> 8);
+    self.access_filetime[2] = narrow_u64_to_u8_wrapping(accessed_ticks >> 16);
+    self.access_filetime[3] = narrow_u64_to_u8_wrapping(accessed_ticks >> 24);
+    self.access_filetime[4] = narrow_u64_to_u8_wrapping(accessed_ticks >> 32);
+    self.access_filetime[5] = narrow_u64_to_u8_wrapping(accessed_ticks >> 40);
+    self.access_filetime[6] = narrow_u64_to_u8_wrapping(accessed_ticks >> 48);
+    self.access_filetime[7] = narrow_u64_to_u8_wrapping(accessed_ticks >> 56);
+    self.modified_filetime[0] = narrow_u64_to_u8_wrapping(modified_ticks);
+    self.modified_filetime[1] = narrow_u64_to_u8_wrapping(modified_ticks >> 8);
+    self.modified_filetime[2] = narrow_u64_to_u8_wrapping(modified_ticks >> 16);
+    self.modified_filetime[3] = narrow_u64_to_u8_wrapping(modified_ticks >> 24);
+    self.modified_filetime[4] = narrow_u64_to_u8_wrapping(modified_ticks >> 32);
+    self.modified_filetime[5] = narrow_u64_to_u8_wrapping(modified_ticks >> 40);
+    self.modified_filetime[6] = narrow_u64_to_u8_wrapping(modified_ticks >> 48);
+    self.modified_filetime[7] = narrow_u64_to_u8_wrapping(modified_ticks >> 56);
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.set_file_time(handle, 0, &self.access_filetime, &self.modified_filetime);

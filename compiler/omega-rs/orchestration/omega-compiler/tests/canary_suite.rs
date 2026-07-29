@@ -30056,9 +30056,8 @@ fn windows_read_dir_nth_exit_canary_runs() {
 
 // The RAW set_file_time seam op (session slice 4b): kernel32 SetFileTime
 // over the handle bridge, hand-built FILETIME, stat round-trip @40. The
-// WRAPPER set_times windows migration is BLOCKED on the value-call
-// mutation-heavy-entry face (TASKS record); this raw pin keeps the
-// capability honest meanwhile. WINDOWS-HOST ONLY (raw windows ops have no
+// wrapper has its own end-to-end round-trip; this raw pin keeps the seam and
+// calibration independently honest. WINDOWS-HOST ONLY (raw windows ops have no
 // posix lowering), outside the cross-host sweep lists like the find trio.
 #[cfg(windows)]
 #[test]
@@ -33967,11 +33966,11 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
 }
 
 #[test]
-fn named_integer_conversion_filesystem_count_cross_targets_reach_checked_trees() {
+fn named_integer_conversion_filesystem_cross_targets_reach_checked_trees() {
     let canary = pass_canary("filesystem/windows_positioned_io_exit");
     for target in ["linux_x64", "linux_arm64", "windows_x64"] {
         let scratch = std::env::temp_dir().join(format!(
-            "omega-fs-count-conversion-{target}-{}",
+            "omega-fs-named-conversion-{target}-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&scratch);
@@ -33988,8 +33987,8 @@ fn named_integer_conversion_filesystem_count_cross_targets_reach_checked_trees()
         compile_to_checked(&source_dir.join("main.omg"), Some(target)).unwrap_or_else(
             |diagnostics| {
                 panic!(
-                    "named integer-conversion filesystem count cohort should reach checked trees \
-                     for {target}: {diagnostics:#?}"
+                    "named integer-conversion filesystem cohort should reach checked trees for \
+                     {target}: {diagnostics:#?}"
                 )
             },
         );
