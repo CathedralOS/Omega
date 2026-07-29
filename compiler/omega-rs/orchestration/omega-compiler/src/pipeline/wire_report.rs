@@ -1,6 +1,7 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
-    ArtifactWriter, WireCaseReportEntry, WireCompatibilityVerdicts, WireFieldReportEntry,
+    ArtifactWriter, WireCaseReportEntry, WireCompatibilityDemandReportEntry,
+    WireCompatibilityFactReport, WireCompatibilityVerdicts, WireFieldReportEntry,
     WireProtocolReport, WireSchemaReportEntry, WireVersionReportEntry,
 };
 use omega_core::arena::HandleSpan;
@@ -11,30 +12,327 @@ use omega_typed_trees::wire::{WireMember, WireSchema};
 pub(super) fn write_wire_protocol_report(
     options: &CompileOptions,
     typed: &TypedTrees,
+    compatibility_demands: &[super::build_config::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
-    let report = build_wire_protocol_report(typed);
+    let report = build_wire_protocol_report(typed, compatibility_demands);
 
     let writer =
         ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
     writer
         .write_wire_protocol_report(&report)
-        .map_err(|diagnostic| vec![diagnostic])
+        .map_err(|diagnostic| vec![diagnostic])?;
+
+    let diagnostics = report
+        .demands
+        .iter()
+        .filter(|demand| !demand.satisfied)
+        .map(|demand| {
+            let failed = [
+                ("readability", &demand.readability),
+                ("writability", &demand.writability),
+                ("unknown preservation", &demand.unknown_preservation),
+                ("canonicality", &demand.canonicality),
+                ("migration coverage", &demand.migration_coverage),
+            ]
+            .into_iter()
+            .filter(|(_, fact)| fact.required && !fact.satisfied)
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>()
+            .join(", ");
+            Diagnostic::error(format!(
+                "wire compatibility demand `{}` is unsatisfied for local schema `{}` and peer \
+                 schema `{}`: {}",
+                demand.edge, demand.local_schema, demand.peer_schema, failed
+            ))
+        })
+        .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
 }
 
-fn build_wire_protocol_report(typed: &TypedTrees) -> WireProtocolReport {
+fn build_wire_protocol_report(
+    typed: &TypedTrees,
+    compatibility_demands: &[super::build_config::WireCompatibilityDemand],
+) -> WireProtocolReport {
     let mut schemas = typed
         .wire_schemas()
         .iter()
         .map(|schema| schema_report_entry(typed, schema))
         .collect::<Vec<_>>();
-    schemas.extend(
-        typed
-            .data_definitions()
-            .iter()
-            .filter_map(|data| ordinary_data_schema_report_entry(typed, data)),
-    );
+    for ordinary in typed
+        .data_definitions()
+        .iter()
+        .filter_map(|data| ordinary_data_schema_report_entry(typed, data))
+    {
+        if let Some(generated) = schemas
+            .iter_mut()
+            .find(|schema| schema.name == ordinary.name)
+        {
+            generated.normalized_schema_identity = ordinary.normalized_schema_identity;
+            if generated.fields.is_empty() {
+                generated.fields = ordinary.fields;
+            }
+            if generated.reserved.is_empty() {
+                generated.reserved = ordinary.reserved;
+            }
+            generated.cases = ordinary.cases;
+            generated.retired_cases = ordinary.retired_cases;
+        } else {
+            schemas.push(ordinary);
+        }
+    }
     schemas.sort_by(|left, right| left.name.cmp(&right.name));
-    WireProtocolReport { schemas }
+    let demands = compatibility_demands
+        .iter()
+        .map(|demand| compatibility_demand_report(typed, &schemas, demand))
+        .collect();
+    WireProtocolReport { schemas, demands }
+}
+
+fn compatibility_demand_report(
+    typed: &TypedTrees,
+    schemas: &[WireSchemaReportEntry],
+    demand: &super::build_config::WireCompatibilityDemand,
+) -> WireCompatibilityDemandReportEntry {
+    let local = find_schema(schemas, &demand.local_schema);
+    let peer = find_schema(schemas, &demand.peer_schema);
+    let codec = local
+        .and_then(|schema| schema.encoding.as_deref())
+        .or_else(|| peer.and_then(|schema| schema.encoding.as_deref()))
+        .unwrap_or("compact_binary")
+        .to_owned();
+    let compact_binary = codec == "compact_binary";
+
+    let readability_value = local
+        .zip(peer)
+        .is_some_and(|(reader, writer)| schema_accepts(reader, writer));
+    let writability_value = local
+        .zip(peer)
+        .is_some_and(|(writer, reader)| schema_accepts(reader, writer));
+    let readable_detail = match (local, peer) {
+        (Some(_), Some(_)) if readability_value => {
+            "the local decoder accepts every peer shape".to_owned()
+        }
+        (Some(_), Some(_)) => {
+            "the strict local decoder does not accept every peer shape".to_owned()
+        }
+        _ => missing_schema_detail(local, peer, demand),
+    };
+    let writable_detail = match (local, peer) {
+        (Some(_), Some(_)) if writability_value => {
+            "the peer decoder accepts every local shape".to_owned()
+        }
+        (Some(_), Some(_)) => {
+            "the strict peer decoder does not accept every local shape".to_owned()
+        }
+        _ => missing_schema_detail(local, peer, demand),
+    };
+
+    let migration_route = migration_route(
+        typed,
+        &demand.lineage,
+        &demand.peer_schema,
+        &demand.local_schema,
+    );
+    let migration_value = local.is_some() && peer.is_some() && migration_route.is_some();
+    let migration_detail = match (local, peer, migration_route) {
+        (None, _, _) | (_, None, _) => missing_schema_detail(local, peer, demand),
+        (Some(_), Some(_), None) => {
+            format!(
+                "no complete `{}` migration route exists from `{}` to `{}`",
+                demand.lineage, demand.peer_schema, demand.local_schema
+            )
+        }
+        (Some(_), Some(_), Some(route)) => {
+            if route.is_empty() {
+                "peer and local schemas are identical; no migration edge is needed".to_owned()
+            } else {
+                format!("selected checked route: {}", route.join(" -> "))
+            }
+        }
+    };
+
+    let readability = fact(demand.require_readable, readability_value, readable_detail);
+    let writability = fact(demand.require_writable, writability_value, writable_detail);
+    let unknown_preservation = fact(
+        demand.require_unknown_preservation,
+        false,
+        if compact_binary {
+            "compact_binary publishes strict unknown-member behavior".to_owned()
+        } else {
+            format!("codec `{codec}` publishes no preserving behavior")
+        },
+    );
+    let canonical_value = compact_binary && local.is_some() && peer.is_some();
+    let canonical_detail = if local.is_none() || peer.is_none() {
+        missing_schema_detail(local, peer, demand)
+    } else if compact_binary {
+        "compact_binary emits its canonical field order and scalar encodings".to_owned()
+    } else {
+        format!("codec `{codec}` publishes no canonicalization guarantee")
+    };
+    let canonicality = fact(demand.require_canonical, canonical_value, canonical_detail);
+    let migration_coverage = fact(
+        demand.require_complete_migration,
+        migration_value,
+        migration_detail,
+    );
+    let satisfied = [
+        &readability,
+        &writability,
+        &unknown_preservation,
+        &canonicality,
+        &migration_coverage,
+    ]
+    .into_iter()
+    .all(|fact| !fact.required || fact.satisfied);
+
+    WireCompatibilityDemandReportEntry {
+        edge: demand.edge.clone(),
+        lineage: demand.lineage.clone(),
+        local_schema: demand.local_schema.clone(),
+        peer_schema: demand.peer_schema.clone(),
+        codec,
+        unknown_member_behavior: "strict".to_owned(),
+        readability,
+        writability,
+        unknown_preservation,
+        canonicality,
+        migration_coverage,
+        satisfied,
+    }
+}
+
+fn fact(required: bool, satisfied: bool, detail: String) -> WireCompatibilityFactReport {
+    WireCompatibilityFactReport {
+        required,
+        satisfied,
+        detail,
+    }
+}
+
+fn missing_schema_detail(
+    local: Option<&WireSchemaReportEntry>,
+    peer: Option<&WireSchemaReportEntry>,
+    demand: &super::build_config::WireCompatibilityDemand,
+) -> String {
+    match (local, peer) {
+        (None, None) => format!(
+            "neither local schema `{}` nor peer schema `{}` is published",
+            demand.local_schema, demand.peer_schema
+        ),
+        (None, Some(_)) => format!("local schema `{}` is not published", demand.local_schema),
+        (Some(_), None) => format!("peer schema `{}` is not published", demand.peer_schema),
+        (Some(_), Some(_)) => unreachable!("caller only asks for missing-schema details"),
+    }
+}
+
+fn find_schema<'a>(
+    schemas: &'a [WireSchemaReportEntry],
+    requested: &str,
+) -> Option<&'a WireSchemaReportEntry> {
+    schemas
+        .iter()
+        .find(|schema| schema.name == requested)
+        .or_else(|| {
+            let requested_leaf = name_leaf(requested);
+            let mut matching = schemas
+                .iter()
+                .filter(|schema| name_leaf(&schema.name) == requested_leaf);
+            let only = matching.next()?;
+            matching.next().is_none().then_some(only)
+        })
+}
+
+fn name_leaf(name: &str) -> &str {
+    name.rsplit("::").next().unwrap_or(name)
+}
+
+fn schema_accepts(reader: &WireSchemaReportEntry, writer: &WireSchemaReportEntry) -> bool {
+    if reader.normalized_schema_identity != 0
+        && reader.normalized_schema_identity == writer.normalized_schema_identity
+    {
+        return true;
+    }
+    if !reader.cases.is_empty() || !writer.cases.is_empty() {
+        return writer.cases.iter().all(|writer_case| {
+            reader.cases.iter().any(|reader_case| {
+                reader_case.number == writer_case.number
+                    && fields_equal(&reader_case.payload_fields, &writer_case.payload_fields)
+            })
+        });
+    }
+    fields_equal(&reader.fields, &writer.fields)
+}
+
+fn fields_equal(left: &[WireFieldReportEntry], right: &[WireFieldReportEntry]) -> bool {
+    left.len() == right.len()
+        && left.iter().all(|left_field| {
+            right.iter().any(|right_field| {
+                left_field.number == right_field.number
+                    && left_field.type_display == right_field.type_display
+            })
+        })
+}
+
+fn migration_route(
+    typed: &TypedTrees,
+    lineage: &str,
+    peer: &str,
+    local: &str,
+) -> Option<Vec<String>> {
+    if names_match(peer, local) {
+        return Some(Vec::new());
+    }
+    let mut edges = Vec::new();
+    for machine in typed.machines() {
+        for conformance in typed.machine_trait_conformances(machine) {
+            if name_leaf(conformance.name.as_str()) != "FormatMigration"
+                || conformance.requirement.as_ref().map(|name| name.as_str()) != Some("migrate")
+            {
+                continue;
+            }
+            let arguments = typed
+                .type_reference_table
+                .type_reference_handles(conformance.arguments);
+            if arguments.len() != 3 {
+                continue;
+            }
+            let argument = |index: usize| typed.display_type_reference(arguments[index]);
+            let edge_lineage = argument(0);
+            if !names_match(&edge_lineage, lineage) {
+                continue;
+            }
+            edges.push((argument(1), argument(2), machine.name.as_str().to_owned()));
+        }
+    }
+
+    let mut frontier = vec![(peer.to_owned(), Vec::<String>::new())];
+    let mut visited = vec![peer.to_owned()];
+    while let Some((current, route)) = frontier.pop() {
+        for (old, new, machine) in &edges {
+            if !names_match(old, &current) {
+                continue;
+            }
+            let mut next_route = route.clone();
+            next_route.push(machine.clone());
+            if names_match(new, local) {
+                return Some(next_route);
+            }
+            if !visited.iter().any(|seen| names_match(seen, new)) {
+                visited.push(new.clone());
+                frontier.push((new.clone(), next_route));
+            }
+        }
+    }
+    None
+}
+
+fn names_match(left: &str, right: &str) -> bool {
+    left == right || name_leaf(left) == name_leaf(right)
 }
 
 fn ordinary_data_schema_report_entry(

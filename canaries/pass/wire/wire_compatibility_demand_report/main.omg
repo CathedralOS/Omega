@@ -1,0 +1,33 @@
+// Chapter 21: channel/store compatibility belongs to the edge. The local and
+// peer schemas deliberately have distinct nominal identities but the same
+// stable wire shape; the checked lineage migration completes the peer->local
+// route requested by build.omg.
+
+use omega::language::std::format_lineage;
+
+data RollingChannel {
+}
+
+data MessageLineage {
+}
+
+data PeerMessage {
+    #1 value: u32;
+}
+
+data LocalMessage {
+    #1 value: u32;
+}
+
+machine peer_to_local(
+    old: PeerMessage,
+    out: &mut LocalMessage
+) satisfies FormatMigration<MessageLineage, PeerMessage, LocalMessage>::migrate {
+    out.value = old.value;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

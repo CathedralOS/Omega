@@ -1,0 +1,19 @@
+data RelayChannel {
+}
+
+data MessageLineage {
+}
+
+data LocalMessage {
+    #1 value: u32;
+}
+
+data PeerMessage {
+    #1 value: u32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

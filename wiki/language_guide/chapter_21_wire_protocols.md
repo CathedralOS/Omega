@@ -292,6 +292,38 @@ old peer, preserving unknown information, producing canonical bytes, and
 providing a complete migration route are separate facts. Each edge requests
 the facts its deployment actually needs.
 
+The final build declares each concrete channel/store demand:
+
+```omega
+machine build(b: &mut Build) {
+    b.require_wire_compatibility<
+        RollingChannel,
+        CounterDisk,
+        CounterMessageV2,
+        CounterMessageV1,
+        Readable,
+        Writable,
+        Canonical,
+        CompleteMigration
+    >();
+}
+```
+
+The first four arguments name the edge, format lineage, local schema, and peer
+schema. The remaining arguments are the requested facts from the closed
+vocabulary `Readable`, `Writable`, `PreserveUnknown`, `Canonical`, and
+`CompleteMigration`; omitted facts are still reported but do not reject the
+build. `Readable` asks whether the local decoder accepts every peer value.
+`Writable` asks the reverse question: whether the peer decoder accepts every
+local value. `CompleteMigration` walks the selected
+`FormatMigration<Lineage, Old, New>` conformances from peer to local.
+
+The compiler writes every directional fact and its explanation to
+`04_wire_protocols.txt`, then rejects an unsatisfied requested fact. With the
+current generated `compact_binary` realization, canonicality is guaranteed and
+unknown-member behavior is strict, so a `PreserveUnknown` demand fails until a
+preserving codec package is selected.
+
 ## `compact_binary` v0
 
 `compact_binary` is the first implemented Omega-native codec policy. Its

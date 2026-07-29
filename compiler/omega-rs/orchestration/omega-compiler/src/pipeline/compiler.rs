@@ -395,7 +395,11 @@ impl Compiler {
             &build_config.grants,
             &provider_plans,
         )?;
-        crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
+        crate::pipeline::wire_report::write_wire_protocol_report(
+            &self.options,
+            &typed,
+            &build_config.wire_compatibility_demands,
+        )?;
 
         // Capture the selected provider's validated source calling plans
         // before typed ownership moves into checked lowering. The rows carry

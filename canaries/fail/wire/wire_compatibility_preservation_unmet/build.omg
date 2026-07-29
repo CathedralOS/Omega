@@ -1,0 +1,9 @@
+machine build(b: &mut Build) {
+    b.require_wire_compatibility<
+        RelayChannel,
+        MessageLineage,
+        LocalMessage,
+        PeerMessage,
+        PreserveUnknown
+    >();
+}

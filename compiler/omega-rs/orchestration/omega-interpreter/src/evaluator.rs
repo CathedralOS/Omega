@@ -1908,6 +1908,7 @@ impl<'program> Evaluator<'program> {
         // the marker as a no-op so the build machine runs through it.
         if call.target.as_str().starts_with("accept_boundary#")
             || call.target.as_str().starts_with("select_provider#")
+            || call.target.as_str().starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);
         }
@@ -4962,7 +4963,10 @@ impl<'program> Evaluator<'program> {
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
         // CH10 root grant marker (see the statement-call twin): a no-op.
-        if target.starts_with("accept_boundary#") || target.starts_with("select_provider#") {
+        if target.starts_with("accept_boundary#")
+            || target.starts_with("select_provider#")
+            || target.starts_with("wire_compatibility#")
+        {
             return Ok(Value::Unit);
         }
         // The tree walker has no architectural flags register. Preserve the

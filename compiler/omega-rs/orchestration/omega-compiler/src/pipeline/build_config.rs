@@ -48,12 +48,29 @@ pub struct BuildConfig {
     /// declarations harvested from the authoritative build machine; they are
     /// validated against derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
+    /// Chapter 21 channel/store compatibility demands. Each marker names the
+    /// edge, format lineage, local and peer schemas, and the directional facts
+    /// the final build requires.
+    pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
     pub boundary_trait: String,
     pub provider_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WireCompatibilityDemand {
+    pub edge: String,
+    pub lineage: String,
+    pub local_schema: String,
+    pub peer_schema: String,
+    pub require_readable: bool,
+    pub require_writable: bool,
+    pub require_unknown_preservation: bool,
+    pub require_canonical: bool,
+    pub require_complete_migration: bool,
 }
 
 impl Default for BuildConfig {
@@ -63,6 +80,7 @@ impl Default for BuildConfig {
             freestanding: false,
             grants: Vec::new(),
             provider_selections: Vec::new(),
+            wire_compatibility_demands: Vec::new(),
         }
     }
 }
@@ -243,7 +261,92 @@ pub(crate) fn compute_build_config(
     })?;
     config.grants = harvest_root_grants(typed, machine);
     config.provider_selections = harvest_provider_selections(typed, machine)?;
+    config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     Ok(config)
+}
+
+/// Chapter 21: collect the edge-specific wire facts requested by the one
+/// authoritative build machine. The parser has already validated the closed
+/// fact vocabulary; this pass validates the marker encoding and duplicate
+/// declarations before compatibility evaluation consumes it.
+fn harvest_wire_compatibility_demands(
+    typed: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+) -> Result<Vec<WireCompatibilityDemand>, Vec<Diagnostic>> {
+    let mut demands = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut record = |target: &str| {
+        let Some(encoded) = target.strip_prefix("wire_compatibility#") else {
+            return;
+        };
+        let parts = encoded.split('#').collect::<Vec<_>>();
+        if parts.len() < 5 {
+            diagnostics.push(Diagnostic::error(format!(
+                "malformed wire compatibility declaration `{target}`"
+            )));
+            return;
+        }
+        let mut demand = WireCompatibilityDemand {
+            edge: parts[0].to_owned(),
+            lineage: parts[1].to_owned(),
+            local_schema: parts[2].to_owned(),
+            peer_schema: parts[3].to_owned(),
+            require_readable: false,
+            require_writable: false,
+            require_unknown_preservation: false,
+            require_canonical: false,
+            require_complete_migration: false,
+        };
+        for fact in &parts[4..] {
+            match *fact {
+                "Readable" => demand.require_readable = true,
+                "Writable" => demand.require_writable = true,
+                "PreserveUnknown" => demand.require_unknown_preservation = true,
+                "Canonical" => demand.require_canonical = true,
+                "CompleteMigration" => demand.require_complete_migration = true,
+                other => diagnostics.push(Diagnostic::error(format!(
+                    "malformed wire compatibility declaration `{target}`: unknown fact `{other}`"
+                ))),
+            }
+        }
+        if demands.iter().any(|existing: &WireCompatibilityDemand| {
+            existing.edge == demand.edge
+                && existing.lineage == demand.lineage
+                && existing.local_schema == demand.local_schema
+                && existing.peer_schema == demand.peer_schema
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire compatibility demand for edge `{}`, lineage `{}`, local schema `{}`, \
+                 and peer schema `{}` is declared twice",
+                demand.edge, demand.lineage, demand.local_schema, demand.peer_schema
+            )));
+            return;
+        }
+        demands.push(demand);
+    };
+
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                omega_typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    {
+                        record(call.target.as_str());
+                    }
+                }
+                omega_typed_trees::statement::StatementNode::Call(call) => {
+                    record(call.target.as_str());
+                }
+                _ => {}
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(demands)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// PRV4c: collect `b.select_provider<BoundaryTrait, ProviderType>();` from
@@ -429,5 +532,6 @@ fn extract_build_config(build: &BuildTimeValue) -> Result<BuildConfig, String> {
         freestanding,
         grants: Vec::new(),
         provider_selections: Vec::new(),
+        wire_compatibility_demands: Vec::new(),
     })
 }
