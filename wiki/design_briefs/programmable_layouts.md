@@ -421,8 +421,10 @@ code rather than compiler types.
   `Placement::plan`, admission token, `Placed<P, T>` projection, and
   target-specific accessor lowering over the live normalized validator;
 - recast syntax and diagnostics;
-- generated-codec verification against public requirements and preservation
-  containers for unknown members;
+- independent generated-codec verification against public requirements and
+  preserving-codec realizations for unknown members (artifacts already keep
+  generated origin separate from compiler-admitted trust, and the standard
+  package exposes the `Relayed<T>` preservation carrier);
 - policy selection through generics; and
 - channel/store compatibility-demand checking over published schemas, codec
   plans, historical shapes, and migrations.
