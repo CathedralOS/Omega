@@ -69,7 +69,7 @@ State parameters make jump inputs explicit.
 machine Inventory::find_item(
     &self,
     kind: ItemKind,
-    out: &mut Option<u64>
+    out: &mut Optional<u64>
 ) {
     transition {
         _ -> find_item_at(self, kind, 0, out)
@@ -79,7 +79,7 @@ machine Inventory::find_item(
         &self,
         kind: ItemKind,
         index: u64,
-        out: &mut Option<u64>
+        out: &mut Optional<u64>
     ) {
         let found: bool = self.items[index].kind == kind;
         let next_index: u64 = index + 1;
@@ -94,12 +94,12 @@ machine Inventory::find_item(
 
     state found_item(
         index: u64,
-        out: &mut Option<u64>
+        out: &mut Optional<u64>
     ) {
         out = Some(index);
     }
 
-    state not_found(out: &mut Option<u64>) {
+    state not_found(out: &mut Optional<u64>) {
         out = None;
     }
 }

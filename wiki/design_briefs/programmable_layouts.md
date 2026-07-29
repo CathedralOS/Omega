@@ -1,15 +1,16 @@
 # Design Brief: Programmable Layouts
 
-Current as of 2026-07-26. Layouts and codecs are authored library policies with
-machine-checked conformance laws. The compiler owns a small placement vocabulary
-and plan validator; it does not generate arbitrary codecs or import C's type
-system.
+Current as of 2026-07-28. Layouts and codecs are library policies with
+machine-checked contracts. The compiler owns a small placement vocabulary,
+plan validator, and realization checker. Codec realizations may be authored or
+generated from the same normalized plan.
 
 ## One data declaration
 
-Omega has one semantic declaration form: `data`. There is no `wire data`
-species. Optional field identity numbers and `retired N;` tombstones belong to
-plain data schemas for policies that need durable identity.
+Omega's semantic declaration form is `data`. Stable `#N` identities and
+`retired #N;` tombstones qualify ordinary fields and cases for policies that
+need durable identity. Numbering is all-or-nothing within each record, sum, or
+structured case-payload scope.
 
 Layout/encoding choices attach at use sites or in type position. They do not
 change the semantic data type and do not become compiler keywords for every
@@ -39,14 +40,14 @@ returns a description composed from a closed compiler-known placement
 vocabulary. The compiler validates the result before using it for type layout,
 field projection, recasts, or ABI artifacts.
 
-The live `Schema`/`Plan` ABI uses `u64` for opaque field keys and every
-nonnegative size, alignment, offset, bit width/index, tag, and count. These are
-integer quantities, not addresses, so they do not use `addr`. The one signed
-field is `SchemaField.number`: `i64` deliberately retains `-1` as the explicit
-unnumbered sentinel. Build-time evaluation preserves all 64 value bits, and
-the normalized Rust plan uses the same unsigned geometry; host `usize`
-conversion occurs only at a consuming allocation or slice boundary and is
-checked there.
+The normalized `Schema`/`Plan` ABI uses `u64` for opaque member keys, stable
+member identities, and every nonnegative size, alignment, offset, bit
+width/index, tag, and count. These are integer quantities, not addresses, so
+they do not use `addr`. A schema member carries `Optional<u64>` identity rather
+than reserving an integer sentinel. Build-time evaluation preserves all 64
+value bits, and the normalized Rust plan uses the same unsigned geometry; host
+`usize` conversion occurs only at a consuming allocation or slice boundary and
+is checked there.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
@@ -129,10 +130,10 @@ the target source surface. See
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
 model.
 
-## Codecs are hand-written and proved
+## Codecs are ordinary checked requirements
 
-Encoding, decoding, and validation are ordinary library machines. Omega does
-not derive their bodies from `Plan`.
+Encoding, decoding, and validation are ordinary library-machine requirements.
+A realization may be authored or generated from a validated `Plan`.
 
 ```omega
 trait Codec<Policy, Value> {
@@ -149,9 +150,16 @@ trait Codec<Policy, Value> {
 }
 ```
 
-The concrete conformance proves the trait's agreement laws. Asymmetric schema
-evolution—defaults, retired fields, old-era imports—belongs to the evolution
-layer rather than weakening the codec's law silently.
+The concrete conformance proves the trait's agreement requirements. Historical
+schema migration belongs to the format lineage and composes outside the
+current-shape codec law.
+
+Realization origin and trust class are orthogonal. An authored or generated
+body independently checked against the public requirement is derived. A
+generator accepted as correct by construction is admitted with the compiler as
+the named trusted party. Opaque foreign realizations are admitted with their
+provider. Artifacts retain the normalized plan, requirement identity, origin,
+trust class, and evidence.
 
 Validation/establishment is exclusive: user code cannot construct a “valid” result
 whose payload claims a domain it has not proven. A validator may establish the
@@ -296,10 +304,11 @@ cache is a different policy choice made at that boundary.
 4. Name-keyed fragment placement and exact source/destination tiling.
 5. Plan-laid type layout and field projection.
 6. Representation-compatible recast checking.
-7. Hand-written codec conformances and roundtrip-law checking.
+7. Authored and plan-generated codec realizations with roundtrip-contract
+   checking and trust classification.
 8. Symbolic materializer derivation and consumer-applicability validation.
 9. Home-policy resolution and artifact reporting.
-10. Remove `wire data` and legacy repr/format special cases.
+10. Converge legacy repr/format paths on normalized policy plans.
 
 Implementation status: steps 1-3 are live for primitive record schemas. Step
 4's source shape is live as compiler-issued field keys copied into
@@ -397,6 +406,8 @@ code rather than compiler types.
   `Placement::plan`, admission token, `Placed<P, T>` projection, and
   target-specific accessor lowering over the live normalized validator;
 - recast syntax and diagnostics;
-- schema-evolution law traits beyond strict roundtrip;
+- generated-codec verification against public requirements and preservation
+  containers for unknown members;
 - policy selection through generics; and
-- publish-time predecessor-plan compatibility checks.
+- channel/store compatibility-demand checking over published schemas, codec
+  plans, historical shapes, and migrations.

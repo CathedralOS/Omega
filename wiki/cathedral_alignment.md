@@ -30,17 +30,16 @@ implementation work. Each one gets more expensive to retrofit every month.
    semantics from representation shape.
 
 2. **Programmable wire/layout semantics** (PARTIAL).
-   Omega uses one `data` declaration form with optional stable field numbers
-   and `retired N;`. Serialization and foreign layout are policies producing
-   deterministic, validated plans; durability is a plan grade checked by
-   storage APIs and publish-time predecessor comparison. The remaining work is
-   the reflection/plan vocabulary, complete codecs and recasts, and removal of
-   the legacy `wire data` compatibility surface.
+   Omega uses ordinary `data` with stable `#N` field/case identities and
+   `retired #N;`. Serialization and foreign layout are policies producing
+   deterministic, validated plans; channel and storage surfaces declare the
+   compatibility facts they require. The remaining work is complete
+   reflection, codecs, recasts, preserving decode, and edge-owned compatibility
+   reports.
 
 3. **Persisted history and live replacement** (SEMANTICS SPLIT; PARTIAL).
-   Omega has no builtin `Versioned<T>` or `replace` DSL. Historical wire shapes
-   are immutable ordinary data, sum envelopes, format metadata, and checked
-   conversion machines. Live replacement instead anchors on normalized
+   Historical wire shapes are immutable ordinary data, sum envelopes, format
+   metadata, and checked conversion machines. Live replacement anchors on normalized
    requirement/artifact identity and is Cathedral orchestration over
    requirement bindings, liveness pins, admitted runtime operations, and
    ordinary phase machines. Omega owns the generic artifact/contract substrate;
@@ -225,7 +224,7 @@ None block current compiler development; all should stay visible.
 - **TBD: serialized capability representation** preserving attenuation +
   revocability across IPC/reboot/network (Cathedral's #1 flagged gap).
   Depends on ordinary numbered schemas/layout policies + the capability runtime
-  story; there is no `wire data` declaration species.
+  story and will use the same codec requirement surface.
 - **DECIDED semantics, representation pending: replacement accounting.** A
   replaceable provider realization owns a closed code/state/resource graph.
   Every old-era activation, borrow, continuation, registration, authority, and

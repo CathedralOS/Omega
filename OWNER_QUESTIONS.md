@@ -7,41 +7,6 @@ stable when a resolved entry is removed, so gaps are intentional.
 
 Last pruned: 2026-07-28.
 
-## 11. What is the next wire-family, presence, and evolution contract?
-
-`compact_binary` now has generated scalar, bounded repeated-scalar,
-length-prefixed byte/text, and one-level nested runtime codecs. Decoding is
-canonical and fail-closed, and the build publishes adjacent-era compatibility
-and migration verdicts. The remaining task text used to group “additional
-encoding families” and “version negotiation” as engineering, but their runtime
-shape depends on language policy that is still explicitly open in chapter 21.
-
-Decide:
-
-- which presence model ships first (optional, required, defaulted, or an
-  explicit sum), and whether absence is a wire fact, a runtime-value fact, or
-  both;
-- whether unknown fields reject, skip, or survive round trips, and whether that
-  choice belongs to the grammar policy, schema, or decode call;
-- how a decoder selects a historical era and invokes typed migration machines
-  without a builtin `Versioned<T>` container or hidden dynamic dispatch;
-- when a type/presence change may keep its field number, when it requires a new
-  number, and which migration declaration discharges the compatibility report;
-- where publish-time predecessor comparison runs and which verdicts package or
-  deployment policy may reject; and
-- which grammar follows `compact_binary`, including whether ecosystem
-  compatibility (for example protobuf unknown-field behavior) is a distinct
-  policy rather than a mode of the native grammar.
-
-Recommendation: keep `compact_binary` v0 strict and current-era-only until the
-selection contract is explicit. Put unknown-field and canonicalization behavior
-on the grammar policy, express presence through ordinary declared value shapes
-rather than implicit nullability, and use checked adjacent-era migration
-machines selected by a boundary package. Publish the existing compatibility
-artifact as input to package policy; do not infer a universal optional/default
-representation, silently skip unknown fields, or manufacture runtime version
-dispatch before these choices are settled.
-
 ## 12. How does checked source obtain and register a sealed external entry reference?
 
 `boundary machine` already declares an exported callable, and normalized

@@ -94,8 +94,8 @@ The native path runs real programs on macOS ARM64, Windows x64, and Linux
 - Slices and fat descriptors: element reads/writes through views, subslicing
   (`items[1..]`), descriptor materialization, and runtime text building.
 - Case payload construction, tag dispatch, membership tests (`in`),
-  synthesized structural equality, and `wire data` encoders with byte-exact
-  LEB128 output.
+  synthesized structural equality, and plan-generated `compact_binary`
+  encoders with byte-exact LEB128 output.
 
 Current known limitations:
 
@@ -155,7 +155,7 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 - Paged arenas use generational handles so reclaimed page storage cannot resurrect stale references.
 - Do not use `RefCell` as an ownership escape hatch. Runtime borrow checking is not a substitute for clear compiler-phase ownership.
 - Prefer ZII (Zero-is-initialization). Null handles (index 0) resolve to dummy arena entries instead of optionals and literal nulls.
-- Do not wrap handles in `Option` just to model absence. The zero handle is the absence state; `Option<Handle<T>>` needs a semantic reason beyond “maybe missing.”
+- Do not wrap handles in `Optional` just to model absence. The zero handle is the absence state; `Optional<Handle<T>>` needs a semantic reason beyond “maybe missing.”
 - Arena handles must be generational. Freed or stale handles resolve to dummy entries, not reused storage.
 - Symbols are handle-first. String names are debug/export/import metadata, not durable identity inside semantic or native compiler layers.
 - Source text is source-loading, diagnostic, and debug payload. Beyond resolution, source-backed names are technical debt unless they are literal program strings, diagnostics/debug metadata, or final-image import/export payload.

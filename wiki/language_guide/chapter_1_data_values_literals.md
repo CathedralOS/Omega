@@ -140,8 +140,8 @@ data RoomEvent {
 
 The mixed shape replaces the two-type split other languages force (a struct
 holding a separately-named `Kind` enum). The header and the tag belong to one
-declaration, so the compiler -- and the wire schema, and the version block --
-sees them as one thing. Mixed shapes are LIVE with these rules:
+declaration, so the compiler, reflected schema, and selected layout policy see
+them as one thing. Mixed shapes are LIVE with these rules:
 
 - LAYOUT: tag at offset 0 (the universal case-bearing constant), common
   fields packed after the tag, payload overlay after the common fields.
@@ -271,7 +271,7 @@ equality through their live length and bytes.[^case-members]
 [^case-members]: Payload binding in `transition` arms uses the ordinary
 data-pattern machinery (`Case { field, fixed: value }`); a future `match`
 statement must reuse that spelling rather than inventing another pattern
-language. Open details remain generic payloads (`Option<T>`-style) and the layout rule for payload storage
+language. Generic payloads use ordinary cased data (`Optional<T>`-style), while the layout rule for payload storage
 (tag-prefixed overlay with the zero case payload-free). A domain declared as a
 pure case union is recognized for exhaustiveness
 SYNTACTICALLY -- the domain body must contain exactly the fact
