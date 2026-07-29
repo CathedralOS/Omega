@@ -8,6 +8,18 @@
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use omega_typed_trees::TypedTrees;
 
+/// Exact selected provider-plan input consumed by external-root construction.
+///
+/// The schema is retained beside the normalized plan identity so installation
+/// can bind the source callable shape—including domain/carry-qualified
+/// parameter types—to the same provider selection later carried by
+/// `ProviderExecution` and per-invocation entry receipts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedExternalRootProviderPlan {
+    pub identity: omega_external_roots::ProviderPlanId,
+    pub schema: ServiceSchema,
+}
+
 /// Retain the exact validated selection on the checked program. Provider
 /// execution and compiler-generated helper machines consume this carrier;
 /// neither may reconstruct a plan by scanning authored `satisfies` rows.
@@ -96,6 +108,17 @@ pub fn selected_external_root_provider_plan_id(
     checked: &omega_checked_trees::CheckedTrees,
     boundary_trait: &str,
 ) -> Result<omega_external_roots::ProviderPlanId, omega_external_roots::ExternalRootDiagnostic> {
+    selected_external_root_provider_plan(checked, boundary_trait).map(|selected| selected.identity)
+}
+
+/// Resolve one external-root boundary slot to the exact retained provider
+/// identity and normalized source schema. Root-installation artifacts can
+/// therefore report the authority-bearing inputs bound by the receipt chain
+/// without re-reading source or trusting display names.
+pub fn selected_external_root_provider_plan(
+    checked: &omega_checked_trees::CheckedTrees,
+    boundary_trait: &str,
+) -> Result<SelectedExternalRootProviderPlan, omega_external_roots::ExternalRootDiagnostic> {
     let matches = checked
         .selected_provider_plans()
         .plans()
@@ -114,7 +137,12 @@ pub fn selected_external_root_provider_plan_id(
             },
         ));
     };
-    omega_external_roots::ProviderPlanId::from_normalized_identity(plan.identity_fingerprint())
+    Ok(SelectedExternalRootProviderPlan {
+        identity: omega_external_roots::ProviderPlanId::from_normalized_identity(
+            plan.identity_fingerprint(),
+        )?,
+        schema: plan.schema.clone(),
+    })
 }
 
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
@@ -567,7 +595,9 @@ mod tests {
                     .map(|method| omega_effects::provider_plan::ServiceMethod {
                         name: (*method).to_owned(),
                         parameter_count: 0,
+                        parameter_type_identities: Vec::new(),
                         has_result: false,
+                        result_type_identity: None,
                         service_reach: vec!["Pair".to_owned()],
                         may_suspend: false,
                         may_block: false,

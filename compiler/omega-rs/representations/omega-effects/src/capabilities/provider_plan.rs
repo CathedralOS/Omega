@@ -28,8 +28,16 @@ pub struct ServiceMethod {
     /// Declared parameter count (excluding any receiver) -- the same count
     /// the vtable-field encoder compares against call operands.
     pub parameter_count: usize,
+    /// Positional semantic identities of the declared parameter types,
+    /// excluding any receiver. Domain qualifications and carry permissions
+    /// are part of these identities, so a provider plan cannot be replayed
+    /// after an authority-bearing parameter is weakened or replaced.
+    pub parameter_type_identities: Vec<String>,
     /// Whether the method declares a return type.
     pub has_result: bool,
+    /// Semantic identity of the declared result type. `None` denotes no
+    /// result, not a unit-shaped result.
+    pub result_type_identity: Option<String>,
     /// EFX: normalized boundary-service identities rendered from the
     /// symbol-resolved service table. This includes the containing boundary
     /// trait and any explicit additional reach (with parent closure).
@@ -184,7 +192,22 @@ fn collect_service_methods(
                 .iter()
                 .filter(|parameter| !parameter.is_self)
                 .count(),
+            parameter_type_identities: program
+                .state_signature_parameters(signature)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| {
+                    program
+                        .normalized_type_identity(parameter.type_reference)
+                        .into_string()
+                })
+                .collect(),
             has_result: signature.return_type.is_valid(),
+            result_type_identity: signature.return_type.is_valid().then(|| {
+                program
+                    .normalized_type_identity(signature.return_type)
+                    .into_string()
+            }),
             service_reach: service_reach_names(program, trait_definition, signature),
             may_suspend: signature.suspends,
             may_block: signature.blocks,
@@ -249,6 +272,14 @@ impl ProviderPlan {
                 method.may_suspend,
                 method.may_block,
             ));
+            for parameter in &method.parameter_type_identities {
+                rendered.push_str("\nmp:");
+                rendered.push_str(parameter);
+            }
+            if let Some(result) = &method.result_type_identity {
+                rendered.push_str("\nmr:");
+                rendered.push_str(result);
+            }
             if let Some(fingerprint) = method.calling_plan_fingerprint {
                 rendered.push_str(&format!("/calling:{fingerprint:016x}"));
             }
@@ -356,7 +387,9 @@ mod tests {
                 ServiceMethod {
                     name: "write_line".to_owned(),
                     parameter_count: 1,
+                    parameter_type_identities: vec!["String".to_owned()],
                     has_result: false,
+                    result_type_identity: None,
                     service_reach: vec!["Console".to_owned()],
                     may_suspend: false,
                     may_block: false,
@@ -365,7 +398,9 @@ mod tests {
                 ServiceMethod {
                     name: "read_byte".to_owned(),
                     parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
                     has_result: true,
+                    result_type_identity: Some("u8".to_owned()),
                     service_reach: vec!["Console".to_owned()],
                     may_suspend: true,
                     may_block: false,
@@ -374,7 +409,9 @@ mod tests {
                 ServiceMethod {
                     name: "exit_process".to_owned(),
                     parameter_count: 1,
+                    parameter_type_identities: vec!["i32".to_owned()],
                     has_result: false,
+                    result_type_identity: None,
                     service_reach: vec!["Console".to_owned()],
                     may_suspend: false,
                     may_block: true,
@@ -444,6 +481,28 @@ mod tests {
         assert_ne!(
             suspending.identity_fingerprint(),
             blocking.identity_fingerprint()
+        );
+    }
+
+    #[test]
+    fn normalized_parameter_and_result_types_enter_provider_identity() {
+        let baseline = windows_console_plan();
+        let baseline_identity = baseline.identity_fingerprint();
+
+        let mut qualified_parameter = baseline.clone();
+        qualified_parameter.schema.methods[0].parameter_type_identities[0] =
+            "InterruptAcknowledgement in InterruptAcknowledgement::Pending".to_owned();
+        assert_ne!(
+            qualified_parameter.identity_fingerprint(),
+            baseline_identity
+        );
+
+        let mut changed_result = baseline;
+        changed_result.schema.methods[1].result_type_identity = Some("u16".to_owned());
+        assert_ne!(changed_result.identity_fingerprint(), baseline_identity);
+        assert_ne!(
+            qualified_parameter.identity_fingerprint(),
+            changed_result.identity_fingerprint()
         );
     }
 
