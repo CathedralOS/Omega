@@ -5541,12 +5541,14 @@ impl<'program> Evaluator<'program> {
                 _ => return Ok(None),
             };
 
-        // Carrier requirements are boundary operations, including the
-        // compatibility imports. Build-time evaluation must observe the touch
-        // even though their mathematical result comes from the shared pure
-        // engine.
-        self.host_boundary_touched = true;
-        self.non_fs_host_boundary_touched = true;
+        // The named F32/F64 requirements are checked boundary contracts whose
+        // current omega-core provider is hermetic, so semantic evaluation may
+        // consume them. Compatibility imports still represent an actual host
+        // boundary and must trip the dynamic build-time purity backstop.
+        if compatibility_call {
+            self.host_boundary_touched = true;
+            self.non_fs_host_boundary_touched = true;
+        }
         Ok(Some(value))
     }
 

@@ -1,0 +1,237 @@
+// F7 rung-1 constant/runtime twins. The fixed-array length executes
+// `float_semantics_twin_code` during compilation; Main calls the same machine
+// at runtime through the interpreter. Index 15 is legal only when the
+// build-time call returns 16, and exit 70 requires the runtime call to agree.
+//
+// The edge set covers both permanent formats: nearest and directed rounding,
+// subnormal/underflow and overflow, signed zero, infinity/NaN partial
+// comparison, the settled min/max choice, classification, square root, and
+// fused versus separately-rounded multiply-add.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+machine classifies_positive_subnormal32(value: f32) -> bool {
+    let class: FloatClass = F32::classify(value);
+    transition class {
+        FloatClass::Subnormal { negative } -> check_sign(negative)
+        _ -> false
+    }
+    state check_sign(negative: bool) -> bool {
+        transition negative { true -> false _ -> true }
+    }
+}
+
+machine classifies_positive_subnormal64(value: f64) -> bool {
+    let class: FloatClass = F64::classify(value);
+    transition class {
+        FloatClass::Subnormal { negative } -> check_sign(negative)
+        _ -> false
+    }
+    state check_sign(negative: bool) -> bool {
+        transition negative { true -> false _ -> true }
+    }
+}
+
+machine float_semantics_twin_code() -> u64 {
+    let one32: f32 = 1.0;
+    let half_ulp32: f32 = 0.000000059604644775390625;
+    let quarter_ulp32: f32 = 0.0000000298023223876953125;
+    let minimum_subnormal32: f32 = 1.401298464324817070923729583289916131280e-45;
+    let maximum32: f32 = 3.4028235e38;
+    let negative_zero32: f32 = F32::negate(0.0f32);
+    let infinity32: f32 = maximum32 + maximum32;
+    let nan32: f32 = 0.0f32 / 0.0f32;
+    let nearest_add32: f32 = one32 + half_ulp32;
+    let upward_add32: f32 = F32::add_toward_positive(one32, half_ulp32);
+    let downward_subtract32: f32 = F32::subtract_toward_negative(one32, quarter_ulp32);
+    let nearest_subtract32: f32 = one32 - quarter_ulp32;
+    let next32: f32 = 1.00000011920928955078125;
+    let upward_multiply32: f32 = F32::multiply_toward_positive(next32, next32);
+    let toward_zero_multiply32: f32 = F32::multiply_toward_zero(next32, next32);
+    let upward_divide32: f32 = F32::divide_toward_positive(one32, 3.0f32);
+    let toward_zero_divide32: f32 = F32::divide_toward_zero(one32, 3.0f32);
+    let nearest_sqrt32: f32 = F32::square_root(2.0f32);
+    let upward_sqrt32: f32 = F32::square_root_toward_positive(2.0f32);
+    let upward_fma32: f32 =
+        F32::fused_multiply_add_toward_positive(one32, half_ulp32, one32);
+    let toward_zero_fma32: f32 =
+        F32::fused_multiply_add_toward_zero(one32, half_ulp32, one32);
+    let unfused32: f32 = F32::multiply_then_add(
+        next32,
+        next32,
+        0.0f32 - 1.0000002384185791015625
+    );
+    let fused32: f32 = F32::fused_multiply_add(
+        next32,
+        next32,
+        0.0f32 - 1.0000002384185791015625
+    );
+    let minimum_nan_first32: f32 = F32::minimum(nan32, one32);
+    let minimum_nan_second32: f32 = F32::minimum(one32, nan32);
+    let maximum_nan_first32: f32 = F32::maximum(nan32, one32);
+
+    let basic32: bool = nearest_add32 == one32
+        && upward_add32 > nearest_add32
+        && downward_subtract32 < nearest_subtract32
+        && upward_multiply32 > toward_zero_multiply32
+        && upward_divide32 > toward_zero_divide32
+        && upward_sqrt32 > nearest_sqrt32
+        && upward_fma32 > toward_zero_fma32;
+    let specials32: bool = F32::is_subnormal(minimum_subnormal32)
+        && classifies_positive_subnormal32(minimum_subnormal32)
+        && minimum_subnormal32 / 2.0f32 == 0.0f32
+        && F32::is_infinite(infinity32)
+        && F32::is_nan(nan32)
+        && F32::is_finite(one32)
+        && F32::is_normal(one32)
+        && 1.0f32 / negative_zero32 < 0.0f32
+        && nan32 != nan32
+        && (nan32 == nan32) == false
+        && (nan32 < one32) == false
+        && minimum_nan_first32 == one32
+        && F32::is_nan(minimum_nan_second32)
+        && maximum_nan_first32 == one32;
+    let fused32_ok: bool = unfused32 == 0.0f32 && fused32 > 0.0f32;
+
+    let one64: f64 = 1.0;
+    let half_ulp64: f64 =
+        0.00000000000000011102230246251565404236316680908203125;
+    let quarter_ulp64: f64 =
+        0.000000000000000055511151231257827021181583404541015625;
+    let minimum_subnormal64: f64 = 5e-324;
+    let maximum64: f64 = 1.7976931348623157e308;
+    let negative_zero64: f64 = F64::negate(0.0);
+    let infinity64: f64 = maximum64 + maximum64;
+    let nan64: f64 = 0.0 / 0.0;
+    let nearest_add64: f64 = one64 + half_ulp64;
+    let upward_add64: f64 = F64::add_toward_positive(one64, half_ulp64);
+    let downward_subtract64: f64 = F64::subtract_toward_negative(one64, quarter_ulp64);
+    let nearest_subtract64: f64 = one64 - quarter_ulp64;
+    let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
+    let upward_multiply64: f64 = F64::multiply_toward_positive(next64, next64);
+    let toward_zero_multiply64: f64 = F64::multiply_toward_zero(next64, next64);
+    let upward_divide64: f64 = F64::divide_toward_positive(one64, 3.0);
+    let toward_zero_divide64: f64 = F64::divide_toward_zero(one64, 3.0);
+    let nearest_sqrt64: f64 = F64::square_root(2.0);
+    let downward_sqrt64: f64 = F64::square_root_toward_negative(2.0);
+    let upward_fma64: f64 =
+        F64::fused_multiply_add_toward_positive(one64, half_ulp64, one64);
+    let toward_zero_fma64: f64 =
+        F64::fused_multiply_add_toward_zero(one64, half_ulp64, one64);
+    let unfused64: f64 = F64::multiply_then_add(
+        next64,
+        next64,
+        0.0 - 1.000000000000000444089209850062616169452667236328125
+    );
+    let fused64: f64 = F64::fused_multiply_add(
+        next64,
+        next64,
+        0.0 - 1.000000000000000444089209850062616169452667236328125
+    );
+    let minimum_nan_first64: f64 = F64::minimum(nan64, one64);
+    let minimum_nan_second64: f64 = F64::minimum(one64, nan64);
+    let maximum_nan_first64: f64 = F64::maximum(nan64, one64);
+
+    let basic64: bool = nearest_add64 == one64
+        && upward_add64 > nearest_add64
+        && downward_subtract64 < nearest_subtract64
+        && upward_multiply64 > toward_zero_multiply64
+        && upward_divide64 > toward_zero_divide64
+        && downward_sqrt64 < nearest_sqrt64
+        && upward_fma64 > toward_zero_fma64;
+    let specials64: bool = F64::is_subnormal(minimum_subnormal64)
+        && classifies_positive_subnormal64(minimum_subnormal64)
+        && minimum_subnormal64 / 2.0 == 0.0
+        && F64::is_infinite(infinity64)
+        && F64::is_nan(nan64)
+        && F64::is_finite(one64)
+        && F64::is_normal(one64)
+        && 1.0 / negative_zero64 < 0.0
+        && nan64 != nan64
+        && (nan64 == nan64) == false
+        && (nan64 < one64) == false
+        && minimum_nan_first64 == one64
+        && F64::is_nan(minimum_nan_second64)
+        && maximum_nan_first64 == one64;
+    let fused64_ok: bool = unfused64 == 0.0 && fused64 > 0.0;
+
+    transition basic32 {
+        true -> check_specials32(specials32, fused32_ok, basic64, specials64, fused64_ok)
+        _ -> 17
+    }
+    state check_specials32(
+        ok: bool,
+        fused32_ok: bool,
+        basic64: bool,
+        specials64: bool,
+        fused64_ok: bool
+    ) -> u64 {
+        transition ok {
+            true -> check_fused32(fused32_ok, basic64, specials64, fused64_ok)
+            _ -> 18
+        }
+    }
+    state check_fused32(
+        ok: bool,
+        basic64: bool,
+        specials64: bool,
+        fused64_ok: bool
+    ) -> u64 {
+        transition ok {
+            true -> check_basic64(basic64, specials64, fused64_ok)
+            _ -> 19
+        }
+    }
+    state check_basic64(ok: bool, specials64: bool, fused64_ok: bool) -> u64 {
+        transition ok {
+            true -> check_specials64(specials64, fused64_ok)
+            _ -> 20
+        }
+    }
+    state check_specials64(ok: bool, fused64_ok: bool) -> u64 {
+        transition ok {
+            true -> check_fused64(fused64_ok)
+            _ -> 21
+        }
+    }
+    state check_fused64(ok: bool) -> u64 {
+        transition ok { true -> 16 _ -> 22 }
+    }
+}
+
+data Main {
+    console: Console;
+    slots: [u8; float_semantics_twin_code()];
+}
+
+machine Main::main(&mut self) {
+    let runtime_code: u64 = float_semantics_twin_code();
+    self.slots[15] = 54;
+    transition runtime_code == 16 && self.slots[15] == 54 {
+        true -> good()
+        _ -> classify_failure(runtime_code)
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state classify_failure(&mut self, code: u64) {
+        transition code == 17 { true -> bad32_basic() _ -> fail32_specials(code) }
+    }
+    state fail32_specials(&mut self, code: u64) {
+        transition code == 18 { true -> bad32_specials() _ -> fail32_fused(code) }
+    }
+    state fail32_fused(&mut self, code: u64) {
+        transition code == 19 { true -> bad32_fused() _ -> fail64_basic(code) }
+    }
+    state fail64_basic(&mut self, code: u64) {
+        transition code == 20 { true -> bad64_basic() _ -> fail64_specials(code) }
+    }
+    state fail64_specials(&mut self, code: u64) {
+        transition code == 21 { true -> bad64_specials() _ -> bad64_fused() }
+    }
+    state bad32_basic(&mut self) { self.console.exit_process(71); }
+    state bad32_specials(&mut self) { self.console.exit_process(72); }
+    state bad32_fused(&mut self) { self.console.exit_process(73); }
+    state bad64_basic(&mut self) { self.console.exit_process(74); }
+    state bad64_specials(&mut self) { self.console.exit_process(75); }
+    state bad64_fused(&mut self) { self.console.exit_process(76); }
+}
