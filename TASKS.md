@@ -403,6 +403,15 @@ ceilings, and publication-before-ledger-record all reject.
   initializer materializes after its operands. Its final `mode as u32` remains
   intentionally because that cast-valued payload field is the regression's
   subject; the raw byte widening no longer waits on compiler work.
+- `std::time` now uses the named integer surface for every runtime width or
+  signedness conversion. Its remaining integer-looking casts only select or
+  forget a same-carrier arithmetic policy. Store-enforced Exact ranged locals
+  now discharge nested conversion preconditions; a broader declared range
+  remains insufficient. Flattened nested calls expand compiler-elided local
+  initializers before applying enclosing parameter aliases, including
+  cast/call structure and `min`/`max`/`clamp` scalar classification. The
+  constructor, totals/divide, clock, sleep, cross-target, and filesystem-time
+  canaries pin both proof and native delivery.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation

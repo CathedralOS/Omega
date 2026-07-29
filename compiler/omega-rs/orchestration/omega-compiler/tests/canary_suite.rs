@@ -6823,8 +6823,9 @@ stderr:
 }
 
 // std::time receiverless type-scoped constructors deliver a 16-byte Duration
-// natively (construct-from-LETS shape). from_seconds(2)={2,0},
-// from_milliseconds(3500)={3,500000000} -> exit 70.
+// natively. The milliseconds path narrows a compiler-elided ranged local
+// through a nested named conversion, pinning outer-argument alias composition.
+// from_seconds(2)={2,0}, from_milliseconds(3500)={3,500000000} -> exit 70.
 #[test]
 fn runtime_duration_constructors_exit_canary_runs() {
     let canary = pass_canary("time/runtime_duration_constructors_exit");

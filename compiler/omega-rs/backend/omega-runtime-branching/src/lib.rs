@@ -20,6 +20,7 @@ use omega_state_storage::StateStoragePlan;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RuntimeBranchingContext<'plan> {
+    pub program: &'plan omega_checked_trees::CheckedTrees,
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
     pub runtime_bodies: &'plan RuntimeDispatchBodyPlan,

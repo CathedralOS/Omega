@@ -6,6 +6,9 @@ mod static_writes;
 mod value_operands;
 
 pub(in crate::selection::runtime_dispatch::writes) use binary_table_writes::select_runtime_atomic_load_or_store_in_table;
+pub(in crate::selection) use operators::{
+    builtin_runtime_call_operator_in_table, builtin_runtime_unary_call_operator_in_table,
+};
 pub(crate) use value_operands::resolve_runtime_value_operand_in_table;
 pub(in crate::selection::runtime_dispatch) use value_operands::{
     binary_value_operand_byte_width, binary_value_operands_are_float,

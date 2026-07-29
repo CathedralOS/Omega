@@ -71,7 +71,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         }
     }
 
-    fn argument_for_parameter(
+    pub(super) fn argument_for_parameter(
         &self,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,

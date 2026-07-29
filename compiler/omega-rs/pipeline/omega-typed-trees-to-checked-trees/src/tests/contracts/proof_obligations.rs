@@ -1451,6 +1451,50 @@ fn incoming_guard_rebinds_state_parameter_for_nested_call_requires() {
 }
 
 #[test]
+fn exact_declared_local_range_proves_call_requires() {
+    let source = r#"
+        machine accept(value: i64)
+        requires
+            value >= 0 && value <= 255
+        {
+        }
+
+        machine main(source: i64 [0..=255]) {
+            let bounded: i64 [0..=255] = source;
+            accept(bounded);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a store-enforced Exact local range should prove the callee bounds");
+}
+
+#[test]
+fn broader_declared_local_range_does_not_prove_call_requires() {
+    let source = r#"
+        machine accept(value: i64)
+        requires
+            value >= 0 && value <= 255
+        {
+        }
+
+        machine main(source: i64 [-1..=255]) {
+            let not_nonnegative: i64 [-1..=255] = source;
+            accept(not_nonnegative);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a range containing -1 must not establish nonnegativity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove requires contract for call accept from main")
+            && diagnostic.message.contains("value >= 0")
+    }));
+}
+
+#[test]
 fn rejects_transition_that_does_not_establish_state_arrival_requires() {
     let source = r#"
         data Main {
