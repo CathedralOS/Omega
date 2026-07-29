@@ -409,6 +409,20 @@ fn lower_expression_node_into_table(
                 })),
             )
         }
+        syntax::expression::ExpressionNode::ZeroValue(type_reference) => {
+            let type_reference = crate::type_reference::lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                *type_reference,
+            )?;
+            let type_reference = lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .child_type_references
+                .append(type_reference);
+            Ok(expression_table(lowerer).insert(ExpressionNode::ZeroValue(type_reference)))
+        }
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
             let fields =
                 expression_table(lowerer).reserve_struct_fields(struct_literal.fields.count());

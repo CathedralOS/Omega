@@ -310,6 +310,17 @@ fn assign_contract_call_symbols(
             child_type_references,
             unary.operand,
         ),
+        ExpressionNode::ZeroValue(type_reference) => {
+            let mut target_type = child_type_references.get(type_reference).clone();
+            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                symbols,
+                child_type_references,
+                machine.type_parameters,
+                machine.symbol,
+                &mut target_type,
+            );
+            *child_type_references.get_mut(type_reference) = target_type;
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)

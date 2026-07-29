@@ -29,6 +29,7 @@ pub(super) fn classify_guard_operand(
         | ExpressionNode::Call(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_) => StateGuardOperandKind::OtherExpression,
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::ZeroValue(_) => StateGuardOperandKind::OtherExpression,
     }
 }

@@ -69,7 +69,7 @@ requires
     items.len < items.capacity;
 
 // Infallible under its proof obligation, matching `FixedVec::pop`.
-// A future dynamic-failure `try_pop` may return `Option<T>` from std.
+// A future dynamic-failure `try_pop` may return `Optional<T>` from std.
 boundary operator Vec::pop<T>(items: &mut Vec<T>) -> T
 requires
     items.len > 0;

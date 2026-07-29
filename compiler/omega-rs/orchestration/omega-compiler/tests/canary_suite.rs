@@ -11459,9 +11459,9 @@ fn runtime_indexed_struct_write_loop_exit_canary_runs() {
 
 #[test]
 fn std_option_runtime_match_exit_canary_runs() {
-    // The std `Option<T>` works at runtime for presence/absence: construct Some + None and
-    // discriminate them. a=Some -> check b; b=None -> exit 70. (Some carries no payload yet --
-    // a useful Option<T>::Some(value) is blocked on generic monomorphization at the layout stage.)
+    // The std `Optional<T>` works at runtime for presence/absence and payload
+    // extraction. `b` is never written, so its all-zero home representation
+    // must dispatch as None.
     let canary = pass_canary("collections/std_option_runtime_match_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -11471,14 +11471,14 @@ fn std_option_runtime_match_exit_canary_runs() {
         target_name: None,
         write_output: true,
     })
-    .expect("std option runtime match canary should compile");
+    .expect("std Optional runtime match canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("std option runtime match canary should run");
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected std Option Some/None construct + match to exit 70; got {:?}\n{}",
+        "expected std Optional Some/None construct + match to exit 70; got {:?}\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -39079,6 +39079,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/nat_lemma_citation_false_rejected",
     "proofs/uncited_structural_fact_rejected",
     "proofs/citation_requires_bearing_rejected",
+    "proofs/zero_value_wrong_home_case_rejected",
+    "proofs/zero_value_gated_home_rejected",
+    "proofs/zero_value_executable_rejected",
     "proofs/nat_substate_nondescending_rejected",
     "boundary/entry_typed_params_unmarked",
     "wire/encode_wire_spelling_renamed",

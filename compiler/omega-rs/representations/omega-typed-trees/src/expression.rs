@@ -31,6 +31,7 @@ pub enum Expression {
     StructLiteral(StructLiteral),
     String(Arc<str>),
     Unary(Box<UnaryExpression>),
+    ZeroValue(crate::types::TypeReferenceHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -383,6 +384,9 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+            ExpressionNode::ZeroValue(type_reference) => {
+                self.insert(ExpressionNode::ZeroValue(*type_reference))
+            }
         }
     }
 
@@ -485,7 +489,8 @@ impl ExpressionTable {
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_) => {}
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
         }
     }
 
@@ -1296,6 +1301,9 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+            ExpressionNode::ZeroValue(type_reference) => {
+                self.insert(ExpressionNode::ZeroValue(type_reference))
+            }
         }
     }
 
@@ -1497,6 +1505,9 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+            Expression::ZeroValue(type_reference) => {
+                self.insert(ExpressionNode::ZeroValue(*type_reference))
+            }
         }
     }
 
@@ -1596,6 +1607,7 @@ impl ExpressionTable {
                 operator: unary.operator,
                 operand: self.to_tree(unary.operand),
             })),
+            ExpressionNode::ZeroValue(type_reference) => Expression::ZeroValue(*type_reference),
         }
     }
 
@@ -1763,6 +1775,8 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     String(Arc<str>),
     Unary(TableUnaryExpression),
+    /// Proof-only observation of a type's normalized all-zero home value.
+    ZeroValue(crate::types::TypeReferenceHandle),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

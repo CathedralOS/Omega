@@ -191,7 +191,8 @@ fn scan_expression(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => Ok(()),
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => Ok(()),
     }
 }
 

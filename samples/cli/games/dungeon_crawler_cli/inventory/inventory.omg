@@ -65,8 +65,8 @@ machine InventorySystem::add_item(
     kind: ItemKind
 ) {
     // Sentinel search: an index past the 32-slot capacity means "not found".
-    // (Option<T> case payloads are not runtime-ready yet; the old
-    // `Option<u64>` + `is_some()`/`unwrap()` spelling resolved to NOTHING and
+    // (Optional<T> case payloads are not used here yet; the old
+    // `Optional<u64>` + `is_some()`/`unwrap()` spelling resolved to NOTHING and
     // silently bound 0 -- every pickup appended a fresh stack.)
     let existing_index: u64 = self.find_item(inventory, kind);
 

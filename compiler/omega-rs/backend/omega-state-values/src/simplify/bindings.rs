@@ -410,7 +410,8 @@ fn simple_local_binding_value_from_table(
         ExpressionNode::Cast(cast) if cast.form.is_recast() => None,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
-        | ExpressionNode::StructLiteral(_) => None,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => None,
     }
 }
 

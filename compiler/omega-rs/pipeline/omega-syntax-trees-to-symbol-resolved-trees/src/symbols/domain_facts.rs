@@ -363,7 +363,8 @@ fn assign_proof_expression_membership_symbols(
         | omega_symbol_resolved_trees::expression::ExpressionNode::Float(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::Name(_)
-        | omega_symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
+        | omega_symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | omega_symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
 }
 

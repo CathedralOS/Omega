@@ -1,0 +1,12 @@
+data Choice {
+    case First;
+    case Second;
+}
+
+data Main {
+    value: Choice;
+}
+
+machine Main::main(&mut self) {
+    self.value = zero_value<Choice>();
+}

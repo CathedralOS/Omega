@@ -171,7 +171,8 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_) => false,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

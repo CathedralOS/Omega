@@ -580,6 +580,9 @@ fn count_expression_handle(
         crate::expression::ExpressionNode::Unary(unary) => {
             count_expression_handle(syntax_trees, unary.operand, counts);
         }
+        crate::expression::ExpressionNode::ZeroValue(type_reference) => {
+            count_type_reference_handle(syntax_trees, *type_reference, counts);
+        }
     }
 }
 

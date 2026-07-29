@@ -157,7 +157,8 @@ impl EvaluationTraversal<'_, '_> {
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_) => {}
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
         }
     }
 

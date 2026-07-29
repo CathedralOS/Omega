@@ -1531,7 +1531,8 @@ fn expression_takes_slice_view_of_symbol(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -1725,7 +1726,8 @@ fn expression_contains_call(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -1881,7 +1883,8 @@ fn expression_uses_symbol_as_arithmetic_operand(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -2065,7 +2068,8 @@ fn expression_contains_mutating_call(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -2397,7 +2401,8 @@ fn expression_uses_symbol_mutably(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -2467,7 +2472,8 @@ fn expression_references_symbol(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

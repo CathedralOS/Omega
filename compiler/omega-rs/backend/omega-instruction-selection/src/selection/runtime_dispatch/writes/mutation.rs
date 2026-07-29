@@ -338,7 +338,8 @@ fn runtime_tree_call_occurrence_rank(
             | Expression::Float(_)
             | Expression::Integer(_)
             | Expression::Name(_)
-            | Expression::String(_) => false,
+            | Expression::String(_)
+            | Expression::ZeroValue(_) => false,
         }
     }
 
@@ -634,7 +635,8 @@ fn runtime_table_call_occurrence_rank(
             | ExpressionNode::Float(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
-            | ExpressionNode::String(_) => false,
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => false,
         }
     }
 

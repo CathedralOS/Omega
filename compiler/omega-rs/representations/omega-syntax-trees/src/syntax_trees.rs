@@ -1118,6 +1118,9 @@ impl SyntaxTrees {
                     operand,
                 })
             }
+            ExpressionNode::ZeroValue(type_reference) => {
+                ExpressionNode::ZeroValue(self.copy_type_reference_handle(other, *type_reference))
+            }
         };
 
         self.expressions.insert(expression)

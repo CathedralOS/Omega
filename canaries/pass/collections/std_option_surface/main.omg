@@ -1,6 +1,7 @@
 use omega::language::std::option;
 
 data Main {
+    value: Optional<u64>;
 }
 
 machine Main::main(&mut self) {

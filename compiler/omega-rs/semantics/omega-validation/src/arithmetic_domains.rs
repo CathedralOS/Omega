@@ -688,7 +688,8 @@ fn expression_calls_state(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

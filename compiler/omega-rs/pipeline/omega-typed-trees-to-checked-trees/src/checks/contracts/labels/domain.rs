@@ -150,5 +150,9 @@ fn instantiate_domain_expression_label(
             struct_literal.type_name.to_string()
         }
         omega_typed_trees::expression::ExpressionNode::String(value) => format!("{value:?}"),
+        omega_typed_trees::expression::ExpressionNode::ZeroValue(type_reference) => format!(
+            "zero_value<{}>()",
+            program.display_type_reference(*type_reference)
+        ),
     }
 }

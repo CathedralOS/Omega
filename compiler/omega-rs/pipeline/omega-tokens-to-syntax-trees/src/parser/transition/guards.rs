@@ -897,7 +897,8 @@ pub(super) fn rewrite_destructure_guard_expression(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::SelfValue
-        | ExpressionNode::String(_) => syntax_trees.expressions.expression(expression).clone(),
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => syntax_trees.expressions.expression(expression).clone(),
     };
 
     syntax_trees.expressions.insert(rewritten)

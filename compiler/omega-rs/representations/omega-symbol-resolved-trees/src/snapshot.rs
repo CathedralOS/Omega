@@ -553,6 +553,9 @@ pub enum ExpressionSnapshot {
         operator: &'static str,
         operand: Box<ExpressionSnapshot>,
     },
+    ZeroValue {
+        type_reference: Box<TypeReferenceSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1254,6 +1257,12 @@ fn table_expression_snapshot(
         ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
             operator: unary.operator.display_name(),
             operand: Box::new(table_expression_snapshot(program, unary.operand)),
+        },
+        ExpressionNode::ZeroValue(type_reference) => ExpressionSnapshot::ZeroValue {
+            type_reference: Box::new(type_reference_snapshot_from_program(
+                program,
+                program.child_type_reference(*type_reference),
+            )),
         },
     }
 }

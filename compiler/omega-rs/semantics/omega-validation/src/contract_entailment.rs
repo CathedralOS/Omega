@@ -381,13 +381,21 @@ pub(crate) fn validate_machine_contract_entailment(
     let ensures: Vec<ExpressionHandle> = ensures
         .into_iter()
         .filter(|fact| {
-            let mention = fact_mentions_proof_only_data(program, &proof_only, machine, *fact);
+            let zero_value_mention = fact_mentions_zero_value(program, *fact);
+            let proof_only_mention =
+                fact_mentions_proof_only_data(program, &proof_only, machine, *fact);
+            let mention = zero_value_mention.clone().or_else(|| {
+                proof_only_mention
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned())
+            });
             if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(
-                    "ROUTE machine={} fact=`{}` mention={:?}",
+                    "ROUTE machine={} fact=`{}` mention={:?} zero_value={}",
                     machine.name,
                     program.expression_table.display_name(*fact),
-                    mention.as_ref().map(|name| name.as_str()),
+                    mention.as_deref(),
+                    zero_value_mention.is_some(),
                 );
             }
             let Some(held) = mention else {
@@ -403,7 +411,9 @@ pub(crate) fn validate_machine_contract_entailment(
             // (own-package dev-active; the trust report carries the row),
             // never proven. The ENGINE VETO still applies: a statement the
             // judge can REFUTE is a compile error, grants notwithstanding.
-            if machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted {
+            if machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted
+                && zero_value_mention.is_none()
+            {
                 if matches!(judge_structural(*fact), StructuralJudgment::Refuted) {
                     diagnostics.push(Diagnostic::error(format!(
                         "accepted boundary machine `{}` claims `{}`, which the \
@@ -445,6 +455,14 @@ pub(crate) fn validate_machine_contract_entailment(
                             machine.name,
                             program.expression_table.display_name(*fact),
                         )));
+                    } else if zero_value_mention.is_some() {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "machine `{}` cannot establish zero-value representation obligation \
+                             `{}` for `{held}`: all-zero storage is gated, has no payload-free \
+                             authored home case, or is not a cased data representation",
+                            machine.name,
+                            program.expression_table.display_name(*fact),
+                        )));
                     } else {
                         diagnostics.push(Diagnostic::error(format!(
                             "machine `{}` ensures contract proof fact `{}` speaks about proof-only \
@@ -469,7 +487,8 @@ pub(crate) fn validate_machine_contract_entailment(
     // rejecting integer goals it cannot prove without them.
     if any_structural
         || requires.iter().any(|fact| {
-            fact_mentions_proof_only_data(program, &proof_only, machine, *fact).is_some()
+            fact_mentions_zero_value(program, *fact).is_some()
+                || fact_mentions_proof_only_data(program, &proof_only, machine, *fact).is_some()
         })
     {
         all_facts_are_expressions = false;
@@ -2212,6 +2231,79 @@ fn fact_mentions_proof_only_data(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => None,
+        ExpressionNode::ZeroValue(type_reference) => {
+            classification.proof_only_mention(program, *type_reference)
+        }
+    }
+}
+
+/// Return the observed data name when a contract fact contains
+/// `zero_value<T>()`. Unlike the proof-only-data fence above, this route also
+/// covers ordinary runtime data: the observation is structural because its
+/// meaning comes from authored home representation, not from integer
+/// arithmetic.
+fn fact_mentions_zero_value(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
+    use omega_typed_trees::types::TypeReferenceNode;
+
+    if !expression.is_valid() {
+        return None;
+    }
+    let recurse = |handle: ExpressionHandle| fact_mentions_zero_value(program, handle);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
+        ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
+        ExpressionNode::Unary(unary) => recurse(unary.operand),
+        ExpressionNode::Cast(cast) => recurse(cast.value),
+        ExpressionNode::Member(member) => recurse(member.receiver),
+        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Indexed(indexed) => {
+            recurse(indexed.collection).or_else(|| recurse(indexed.index))
+        }
+        ExpressionNode::Range(range) => recurse(range.start).or_else(|| recurse(range.end)),
+        ExpressionNode::ArrayLiteral(items) => program
+            .expression_table
+            .expression_handles(*items)
+            .iter()
+            .find_map(|item| recurse(*item)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find_map(|field| recurse(field.value)),
+        ExpressionNode::Call(call) => recurse(call.receiver).or_else(|| {
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .find_map(|argument| recurse(*argument))
+        }),
+        ExpressionNode::ZeroValue(type_reference) => {
+            let observed = *type_reference;
+            let mut current = *type_reference;
+            loop {
+                match program.type_reference_table.type_reference(current) {
+                    TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+                    TypeReferenceNode::Generic { base_name, .. } => {
+                        return Some(base_name.as_str().to_owned());
+                    }
+                    TypeReferenceNode::Named { name, .. } => {
+                        return Some(name.as_str().to_owned());
+                    }
+                    TypeReferenceNode::Reference { .. }
+                    | TypeReferenceNode::FixedArray { .. }
+                    | TypeReferenceNode::Slice { .. }
+                    | TypeReferenceNode::DynamicTrait { .. }
+                    | TypeReferenceNode::Unit => {
+                        return Some(program.display_type_reference(observed));
+                    }
+                }
+            }
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
         | ExpressionNode::String(_) => None,
     }
 }
@@ -6370,6 +6462,59 @@ fn structural_term(program: &TypedTrees, expression: ExpressionHandle) -> Option
         ExpressionNode::Member(_) => Some(StructuralTerm::Opaque(
             program.expression_table.display_name(expression),
         )),
+        ExpressionNode::ZeroValue(type_reference) => {
+            zero_value_structural_term(program, *type_reference)
+        }
         _ => None,
     }
+}
+
+/// Normalize the proof-only `zero_value<T>()` observation through the same
+/// home-representation rule used by layout: the first authored sum case owns
+/// runtime discriminant zero. A gated zero is not an established value, and a
+/// payload-bearing home case is left to a future recursive zero termifier.
+fn zero_value_structural_term(
+    program: &TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> Option<StructuralTerm> {
+    use omega_typed_trees::data::DataMember;
+    use omega_typed_trees::types::TypeReferenceNode;
+
+    let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            return zero_value_structural_term(program, *base_type);
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => (*base_symbol, base_name.as_str()),
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => return None,
+    };
+    let definition = program.data_definitions().iter().find(|definition| {
+        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
+    })?;
+    if crate::data::data_requires_establishment(program, definition) {
+        return None;
+    }
+    let variant = program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })?;
+    if !program.data_payload_fields(variant).is_empty() {
+        return None;
+    }
+    Some(StructuralTerm::Constructor {
+        data: definition.name.as_str().to_owned(),
+        case: variant.name.as_str().to_owned(),
+        fields: Vec::new(),
+    })
 }

@@ -583,9 +583,6 @@ move it to a convenience library.
 The language model is settled in guide chapters 21-22 and the programmable
 layouts brief. Complete the implementation in dependency order:
 
-- rename the standard cased carrier to `Optional<T>`, retain `None | Some(T)`
-  as ordinary cases, and add the home-representation proof requirement that
-  all-zero storage denotes `None`;
 - reflect stable case identities and retired cases through `Schema`, normalized
   plan identity, diagnostics, and artifact reports without coupling them to
   runtime discriminants;

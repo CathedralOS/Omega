@@ -310,6 +310,9 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+            ExpressionNode::ZeroValue(type_reference) => {
+                self.insert(ExpressionNode::ZeroValue(*type_reference))
+            }
         }
     }
 
@@ -701,6 +704,9 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+            ExpressionNode::ZeroValue(type_reference) => {
+                self.insert(ExpressionNode::ZeroValue(type_reference))
+            }
         }
     }
 
@@ -904,6 +910,8 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     String(SourceText),
     Unary(TableUnaryExpression),
+    /// Proof-only observation of a type's normalized all-zero home value.
+    ZeroValue(omega_core::arena::Handle<crate::types::TypeReference>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

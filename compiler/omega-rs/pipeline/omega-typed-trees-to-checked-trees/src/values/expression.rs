@@ -26,7 +26,8 @@ impl ValueFactBuilder<'_> {
             | ExpressionNode::Float(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
-            | ExpressionNode::String(_) => {}
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
             ExpressionNode::Cast(cast) => {
                 self.collect_nested_expression(expression, cast.value);
             }

@@ -4,6 +4,7 @@ use crate::parser::expression::{
     parse_expression_handle_without_struct_literals,
 };
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::literals::IntegerLiteral;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
@@ -171,6 +172,26 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Match) {
         return parse_match_expression_handle(syntax_trees, input);
+    }
+
+    // `zero_value<T>()` is a proof-only representation observation, not an
+    // ordinary generic machine call (angle-bracket call arguments select
+    // machine symbols). Preserve its complete nested type reference.
+    if input.at_contextual("zero_value") {
+        let after_name = input.take_contextual("zero_value")?;
+        if after_name.at_punctuation(PunctuationKind::Less) {
+            let after_less = after_name.take_punctuation(PunctuationKind::Less, "<")?;
+            let (type_reference, rest) = parse_type_reference_handle(syntax_trees, after_less)?;
+            let rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
+            let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let rest = rest.take_punctuation(PunctuationKind::RightParen, ")")?;
+            return Ok((
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::ZeroValue(type_reference)),
+                rest,
+            ));
+        }
     }
 
     if input.tokens.first().is_some_and(|token| {
