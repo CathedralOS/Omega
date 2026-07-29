@@ -19,6 +19,7 @@ const PLAN_ENTRY_CAPACITY: usize = 64;
 #[derive(Debug, Clone)]
 struct SchemaFieldInfo {
     name: String,
+    identity: Option<u64>,
     key: u64,
     size: u64,
     align: u64,
@@ -30,8 +31,8 @@ pub fn compute_layout_plan(
     policy_machine: &str,
     schema_data: &str,
 ) -> Result<LayoutPlanReport, String> {
-    let schema_fields = schema_fields(typed, schema_data)?;
-    let schema_value = build_schema_value(&schema_fields);
+    let (schema_fields, schema_identity) = schema_fields(typed, schema_data)?;
+    let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
 
     let machine = typed
         .machines()
@@ -46,10 +47,13 @@ pub fn compute_layout_plan(
             format!("build-time evaluation of `{policy_machine}` failed: {reason}")
         })?;
 
-    validate_plan(&plan, &schema_fields, policy_machine)
+    validate_plan(&plan, &schema_fields, schema_identity, policy_machine)
 }
 
-fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFieldInfo>, String> {
+fn schema_fields(
+    typed: &TypedTrees,
+    schema_data: &str,
+) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
     let data = typed
         .data_definitions()
         .iter()
@@ -59,9 +63,7 @@ fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFiel
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
         let omega_typed_trees::data::DataMember::Field(field) = member else {
-            return Err(format!(
-                "schema data `{schema_data}` has a case member; the current layout slice supports plain struct fields only"
-            ));
+            continue;
         };
         let Some(primitive) = typed.primitive_type_reference(field.type_reference) else {
             return Err(format!(
@@ -89,14 +91,20 @@ fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFiel
         }
         fields.push(SchemaFieldInfo {
             name: field.name.to_string(),
+            identity: field.identity,
             key,
             size,
             align: size,
             source_bits,
         });
     }
-    if fields.is_empty() {
-        return Err(format!("schema data `{schema_data}` has no fields"));
+    if fields.is_empty()
+        && !typed
+            .data_members(data)
+            .iter()
+            .any(|member| matches!(member, omega_typed_trees::data::DataMember::Variant(_)))
+    {
+        return Err(format!("schema data `{schema_data}` has no members"));
     }
     if fields.len() > SCHEMA_FIELD_CAPACITY {
         return Err(format!(
@@ -105,7 +113,117 @@ fn schema_fields(typed: &TypedTrees, schema_data: &str) -> Result<Vec<SchemaFiel
             SCHEMA_FIELD_CAPACITY
         ));
     }
-    Ok(fields)
+    if data.retired_identities.len() > SCHEMA_FIELD_CAPACITY {
+        return Err(format!(
+            "schema data `{schema_data}` has {} retired identities; reflected Schema supports at most {} per scope",
+            data.retired_identities.len(),
+            SCHEMA_FIELD_CAPACITY
+        ));
+    }
+    Ok((fields, normalized_schema_identity(typed, data)))
+}
+
+pub(super) fn normalized_schema_identity(
+    typed: &TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+) -> u64 {
+    use omega_typed_trees::data::DataMember;
+
+    fn byte(hash: &mut u64, value: u8) {
+        *hash ^= u64::from(value);
+        *hash = hash.wrapping_mul(0x100000001b3);
+    }
+    fn bytes(hash: &mut u64, value: &[u8]) {
+        for value in value {
+            byte(hash, *value);
+        }
+    }
+    fn uint(hash: &mut u64, value: u64) {
+        bytes(hash, &value.to_le_bytes());
+    }
+    fn text(hash: &mut u64, value: &str) {
+        uint(hash, value.len() as u64);
+        bytes(hash, value.as_bytes());
+    }
+    fn member_name(hash: &mut u64, identity: Option<u64>, name: &str, position: usize) {
+        match identity {
+            Some(identity) => {
+                byte(hash, 1);
+                uint(hash, identity);
+            }
+            None => {
+                byte(hash, 0);
+                uint(hash, position as u64);
+                text(hash, name);
+            }
+        }
+    }
+
+    let mut hash = 0xcbf29ce484222325u64;
+    bytes(&mut hash, b"omega.schema.v1");
+    let members = typed.data_members(data);
+    let mut fields = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let mut cases = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if fields.iter().all(|field| field.identity.is_some()) {
+        fields.sort_by_key(|field| field.identity);
+    }
+    if cases.iter().all(|case| case.identity.is_some()) {
+        cases.sort_by_key(|case| case.identity);
+    }
+    uint(&mut hash, fields.len() as u64);
+    for (position, field) in fields.iter().enumerate() {
+        member_name(&mut hash, field.identity, field.name.as_str(), position);
+        text(
+            &mut hash,
+            typed.display_type_reference(field.type_reference).as_str(),
+        );
+    }
+    uint(&mut hash, cases.len() as u64);
+    for (position, case) in cases.iter().enumerate() {
+        member_name(&mut hash, case.identity, case.name.as_str(), position);
+        let mut payload = typed.data_payload_fields(case).iter().collect::<Vec<_>>();
+        if payload.iter().all(|field| field.identity.is_some()) {
+            payload.sort_by_key(|field| field.identity);
+        }
+        uint(&mut hash, payload.len() as u64);
+        for (payload_position, field) in payload.iter().enumerate() {
+            member_name(
+                &mut hash,
+                field.identity,
+                field.name.as_str(),
+                payload_position,
+            );
+            text(
+                &mut hash,
+                typed.display_type_reference(field.type_reference).as_str(),
+            );
+        }
+        let mut retired = case.retired_payload_identities.clone();
+        retired.sort_unstable();
+        uint(&mut hash, retired.len() as u64);
+        for identity in retired {
+            uint(&mut hash, identity);
+        }
+    }
+    let mut retired = data.retired_identities.clone();
+    retired.sort_unstable();
+    uint(&mut hash, retired.len() as u64);
+    for identity in retired {
+        uint(&mut hash, identity);
+    }
+    if hash == 0 { 1 } else { hash }
 }
 
 fn declared_source_bits(
@@ -148,31 +266,179 @@ fn field_key(schema: &str, field: &str) -> u64 {
     if hash == 0 { 1 } else { hash }
 }
 
-fn build_schema_value(schema_fields: &[SchemaFieldInfo]) -> BuildTimeValue {
+fn optional_identity(identity: Option<u64>) -> BuildTimeValue {
+    match identity {
+        Some(identity) => BuildTimeValue::Case {
+            variant: "Some".to_owned(),
+            payload: vec![("value".to_owned(), BuildTimeValue::Int(identity as i64))],
+        },
+        None => BuildTimeValue::Case {
+            variant: "None".to_owned(),
+            payload: Vec::new(),
+        },
+    }
+}
+
+fn padded_identities(identities: &[u64]) -> Vec<BuildTimeValue> {
+    (0..SCHEMA_FIELD_CAPACITY)
+        .map(|index| BuildTimeValue::Int(identities.get(index).copied().unwrap_or_default() as i64))
+        .collect()
+}
+
+fn build_schema_field_value(field: Option<&SchemaFieldInfo>) -> BuildTimeValue {
+    let (key, size, align, identity) = field
+        .map(|field| (field.key, field.size, field.align, field.identity))
+        .unwrap_or((0, 0, 1, None));
+    BuildTimeValue::Struct {
+        type_name: "SchemaField".to_owned(),
+        fields: vec![
+            ("key".to_owned(), BuildTimeValue::Int(key as i64)),
+            ("size".to_owned(), BuildTimeValue::Int(size as i64)),
+            ("align".to_owned(), BuildTimeValue::Int(align as i64)),
+            ("identity".to_owned(), optional_identity(identity)),
+            (
+                "number".to_owned(),
+                BuildTimeValue::Int(identity.map(|identity| identity as i64).unwrap_or(-1)),
+            ),
+            (
+                "kind".to_owned(),
+                BuildTimeValue::Case {
+                    variant: "Scalar".to_owned(),
+                    payload: Vec::new(),
+                },
+            ),
+        ],
+    }
+}
+
+fn build_schema_value(
+    typed: &TypedTrees,
+    schema_data: &str,
+    schema_fields: &[SchemaFieldInfo],
+) -> Result<BuildTimeValue, String> {
+    use omega_typed_trees::data::{DataMember, DataShapeKind};
+
+    let data = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == schema_data)
+        .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
     let mut fields = Vec::with_capacity(SCHEMA_FIELD_CAPACITY);
     for index in 0..SCHEMA_FIELD_CAPACITY {
-        let (key, size, align) = schema_fields
-            .get(index)
-            .map(|field| (field.key, field.size, field.align))
-            .unwrap_or((0, 0, 1));
-        fields.push(BuildTimeValue::Struct {
-            type_name: "SchemaField".to_owned(),
+        fields.push(build_schema_field_value(schema_fields.get(index)));
+    }
+    let variants = typed
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            DataMember::Field(_) => None,
+        })
+        .collect::<Vec<_>>();
+    if variants.len() > SCHEMA_FIELD_CAPACITY {
+        return Err(format!(
+            "schema data `{schema_data}` has {} cases; reflected Schema supports at most {}",
+            variants.len(),
+            SCHEMA_FIELD_CAPACITY
+        ));
+    }
+    let mut cases = Vec::with_capacity(SCHEMA_FIELD_CAPACITY);
+    for index in 0..SCHEMA_FIELD_CAPACITY {
+        let Some(variant) = variants.get(index).copied() else {
+            cases.push(BuildTimeValue::Struct {
+                type_name: "SchemaCase".to_owned(),
+                fields: vec![
+                    ("key".to_owned(), BuildTimeValue::Int(0)),
+                    ("identity".to_owned(), optional_identity(None)),
+                    (
+                        "payload_fields".to_owned(),
+                        BuildTimeValue::Array(
+                            (0..SCHEMA_FIELD_CAPACITY)
+                                .map(|_| build_schema_field_value(None))
+                                .collect(),
+                        ),
+                    ),
+                    ("payload_field_count".to_owned(), BuildTimeValue::Int(0)),
+                    (
+                        "retired_payload_identities".to_owned(),
+                        BuildTimeValue::Array(padded_identities(&[])),
+                    ),
+                    (
+                        "retired_payload_identity_count".to_owned(),
+                        BuildTimeValue::Int(0),
+                    ),
+                ],
+            });
+            continue;
+        };
+        let payload = typed.data_payload_fields(variant);
+        if payload.len() > SCHEMA_FIELD_CAPACITY
+            || variant.retired_payload_identities.len() > SCHEMA_FIELD_CAPACITY
+        {
+            return Err(format!(
+                "schema data `{schema_data}` case `{}` exceeds the reflected Schema capacity of {} payload fields or tombstones",
+                variant.name, SCHEMA_FIELD_CAPACITY
+            ));
+        }
+        let payload_fields = (0..SCHEMA_FIELD_CAPACITY)
+            .map(|payload_index| {
+                let info = payload.get(payload_index).map(|field| {
+                    let primitive = typed.primitive_type_reference(field.type_reference);
+                    let size = primitive.and_then(primitive_byte_size).unwrap_or(0);
+                    SchemaFieldInfo {
+                        name: field.name.to_string(),
+                        identity: field.identity,
+                        key: field_key(
+                            schema_data,
+                            format!("{}::{}", variant.name, field.name).as_str(),
+                        ),
+                        size,
+                        align: size.max(1),
+                        source_bits: primitive
+                            .map(|primitive| {
+                                declared_source_bits(typed, field.type_reference, primitive, size)
+                            })
+                            .unwrap_or(0),
+                    }
+                });
+                build_schema_field_value(info.as_ref())
+            })
+            .collect();
+        cases.push(BuildTimeValue::Struct {
+            type_name: "SchemaCase".to_owned(),
             fields: vec![
-                ("key".to_owned(), BuildTimeValue::Int(key as i64)),
-                ("size".to_owned(), BuildTimeValue::Int(size as i64)),
-                ("align".to_owned(), BuildTimeValue::Int(align as i64)),
-                ("number".to_owned(), BuildTimeValue::Int(-1)),
                 (
-                    "kind".to_owned(),
-                    BuildTimeValue::Case {
-                        variant: "Scalar".to_owned(),
-                        payload: Vec::new(),
-                    },
+                    "key".to_owned(),
+                    BuildTimeValue::Int(field_key(schema_data, variant.name.as_str()) as i64),
+                ),
+                ("identity".to_owned(), optional_identity(variant.identity)),
+                (
+                    "payload_fields".to_owned(),
+                    BuildTimeValue::Array(payload_fields),
+                ),
+                (
+                    "payload_field_count".to_owned(),
+                    BuildTimeValue::Int(payload.len() as i64),
+                ),
+                (
+                    "retired_payload_identities".to_owned(),
+                    BuildTimeValue::Array(padded_identities(&variant.retired_payload_identities)),
+                ),
+                (
+                    "retired_payload_identity_count".to_owned(),
+                    BuildTimeValue::Int(variant.retired_payload_identities.len() as i64),
                 ),
             ],
         });
     }
-    BuildTimeValue::Struct {
+    let shape =
+        omega_typed_trees::data::DataDefinition::shape_kind_from_members(typed.data_members(data));
+    let (retired_fields, retired_cases) = match shape {
+        DataShapeKind::Record => (data.retired_identities.as_slice(), &[][..]),
+        DataShapeKind::Enum => (&[][..], data.retired_identities.as_slice()),
+        DataShapeKind::Empty | DataShapeKind::Mixed => (&[][..], &[][..]),
+    };
+    Ok(BuildTimeValue::Struct {
         type_name: "Schema".to_owned(),
         fields: vec![
             ("fields".to_owned(), BuildTimeValue::Array(fields)),
@@ -180,13 +446,35 @@ fn build_schema_value(schema_fields: &[SchemaFieldInfo]) -> BuildTimeValue {
                 "field_count".to_owned(),
                 BuildTimeValue::Int(schema_fields.len() as i64),
             ),
+            (
+                "retired_field_identities".to_owned(),
+                BuildTimeValue::Array(padded_identities(retired_fields)),
+            ),
+            (
+                "retired_field_identity_count".to_owned(),
+                BuildTimeValue::Int(retired_fields.len() as i64),
+            ),
+            ("cases".to_owned(), BuildTimeValue::Array(cases)),
+            (
+                "case_count".to_owned(),
+                BuildTimeValue::Int(variants.len() as i64),
+            ),
+            (
+                "retired_case_identities".to_owned(),
+                BuildTimeValue::Array(padded_identities(retired_cases)),
+            ),
+            (
+                "retired_case_identity_count".to_owned(),
+                BuildTimeValue::Int(retired_cases.len() as i64),
+            ),
         ],
-    }
+    })
 }
 
 fn validate_plan(
     plan: &BuildTimeValue,
     schema_fields: &[SchemaFieldInfo],
+    schema_identity: u64,
     policy_machine: &str,
 ) -> Result<LayoutPlanReport, String> {
     let fail =
@@ -318,6 +606,7 @@ fn validate_plan(
                 offsets_by_field[field_index] = Some(offset);
                 entries.push(LayoutFieldEntryReport {
                     field: schema_field.name.clone(),
+                    member_identity: schema_field.identity,
                     placement: LayoutPlacementReport::At { offset },
                 });
             }
@@ -369,6 +658,7 @@ fn validate_plan(
                 source_spans[field_index].push((source_lsb, source_end));
                 entries.push(LayoutFieldEntryReport {
                     field: schema_field.name.clone(),
+                    member_identity: schema_field.identity,
                     placement: LayoutPlacementReport::Bits {
                         container,
                         container_width,
@@ -468,6 +758,7 @@ fn validate_plan(
         .then(|| offsets_by_field.into_iter().map(Option::unwrap).collect());
 
     Ok(LayoutPlanReport {
+        schema_identity,
         entries,
         offsets,
         size: (!size_is_dynamic).then_some(size_fixed),

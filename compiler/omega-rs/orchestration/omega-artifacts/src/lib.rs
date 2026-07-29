@@ -517,32 +517,44 @@ impl ArtifactWriter {
 
         output.push_str("# Omega Wire Protocols\n\n");
         output.push_str(&format!(
-            "wire data schemas: {}\n",
+            "identity-keyed schemas: {}\n",
             wire_report.schemas.len()
         ));
 
         for schema in &wire_report.schemas {
-            output.push_str(&format!("\n## wire data {}\n", schema.name));
+            output.push_str(&format!("\n## data {}\n", schema.name));
+            output.push_str(&format!(
+                "normalized schema identity: 0x{:016x}\n",
+                schema.normalized_schema_identity
+            ));
             output.push_str(&format!(
                 "encoding: {}\n",
-                schema.encoding.as_deref().unwrap_or("(default)")
+                schema
+                    .encoding
+                    .as_deref()
+                    .unwrap_or("(selected by codec policy)")
             ));
-            output.push_str(&format!("current era: {}\n", schema.current_era));
+            if schema.synthesized_codec {
+                output.push_str(&format!("current era: {}\n", schema.current_era));
+            }
 
             // The synthesized codec surface (the derived Grammar-trait
             // conformance, brief section 2b): readable HERE, not only in a
             // validator's error strings.
-            output.push_str("synthesized:\n");
-            output.push_str(&format!(
-                "  machine {}::encode(&value, &mut out: [u8; N], &mut written: usize)\n",
-                schema.name
-            ));
-            output.push_str(&format!(
-                "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: usize, &mut verdict: WireVerdict)\n",
-                schema.name
-            ));
+            if schema.synthesized_codec {
+                output.push_str("legacy synthesized:\n");
+                output.push_str(&format!(
+                    "  machine {}::encode(&value, &mut out: [u8; N], &mut written: usize)\n",
+                    schema.name
+                ));
+                output.push_str(&format!(
+                    "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: usize, &mut verdict: WireVerdict)\n",
+                    schema.name
+                ));
+            }
 
             push_wire_field_table(&mut output, &schema.fields, &schema.reserved);
+            push_wire_case_table(&mut output, &schema.cases, &schema.retired_cases);
 
             for version in &schema.versions {
                 output.push_str(&format!(
@@ -718,6 +730,51 @@ impl ArtifactWriter {
         ledger: &InstalledRootLedger,
     ) -> Result<(), Diagnostic> {
         self.write_text("external_roots.json", &external_root_manifest_json(ledger))
+    }
+}
+
+fn push_wire_case_table(output: &mut String, cases: &[WireCaseReportEntry], retired: &[u64]) {
+    output.push_str("cases:\n");
+    if cases.is_empty() {
+        output.push_str("  none\n");
+    } else {
+        for case in cases {
+            output.push_str(&format!("  #{} {} payload:\n", case.number, case.name));
+            if case.payload_fields.is_empty() {
+                output.push_str("    none\n");
+            } else {
+                for field in &case.payload_fields {
+                    output.push_str(&format!(
+                        "    #{} {}: {}\n",
+                        field.number, field.name, field.type_display
+                    ));
+                }
+            }
+            if !case.retired_payload_identities.is_empty() {
+                output.push_str(&format!(
+                    "    retired payload identities: {}\n",
+                    case.retired_payload_identities
+                        .iter()
+                        .map(|identity| format!("#{identity}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+        }
+    }
+    output.push_str("retired case identities: ");
+    if retired.is_empty() {
+        output.push_str("none\n");
+    } else {
+        output.push_str(
+            retired
+                .iter()
+                .map(|identity| format!("#{identity}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+                .as_str(),
+        );
+        output.push('\n');
     }
 }
 
@@ -1564,12 +1621,19 @@ pub struct WireProtocolReport {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireSchemaReportEntry {
     pub name: String,
+    pub normalized_schema_identity: u64,
+    /// Only transitional rows lowered from the retired `wire data` form have
+    /// compiler-synthesized codecs. Ordinary data selects codec policy at use
+    /// sites.
+    pub synthesized_codec: bool,
     pub encoding: Option<String>,
     /// The era discriminator the CURRENT body encodes (decision 10): the
     /// number of declared version blocks (0 for an unversioned schema).
     pub current_era: u64,
     pub fields: Vec<WireFieldReportEntry>,
     pub reserved: Vec<u64>,
+    pub cases: Vec<WireCaseReportEntry>,
+    pub retired_cases: Vec<u64>,
     pub versions: Vec<WireVersionReportEntry>,
 }
 
@@ -1578,6 +1642,14 @@ pub struct WireFieldReportEntry {
     pub number: u64,
     pub name: String,
     pub type_display: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireCaseReportEntry {
+    pub number: u64,
+    pub name: String,
+    pub payload_fields: Vec<WireFieldReportEntry>,
+    pub retired_payload_identities: Vec<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -1997,6 +2069,7 @@ mod tests {
         program.typed.push_data_member(
             &mut main_data,
             omega_checked_trees::data::DataMember::Field(omega_checked_trees::data::DataField {
+                identity: None,
                 symbol: worker_field_symbol,
                 name: Identifier::generated("worker"),
                 type_reference: worker_type,

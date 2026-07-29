@@ -881,17 +881,21 @@ mod tests {
 
     fn uart_layout() -> LayoutPlanReport {
         LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![
                 LayoutFieldEntryReport {
                     field: "status".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::At { offset: 0 },
                 },
                 LayoutFieldEntryReport {
                     field: "transmit".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::At { offset: 4 },
                 },
                 LayoutFieldEntryReport {
                     field: "control".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 8,
                         container_width: 32,
@@ -976,8 +980,10 @@ mod tests {
     #[test]
     fn normalized_identity_covers_operation_width_exposure_and_reach() {
         let layout = LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![LayoutFieldEntryReport {
                 field: "word".into(),
+                member_identity: None,
                 placement: LayoutPlacementReport::At { offset: 0 },
             }],
             offsets: Some(vec![0]),
@@ -1105,8 +1111,10 @@ mod tests {
     #[test]
     fn atomic_shared_page_exposes_only_atomic_mutation() {
         let layout = LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![LayoutFieldEntryReport {
                 field: "head".into(),
+                member_identity: None,
                 placement: LayoutPlacementReport::At { offset: 0 },
             }],
             offsets: Some(vec![0]),
@@ -1194,9 +1202,11 @@ mod tests {
     #[test]
     fn multi_container_fragments_are_not_one_access() {
         let layout = LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![
                 LayoutFieldEntryReport {
                     field: "entry".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 32,
@@ -1207,6 +1217,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "entry".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 4,
                         container_width: 32,

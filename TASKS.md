@@ -583,9 +583,6 @@ move it to a convenience library.
 The language model is settled in guide chapters 21-22 and the programmable
 layouts brief. Complete the implementation in dependency order:
 
-- reflect stable case identities and retired cases through `Schema`, normalized
-  plan identity, diagnostics, and artifact reports without coupling them to
-  runtime discriminants;
 - replace bounded repeated-field array/count conventions with codec support for
   `[T; N]`, `FixedVec<T, N>`, borrowed slices, and `Vec<T>` once its allocator
   obligations are available;

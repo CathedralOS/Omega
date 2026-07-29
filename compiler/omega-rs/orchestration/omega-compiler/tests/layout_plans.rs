@@ -539,6 +539,7 @@ machine Excess::plan(&mut self, schema: Schema) -> Plan {
         align: 1,
     }
 }
+
 data Simple { value: u8; }
 data Main { }
 machine Main::main(&mut self) { }
@@ -551,5 +552,96 @@ machine Main::main(&mut self) { }
     assert!(
         error.contains("entry_count 18446744073709551615 is outside 0..=64"),
         "unexpected diagnostic: {error}"
+    );
+}
+
+#[test]
+fn reflected_schema_exposes_stable_case_identity_without_using_discriminant() {
+    let main_path = write_program(
+        "stable-case-schema",
+        r#"
+use omega::language::std::layout;
+use omega::language::std::option;
+
+data Choice {
+    case #41 First;
+    case #7 Second;
+    retired #99;
+}
+
+data InspectCases { entries: [FieldEntry; 64]; }
+machine InspectCases::plan(&mut self, schema: Schema) -> Plan {
+    transition schema.cases[0].identity {
+        Optional::Some { value } -> selected(value, schema)
+        Optional::None -> selected(1, schema)
+    }
+    state selected(&mut self, identity: u64, schema: Schema) {
+        transition schema.retired_case_identity_count == 1
+            && schema.retired_case_identities[0] == 99 {
+        true -> (Plan {
+            entries: self.entries,
+            entry_count: 0,
+            size_fixed: identity,
+            size_is_dynamic: false,
+            align: 1
+        })
+        _ -> (Plan {
+            entries: self.entries,
+            entry_count: 0,
+            size_fixed: 1,
+            size_is_dynamic: false,
+            align: 1
+        })
+        }
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("case schema should compile");
+    let report = compute_layout_plan(&checked.typed, "InspectCases::plan", "Choice")
+        .expect("case identity should reach the build-time Schema value");
+    assert_eq!(
+        report.size,
+        Some(41),
+        "the first authored case has runtime discriminant zero, but its reflected stable identity remains #41"
+    );
+    assert_ne!(report.schema_identity, 0);
+
+    let reordered_path = write_program(
+        "stable-case-schema-reordered",
+        r#"
+use omega::language::std::layout;
+
+data Choice {
+    case #7 SecondRenamed;
+    case #41 FirstRenamed;
+    retired #99;
+}
+
+data InspectCases { entries: [FieldEntry; 64]; }
+machine InspectCases::plan(&mut self, schema: Schema) -> Plan {
+    Plan {
+        entries: self.entries,
+        entry_count: 0,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let reordered =
+        compile_to_checked(&reordered_path, None).expect("reordered case schema should compile");
+    let reordered_report = compute_layout_plan(&reordered.typed, "InspectCases::plan", "Choice")
+        .expect("reordered case schema should normalize");
+    assert_eq!(
+        report.schema_identity, reordered_report.schema_identity,
+        "numbered case names and authored order are presentation/runtime-discriminant inputs, not stable schema identity"
     );
 }
