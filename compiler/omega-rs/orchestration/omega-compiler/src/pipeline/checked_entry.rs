@@ -95,12 +95,12 @@ pub fn compile_to_checked(
         &selected_provider_plans,
         &build_config.grants,
     )?;
+    let selected_provider_plan_facts = checked_program.selected_provider_plans().clone();
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
     crate::pipeline::adapter_dispatch::rewrite_adapter_calls(
         &mut checked_program.typed,
-        &selected_provider_plans,
-        target_name,
+        &selected_provider_plan_facts,
     )?;
     crate::pipeline::task_plans::elaborate_task_activation_plans(
         checked_program,
