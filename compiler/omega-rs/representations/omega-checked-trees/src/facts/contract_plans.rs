@@ -137,7 +137,7 @@ pub fn contract_fingerprint(
     match termination {
         TerminationInterface::InternalDerived => fold(0),
         TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => fold(1),
-        TerminationInterface::Published(TerminationGuarantee::EventualTerminal { premises }) => {
+        TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
             fold(2);
             for premise in premises {
                 for byte in premise.0.to_le_bytes() {

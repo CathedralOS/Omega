@@ -32,7 +32,7 @@ pub(crate) fn check_machine_termination(
         matches!(
             &plan.interface,
             omega_core::semantics::TerminationInterface::Published(
-                omega_core::semantics::TerminationGuarantee::EventualTerminal { .. }
+                omega_core::semantics::TerminationGuarantee::Terminates { .. }
             )
         ) || plan.implementation_witness.is_some()
     }) {
@@ -136,7 +136,7 @@ pub(crate) fn build_termination_facts(
         machines.push(omega_checked_trees::MachineTerminationFact {
             machine: machine.symbol,
             checked_summary: if established {
-                TerminationGuarantee::EventualTerminal {
+                TerminationGuarantee::Terminates {
                     premises: Vec::new(),
                 }
             } else {

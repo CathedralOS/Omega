@@ -226,9 +226,8 @@ artifact.
 - Canonical service reach plus recursive suspension/blocking summaries are
   checked. Authority, trust, termination, abnormal-outcome, resource, and
   escaping-mutation axes still need to complete the common admission floor.
-- The implementation currently calls its positive normalized termination
-  variant `EventualTerminal`; migrate snapshots, artifacts, diagnostics, and
-  code to the settled `Terminates` vocabulary.
+- The positive normalized termination variant, snapshots, artifacts,
+  diagnostics, and code use the settled `Terminates` vocabulary.
 - Add the target semantic capsule and split semantic result keys from canonical
   usage records.
 - Add constant/runtime target-equivalence canaries, with float operations as

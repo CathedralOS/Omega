@@ -861,11 +861,9 @@ fn termination_plan_splits_guarantee_from_witness_with_elaborated_defaults() {
     let promise = plan_of("Main::promise");
     assert_eq!(
         &promise.interface,
-        &omega_core::semantics::TerminationInterface::Published(
-            TerminationGuarantee::EventualTerminal {
-                premises: Vec::new()
-            }
-        )
+        &omega_core::semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
+            premises: Vec::new()
+        })
     );
     assert!(promise.implementation_witness.is_none());
 
@@ -1342,7 +1340,7 @@ fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
 }
 
 /// TPR3 slice 4: the checked termination facts -- the `checked_summary`'s
-/// producer. Every acyclic checked body derives EventualTerminal without a
+/// producer. Every acyclic checked body derives Terminates without a
 /// witness; a proven witness establishes it WITH the resolved explicit
 /// view. The local summary remains separate from the authored public promise.
 #[test]
@@ -1391,7 +1389,7 @@ fn termination_facts_record_checked_summaries_and_resolved_views() {
         .expect("acyclic claimant fact");
     assert_eq!(
         promise.checked_summary,
-        TerminationGuarantee::EventualTerminal {
+        TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
@@ -1402,7 +1400,7 @@ fn termination_facts_record_checked_summaries_and_resolved_views() {
         .expect("proven witness fact");
     assert_eq!(
         countdown.checked_summary,
-        TerminationGuarantee::EventualTerminal {
+        TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
@@ -1413,7 +1411,7 @@ fn termination_facts_record_checked_summaries_and_resolved_views() {
         .expect("unannotated acyclic body still gets a local summary");
     assert_eq!(
         inferred.checked_summary,
-        TerminationGuarantee::EventualTerminal {
+        TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
@@ -1456,7 +1454,7 @@ fn inferred_completion_never_publishes_a_promise() {
             .for_machine(inferred)
             .expect("inferred local summary")
             .checked_summary,
-        TerminationGuarantee::EventualTerminal {
+        TerminationGuarantee::Terminates {
             premises: Vec::new()
         }
     );
@@ -1477,11 +1475,9 @@ fn inferred_completion_never_publishes_a_promise() {
             .for_machine(promised)
             .expect("promised contract plan")
             .termination,
-        omega_core::semantics::TerminationInterface::Published(
-            TerminationGuarantee::EventualTerminal {
-                premises: Vec::new()
-            }
-        )
+        omega_core::semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
+            premises: Vec::new()
+        })
     );
 }
 
@@ -1564,11 +1560,9 @@ fn implementation_inherits_requirement_guarantee() {
         .expect("run machine");
     assert_eq!(
         &run.termination_plan.interface,
-        &omega_core::semantics::TerminationInterface::Published(
-            TerminationGuarantee::EventualTerminal {
-                premises: Vec::new()
-            }
-        ),
+        &omega_core::semantics::TerminationInterface::Published(TerminationGuarantee::Terminates {
+            premises: Vec::new()
+        }),
         "the implementation inherits the requirement's published guarantee"
     );
     assert!(run.termination_plan.implementation_witness.is_none());

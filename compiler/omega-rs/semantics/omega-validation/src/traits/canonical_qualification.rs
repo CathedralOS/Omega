@@ -181,7 +181,7 @@ pub(crate) fn validate_canonical_qualification_conformance(
         }
         if !matches!(
             machine.termination_plan.interface,
-            TerminationInterface::Published(TerminationGuarantee::EventualTerminal {
+            TerminationInterface::Published(TerminationGuarantee::Terminates {
                 ref premises
             }) if premises.is_empty()
         ) {

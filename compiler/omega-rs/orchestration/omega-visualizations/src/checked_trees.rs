@@ -1123,8 +1123,8 @@ fn push_termination_json(
     use omega_core::semantics::TerminationGuarantee;
     match guarantee {
         TerminationGuarantee::NoGuarantee => json.push_str("{\"kind\": \"no_guarantee\"}"),
-        TerminationGuarantee::EventualTerminal { premises } => {
-            json.push_str("{\"kind\": \"eventual_terminal\", \"premises\": [");
+        TerminationGuarantee::Terminates { premises } => {
+            json.push_str("{\"kind\": \"terminates\", \"premises\": [");
             for (index, premise) in premises.iter().enumerate() {
                 if index > 0 {
                     json.push_str(", ");
@@ -2147,7 +2147,7 @@ mod tests {
             .machines
             .push(MachineTerminationFact {
                 machine: symbol,
-                checked_summary: TerminationGuarantee::EventualTerminal {
+                checked_summary: TerminationGuarantee::Terminates {
                     premises: Vec::new(),
                 },
                 resolved_view_path: "Nat::Descending".to_string(),
@@ -2181,7 +2181,7 @@ mod tests {
         assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
         assert!(json[implementation_start..].contains("\"checked_may_block\": true"));
         assert!(json[implementation_start..].contains("\"checked_service_reach\": [\"Readable\"]"));
-        assert!(json[implementation_start..].contains("\"kind\": \"eventual_terminal\""));
+        assert!(json[implementation_start..].contains("\"kind\": \"terminates\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));
     }

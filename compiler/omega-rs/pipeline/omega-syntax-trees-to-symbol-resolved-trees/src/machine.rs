@@ -123,7 +123,7 @@ pub(crate) fn lower_machine_into(
 /// the plan's ONE population site; every later stage copies, never
 /// re-derives.
 ///
-/// - Bare `terminates;` authors the PUBLIC eventual-terminal guarantee
+/// - Bare `terminates;` authors the PUBLIC termination guarantee
 ///   (premises land with TPR4's pinned progress profiles). `terminates by
 ///   ...` alone publishes NOTHING: it supplies the private witness for a
 ///   checked body or an inherited claim (the brief's firewall).
@@ -146,7 +146,7 @@ fn build_termination_plan(
     };
 
     let interface = if machine.terminates_guarantee {
-        TerminationInterface::Published(TerminationGuarantee::EventualTerminal {
+        TerminationInterface::Published(TerminationGuarantee::Terminates {
             premises: Vec::new(),
         })
     } else if machine.boundary || machine.bodyless {

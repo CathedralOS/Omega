@@ -333,7 +333,7 @@ pub enum MachineSupplyMode {
     ExternalRealization { binding: ExternalBindingId },
 }
 
-/// Decision 23's PUBLIC half: the eventual-terminal guarantee that
+/// Decision 23's PUBLIC half: the termination guarantee that
 /// participates in published machine-contract and import-slot identity.
 /// The premises are explicit; an exported omission normalizes to
 /// `NoGuarantee` (never to an implied promise).
@@ -341,7 +341,7 @@ pub enum MachineSupplyMode {
 pub enum TerminationGuarantee {
     #[default]
     NoGuarantee,
-    EventualTerminal {
+    Terminates {
         /// Progress-profile premises the guarantee is conditional on
         /// (sealed semantic commitments with grant/receipt identity).
         premises: Vec<ProgressProfileId>,

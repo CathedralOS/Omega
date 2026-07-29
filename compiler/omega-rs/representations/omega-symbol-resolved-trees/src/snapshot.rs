@@ -355,7 +355,7 @@ pub enum TerminationInterfaceSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TerminationGuaranteeSnapshot {
     NoGuarantee,
-    EventualTerminal { premises: Vec<u32> },
+    Terminates { premises: Vec<u32> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -841,9 +841,9 @@ fn termination_interface_snapshot(
                 guarantee: TerminationGuaranteeSnapshot::NoGuarantee,
             }
         }
-        TerminationInterface::Published(TerminationGuarantee::EventualTerminal { premises }) => {
+        TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
             TerminationInterfaceSnapshot::Published {
-                guarantee: TerminationGuaranteeSnapshot::EventualTerminal {
+                guarantee: TerminationGuaranteeSnapshot::Terminates {
                     premises: premises.iter().map(|premise| premise.0).collect(),
                 },
             }
@@ -1402,5 +1402,21 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
         BinaryOperator::ShiftLeft => "<<",
         BinaryOperator::ShiftRight => ">>",
         BinaryOperator::Subtract => "-",
+    }
+}
+
+#[cfg(test)]
+mod termination_vocabulary_tests {
+    use super::TerminationGuaranteeSnapshot;
+
+    #[test]
+    fn termination_guarantee_uses_settled_snapshot_vocabulary() {
+        let snapshot = TerminationGuaranteeSnapshot::Terminates {
+            premises: vec![3, 5],
+        };
+        assert_eq!(
+            serde_json::to_string(&snapshot).expect("serialize termination guarantee"),
+            r#"{"kind":"terminates","premises":[3,5]}"#
+        );
     }
 }
