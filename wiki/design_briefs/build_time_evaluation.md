@@ -94,6 +94,9 @@ conversion consumers use them without host arithmetic. Backend guard-constant
 folding also uses the shared engine rather than evaluating on the host and
 narrowing afterward. Compatibility x86-64 and AArch64 integer-to-float
 lowering now preserves source signedness through the full 64-bit range as well.
+The compatibility `Math::fused_multiply_add` interpreter path also consumes the
+shared fused definition, with a native/interpreter edge pair that would become
+zero if the operation were incorrectly split into multiply-then-add.
 Source-visible named operation identities, remaining call-surface routing, and
 constant/runtime twin canaries still remain before the floating evaluation
 lane is complete.

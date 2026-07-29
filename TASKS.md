@@ -563,7 +563,10 @@ and allocation handles expose no compiler-owned stack/control storage.
   payload erasure. Backend guard-constant folding now consumes the same engine
   instead of host `f64` arithmetic plus narrowing. The compatibility x86-64
   and AArch64 conversion lowerings now distinguish signed from unsigned sources
-  through the full 64-bit range.
+  through the full 64-bit range. The compatibility `Math::fused_multiply_add`
+  interpreter call now also consumes `FloatSemantics::fused_multiply_add`; its
+  native/interpreter edge canary distinguishes the positive fused residual from
+  the zero produced by multiply-then-add.
   Finish rung 1 by publishing the source-visible executable core operation
   identities, routing the remaining FMA/classification/directed call surfaces
   through them, and adding build-time/runtime twins for every edge family; do
