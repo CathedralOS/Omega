@@ -141,6 +141,8 @@ now defines named classification, correctly rounded square root, float/integer
 and format conversions, and explicit directed-rounding variants. The
 interpreter consumes the shared square-root and conversion definitions,
 including full unsigned-64 bounds and the settled saturating/trapping edges.
+Backend guard-constant folding consumes the same functions rather than host
+floating arithmetic followed by a width cast.
 The compatibility x86-64 lowering uses a sticky-half-then-double sequence for
 upper-half `u64` inputs, while AArch64 selects `UCVTF`; both now preserve source
 signedness instead of routing every integer through a signed conversion.
