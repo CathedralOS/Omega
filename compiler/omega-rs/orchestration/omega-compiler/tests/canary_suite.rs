@@ -35965,6 +35965,13 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn decode_requirement_surface_compiles() {
+    let canary = pass_canary("wire/decode_requirement_surface");
+    compile_canary_without_output(&canary)
+        .expect("strict, projecting, and preserving decode requirements should compile");
+}
+
+#[test]
 fn range_gated_establishment_canaries_compile() {
     for name in [
         "dependent/range_sugar_gated_construction_compile",
@@ -38765,6 +38772,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/versioned_match_all_eras_exhaustive",
     "versioning/versioned_match_default_arm",
     "wire/wire_generic_trait",
+    "wire/decode_requirement_surface",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
     "wire/wire_data_field_numbers",

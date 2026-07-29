@@ -1,0 +1,53 @@
+// Chapter 21 decode policy is an ordinary requirement surface. The preserving
+// carrier keeps the validated known value separate from uninterpreted relay
+// bytes and codec-private ordering metadata.
+
+use omega::language::std::wire;
+
+data Message {
+    value: u32;
+}
+
+data ExamplePolicy {
+}
+
+machine strict_decode(bytes: &[u8]) -> DecodeResult<Message>
+satisfies StrictDecode<ExamplePolicy, Message>::decode_strict
+{
+    DecodeResult::Invalid
+}
+
+machine projecting_decode(bytes: &[u8]) -> DecodeResult<Message>
+satisfies ProjectingDecode<ExamplePolicy, Message>::decode_projecting
+{
+    DecodeResult::Invalid
+}
+
+machine preserving_decode(
+    bytes: &[u8]
+) -> DecodeResult<Relayed<Message>>
+satisfies PreservingDecode<ExamplePolicy, Message>::decode_preserving
+{
+    DecodeResult::Invalid
+}
+
+machine retain_remainder(
+    bytes_and_ordering: &[u8]
+) -> Relayed<Message> {
+    let relayed: Relayed<Message> = Relayed {
+        value: Message { value: 7 },
+        remainder: OpaqueWireRemainder {
+            codec_identity: 42,
+            bytes_and_ordering: bytes_and_ordering,
+        },
+    };
+    transition {
+        _ -> relayed
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

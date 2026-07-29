@@ -215,6 +215,18 @@ Proofs about `T` range over the validated known value. The opaque remainder in
 `Relayed<T>` carries bytes and ordering information needed for faithful relay,
 without gaining semantic facts about fields the consumer does not know.
 
+The standard package exposes these as the distinct `StrictDecode<Policy,
+Value>`, `ProjectingDecode<Policy, Value>`, and `PreservingDecode<Policy,
+Value>` requirements. `DecodeResult<T>` is the fail-closed result sum.
+Preserving decode returns `DecodeResult<Relayed<T>>`; the carrier separates the
+validated `value` from an `OpaqueWireRemainder` containing the producing codec
+identity and one codec-private envelope holding exact unknown-member bytes plus
+their relay ordering sidecar.
+Opaque means semantically uninterpreted, not confidential or unforgeable.
+Zero-copy packages retain an input-buffer loan in the remainder view; owned-copy
+packages may publish an owned remainder carrier with explicit allocation and
+resource obligations.
+
 Zero-copy decoding returns a view whose loan is tied to the input buffer.
 Owned-copy decoding chooses an owned carrier and therefore carries its
 allocation and resource contract.
