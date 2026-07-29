@@ -87,6 +87,33 @@ Mechanical codec traversal may be generated. Durable meaning is authored:
 generators do not decide which runtime fields persist, how atomics snapshot,
 or what semantic migration means.
 
+The standard package exposes the nominal requirement
+`FormatMigration<Lineage, Old, New>`. A format package declares an ordinary
+marker type for each independent lineage and binds every conversion explicitly:
+
+```omega
+data CounterDisk {
+}
+
+machine counter_v1_to_v2(
+    old: CounterDiskV1,
+    out: &mut CounterDiskV2
+) satisfies FormatMigration<
+    CounterDisk,
+    CounterDiskV1,
+    CounterDiskV2
+>::migrate {
+    out.counter = old.counter as i64;
+    out.timestamp_seconds = 0;
+}
+```
+
+The `Lineage` parameter prevents two histories that reuse the same carrier
+types from sharing a migration edge accidentally. The nominal conformance
+selects a checked machine; it adds no first-class version identity to either
+data declaration. Reverse or fallible conversions are separate package
+requirements rather than properties inferred from an upgrade.
+
 ## Live Replacement Is A Separate Protocol
 
 Replacing a running component concerns executions, borrows, authorities,

@@ -591,8 +591,8 @@ layouts brief. Complete the implementation in dependency order:
 - [done] expose strict, projecting, and preserving decode requirements;
   implement the preserving package carrier `Relayed<T>` with an opaque
   round-trip remainder;
-- represent published historical formats as ordinary immutable data and select
-  checked migration machines through format-lineage packages;
+- [done] represent published historical formats as ordinary immutable data and
+  select checked migration machines through format-lineage packages;
 - make compatibility checks consume channel/store demands and report
   directional readability, writability, unknown preservation, canonicality,
   and migration coverage; and
