@@ -379,6 +379,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.runtime_branching_calls =
         record_backend_phase(&mut phase_timings, "runtime branching", || {
             build_runtime_branching_call_plan(&RuntimeBranchingContext {
+                program: program.as_ref(),
                 control_flow: &backend_plan.control_flow,
                 host_calls: &backend_plan.host_calls,
                 runtime_bodies: &backend_plan.runtime_bodies,

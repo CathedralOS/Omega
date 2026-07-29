@@ -25,6 +25,7 @@ use omega_core::diagnostics::Diagnostic;
 use requirements::seed_machine_requires;
 use state_arguments::{collect_state_argument_facts, seed_state_argument_facts};
 use statements::check_statement;
+pub(in crate::checks) use types::expression_enforced_declared_range;
 
 pub(crate) fn check_indexed_accesses(
     program: &omega_typed_trees::TypedTrees,

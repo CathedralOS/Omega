@@ -432,7 +432,13 @@ Two rules keep it honest:
 > decoders, Windows attribute decoding, and portable stat width extensions now
 > use the named integer surface as well. Residual filesystem `as` spellings are
 > same-carrier Wrapping qualification, target-owned boolean-to-foreign-bit
-> encoding, or a compatibility-specific lowering shape. The domain model
+> encoding, or a compatibility-specific lowering shape. `std::time` likewise
+> names every runtime integer width/signedness conversion; its remaining
+> integer-looking casts only qualify or forget a same-carrier arithmetic
+> policy. A store-enforced Exact local range can prove an exact conversion
+> precondition, but a broader declaration cannot. Nested conversion calls keep
+> enclosing parameter substitutions even through compiler-elided locals and
+> `min`/`max`/`clamp` expressions. The domain model
 > reserves qualification `as` for changing static facts without changing
 > carrier, payload, or runtime work.
 

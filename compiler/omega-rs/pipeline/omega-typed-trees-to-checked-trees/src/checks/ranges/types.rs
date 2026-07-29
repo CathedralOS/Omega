@@ -59,7 +59,7 @@ pub(super) fn expression_is_slice(
 /// Every store into an Exact ranged place is range-checked (the narrowing
 /// keystone) and ZII requires 0 in range, so the declared interval holds at
 /// every read.
-pub(super) fn expression_enforced_declared_range(
+pub(in crate::checks) fn expression_enforced_declared_range(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,

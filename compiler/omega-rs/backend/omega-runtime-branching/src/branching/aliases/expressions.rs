@@ -78,6 +78,46 @@ pub(crate) fn resolve_branch_expression_handle(
                 right,
             }))
         }
+        ExpressionNode::Cast(cast) => {
+            let value =
+                resolve_branch_expression_handle(cast.value, branch_bindings, expression_table);
+            expression_table.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                    target_label: cast.target_label,
+                    domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
+                    form: cast.form,
+                },
+            ))
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = if call.receiver.is_valid() {
+                resolve_branch_expression_handle(call.receiver, branch_bindings, expression_table)
+            } else {
+                call.receiver
+            };
+            let arguments = expression_table.reserve_expression_handles(call.arguments.count());
+            for offset in 0..call.arguments.count() {
+                let argument = expression_table.expression_handle_at_offset(call.arguments, offset);
+                let resolved =
+                    resolve_branch_expression_handle(argument, branch_bindings, expression_table);
+                expression_table.set_expression_handle_at_offset(arguments, offset, resolved);
+            }
+            expression_table.insert(ExpressionNode::Call(
+                omega_checked_trees::expression::TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    machine_arguments: call.machine_arguments,
+                    arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
+                },
+            ))
+        }
         _ => expression,
     }
 }
@@ -107,6 +147,59 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                 operator: binary.operator,
                 right,
             }))
+        }
+        ExpressionNode::Cast(cast) => {
+            let value = resolve_runtime_branch_alias_expression_handle(
+                cast.value,
+                source_key,
+                aliases,
+                expression_table,
+            );
+            expression_table.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                    target_label: cast.target_label,
+                    domain: cast.domain,
+                    semantic_domain: cast.semantic_domain,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    qualification_satisfier: cast.qualification_satisfier,
+                    form: cast.form,
+                },
+            ))
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = if call.receiver.is_valid() {
+                resolve_runtime_branch_alias_expression_handle(
+                    call.receiver,
+                    source_key,
+                    aliases,
+                    expression_table,
+                )
+            } else {
+                call.receiver
+            };
+            let arguments = expression_table.reserve_expression_handles(call.arguments.count());
+            for offset in 0..call.arguments.count() {
+                let argument = expression_table.expression_handle_at_offset(call.arguments, offset);
+                let resolved = resolve_runtime_branch_alias_expression_handle(
+                    argument,
+                    source_key,
+                    aliases,
+                    expression_table,
+                );
+                expression_table.set_expression_handle_at_offset(arguments, offset, resolved);
+            }
+            expression_table.insert(ExpressionNode::Call(
+                omega_checked_trees::expression::TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    machine_arguments: call.machine_arguments,
+                    arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
+                },
+            ))
         }
         ExpressionNode::Mutable(target) => {
             let resolved_target = resolve_runtime_branch_alias_expression_handle(

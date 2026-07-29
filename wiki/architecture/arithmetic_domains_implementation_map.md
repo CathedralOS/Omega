@@ -94,7 +94,14 @@
 > `Machine::entry` call results match their machine name; and only a bare-call
 > local initializer is satisfied by a direct result copy. Embedded calls
 > materialize their own result slots before the complete enclosing expression
-> is lowered.
+> is lowered. The `std::time` cohort now names every runtime integer
+> width/signedness conversion; residual casts there are same-carrier policy
+> qualification or forgetting. Exact ranged locals supply call-contract
+> interval proofs, while broader declarations do not. Runtime branching
+> substitutes compiler-elided local initializers before enclosing parameter
+> aliases and follows cast/call structure; scalar classification recognizes
+> the `min`/`max` tree produced by `clamp`. Duration constructors and division,
+> clock/sleep, cross-target, and filesystem-time canaries retain the result.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
