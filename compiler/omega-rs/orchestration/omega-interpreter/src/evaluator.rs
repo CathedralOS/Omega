@@ -59,7 +59,7 @@ use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::bignum::BigInt;
 use omega_core::float_semantics::{
     FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,
-    FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
+    FloatPolicyTrap, FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
@@ -8325,56 +8325,54 @@ impl<'program> Evaluator<'program> {
         };
         let left = decode(l);
         let right = decode(r);
-        // F5 policies (float brief §8): SATURATING clamps MAGNITUDE OVERFLOW
-        // only -- finite operands whose landed result is infinite clamp to
-        // +-MAX_FINITE at the width; division by zero and invalid ops keep
-        // their non-finites (0/0 has no defensible clamp; wellness stays a
-        // Finite obligation). TRAPPING traps on invalid (NaN from non-NaN
-        // operands), overflow, and division by zero alike.
+        // F7 policy adapters (float brief §8): SATURATING clamps MAGNITUDE
+        // OVERFLOW only; division by zero, invalid results, and non-finite
+        // propagation remain non-finite. TRAPPING is result-checked, so a
+        // propagated NaN/infinity traps just like one created by this
+        // operation. The shared semantic adapter owns those decisions; the
+        // interpreter only selects it and renders a specific trap reason.
         let domain = scalar_type.map(|(_, domain)| domain);
-        let max_finite = if matches!(scalar_type, Some((PrimitiveType::F32, _))) {
-            f32::MAX as f64
-        } else {
-            f64::MAX
-        };
-        let arith = |meaning: FloatMeaning| -> EvalResult<Value> {
+        let arith = |meaning: FloatMeaning, division: bool| -> EvalResult<Value> {
+            let meaning = match domain {
+                Some(ArithmeticDomain::Saturating) if division => {
+                    FloatSemantics::apply_saturating_divide_policy(format, &left, &right, meaning)
+                }
+                Some(ArithmeticDomain::Saturating) => {
+                    FloatSemantics::apply_saturating_policy(format, &left, &right, meaning)
+                }
+                Some(ArithmeticDomain::Trapping) => {
+                    match FloatSemantics::apply_trapping_policy(meaning) {
+                        Ok(finite) => finite,
+                        Err(FloatPolicyTrap::NaNResult) => {
+                            let reason = if left.is_finite() && right.is_finite() {
+                                "invalid float operation in Trapping domain"
+                            } else {
+                                "non-finite NaN result in Trapping domain"
+                            };
+                            return trap(reason.to_owned());
+                        }
+                        Err(FloatPolicyTrap::InfinityResult) => {
+                            let reason = if division && right.is_zero() {
+                                "float division by zero in Trapping domain"
+                            } else if left.is_finite() && right.is_finite() {
+                                "float overflow in Trapping domain"
+                            } else {
+                                "non-finite infinity result in Trapping domain"
+                            };
+                            return trap(reason.to_owned());
+                        }
+                    }
+                }
+                _ => meaning,
+            };
             let landed = meaning.to_interpreter_value(format);
-            match domain {
-                Some(ArithmeticDomain::Saturating)
-                    if meaning.is_infinite() && left.is_finite() && right.is_finite() =>
-                {
-                    Ok(Value::Float(if meaning.is_negative() {
-                        -max_finite
-                    } else {
-                        max_finite
-                    }))
-                }
-                Some(ArithmeticDomain::Trapping)
-                    if meaning.is_nan() && !left.is_nan() && !right.is_nan() =>
-                {
-                    trap("invalid float operation in Trapping domain".to_owned())
-                }
-                Some(ArithmeticDomain::Trapping)
-                    if meaning.is_infinite() && left.is_finite() && right.is_finite() =>
-                {
-                    trap("float overflow (or division by zero) in Trapping domain".to_owned())
-                }
-                _ => Ok(Value::Float(landed)),
-            }
+            Ok(Value::Float(landed))
         };
         Ok(match operator {
-            Add => return arith(FloatSemantics::add(format, &left, &right)),
-            Subtract => return arith(FloatSemantics::subtract(format, &left, &right)),
-            Multiply => return arith(FloatSemantics::multiply(format, &left, &right)),
-            Divide => {
-                let result = FloatSemantics::divide(format, &left, &right);
-                if matches!(domain, Some(ArithmeticDomain::Saturating)) && right.is_zero() {
-                    // Division by zero does NOT clamp (the brief's ruling);
-                    // the IEEE non-finite passes through.
-                    return Ok(Value::Float(result.to_interpreter_value(format)));
-                }
-                return arith(result);
-            }
+            Add => return arith(FloatSemantics::add(format, &left, &right), false),
+            Subtract => return arith(FloatSemantics::subtract(format, &left, &right), false),
+            Multiply => return arith(FloatSemantics::multiply(format, &left, &right), false),
+            Divide => return arith(FloatSemantics::divide(format, &left, &right), true),
             Less => Value::Bool(FloatSemantics::less(&left, &right)),
             LessOrEqual => Value::Bool(FloatSemantics::less_or_equal(&left, &right)),
             Greater => Value::Bool(FloatSemantics::greater(&left, &right)),

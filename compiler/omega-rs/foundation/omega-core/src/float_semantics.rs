@@ -107,6 +107,16 @@ pub enum FloatToIntegerError {
     OutOfRange,
 }
 
+/// The non-finite result class rejected by the `Trapping` float-policy
+/// adapter. The adapter decision depends only on the semantic result; callers
+/// may use the operands and operation identity to produce a more specific
+/// diagnostic without changing that decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatPolicyTrap {
+    NaNResult,
+    InfinityResult,
+}
+
 impl FloatFormat {
     pub const BINARY32: Self = Self {
         radix: 2,
@@ -640,6 +650,49 @@ impl FloatSemantics {
         matches!(Self::classify(format, value), FloatClass::Subnormal { .. })
     }
 
+    /// Apply the result-checked `Trapping` policy. This deliberately checks
+    /// only the semantic result: propagating a pre-existing NaN or infinity is
+    /// still a non-finite result and therefore traps.
+    pub fn apply_trapping_policy(result: FloatMeaning) -> Result<FloatMeaning, FloatPolicyTrap> {
+        match result {
+            FloatMeaning::NaN => Err(FloatPolicyTrap::NaNResult),
+            FloatMeaning::Infinity { .. } => Err(FloatPolicyTrap::InfinityResult),
+            finite => Ok(finite),
+        }
+    }
+
+    /// Apply overflow-only `Saturating` to add/subtract/multiply results.
+    /// Infinity clamps only when finite operands produced it by magnitude
+    /// overflow; invalid NaN and non-finite propagation remain unchanged.
+    pub fn apply_saturating_policy(
+        format: FloatFormat,
+        left: &FloatMeaning,
+        right: &FloatMeaning,
+        result: FloatMeaning,
+    ) -> FloatMeaning {
+        if result.is_infinite() && left.is_finite() && right.is_finite() {
+            Self::maximum_finite(format, result.is_negative())
+        } else {
+            result
+        }
+    }
+
+    /// Division shares overflow-only saturation, but a finite nonzero dividend
+    /// divided by signed zero produces infinity without magnitude overflow and
+    /// must remain non-finite.
+    pub fn apply_saturating_divide_policy(
+        format: FloatFormat,
+        left: &FloatMeaning,
+        right: &FloatMeaning,
+        result: FloatMeaning,
+    ) -> FloatMeaning {
+        if right.is_zero() {
+            result
+        } else {
+            Self::apply_saturating_policy(format, left, right, result)
+        }
+    }
+
     pub fn equal(left: &FloatMeaning, right: &FloatMeaning) -> bool {
         left.to_exact().equal_value(&right.to_exact())
     }
@@ -668,6 +721,18 @@ impl FloatSemantics {
             left.to_exact().partial_cmp_value(&right.to_exact()),
             Some(Ordering::Greater | Ordering::Equal)
         )
+    }
+
+    fn maximum_finite(format: FloatFormat, negative: bool) -> FloatMeaning {
+        if format == FloatFormat::BINARY32 {
+            let sign = if negative { 0x8000_0000 } else { 0 };
+            FloatMeaning::from_f32(f32::from_bits(sign | 0x7f7f_ffff))
+        } else if format == FloatFormat::BINARY64 {
+            let sign = if negative { 0x8000_0000_0000_0000 } else { 0 };
+            FloatMeaning::from_f64(f64::from_bits(sign | 0x7fef_ffff_ffff_ffff))
+        } else {
+            panic!("unsupported floating-point format record: {format:?}")
+        }
     }
 
     /// Operational min/max law: return the second operand on unordered or
@@ -848,8 +913,8 @@ mod tests {
     use crate::bignum::{BigInt, ExactFloat};
 
     use super::{
-        FloatClass, FloatFormat, FloatMeaning, FloatSemantics, FloatToIntegerError, IntegerFormat,
-        RoundingDirection,
+        FloatClass, FloatFormat, FloatMeaning, FloatPolicyTrap, FloatSemantics,
+        FloatToIntegerError, IntegerFormat, RoundingDirection,
     };
 
     fn meaning32(value: f32) -> FloatMeaning {
@@ -1042,6 +1107,80 @@ mod tests {
         assert_eq!(toward_zero.to_f32().to_bits(), f32::MAX.to_bits());
         assert_eq!(upward.to_f32(), f32::INFINITY);
         assert_eq!(negative_upward.to_f32().to_bits(), (-f32::MAX).to_bits());
+    }
+
+    #[test]
+    fn trapping_policy_checks_the_result_including_propagated_nonfinites() {
+        let finite = meaning32(1.0);
+        let nan = FloatMeaning::NaN;
+        let infinity = FloatMeaning::Infinity { negative: false };
+
+        assert_eq!(
+            FloatSemantics::apply_trapping_policy(finite.clone()),
+            Ok(finite)
+        );
+        assert_eq!(
+            FloatSemantics::apply_trapping_policy(nan),
+            Err(FloatPolicyTrap::NaNResult)
+        );
+        assert_eq!(
+            FloatSemantics::apply_trapping_policy(infinity),
+            Err(FloatPolicyTrap::InfinityResult)
+        );
+    }
+
+    #[test]
+    fn saturating_policy_clamps_only_finite_operand_magnitude_overflow() {
+        let one = meaning32(1.0);
+        let zero = meaning32(0.0);
+        let infinity = FloatMeaning::Infinity { negative: false };
+        let negative_infinity = FloatMeaning::Infinity { negative: true };
+        let nan = FloatMeaning::NaN;
+
+        assert_eq!(
+            FloatSemantics::apply_saturating_policy(
+                FloatFormat::BINARY32,
+                &one,
+                &one,
+                infinity.clone(),
+            )
+            .to_f32()
+            .to_bits(),
+            f32::MAX.to_bits()
+        );
+        assert_eq!(
+            FloatSemantics::apply_saturating_policy(
+                FloatFormat::BINARY32,
+                &one,
+                &one,
+                negative_infinity,
+            )
+            .to_f32()
+            .to_bits(),
+            (-f32::MAX).to_bits()
+        );
+        assert_eq!(
+            FloatSemantics::apply_saturating_policy(
+                FloatFormat::BINARY32,
+                &infinity,
+                &one,
+                infinity.clone(),
+            ),
+            infinity
+        );
+        assert_eq!(
+            FloatSemantics::apply_saturating_policy(FloatFormat::BINARY32, &one, &one, nan.clone(),),
+            nan
+        );
+        assert_eq!(
+            FloatSemantics::apply_saturating_divide_policy(
+                FloatFormat::BINARY32,
+                &one,
+                &zero,
+                FloatMeaning::Infinity { negative: false },
+            ),
+            FloatMeaning::Infinity { negative: false }
+        );
     }
 
     #[test]

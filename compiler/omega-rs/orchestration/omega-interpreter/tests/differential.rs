@@ -2762,6 +2762,8 @@ fn interpreter_honors_float_arithmetic_policies() {
         "float/float_trapping_overflow_traps",
         "float/float_trapping_divide_zero_traps",
         "float/float_trapping_invalid_traps",
+        "float/float_trapping_propagated_nan_traps",
+        "float/float_trapping_propagated_infinity_traps",
     ] {
         let main_path = pass_canary(name).join("main.omg");
         let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {

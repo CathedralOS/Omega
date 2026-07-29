@@ -172,6 +172,18 @@ evaluator path is only a compatibility consumer; exact public float-conversion
 requirement names and signatures remain a language-design blocker because the
 settled record excludes `as` without selecting its replacement surface.
 
+Rung-2 checkpoint (2026-07-29): executable policy adapters now live beside
+`FloatSemantics`. `Trapping` checks the semantic result alone, so propagating a
+pre-existing NaN or infinity traps; diagnostics may inspect the operands but
+cannot change that verdict. `Saturating` clamps infinity only when finite
+operands produced magnitude overflow, with division by signed zero explicitly
+excluded. The interpreter consumes these shared adapters. Checked spelled
+binary uses of the imported normalized float surface retain the selected
+binary32/binary64
+`FloatTrappingNonFinite` or `FloatSaturatingOverflowOnly` adapter beside the
+operation identity. Named/unary operation adaptation and downstream lowering
+consumption of this checked evidence remain before rung 2 is complete.
+
 ## 2. Domains: the value/policy split
 
 - **Value domains** are unary wellness facts, conjoinable with the landed

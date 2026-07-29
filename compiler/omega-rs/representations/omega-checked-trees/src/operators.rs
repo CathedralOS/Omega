@@ -1,5 +1,6 @@
 use crate::CheckedValueOrigin;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::float_semantics::FloatFormat;
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
@@ -29,11 +30,38 @@ pub enum CheckedOperatorResolutionStatus {
     Inadmissible,
 }
 
+/// The normalized result adapter selected by an arithmetic policy at one
+/// checked operator use. It is independent of the target realization: later
+/// provider lowering may fuse the check/clamp only by implementing this exact
+/// semantic adapter.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedArithmeticPolicyAdapter {
+    #[default]
+    None,
+    FloatSaturatingOverflowOnly {
+        format: FloatFormat,
+    },
+    FloatTrappingNonFinite {
+        format: FloatFormat,
+    },
+}
+
+impl CheckedArithmeticPolicyAdapter {
+    pub const fn float_format(self) -> Option<FloatFormat> {
+        match self {
+            Self::None => None,
+            Self::FloatSaturatingOverflowOnly { format }
+            | Self::FloatTrappingNonFinite { format } => Some(format),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedOperatorUseFact {
     pub expression: ExpressionHandle,
     pub origin: CheckedValueOrigin,
     pub spelling: OperatorSpelling,
+    pub policy_adapter: CheckedArithmeticPolicyAdapter,
     pub selected_operator_symbol: SymbolHandle,
     pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
     pub candidate_count: usize,
@@ -46,6 +74,7 @@ impl Default for CheckedOperatorUseFact {
             expression: ExpressionHandle::invalid(),
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
+            policy_adapter: CheckedArithmeticPolicyAdapter::None,
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: HandleSpan::empty(),
             candidate_count: 0,
@@ -377,6 +406,7 @@ mod tests {
             expression,
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
+            policy_adapter: CheckedArithmeticPolicyAdapter::None,
             selected_operator_symbol: SymbolHandle::from_arena_index(2),
             candidates: resolved_candidates,
             candidate_count: 1,
@@ -386,6 +416,7 @@ mod tests {
             expression: ExpressionHandle::from_arena_index(3),
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Range,
+            policy_adapter: CheckedArithmeticPolicyAdapter::None,
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: ambiguous_candidates,
             candidate_count: 2,

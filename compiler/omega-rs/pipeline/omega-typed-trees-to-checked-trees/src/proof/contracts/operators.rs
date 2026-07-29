@@ -150,6 +150,7 @@ mod tests {
         uses.append(CheckedOperatorUseFact {
             expression,
             origin,
+            policy_adapter: Default::default(),
             selected_operator_symbol: operator_symbol,
             candidates: candidate_span,
             candidate_count: 1,

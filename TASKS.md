@@ -690,8 +690,19 @@ and allocation handles expose no compiler-owned stack/control storage.
   behavior. Hermetic core float requirements no longer trip the interpreter's
   host-boundary purity backstop; compatibility imports still do.
   Rung 1 is complete for the settled operation surface. Continue with rung 2's
-  checked arithmetic-policy adapters. **Language-design blocked:** the public
-  float/integer and
+  checked arithmetic-policy adapters.
+  The first rung-2 slice centralizes result-checked `Trapping` and overflow-only
+  `Saturating` in the shared semantic engine. The interpreter now consumes
+  those adapters, including trapping propagated NaN/infinity; checked spelled
+  binary uses of the imported normalized float surface retain the exact
+  binary32/binary64
+  `FloatTrappingNonFinite` or `FloatSaturatingOverflowOnly` adapter selected by
+  the operand policy. Native and interpreter canaries pin propagated
+  non-finites, finite overflow, division by zero, and invalid results.
+  Finish rung 2 by recording policy adaptation for the named/unary operation
+  surfaces and making downstream lowering consume checked adapter evidence
+  instead of reconstructing policy from type domains.
+  **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief; only the negative ruling that compatibility
   `as` is not that surface is settled (`OWNER_QUESTIONS.md` #10).
