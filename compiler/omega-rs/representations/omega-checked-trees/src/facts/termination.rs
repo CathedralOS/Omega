@@ -26,7 +26,7 @@ impl TerminationFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineTerminationFact {
     pub machine: SymbolHandle,
-    /// What the checker established for THIS body: `EventualTerminal` for
+    /// What the checker established for THIS body: `Terminates` for
     /// an acyclic claimant or a proven ranking witness; `NoGuarantee`
     /// otherwise (an unproven claimant also fails compilation, so a
     /// compiled artifact never carries an unestablished claim).

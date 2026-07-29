@@ -544,9 +544,7 @@ move it to a convenience library.
   admission axis at the concrete invocation, add the sealed target-semantic
   capsule, split semantic result keys from canonical usage records, publish
   deterministic live progress, and add constant/runtime equivalence canaries
-  led by `f32`/`f64`. Rename the implementation compatibility variant
-  `EventualTerminal` to the settled `Terminates`; this is vocabulary migration,
-  not a new guarantee. Add optional root-controlled warning and hard-ceiling
+  led by `f32`/`f64`. Add optional root-controlled warning and hard-ceiling
   policy only after the meter/reporting path exists; unlimited terminating
   evaluation remains legal.
 - Extend `build.omg` provider plans with the normalized

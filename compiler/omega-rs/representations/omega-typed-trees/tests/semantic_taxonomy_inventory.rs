@@ -62,7 +62,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
 
 /// LOSS 2 -- PARTIALLY RE-PINNED (TPR2, 2026-07-16): the machine record now
 /// carries the normalized `MachineTerminationPlan` -- decision 23's split of
-/// the PUBLIC eventual-terminal guarantee (authored by bare `terminates;`,
+/// the PUBLIC termination guarantee (authored by bare `terminates;`,
 /// contract identity) from the PRIVATE `RankingWitness` (subjects + explicit
 /// view, never contract identity) -- populated ONCE at the syntax->resolved
 /// lowering and COPIED downstream. The distinction the old pin named is
@@ -121,7 +121,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
         TerminationInterface,
     };
     let descending = MachineTerminationPlan {
-        interface: TerminationInterface::Published(TerminationGuarantee::EventualTerminal {
+        interface: TerminationInterface::Published(TerminationGuarantee::Terminates {
             premises: Vec::new(),
         }),
         checked_summary: TerminationGuarantee::NoGuarantee,

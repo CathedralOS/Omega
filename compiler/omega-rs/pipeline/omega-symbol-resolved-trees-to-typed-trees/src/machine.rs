@@ -219,7 +219,7 @@ fn inherit_requirement_guarantee(
     let mut plan = machine.termination_plan.clone();
     if matches!(
         &plan.interface,
-        TerminationInterface::Published(TerminationGuarantee::EventualTerminal { .. })
+        TerminationInterface::Published(TerminationGuarantee::Terminates { .. })
     ) {
         return plan;
     }
@@ -253,7 +253,7 @@ fn inherit_requirement_guarantee(
             .find(|requirement| requirement.name.as_str() == required_name);
         if let Some(requirement) = inherited {
             plan.interface = TerminationInterface::Published(if requirement.terminates_guarantee {
-                TerminationGuarantee::EventualTerminal {
+                TerminationGuarantee::Terminates {
                     premises: Vec::new(),
                 }
             } else {

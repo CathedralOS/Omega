@@ -2055,7 +2055,7 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
             omega_core::semantics::TerminationGuarantee::NoGuarantee,
         ) => bytes.push(1),
         omega_core::semantics::TerminationInterface::Published(
-            omega_core::semantics::TerminationGuarantee::EventualTerminal { premises },
+            omega_core::semantics::TerminationGuarantee::Terminates { premises },
         ) => {
             bytes.push(2);
             let mut premises = premises.clone();

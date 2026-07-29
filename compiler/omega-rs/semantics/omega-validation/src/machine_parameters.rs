@@ -287,7 +287,7 @@ fn validate_callable_shape(
         matches!(
             &actual_machine.termination_plan.interface,
             omega_core::semantics::TerminationInterface::Published(
-                omega_core::semantics::TerminationGuarantee::EventualTerminal { .. }
+                omega_core::semantics::TerminationGuarantee::Terminates { .. }
             )
         ),
         program.machine_contracts(actual_machine),
