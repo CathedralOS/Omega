@@ -3271,7 +3271,7 @@ mod structural_entailment {
 
     #[test]
     fn statement_citation_proves() {
-        // ch10 "Citing Proofs" / the OWNER_QUESTIONS #14 answer: the bare
+        // ch10 "Citing Proofs" / the settled proof-citation rule: the bare
         // statement call injects right_id's law instantiated at `b`.
         validate(
             &(RIGHT_ID_LAW.to_owned()

@@ -172,7 +172,7 @@ normalization, containment, equality, and partial separated composition. New
 algebra kinds require a compiler release and a concrete customer; arbitrary
 owner-defined composition is not authority evidence.
 
-Owner question #19 governs how a source declaration marks a claim as
+Owner question #7 governs how a source declaration marks a claim as
 content-bearing and selects this algebra, including whether an explicit content
 clause may omit `Indivisible`. Ordinary linear claims never default into the
 content algebra merely because they are linear.

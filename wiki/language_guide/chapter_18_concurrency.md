@@ -220,7 +220,7 @@ unbounded and tooling reports the responsible path.
 
 WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
 depends on the normalized bounded-work plan tracked in
-`OWNER_QUESTIONS.md` #17. Wall-clock conversion additionally requires a
+`OWNER_QUESTIONS.md` #5. Wall-clock conversion additionally requires a
 target timing model and retains that model's trust provenance.
 
 ## Carry Policy Is A Product
@@ -347,7 +347,7 @@ a bounded pool of guarded OS-worker stacks. The safe point is reached when the
 caller parks; native completion, cancellation finalization, retained-loan
 release, and later pool admission remain independent and may be unbounded.
 These are reported separately. The reusable gateway contract remains owner
-question #18, while retained native pointers remain #14. Registered callback
+question #6, while retained native pointers remain #2. Registered callback
 entry is settled: a named static machine satisfies the callback requirement,
 the binding emits its plan-driven thunk, and a durable protocol returns a
 linear registration value. Platform adapters normalize native re-entry into
@@ -548,7 +548,7 @@ IPC, so they sit below a concurrent task-runtime provider in the implementation
 order even though they appear later in this chapter.[^atomics-open]
 
 [^atomics-open]: Open details: the portable standalone-fence source, ordering,
-and scope contract is owner question #13; whether `SeqCst` is restricted or
+and scope contract is owner question #1; whether `SeqCst` is restricted or
 discouraged in proofs; and how the TLA-style model treats relaxed-ordering
 visibility (first cut: the deadlock model ignores ordering and only tracks
 waits). Ordinary atomics are compiler-known core operations. Checked ISA

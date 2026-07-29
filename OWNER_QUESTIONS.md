@@ -2,12 +2,13 @@
 
 Only unresolved owner-level language or architecture decisions belong here.
 Settled decisions live in the language guide and design briefs; implementation
-and deliberately deferred research live in `TASKS.md`. Question numbers remain
-stable when a resolved entry is removed, so gaps are intentional.
+and deliberately deferred research live in `TASKS.md`. Questions are numbered
+consecutively; pruning or adding one requires updating every repository
+reference in the same change.
 
 Last pruned: 2026-07-28.
 
-## 13. What is the portable standalone atomic-fence contract?
+## 1. What is the portable standalone atomic-fence contract?
 
 Atomic load/store/RMW operations already name the closed C11/Rust ordering
 vocabulary and lower exactly on x86-64 and AArch64. Checked assembly separately
@@ -47,7 +48,7 @@ atomic operation records the portable order; target lowering supplies a
 validated realization, including no emitted instruction where the target
 memory model proves that sufficient.
 
-## 14. How does a foreign contract declare retained data-pointer lifetime?
+## 2. How does a foreign contract declare retained data-pointer lifetime?
 
 The extern model already distinguishes borrowed-out, borrowed-in, transferred,
 and opaque-handle pointer relationships. Borrowed-out is intentionally
@@ -91,7 +92,7 @@ range. Reuse `Extent`, external-loan, provider-admission, and quiescence
 machinery; do not infer retention from `suspends`, `blocks`, pointer shape, or
 the fact that a native function happens to return later.
 
-## 15. What is the public boundary write-frame clause spelling?
+## 3. What is the public boundary write-frame clause spelling?
 
 Omega already computes normalized body write frames and uses them to preserve
 facts across calls. Boundary requirements need an authored frame because no
@@ -125,7 +126,7 @@ the checker needs and avoids colliding with authority retention. Keep effects,
 resource consumption, foreign retention, and hardware state out of the write
 frame; they already have independent contracts.
 
-## 16. How does a domain owner delegate canonical qualification authority?
+## 4. How does a domain owner delegate canonical qualification authority?
 
 `RepresentationQualification<Q>` now opens a bodyless domain only when its
 satisfier is declared in the domain-owning package. The semantic rule also
@@ -161,7 +162,7 @@ Do not derive authority from imports, build dependency aliases, public trait
 visibility, carrier ownership, or the presence of a conformer. Until this
 surface settles, third-party canonical satisfiers must continue to fail closed.
 
-## 17. What is the normalized bounded-work plan and composition algebra?
+## 5. What is the normalized bounded-work plan and composition algebra?
 
 WCSU gives Omega a static space bound: a closed activation can reserve one
 fixed, nonmoving stack and retain it across suspension. It says nothing about
@@ -214,7 +215,7 @@ trusted as its weakest timing premise. Do not use elapsed compiler time, infer
 safe points from optimizer placement, or make build evaluation's optional
 budget policy the language's work semantics.
 
-## 18. What is the reusable hosted-FFI execution and gateway contract?
+## 6. What is the reusable hosted-FFI execution and gateway contract?
 
 An opaque native function supplies neither checked WCSU nor Omega's blocking,
 cancellation, retention, callback, and failure guarantees. A direct adapter can
@@ -265,7 +266,7 @@ abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
 
-## 19. How are claim-content projections and backing authored?
+## 7. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
 each content-bearing qualification publishes one normalized projection into
@@ -305,7 +306,7 @@ references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, and separated
 composition without executing owner-defined code.
 
-## 20. How are opaque in-process executable dependencies surfaced and refused?
+## 8. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -340,7 +341,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 21. What does contained execution failure do to outstanding obligations?
+## 9. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of

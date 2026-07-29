@@ -144,7 +144,7 @@ pub(crate) fn validate_machine_contract_entailment(
     // grammar-gated today (struct literals do not parse in contract
     // position), so injectivity decomposition is the recorded next rung.
     let mut structural = StructuralJudge::from_requires(program, machine, &requires);
-    // CITATIONS (ch10 "Citing Proofs"; the OWNER_QUESTIONS #14 answer):
+    // CITATIONS (ch10 "Citing Proofs"; the settled proof-citation rule):
     // each statement call to a free proof machine carries the callee's
     // proven ensures to this proof, instantiated at the call's argument
     // terms -- fact injection, the explicit default. Nothing is global:
@@ -2331,8 +2331,8 @@ fn is_citation_statement(
         })
 }
 
-/// Statement-call CITATIONS (ch10 "Citing Proofs"; the OWNER_QUESTIONS #14
-/// answer, 2026-07-18): `add_zero_right(b);` inside a proof body delivers
+/// Statement-call CITATIONS (ch10 "Citing Proofs"; the settled proof-citation
+/// rule, 2026-07-18): `add_zero_right(b);` inside a proof body delivers
 /// the callee's proven ensures to this site, instantiated at the call's
 /// argument terms -- the equations these return feed the structural judge's
 /// hypotheses exactly like requires facts. Fact injection is the explicit

@@ -37,7 +37,7 @@ scanners, or receipts.
 Designs may depend on an analysis listed here only by naming the dependency.
 They must not describe its result as something the checker already derives.
 
-- **Normalized `WorkPlan` (#17):** required by bounded interrupt work,
+- **Normalized `WorkPlan` (#5):** required by bounded interrupt work,
   work-to-semantic-safe-point reporting, deterministic build-evaluation
   accounting, and complete foreign/callback work attribution. The current
   provider-local fixed-work composer is an implementation precursor, not the
@@ -113,7 +113,7 @@ memory provider without split, merge, or an array of checked claims.
 
 #### P1b — delegated canonical qualification
 
-**DESIGN BLOCKED — OWNER_QUESTIONS #16.** Decide the owner-authored source and
+**DESIGN BLOCKED — OWNER_QUESTIONS #4.** Decide the owner-authored source and
 package-identity relationship that delegates canonical qualification authority.
 Until then, only the domain-owning package may publish an implicitly eligible
 `RepresentationQualification<Q>` satisfier; all third-party conformers fail
@@ -132,7 +132,7 @@ multi-output claim transformations. Per-claim carry inheritance has settled
 semantics. The source surface that marks a qualification as content-bearing and
 authors its projection, admitted backing, retirement, and conservation contract
 is **DESIGN BLOCKED —
-`OWNER_QUESTIONS.md` #19**; do not infer content from multiplicity or invent a
+`OWNER_QUESTIONS.md` #7**; do not infer content from multiplicity or invent a
 declaration spelling.
 
 Implementation checkpoint (2026-07-28): transparent records now derive one
@@ -190,12 +190,12 @@ proof/debug artifacts retain the case identity structurally.
 This is not full P1c: content projections/backing and conservation witnesses
 remain. Symbol-keyed substitutions already retain contained claims through
 nested generic transparent records. Content authoring remains blocked on owner
-question #19.
+question #7.
 
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed normalized vocabulary
-  `Indivisible | Interval<Scalar>` once owner question #19 settles how an
+  `Indivisible | Interval<Scalar>` once owner question #7 settles how an
   authored content clause selects it; never default ordinary linear claims into
   that vocabulary;
 - require admitted roots to carry backing receipts denominated in the same
@@ -372,7 +372,7 @@ service-table paths are already plan-driven.
 Remaining:
 
 - remove residual hardcoded placement decisions;
-- keep foreign-pointer lifetime work blocked on owner question #14 rather than
+- keep foreign-pointer lifetime work blocked on owner question #2 rather than
   inventing implicit retention;
 - add differential checks where a compatibility encoder remains; and
 - delete compatibility fields after their final consumer migrates.
@@ -459,9 +459,9 @@ current consumers happen to align.
 ### Frames, domains, effects, and trust
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
-  Boundary write-frame spelling is owner-blocked on #15.
+  Boundary write-frame spelling is owner-blocked on #3.
 - **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
-  certificates. Delegated package authority is owner-blocked on #16.
+  certificates. Delegated package authority is owner-blocked on #4.
 - **STR/EFX:** finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission. Remove legacy mixed
   rows after migration. Imported transparent-refinement spelling must supply the
@@ -491,16 +491,16 @@ improvements do not change public identity.
   independent plan schema, canonical crossings, activation-wide CPU/thread
   demands, and retirement of the generalized `TaskRuntimeContract` join are
   complete. Authority-value declarations follow P1a.
-- **WORKPLAN:** after owner question #17, implement one deterministic
+- **WORKPLAN:** after owner question #5, implement one deterministic
   abstract-work algebra for interrupt roots, work-to-next-safe-point queries,
   and build-evaluator metering. Preserve maximum/unbounded path attribution and
   keep external wait plus wall-clock conversion in separate trust-bearing
   columns.
-- **FFIGATE:** after owner question #18, implement the hosted-FFI gateway as an
+- **FFIGATE:** after owner question #6, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and
   shutdown/quiescence. Registered callback lowering is ENT4; retained pointer
-  lifetime remains blocked on #14.
+  lifetime remains blocked on #2.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to qualified `Extent` after P1.
 - Implement owned `Vec<T>` and then `Vec<u8> in Utf8` through ordinary data and
@@ -616,8 +616,8 @@ move it to a convenience library.
   object identity and the ObjectTable migration bundle wait for a deployment
   that requires replacement without holder cooperation.
 - Implement serialized capability attenuation/revocation.
-- Portable atomic fences are owner-blocked on #13.
-- Foreign retained-pointer lifetimes are owner-blocked on #14.
+- Portable atomic fences are owner-blocked on #1.
+- Foreign retained-pointer lifetimes are owner-blocked on #2.
 - Implement registered callback lowering and the Windows adapter canary under
   ENT4 without introducing a general source-visible code-address value.
 
@@ -668,15 +668,15 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #13 portable atomic fence | standalone fence surface |
-| #14 retained foreign pointer | asynchronous/retained FFI borrows |
-| #15 boundary write frame | R5 boundary mutation clauses |
-| #16 delegated canonical qualification | third-party bodyless-domain qualification |
-| #17 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
-| #18 hosted-FFI gateway | reusable native-worker execution and backpressure |
-| #19 claim-content projection and backing | P1c content algebra and conservation |
-| #20 opaque in-process executable trust | root TCB declaration and profile rejection |
-| #21 contained execution failure | obligation poison, recovery, and reclamation |
+| #1 portable atomic fence | standalone fence surface |
+| #2 retained foreign pointer | asynchronous/retained FFI borrows |
+| #3 boundary write frame | R5 boundary mutation clauses |
+| #4 delegated canonical qualification | third-party bodyless-domain qualification |
+| #5 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
+| #6 hosted-FFI gateway | reusable native-worker execution and backpressure |
+| #7 claim-content projection and backing | P1c content algebra and conservation |
+| #8 opaque in-process executable trust | root TCB declaration and profile rejection |
+| #9 contained execution failure | obligation poison, recovery, and reclamation |
 
 ## Vertical acceptance slices
 

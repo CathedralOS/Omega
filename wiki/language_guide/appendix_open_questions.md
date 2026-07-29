@@ -24,7 +24,7 @@ Last pruned: 2026-07-28.
   conservative suspension-safe-loan subset. WCSU derives one fixed nonmoving
   `StackPlan` per lowered activation; settled `suspend` and `block` markers
   acknowledge the exact statically known call envelope.
-- Settle and implement the normalized abstract-work plan in owner question #17,
+- Settle and implement the normalized abstract-work plan in owner question #5,
   including attributed unbounded paths and work-to-next-safe-point queries.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
@@ -36,7 +36,7 @@ Last pruned: 2026-07-28.
   reasoning is not a prerequisite for moved-ownership task v1.
 - Determine how far the proof system should support disjoint mutable sharing
   for lock-free structures before requiring a mediated or accepted boundary.
-- Settle standalone portable atomic fences in `OWNER_QUESTIONS.md` #13, then
+- Settle standalone portable atomic fences in `OWNER_QUESTIONS.md` #1, then
   complete their lowering proofs, contention tests, and the treatment of
   relaxed visibility in concurrency proofs. The integer
   load/store/RMW family already preserves validated orderings into exact
@@ -48,11 +48,11 @@ Last pruned: 2026-07-28.
 - Implement settled registered callback entry: a named static machine satisfies
   the callback requirement, the binding emits its plan-driven thunk, and a
   durable protocol returns a linear registration value. Retained foreign-pointer
-  lifetime remains owner question #14; the reusable hosted-FFI gateway resource
-  and cancellation contract remains #18.
+  lifetime remains owner question #2; the reusable hosted-FFI gateway resource
+  and cancellation contract remains #6.
 - Settle root-level visibility/profile rejection for opaque in-process native
-  providers in owner question #20, and contained execution failure with
-  outstanding obligations in #21.
+  providers in owner question #8, and contained execution failure with
+  outstanding obligations in #9.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
