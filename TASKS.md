@@ -588,8 +588,9 @@ layouts brief. Complete the implementation in dependency order:
   slices once the generated encode requirement retains their runtime
   length/work/output-capacity obligations, and to `Vec<T>` once its allocator
   obligations are available;
-- expose strict, projecting, and preserving decode requirements; implement the
-  preserving package carrier `Relayed<T>` with an opaque round-trip remainder;
+- [done] expose strict, projecting, and preserving decode requirements;
+  implement the preserving package carrier `Relayed<T>` with an opaque
+  round-trip remainder;
 - represent published historical formats as ordinary immutable data and select
   checked migration machines through format-lineage packages;
 - make compatibility checks consume channel/store demands and report
