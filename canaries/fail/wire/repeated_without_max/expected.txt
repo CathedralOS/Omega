@@ -1,1 +1,1 @@
-a repeated wire field needs a declared maximum element count
+the current compact_binary generated realization needs a statically bounded repeated carrier

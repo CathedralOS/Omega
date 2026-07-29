@@ -2667,8 +2667,8 @@ pub fn append_wire_repeated_scalar_varint_width(
     }
 }
 
-/// Byte offset of the COUNT page address materialization inside the repeated
-/// append (relocated to the count companion's region symbol).
+/// Byte offset of the FixedVec LENGTH page address materialization inside the
+/// repeated append (relocated to the carrier's region symbol).
 pub fn wire_append_repeated_count_page_offset(
     architecture: Architecture,
     out_offset: usize,
@@ -2779,8 +2779,8 @@ pub fn wire_decode_repeated_target_page_offset(
     }
 }
 
-/// Byte offset of the COUNT page address materialization inside the repeated
-/// read (relocated to the count companion's region symbol).
+/// Byte offset of the FixedVec LENGTH page address materialization inside the
+/// repeated read (relocated to the carrier's region symbol).
 #[allow(clippy::too_many_arguments)]
 pub fn wire_decode_repeated_count_page_offset(
     architecture: Architecture,

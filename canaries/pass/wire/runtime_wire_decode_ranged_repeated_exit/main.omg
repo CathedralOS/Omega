@@ -11,7 +11,6 @@ data Samples {
 
 data RangedSamples {
     values: [i32 [-2..=2]; 2];
-    values_count: u64;
 }
 
 data WireVerdict {
@@ -32,8 +31,7 @@ machine Main::main(&mut self) {
     // zigzag(-1)=1. The first element is outside [-2..=2].
     let bad_payload: [u8; 5] = [0, 0, 2, 10, 1];
     let bad: RangedSamples = RangedSamples {
-        values: [1, 2],
-        values_count: 0
+        values: [1, 2]
     };
     Samples::decode(
         &mut bad,
@@ -45,8 +43,7 @@ machine Main::main(&mut self) {
     // Same envelope with 2 and -2 (zigzag 4 and 3).
     let good_payload: [u8; 5] = [0, 0, 2, 4, 3];
     let good: RangedSamples = RangedSamples {
-        values: [0, 0],
-        values_count: 0
+        values: [0, 0]
     };
     Samples::decode(
         &mut good,
@@ -58,11 +55,10 @@ machine Main::main(&mut self) {
     transition {
         self.bad_verdict == WireVerdict::Sound -> accepted_hostile()
         bad.values[0] != 1 -> corrupted_on_reject()
-        bad.values[1] != 0 - 1 || bad.values_count != 2 -> partial_decode_broken()
+        bad.values[1] != 0 - 1 -> partial_decode_broken()
         self.good_verdict == WireVerdict::Sound
             && good.values[0] == 2
-            && good.values[1] == 0 - 2
-            && good.values_count == 2 -> proven()
+            && good.values[1] == 0 - 2 -> proven()
         _ -> broken()
     }
 

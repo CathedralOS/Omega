@@ -274,10 +274,10 @@ pub enum AbstractOperationKind {
     },
     /// compact_binary v0 wire framing (chapter 20, repeated fields): append
     /// element `index` of a packed repeated field ONLY IF `index < count`
-    /// (the runtime element count in the value's count-companion slot, read
-    /// as an unsigned 64-bit `usize`). A repeated field's element count is
-    /// runtime-sized but bounded by the schema's declared maximum, so
-    /// selection unrolls the maximum and guards each append -- the emitted
+    /// (the runtime element count in the FixedVec carrier's `length` slot,
+    /// read as an unsigned 64-bit count). A repeated field's element count is
+    /// runtime-sized but bounded by the carrier's static capacity, so
+    /// selection unrolls the capacity and guards each append -- the emitted
     /// width stays compile-time-fixed (the widths invariant) while the
     /// payload reflects the live count. A skipped append leaves the cursor
     /// untouched.
@@ -303,7 +303,7 @@ pub enum AbstractOperationKind {
     /// bound the surrounding `ReadWireNestedOpen` stored; on the taken path,
     /// LEB128-read a scalar into the target slot (sticky-ok semantics
     /// identical to `ReadWireScalarVarint`) and increment the
-    /// count-companion slot. Selection unrolls the declared maximum, so a
+    /// FixedVec `length` slot. Selection unrolls the declared capacity, so a
     /// payload packing more elements than the maximum leaves the cursor
     /// short of the bound and the closing `ReadWireNestedClose` clears `ok`
     /// -- the hostile-count cap. A skipped read changes nothing (cursor, ok,

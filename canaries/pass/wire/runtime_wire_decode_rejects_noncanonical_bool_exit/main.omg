@@ -12,7 +12,6 @@ data Flags {
 data FlagValues {
     enabled: bool;
     samples: [bool; 2];
-    samples_count: u64;
 }
 
 data WireVerdict {
@@ -34,8 +33,7 @@ machine Main::main(&mut self) {
     let bad_payload: [u8; 7] = [0, 0, 2, 1, 2, 1, 2];
     let bad: FlagValues = FlagValues {
         enabled: true,
-        samples: [false, true],
-        samples_count: 0
+        samples: [false, true]
     };
     Flags::decode(
         &mut bad,
@@ -47,8 +45,7 @@ machine Main::main(&mut self) {
     let good_payload: [u8; 7] = [0, 0, 1, 1, 2, 0, 1];
     let good: FlagValues = FlagValues {
         enabled: false,
-        samples: [true, false],
-        samples_count: 0
+        samples: [true, false]
     };
     Flags::decode(
         &mut good,
@@ -60,18 +57,15 @@ machine Main::main(&mut self) {
     transition {
         self.bad_verdict == WireVerdict::Sound -> accepted_hostile()
         !bad.enabled || !bad.samples[0] || !bad.samples[1] -> corrupted_on_reject()
-        bad.samples_count != 2 -> bad_count()
         self.good_verdict == WireVerdict::Sound
             && good.enabled
             && !good.samples[0]
-            && good.samples[1]
-            && good.samples_count == 2 -> proven()
+            && good.samples[1] -> proven()
         _ -> broken()
     }
 
     state accepted_hostile(&mut self)      { self.console.exit_process(66); }
     state corrupted_on_reject(&mut self)   { self.console.exit_process(67); }
-    state bad_count(&mut self)             { self.console.exit_process(68); }
     state proven(&mut self)                { self.console.exit_process(70); }
     state broken(&mut self)                { self.console.exit_process(71); }
 }

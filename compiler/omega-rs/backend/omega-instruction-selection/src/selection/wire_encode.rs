@@ -61,13 +61,14 @@ enum WireFieldContent {
         schema: SymbolHandle,
         children: Vec<WireFieldAppend>,
     },
-    /// A repeated field: `min(count, max_count)` packed element varints,
-    /// staged through the wire scratch region (guarded appends, one per
-    /// unrolled element index) before the length-prefixed replay.
+    /// A bounded repeated field's packed element varints, staged through the
+    /// wire scratch before replay. Fixed arrays append every element;
+    /// FixedVec guards each unrolled index against its intrinsic length.
     Repeated {
+        carrier: omega_checked_trees::wire::WireRepeatedCarrier,
         element: omega_checked_trees::wire::WireScalarEncoding,
         base: RuntimeStoragePlace,
-        count: RuntimeStoragePlace,
+        count: Option<RuntimeStoragePlace>,
         max_count: usize,
     },
 }
@@ -274,21 +275,19 @@ pub(super) fn select_wire_encode_call(
                 });
             }
             WireFieldContent::Repeated {
+                carrier,
                 element,
                 base,
                 count,
                 max_count,
             } => {
                 // A repeated field packs LENGTH-delimited, exactly like a
-                // nested message: stage the live elements into the wire
-                // scratch (each unrolled element append guards itself on
-                // `index < count`, so the staged bytes hold exactly
-                // min(count, max) elements), then replay the staged run
-                // through the text-bytes append -- byte-length varint +
-                // bounded copy. The planner reserved the scratch from the
-                // same worst-case math validation budgeted with; if it
-                // cannot hold this field's worst case, the plan drifted --
-                // block emission rather than overrun the frame.
+                // nested message: stage the carrier's live elements into
+                // wire scratch, then replay the run through the text-bytes
+                // append. Fixed arrays stage all N; FixedVec guards each
+                // unrolled index on `index < length`. The planner reserved
+                // scratch from the same worst-case capacity math validation
+                // budgeted with; drift blocks emission rather than overruns.
                 let staging_worst = max_count * element.max_varint_length();
                 let scratch_base = input.runtime_storage.wire_scratch_base;
                 if scratch_base == 0 || input.runtime_storage.wire_scratch_size < 16 + staging_worst
@@ -314,19 +313,39 @@ pub(super) fn select_wire_encode_call(
                     ),
                 );
                 for index in 0..*max_count {
-                    push(SelectedInstructionKind::AppendWireRepeatedScalarVarint {
-                        source_region: base.region,
-                        source_offset: base.byte_offset + index * element.byte_size,
-                        byte_size: element.byte_size,
-                        zigzag: element.zigzag,
-                        index: index as u64,
-                        count_region: count.region,
-                        count_offset: count.byte_offset,
-                        out_region: RuntimeStorageRegion::RuntimeFrame,
-                        out_offset: staging_offset,
-                        written_region: RuntimeStorageRegion::RuntimeFrame,
-                        written_offset: cursor_offset,
-                    });
+                    let source_offset = base.byte_offset + index * element.byte_size;
+                    match carrier {
+                        omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => {
+                            push(SelectedInstructionKind::AppendWireScalarVarint {
+                                source_region: base.region,
+                                source_offset,
+                                byte_size: element.byte_size,
+                                zigzag: element.zigzag,
+                                out_region: RuntimeStorageRegion::RuntimeFrame,
+                                out_offset: staging_offset,
+                                written_region: RuntimeStorageRegion::RuntimeFrame,
+                                written_offset: cursor_offset,
+                            });
+                        }
+                        omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                            let count = count
+                                .as_ref()
+                                .expect("FixedVec repeated field carries its length place");
+                            push(SelectedInstructionKind::AppendWireRepeatedScalarVarint {
+                                source_region: base.region,
+                                source_offset,
+                                byte_size: element.byte_size,
+                                zigzag: element.zigzag,
+                                index: index as u64,
+                                count_region: count.region,
+                                count_offset: count.byte_offset,
+                                out_region: RuntimeStorageRegion::RuntimeFrame,
+                                out_offset: staging_offset,
+                                written_region: RuntimeStorageRegion::RuntimeFrame,
+                                written_offset: cursor_offset,
+                            });
+                        }
+                    }
                 }
                 push(SelectedInstructionKind::AppendWireTextBytes {
                     source_region: RuntimeStorageRegion::RuntimeFrame,
@@ -491,47 +510,61 @@ fn collect_field_appends(
             },
         ));
 
-        // A repeated field resolves the array member AND its count companion
-        // (`<name>_count`); validation has guaranteed both exist with the
-        // right shapes. Repeated fields live at the top level only -- a
-        // child body admits plain scalars alone.
+        // A repeated field resolves either the exactly-full array member or
+        // a FixedVec's inline `items` plus its own `length`.
         if let Some(repeated) = input.program.wire_field_repeated_encoding(field) {
             if !allow_nested {
                 return None;
             }
+            let (base_handle, count_handle) = match repeated.carrier {
+                omega_checked_trees::wire::WireRepeatedCarrier::FixedArray => (member_handle, None),
+                omega_checked_trees::wire::WireRepeatedCarrier::FixedVec => {
+                    let items = expressions.insert(ExpressionNode::Member(
+                        omega_checked_trees::expression::TableMemberExpression {
+                            receiver: member_handle,
+                            member_symbol: SymbolHandle::invalid(),
+                            member: "items".into(),
+                            case_variant: None,
+                        },
+                    ));
+                    let length = expressions.insert(ExpressionNode::Member(
+                        omega_checked_trees::expression::TableMemberExpression {
+                            receiver: member_handle,
+                            member_symbol: SymbolHandle::invalid(),
+                            member: "length".into(),
+                            case_variant: None,
+                        },
+                    ));
+                    (items, Some(length))
+                }
+            };
             let base = resolve_runtime_storage_place_in_table(
                 input,
                 dispatch_index,
                 source_key,
                 expressions,
-                member_handle,
+                base_handle,
             )?;
             if base.byte_count != repeated.max_count * repeated.element.byte_size {
                 return None;
             }
-            let count_name =
-                omega_checked_trees::wire::wire_repeated_count_field_name(field.name.as_str());
-            let count_handle = expressions.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
-                    receiver,
-                    member_symbol: SymbolHandle::invalid(),
-                    member: count_name.as_str().into(),
-                    case_variant: None,
-                },
-            ));
-            let count = resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                count_handle,
-            )?;
-            if count.byte_count != 8 {
+            let count = match count_handle {
+                Some(handle) => Some(resolve_runtime_storage_place_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    handle,
+                )?),
+                None => None,
+            };
+            if count.as_ref().is_some_and(|count| count.byte_count != 8) {
                 return None;
             }
             fields.push(WireFieldAppend {
                 number: field.number,
                 content: WireFieldContent::Repeated {
+                    carrier: repeated.carrier,
                     element: repeated.element,
                     base,
                     count,

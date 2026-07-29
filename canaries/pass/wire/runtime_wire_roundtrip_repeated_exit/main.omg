@@ -1,15 +1,11 @@
-// Wire REPEATED fields: a schema field spelled `[scalar; max]` packs
+// Wire REPEATED fields: a `FixedVec<scalar, max>` packs
 // LENGTH-delimited (protobuf's packed encoding) -- tag varint + byte-LENGTH
-// varint + back-to-back element varints, NO per-element tags. The runtime
-// value declares the matching array plus a `u64` COUNT COMPANION
-// (`<name>_count`): the wire never carries the count, so the encoder reads
-// the companion (emitting min(count, max) elements through unrolled guarded
-// appends staged in the wire scratch) and the decoder writes the decoded
-// element count back (unrolled guarded reads bounded by the OPEN/CLOSE end
-// bound, capped at the declared maximum).
+// varint + back-to-back element varints, NO per-element tags. The carrier's
+// own `length` selects the live inline elements; no synthetic sibling count
+// field exists.
 //
-// Encoded bytes for { sensor_id: 7, samples: [150, -2, 0, 0],
-// samples_count: 2, flag: true }, hand-computed:
+// Encoded bytes for { sensor_id: 7, samples: FixedVec([150, -2], len 2),
+// flag: true }, hand-computed:
 //   era 0          -> 0x00        (no version blocks)
 //   tag 0          -> 0x00        (sensor_id)
 //   sensor_id 7    -> 0x07
@@ -20,20 +16,20 @@
 //   tag 2          -> 0x02        (flag)
 //   flag true      -> 0x01
 // written = 10; the decoder consumes the same 10 bytes (read = 10,
-// ok = true), decodes both live elements, and writes samples_count = 2.
+// ok = true), decodes both live elements, and writes samples.length = 2.
 
+use omega::language::core::fixed_vec;
 use omega::language::std::console;
 
 data SensorReadings {
     #0 sensor_id: u32;
-    #1 samples: [i32; 4];
+    #1 samples: FixedVec<i32, 4>;
     #2 flag: bool;
 }
 
 data SensorSample {
     sensor_id: u32;
-    samples: [i32; 4];
-    samples_count: u64;
+    samples: FixedVec<i32, 4>;
     flag: bool;
 }
 
@@ -55,8 +51,7 @@ data Main {
 machine Main::main(&mut self) {
     let msg: SensorSample = SensorSample {
         sensor_id: 7,
-        samples: [150, 0 - 2, 0, 0],
-        samples_count: 2,
+        samples: FixedVec { items: [150, 0 - 2, 0, 0], length: 2 },
         flag: true
     };
 
@@ -64,8 +59,7 @@ machine Main::main(&mut self) {
 
     let decoded: SensorSample = SensorSample {
         sensor_id: 0,
-        samples: [0, 0, 0, 0],
-        samples_count: 0,
+        samples: FixedVec { items: [0, 0, 0, 0], length: 0 },
         flag: false
     };
 
@@ -75,9 +69,9 @@ machine Main::main(&mut self) {
         && self.written == 10
         && self.read == 10
         && decoded.sensor_id == 7
-        && decoded.samples_count == 2
-        && decoded.samples[0] == 150
-        && decoded.samples[1] == 0 - 2
+        && decoded.samples.length == 2
+        && decoded.samples.items[0] == 150
+        && decoded.samples.items[1] == 0 - 2
         && decoded.flag;
     transition matches {
         true -> good()

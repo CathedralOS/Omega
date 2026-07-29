@@ -583,8 +583,10 @@ move it to a convenience library.
 The language model is settled in guide chapters 21-22 and the programmable
 layouts brief. Complete the implementation in dependency order:
 
-- replace bounded repeated-field array/count conventions with codec support for
-  `[T; N]`, `FixedVec<T, N>`, borrowed slices, and `Vec<T>` once its allocator
+- extend the live repeated-field codec support (exact `[T; N]`, bounded
+  `FixedVec<T, N>`, and borrowed byte slices) to general borrowed scalar
+  slices once the generated encode requirement retains their runtime
+  length/work/output-capacity obligations, and to `Vec<T>` once its allocator
   obligations are available;
 - expose strict, projecting, and preserving decode requirements; implement the
   preserving package carrier `Relayed<T>` with an opaque round-trip remainder;

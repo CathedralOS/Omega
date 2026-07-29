@@ -16,7 +16,6 @@ data NameList {
 
 data NameListValue {
     names: [[u8; 8] in Utf8; 4];
-    names_count: u64;
 }
 
 data Main {
@@ -27,8 +26,7 @@ data Main {
 
 machine Main::main(&mut self) {
     let msg: NameListValue = NameListValue {
-        names: ["a", "b", "c", "d"],
-        names_count: 2
+        names: ["a", "b", "c", "d"]
     };
 
     NameList::encode(&msg, &mut self.buffer, &mut self.written);

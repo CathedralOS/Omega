@@ -555,7 +555,7 @@ pub fn encode_read_wire_scalar_varint(
 /// LEB128-read one packed repeated element at the cursor into the target
 /// slot, ONLY IF the cursor sits strictly below the end bound the
 /// surrounding nested OPEN stored; the taken path also increments the
-/// count-companion slot. A skipped read changes nothing -- the branch lands
+/// FixedVec `length` slot. A skipped read changes nothing -- the branch lands
 /// past the epilogue, so cursor, ok, target, and count all stay put.
 /// Selection unrolls the declared maximum of these, so a payload packing
 /// more elements leaves the cursor short of the bound and the closing

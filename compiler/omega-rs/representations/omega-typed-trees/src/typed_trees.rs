@@ -612,24 +612,91 @@ impl TypedTrees {
         }
     }
 
-    /// A wire field's REPEATED encoding (chapter 20): `[scalar; max]` with a
-    /// stage 2 scalar element (i32/i64/u32/u64/bool) and a positive literal
-    /// maximum. `None` for plain fields AND for array fields whose element is
-    /// not an encodable scalar (the caller rejects those with its own
-    /// diagnostic -- repeated String / repeated nested message are not
-    /// supported).
+    /// A wire field's bounded repeated carrier. Fixed arrays carry exactly
+    /// their static extent; `FixedVec<T, N>` carries a runtime length bounded
+    /// by its inline array capacity.
+    pub fn wire_field_repeated_carrier(
+        &self,
+        field: &wire::WireField,
+    ) -> Option<(wire::WireRepeatedCarrier, types::TypeReferenceHandle, usize)> {
+        if let Some((element, count)) = self.wire_field_fixed_array(field) {
+            return Some((wire::WireRepeatedCarrier::FixedArray, element, count));
+        }
+
+        let mut handle = field.type_reference;
+        loop {
+            match self.type_reference_table.type_reference(handle) {
+                types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+                types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                types::TypeReferenceNode::Generic {
+                    base_name,
+                    arguments,
+                    ..
+                } if base_name.as_str() == "FixedVec" => {
+                    let arguments = self.type_reference_table.type_reference_handles(*arguments);
+                    let [element, count] = arguments else {
+                        return None;
+                    };
+                    let count = match self.type_reference_table.type_reference(*count) {
+                        types::TypeReferenceNode::Named { name, .. } => {
+                            name.as_str().parse::<usize>().ok()?
+                        }
+                        _ => return None,
+                    };
+                    return Some((wire::WireRepeatedCarrier::FixedVec, *element, count));
+                }
+                _ => break,
+            }
+        }
+
+        let name = self.named_type_reference_name(handle)?;
+        if !name.starts_with("FixedVec<") {
+            return None;
+        }
+        let data = self
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == name)?;
+        let mut items = None;
+        let mut has_u64_length = false;
+        for member in self.data_members(data) {
+            let crate::data::DataMember::Field(member) = member else {
+                continue;
+            };
+            match member.name.as_str() {
+                "items" => {
+                    let mut synthetic = field.clone();
+                    synthetic.type_reference = member.type_reference;
+                    items = self.wire_field_fixed_array(&synthetic);
+                }
+                "length" => {
+                    has_u64_length = matches!(
+                        self.primitive_type_reference(member.type_reference),
+                        Some(types::PrimitiveType::U64)
+                    );
+                }
+                _ => {}
+            }
+        }
+        let (element, count) = items?;
+        has_u64_length.then_some((wire::WireRepeatedCarrier::FixedVec, element, count))
+    }
+
+    /// A wire field's bounded REPEATED encoding with a stage-2 scalar element
+    /// (`i32`, `i64`, `u32`, `u64`, or `bool`).
     pub fn wire_field_repeated_encoding(
         &self,
         field: &wire::WireField,
     ) -> Option<wire::WireRepeatedEncoding> {
-        let (element_type, max_count) = self.wire_field_fixed_array(field)?;
-        if max_count == 0 {
-            return None;
-        }
+        let (carrier, element_type, max_count) = self.wire_field_repeated_carrier(field)?;
         let element = self
             .primitive_type_reference(element_type)
             .and_then(wire::WireScalarEncoding::for_primitive)?;
-        Some(wire::WireRepeatedEncoding { element, max_count })
+        Some(wire::WireRepeatedEncoding {
+            carrier,
+            element,
+            max_count,
+        })
     }
 
     /// The worst-case byte count of a schema's CURRENT-era body WITHOUT the

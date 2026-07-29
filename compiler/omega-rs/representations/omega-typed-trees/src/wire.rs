@@ -275,6 +275,61 @@ pub fn fixed_array_element_type(
     }
 }
 
+/// Resolve the destination element type for a bounded repeated carrier.
+pub fn repeated_element_type(
+    program: &crate::TypedTrees,
+    handle: TypeReferenceHandle,
+    carrier: WireRepeatedCarrier,
+) -> Option<TypeReferenceHandle> {
+    match carrier {
+        WireRepeatedCarrier::FixedArray => fixed_array_element_type(program, handle),
+        WireRepeatedCarrier::FixedVec => {
+            let mut handle = handle;
+            let (symbol, name) = loop {
+                match program.type_reference_table.type_reference(handle) {
+                    crate::types::TypeReferenceNode::Reference { referee, .. } => {
+                        handle = *referee;
+                    }
+                    crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                        handle = *base_type;
+                    }
+                    crate::types::TypeReferenceNode::Generic {
+                        base_name,
+                        arguments,
+                        ..
+                    } if base_name.as_str() == "FixedVec" => {
+                        let [element, _] = program
+                            .type_reference_table
+                            .type_reference_handles(*arguments)
+                        else {
+                            return None;
+                        };
+                        return Some(*element);
+                    }
+                    crate::types::TypeReferenceNode::Named { symbol, name } => {
+                        break (*symbol, name);
+                    }
+                    _ => return None,
+                }
+            };
+            let data = program
+                .data_definitions()
+                .iter()
+                .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name == *name)?;
+            let items = program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    crate::data::DataMember::Field(field) if field.name.as_str() == "items" => {
+                        Some(field.type_reference)
+                    }
+                    _ => None,
+                })?;
+            fixed_array_element_type(program, items)
+        }
+    }
+}
+
 impl WireScalarEncoding {
     /// The stage 2a scalar set: i32/i64/u32/u64/bool. Everything else is
     /// rejected by validation with a clear diagnostic.
@@ -343,30 +398,24 @@ impl WireFieldEncoding {
 /// half of a text descriptor is one 64-bit pointer wide, so ten groups.
 pub const WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH: usize = 10;
 
-/// The suffix of the COUNT COMPANION field a repeated wire field requires on
-/// the runtime value type (chapter 20, repeated fields): a schema field
-/// `1: samples: [i32; 4];` encodes/decodes through a value type declaring
-/// BOTH `samples: [i32; 4]` and `samples_count: usize`. The wire never
-/// carries the count -- compact_binary v0 packs repeated scalars
-/// LENGTH-delimited (tag + byte-length varint + back-to-back element
-/// varints, protobuf's packed encoding) -- so the companion is the runtime
-/// element count: the encoder emits the first `min(count, max)` elements and
-/// the decoder writes back how many elements it read.
-pub const WIRE_REPEATED_COUNT_SUFFIX: &str = "_count";
-
-/// The name of the count companion field a repeated wire field `name` reads
-/// (encode) and writes (decode) on the runtime value type.
-pub fn wire_repeated_count_field_name(field_name: &str) -> String {
-    format!("{field_name}{WIRE_REPEATED_COUNT_SUFFIX}")
+/// The bounded carrier semantics of a compact-binary repeated field.
+///
+/// A fixed array is always full: its extent is the encoded element count.
+/// `FixedVec<T, N>` uses its own `length` member and inline `items` storage.
+/// This deliberately replaces the former convention that gave every array a
+/// synthetic `<field>_count` sibling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WireRepeatedCarrier {
+    FixedArray,
+    FixedVec,
 }
 
-/// A REPEATED wire field's shape (chapter 20): a fixed maximum element count
-/// declared in the schema spelling `[element; max]` plus the element's scalar
-/// encoding. The declared maximum is part of the wire contract -- it is what
-/// gives the packed payload a finite worst case, so the compile-time
-/// out-buffer capacity guarantee survives.
+/// A bounded repeated field's normalized encoding: carrier semantics, scalar
+/// element encoding, and static capacity. The capacity gives the generated
+/// realization a finite worst-case work and byte budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WireRepeatedEncoding {
+    pub carrier: WireRepeatedCarrier,
     pub element: WireScalarEncoding,
     pub max_count: usize,
 }

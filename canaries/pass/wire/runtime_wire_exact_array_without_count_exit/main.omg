@@ -1,9 +1,5 @@
-// Wire REPEATED fields: the wire carries the packed BYTE LENGTH, never the
-// element count, so the runtime value type must declare a `u64` COUNT
-// COMPANION (`<name>_count`) next to the array -- the encoder reads it (how
-// many elements are live) and the decoder writes the decoded element count
-// back. A value type without the companion rejects the call with a clear
-// diagnostic.
+// A fixed array contributes exactly N repeated elements. No synthetic
+// `<name>_count` sibling is required or consulted.
 
 use omega::language::std::console;
 
