@@ -24233,6 +24233,35 @@ fn runtime_numeric_conversion_surface_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_i64_to_u64_exact_guard_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_i64_to_u64_exact_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-i64-u64-exact-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded dynamic i64-to-u64 exact conversion should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded dynamic i64-to-u64 exact conversion should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected guarded dynamic i64-to-u64 exact conversion to preserve 32; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_numeric_signed_conversion_surface_exit_canary_runs() {
     let canary = pass_canary("core/numeric_signed_conversion_surface");
     let build_dir =
@@ -38220,6 +38249,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/bounded_return_literal",
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
+    "arithmetic/runtime_i64_to_u64_exact_guard_exit",
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",

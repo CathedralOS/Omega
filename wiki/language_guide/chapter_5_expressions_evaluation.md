@@ -426,8 +426,10 @@ Two rules keep it honest:
 > Nonnegative signed host counts now use named exact narrowing after their
 > dominating guards, including target-specific positioned I/O; nested call
 > contract proof rebinds the target-state parameter through the incoming
-> transition argument. Other residual filesystem casts carry explicit byte
-> policies or pin a compatibility-specific lowering shape. The domain model reserves
+> transition argument. The converted count is materialized under a distinct
+> local name before enum construction, preserving the payload through native
+> lowering. Other residual filesystem casts carry explicit byte policies or pin
+> a compatibility-specific lowering shape. The domain model reserves
 > qualification `as` for changing static facts without changing carrier,
 > payload, or runtime work.
 

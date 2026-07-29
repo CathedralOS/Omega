@@ -383,8 +383,11 @@ ceilings, and publication-before-ledger-record all reject.
   narrowing in the portable facade and every target implementation. Incoming
   guard proof now instantiates the nested callee contract and rebinds target
   state parameters through the transition arguments; a focused proof regression
-  and Linux x64/AArch64 plus Windows checked-tree cohort pin the route. Residual
-  filesystem casts are deliberately separate work: explicitly wrapping byte
+  and Linux x64/AArch64 plus Windows checked-tree cohort pin the route.
+  Backend-safe enum construction materializes each converted count under a
+  distinct local name; a dynamic native conversion canary and all 88 native
+  filesystem/GUI tests pin the delivered payload. Residual filesystem casts are
+  deliberately separate work: explicitly wrapping byte
   encoders/cross-signed narrowing and compatibility-specific casts whose
   authored shape pins legacy lowering. The cast-field migration exposed and
   now pins a compiler fix for terminal branch substates with several
