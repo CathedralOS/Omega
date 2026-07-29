@@ -1,6 +1,6 @@
 # Design Brief: Calling And Machine-State Plans
 
-Current as of 2026-07-25. Boundary conventions are normalized policy artifacts;
+Current as of 2026-07-28. Boundary conventions are normalized policy artifacts;
 Omega's internal calling convention remains compiler-sovereign. This brief now
 includes inbound machine-state preservation, which ordinary calls do not expose.
 Engineering is incomplete. The normalized compiler model, initial built-in
@@ -130,19 +130,22 @@ The capability audit is therefore graded rather than binary:
 - compile-time machine selection and direct specialized invocation are live;
 - policy evaluation such as `Calling<C>` is live and does not require machine
   identity as a value;
-- deriving a relocation from a selected entry, storing an entry reference, or
-  registering a runtime callback requires sealed reification machinery and is a
-  separate customer.
+- a foreign binding whose declared parameter is a callback requirement may
+  accept one named static machine satisfying that requirement and privately
+  materialize the target ABI entry relocation; and
+- general runtime function values, captured environments, and user-visible code
+  addresses remain separate facilities.
 
 No downstream slice may cite a blanket "machine parameters are unbuilt" fence.
 It must name the stronger reification operation it actually requires.
 
 The implementation dependency is therefore explicit: calling-policy work does
 not wait on machine-parameter support. Static selection and invocation are
-already available. Source-visible sealed entry references, callback values, and
-relocation-bearing machine identities are stronger reification features and
-remain separate work; their absence does not constrain `Calling<C>` evaluation
-or plan-driven lowering.
+already available. Callback lowering does not require a general source-visible
+entry-reference carrier. The registration call supplies the selection context:
+one named static machine satisfying the callback requirement becomes the native
+entry expected by that exact parameter, and the compiler emits its plan-driven
+thunk and relocation privately.
 
 A target-specific requirement may layer over a portable semantic service trait.
 When the boundary declaration itself is reusable across conventions, make the
@@ -386,12 +389,84 @@ Component calls use the boundary requirement's evaluated `CallPlan`,
 `StatePlan`, and entry contract. A local proxy may adapt that component
 binding back into `dyn Trait` inside the consumer artifact.
 
+### Registered foreign callbacks
+
+A binding package declares the callback as an ordinary boundary requirement
+carrying its target calling policy:
+
+```omega
+boundary trait WindowProcedure:
+    Calling<MicrosoftX64>
+{
+    machine call(
+        hwnd: HWnd,
+        message: u32,
+        word: WParam,
+        long: LParam,
+    ) -> LResult;
+}
+
+boundary machine ApplicationWindow::dispatch(
+    hwnd: HWnd,
+    message: u32,
+    word: WParam,
+    long: LParam,
+) -> LResult
+    satisfies WindowProcedure::call
+{
+    ...
+}
+```
+
+The registration operation expects that callback requirement. Passing
+`ApplicationWindow::dispatch` selects its explicit conformance; the compiler
+validates the evaluated `CallPlan + StatePlan`, generates the inbound thunk,
+and materializes the native code address only inside the binding lowering. The
+source program continues to name a machine and a requirement rather than
+constructing an address-shaped callback value.
+
+A durable registration returns an ordinary linear package value. That value
+owns the protocol registration and, when code unloading is possible, the
+artifact or component lease. Its explicit terminal operation unregisters the
+foreign entry before releasing those obligations. Call-scoped callback
+parameters instead remain ordinary borrows and produce no durable registration.
+
+Per-instance state does not ride implicitly on a C function pointer. The
+binding package uses the protocol's explicit context parameter, a checked
+generational handle recoverable from callback arguments, or package-owned
+stable state. Ownership remains in Omega; foreign storage carries only the
+inert token the protocol requires.
+
+The target callback-entry plan selects one stack disposition:
+
+- continue on the provider's current stack under its containment contract;
+- preflight that stack against the exact Omega WCSU plus the target's reserved
+  entry/unwind margin, with a protocol-valid unavailable result; or
+- enter a target-supported owned stack whose provision enforces the Omega
+  WCSU.
+
+Preflight proves that the predicted Omega segment fits. A hard-limited owned
+stack additionally detects an underestimated WCSU at its own boundary. Opaque
+foreign frames remain in the provider stack domain; an exact separated-stack
+profile returns to that domain before making another foreign call.
+
+Platform packages may normalize a re-entrant native callback protocol into a
+safer Omega handler API. The package classifies its own exposed operations that
+may synchronously re-enter, infers ordinary application-handler reach locally,
+handles synchronous platform queries through restricted handlers, and queues
+or defers ordinary application events. This needs no inference over the opaque
+provider's internal call graph. A direct raw callback path instead retains the
+provider's admitted behavior and resource provenance.
+
 ## External roots
 
-An inbound stub installed for hardware or foreign callbacks is an external root
-because it has no Omega caller. The artifact root ledger records its evaluated
+An installed inbound stub whose code or state may be reclaimed is an external
+root because it has no Omega caller. Its linear registration owns the
+foreign-held edge; a dynamic artifact root ledger records the evaluated
 boundary plan, provider/artifact/receipt identities, service reach, stack
-domain, nesting/preemption relation, and liveness/version pins.
+domain, nesting/preemption relation, and liveness/version pins. A statically
+linked process-lifetime callback needs the same build-time plan and report but
+no live replacement ledger.
 
 This ledger is also where WCSU composes same-stack interrupt demand and where a
 dynamic installation is checked against the artifact-wide bound. Per-machine

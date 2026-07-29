@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-27.
+Last pruned: 2026-07-28.
 
 ## Effects, resources, and progress
 
@@ -45,9 +45,14 @@ Last pruned: 2026-07-27.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
   restricted values demand the corresponding preservation evidence.
-- Finish sealed external callback entry under owner question #12 and retained
-  foreign-pointer lifetime under #14. The reusable hosted-FFI gateway resource
-  and cancellation contract is separately owner question #18.
+- Implement settled registered callback entry: a named static machine satisfies
+  the callback requirement, the binding emits its plan-driven thunk, and a
+  durable protocol returns a linear registration value. Retained foreign-pointer
+  lifetime remains owner question #14; the reusable hosted-FFI gateway resource
+  and cancellation contract remains #18.
+- Settle root-level visibility/profile rejection for opaque in-process native
+  providers in owner question #20, and contained execution failure with
+  outstanding obligations in #21.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no

@@ -398,26 +398,27 @@ gateway/component call
     -> foreign provider owns a separately provisioned stack
 ```
 
-A same-stack foreign ceiling explicitly excludes Omega callback frames. An
-inline callback continues the current mixed stack chain and contributes its
-derived Omega WCSU there. An entry mode that starts another activation receives
-a separate `StackPlan`. This rule is intentionally stated over entry modes
-rather than assuming those two examples exhaust future targets.
+A callback requirement carries its own `Calling<C>` entry plan. A named static
+Omega machine satisfying that requirement enters through the generated thunk.
+The plan chooses provider-stack continuation, provider-stack preflight against
+the exact Omega WCSU plus target reserve, or a target-supported owned stack.
+Preflight proves the predicted segment fits; a hard-limited owned stack also
+detects underestimation at its own boundary. Opaque foreign frames remain in
+the provider stack domain.
 
-The mixed callback graph combines derived Omega edges with a provider-complete
-admitted upper bound on foreign-to-callback edges. Missing invocation evidence
-means the foreign entry may invoke any registered callback. Prefer proving the
-graph acyclic by excluding re-entering foreign reach from the callback
-contract. Intentional recursion requires an enforced chain-owned depth measure
-and a protocol-valid overflow disposition; otherwise finite stack admission
-rejects. Descriptor, registration, lifetime, and re-entry mechanics remain
-owner question #12.
+A platform adapter removes ordinary application code from the native recursive
+dispatch graph. It classifies which of its own operations may synchronously
+re-enter, defines restricted synchronous handlers, checks their ordinary Omega
+reach locally, and queues other events until native dispatch returns. Direct
+raw callbacks remain trust-relative; a chain-scoped depth limit is useful only
+when the protocol supplies a valid unavailable result. A future modular
+higher-order callback-summary analysis is recorded as unbuilt and is not a
+prerequisite for the adapter construction.
 
 Trust composes globally by the weakest input while retaining every supporting
-provenance edge. A WCSU arithmetic proof over an admitted foreign ceiling and
-callback-invocation set therefore yields an admitted `StackPlan`, with both
-foreign premises named. A checked Omega provider may derive the same facts from
-its body.
+provenance edge. A derived Omega WCSU used on a provider stack therefore retains
+the provider's admitted stack and behavior premises. A checked Omega provider
+may derive its own facts from its body.
 
 A hosted native-worker gateway is an ordinary boundary provider, not a task
 runtime mode. It can pool guarded native stacks and keep native blocking off
@@ -508,5 +509,6 @@ arguments remain TR3–TR8 work.
    semantically inexpressible.
 9. Implement the normalized bounded-work plan after owner question #17; keep
    work, wait, and timing conversion distinct.
-10. Keep external-entry/callback mechanics under owner question #12 and hosted
-    FFI gateway policy under #18 rather than adding either to `TaskRuntime`.
+10. Implement registered callback lowering under the calling-plan/boundary
+    lane and keep hosted FFI gateway policy under owner question #18 rather
+    than adding either to `TaskRuntime`.
