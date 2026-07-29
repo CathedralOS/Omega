@@ -377,7 +377,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 10. What is the public numeric-conversion requirement family?
+## 10. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not their public operation
 names or signatures. `FloatSemantics` already defines format conversion,
