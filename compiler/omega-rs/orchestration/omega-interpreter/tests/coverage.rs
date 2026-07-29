@@ -73,6 +73,128 @@ fn compatibility_fma_uses_executable_float_semantics() {
     );
 }
 
+#[test]
+fn named_float_requirements_route_through_executable_semantics() {
+    let main_path = write_program(
+        "named-float-requirements",
+        r#"
+use omega::language::core::float_operations;
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    zero: f64;
+    nan: f64;
+    class: FloatClass;
+}
+
+machine Main::main(&mut self) {
+    self.zero = 0.0;
+    self.nan = self.zero / self.zero;
+    let finite: bool = F64::is_finite(2.0);
+    let nan_verdict: bool = F64::is_nan(self.nan);
+    let upward: f32 = F32::add_toward_positive(
+        1.0f32,
+        0.000000059604644775390625f32
+    );
+    let fused: f64 = F64::fused_multiply_add(
+        1.0000000000000002220446049250313080847263336181640625,
+        1.0000000000000002220446049250313080847263336181640625,
+        0.0 - 1.000000000000000444089209850062616169452667236328125
+    );
+    self.class = F32::classify(0.0f32);
+    transition finite && nan_verdict && upward > 1.0f32 && fused > 0.0 {
+        true -> class_leg()
+        _ -> bad()
+    }
+    state class_leg(&mut self) {
+        transition self.class {
+            FloatClass::Zero { negative } -> sign_leg(negative)
+            _ -> bad()
+        }
+    }
+    state sign_leg(&mut self, negative: bool) {
+        transition negative == false { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!("named float requirements should compile: {diagnostics:?}")
+    });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "named float requirements should execute in the interpreter: {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "classification, directed rounding, and named FMA must share FloatSemantics"
+    );
+}
+
+#[test]
+fn named_float_requirement_argument_types_remain_checked() {
+    frontend_rejects(
+        "named-float-requirement-wrong-argument",
+        r#"
+use omega::language::core::float_operations;
+
+machine main() {
+    let verdict: bool = F64::is_finite(true);
+}
+"#,
+    );
+}
+
+#[test]
+fn named_float_requirement_result_types_remain_checked() {
+    frontend_rejects(
+        "named-float-requirement-wrong-result",
+        r#"
+use omega::language::core::float_operations;
+
+machine main() {
+    let value: f64 = F64::is_finite(1.0);
+}
+"#,
+    );
+}
+
+#[test]
+fn named_float_requirement_result_format_requires_conversion() {
+    frontend_rejects(
+        "named-float-requirement-wrong-format",
+        r#"
+use omega::language::core::float_operations;
+
+machine main() {
+    let value: f32 = F64::square_root(4.0);
+}
+"#,
+    );
+}
+
+#[test]
+fn unknown_float_requirement_remains_fail_closed() {
+    frontend_rejects(
+        "unknown-float-requirement",
+        r#"
+use omega::language::core::float_operations;
+
+machine main() {
+    let value: f64 = F64::not_a_requirement(1.0);
+}
+"#,
+    );
+}
+
 // ---- ranges ------------------------------------------------------------------
 
 /// A range as a `let` initializer does not parse: the parser only recognizes `..`/`..=`
@@ -564,7 +686,7 @@ boundary trait Console {
 }
 
 data Blob {
-    0: bytes: &[u8];
+    #0 bytes: &[u8];
 }
 
 data BlobSample {

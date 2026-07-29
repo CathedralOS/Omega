@@ -30,6 +30,141 @@ pub struct SpelledOperator<'program> {
     pub domain: Option<&'program DomainDefinition>,
 }
 
+/// Resolve an explicitly named operator call from its path and arity facts.
+///
+/// Named calls may reach this stage without an early `target_symbol`, so every
+/// consumer must use this same ambiguity-checked fallback rather than accepting
+/// a leaf spelling on its own. Return types never distinguish overloads.
+pub fn resolve_named_call<'program>(
+    program: &'program TypedTrees,
+    target_symbol: SymbolHandle,
+    static_receiver_segments: Option<&[&str]>,
+    target_name: &str,
+    argument_count: usize,
+    has_value_receiver: bool,
+) -> Option<&'program OperatorDefinition> {
+    if target_symbol.is_valid()
+        && let Some(operator) = program
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == target_symbol)
+    {
+        return Some(operator);
+    }
+
+    let mut candidates = program.operators().iter().filter(|operator| {
+        named_operator_path_matches_call(program, operator, static_receiver_segments, target_name)
+            && named_operator_arity_fits_call(program, operator, argument_count, has_value_receiver)
+    });
+    let first = candidates.next()?;
+    candidates.next().is_none().then_some(first)
+}
+
+/// Resolve an expression-position named operator call using the receiver path
+/// already retained in the typed expression table.
+pub fn resolve_named_expression_call<'program>(
+    program: &'program TypedTrees,
+    call: &crate::expression::TableCallExpression,
+) -> Option<&'program OperatorDefinition> {
+    let mut static_segments = Vec::new();
+    let has_value_receiver = if !call.receiver.is_valid() {
+        false
+    } else if let crate::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(call.receiver)
+    {
+        let is_static_namespace = path.symbol.is_valid()
+            && (program
+                .data_definitions()
+                .iter()
+                .any(|definition| definition.symbol == path.symbol)
+                || program
+                    .domain_definitions()
+                    .iter()
+                    .any(|definition| definition.symbol == path.symbol)
+                || program
+                    .machines()
+                    .iter()
+                    .any(|definition| definition.symbol == path.symbol)
+                || program
+                    .traits()
+                    .iter()
+                    .any(|definition| definition.symbol == path.symbol));
+        if is_static_namespace {
+            static_segments.extend(
+                program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(|segment| segment.as_str()),
+            );
+        }
+        !is_static_namespace
+    } else {
+        true
+    };
+    let static_receiver_segments =
+        (!static_segments.is_empty()).then_some(static_segments.as_slice());
+    resolve_named_call(
+        program,
+        call.target_symbol,
+        static_receiver_segments,
+        call.target.as_str(),
+        program
+            .expression_table
+            .expression_handles(call.arguments)
+            .len(),
+        has_value_receiver,
+    )
+}
+
+fn named_operator_path_matches_call(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    static_receiver_segments: Option<&[&str]>,
+    target_name: &str,
+) -> bool {
+    let path = program.operator_path_members(operator.name);
+    let Some((last, prefix)) = path.split_last() else {
+        return false;
+    };
+    if last.as_str() != target_name {
+        return false;
+    }
+
+    match static_receiver_segments {
+        Some(segments) => {
+            prefix.len() == segments.len()
+                && prefix
+                    .iter()
+                    .zip(segments.iter())
+                    .all(|(member, segment)| member.as_str() == *segment)
+        }
+        None => true,
+    }
+}
+
+fn named_operator_arity_fits_call(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    argument_count: usize,
+    has_value_receiver: bool,
+) -> bool {
+    let parameters = program.operator_parameters(operator);
+    let has_self = parameters.iter().any(|parameter| parameter.is_self);
+    let positional = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
+
+    if has_self {
+        return has_value_receiver && positional == argument_count;
+    }
+    if has_value_receiver {
+        return positional == argument_count + 1;
+    }
+    positional == argument_count
+}
+
 /// Enumerate an operator `spelling`, optionally narrowed by the first operand.
 /// This receiver-only query remains useful to validation that merely asks
 /// whether a spelling exists for a carrier. Complete use-site resolution goes

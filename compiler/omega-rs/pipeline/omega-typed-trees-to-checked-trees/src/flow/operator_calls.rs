@@ -59,69 +59,14 @@ pub(super) fn resolve_operator_for_call<'program>(
     argument_count: usize,
     has_value_receiver: bool,
 ) -> Option<&'program omega_typed_trees::operator::OperatorDefinition> {
-    if target_symbol.is_valid()
-        && let Some(operator) = program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == target_symbol)
-    {
-        return Some(operator);
-    }
-
-    let mut candidates = program.operators().iter().filter(|operator| {
-        operator_path_matches_call(program, operator, static_receiver_segments, target_name)
-            && operator_arity_fits_call(program, operator, argument_count, has_value_receiver)
-    });
-    let first = candidates.next()?;
-    candidates.next().is_none().then_some(first)
-}
-
-fn operator_path_matches_call(
-    program: &omega_typed_trees::TypedTrees,
-    operator: &omega_typed_trees::operator::OperatorDefinition,
-    static_receiver_segments: Option<&[&str]>,
-    target_name: &str,
-) -> bool {
-    let path = program.operator_path_members(operator.name);
-    let Some((last, prefix)) = path.split_last() else {
-        return false;
-    };
-    if last.as_str() != target_name {
-        return false;
-    }
-
-    match static_receiver_segments {
-        Some(segments) => {
-            prefix.len() == segments.len()
-                && prefix
-                    .iter()
-                    .zip(segments.iter())
-                    .all(|(member, segment)| member.as_str() == *segment)
-        }
-        None => true,
-    }
-}
-
-fn operator_arity_fits_call(
-    program: &omega_typed_trees::TypedTrees,
-    operator: &omega_typed_trees::operator::OperatorDefinition,
-    argument_count: usize,
-    has_value_receiver: bool,
-) -> bool {
-    let parameters = program.operator_parameters(operator);
-    let has_self = parameters.iter().any(|parameter| parameter.is_self);
-    let positional = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-
-    if has_self {
-        return has_value_receiver && positional == argument_count;
-    }
-    if has_value_receiver {
-        return positional == argument_count + 1;
-    }
-    positional == argument_count
+    omega_typed_trees::operator::resolve_named_call(
+        program,
+        target_symbol,
+        static_receiver_segments,
+        target_name,
+        argument_count,
+        has_value_receiver,
+    )
 }
 
 #[derive(Debug, Clone)]
