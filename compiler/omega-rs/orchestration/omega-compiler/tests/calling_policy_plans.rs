@@ -389,7 +389,7 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
 fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
     let source = POLICY.replace(
         "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
-        "boundary trait Tick<C>: Calling<C> {\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick::tick {\n    self.count = 1;\n}",
+        "boundary trait Tick<C>: Calling<C> {\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick<NoResultPolicy>::tick {\n    self.count = 1;\n}",
     );
     let main_path = write_program("generic-boundary-policy", &source);
     let checked = compile_to_checked(&main_path, None).expect("generic policy instance compiles");
