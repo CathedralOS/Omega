@@ -577,12 +577,17 @@ and allocation handles expose no compiler-owned stack/control storage.
   through the full 64-bit range. The compatibility `Math::fused_multiply_add`
   interpreter call now also consumes `FloatSemantics::fused_multiply_add`; its
   native/interpreter edge canary distinguishes the positive fused residual from
-  the zero produced by multiply-then-add.
-  Finish rung 1 by publishing the source-visible executable core operation
-  identities, routing the remaining FMA/classification/directed call surfaces
-  through them, and adding build-time/runtime twins for every edge family; do
-  not mistake the remaining compatibility `as` consumer for the public
-  conversion surface.
+  the zero produced by multiply-then-add. The source-visible core surface now
+  publishes pure `FloatSemantics` identities plus contracted f32/f64 boundary
+  requirements for primitive arithmetic/comparison spellings, distinct
+  multiply-then-add/FMA, classification, and directed rounding; checked
+  operator evidence pins the primitive spelling selections.
+  Finish rung 1 by routing the named FMA/classification/directed call surfaces
+  through those identities and adding build-time/runtime twins for every edge
+  family. **Language-design blocked:** the public conversion requirement names
+  and signatures are not settled anywhere in the owning brief; only the
+  negative ruling that compatibility `as` is not that surface is settled
+  (`OWNER_QUESTIONS.md` #10).
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.

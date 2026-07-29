@@ -5,6 +5,8 @@
 // interpreter agree bit-for-bit by construction (the property the task
 // named "a polynomial matching interp precision"). Exercised natively by
 // canaries/pass/calls/runtime_std_math_sin_cos_exit.
+
+use omega::language::core::float_operations;
 //
 // Shape: a binary-ladder range reduction into [-pi, pi] (conditional
 // subtraction of 2pi * 2^k -- pure compares and subtracts, no

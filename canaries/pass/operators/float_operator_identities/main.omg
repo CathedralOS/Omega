@@ -1,0 +1,30 @@
+// Importing the core float operation surface makes primitive spellings resolve
+// to named Float requirements while retaining the bootstrap native lowering.
+// Both permanent formats participate, and comparison is a separate identity
+// from arithmetic.
+
+use omega::language::core::float_operations;
+
+data Main {
+    left32: f32;
+    right32: f32;
+    sum32: f32;
+    left64: f64;
+    right64: f64;
+    quotient64: f64;
+}
+
+machine Main::main(&mut self) {
+    self.left32 = 1.5;
+    self.right32 = 2.0;
+    self.sum32 = self.left32 + self.right32;
+    self.left64 = 9.0;
+    self.right64 = 3.0;
+    self.quotient64 = self.left64 / self.right64;
+    transition self.sum32 > self.right32 && self.quotient64 == self.right64 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { }
+    state bad(&mut self) { }
+}

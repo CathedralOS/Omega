@@ -376,3 +376,37 @@ premise at open published surfaces; and make consumers discharge it explicitly
 or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
+
+## 10. What is the public numeric-conversion requirement family?
+
+The float record settles conversion semantics but not their public operation
+names or signatures. `FloatSemantics` already defines format conversion,
+integer-to-float rounding, and exact/trapping/saturating float-to-integer
+results. The language record also settles that compatibility `as` is not the
+public conversion API, that directed rounding uses separately named operations,
+and that arithmetic policies are static qualifications rather than runtime mode
+arguments. Publishing guessed names now would freeze a core API that the owning
+brief never chose.
+
+Decide:
+
+- whether destination-qualified operations such as `F32::from_f64` and
+  `I32::from_f64` are the canonical identities, or whether one generic
+  conversion requirement carries source and destination types;
+- whether exact, trapping, and saturating float-to-integer behavior is selected
+  solely from the destination qualification or appears in distinct requirement
+  identities;
+- the separately named toward-zero/toward-positive/toward-negative format and
+  integer-to-float variants, without introducing a runtime rounding-mode
+  parameter;
+- how source-visible primitive carrier requirements cite the proof-only
+  `FloatSemantics` conversion functions and integer meaning;
+- whether same-format conversion is a real identity operation or absent from
+  the requirement family; and
+- which names replace compatibility `as` in diagnostics and migration canaries.
+
+Recommendation: use destination-qualified, statically typed requirement
+identities; let the destination arithmetic-policy qualification select
+exact/trapping/saturating result adapters; keep directed rounding as separate
+operation names; and omit same-format conversion. This follows the settled
+operand-driven provider model without carrying type or policy tags at runtime.

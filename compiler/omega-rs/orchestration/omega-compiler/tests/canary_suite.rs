@@ -33957,6 +33957,88 @@ fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
     );
 }
 
+#[test]
+fn float_operator_spellings_record_named_core_identities() {
+    let canary = pass_canary("operators/float_operator_identities");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("core float operation identities should compile");
+
+    let selected_names: Vec<String> = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
+        .filter_map(|candidate| {
+            checked
+                .typed
+                .operators()
+                .iter()
+                .find(|operator| operator.symbol == candidate.operator_symbol)
+        })
+        .map(|operator| {
+            checked
+                .typed
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect();
+
+    for required in [
+        "Float::add",
+        "Float::divide",
+        "Float::greater",
+        "Float::equal",
+    ] {
+        assert!(
+            selected_names.iter().any(|name| name == required),
+            "expected primitive float spelling to select `{required}`, got {selected_names:?}"
+        );
+    }
+
+    let operator_name = |operator: &omega_typed_trees::operator::OperatorDefinition| {
+        checked
+            .typed
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::")
+    };
+    for required in [
+        "F64::fused_multiply_add",
+        "F32::classify",
+        "F64::add_toward_positive",
+    ] {
+        let operator = checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| operator_name(operator) == required)
+            .unwrap_or_else(|| panic!("missing source-visible float requirement `{required}`"));
+        assert!(
+            operator.is_boundary,
+            "`{required}` is a primitive carrier boundary requirement"
+        );
+        assert!(
+            !checked.typed.operator_contracts(operator).is_empty(),
+            "`{required}` must publish equality against FloatSemantics"
+        );
+    }
+    let semantic_fma = checked
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| operator_name(operator) == "FloatSemantics::fused_multiply_add")
+        .expect("source-visible executable FMA semantic identity");
+    assert!(
+        !semantic_fma.is_boundary,
+        "FloatSemantics is pure core computation, not a target boundary"
+    );
+}
+
 // Without a declaration, mint, or signature selection, the domain meaning is
 // inactive and the ordinary builtin operation stays selected.
 // The evidence must say so explicitly (builtin fallback), not pretend the
@@ -38615,6 +38697,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/domain_operator_overload_signature_compile",
     "operators/root_operator_overload_signature_compile",
     "operators/core_operator_spelling_surface",
+    "operators/float_operator_identities",
     "operators/slice_index_via_spelling_compile",
     "operators/accepted_core_provider_binding",
     "operators/unary_logical_not",
