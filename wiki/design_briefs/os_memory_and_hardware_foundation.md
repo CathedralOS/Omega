@@ -1057,8 +1057,10 @@ return integrity in checked Omega derives from memory safety, sufficient WCSU
 provisioning, and compiler-owned live or parked control state that ordinary
 code cannot address. Forward-edge indirect calls instead require sealed
 requirement-compatible entry references or descriptors retaining
-satisfier/contract identity; the runtime descriptor contract remains in
-`OWNER_QUESTIONS.md`.
+satisfier/contract identity. Local dynamic descriptor and object-safety
+semantics are settled in
+[chapter 14](../language_guide/chapter_14_traits.md); component boundaries use
+bindings rather than exporting local descriptors.
 
 Checked assembly cannot omit catalog-derived stack/control effects. Opaque
 providers must supply admitted `CallPlan + StatePlan` exits or remain

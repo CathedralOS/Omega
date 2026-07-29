@@ -194,12 +194,12 @@ REQUIRES REVALIDATION after the effects/suspension amendment:
 
 CRITICAL-PATH SHARPENING:
 - The IPC `many_to_one` mailbox REQUIRES atomic claim-a-slot (`fetch_add`
-  index bump + `compare_exchange` claim + a per-slot publish release-store).
+  index bump + `compare_exchange` claim + a per-slot `Publish` store).
   The RMW ops lower to real LOCK instructions on x86 (`lock xadd` /
   `lock cmpxchg`, width-dispatched 1/2/4/8; pinned by the
   runtime_atomic_fetch_add / compare_exchange / load_store canaries), so the
   mailbox's claim protocol is encodable today. load/store are plain aligned
-  movs — atomic on x86; the producer's release-store on the index is covered.
+  movs — atomic on x86; the producer's `Publish` store on the index is covered.
 
 CURRENT GAPS these docs surface:
 - **Wake-reason sum.** Park must return `Signaled | PeerDied | Revoked |

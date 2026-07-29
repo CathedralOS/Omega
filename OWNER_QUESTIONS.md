@@ -8,47 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-28.
 
-## 1. What is the portable standalone atomic-fence contract?
-
-Atomic load/store/RMW operations already name the closed C11/Rust ordering
-vocabulary and lower exactly on x86-64 and AArch64. Checked assembly separately
-exposes target instructions such as x86 `lfence`, `sfence`, and `mfence` with
-their actual instruction contracts. A portable language-level fence is still
-unsettled: its semantics belong to the cross-activation atomic memory model,
-not automatically to any same-named ISA instruction, and MMIO/DMA/device
-ordering has different participants and scope.
-
-Decide:
-
-- whether the portable operation is an ordinary intrinsic core machine such as
-  `Atomic::fence(order)`, a boundary-operator requirement, or another existing
-  operation form, without adding a statement keyword;
-- which orderings are legal (`Acquire`, `Release`, `AcqRel`, `SeqCst`, and
-  whether `Relaxed` rejects rather than spelling a no-op);
-- whether v1 has one process/system participation scope selected by the target
-  policy, or exposes an explicit scope value, and how that scope enters
-  normalized operation identity and TLA-style memory-model export;
-- how the checker relates a fence to surrounding atomic observations so it can
-  establish synchronization without pretending that a fence alone publishes
-  arbitrary ordinary memory;
-- which target policy selects the exact x86-64/AArch64 realization and evidence,
-  including legal zero-instruction acquire/release cases, without source code
-  naming target instructions; and
-- whether compiler-only ordering barriers and device/MMIO/DMA visibility
-  barriers remain separate core/provider operations with their own contracts,
-  rather than modes of the atomic fence.
-
-Recommendation: make the portable fence an ordinary compiler-known core atomic
-operation over the existing `MemoryOrdering` data. Admit
-`Acquire | Release | AcqRel | SeqCst`, reject `Relaxed`, and give v1 one
-target-policy-selected cross-activation scope rather than forecasting a scope
-hierarchy. Keep checked ISA fences available for target/provider code and keep
-device/DMA visibility plus compiler-only barriers separate. The normalized
-atomic operation records the portable order; target lowering supplies a
-validated realization, including no emitted instruction where the target
-memory model proves that sufficient.
-
-## 2. How does a foreign contract declare retained data-pointer lifetime?
+## 1. How does a foreign contract declare retained data-pointer lifetime?
 
 The extern model already distinguishes borrowed-out, borrowed-in, transferred,
 and opaque-handle pointer relationships. Borrowed-out is intentionally
@@ -92,7 +52,7 @@ range. Reuse `Extent`, external-loan, provider-admission, and quiescence
 machinery; do not infer retention from `suspends`, `blocks`, pointer shape, or
 the fact that a native function happens to return later.
 
-## 3. What is the public boundary write-frame clause spelling?
+## 2. What is the public boundary write-frame clause spelling?
 
 Omega already computes normalized body write frames and uses them to preserve
 facts across calls. Boundary requirements need an authored frame because no
@@ -126,7 +86,7 @@ the checker needs and avoids colliding with authority retention. Keep effects,
 resource consumption, foreign retention, and hardware state out of the write
 frame; they already have independent contracts.
 
-## 4. How does a domain owner delegate canonical qualification authority?
+## 3. How does a domain owner delegate canonical qualification authority?
 
 `RepresentationQualification<Q>` now opens a bodyless domain only when its
 satisfier is declared in the domain-owning package. The semantic rule also
@@ -162,7 +122,7 @@ Do not derive authority from imports, build dependency aliases, public trait
 visibility, carrier ownership, or the presence of a conformer. Until this
 surface settles, third-party canonical satisfiers must continue to fail closed.
 
-## 5. What is the normalized bounded-work plan and composition algebra?
+## 4. What is the normalized bounded-work plan and composition algebra?
 
 WCSU gives Omega a static space bound: a closed activation can reserve one
 fixed, nonmoving stack and retain it across suspension. It says nothing about
@@ -215,7 +175,7 @@ trusted as its weakest timing premise. Do not use elapsed compiler time, infer
 safe points from optimizer placement, or make build evaluation's optional
 budget policy the language's work semantics.
 
-## 6. What is the reusable hosted-FFI execution and gateway contract?
+## 5. What is the reusable hosted-FFI execution and gateway contract?
 
 An opaque native function supplies neither checked WCSU nor Omega's blocking,
 cancellation, retention, callback, and failure guarantees. A direct adapter can
@@ -266,7 +226,7 @@ abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
 
-## 7. How are claim-content projections and backing authored?
+## 6. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
 each content-bearing qualification publishes one normalized projection into
@@ -306,7 +266,7 @@ references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, and separated
 composition without executing owner-defined code.
 
-## 8. How are opaque in-process executable dependencies surfaced and refused?
+## 7. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -341,7 +301,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 9. What does contained execution failure do to outstanding obligations?
+## 8. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -372,3 +332,47 @@ Runtime teardown may discharge only obligations whose provider contract
 explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
+
+## 9. How are modular concurrency environment premises authored and discharged?
+
+Omega can derive normalized atomic events and concurrent transitions from a
+closed machine graph, but a separately compiled package cannot know which
+operations its consumers will run concurrently. Whole-program exploration alone
+therefore cannot justify a reusable protocol contract. A package must publish
+the fact it establishes together with the smallest environment premise under
+which the proof holds, and a consumer must discharge that premise when the
+package is instantiated or composed.
+
+The premise is not a restatement of the package body or a fixed thread count.
+It may constrain which public operations overlap, which atomic locations the
+environment may modify, which callback or re-entry edges exist, and which
+fairness or progress hypotheses are admitted. A finite exploration bound is
+evidence only for that bound unless an authored cutoff theorem connects it to
+the unbounded protocol.
+
+Decide:
+
+- the source surface for an open package to declare permitted concurrent
+  operations, environment writes, re-entry edges, and positive progress
+  assumptions without exposing the internal event graph;
+- which premises a checked body can infer and which must be authored at a
+  bodyless, imported, generic, dynamic, or otherwise open surface;
+- how premises compose through package calls, transparent refinements,
+  protocol wrappers, dynamic operational envelopes, and selected providers;
+- how a consumer discharges a premise from ownership, access contracts,
+  activation topology, provider receipts, or another selected protocol proof;
+- how bounded exploration records activation bounds and authored cutoff
+  evidence without promoting testing to an unbounded theorem;
+- how opaque or admitted providers retain exact trust provenance in the
+  resulting proof rather than laundering an assumption into a derived fact;
+  and
+- how diagnostics connect a failed composition site to the originating
+  package assumption and a concrete counterexample trace.
+
+Recommendation: reuse normalized machine contracts and selected-conformance
+evidence for an assume/guarantee protocol layer. Infer the smallest premise
+where the complete body and activation graph are closed; require an authored
+premise at open published surfaces; and make consumers discharge it explicitly
+or through derived composition evidence. Keep finite exploration parameters in
+the proof artifact, never in semantic contract identity unless the published
+protocol itself is deliberately bounded.

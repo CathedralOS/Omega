@@ -16,6 +16,13 @@ Documentation roles:
   decision transcripts; and
 - `OWNER_QUESTIONS.md` contains unresolved owner decisions only.
 
+Implementation-status claims name the exact landed layer: source surface,
+normalization, validation, lowering, runtime realization, or proof. Landing one
+layer never licenses describing the complete language model as implemented.
+Generated origin and checked trust, historical schema and migration coverage,
+and selected representation and authored representation law remain similarly
+distinct.
+
 Compiler architecture notes live in [Architecture](../architecture/architecture.md).
 
 Suggested reading path:

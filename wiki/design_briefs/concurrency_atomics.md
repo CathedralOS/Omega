@@ -1,6 +1,6 @@
 # Design Brief: Concurrency And Atomics
 
-Current as of 2026-07-27. This brief records the surviving concurrency model
+Current as of 2026-07-28. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
 [task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). Continuation
@@ -141,16 +141,31 @@ shared-access operation.
   contracts govern shared mutation.
 - Atomics are dedicated core types with explicit operations and orderings.
 
-Omega adopts the C11/Rust ordering vocabulary and SC-DRF model:
-`Relaxed`, `Acquire`, `Release`, `AcqRel`, and `SeqCst`. Atomic operations name
-their ordering. Source validation now treats those names as a closed vocabulary:
-loads admit `Relaxed | Acquire | SeqCst`, stores admit
-`Relaxed | Release | SeqCst`, and compare-exchange failure ordering may neither
-release nor be stronger than its success ordering. Stage-1 atomic operations
-and the memory model are landed.
-Load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/fetch_and/swap/
-compare_exchange preserve their ordering through normalized operations and
-exact x86_64/aarch64 target lowering.
+Atomic operations name one ordering from a closed, operation-checked
+vocabulary:
+
+| Ordering | Contract |
+|---|---|
+| `NoOrdering` | request no cross-operation ordering beyond the indivisible atomic access and its per-location modification order |
+| `Receive` | when the access observes a matching publication, subsequent operations may rely on what preceded that publication |
+| `Publish` | preceding operations are ordered before the publication |
+| `ReceivePublish` | receive through the read and publish through the write of one read-modify-write operation |
+| `GlobalOrder` | participate in one global order shared by every global-order atomic operation |
+
+The conventional literature calls these relaxed, acquire, release,
+acquire-release, and sequentially consistent ordering. Those terms are useful
+for target and proof references; they are not the source vocabulary. Loads
+admit `NoOrdering | Receive | GlobalOrder`, stores admit
+`NoOrdering | Publish | GlobalOrder`, and read-modify-write operations admit
+the complete vocabulary. Compare-exchange failure performs only a read, so its
+ordering may not publish and may not be stronger than the success ordering.
+
+The implemented first slice carries its ordering through normalized
+load/store/fetch-add/fetch-sub/fetch-xor/fetch-or/fetch-and/swap/
+compare-exchange operations and exact x86-64/AArch64 instruction selection.
+It does not yet constitute the formal memory model: the language relations,
+their global-order axioms, and proofs that each target mapping refines them
+remain required.
 Fetch/swap/CAS write the instruction-observed
 prior into the language result; a separate ordinary read is forbidden because
 it races the RMW. Swap is a first-class carrier rather than synthetic
@@ -172,22 +187,66 @@ lowering and returns the successful attempt's observation.
 the shared locked retry lowering on x86_64, preserving the same successful
 instruction-observation contract.
 
+`Receive` has the stronger release-consistency baseline: every target must
+realize the ordering needed by the portable source contract. An AArch64 target
+therefore uses its strong acquire instruction by default. A selected protocol
+proof may authorize the weaker processor-consistent acquire instruction when
+every additional execution it permits preserves that protocol's published
+facts. This optimization is proof-scoped: shared unspecialized code remains on
+the baseline unless its whole composition is proved.
+
+## Portable fences
+
+`Atomic::fence` is a compiler-known core operation over a dedicated
+`FenceOrdering` whose cases are `Receive | Publish | ReceivePublish`. It creates
+a normalized language event even when target refinement proves that no machine
+instruction is needed. A fence alone publishes no memory. Synchronization
+requires a qualifying atomic observation, such as a no-ordering load that
+reads from the publication store between the corresponding fences.
+
+```omega
+payload.write(42);
+Atomic::fence(Publish);
+ready.store(true, NoOrdering);
+
+if ready.load(NoOrdering) {
+    Atomic::fence(Receive);
+    use(payload);
+}
+```
+
+The checked model retains full relation names: `sequenced_before`,
+`reads_from`, `modification_order`, `synchronizes_with`, `happens_before`, and
+`global_sequential_order`. Abbreviated academic relation names are neither
+source vocabulary nor report labels. Target lowering supplies a validated
+realization of the same event; scheduler migration may affect that realization
+but never creates synchronization that source code can depend upon.
+
+Checked ISA fences, device/MMIO/DMA visibility barriers, cache maintenance,
+and asynchronous same-context ordering remain distinct facilities with their
+actual participants and contracts. Ordinary portable atomics range over
+coherent atomic memory rather than a target-selected semantic scope.
+
 Still required:
 
 - the remaining fetch-and-modify surface;
 - contention tests once concurrent activation is runnable;
-- standalone portable atomic fences and target lowering proofs
-  (**OWNER-BLOCKED:** `OWNER_QUESTIONS.md` #1). Checked ISA fences already
-  retain their target-specific instruction contracts, but they must not be
-  treated as the portable atomic-memory-model operation until its source,
-  ordering, and scope contract is settled;
+- migration of the implemented ordering names to the settled source
+  vocabulary;
+- formal atomic-access and fence axioms, including the complete global-order
+  semantics, plus mechanically checked x86-64/AArch64 target refinement;
+- normalized portable-fence operations and target lowerings;
+- proof-scoped AArch64 weaker-acquire selection after target measurements
+  justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
-- the proof model for relaxed visibility.
+- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #9.
 
 ## Proof model
 
-The checker can extract a finite model from checked machine graphs:
+The checker extracts two related models from checked machine graphs. The
+atomic-event model explores legal observations and reorderings under the
+relations above. The transition model tracks protocol state and resources:
 
 ```text
 processes = concurrently activated machine graphs
@@ -195,7 +254,13 @@ resources = task completions, locks, queues, barriers, waits, external events
 edges     = waits-for, owns, releases, unblocks
 ```
 
-The first useful obligations are structural:
+Types already establish structural invariants such as initialization,
+exclusive ownership, and claim conservation. Protocol packages may add
+semantic properties such as publication validity, linearizability, FIFO order,
+or absence of lost wakeups. A stale observation is an error only when it
+violates such a property.
+
+The first useful transition obligations are:
 
 - no task-completion cycle;
 - no lock-order cycle;
@@ -209,6 +274,13 @@ Positive progress is conditional on declared environment/provider hypotheses.
 The checker must not claim fairness for an OS primitive whose contract does not
 provide it.
 
+Finite exploration retains its activation bound and counterexample trace as
+evidence. It becomes an unbounded theorem only through an authored cutoff,
+inductive invariant, ranking argument, or equivalent proof. A separately
+compiled protocol publishes its guarantee under a normalized environment
+premise; consumers discharge that premise during composition. The source and
+composition rules for those premises remain owner question #9.
+
 ## Device and interrupt direction
 
 Device memory is a distinct capability-gated volatile/MMIO surface. Mapping a
@@ -217,8 +289,15 @@ boundary service. Authority possession and service reach are separate axes.
 
 Interrupt handlers enter through a restricted boundary/calling plan. They must
 fit ceilings that exclude forbidden suspension/blocking behavior and satisfy
-their target's reentrancy/resource rules. The exact entry and MMIO spellings
-remain open.
+their target's reentrancy/resource rules.
+
+`Atomic::interruption_fence` orders compiler-visible coherent-memory operations
+between ordinary execution and an asynchronously entered handler on the same
+execution context. It establishes neither cross-core synchronization nor
+device visibility. The operation is admitted only when installed external-root
+evidence identifies the handler, vector/signal route, execution context, and
+interruptible code relationship. Source spelling cannot assert that
+relationship; until installation supplies the evidence, the operation rejects.
 
 Architectural preemption may pause and restore opaque machine state at any
 instruction; it does not require a language safe point and does not authorize
@@ -232,7 +311,7 @@ The compiler never inserts a semantic safe point as an ordinary optimization.
 A hot non-suspending kernel may be architecturally preempted while an outer
 machine places explicit polls between bounded chunks. Maximum abstract work
 between such points depends on the normalized bounded-work plan in
-`OWNER_QUESTIONS.md` #5. Blocking creates no safe point; absent a finite wait
+`OWNER_QUESTIONS.md` #4. Blocking creates no safe point; absent a finite wait
 ceiling, semantic response is unbounded through the named blocking edge.
 
 ## Acceptance cases
@@ -256,6 +335,15 @@ ceiling, semantic response is unbounded through the named blocking edge.
     statically known call envelope.
 13. A suspending call nested inside another expression rejects; a blocking-only
     call may nest because it creates no continuation boundary.
+14. `Atomic::fence(Publish)` plus a no-ordering store synchronizes with a
+    no-ordering load plus `Atomic::fence(Receive)` only when that load
+    `reads_from` the publication store.
+15. A target may emit no instruction for a portable fence only while retaining
+    target-refinement evidence for the normalized event.
+16. `Atomic::interruption_fence` rejects without installed-root evidence for
+    the same-context asynchronous-entry relationship.
+17. Finite protocol exploration reports its activation bound and never
+    publishes an unbounded theorem without authored connecting evidence.
 
 ## Implementation and deferred design work
 
@@ -263,7 +351,7 @@ ceiling, semantic response is unbounded through the named blocking edge.
   suspension-safe loans.
 - `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
   start outcome, task/provider provenance, and child-lease accounting.
-- Normalized bounded-work plan after owner question #5.
+- Normalized bounded-work plan after owner question #4.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
 - `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general
@@ -274,4 +362,4 @@ ceiling, semantic response is unbounded through the named blocking edge.
 - Atomic remainder and formally checked target lowerings.
 - Lock-free reclamation/resource algebra frontier.
 - MMIO/volatile and interrupt-entry source surfaces.
-- TLA-style extraction and proof modes.
+- Concurrent protocol extraction, modular premises, and proof modes.
