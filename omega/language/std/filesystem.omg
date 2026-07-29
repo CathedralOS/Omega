@@ -617,7 +617,10 @@ machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: u64) -
     self.file_fd = file.fd;
     let n: i64 = self.host.read(self.file_fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -626,7 +629,10 @@ machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     self.file_fd = file.fd;
     let n: i64 = self.host.write(self.file_fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -702,7 +708,10 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
     let n: i64 = self.host.read(fd, buffer, count);
     let rc: i32 = self.host.close(fd);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -761,7 +770,10 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     self.perm_mode = (stat.value.mode as u32) & 511;
     let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
@@ -1121,7 +1133,10 @@ machine Filesystem::symlink(&mut self, target: &[u8] in Path, link: &[u8] in Pat
 machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult {
     let n: i64 = self.host.read_link(path, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
-    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: narrow_i64_to_u64_exact(n) } }
+    state ok(&mut self, n: i64) -> IoResult {
+        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+        IoResult::Ok { count: converted_count }
+    }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
