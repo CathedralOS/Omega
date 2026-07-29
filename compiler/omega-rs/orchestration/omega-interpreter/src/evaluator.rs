@@ -58,8 +58,8 @@ use crate::value::{Cell, Value};
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::bignum::BigInt;
 use omega_core::float_semantics::{
-    FloatFormat as SemanticFloatFormat, FloatMeaning, FloatSemantics, FloatToIntegerError,
-    IntegerFormat as SemanticIntegerFormat,
+    FloatClass as SemanticFloatClass, FloatFormat as SemanticFloatFormat, FloatMeaning,
+    FloatSemantics, FloatToIntegerError, IntegerFormat as SemanticIntegerFormat,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
@@ -5142,7 +5142,7 @@ impl<'program> Evaluator<'program> {
                 // consume the same executable semantic definition as build-time
                 // folding and ordinary landed arithmetic; otherwise FMA acquires
                 // a third, host-language meaning (or remains unsupported).
-                if let Some(value) = self.try_float_compatibility_value_call(target, call, frame)? {
+                if let Some(value) = self.try_float_boundary_value_call(target, call, frame)? {
                     return Ok(value);
                 }
 
@@ -5307,13 +5307,31 @@ impl<'program> Evaluator<'program> {
         Ok(value)
     }
 
-    fn try_float_compatibility_value_call(
+    fn try_float_boundary_value_call(
         &mut self,
         target: &str,
         call: &omega_typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        if !call.receiver.is_valid() || !matches!(target, "square_root" | "fused_multiply_add") {
+        if !call.receiver.is_valid() {
+            return Ok(None);
+        }
+
+        let core_format =
+            omega_typed_trees::operator::resolve_named_expression_call(self.program, call)
+                .and_then(|operator| {
+                    self.program
+                        .operator_path_members(operator.name)
+                        .first()
+                        .and_then(|namespace| match namespace.as_str() {
+                            "F32" => Some(SemanticFloatFormat::BINARY32),
+                            "F64" => Some(SemanticFloatFormat::BINARY64),
+                            _ => None,
+                        })
+                });
+        let compatibility_call =
+            core_format.is_none() && matches!(target, "square_root" | "fused_multiply_add");
+        if core_format.is_none() && !compatibility_call {
             return Ok(None);
         }
 
@@ -5322,18 +5340,52 @@ impl<'program> Evaluator<'program> {
             .expression_table
             .expression_handles(call.arguments)
             .to_vec();
-        let expected_arity = if target == "square_root" { 1 } else { 3 };
+        let expected_arity = match target {
+            "negate"
+            | "square_root"
+            | "classify"
+            | "is_finite"
+            | "is_nan"
+            | "is_infinite"
+            | "is_normal"
+            | "is_subnormal"
+            | "square_root_toward_zero"
+            | "square_root_toward_positive"
+            | "square_root_toward_negative" => 1,
+            "minimum"
+            | "maximum"
+            | "add_toward_zero"
+            | "add_toward_positive"
+            | "add_toward_negative"
+            | "subtract_toward_zero"
+            | "subtract_toward_positive"
+            | "subtract_toward_negative"
+            | "multiply_toward_zero"
+            | "multiply_toward_positive"
+            | "multiply_toward_negative"
+            | "divide_toward_zero"
+            | "divide_toward_positive"
+            | "divide_toward_negative" => 2,
+            "multiply_then_add"
+            | "fused_multiply_add"
+            | "fused_multiply_add_toward_zero"
+            | "fused_multiply_add_toward_positive"
+            | "fused_multiply_add_toward_negative" => 3,
+            _ => return Ok(None),
+        };
         if arguments.len() != expected_arity {
             return Ok(None);
         }
-        let format = if matches!(
-            self.expression_scalar_type(arguments[0], frame),
-            Some((PrimitiveType::F32, _))
-        ) {
-            SemanticFloatFormat::BINARY32
-        } else {
-            SemanticFloatFormat::BINARY64
-        };
+        let format = core_format.unwrap_or_else(|| {
+            if matches!(
+                self.expression_scalar_type(arguments[0], frame),
+                Some((PrimitiveType::F32, _))
+            ) {
+                SemanticFloatFormat::BINARY32
+            } else {
+                SemanticFloatFormat::BINARY64
+            }
+        });
         let mut operands = Vec::with_capacity(arguments.len());
         for argument in arguments {
             let value = self.eval_expression(argument, frame)?;
@@ -5349,18 +5401,153 @@ impl<'program> Evaluator<'program> {
             });
         }
 
-        let result = if target == "square_root" {
-            FloatSemantics::square_root(format, &operands[0])
-        } else {
-            FloatSemantics::fused_multiply_add(format, &operands[0], &operands[1], &operands[2])
-        };
+        let float_value =
+            |meaning: FloatMeaning| Value::Float(meaning.to_interpreter_value(format));
+        let value =
+            match target {
+                "negate" => float_value(FloatSemantics::negate(format, &operands[0])),
+                "square_root" => float_value(FloatSemantics::square_root(format, &operands[0])),
+                "multiply_then_add" => float_value(FloatSemantics::multiply_then_add(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                )),
+                "fused_multiply_add" => float_value(FloatSemantics::fused_multiply_add(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                )),
+                "minimum" => float_value(FloatSemantics::minimum(&operands[0], &operands[1])),
+                "maximum" => float_value(FloatSemantics::maximum(&operands[0], &operands[1])),
+                "classify" => {
+                    let (variant_name, negative) =
+                        match FloatSemantics::classify(format, &operands[0]) {
+                            SemanticFloatClass::NaN => ("NaN", None),
+                            SemanticFloatClass::Infinity { negative } => {
+                                ("Infinity", Some(negative))
+                            }
+                            SemanticFloatClass::Normal { negative } => ("Normal", Some(negative)),
+                            SemanticFloatClass::Subnormal { negative } => {
+                                ("Subnormal", Some(negative))
+                            }
+                            SemanticFloatClass::Zero { negative } => ("Zero", Some(negative)),
+                        };
+                    Value::Enum {
+                        type_symbol: self
+                            .find_data_by_name("FloatClass")
+                            .map(|data| data.symbol)
+                            .unwrap_or_else(SymbolHandle::invalid),
+                        variant_name: variant_name.to_owned(),
+                        payload: negative
+                            .map(|negative| {
+                                vec![("negative".to_owned(), Value::Bool(negative).cell())]
+                            })
+                            .unwrap_or_default(),
+                    }
+                }
+                "is_finite" => Value::Bool(FloatSemantics::is_finite(&operands[0])),
+                "is_nan" => Value::Bool(FloatSemantics::is_nan(&operands[0])),
+                "is_infinite" => Value::Bool(FloatSemantics::is_infinite(&operands[0])),
+                "is_normal" => Value::Bool(FloatSemantics::is_normal(format, &operands[0])),
+                "is_subnormal" => Value::Bool(FloatSemantics::is_subnormal(format, &operands[0])),
+                "add_toward_zero" => float_value(FloatSemantics::add_toward_zero(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "add_toward_positive" => float_value(FloatSemantics::add_toward_positive(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "add_toward_negative" => float_value(FloatSemantics::add_toward_negative(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "subtract_toward_zero" => float_value(FloatSemantics::subtract_toward_zero(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "subtract_toward_positive" => float_value(
+                    FloatSemantics::subtract_toward_positive(format, &operands[0], &operands[1]),
+                ),
+                "subtract_toward_negative" => float_value(
+                    FloatSemantics::subtract_toward_negative(format, &operands[0], &operands[1]),
+                ),
+                "multiply_toward_zero" => float_value(FloatSemantics::multiply_toward_zero(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "multiply_toward_positive" => float_value(
+                    FloatSemantics::multiply_toward_positive(format, &operands[0], &operands[1]),
+                ),
+                "multiply_toward_negative" => float_value(
+                    FloatSemantics::multiply_toward_negative(format, &operands[0], &operands[1]),
+                ),
+                "divide_toward_zero" => float_value(FloatSemantics::divide_toward_zero(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "divide_toward_positive" => float_value(FloatSemantics::divide_toward_positive(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "divide_toward_negative" => float_value(FloatSemantics::divide_toward_negative(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                )),
+                "square_root_toward_zero" => float_value(FloatSemantics::square_root_toward_zero(
+                    format,
+                    &operands[0],
+                )),
+                "square_root_toward_positive" => float_value(
+                    FloatSemantics::square_root_toward_positive(format, &operands[0]),
+                ),
+                "square_root_toward_negative" => float_value(
+                    FloatSemantics::square_root_toward_negative(format, &operands[0]),
+                ),
+                "fused_multiply_add_toward_zero" => {
+                    float_value(FloatSemantics::fused_multiply_add_toward_zero(
+                        format,
+                        &operands[0],
+                        &operands[1],
+                        &operands[2],
+                    ))
+                }
+                "fused_multiply_add_toward_positive" => {
+                    float_value(FloatSemantics::fused_multiply_add_toward_positive(
+                        format,
+                        &operands[0],
+                        &operands[1],
+                        &operands[2],
+                    ))
+                }
+                "fused_multiply_add_toward_negative" => {
+                    float_value(FloatSemantics::fused_multiply_add_toward_negative(
+                        format,
+                        &operands[0],
+                        &operands[1],
+                        &operands[2],
+                    ))
+                }
+                _ => return Ok(None),
+            };
 
-        // These spellings are compatibility boundary imports, so build-time
-        // evaluation must still observe the boundary touch even though their
-        // mathematical result is supplied by the shared pure engine.
+        // Carrier requirements are boundary operations, including the
+        // compatibility imports. Build-time evaluation must observe the touch
+        // even though their mathematical result comes from the shared pure
+        // engine.
         self.host_boundary_touched = true;
         self.non_fs_host_boundary_touched = true;
-        Ok(Some(Value::Float(result.to_interpreter_value(format))))
+        Ok(Some(value))
     }
 
     fn resolve_value_call_target(
@@ -6110,6 +6297,11 @@ impl<'program> Evaluator<'program> {
                 *raw, primitive, domain,
             )?)),
             Value::Float(f) if primitive == PrimitiveType::F32 => {
+                if f.is_nan() {
+                    return Ok(Value::Float(interpreter_f32_from_bits(
+                        interpreter_f32_to_bits(*f),
+                    )));
+                }
                 let meaning = FloatMeaning::from_f64(*f);
                 Ok(Value::Float(
                     FloatSemantics::convert(SemanticFloatFormat::BINARY32, &meaning)
@@ -6660,7 +6852,7 @@ impl<'program> Evaluator<'program> {
             bits |= byte << (8 * byte_index);
         }
         let assembled = match target {
-            PrimitiveType::F32 => Value::Float(f32::from_bits(bits as u32) as f64),
+            PrimitiveType::F32 => Value::Float(interpreter_f32_from_bits(bits as u32)),
             PrimitiveType::F64 => Value::Float(f64::from_bits(bits)),
             integer => Value::Int(wrap_to_width(bits as i64, integer)),
         };
@@ -6678,11 +6870,11 @@ impl<'program> Evaluator<'program> {
             .scalar_byte_size()
             .ok_or_else(|| Halt::Trap("byte-region recast target is not scalar".to_owned()))?;
         let bits = match target {
-            PrimitiveType::F32 => (value
-                .as_float()
-                .ok_or_else(|| Halt::Trap("f32 recast write is not numeric".to_owned()))?
-                as f32)
-                .to_bits() as u64,
+            PrimitiveType::F32 => interpreter_f32_to_bits(
+                value
+                    .as_float()
+                    .ok_or_else(|| Halt::Trap("f32 recast write is not numeric".to_owned()))?,
+            ) as u64,
             PrimitiveType::F64 => value
                 .as_float()
                 .ok_or_else(|| Halt::Trap("f64 recast write is not numeric".to_owned()))?
@@ -7331,13 +7523,13 @@ impl<'program> Evaluator<'program> {
         match target {
             PrimitiveType::F32 => {
                 let bits = match value {
-                    Value::Float(f) => (f as f32).to_bits(),
+                    Value::Float(f) => interpreter_f32_to_bits(f),
                     other => other
                         .as_int()
                         .ok_or_else(|| Halt::Trap("recast to f32 of non-scalar".to_owned()))?
                         as u32,
                 };
-                Ok(Value::Float(f32::from_bits(bits) as f64))
+                Ok(Value::Float(interpreter_f32_from_bits(bits)))
             }
             PrimitiveType::F64 => {
                 let bits = match value {
@@ -7355,7 +7547,7 @@ impl<'program> Evaluator<'program> {
                     // so 4-byte targets take the f32 bit pattern, 8-byte the
                     // f64's.
                     Value::Float(f) => match integer.scalar_byte_size() {
-                        Some(4) => (f as f32).to_bits() as i64,
+                        Some(4) => interpreter_f32_to_bits(f) as i64,
                         _ => f.to_bits() as i64,
                     },
                     other => other
@@ -8689,6 +8881,35 @@ fn float_to_integer_trap_message(
         FloatToIntegerError::OutOfRange => "the truncated value is out of range",
     };
     format!("float-to-int conversion failed in {operation} domain: {reason} for {target:?}")
+}
+
+/// Preserve an f32 NaN's sign and payload while carrying interpreter floats in
+/// the existing f64-backed `Value::Float`. Finite values and infinities remain
+/// ordinary numeric f64 values; only NaNs use this reversible payload embedding.
+fn interpreter_f32_from_bits(bits: u32) -> f64 {
+    let value = f32::from_bits(bits);
+    if !value.is_nan() {
+        return value as f64;
+    }
+
+    let sign = ((bits as u64) >> 31) << 63;
+    let payload = (u64::from(bits) & 0x007f_ffff) << 29;
+    f64::from_bits(sign | 0x7ff0_0000_0000_0000 | payload)
+}
+
+fn interpreter_f32_to_bits(value: f64) -> u32 {
+    if !value.is_nan() {
+        return (value as f32).to_bits();
+    }
+
+    let bits = value.to_bits();
+    let sign = ((bits >> 63) as u32) << 31;
+    let mut payload = ((bits & 0x000f_ffff_ffff_ffff) >> 29) as u32;
+    payload &= 0x007f_ffff;
+    if payload == 0 {
+        payload = 0x0040_0000;
+    }
+    sign | 0x7f80_0000 | payload
 }
 
 /// Apply a write target's arithmetic domain (decision 17) to a raw i64 result,

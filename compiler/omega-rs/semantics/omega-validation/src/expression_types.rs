@@ -313,6 +313,12 @@ fn value_class(
             };
         }
     }
+    if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
+        let machine = machine?;
+        let primitive = crate::arithmetic_domains::call_return_type(program, machine, call)
+            .and_then(|handle| program.primitive_type_reference(handle))?;
+        return Some(ValueClass::of_primitive(primitive));
+    }
     // A place RHS (`self.field`, a local) needs the machine/state to resolve its
     // declared type. Without a machine context (e.g. a data field DEFAULT, which is
     // always a literal/const), only the literal path above applies.
@@ -356,6 +362,22 @@ pub(crate) fn report_cross_class_store(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    if let ExpressionNode::Call(call) = program.expression_table.expression(value)
+        && let Some(operator) =
+            omega_typed_trees::operator::resolve_named_expression_call(program, call)
+        && let Some(source) = program.primitive_type_reference(operator.return_type)
+        && source != target
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{slot_context} stores the `{}` result of named operator `{}` into a `{}` \
+             {slot_noun}; numeric representation changes require an explicit named conversion",
+            source.name(),
+            call.target,
+            target.name(),
+        )));
+        return true;
+    }
+
     let Some((value_class, target_class)) =
         cross_class_conflict(program, machine, state, value, target)
     else {

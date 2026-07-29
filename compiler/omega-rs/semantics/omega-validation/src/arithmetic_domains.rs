@@ -2421,6 +2421,13 @@ pub(crate) fn call_return_type(
     current_machine: &Machine,
     call: &TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
+    if let Some(operator) =
+        omega_typed_trees::operator::resolve_named_expression_call(program, call)
+        && operator.return_type.is_valid()
+    {
+        return Some(operator.return_type);
+    }
+
     let receiver_is_self = !call.receiver.is_valid()
         || matches!(
             program.expression_table.expression(call.receiver),

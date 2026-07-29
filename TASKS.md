@@ -677,9 +677,13 @@ and allocation handles expose no compiler-owned stack/control storage.
   publishes pure `FloatSemantics` identities plus contracted f32/f64 boundary
   requirements for primitive arithmetic/comparison spellings, distinct
   multiply-then-add/FMA, classification, and directed rounding; checked
-  operator evidence pins the primitive spelling selections.
-  Finish rung 1 by routing the named FMA/classification/directed call surfaces
-  through those identities and adding build-time/runtime twins for every edge
+  operator evidence pins the primitive spelling selections. Named
+  F32/F64 FMA, classification, and directed-rounding value calls now resolve
+  through one ambiguity-checked operator rule shared by validation, checked
+  flow, and the interpreter; arguments and declared result formats remain
+  type-checked, unknown requirements fail closed, and the interpreter consumes
+  the shared semantics rather than host arithmetic.
+  Finish rung 1 by adding build-time/runtime twins for every remaining edge
   family. **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief; only the negative ruling that compatibility

@@ -10,15 +10,11 @@
 // performing a floating-point operation or observing an operation-produced
 // NaN payload.
 
+use omega::language::core::float_format;
+
 trait Order {
     machine before(left: Self, right: Self) -> bool;
 }
-
-// Namespace carriers for the permanent primitive-format bindings.  The
-// selected machines below operate on primitive f32/f64 values; these empty
-// carriers only provide stable qualified names for explicit selection.
-data F32 { }
-data F64 { }
 
 machine f32_total_order_key(bits: &u32) -> u32 {
     let raw: u32 in Wrapping = bits;

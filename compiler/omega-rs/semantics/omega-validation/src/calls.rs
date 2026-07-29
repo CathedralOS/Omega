@@ -4101,6 +4101,35 @@ fn validate_expression_call_bounds(
         return;
     }
 
+    if let Some(operator) =
+        omega_typed_trees::operator::resolve_named_expression_call(program, call)
+    {
+        let explicit_arguments = program.expression_table.expression_handles(call.arguments);
+        let parameters = program.operator_parameters(operator);
+        let has_self_parameter = parameters.iter().any(|parameter| parameter.is_self);
+        let mut arguments = Vec::with_capacity(explicit_arguments.len() + 1);
+        if call.receiver.is_valid()
+            && !has_self_parameter
+            && parameters.len() == explicit_arguments.len() + 1
+        {
+            arguments.push(call.receiver);
+        }
+        arguments.extend_from_slice(explicit_arguments);
+        validate_call_arguments_handles(
+            program,
+            current_machine,
+            Some(current_state),
+            value_env,
+            &arguments,
+            call.target.as_str(),
+            parameters,
+            None,
+            writable_roots,
+            diagnostics,
+        );
+        return;
+    }
+
     // Resolve the receiver: is this a self-call, and if not, the name of the
     // receiver object (field/local). A self-call has no receiver (`call.receiver`
     // invalid) or an explicit `self`. A `Name`-path receiver names the object via
@@ -4904,6 +4933,12 @@ fn report_unresolved_value_call(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let target = call.target.as_str();
+    // Named operators are callable requirements too. Use the same exact-symbol
+    // or unique path+arity resolution as checked-flow analysis; a leaf spelling
+    // alone is never enough to suppress this fail-closed fence.
+    if omega_typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+        return;
+    }
     let Some(receiver) = receiver_name else {
         // Receiverless: the three machine channels missed; only the reserved
         // value builtins remain. `asm#port_in` is the value-position asm

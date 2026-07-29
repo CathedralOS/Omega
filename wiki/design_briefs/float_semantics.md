@@ -141,6 +141,9 @@ now defines named classification, correctly rounded square root, float/integer
 and format conversions, and explicit directed-rounding variants. The
 interpreter consumes the shared square-root and conversion definitions,
 including full unsigned-64 bounds and the settled saturating/trapping edges.
+Its f64-backed runtime value carrier preserves f32 NaN sign and payload through
+typed landing and raw-bit recasts, so the proof projection can erase payloads
+without corrupting representation-sensitive consumers such as `F32::TotalOrder`.
 Backend guard-constant folding consumes the same functions rather than host
 floating arithmetic followed by a width cast.
 The compatibility x86-64 lowering uses a sticky-half-then-double sequence for
@@ -155,12 +158,15 @@ the interpreter are pinned by an edge where fused evaluation leaves a positive
 primitive arithmetic/comparison spellings, distinct multiply-then-add/FMA,
 classification, and directed rounding. Checked operator evidence records the
 selected primitive identities while hardcoded instruction selection remains
-the bootstrap realization. Routing the remaining named
-FMA/classification/directed call surfaces and adding their build-time/runtime
-twins remain part of this first F7 rung. The legacy `as` evaluator path is only
-a compatibility consumer; exact public conversion requirement names and
-signatures remain a language-design blocker because the settled record excludes
-`as` without selecting its replacement surface.
+the bootstrap realization. Named F32/F64 FMA, classification, and directed
+rounding calls now use the same unique path-and-arity resolution in validation,
+checked flow, and the interpreter. The call boundary checks argument and result
+types, unknown names remain rejected, and executable results come from
+`FloatSemantics`. Adding the remaining build-time/runtime twins remains part
+of this first F7 rung. The legacy `as` evaluator path is only a compatibility
+consumer; exact public float-conversion requirement names and signatures remain
+a language-design blocker because the settled record excludes `as` without
+selecting its replacement surface.
 
 ## 2. Domains: the value/policy split
 

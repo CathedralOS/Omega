@@ -99,11 +99,15 @@ shared fused definition, with a native/interpreter edge pair that would become
 zero if the operation were incorrectly split into multiply-then-add.
 The core module now publishes source-visible pure `FloatSemantics` identities
 and contracted f32/f64 carrier requirements for arithmetic/comparison,
-multiply-then-add/FMA, classification, and directed rounding. Remaining named
-call-surface routing and constant/runtime twin canaries still precede
-completion. The exact public conversion requirement family is a language-design
-blocker: the settled record excludes compatibility `as` but does not choose the
-replacement names or signatures.
+multiply-then-add/FMA, classification, and directed rounding. Named F32/F64
+FMA, classification, and directed-rounding calls now share one
+ambiguity-checked resolver across validation, checked flow, and the interpreter,
+which evaluates them through `FloatSemantics`; argument and result types remain
+checked and unknown requirements reject. Constant/runtime twin canaries for the
+remaining edge families still precede completion. The exact public
+float-conversion requirement family is a language-design blocker: the settled
+record excludes compatibility `as` but does not choose the replacement names
+or signatures.
 
 ## Admission uses the complete invocation contract
 
