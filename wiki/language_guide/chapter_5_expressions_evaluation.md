@@ -437,8 +437,12 @@ Two rules keep it honest:
 > integer-looking casts only qualify or forget a same-carrier arithmetic
 > policy. A store-enforced Exact local range can prove an exact conversion
 > precondition, but a broader declaration cannot. Nested conversion calls keep
-> enclosing parameter substitutions even through compiler-elided locals and
-> `min`/`max`/`clamp` expressions. The domain model
+> enclosing parameter substitutions through compiler-elided scalar locals and
+> `min`/`max`/`clamp` expressions without re-expanding aggregate or value-call
+> result locals that own runtime materialization. The legacy
+> `arithmetic/runtime_integer_casts_exit` fixture deliberately retains numeric
+> `as` because its cast-initializer/transition-parameter shape is compatibility
+> lowering coverage, not an unmigrated library consumer. The domain model
 > reserves qualification `as` for changing static facts without changing
 > carrier, payload, or runtime work.
 

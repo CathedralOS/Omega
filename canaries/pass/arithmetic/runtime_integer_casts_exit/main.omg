@@ -1,14 +1,13 @@
-// Named integer width/sign conversions -- a classic codegen bug source
-// (sign-extend vs zero-extend vs truncate). Locks all four behaviors:
-//   - i8(-5)  -> i32  = -5      (SIGN-extend: negative preserved)
-//   - u8(200) -> i32  = 200     (ZERO-extend: no spurious sign)
-//   - i32(300) -> wrapping u8 = 44 (NARROW: truncate to low 8 bits)
-//   - i32(-7) -> i64  = -7      (WIDEN signed)
-//   - i16(-1) -> wrapping u16 -> u32 = 65535
+// Integer width/sign CASTS -- a classic codegen bug source (sign-extend vs
+// zero-extend vs truncate). Locks all four behaviors:
+//   - i8(-5)  as i32  -> -5      (SIGN-extend: negative preserved)
+//   - u8(200) as i32  -> 200     (ZERO-extend: no spurious sign)
+//   - i32(300) as u8  -> 44      (NARROW: truncate to low 8 bits)
+//   - i32(-7) as i64  -> -7      (WIDEN signed)
+//   - i16(-1) as u16 as u32 -> 65535  (reinterpret with the sign bit set, then widen)
 // Exits 70.
 
 use omega::language::std::console;
-use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -16,20 +15,16 @@ data Main {
 
 machine Main::main(&mut self) {
     let a8: i8 = -5;
-    let aw: i32 in Trapping =
-        widen_i8_to_i32(a8) as i32 in Trapping;
+    let aw: i32 in Trapping = a8 as i32;
     let b8: u8 = 200;
-    let bw: i32 in Trapping =
-        widen_u8_to_i32(b8) as i32 in Trapping;
+    let bw: i32 in Trapping = b8 as i32;
     let c32: i32 in Wrapping = 300;
-    let cn: u8 = narrow_i32_to_u8_wrapping(c32);
+    let cn: u8 = c32 as u8;
     let d32: i32 in Trapping = -7;
-    let dw: i64 in Trapping =
-        widen_i32_to_i64(d32) as i64 in Trapping;
+    let dw: i64 in Trapping = d32 as i64;
     let e16: i16 = -1;
-    let eu: u16 = narrow_i16_to_u16_wrapping(e16);
-    let ew: u32 in Trapping =
-        widen_u16_to_u32(eu) as u32 in Trapping;
+    let eu: u16 = e16 as u16;
+    let ew: u32 in Trapping = eu as u32;
 
     transition aw == -5 { true -> ck2(bw, cn, dw, ew) _ -> bad() }
 

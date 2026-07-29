@@ -98,10 +98,15 @@
 > width/signedness conversion; residual casts there are same-carrier policy
 > qualification or forgetting. Exact ranged locals supply call-contract
 > interval proofs, while broader declarations do not. Runtime branching
-> substitutes compiler-elided local initializers before enclosing parameter
-> aliases and follows cast/call structure; scalar classification recognizes
-> the `min`/`max` tree produced by `clamp`. Duration constructors and division,
-> clock/sleep, cross-target, and filesystem-time canaries retain the result.
+> substitutes compiler-elided scalar local initializers before enclosing
+> parameter aliases and follows cast/call structure; aggregate and value-call
+> result locals keep their dedicated runtime materialization. Scalar
+> classification recognizes the `min`/`max` tree produced by `clamp`. Duration
+> constructors and division, clock/sleep, cross-target, and filesystem-time
+> canaries retain the result.
+> `arithmetic/runtime_integer_casts_exit` intentionally remains on compatibility
+> `as`: it pins the legacy cast-initializer/transition-parameter lowering shape
+> until that surface is retired, independently of the named conversion cohort.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

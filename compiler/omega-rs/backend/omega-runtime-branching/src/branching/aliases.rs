@@ -217,6 +217,29 @@ fn resolve_elided_source_local_expression_handle(
             let Some((local_index, local)) = matched else {
                 return expression;
             };
+            // Aggregate locals have their own field/result materialization
+            // routes. Substituting a struct or sum initializer here bypasses
+            // those routes and loses by-value argument/result fields.
+            if context
+                .program
+                .primitive_type_reference(local.type_reference)
+                .is_none()
+            {
+                return expression;
+            }
+            // A bare value-call local may be absent from StateStorage while
+            // still owning a RuntimeStorage call-result slot. Re-expanding its
+            // initializer would execute or read the call in the wrong branch
+            // context. Compiler builtins such as the min/max tree behind
+            // `clamp` do not enter StateCallPlan, so genuinely elided scalar
+            // builtin locals remain substitutable.
+            if context
+                .state_calls
+                .assignment_value_call(source_key, local_index)
+                .is_some()
+            {
+                return expression;
+            }
             // Locals represented by the state-storage plan have a runtime
             // identity. Only substitute locals elided from that plan: these are
             // fold-only aliases whose name otherwise cannot resolve in a
