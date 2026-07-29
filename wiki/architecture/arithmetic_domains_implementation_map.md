@@ -40,6 +40,78 @@
 > named width/float conversion operations are introduced. Arithmetic policies
 > remain a closed semantic role: attaching one is erased, while conversion and
 > later arithmetic carry runtime work.
+>
+> **Integer-conversion checkpoint (2026-07-28).** Every fixed-width integer pair
+> is live in `core::numeric_conversion`: widening only for complete range
+> containment, and Exact/Wrapping/Saturating/Trapping narrowing otherwise.
+> Cross-signed naming follows representability rather than bit width, so a
+> signed-to-wider-unsigned conversion is still narrowing because it excludes
+> negatives. Exact is contract-gated; saturation clamps the conversion itself;
+> trapping is a runtime event; and every result carries ordinary Exact
+> arithmetic. Checked-result narrowing remains design-open; float/integer
+> named operations and retirement of compatibility numeric `as` remain. The
+> first migration cohort covers indexed operands, guard subjects, comparisons,
+> bitwise operands, entry results, 16-bit conversions, and signed/unsigned
+> extension. A second cohort covers decimal/binary formatting, decimal parsing,
+> FNV hashing, CRC-32, and direct indexed byte writes, with trapping versus
+> wrapping narrowing selected by the algorithm. A value-machine call directly
+> beneath a value cast or
+> qualification is now normalized through a synthetic local, so an indexed
+> conversion may be requalified inline inside arithmetic without consuming the
+> call scratch slot instead of the delivered result. The user-facing
+> `width_mixer`, `array_sum`, `format_number`, `print_number`,
+> `multiplication_table`, `prime_sieve`, and `maze_flood` samples now use the
+> named surface. A follow-on sweep migrated every remaining runtime integer
+> width/signedness conversion in `samples/`; residual integer-looking casts
+> there are same-carrier policy qualification or a same-type wire-policy
+> compatibility spelling. Because conversion operations are ordinary calls,
+> the proof and indexed-range paths consult exact R5 write frames:
+> pure/disjoint calls preserve unrelated dominating guards, while opaque or
+> overlapping frames still invalidate them. The active PRNG canary cohort now
+> names wrapping high-word extraction as well. Runtime branch alias resolution
+> follows binary/member argument structure and substitutes its bare parameter
+> root, preventing a nested conversion in a mutating value machine from reading
+> an unused cloned parameter slot; a focused native canary retains that fix.
+> The filesystem consumer cohort now names raw-stat `u8` widening across 15
+> native macOS canaries, both filesystem-to-time interop legs, and the Windows
+> SetFileTime round trip. The cast-field payload regression now uses the same
+> named widening for its raw byte-assembly setup while retaining the final
+> payload `mode as u32` that it specifically exists to pin. All 19 reach checked
+> trees, and the full native filesystem/GUI suite remains green. Guarded
+> nonnegative host counts now use named exact narrowing across the portable and
+> target-specific filesystem rows; incoming transition arguments rebind the
+> nested conversion contract in checked proof. Each converted count is
+> materialized under a payload-distinct local name before enum construction;
+> the dynamic native canary and all 88 native filesystem/GUI rows retain the
+> delivered count. Target timestamp byte encoders, directory-walk host/count
+> conversion, Windows attribute decoding, and portable stat projection now use
+> named conversion operations. Remaining filesystem `as` spellings are
+> same-carrier Wrapping qualification, target-owned boolean-to-foreign-bit
+> encoding, or compatibility-specific lowering shapes. The fixture exposed and
+> now pins the backend repair: branch-expanded storage reserves every
+> assignment-value call ordinal; leaf-only nested call trees are selectable
+> root scopes; top-level
+> `Machine::entry` call results match their machine name; and only a bare-call
+> local initializer is satisfied by a direct result copy. Embedded calls
+> materialize their own result slots before the complete enclosing expression
+> is lowered. The `std::time` cohort now names every runtime integer
+> width/signedness conversion; residual casts there are same-carrier policy
+> qualification or forgetting. Exact ranged locals supply call-contract
+> interval proofs, while broader declarations do not. Runtime branching
+> substitutes compiler-elided scalar local initializers before enclosing
+> parameter aliases and follows cast/call structure; aggregate and value-call
+> result locals keep their dedicated runtime materialization. Scalar
+> classification recognizes the `min`/`max` tree produced by `clamp`. Duration
+> constructors and division, clock/sleep, cross-target, and filesystem-time
+> canaries retain the result.
+> `arithmetic/runtime_integer_casts_exit` intentionally remains on compatibility
+> `as`: it pins the legacy cast-initializer/transition-parameter lowering shape
+> until that surface is retired, independently of the named conversion cohort.
+> The macOS GUI provider now widens framebuffer dimensions into its Core
+> Graphics `i64` staging fields and explicitly wrapping-narrows the raw
+> Objective-C liveness result. Its residual numeric casts are all float
+> conversions reserved for F7, and the native provider/sample rows retain the
+> integer behavior.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

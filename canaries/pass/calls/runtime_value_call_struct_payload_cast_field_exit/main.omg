@@ -5,12 +5,15 @@
 // field failed every strategy and SILENTLY dropped while its 15 siblings
 // landed: the payload arrived with meta.mode == 0 (exit 74) and the delivery
 // still reported success. Locals are assembled from const-indexed byte reads
-// of a self buffer (little-endian shift-or chains) exactly like the fs stat
-// decode, so the values are genuinely runtime.
+// of a self buffer (named widening plus little-endian shift-or chains) exactly
+// like the fs stat decode, so the values are genuinely runtime. The final
+// `mode as u32` deliberately remains: it is the cast-valued payload field this
+// compatibility regression exists to pin.
 //
 // exit 70 = full payload; 71 = wrong tag; 72 = len lost; 73 = tail field lost;
 // 74 = the cast-valued mode field lost (the regression this canary pins).
 
+use omega::language::core::numeric_conversion;
 use omega::language::std::console;
 
 data Big [copy] {
@@ -46,24 +49,24 @@ machine Probe::make(&mut self) -> BigResult {
     transition self.rc == 0 { true -> mk_ok() _ -> mk_err() }
     state mk_err(&mut self) -> BigResult { BigResult::Error { kind: 7 } }
     state mk_ok(&mut self) -> BigResult {
-        let len: i64 = (self.buf[96] as i64)
-            | ((self.buf[97] as i64) << 8)
-            | ((self.buf[98] as i64) << 16)
-            | ((self.buf[99] as i64) << 24);
-        let mode: i32 = (self.buf[4] as i32) | ((self.buf[5] as i32) << 8);
-        let nlink: u64 = (self.buf[6] as u64) | ((self.buf[7] as u64) << 8);
-        let ino: u64 = (self.buf[8] as u64) | ((self.buf[9] as u64) << 8);
-        let uid: u32 = (self.buf[16] as u32) | ((self.buf[17] as u32) << 8);
-        let gid: u32 = (self.buf[20] as u32) | ((self.buf[21] as u32) << 8);
-        let dev: u64 = (self.buf[0] as u64) | ((self.buf[1] as u64) << 8);
-        let rdev: u64 = (self.buf[24] as u64) | ((self.buf[25] as u64) << 8);
-        let ctime: i64 = (self.buf[64] as i64) | ((self.buf[65] as i64) << 8);
-        let blocks: u64 = (self.buf[104] as u64) | ((self.buf[105] as u64) << 8);
-        let blksize: u64 = (self.buf[112] as u64) | ((self.buf[113] as u64) << 8);
+        let len: i64 = widen_u8_to_i64(self.buf[96])
+            | (widen_u8_to_i64(self.buf[97]) << 8)
+            | (widen_u8_to_i64(self.buf[98]) << 16)
+            | (widen_u8_to_i64(self.buf[99]) << 24);
+        let mode: i32 = widen_u8_to_i32(self.buf[4]) | (widen_u8_to_i32(self.buf[5]) << 8);
+        let nlink: u64 = widen_u8_to_u64(self.buf[6]) | (widen_u8_to_u64(self.buf[7]) << 8);
+        let ino: u64 = widen_u8_to_u64(self.buf[8]) | (widen_u8_to_u64(self.buf[9]) << 8);
+        let uid: u32 = widen_u8_to_u32(self.buf[16]) | (widen_u8_to_u32(self.buf[17]) << 8);
+        let gid: u32 = widen_u8_to_u32(self.buf[20]) | (widen_u8_to_u32(self.buf[21]) << 8);
+        let dev: u64 = widen_u8_to_u64(self.buf[0]) | (widen_u8_to_u64(self.buf[1]) << 8);
+        let rdev: u64 = widen_u8_to_u64(self.buf[24]) | (widen_u8_to_u64(self.buf[25]) << 8);
+        let ctime: i64 = widen_u8_to_i64(self.buf[64]) | (widen_u8_to_i64(self.buf[65]) << 8);
+        let blocks: u64 = widen_u8_to_u64(self.buf[104]) | (widen_u8_to_u64(self.buf[105]) << 8);
+        let blksize: u64 = widen_u8_to_u64(self.buf[112]) | (widen_u8_to_u64(self.buf[113]) << 8);
         let is_dir: bool = (mode & 61440) == 16384;
-        let mtime: i64 = (self.buf[48] as i64) | ((self.buf[49] as i64) << 8);
-        let atime: i64 = (self.buf[32] as i64) | ((self.buf[33] as i64) << 8);
-        let btime: i64 = (self.buf[80] as i64) | ((self.buf[81] as i64) << 8);
+        let mtime: i64 = widen_u8_to_i64(self.buf[48]) | (widen_u8_to_i64(self.buf[49]) << 8);
+        let atime: i64 = widen_u8_to_i64(self.buf[32]) | (widen_u8_to_i64(self.buf[33]) << 8);
+        let btime: i64 = widen_u8_to_i64(self.buf[80]) | (widen_u8_to_i64(self.buf[81]) << 8);
         BigResult::Ok { meta: Big { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
 }

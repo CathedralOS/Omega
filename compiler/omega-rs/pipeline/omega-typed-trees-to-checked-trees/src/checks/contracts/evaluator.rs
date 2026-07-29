@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use omega_checked_trees::{FlowCallFact, FlowStateFact};
 use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 
@@ -24,9 +25,17 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     else {
         return false;
     };
+    let Some(caller_machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+    else {
+        return false;
+    };
 
     ContractExpressionEvaluator {
         program,
+        caller_machine,
         caller_state,
         statement_index: call_flow.statement_index,
         call_site,
@@ -41,6 +50,7 @@ pub(super) fn call_site_proves_boolean_contract_expression(
 
 pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     program: &'program omega_typed_trees::TypedTrees,
+    caller_machine: &'program Machine,
     caller_state: &'program State,
     statement_index: usize,
     call_site: &'call crate::CallSite<'program>,

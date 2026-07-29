@@ -1337,6 +1337,49 @@ pub(super) fn classify_scalar_value_type_in_table(
             );
             combine_binary_operand_scalar_types(left, right)
         }
+        // Numeric builtins (`min`, `max`, and the nested form produced by
+        // `clamp`) preserve their operands' scalar type. They can surface here
+        // after a compiler-elided local initializer is substituted into a
+        // nested named conversion call.
+        ExpressionNode::Call(call)
+            if crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_call_operator_in_table(
+                input, call,
+            )
+            .is_some() =>
+        {
+            let left = expressions.expression_handle_at_offset(call.arguments, 0);
+            let right = expressions.expression_handle_at_offset(call.arguments, 1);
+            combine_binary_operand_scalar_types(
+                classify_scalar_value_type_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    left,
+                ),
+                classify_scalar_value_type_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    right,
+                ),
+            )
+        }
+        ExpressionNode::Call(call)
+            if crate::selection::runtime_dispatch::writes::mutation::builtin_runtime_unary_call_operator_in_table(
+                input, call,
+            )
+            .is_some() =>
+        {
+            classify_scalar_value_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                expressions.expression_handle_at_offset(call.arguments, 0),
+            )
+        }
         // A nested cast (`(self.src as f64) as i32` after `wide` is folded into
         // the outer cast) has the type of its TARGET. Without this, the outer
         // cast's source-width re-derivation returned None and the entire write

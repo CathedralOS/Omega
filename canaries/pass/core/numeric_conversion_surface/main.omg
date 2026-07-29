@@ -1,0 +1,69 @@
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let exact: u8 = narrow_u16_to_u8_exact(250);
+    let wrapping: u8 = narrow_u16_to_u8_wrapping(300);
+    let saturating: u8 = narrow_u16_to_u8_saturating(300);
+    let trapping: u8 = narrow_u16_to_u8_trapping(70);
+    let widened: u16 = widen_u8_to_u16(200);
+    let exact_u32: u32 = narrow_u64_to_u32_exact(500000000);
+
+    transition exact == 250 {
+        true -> check_wrapping(wrapping, saturating, trapping, widened, exact_u32)
+        _ -> fail_exact()
+    }
+
+    state check_wrapping(&mut self, wrapping: u8, saturating: u8,
+                         trapping: u8, widened: u16, exact_u32: u32) {
+        transition wrapping == 44 {
+            true -> check_saturating(saturating, trapping, widened, exact_u32)
+            _ -> fail_wrapping()
+        }
+    }
+
+    state check_saturating(&mut self, saturating: u8,
+                           trapping: u8, widened: u16, exact_u32: u32) {
+        transition saturating == 255 {
+            true -> check_trapping(trapping, widened, exact_u32)
+            _ -> fail_saturating()
+        }
+    }
+
+    state check_trapping(&mut self, trapping: u8, widened: u16, exact_u32: u32) {
+        transition trapping == 70 {
+            true -> check_widened(widened, exact_u32)
+            _ -> fail_trapping()
+        }
+    }
+
+    state check_widened(&mut self, widened: u16, exact_u32: u32) {
+        transition widened == 200 {
+            true -> check_exact_u32(exact_u32)
+            _ -> fail_widened()
+        }
+    }
+
+    state check_exact_u32(&mut self, exact_u32: u32) {
+        transition exact_u32 == 500000000 {
+            true -> good()
+            _ -> fail_exact_u32()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_exact(&mut self) { self.console.exit_process(81); }
+    state fail_wrapping(&mut self) { self.console.exit_process(82); }
+    state fail_saturating(&mut self) { self.console.exit_process(83); }
+    state fail_trapping(&mut self) { self.console.exit_process(84); }
+    state fail_widened(&mut self) { self.console.exit_process(85); }
+    state fail_exact_u32(&mut self) { self.console.exit_process(86); }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

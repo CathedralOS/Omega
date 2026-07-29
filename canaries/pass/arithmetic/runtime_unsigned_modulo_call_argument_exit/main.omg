@@ -16,6 +16,8 @@
 // remainder misfire (second event dispatched to the enemy/bat arm). Exit 1:
 // any other stream.
 
+use omega::language::core::numeric_conversion;
+
 data RandomState {
     seed: u64 in Wrapping;
 }
@@ -30,7 +32,7 @@ machine Random::next_u32(
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
 
     transition {
-        _ -> ((state.seed >> 32) as u32)
+        _ -> (narrow_u64_to_u32_wrapping(state.seed >> 32))
     }
 }
 
@@ -114,7 +116,7 @@ machine Main::main(&mut self) -> i32 {
         // The final seed identifies the exact draw count: 3 LCG steps from 7
         // land on hi32 3893713506, a fourth (the misfired bat draw) on
         // hi32 1171437346.
-        let hi: u32 = ((random.seed >> 32) as u32);
+        let hi: u32 = narrow_u64_to_u32_wrapping(random.seed >> 32);
 
         transition {
             hi == 3893713506 -> three_draws()

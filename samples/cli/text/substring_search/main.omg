@@ -16,6 +16,7 @@ domain [u8; 8]::Utf8 {
     valid_utf8(self);
 }
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -81,7 +82,7 @@ machine Main::main(&mut self) {
         transition { _ -> inner() }
     }
     state matched(&mut self) {
-        self.found = self.i as i32;
+        self.found = narrow_u32_to_i32_trapping(self.i) as i32 in Wrapping;
         transition { _ -> done() }
     }
     state mismatch(&mut self) {

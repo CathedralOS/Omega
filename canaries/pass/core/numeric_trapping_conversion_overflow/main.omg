@@ -1,0 +1,13 @@
+// A trapping conversion is an explicit runtime event. An out-of-range source
+// must trap inside the named conversion before the caller reaches exit 7.
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let converted: u8 = narrow_u16_to_u8_trapping(300);
+    self.console.exit_process(7);
+}

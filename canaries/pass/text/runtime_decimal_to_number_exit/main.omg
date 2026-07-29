@@ -6,6 +6,7 @@
 // runtime_number_to_decimal_exit's writes). Exits 70.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8 {
     valid_utf8(self);
@@ -36,7 +37,7 @@ machine Main::main(&mut self) {
         transition { _ -> accumulate() }
     }
     state accumulate(&mut self) {
-        self.dval = self.byte as u32 in Wrapping;
+        self.dval = widen_u8_to_u32(self.byte) as u32 in Wrapping;
         self.dval = self.dval - 48;
         self.n = self.n * 10 + self.dval;
         self.i = self.i + 1;

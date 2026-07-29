@@ -10,6 +10,7 @@
 // is computed and the true arm dispatches (interpreter semantics); exit 71 =
 // the result-slot write was lost and the false arm ran.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -63,7 +64,7 @@ machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
     state.calls = state.calls + 1;
 
     transition {
-        _ -> ((state.seed >> 32) as u32)
+        _ -> (narrow_u64_to_u32_wrapping(state.seed >> 32))
     }
 }
 

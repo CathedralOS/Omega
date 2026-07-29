@@ -399,15 +399,55 @@ Two rules keep it honest:
   qualification or first weaken the Wrapping operand to Exact. Explicit always
   wins.
 
-> **Conversion migration.** The implemented surface currently uses `as` for
-> numeric width and float-to-integer conversion as well as for unchanged-value
-> domain qualification. The domain model reserves qualification `as` for
-> changing static facts without changing carrier, payload, or runtime work.
-> Width, float/integer, and unit conversion therefore move to named contracted
-> operations. Narrowing names its trapping, saturating, wrapping, or
-> checked-result policy explicitly. Existing examples below retain the
-> compatibility spelling until those core operations and the corpus migration
-> land.
+> **Conversion migration.** Every fixed-width integer pair now has named
+> ordinary machines in `core::numeric_conversion`. Widening names only
+> range-containing conversions. Every other pair—including signed-to-wider-
+> unsigned conversion, whose target excludes negatives—uses Exact, Wrapping,
+> Saturating, or Trapping narrowing. Exact carries a proven representability
+> contract, and every result returns to ordinary Exact arithmetic.
+> Checked-result narrowing remains design-open in the appendix; float/integer
+> conversion and the not-yet-migrated corpus still use compatibility `as` while
+> their named operations land. The migrated integer cohort covers guard,
+> comparison, bitwise, entry-result, indexed-operand, and signedness-sensitive
+> lowering shapes plus decimal/binary formatting, decimal parsing, hashing, and
+> checksums. Representative CLI samples now exercise named widening and
+> trapping conversion as user-facing code, and the sample corpus no longer uses
+> compatibility `as` for runtime integer width/signedness conversion. Residual
+> integer-looking spellings are same-carrier qualification (plus a same-type
+> wire-policy compatibility spelling). A resolved pure or disjoint conversion
+> call preserves unrelated dominating range facts; an opaque call or a frame
+> that overlaps the guarded place invalidates them. PRNG consumers use named
+> wrapping narrowing for high-word extraction; nested conversion arguments
+> retain caller alias substitution through binary/member expressions instead
+> of reading an unmaterialized callee parameter slot. Filesystem metadata
+> consumers likewise use named widening for raw-stat byte decodes, including
+> the byte-assembly setup of the cast-field compatibility regression; that
+> fixture retains only the final cast-valued field it exists to test.
+> Nonnegative signed host counts now use named exact narrowing after their
+> dominating guards, including target-specific positioned I/O; nested call
+> contract proof rebinds the target-state parameter through the incoming
+> transition argument. The converted count is materialized under a distinct
+> local name before enum construction, preserving the payload through native
+> lowering. Target timestamp byte encoders, POSIX directory counters/record
+> decoders, Windows attribute decoding, and portable stat width extensions now
+> use the named integer surface as well. Residual filesystem `as` spellings are
+> same-carrier Wrapping qualification, target-owned boolean-to-foreign-bit
+> encoding, or a compatibility-specific lowering shape. `std::time` likewise
+> names every runtime integer width/signedness conversion; its remaining
+> integer-looking casts only qualify or forget a same-carrier arithmetic
+> policy. A store-enforced Exact local range can prove an exact conversion
+> precondition, but a broader declaration cannot. Nested conversion calls keep
+> enclosing parameter substitutions through compiler-elided scalar locals and
+> `min`/`max`/`clamp` expressions without re-expanding aggregate or value-call
+> result locals that own runtime materialization. The legacy
+> `arithmetic/runtime_integer_casts_exit` fixture deliberately retains numeric
+> `as` because its cast-initializer/transition-parameter shape is compatibility
+> lowering coverage, not an unmigrated library consumer. The domain model
+> reserves qualification `as` for changing static facts without changing
+> carrier, payload, or runtime work.
+> `std::macos_gui` likewise names its `u32`-to-`i64` framebuffer widening and
+> wrapping `u64`-to-`u32` foreign-result narrowing. Its remaining numeric casts
+> are integer-to-float conversions awaiting the F7 named surface.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.

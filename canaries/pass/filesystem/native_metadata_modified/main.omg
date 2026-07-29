@@ -5,6 +5,7 @@
 // i64 byte-assembly + comparison on real macOS syscalls.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -27,14 +28,14 @@ machine Main::main(&mut self) {
     self.n = self.fs.remove("/tmp/omega_mtime.txt");
     transition self.rc == 0 { true -> decode() _ -> fail() }
     state decode(&mut self) {
-        self.mtime = (self.buffer[48] as i64)
-            | ((self.buffer[49] as i64) << 8)
-            | ((self.buffer[50] as i64) << 16)
-            | ((self.buffer[51] as i64) << 24)
-            | ((self.buffer[52] as i64) << 32)
-            | ((self.buffer[53] as i64) << 40)
-            | ((self.buffer[54] as i64) << 48)
-            | ((self.buffer[55] as i64) << 56);
+        self.mtime = widen_u8_to_i64(self.buffer[48])
+            | (widen_u8_to_i64(self.buffer[49]) << 8)
+            | (widen_u8_to_i64(self.buffer[50]) << 16)
+            | (widen_u8_to_i64(self.buffer[51]) << 24)
+            | (widen_u8_to_i64(self.buffer[52]) << 32)
+            | (widen_u8_to_i64(self.buffer[53]) << 40)
+            | (widen_u8_to_i64(self.buffer[54]) << 48)
+            | (widen_u8_to_i64(self.buffer[55]) << 56);
         transition self.mtime > self.floor { true -> good() _ -> fail() }
     }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: stat decodes a real st_mtime (> 2001)\n"); }

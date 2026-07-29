@@ -1,0 +1,30 @@
+use omega::language::core::numeric_conversion;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let host_count: i64 = 32;
+    transition host_count >= 0 {
+        true -> convert(host_count)
+        _ -> fail()
+    }
+
+    state convert(&mut self, count: i64) {
+        let converted: u64 = narrow_i64_to_u64_exact(count);
+        transition converted == 32 {
+            true -> pass()
+            _ -> fail()
+        }
+    }
+
+    state pass(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}

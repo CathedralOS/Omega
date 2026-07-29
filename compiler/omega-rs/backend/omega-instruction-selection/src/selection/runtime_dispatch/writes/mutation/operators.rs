@@ -34,7 +34,7 @@ pub(super) fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateG
     }
 }
 
-pub(super) fn builtin_runtime_call_operator_in_table(
+pub(in crate::selection) fn builtin_runtime_call_operator_in_table(
     input: &InstructionSelectionInput<'_>,
     call: &TableCallExpression,
 ) -> Option<StateGuardOperator> {
@@ -59,7 +59,7 @@ pub(super) fn builtin_runtime_call_operator(
 /// A single-argument builtin call (`sqrt(x)`) that lowers on the binary
 /// value-write path with both operands set to the one argument. `None` for a
 /// receiver-ful or non-unary call, or a non-unary-builtin target.
-pub(super) fn builtin_runtime_unary_call_operator_in_table(
+pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
     input: &InstructionSelectionInput<'_>,
     call: &TableCallExpression,
 ) -> Option<StateGuardOperator> {

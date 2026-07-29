@@ -221,7 +221,10 @@ fn root_scope_id_for_operation(
     operation: &RuntimeDispatchBodyOperation,
     allow_synthetic_nested_operation: bool,
 ) -> Option<u32> {
-    input
+    // A nested value machine may terminate directly from its entry state. Such
+    // a call has only a leaf expansion, so restricting root discovery to
+    // straight-line expansions silently skips the call's result write.
+    let straight_scopes = input
         .runtime_branching_calls
         .straight_line_expansions
         .storage_slice()
@@ -234,8 +237,22 @@ fn root_scope_id_for_operation(
                 allow_synthetic_nested_operation,
             )
         })
-        .map(|expansion| expansion.scope_id)
-        .min()
+        .map(|expansion| expansion.scope_id);
+    let leaf_scopes = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            leaf_expansion_matches_tree_operation(
+                expansion,
+                dispatch_index,
+                operation,
+                allow_synthetic_nested_operation,
+            )
+        })
+        .map(|expansion| expansion.scope_id);
+    straight_scopes.chain(leaf_scopes).min()
 }
 
 fn straight_line_expansion_matches_tree_operation(
@@ -828,7 +845,13 @@ fn select_runtime_straight_line_branch_writes(
                     *call_ordinal,
                     selected_instructions,
                 );
-                if *role == StateCallRole::AssignmentValue {
+                if *role == StateCallRole::AssignmentValue
+                    && local_initializer_is_direct_call(
+                        input,
+                        operation.source_key,
+                        operation.statement_index,
+                    )
+                {
                     emitted_assignment_calls
                         .push((operation.source_key, operation.statement_index));
                 }
@@ -1252,10 +1275,13 @@ fn select_runtime_straight_line_local_initializer_write(
         }
     }
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
+    // This expression belongs to the branch operation's state. The outer
+    // expansion source identifies the caller and cannot resolve result slots
+    // for calls embedded in this local initializer.
     if emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
         expansion.dispatch_index,
-        expansion.source_key,
+        operation.source_key,
         operation.statement_index,
         expressions,
         slot,
@@ -1268,7 +1294,7 @@ fn select_runtime_straight_line_local_initializer_write(
     if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
         input,
         expansion.dispatch_index,
-        expansion.source_key,
+        operation.source_key,
         operation.statement_index,
         expressions,
         slot,
@@ -1283,7 +1309,6 @@ fn select_runtime_straight_line_local_initializer_write(
         });
         return;
     }
-
     // A branch-local text equality (`let matches = self.name == "omega"`)
     // cannot use the scalar value writer above. It must still be materialized
     // here, in the straight-line branch prelude, because the nested
@@ -1341,6 +1366,9 @@ fn select_runtime_straight_line_assignment_value_local_initializer_call(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
+    if !local_initializer_is_direct_call(input, operation.source_key, operation.statement_index) {
+        return false;
+    }
     let Some(state_call) =
         state_assignment_value_call(input, operation.source_key, operation.statement_index)
     else {
@@ -1409,6 +1437,50 @@ fn select_runtime_straight_line_assignment_value_local_initializer_call(
         selected_instructions,
     );
     true
+}
+
+fn local_initializer_is_direct_call(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    let Some(machine) = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+    else {
+        return false;
+    };
+    let Some(state) = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)
+    else {
+        return false;
+    };
+    let Some(StatementNode::LocalData(local)) = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+    else {
+        return false;
+    };
+    if !local.initial_value.is_valid() {
+        return false;
+    }
+    let mut initializer = local.initial_value;
+    while let ExpressionNode::Mutable(inner) =
+        input.program.expression_table.expression(initializer)
+    {
+        initializer = *inner;
+    }
+    matches!(
+        input.program.expression_table.expression(initializer),
+        ExpressionNode::Call(_)
+    )
 }
 
 fn local_initializer_handle(
@@ -1498,7 +1570,13 @@ pub(in crate::selection) fn select_assignment_value_call_result_local_copy(
     call_ordinal: usize,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if role != StateCallRole::AssignmentValue {
+    // An embedded call's result slot is an operand of the enclosing
+    // initializer, not the initializer's final value. Copy directly into the
+    // local only for `let x = call()`; the full writer handles every larger
+    // expression after all of its call operands materialize.
+    if role != StateCallRole::AssignmentValue
+        || !local_initializer_is_direct_call(input, source_key, statement_index)
+    {
         return;
     }
     let Some(source_slot) = input.runtime_storage.call_result_slot_by_ordinal(

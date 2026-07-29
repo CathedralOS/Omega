@@ -1,0 +1,9 @@
+use omega::language::core::numeric_conversion;
+
+data Main {
+    source: i64;
+}
+
+machine Main::run(&mut self) {
+    let converted: u64 = narrow_i64_to_u64_exact(self.source);
+}

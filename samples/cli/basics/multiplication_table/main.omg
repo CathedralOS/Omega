@@ -8,6 +8,7 @@
 // Expected exit: 0.
 // Expected output contains: 81
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8 {
     valid_utf8(self);
@@ -64,11 +65,11 @@ machine Main::main(&mut self) {
         self.p = self.i * self.j;
         self.tens = self.p / 10;
         self.ones = self.p % 10;
-        self.oc = (self.ones + 48) as u8;
+        self.oc = narrow_i32_to_u8_trapping(self.ones + 48);
         transition self.tens > 0 { true -> cell_tens() _ -> cell_space() }
     }
     state cell_tens(&mut self) {
-        self.tc = (self.tens + 48) as u8;
+        self.tc = narrow_i32_to_u8_trapping(self.tens + 48);
         transition { _ -> cell_write() }
     }
     state cell_space(&mut self) {

@@ -5,6 +5,7 @@
 // record on macOS syscalls, and that inode identity behaves as POSIX specifies.
 
 use omega::language::std::filesystem_host;
+use omega::language::core::numeric_conversion;
 
 data Main {
     fs: FilesystemHost;
@@ -33,39 +34,51 @@ machine Main::main(&mut self) {
     // defensive: clear a stale link from a prior failed run (rc ignored)
     self.n = self.fs.remove("/tmp/omega_ino_link.txt");
     self.rc = self.fs.read_metadata("/tmp/omega_ino_a.txt", &mut self.buffer);
-    self.ino_a = (self.buffer[8] as i64)
-        | ((self.buffer[9] as i64) << 8)
-        | ((self.buffer[10] as i64) << 16)
-        | ((self.buffer[11] as i64) << 24)
-        | ((self.buffer[12] as i64) << 32)
-        | ((self.buffer[13] as i64) << 40)
-        | ((self.buffer[14] as i64) << 48)
-        | ((self.buffer[15] as i64) << 56);
-    self.uid_a = (self.buffer[16] as i32) | ((self.buffer[17] as i32) << 8) | ((self.buffer[18] as i32) << 16) | ((self.buffer[19] as i32) << 24);
-    self.gid_a = (self.buffer[20] as i32) | ((self.buffer[21] as i32) << 8) | ((self.buffer[22] as i32) << 16) | ((self.buffer[23] as i32) << 24);
+    self.ino_a = widen_u8_to_i64(self.buffer[8])
+        | (widen_u8_to_i64(self.buffer[9]) << 8)
+        | (widen_u8_to_i64(self.buffer[10]) << 16)
+        | (widen_u8_to_i64(self.buffer[11]) << 24)
+        | (widen_u8_to_i64(self.buffer[12]) << 32)
+        | (widen_u8_to_i64(self.buffer[13]) << 40)
+        | (widen_u8_to_i64(self.buffer[14]) << 48)
+        | (widen_u8_to_i64(self.buffer[15]) << 56);
+    self.uid_a = widen_u8_to_i32(self.buffer[16])
+        | (widen_u8_to_i32(self.buffer[17]) << 8)
+        | (widen_u8_to_i32(self.buffer[18]) << 16)
+        | (widen_u8_to_i32(self.buffer[19]) << 24);
+    self.gid_a = widen_u8_to_i32(self.buffer[20])
+        | (widen_u8_to_i32(self.buffer[21]) << 8)
+        | (widen_u8_to_i32(self.buffer[22]) << 16)
+        | (widen_u8_to_i32(self.buffer[23]) << 24);
     self.rc = self.fs.read_metadata("/tmp/omega_ino_b.txt", &mut self.buffer);
-    self.ino_b = (self.buffer[8] as i64)
-        | ((self.buffer[9] as i64) << 8)
-        | ((self.buffer[10] as i64) << 16)
-        | ((self.buffer[11] as i64) << 24)
-        | ((self.buffer[12] as i64) << 32)
-        | ((self.buffer[13] as i64) << 40)
-        | ((self.buffer[14] as i64) << 48)
-        | ((self.buffer[15] as i64) << 56);
-    self.uid_b = (self.buffer[16] as i32) | ((self.buffer[17] as i32) << 8) | ((self.buffer[18] as i32) << 16) | ((self.buffer[19] as i32) << 24);
-    self.gid_b = (self.buffer[20] as i32) | ((self.buffer[21] as i32) << 8) | ((self.buffer[22] as i32) << 16) | ((self.buffer[23] as i32) << 24);
+    self.ino_b = widen_u8_to_i64(self.buffer[8])
+        | (widen_u8_to_i64(self.buffer[9]) << 8)
+        | (widen_u8_to_i64(self.buffer[10]) << 16)
+        | (widen_u8_to_i64(self.buffer[11]) << 24)
+        | (widen_u8_to_i64(self.buffer[12]) << 32)
+        | (widen_u8_to_i64(self.buffer[13]) << 40)
+        | (widen_u8_to_i64(self.buffer[14]) << 48)
+        | (widen_u8_to_i64(self.buffer[15]) << 56);
+    self.uid_b = widen_u8_to_i32(self.buffer[16])
+        | (widen_u8_to_i32(self.buffer[17]) << 8)
+        | (widen_u8_to_i32(self.buffer[18]) << 16)
+        | (widen_u8_to_i32(self.buffer[19]) << 24);
+    self.gid_b = widen_u8_to_i32(self.buffer[20])
+        | (widen_u8_to_i32(self.buffer[21]) << 8)
+        | (widen_u8_to_i32(self.buffer[22]) << 16)
+        | (widen_u8_to_i32(self.buffer[23]) << 24);
     self.rc = self.fs.hard_link("/tmp/omega_ino_a.txt", "/tmp/omega_ino_link.txt");
     transition self.rc == 0 { true -> statlink() _ -> fail() }
     state statlink(&mut self) {
         self.rc = self.fs.read_metadata("/tmp/omega_ino_link.txt", &mut self.buffer);
-        self.ino_link = (self.buffer[8] as i64)
-            | ((self.buffer[9] as i64) << 8)
-            | ((self.buffer[10] as i64) << 16)
-            | ((self.buffer[11] as i64) << 24)
-            | ((self.buffer[12] as i64) << 32)
-            | ((self.buffer[13] as i64) << 40)
-            | ((self.buffer[14] as i64) << 48)
-            | ((self.buffer[15] as i64) << 56);
+        self.ino_link = widen_u8_to_i64(self.buffer[8])
+            | (widen_u8_to_i64(self.buffer[9]) << 8)
+            | (widen_u8_to_i64(self.buffer[10]) << 16)
+            | (widen_u8_to_i64(self.buffer[11]) << 24)
+            | (widen_u8_to_i64(self.buffer[12]) << 32)
+            | (widen_u8_to_i64(self.buffer[13]) << 40)
+            | (widen_u8_to_i64(self.buffer[14]) << 48)
+            | (widen_u8_to_i64(self.buffer[15]) << 56);
         self.n = self.fs.remove("/tmp/omega_ino_link.txt");
         self.n = self.fs.remove("/tmp/omega_ino_a.txt");
         self.n = self.fs.remove("/tmp/omega_ino_b.txt");
