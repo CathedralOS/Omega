@@ -97,7 +97,7 @@ noun preserved in a focused file:
 - `ownership.rs` owns move/drop event conversion from graph form into
   control-flow form.
 - `values.rs` owns value-summary conversion from graph form into control-flow
-  form.
+  form, preserving normalized arithmetic-policy adapter evidence exactly.
 - `arena_remap.rs` owns the shared borrowed-arena remapping loop. Noun modules
   still own conversion policy; the helper only preserves arena shape while
   applying those conversions.
@@ -110,8 +110,10 @@ noun preserved in a focused file:
 
 - Control-flow now preserves move/drop ownership events, but backend lowering
   still needs to decide how moves become transfers and drops become cleanup.
-- Control-flow now preserves value summaries, but later lowering still needs
-  type-aware ownership, storage, and operand consequences.
+- Control-flow now preserves value summaries and their normalized
+  arithmetic-policy adapter evidence. Later lowering still needs type-aware
+  ownership and storage consequences; the transitional instruction-selection
+  adapter consumes the float-policy evidence for runtime operands.
 - Control-flow boundary summaries preserve source-level boundary trait edges,
   but abstract/backend host-operation summaries still need explicit linkage
   back to them.

@@ -12,6 +12,8 @@
 //! layout/range consumers ignore it and only the arithmetic emission branches on
 //! it.
 
+use crate::float_semantics::FloatFormat;
+
 /// The overflow behaviour of a primitive's arithmetic. `Exact` is the implicit
 /// default (no `in <Domain>` suffix); the others are opt-in via the suffix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,6 +62,33 @@ impl ArithmeticDomain {
         match (self, other) {
             (Self::Exact, domain) | (domain, Self::Exact) => domain,
             (left, _) => left,
+        }
+    }
+}
+
+/// The normalized result adapter selected for one checked arithmetic
+/// operation. Unlike [`ArithmeticDomain`], this is already-resolved semantic
+/// evidence: downstream lowering must preserve and realize this exact adapter
+/// instead of rediscovering policy from operand storage types.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ArithmeticPolicyAdapter {
+    /// The checked operation has no result adapter.
+    #[default]
+    None,
+    /// Clamp only magnitude overflow produced from finite operands. Invalid
+    /// operations and division by signed zero keep their IEEE non-finite result.
+    FloatSaturatingOverflowOnly { format: FloatFormat },
+    /// Reject every non-finite semantic result, including a propagated NaN or
+    /// infinity.
+    FloatTrappingNonFinite { format: FloatFormat },
+}
+
+impl ArithmeticPolicyAdapter {
+    pub const fn float_format(self) -> Option<FloatFormat> {
+        match self {
+            Self::None => None,
+            Self::FloatSaturatingOverflowOnly { format }
+            | Self::FloatTrappingNonFinite { format } => Some(format),
         }
     }
 }

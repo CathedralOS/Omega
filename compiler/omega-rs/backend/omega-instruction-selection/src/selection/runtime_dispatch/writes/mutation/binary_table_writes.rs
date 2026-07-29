@@ -2,8 +2,8 @@ use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, descriptor_primitive_type,
-    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_frame_indexed_target_in_table,
-    resolve_runtime_machine_indexed_target_in_table,
+    resolve_binary_operation_arithmetic_domain_in_table,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
@@ -743,19 +743,22 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         }
     }
 
-    // Decision 17 is OPERAND-driven: the arithmetic domain lives on the operands'
-    // types, not the target. Combine the two operand domains (Exact is neutral, so
-    // a literal adopts the other side's domain); a genuine conflict is rejected
-    // upstream by the semantics. Signedness comes from the target (== the result
-    // type's width/signedness, which must match the operands in a valid program).
-    let domain = resolve_binary_write_arithmetic_domain_in_table(
+    let target_place = target_place?;
+    // Normalized float operations consume checked adapter evidence carried
+    // through control flow. Integer operations and compatibility-only float
+    // spellings retain the operand-domain path during the bootstrap migration.
+    let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,
         value_source_key,
+        statement_index,
         expressions,
+        value,
         left_expression,
         right_expression,
-    );
+        is_float,
+        target_place.byte_count,
+    )?;
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
@@ -765,7 +768,6 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     )
     .unwrap_or(false);
 
-    let target_place = target_place?;
     Some(
         crate::selection::runtime_dispatch::write_place_binary_direct(
             target_place.region,
@@ -1113,17 +1115,21 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
     }
 
-    // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
-    // types (Exact neutral, so a literal adopts the other side); signedness from
-    // whichever operand resolves to an integer place (they share the result type).
-    let domain = resolve_binary_write_arithmetic_domain_in_table(
+    // Consume carried checked adapter evidence for normalized float
+    // operations; only compatibility-only shapes reconstruct from operand
+    // domains.
+    let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,
         source_key,
+        statement_index,
         expressions,
+        value,
         left_expression,
         right_expression,
-    );
+        is_float,
+        byte_size,
+    )?;
     let target_signed = resolved_signed.unwrap_or(false);
     Some(
         crate::selection::runtime_dispatch::write_place_binary_direct(

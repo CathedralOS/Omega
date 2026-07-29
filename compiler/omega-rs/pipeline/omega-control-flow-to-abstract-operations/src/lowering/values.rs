@@ -20,6 +20,7 @@ pub(super) fn build_abstract_value_summary(control_flow: &ControlFlowPlan) -> Ab
                 state_symbol: value.state_symbol,
                 expression: value.expression,
                 origin: remap_value_origin(value.origin),
+                arithmetic_policy_adapter: value.arithmetic_policy_adapter,
             });
         }
     }

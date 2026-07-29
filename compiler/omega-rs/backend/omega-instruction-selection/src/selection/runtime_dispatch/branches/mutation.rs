@@ -16,7 +16,7 @@ use super::super::super::storage_places::resolve_runtime_frame_base_indexed_targ
 use super::super::super::storage_places::{
     clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
-    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
+    resolve_binary_operation_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -410,6 +410,7 @@ fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
             dispatch_index,
             target_source_key,
             value_source_key,
+            statement_index,
             expressions,
             resolved_target,
             resolved_value,
@@ -497,6 +498,7 @@ fn select_runtime_static_inline_branching_call_mutation_write_in_table(
             dispatch_index,
             target_source_key,
             target_source_key,
+            statement_index,
             &static_expressions,
             target,
             value,
@@ -1110,6 +1112,7 @@ fn select_runtime_binary_mutation_write_in_table(
     dispatch_index: u32,
     target_source_key: StateKey,
     value_source_key: StateKey,
+    statement_index: usize,
     expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
@@ -1185,6 +1188,7 @@ fn select_runtime_binary_mutation_write_in_table(
         input,
         dispatch_index,
         value_source_key,
+        statement_index,
         expressions,
         left_expression,
         runtime_value_operands,
@@ -1193,6 +1197,7 @@ fn select_runtime_binary_mutation_write_in_table(
         input,
         dispatch_index,
         value_source_key,
+        statement_index,
         expressions,
         right_expression,
         runtime_value_operands,
@@ -1260,16 +1265,18 @@ fn select_runtime_binary_mutation_write_in_table(
         ),
         Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
-    // Decision 17 (operand-driven): domain from the operands' types (Exact
-    // neutral); signedness from the target (== result type's width/signedness).
-    let domain = resolve_binary_write_arithmetic_domain_in_table(
+    let domain = resolve_binary_operation_arithmetic_domain_in_table(
         input,
         dispatch_index,
         value_source_key,
+        statement_index,
         expressions,
+        value,
         left_expression,
         right_expression,
-    );
+        is_float,
+        target_place.byte_count,
+    )?;
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
@@ -1377,6 +1384,7 @@ fn resolve_runtime_value_operand_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
+    statement_index: usize,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
@@ -1403,6 +1411,7 @@ fn resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
                 source_key,
+                statement_index,
                 expressions,
                 binary.left,
                 runtime_value_operands,
@@ -1411,6 +1420,7 @@ fn resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
                 source_key,
+                statement_index,
                 expressions,
                 binary.right,
                 runtime_value_operands,
@@ -1451,6 +1461,18 @@ fn resolve_runtime_value_operand_in_table(
                 binary.left,
                 binary.right,
             );
+            let arithmetic_domain = resolve_binary_operation_arithmetic_domain_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions,
+                expression,
+                binary.left,
+                binary.right,
+                is_float,
+                byte_width,
+            )?;
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
                 operator,
@@ -1459,7 +1481,7 @@ fn resolve_runtime_value_operand_in_table(
                 byte_width,
                 // Recorded so the Saturating/Trapping operand-position
                 // lowering picks its width-correct op + clamp/trap bounds.
-                arithmetic_domain: domain_signedness.0,
+                arithmetic_domain,
                 operands_signed: domain_signedness.1,
             }));
         }
@@ -1479,6 +1501,7 @@ fn resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
                 source_key,
+                statement_index,
                 expressions,
                 expressions.expression_handle_at_offset(call.arguments, 0),
                 runtime_value_operands,
@@ -1487,6 +1510,7 @@ fn resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
                 source_key,
+                statement_index,
                 expressions,
                 expressions.expression_handle_at_offset(call.arguments, 1),
                 runtime_value_operands,
@@ -1530,6 +1554,7 @@ fn resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
                 source_key,
+                statement_index,
                 expressions,
                 cast.value,
                 runtime_value_operands,

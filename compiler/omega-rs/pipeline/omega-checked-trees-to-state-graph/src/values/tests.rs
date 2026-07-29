@@ -55,4 +55,67 @@ fn state_value_summary_keeps_values_for_matching_state() {
             role: StateValueStatementRole::AssignmentValue,
         }
     );
+    assert_eq!(values[0].arithmetic_policy_adapter, None);
+}
+
+#[test]
+fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
+    let machine_symbol = SymbolHandle::from_arena_index(31);
+    let state_symbol = SymbolHandle::from_arena_index(32);
+    let root_expression = ExpressionHandle::from_arena_index(41);
+    let nested_expression = ExpressionHandle::from_arena_index(42);
+    let origin = CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index: 5,
+        role: CheckedValueStatementRole::LocalInitializer,
+    };
+
+    let mut program = CheckedTrees::default();
+    program.facts.values.values.insert(CheckedValueFact {
+        expression: root_expression,
+        origin,
+    });
+    program
+        .facts
+        .operators
+        .uses
+        .insert(omega_checked_trees::CheckedOperatorUseFact {
+            expression: nested_expression,
+            origin,
+            policy_adapter:
+                omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                    format: omega_core::float_semantics::FloatFormat::BINARY64,
+                },
+            ..omega_checked_trees::CheckedOperatorUseFact::default()
+        });
+
+    let mut state_graph = StateGraph::default();
+    let summary = state_value_summary(
+        &mut state_graph,
+        &program,
+        StateKey {
+            machine: machine_symbol,
+            state: state_symbol,
+            segment_index: 0,
+        },
+    );
+    let values = state_graph
+        .semantics
+        .values
+        .values
+        .span_or_empty(summary.values);
+    let nested = values
+        .iter()
+        .find(|value| value.expression == nested_expression)
+        .expect("nested operator value");
+
+    assert_eq!(
+        nested.arithmetic_policy_adapter,
+        Some(
+            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: omega_core::float_semantics::FloatFormat::BINARY64,
+            }
+        )
+    );
 }

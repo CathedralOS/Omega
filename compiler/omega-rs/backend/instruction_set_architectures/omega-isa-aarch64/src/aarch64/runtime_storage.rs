@@ -5398,8 +5398,8 @@ pub(in crate::aarch64) fn float_policy_guard_width(
 ///   result's sign; a divide whose divisor is +-0.0 keeps its non-finite
 ///   (division by zero does not clamp), and NaN results pass through
 ///   (invalid ops stay `Finite` obligations).
-/// - `Trapping`: NaN-from-non-NaN operands (invalid) and Inf-from-finite
-///   operands (overflow AND division by zero) both `brk`.
+/// - `Trapping`: every non-finite result `brk`s, including a NaN or infinity
+///   propagated from a non-finite operand.
 ///
 /// Every other operator/domain returns no bytes. Clobbers `left`, `right`
 /// (dead: the result rides v0), and both scratches. The WIDTH twin calls
@@ -5424,6 +5424,9 @@ fn float_policy_guard_bytes(
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
             | StateGuardOperator::Divide
+            | StateGuardOperator::Min
+            | StateGuardOperator::Max
+            | StateGuardOperator::Sqrt
     ) {
         return Ok(Vec::new());
     }
@@ -5527,38 +5530,9 @@ fn float_policy_guard_bytes(
             bytes.extend(clamp);
         }
         ArithmeticDomain::Trapping => {
-            // finite result -> done (skip everything below).
-            // Layout: b.lo END ; b.hi NAN ; INF: [left fin? right fin? brk] ;
-            // NAN: [left non-NaN? right non-NaN? brk] ; END.
-            let inf_case: usize = 4 * 7; // abs+cmp+b.hs, abs+cmp+b.hs, brk
-            let nan_case: usize = 4 * 7;
-            bytes.extend(encode_conditional_branch_lower(
-                (4 + 4 + inf_case + nan_case) as isize,
-            )?);
-            bytes.extend(encode_conditional_branch_higher((4 + inf_case) as isize)?);
-            // INF case: an operand at/above Inf (|bits| >= Inf pattern:
-            // itself Inf or NaN) legalizes the result -> skip its brk AND
-            // the NaN case.
-            bytes.extend(abs(left));
-            bytes.extend(encode_compare_x_register(left, s1));
-            bytes.extend(encode_conditional_branch_higher_or_same(
-                (4 + 4 * 3 + 4 + nan_case) as isize,
-            )?);
-            bytes.extend(abs(right));
-            bytes.extend(encode_compare_x_register(right, s1));
-            bytes.extend(encode_conditional_branch_higher_or_same(
-                (4 + 4 + nan_case) as isize,
-            )?);
-            bytes.extend(encode_brk(0));
-            // NAN case: only an operand STRICTLY above Inf (a NaN) makes a
-            // NaN result legal propagation; an Inf operand (Inf - Inf,
-            // 0 * Inf, Inf / Inf) is an INVALID op and traps.
-            bytes.extend(abs(left));
-            bytes.extend(encode_compare_x_register(left, s1));
-            bytes.extend(encode_conditional_branch_higher((4 + 4 * 3 + 4) as isize)?);
-            bytes.extend(abs(right));
-            bytes.extend(encode_compare_x_register(right, s1));
-            bytes.extend(encode_conditional_branch_higher((4 + 4) as isize)?);
+            // Result-only policy: a finite magnitude skips the trap; infinity
+            // and NaN both reach BRK regardless of their operands.
+            bytes.extend(encode_conditional_branch_lower(8)?);
             bytes.extend(encode_brk(0));
         }
         _ => unreachable!("gated above"),
@@ -6160,14 +6134,19 @@ fn append_runtime_float_binary_operation(
         StateGuardOperator::Max => {
             bytes.extend(encode_float_compare(byte_size, 0, 1)?);
             bytes.extend(encode_float_conditional_select(byte_size, 0, 0, 1, 0b1100)?);
+            guard(bytes)?;
         }
         StateGuardOperator::Min => {
             bytes.extend(encode_float_compare(byte_size, 0, 1)?);
             bytes.extend(encode_float_conditional_select(byte_size, 0, 0, 1, 0b0100)?);
+            guard(bytes)?;
         }
         // Unary, carried with both operands = x (the x86_64 table's shape):
         // sqrt(operand1) into slot 0.
-        StateGuardOperator::Sqrt => bytes.extend(encode_float_sqrt(byte_size, 0, 1)?),
+        StateGuardOperator::Sqrt => {
+            bytes.extend(encode_float_sqrt(byte_size, 0, 1)?);
+            guard(bytes)?;
+        }
         // COMPARISON into a 0/1 GPR result (`let ok: bool = self.a > self.b`
         // with float operands): FCMP at the OPERAND width, then the integer
         // write path's materialization pattern (MOVZ 0 / negated skip /
@@ -7597,6 +7576,41 @@ mod tests {
                         "width drift: {domain:?} {operator:?} signed={signed}"
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn trapping_float_policy_is_one_result_only_guard() {
+        use omega_core::arithmetic::ArithmeticDomain;
+
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::Add,
+                StateGuardOperator::Min,
+                StateGuardOperator::Max,
+                StateGuardOperator::Sqrt,
+            ] {
+                let bytes = float_policy_guard_bytes(
+                    ArithmeticDomain::Trapping,
+                    operator,
+                    byte_size,
+                    17,
+                    26,
+                    15,
+                    14,
+                )
+                .expect("encode result-only policy guard");
+                let brk_count = bytes
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+                    .filter(|word| (*word & 0xFFE0_001F) == 0xD420_0000)
+                    .count();
+                assert_eq!(brk_count, 1, "f{} {operator:?}", byte_size * 8);
+                assert_eq!(
+                    bytes.len(),
+                    float_policy_guard_width(operator, byte_size, ArithmeticDomain::Trapping)
+                );
             }
         }
     }

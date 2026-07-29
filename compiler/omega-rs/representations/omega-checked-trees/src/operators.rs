@@ -1,11 +1,12 @@
 use crate::CheckedValueOrigin;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::float_semantics::FloatFormat;
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
 use omega_typed_trees::signature::SignatureContract;
 use omega_typed_trees::types::TypeReferenceHandle;
+
+pub use omega_core::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CheckedOperatorResolutionStatus {
@@ -28,32 +29,6 @@ pub enum CheckedOperatorResolutionStatus {
     /// domain fact) and no root or builtin meaning exists for the operand
     /// type. The use has no admissible meaning and must be rejected.
     Inadmissible,
-}
-
-/// The normalized result adapter selected by an arithmetic policy at one
-/// checked operator use. It is independent of the target realization: later
-/// provider lowering may fuse the check/clamp only by implementing this exact
-/// semantic adapter.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum CheckedArithmeticPolicyAdapter {
-    #[default]
-    None,
-    FloatSaturatingOverflowOnly {
-        format: FloatFormat,
-    },
-    FloatTrappingNonFinite {
-        format: FloatFormat,
-    },
-}
-
-impl CheckedArithmeticPolicyAdapter {
-    pub const fn float_format(self) -> Option<FloatFormat> {
-        match self {
-            Self::None => None,
-            Self::FloatSaturatingOverflowOnly { format }
-            | Self::FloatTrappingNonFinite { format } => Some(format),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -316,17 +291,27 @@ impl CheckedOperatorFacts {
 
     /// One query for downstream consumers that do not care whether the source
     /// selected a spelled or named operator identity.
-    pub fn policy_adapter_for_expression_in_origin(
+    pub fn policy_adapter_evidence_for_expression_in_origin(
         &self,
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
-    ) -> CheckedArithmeticPolicyAdapter {
+    ) -> Option<CheckedArithmeticPolicyAdapter> {
         self.expression_use_in_origin(expression, origin)
             .map(|operator_use| operator_use.policy_adapter)
             .or_else(|| {
                 self.named_expression_use_in_origin(expression, origin)
                     .map(|operator_use| operator_use.policy_adapter)
             })
+    }
+
+    /// Compatibility query for callers that only need the adapter value and
+    /// deliberately treat missing operator evidence as no adapter.
+    pub fn policy_adapter_for_expression_in_origin(
+        &self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    ) -> CheckedArithmeticPolicyAdapter {
+        self.policy_adapter_evidence_for_expression_in_origin(expression, origin)
             .unwrap_or_default()
     }
 
@@ -427,6 +412,7 @@ impl CheckedOperatorFacts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_core::float_semantics::FloatFormat;
 
     #[test]
     fn checked_operator_facts_constructor_keeps_use_root_explicit() {

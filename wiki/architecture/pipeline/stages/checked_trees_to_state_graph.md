@@ -108,7 +108,9 @@ preservation:
   merging. `ownership/summary.rs` owns state-local move/drop preservation,
   while `ownership/remap.rs` owns worker-local ownership arena remapping.
 - `values.rs` preserves checked value facts into state-local graph value
-  summaries and remaps worker-local value arenas during graph merging.
+  summaries, enriches the matching statement/expression facts with checked
+  arithmetic-policy adapter evidence for spelled and named operators (including
+  nested operators), and remaps worker-local value arenas during graph merging.
 - `remap.rs` owns narrow operation/transition/expression remap helpers used by
   graph merging.
 - `machine_metadata.rs` projects machine owned data, the checked
@@ -121,8 +123,9 @@ preservation:
 
 ## Known Gaps
 
-- Value summaries preserve checked expression origins, but still need ownership
-  kind, drop policy, and storage consequences.
+- Value summaries preserve checked expression origins and normalized
+  arithmetic-policy adapter evidence, but still need ownership kind, drop
+  policy, and storage consequences.
 - Transition ownership transfer should be as explicit as call ownership transfer.
 - Move/drop event producers are still conservative upstream, so this stage
   preserves the available ownership evidence but cannot yet expect complete

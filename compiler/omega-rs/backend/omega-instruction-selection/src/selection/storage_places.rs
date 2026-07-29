@@ -1223,6 +1223,59 @@ pub(in crate::selection) fn resolve_binary_write_arithmetic_domain_in_table(
     .0
 }
 
+/// The arithmetic policy selected for one table-shaped binary/named float
+/// operation. Normalized checked operators consume the adapter carried through
+/// control flow; only an operation with no checked adapter evidence may use the
+/// legacy operand-type reconstruction during the bootstrap migration.
+///
+/// `None` is a fail-closed result for contradictory evidence or a carried
+/// binary32/binary64 adapter whose format disagrees with the actual operation
+/// width.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection) fn resolve_binary_operation_arithmetic_domain_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    is_float: bool,
+    byte_width: usize,
+) -> Option<omega_core::arithmetic::ArithmeticDomain> {
+    if is_float {
+        return match crate::selection::lookups::carried_float_policy_domain(
+            input,
+            source_key,
+            statement_index,
+            expression,
+            byte_width,
+        ) {
+            crate::selection::lookups::CarriedFloatPolicyDomain::Resolved(domain) => Some(domain),
+            crate::selection::lookups::CarriedFloatPolicyDomain::Invalid => None,
+            crate::selection::lookups::CarriedFloatPolicyDomain::Missing => {
+                Some(resolve_binary_write_arithmetic_domain_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    left,
+                    right,
+                ))
+            }
+        };
+    }
+    Some(resolve_binary_write_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left,
+        right,
+    ))
+}
+
 /// Non-table sibling of [`resolve_binary_write_arithmetic_domain_in_table`]
 /// for the older `&Expression` write path.
 pub(super) fn resolve_binary_write_arithmetic_domain(
