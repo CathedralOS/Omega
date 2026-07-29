@@ -17,6 +17,8 @@
 // carriers remain only where a value is genuinely signed or an explicitly
 // retained sentinel requires one.
 
+use omega::language::std::option;
+
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, and the declared identity number (-1 when unnumbered). Ranges
 // keep policy arithmetic Exact: a field is at most 4 KiB wide and its
@@ -27,6 +29,9 @@ data SchemaField {
     key: u64;
     size: u64 [0..=4096];
     align: u64 [1..=16];
+    identity: Optional<u64>;
+    // Transitional compatibility mirror; -1 means unnumbered. New policies
+    // consume `identity`.
     number: i64;
     kind: FieldKind;
 }
@@ -43,9 +48,27 @@ data FieldKind {
     case Repeated;
 }
 
+// One reflected sum case. Stable identity is schema metadata; declaration
+// position remains the independent home-layout discriminant. Payload fields
+// have their own numbered scope and tombstones.
+data SchemaCase {
+    key: u64;
+    identity: Optional<u64>;
+    payload_fields: [SchemaField; 32];
+    payload_field_count: u64 [0..=32];
+    retired_payload_identities: [u64; 32];
+    retired_payload_identity_count: u64 [0..=32];
+}
+
 data Schema {
     fields: [SchemaField; 32];
     field_count: u64 [0..=32];
+    retired_field_identities: [u64; 32];
+    retired_field_identity_count: u64 [0..=32];
+    cases: [SchemaCase; 32];
+    case_count: u64 [0..=32];
+    retired_case_identities: [u64; 32];
+    retired_case_identity_count: u64 [0..=32];
 }
 
 // One field's PLACEMENT -- the closed vocabulary the compiler knows how to

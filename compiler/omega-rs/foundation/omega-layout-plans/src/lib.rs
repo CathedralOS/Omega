@@ -21,14 +21,22 @@ pub enum LayoutPlacementReport {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutFieldEntryReport {
     /// Normalized field name. Compiler-issued keys do not escape into artifact
-    /// reports or identity.
+    /// reports.
     pub field: String,
+    /// Authored stable schema identity when this scope is numbered. Canonical
+    /// plan identity uses this instead of the source-facing name, so a rename
+    /// preserves identity.
+    pub member_identity: Option<u64>,
     pub placement: LayoutPlacementReport,
 }
 
 /// A validated layout plan, ready for consumers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutPlanReport {
+    /// Canonical identity of the complete reflected schema, including stable
+    /// field/case identities and tombstones but excluding numbered-member
+    /// source names and runtime discriminants.
+    pub schema_identity: u64,
     pub entries: Vec<LayoutFieldEntryReport>,
     /// Declaration-order offsets when every field has one fixed `At`
     /// placement. Fragmented plans deliberately have no such projection.
@@ -39,21 +47,25 @@ pub struct LayoutPlanReport {
 
 /// Deterministic semantic identity of one validated layout plan.
 ///
-/// Compiler-issued field keys and authored entry order are deliberately absent.
-/// Repeated fragments are sorted by their complete normalized placement, while
-/// size and alignment remain identity-bearing geometry. The derived `offsets`
-/// convenience projection is excluded because it contains no fact beyond the
-/// named entries.
+/// Compiler-issued field keys, numbered-member source names, and authored entry
+/// order are deliberately absent. Repeated fragments are sorted by stable
+/// member identity (or by name for positional schemas) and complete normalized
+/// placement, while schema identity, size, and alignment remain
+/// identity-bearing. The derived `offsets` convenience projection is excluded
+/// because it contains no fact beyond the entries.
 pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
     let mut entries = layout.entries.iter().collect::<Vec<_>>();
     entries.sort_unstable_by(|left, right| {
-        left.field.cmp(&right.field).then_with(|| {
-            placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
-        })
+        member_sort_key(left)
+            .cmp(&member_sort_key(right))
+            .then_with(|| {
+                placement_sort_key(&left.placement).cmp(&placement_sort_key(&right.placement))
+            })
     });
 
     let mut hash = 0xcbf29ce484222325u64;
-    hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v2");
+    hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v3");
+    hash_fingerprint_u64(&mut hash, layout.schema_identity);
     hash_fingerprint_byte(&mut hash, u8::from(layout.size.is_some()));
     if let Some(size) = layout.size {
         hash_fingerprint_u64(&mut hash, size);
@@ -61,8 +73,17 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
     hash_fingerprint_u64(&mut hash, layout.align);
     hash_fingerprint_u64(&mut hash, entries.len() as u64);
     for entry in entries {
-        hash_fingerprint_u64(&mut hash, entry.field.len() as u64);
-        hash_fingerprint_bytes(&mut hash, entry.field.as_bytes());
+        match entry.member_identity {
+            Some(identity) => {
+                hash_fingerprint_byte(&mut hash, 1);
+                hash_fingerprint_u64(&mut hash, identity);
+            }
+            None => {
+                hash_fingerprint_byte(&mut hash, 0);
+                hash_fingerprint_u64(&mut hash, entry.field.len() as u64);
+                hash_fingerprint_bytes(&mut hash, entry.field.as_bytes());
+            }
+        }
         match entry.placement {
             LayoutPlacementReport::At { offset } => {
                 hash_fingerprint_byte(&mut hash, 0);
@@ -89,6 +110,13 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
         }
     }
     if hash == 0 { 1 } else { hash }
+}
+
+fn member_sort_key(entry: &LayoutFieldEntryReport) -> (u8, u64, &str) {
+    match entry.member_identity {
+        Some(identity) => (0, identity, ""),
+        None => (1, 0, entry.field.as_str()),
+    }
 }
 
 fn placement_sort_key(placement: &LayoutPlacementReport) -> (u8, u64, u64, u64, u64, u64) {
@@ -1587,9 +1615,11 @@ mod tests {
 
     fn split_layout() -> LayoutPlanReport {
         LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![
                 LayoutFieldEntryReport {
                     field: "address".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 16,
@@ -1600,6 +1630,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "address".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 2,
                         container_width: 16,
@@ -1610,6 +1641,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "address".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 8,
                         container_width: 64,
@@ -1648,8 +1680,33 @@ mod tests {
     }
 
     #[test]
+    fn stable_member_identity_makes_source_rename_presentation_only() {
+        let mut original = split_layout();
+        original.schema_identity = 0x44;
+        for entry in &mut original.entries {
+            entry.member_identity = Some(7);
+        }
+        let mut renamed = original.clone();
+        for entry in &mut renamed.entries {
+            entry.field = "renamed_address".into();
+        }
+        assert_eq!(
+            normalized_layout_plan_fingerprint(&original),
+            normalized_layout_plan_fingerprint(&renamed)
+        );
+
+        let mut changed_schema = renamed;
+        changed_schema.schema_identity = 0x45;
+        assert_ne!(
+            normalized_layout_plan_fingerprint(&original),
+            normalized_layout_plan_fingerprint(&changed_schema)
+        );
+    }
+
+    #[test]
     fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
         let dynamic = LayoutPlanReport {
+            schema_identity: 1,
             entries: Vec::new(),
             offsets: Some(Vec::new()),
             size: None,
@@ -1669,9 +1726,11 @@ mod tests {
     #[test]
     fn ordinary_scalar_materializer_packs_a_fragmented_control_word() {
         let layout = LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![
                 LayoutFieldEntryReport {
                     field: "enabled".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1682,6 +1741,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "mode".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1692,6 +1752,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "payload".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1702,6 +1763,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "high_guard".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 64,
@@ -1755,9 +1817,11 @@ mod tests {
     #[test]
     fn scalar_materialization_is_complete_and_atomic() {
         let layout = LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![
                 LayoutFieldEntryReport {
                     field: "low".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 8,
@@ -1768,6 +1832,7 @@ mod tests {
                 },
                 LayoutFieldEntryReport {
                     field: "high".into(),
+                    member_identity: None,
                     placement: LayoutPlacementReport::Bits {
                         container: 0,
                         container_width: 8,
@@ -2113,8 +2178,10 @@ mod tests {
     #[test]
     fn whole_pointer_uses_loader_native_relocation() {
         let layout = LayoutPlanReport {
+            schema_identity: 1,
             entries: vec![LayoutFieldEntryReport {
                 field: "entry".into(),
+                member_identity: None,
                 placement: LayoutPlacementReport::At { offset: 8 },
             }],
             offsets: Some(vec![8]),

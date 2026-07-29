@@ -1203,10 +1203,12 @@ fn encode_record_at(
 
 fn scalar_layout(size: u64, fields: &[(&str, u64, u16)]) -> LayoutPlanReport {
     LayoutPlanReport {
+        schema_identity: 1,
         entries: fields
             .iter()
             .map(|(field, offset, _)| LayoutFieldEntryReport {
                 field: (*field).into(),
+                member_identity: None,
                 placement: LayoutPlacementReport::At { offset: *offset },
             })
             .collect(),

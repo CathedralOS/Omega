@@ -9654,8 +9654,30 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
 
 #[test]
 fn numbered_case_identities_compile() {
-    compile_canary_without_output(&pass_canary("wire/numbered_case_identities"))
-        .expect("numbered case identities should survive the compiler pipeline");
+    let canary = pass_canary("wire/numbered_case_identities");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-numbered-cases-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("numbered case identities should survive the compiler pipeline");
+    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
+        .expect("identity-keyed ordinary data should appear in the wire artifact");
+    assert!(
+        report.contains("## data Lookup")
+            && report.contains("#1 Found payload:")
+            && report.contains("#1 value: T")
+            && report.contains("retired payload identities: #2")
+            && report.contains("retired case identities: #3")
+            && report.contains("normalized schema identity: 0x")
+            && !report.contains("Lookup::encode"),
+        "ordinary case identities and tombstones must remain visible in the artifact:\n{report}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

@@ -49,6 +49,14 @@ value bits, and the normalized Rust plan uses the same unsigned geometry; host
 `usize` conversion occurs only at a consuming allocation or slice boundary and
 is checked there.
 
+The live reflection now carries record fields, sum cases, structured-case
+payload fields, and each scope's retired identities. Case array order remains
+authored declaration order for policies that care about home layout, while
+canonical schema and plan identity sort numbered scopes by stable identity and
+therefore do not mistake `#N` for a runtime discriminant. Fixed-layout `At` and
+`Bits` placement remains limited to the reflected common/record fields; tagged
+case placement belongs to the next closed-vocabulary extension.
+
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
 overlays, bit ranges, fragmented placement of one logical source across several

@@ -1,7 +1,7 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
-    ArtifactWriter, WireCompatibilityVerdicts, WireFieldReportEntry, WireProtocolReport,
-    WireSchemaReportEntry, WireVersionReportEntry,
+    ArtifactWriter, WireCaseReportEntry, WireCompatibilityVerdicts, WireFieldReportEntry,
+    WireProtocolReport, WireSchemaReportEntry, WireVersionReportEntry,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -22,13 +22,94 @@ pub(super) fn write_wire_protocol_report(
 }
 
 fn build_wire_protocol_report(typed: &TypedTrees) -> WireProtocolReport {
-    WireProtocolReport {
-        schemas: typed
-            .wire_schemas()
+    let mut schemas = typed
+        .wire_schemas()
+        .iter()
+        .map(|schema| schema_report_entry(typed, schema))
+        .collect::<Vec<_>>();
+    schemas.extend(
+        typed
+            .data_definitions()
             .iter()
-            .map(|schema| schema_report_entry(typed, schema))
-            .collect(),
+            .filter_map(|data| ordinary_data_schema_report_entry(typed, data)),
+    );
+    schemas.sort_by(|left, right| left.name.cmp(&right.name));
+    WireProtocolReport { schemas }
+}
+
+fn ordinary_data_schema_report_entry(
+    typed: &TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+) -> Option<WireSchemaReportEntry> {
+    use omega_typed_trees::data::{DataMember, DataShapeKind};
+
+    let members = typed.data_members(data);
+    let has_identity_metadata = !data.retired_identities.is_empty()
+        || members.iter().any(|member| match member {
+            DataMember::Field(field) => field.identity.is_some(),
+            DataMember::Variant(variant) => {
+                variant.identity.is_some()
+                    || !variant.retired_payload_identities.is_empty()
+                    || typed
+                        .data_payload_fields(variant)
+                        .iter()
+                        .any(|field| field.identity.is_some())
+            }
+        });
+    if !has_identity_metadata {
+        return None;
     }
+    let fields = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(WireFieldReportEntry {
+                number: field.identity?,
+                name: field.name.to_string(),
+                type_display: typed.display_type_reference(field.type_reference),
+            }),
+            DataMember::Variant(_) => None,
+        })
+        .collect();
+    let cases = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(variant) => Some(WireCaseReportEntry {
+                number: variant.identity?,
+                name: variant.name.to_string(),
+                payload_fields: typed
+                    .data_payload_fields(variant)
+                    .iter()
+                    .filter_map(|field| {
+                        Some(WireFieldReportEntry {
+                            number: field.identity?,
+                            name: field.name.to_string(),
+                            type_display: typed.display_type_reference(field.type_reference),
+                        })
+                    })
+                    .collect(),
+                retired_payload_identities: variant.retired_payload_identities.clone(),
+            }),
+            DataMember::Field(_) => None,
+        })
+        .collect();
+    let shape = omega_typed_trees::data::DataDefinition::shape_kind_from_members(members);
+    let (reserved, retired_cases) = match shape {
+        DataShapeKind::Record => (data.retired_identities.clone(), Vec::new()),
+        DataShapeKind::Enum => (Vec::new(), data.retired_identities.clone()),
+        DataShapeKind::Empty | DataShapeKind::Mixed => (Vec::new(), Vec::new()),
+    };
+    Some(WireSchemaReportEntry {
+        name: data.name.to_string(),
+        normalized_schema_identity: super::layout_plans::normalized_schema_identity(typed, data),
+        synthesized_codec: false,
+        encoding: None,
+        current_era: 0,
+        fields,
+        reserved,
+        cases,
+        retired_cases,
+        versions: Vec::new(),
+    })
 }
 
 struct ScopeTable {
@@ -97,6 +178,8 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
 
     WireSchemaReportEntry {
         name: schema.name.to_string(),
+        normalized_schema_identity: 0,
+        synthesized_codec: true,
         encoding: schema
             .encoding
             .as_ref()
@@ -104,6 +187,8 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
         current_era: typed.wire_schema_current_era(schema),
         fields: current.fields,
         reserved: current.reserved,
+        cases: Vec::new(),
+        retired_cases: Vec::new(),
         versions,
     }
 }
