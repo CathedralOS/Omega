@@ -5386,6 +5386,28 @@ impl<'program> Evaluator<'program> {
                 SemanticFloatFormat::BINARY64
             }
         });
+        let policy_domain = if core_format.is_some() {
+            let mut selected = ArithmeticDomain::Exact;
+            for argument in &arguments {
+                let Some((_, domain)) = self.expression_scalar_type(*argument, frame) else {
+                    continue;
+                };
+                if domain == ArithmeticDomain::Exact {
+                    continue;
+                }
+                if selected != ArithmeticDomain::Exact && selected != domain {
+                    return trap(format!(
+                        "mixed arithmetic domains in named float operation `{target}`"
+                    ));
+                }
+                selected = domain;
+            }
+            selected
+        } else {
+            // Compatibility Math calls are separate host-boundary operations,
+            // not the normalized F32/F64 requirement surface.
+            ArithmeticDomain::Exact
+        };
         let mut operands = Vec::with_capacity(arguments.len());
         for argument in arguments {
             let value = self.eval_expression(argument, frame)?;
@@ -5401,145 +5423,166 @@ impl<'program> Evaluator<'program> {
             });
         }
 
-        let float_value =
-            |meaning: FloatMeaning| Value::Float(meaning.to_interpreter_value(format));
-        let value =
-            match target {
-                "negate" => float_value(FloatSemantics::negate(format, &operands[0])),
-                "square_root" => float_value(FloatSemantics::square_root(format, &operands[0])),
-                "multiply_then_add" => float_value(FloatSemantics::multiply_then_add(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                    &operands[2],
-                )),
-                "fused_multiply_add" => float_value(FloatSemantics::fused_multiply_add(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                    &operands[2],
-                )),
-                "minimum" => float_value(FloatSemantics::minimum(&operands[0], &operands[1])),
-                "maximum" => float_value(FloatSemantics::maximum(&operands[0], &operands[1])),
-                "classify" => {
-                    let (variant_name, negative) =
-                        match FloatSemantics::classify(format, &operands[0]) {
-                            SemanticFloatClass::NaN => ("NaN", None),
-                            SemanticFloatClass::Infinity { negative } => {
-                                ("Infinity", Some(negative))
+        let float_value = |meaning: FloatMeaning, division: bool| -> EvalResult<Value> {
+            let meaning = match policy_domain {
+                ArithmeticDomain::Saturating if division => {
+                    FloatSemantics::apply_saturating_divide_policy(
+                        format,
+                        &operands[0],
+                        &operands[1],
+                        meaning,
+                    )
+                }
+                ArithmeticDomain::Saturating => {
+                    let operand_refs = operands.iter().collect::<Vec<_>>();
+                    FloatSemantics::apply_saturating_policy(format, &operand_refs, meaning)
+                }
+                ArithmeticDomain::Trapping => FloatSemantics::apply_trapping_policy(meaning)
+                    .map_err(|trap_class| {
+                        Halt::Trap(format!(
+                            "named float operation `{target}` produced {} in Trapping domain",
+                            match trap_class {
+                                FloatPolicyTrap::NaNResult => "NaN",
+                                FloatPolicyTrap::InfinityResult => "infinity",
                             }
-                            SemanticFloatClass::Normal { negative } => ("Normal", Some(negative)),
-                            SemanticFloatClass::Subnormal { negative } => {
-                                ("Subnormal", Some(negative))
-                            }
-                            SemanticFloatClass::Zero { negative } => ("Zero", Some(negative)),
-                        };
-                    Value::Enum {
-                        type_symbol: self
-                            .find_data_by_name("FloatClass")
-                            .map(|data| data.symbol)
-                            .unwrap_or_else(SymbolHandle::invalid),
-                        variant_name: variant_name.to_owned(),
-                        payload: negative
-                            .map(|negative| {
-                                vec![("negative".to_owned(), Value::Bool(negative).cell())]
-                            })
-                            .unwrap_or_default(),
-                    }
-                }
-                "is_finite" => Value::Bool(FloatSemantics::is_finite(&operands[0])),
-                "is_nan" => Value::Bool(FloatSemantics::is_nan(&operands[0])),
-                "is_infinite" => Value::Bool(FloatSemantics::is_infinite(&operands[0])),
-                "is_normal" => Value::Bool(FloatSemantics::is_normal(format, &operands[0])),
-                "is_subnormal" => Value::Bool(FloatSemantics::is_subnormal(format, &operands[0])),
-                "add_toward_zero" => float_value(FloatSemantics::add_toward_zero(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "add_toward_positive" => float_value(FloatSemantics::add_toward_positive(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "add_toward_negative" => float_value(FloatSemantics::add_toward_negative(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "subtract_toward_zero" => float_value(FloatSemantics::subtract_toward_zero(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "subtract_toward_positive" => float_value(
-                    FloatSemantics::subtract_toward_positive(format, &operands[0], &operands[1]),
-                ),
-                "subtract_toward_negative" => float_value(
-                    FloatSemantics::subtract_toward_negative(format, &operands[0], &operands[1]),
-                ),
-                "multiply_toward_zero" => float_value(FloatSemantics::multiply_toward_zero(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "multiply_toward_positive" => float_value(
-                    FloatSemantics::multiply_toward_positive(format, &operands[0], &operands[1]),
-                ),
-                "multiply_toward_negative" => float_value(
-                    FloatSemantics::multiply_toward_negative(format, &operands[0], &operands[1]),
-                ),
-                "divide_toward_zero" => float_value(FloatSemantics::divide_toward_zero(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "divide_toward_positive" => float_value(FloatSemantics::divide_toward_positive(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "divide_toward_negative" => float_value(FloatSemantics::divide_toward_negative(
-                    format,
-                    &operands[0],
-                    &operands[1],
-                )),
-                "square_root_toward_zero" => float_value(FloatSemantics::square_root_toward_zero(
-                    format,
-                    &operands[0],
-                )),
-                "square_root_toward_positive" => float_value(
-                    FloatSemantics::square_root_toward_positive(format, &operands[0]),
-                ),
-                "square_root_toward_negative" => float_value(
-                    FloatSemantics::square_root_toward_negative(format, &operands[0]),
-                ),
-                "fused_multiply_add_toward_zero" => {
-                    float_value(FloatSemantics::fused_multiply_add_toward_zero(
-                        format,
-                        &operands[0],
-                        &operands[1],
-                        &operands[2],
-                    ))
-                }
-                "fused_multiply_add_toward_positive" => {
-                    float_value(FloatSemantics::fused_multiply_add_toward_positive(
-                        format,
-                        &operands[0],
-                        &operands[1],
-                        &operands[2],
-                    ))
-                }
-                "fused_multiply_add_toward_negative" => {
-                    float_value(FloatSemantics::fused_multiply_add_toward_negative(
-                        format,
-                        &operands[0],
-                        &operands[1],
-                        &operands[2],
-                    ))
-                }
-                _ => return Ok(None),
+                        ))
+                    })?,
+                ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => meaning,
             };
+            Ok(Value::Float(meaning.to_interpreter_value(format)))
+        };
+        let value = match target {
+            "negate" => float_value(FloatSemantics::negate(format, &operands[0]), false)?,
+            "square_root" => float_value(FloatSemantics::square_root(format, &operands[0]), false)?,
+            "multiply_then_add" => float_value(
+                FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2]),
+                false,
+            )?,
+            "fused_multiply_add" => float_value(
+                FloatSemantics::fused_multiply_add(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                ),
+                false,
+            )?,
+            "minimum" => float_value(FloatSemantics::minimum(&operands[0], &operands[1]), false)?,
+            "maximum" => float_value(FloatSemantics::maximum(&operands[0], &operands[1]), false)?,
+            "classify" => {
+                let (variant_name, negative) = match FloatSemantics::classify(format, &operands[0])
+                {
+                    SemanticFloatClass::NaN => ("NaN", None),
+                    SemanticFloatClass::Infinity { negative } => ("Infinity", Some(negative)),
+                    SemanticFloatClass::Normal { negative } => ("Normal", Some(negative)),
+                    SemanticFloatClass::Subnormal { negative } => ("Subnormal", Some(negative)),
+                    SemanticFloatClass::Zero { negative } => ("Zero", Some(negative)),
+                };
+                Value::Enum {
+                    type_symbol: self
+                        .find_data_by_name("FloatClass")
+                        .map(|data| data.symbol)
+                        .unwrap_or_else(SymbolHandle::invalid),
+                    variant_name: variant_name.to_owned(),
+                    payload: negative
+                        .map(|negative| vec![("negative".to_owned(), Value::Bool(negative).cell())])
+                        .unwrap_or_default(),
+                }
+            }
+            "is_finite" => Value::Bool(FloatSemantics::is_finite(&operands[0])),
+            "is_nan" => Value::Bool(FloatSemantics::is_nan(&operands[0])),
+            "is_infinite" => Value::Bool(FloatSemantics::is_infinite(&operands[0])),
+            "is_normal" => Value::Bool(FloatSemantics::is_normal(format, &operands[0])),
+            "is_subnormal" => Value::Bool(FloatSemantics::is_subnormal(format, &operands[0])),
+            "add_toward_zero" => float_value(
+                FloatSemantics::add_toward_zero(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "add_toward_positive" => float_value(
+                FloatSemantics::add_toward_positive(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "add_toward_negative" => float_value(
+                FloatSemantics::add_toward_negative(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "subtract_toward_zero" => float_value(
+                FloatSemantics::subtract_toward_zero(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "subtract_toward_positive" => float_value(
+                FloatSemantics::subtract_toward_positive(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "subtract_toward_negative" => float_value(
+                FloatSemantics::subtract_toward_negative(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "multiply_toward_zero" => float_value(
+                FloatSemantics::multiply_toward_zero(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "multiply_toward_positive" => float_value(
+                FloatSemantics::multiply_toward_positive(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "multiply_toward_negative" => float_value(
+                FloatSemantics::multiply_toward_negative(format, &operands[0], &operands[1]),
+                false,
+            )?,
+            "divide_toward_zero" => float_value(
+                FloatSemantics::divide_toward_zero(format, &operands[0], &operands[1]),
+                true,
+            )?,
+            "divide_toward_positive" => float_value(
+                FloatSemantics::divide_toward_positive(format, &operands[0], &operands[1]),
+                true,
+            )?,
+            "divide_toward_negative" => float_value(
+                FloatSemantics::divide_toward_negative(format, &operands[0], &operands[1]),
+                true,
+            )?,
+            "square_root_toward_zero" => float_value(
+                FloatSemantics::square_root_toward_zero(format, &operands[0]),
+                false,
+            )?,
+            "square_root_toward_positive" => float_value(
+                FloatSemantics::square_root_toward_positive(format, &operands[0]),
+                false,
+            )?,
+            "square_root_toward_negative" => float_value(
+                FloatSemantics::square_root_toward_negative(format, &operands[0]),
+                false,
+            )?,
+            "fused_multiply_add_toward_zero" => float_value(
+                FloatSemantics::fused_multiply_add_toward_zero(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                ),
+                false,
+            )?,
+            "fused_multiply_add_toward_positive" => float_value(
+                FloatSemantics::fused_multiply_add_toward_positive(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                ),
+                false,
+            )?,
+            "fused_multiply_add_toward_negative" => float_value(
+                FloatSemantics::fused_multiply_add_toward_negative(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                ),
+                false,
+            )?,
+            _ => return Ok(None),
+        };
 
         // The named F32/F64 requirements are checked boundary contracts whose
         // current omega-core provider is hermetic, so semantic evaluation may
@@ -8338,7 +8381,7 @@ impl<'program> Evaluator<'program> {
                     FloatSemantics::apply_saturating_divide_policy(format, &left, &right, meaning)
                 }
                 Some(ArithmeticDomain::Saturating) => {
-                    FloatSemantics::apply_saturating_policy(format, &left, &right, meaning)
+                    FloatSemantics::apply_saturating_policy(format, &[&left, &right], meaning)
                 }
                 Some(ArithmeticDomain::Trapping) => {
                     match FloatSemantics::apply_trapping_policy(meaning) {

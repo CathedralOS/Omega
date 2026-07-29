@@ -157,7 +157,7 @@ mod tests {
             status: CheckedOperatorResolutionStatus::Resolved,
             ..Default::default()
         });
-        let operators = CheckedOperatorFacts::with_roots(uses, candidates);
+        let operators = CheckedOperatorFacts::with_roots(uses, Default::default(), candidates);
         let mut contract_facts = omega_core::arena::Arena::default();
         let mut fact_refs = omega_core::arena::Arena::default();
 

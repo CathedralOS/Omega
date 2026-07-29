@@ -181,8 +181,12 @@ excluded. The interpreter consumes these shared adapters. Checked spelled
 binary uses of the imported normalized float surface retain the selected
 binary32/binary64
 `FloatTrappingNonFinite` or `FloatSaturatingOverflowOnly` adapter beside the
-operation identity. Named/unary operation adaptation and downstream lowering
-consumption of this checked evidence remain before rung 2 is complete.
+operation identity. Named F32/F64 calls now retain the selected requirement and
+same adapter in checked named-use evidence. The interpreter applies it to every
+float-returning unary, binary, ternary, and directed operation; classification
+results carry no float result adapter, and mixed explicit operand policies
+reject statically. Carrying and consuming this evidence through downstream
+lowering remains before rung 2 is complete.
 
 ## 2. Domains: the value/policy split
 

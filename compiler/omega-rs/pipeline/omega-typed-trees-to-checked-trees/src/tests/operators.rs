@@ -428,6 +428,58 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
 }
 
 #[test]
+fn records_checked_named_float_policy_adapters() {
+    let source = r#"
+        data F32 {}
+        data F64 {}
+
+        boundary operator F32::multiply_then_add(
+            left: f32,
+            right: f32,
+            addend: f32
+        ) -> f32;
+        boundary operator F64::negate(value: f64) -> f64;
+        boundary operator F32::is_finite(value: f32) -> bool;
+
+        data Main {}
+
+        machine Main::combine(
+            &self,
+            saturated: f32 in Saturating,
+            trapped: f64 in Trapping,
+            quiet: f32
+        ) {
+            let saturated_result: f32 =
+                F32::multiply_then_add(saturated, saturated, saturated);
+            let trapped_result: f64 = F64::negate(trapped);
+            let classification: bool = F32::is_finite(quiet);
+        }
+
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked_program_from_source(source);
+    let adapters = checked
+        .facts
+        .operators
+        .named_uses()
+        .map(|operator_use| operator_use.policy_adapter)
+        .collect::<Vec<_>>();
+
+    assert!(adapters.contains(
+        &omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+            format: omega_core::float_semantics::FloatFormat::BINARY32,
+        }
+    ));
+    assert!(adapters.contains(
+        &omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+            format: omega_core::float_semantics::FloatFormat::BINARY64,
+        }
+    ));
+    assert!(adapters.contains(&omega_checked_trees::CheckedArithmeticPolicyAdapter::None));
+}
+
+#[test]
 fn records_indexed_expression_operator_spelling_resolution() {
     let index_operator_symbol = SymbolHandle::from_arena_index(80);
     let range_operator_symbol = SymbolHandle::from_arena_index(81);
