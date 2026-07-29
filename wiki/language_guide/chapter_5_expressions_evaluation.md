@@ -445,6 +445,9 @@ Two rules keep it honest:
 > lowering coverage, not an unmigrated library consumer. The domain model
 > reserves qualification `as` for changing static facts without changing
 > carrier, payload, or runtime work.
+> `std::macos_gui` likewise names its `u32`-to-`i64` framebuffer widening and
+> wrapping `u64`-to-`u32` foreign-result narrowing. Its remaining numeric casts
+> are integer-to-float conversions awaiting the F7 named surface.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.
