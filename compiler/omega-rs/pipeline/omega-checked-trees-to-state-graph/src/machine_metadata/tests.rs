@@ -52,6 +52,7 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
     program.typed.push_data_member(
         &mut main_data,
         DataMember::Field(DataField {
+            identity: None,
             symbol: worker_field_symbol,
             name: Identifier::generated("worker"),
             type_reference: worker_type,
@@ -60,6 +61,7 @@ fn contained_topology_is_derived_only_from_fields_with_attached_machines() {
     program.typed.push_data_member(
         &mut main_data,
         DataMember::Field(DataField {
+            identity: None,
             symbol: scalar_field_symbol,
             name: Identifier::generated("count"),
             type_reference: scalar_type,

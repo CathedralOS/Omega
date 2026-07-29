@@ -27,6 +27,11 @@ Primary responsibility: lower checked control flow into explicit operations with
   lowering code should assign this root as a unit instead of mutating individual
   semantic sub-arenas, and should use `AbstractSemanticSummary` constructors
   rather than spelling out its internal fields.
+- `lowering/values.rs` preserves normalized arithmetic-policy adapter evidence
+  in abstract value facts. During the transitional boundary, instruction
+  selection consumes the control-flow copy for normalized float operations,
+  validates the carried format against the selected width, and fails closed on
+  conflicting evidence.
 - `omega-control-flow/src/semantics.rs` is the source semantic root for this
   stage: `ControlFlowSemanticRoots` keeps proof, invariant, contract, value,
   boundary, borrow, and ownership arenas visibly separate from executable
@@ -123,9 +128,11 @@ for state exits, plus ownership forms not reached by current operation-site
 hooks.
 Compatibility move/drop rows remain upstream only and are deliberately ignored
 at this boundary.
-It preserves control-flow value summaries as abstract value summaries, but does
-not yet consume them to decide type-aware ownership kind, storage shape, or
-runtime operand lowering.
+It preserves control-flow value summaries as abstract value summaries.
+Normalized float runtime-operand lowering consumes the carried checked policy
+adapter; compatibility operations without checked operator evidence retain a
+narrow legacy type-domain fallback. The summaries do not yet decide type-aware
+ownership kind or storage shape.
 Boundary-edge summaries now preserve both source-level boundary trait edges,
 lowered host-operation edges, and first-pass links between those layers. The
 remaining gap is carrying enough call-ordinal/operation provenance to validate

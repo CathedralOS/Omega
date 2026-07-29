@@ -5,6 +5,7 @@ use crate::selection::storage_places::{
     clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
     combine_binary_operand_scalar_types, enum_variant_value_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
+    resolve_binary_operation_arithmetic_domain_in_table,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
@@ -229,6 +230,18 @@ fn resolve_runtime_value_operand_in_table_with_root(
             left_expr,
             right_expr,
         );
+        let arithmetic_domain = resolve_binary_operation_arithmetic_domain_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            expression,
+            left_expr,
+            right_expr,
+            is_float,
+            byte_width,
+        )?;
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
@@ -237,7 +250,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
             byte_width,
             // Recorded so the Saturating/Trapping operand-position lowering
             // picks its width-correct op + clamp/trap bounds.
-            arithmetic_domain: domain_signedness.0,
+            arithmetic_domain,
             operands_signed: domain_signedness.1,
         }));
     }
@@ -342,6 +355,22 @@ fn resolve_runtime_value_operand_in_table_with_root(
                 left_expr,
                 right_expr,
             );
+            let arithmetic_domain = if is_float {
+                resolve_binary_operation_arithmetic_domain_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    statement_index,
+                    expressions,
+                    expression,
+                    left_expr,
+                    right_expr,
+                    true,
+                    byte_width,
+                )?
+            } else {
+                omega_core::arithmetic::ArithmeticDomain::Exact
+            };
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
                 operator,
@@ -350,7 +379,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
                 byte_width,
                 // min/max SELECTS one operand -- no overflow exists for a
                 // domain to clamp/trap. Signedness already rode the operator.
-                arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+                arithmetic_domain,
                 operands_signed: true,
             }));
         }

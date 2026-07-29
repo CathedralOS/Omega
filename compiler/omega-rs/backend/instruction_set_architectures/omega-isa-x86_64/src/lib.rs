@@ -14652,6 +14652,9 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
             | StateGuardOperator::Divide
+            | StateGuardOperator::Min
+            | StateGuardOperator::Max
+            | StateGuardOperator::Sqrt
     )
 }
 
@@ -14762,35 +14765,12 @@ fn float_policy_guard_bytes(
             }
         }
         ArithmeticDomain::Trapping => {
-            let mut end_branches = Vec::new();
-            // Finite result: done. NaN jumps over the infinity case.
-            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x82)); // jb end
-            let nan_branch = append_policy_branch_placeholder(&mut bytes, 0x87); // ja nan
-
-            // Infinite result is legal only when an input was already Inf/NaN.
-            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
-            append_cmp_rax_r9(&mut bytes);
-            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
-            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
-            append_cmp_rax_r9(&mut bytes);
-            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
-            bytes.extend([0x0f, 0x0b]); // ud2: overflow or divide-by-zero
-
-            let nan = bytes.len();
-            patch_policy_branch(&mut bytes, nan_branch, nan)?;
-            // NaN propagation is legal only when an input was already NaN.
-            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
-            append_cmp_rax_r9(&mut bytes);
-            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x87)); // ja end
-            append_float_abs_to_rax(&mut bytes, FloatPolicySource::Right, byte_size);
-            append_cmp_rax_r9(&mut bytes);
-            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x87)); // ja end
-            bytes.extend([0x0f, 0x0b]); // ud2: invalid operation
-
+            // Trapping is result-only: every NaN or infinity traps, including
+            // a non-finite value propagated from a non-finite operand.
+            let finite_branch = append_policy_branch_placeholder(&mut bytes, 0x82); // jb end
+            bytes.extend([0x0f, 0x0b]); // ud2: non-finite result
             let end = bytes.len();
-            for branch in end_branches {
-                patch_policy_branch(&mut bytes, branch, end)?;
-            }
+            patch_policy_branch(&mut bytes, finite_branch, end)?;
         }
         _ => unreachable!("policy applicability gated above"),
     }
@@ -14813,8 +14793,9 @@ fn append_runtime_float_binary_operation(
     let wide = byte_size > 4;
     let guarded = float_policy_applies(operator, domain);
     if guarded {
-        // The result overwrites r10. Keep the raw left operand for the policy
-        // guard; r11 already keeps the raw right operand.
+        // The result overwrites r10. Saturating still classifies both source
+        // operands; keeping the left operand here also preserves a single
+        // width path for both checked policies.
         bytes.extend([0x4d, 0x89, 0xd0]); // mov r8,r10
     }
     if wide {
@@ -16201,10 +16182,12 @@ mod float_arithmetic_policy_tests {
                             branches += 1;
                         }
                     }
-                    assert!(
-                        branches >= 3,
-                        "policy guard must contain its decision branches"
-                    );
+                    let minimum_branches = if domain == ArithmeticDomain::Trapping {
+                        1
+                    } else {
+                        3
+                    };
+                    assert!(branches >= minimum_branches);
                     assert_eq!(
                         bytes.windows(2).any(|window| window == [0x0f, 0x0b]),
                         domain == ArithmeticDomain::Trapping,
@@ -16216,16 +16199,26 @@ mod float_arithmetic_policy_tests {
     }
 
     #[test]
-    fn non_arithmetic_float_operations_never_gain_policy_bytes() {
+    fn float_comparisons_never_gain_policy_bytes() {
+        for operator in [StateGuardOperator::Equal, StateGuardOperator::NotEqual] {
+            assert!(
+                float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
+                    .expect("gated guard")
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn named_result_operations_receive_policy_bytes() {
         for operator in [
-            StateGuardOperator::Equal,
             StateGuardOperator::Min,
             StateGuardOperator::Max,
             StateGuardOperator::Sqrt,
         ] {
             assert!(
-                float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
-                    .expect("gated guard")
+                !float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
+                    .expect("result policy guard")
                     .is_empty()
             );
         }

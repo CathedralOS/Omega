@@ -12,7 +12,8 @@ use omega_state_guards::{StateGuardKind, StateGuardLowering, StateGuardOperator}
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
     classify_scalar_value_type_in_table, enum_variant_value, enum_variant_value_in_table,
-    resolve_binary_operand_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
+    resolve_binary_operand_arithmetic_domain_in_table,
+    resolve_binary_operation_arithmetic_domain_in_table, resolve_runtime_bit_field_place_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
@@ -1842,6 +1843,18 @@ fn resolve_runtime_value_operand_in_table(
             binary.left,
             binary.right,
         );
+        let arithmetic_domain = resolve_binary_operation_arithmetic_domain_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            expression,
+            binary.left,
+            binary.right,
+            is_float,
+            byte_width,
+        )?;
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
@@ -1853,7 +1866,7 @@ fn resolve_runtime_value_operand_in_table(
             // Recorded so the Saturating/Trapping operand-position lowering
             // picks its width-correct op + clamp/trap bounds (the plain op
             // silently computed the unclamped 150 for `sat_a + sat_b == 127`).
-            arithmetic_domain: domain_signedness.0,
+            arithmetic_domain,
             operands_signed: domain_signedness.1,
         }));
     }

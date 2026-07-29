@@ -25,6 +25,7 @@ fn copies_target_value_summary_to_assigned_plan() {
                 statement_index: 7,
                 role: AbstractValueStatementRole::CallArgument,
             },
+            arithmetic_policy_adapter: None,
         });
 
     let assigned_operations = build_assigned_target_operations(&target_operations);

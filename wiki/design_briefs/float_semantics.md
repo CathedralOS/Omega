@@ -185,8 +185,17 @@ operation identity. Named F32/F64 calls now retain the selected requirement and
 same adapter in checked named-use evidence. The interpreter applies it to every
 float-returning unary, binary, ternary, and directed operation; classification
 results carry no float result adapter, and mixed explicit operand policies
-reject statically. Carrying and consuming this evidence through downstream
-lowering remains before rung 2 is complete.
+reject statically. The adapter now rides state-graph, control-flow, and abstract
+value facts, including nested operators. Normalized table instruction selection
+consumes that checked evidence, validates its binary32/binary64 format against
+the selected width, and rejects contradictory evidence; only compatibility
+operations with no checked operator evidence retain type-domain
+reconstruction. Native x86-64 and AArch64 guards implement result-only
+`Trapping` for spelled and named result operations, so propagated NaN and
+infinity trap as the semantic adapter requires. `Saturating` remains the
+operand-aware overflow-only adapter. Stage-copy tests and a native sentinel
+canary cover the path. This completes rung 2; rung 3 begins with explicit target
+satisfiers and selected `ProviderPlan` realization.
 
 ## 2. Domains: the value/policy split
 

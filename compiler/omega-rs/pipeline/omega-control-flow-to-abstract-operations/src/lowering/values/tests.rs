@@ -30,6 +30,11 @@ fn copies_control_flow_values_into_abstract_summary() {
                 statement_index: 5,
                 role: StateValueStatementRole::TransitionGuard,
             },
+            arithmetic_policy_adapter: Some(
+                omega_core::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                    format: omega_core::float_semantics::FloatFormat::BINARY32,
+                },
+            ),
         },
     );
     control_flow.states.insert(state);
@@ -51,5 +56,13 @@ fn copies_control_flow_values_into_abstract_summary() {
             statement_index: 5,
             role: AbstractValueStatementRole::TransitionGuard,
         }
+    );
+    assert_eq!(
+        copied.arithmetic_policy_adapter,
+        Some(
+            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                format: omega_core::float_semantics::FloatFormat::BINARY32,
+            }
+        )
     );
 }

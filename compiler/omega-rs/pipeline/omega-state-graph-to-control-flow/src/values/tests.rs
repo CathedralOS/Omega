@@ -12,6 +12,11 @@ fn remap_value_summary_preserves_statement_value_handles() {
             statement_index: 4,
             role: omega_state_graph::StateValueStatementRole::CallArgument,
         },
+        arithmetic_policy_adapter: Some(
+            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: omega_core::float_semantics::FloatFormat::BINARY64,
+            },
+        ),
     };
     let mut values = Arena::new();
     let mut span = omega_core::arena::HandleSpan::empty();
@@ -23,5 +28,20 @@ fn remap_value_summary_preserves_statement_value_handles() {
     assert_eq!(
         summary.values.start().arena_index(),
         span.start().arena_index()
+    );
+    let copied = remap_value_owned(
+        values
+            .iter()
+            .next()
+            .map(|(_, value)| value.clone())
+            .expect("source value"),
+    );
+    assert_eq!(
+        copied.arithmetic_policy_adapter,
+        Some(
+            omega_core::arithmetic::ArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                format: omega_core::float_semantics::FloatFormat::BINARY64,
+            }
+        )
     );
 }

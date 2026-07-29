@@ -3,6 +3,7 @@
 // default may be stored in a policy-qualified carrier, but its next Trapping
 // arithmetic operation must trap instead of propagating it to exit 70.
 
+use omega::language::core::float_operations;
 use omega::language::std::console;
 
 data Main {

@@ -25,6 +25,7 @@ fn copies_assigned_value_summary_to_machine_instruction_plan() {
                 statement_index: 11,
                 role: AbstractValueStatementRole::TransitionGuard,
             },
+            arithmetic_policy_adapter: None,
         });
 
     let machine_instructions =

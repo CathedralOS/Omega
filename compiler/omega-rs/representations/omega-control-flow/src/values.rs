@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arithmetic::ArithmeticPolicyAdapter;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
 
@@ -51,6 +52,7 @@ pub struct StateValueFact {
     pub state_symbol: SymbolHandle,
     pub expression: ExpressionHandle,
     pub origin: StateValueOrigin,
+    pub arithmetic_policy_adapter: Option<ArithmeticPolicyAdapter>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

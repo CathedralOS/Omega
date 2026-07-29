@@ -4,6 +4,8 @@ use omega_checked_trees::expression::{
 };
 use omega_checked_trees::name::Identifier;
 use omega_control_flow::{Operation, StateKey, StateParameterFlow};
+use omega_core::arithmetic::{ArithmeticDomain, ArithmeticPolicyAdapter};
+use omega_core::float_semantics::FloatFormat;
 use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
@@ -11,6 +13,88 @@ use omega_state_storage::StateMutation;
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CarriedFloatPolicyDomain {
+    Missing,
+    Resolved(ArithmeticDomain),
+    Invalid,
+}
+
+/// Resolve one float operation's already-checked result adapter from the
+/// control-flow value spine. This deliberately does not inspect operand types:
+/// format mismatch or contradictory carried facts fail closed, while `Missing`
+/// lets explicitly compatibility-only lowering retain its old bootstrap path.
+pub(super) fn carried_float_policy_domain(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    byte_width: usize,
+) -> CarriedFloatPolicyDomain {
+    let Some(state) = input.control_flow.state_by_key(source_key).or_else(|| {
+        input
+            .control_flow
+            .states
+            .iter()
+            .find(|(_, state)| state_key_matches_statement_source(state.key, source_key))
+            .map(|(_, state)| state)
+    }) else {
+        return CarriedFloatPolicyDomain::Missing;
+    };
+    let expected_format = match byte_width {
+        4 => Some(FloatFormat::BINARY32),
+        8 => Some(FloatFormat::BINARY64),
+        _ => None,
+    };
+    let mut resolved = None;
+
+    for value in input
+        .control_flow
+        .semantics
+        .values
+        .values
+        .span_or_empty(state.values.values)
+    {
+        let omega_control_flow::StateValueOrigin::Statement {
+            statement_index: value_statement_index,
+            ..
+        } = value.origin;
+        if value_statement_index != statement_index || value.expression != expression {
+            continue;
+        }
+        let Some(adapter) = value.arithmetic_policy_adapter else {
+            continue;
+        };
+        let domain = match adapter {
+            ArithmeticPolicyAdapter::None => ArithmeticDomain::Exact,
+            ArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { format } => {
+                if Some(format) != expected_format {
+                    return CarriedFloatPolicyDomain::Invalid;
+                }
+                ArithmeticDomain::Saturating
+            }
+            ArithmeticPolicyAdapter::FloatTrappingNonFinite { format } => {
+                if Some(format) != expected_format {
+                    return CarriedFloatPolicyDomain::Invalid;
+                }
+                ArithmeticDomain::Trapping
+            }
+        };
+        match resolved {
+            Some(existing) if existing != domain => {
+                return CarriedFloatPolicyDomain::Invalid;
+            }
+            None => resolved = Some(domain),
+            _ => {}
+        }
+    }
+
+    resolved.map_or(
+        CarriedFloatPolicyDomain::Missing,
+        CarriedFloatPolicyDomain::Resolved,
+    )
 }
 
 pub(super) fn host_call_for_statement<'plan>(

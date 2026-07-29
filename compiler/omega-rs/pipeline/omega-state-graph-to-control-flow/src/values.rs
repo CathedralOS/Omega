@@ -17,6 +17,7 @@ pub(crate) fn remap_value_owned(value: omega_state_graph::StateValueFact) -> Sta
         state_symbol: value.state_symbol,
         expression: value.expression,
         origin: remap_value_origin(value.origin),
+        arithmetic_policy_adapter: value.arithmetic_policy_adapter,
     }
 }
 

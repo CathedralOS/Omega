@@ -689,8 +689,7 @@ and allocation handles expose no compiler-owned stack/control storage.
   root, directed add/subtract/multiply/divide/sqrt/FMA, and fused-versus-unfused
   behavior. Hermetic core float requirements no longer trip the interpreter's
   host-boundary purity backstop; compatibility imports still do.
-  Rung 1 is complete for the settled operation surface. Continue with rung 2's
-  checked arithmetic-policy adapters.
+  Rung 1 is complete for the settled operation surface.
   The first rung-2 slice centralizes result-checked `Trapping` and overflow-only
   `Saturating` in the shared semantic engine. The interpreter now consumes
   those adapters, including trapping propagated NaN/infinity; checked spelled
@@ -703,9 +702,18 @@ and allocation handles expose no compiler-owned stack/control storage.
   same adapter in a distinct checked named-use arena. Float-returning unary,
   binary, ternary, and directed operations apply the shared adapter in the
   interpreter; classification results carry no float adapter, and mixed
-  explicit operand policies reject statically.
-  Finish rung 2 by carrying and consuming checked adapter evidence through
-  downstream lowering instead of reconstructing policy from type domains.
+  explicit operand policies reject statically. Checked adapter evidence now
+  rides state-graph, control-flow, and abstract value facts, including nested
+  operations, and normalized table lowering consumes that evidence rather than
+  reconstructing float policy from type domains. Format mismatches and
+  contradictory carried evidence fail closed; the legacy type-domain fallback
+  remains only for compatibility operations that have no checked operator
+  evidence. Native x86-64 and AArch64 realization now applies the result-only
+  `Trapping` verdict to spelled and named float operations, including propagated
+  NaN/infinity, while `Saturating` retains its overflow-only operand-aware
+  adapter. Stage-copy tests and a sentinel-safe native canary pin the path.
+  Rung 2 is complete; continue with rung 3's explicit target satisfiers and
+  selected `ProviderPlan` realization.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief; only the negative ruling that compatibility

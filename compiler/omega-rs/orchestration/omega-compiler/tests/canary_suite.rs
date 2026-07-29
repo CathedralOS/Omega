@@ -37522,6 +37522,11 @@ fn float_to_int_trapping_canaries_abort() {
             !output.status.success(),
             "{name} reached exit(70) instead of trapping"
         );
+        assert_ne!(
+            output.status.code(),
+            Some(70),
+            "{name} reached its post-operation sentinel instead of trapping"
+        );
         let _ = fs::remove_dir_all(&build_dir);
     }
 }

@@ -1,4 +1,5 @@
 use omega_checked_trees::{CheckedTrees, CheckedValueOrigin, CheckedValueStatementRole};
+use omega_core::arithmetic::ArithmeticPolicyAdapter;
 use omega_state_graph::{
     StateGraph, StateKey, StateValueFact, StateValueOrigin, StateValueStatementRole,
     StateValueSummary,
@@ -9,15 +10,11 @@ pub(crate) fn state_value_summary(
     program: &CheckedTrees,
     key: StateKey,
 ) -> StateValueSummary {
-    let mut values = omega_core::arena::HandleSpan::empty();
+    let mut state_values = Vec::new();
 
     for (_, value) in program.facts.values.values.iter() {
-        let CheckedValueOrigin::StateStatement {
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            role,
-        } = value.origin
+        let Some((machine_symbol, state_symbol, statement_index, role)) =
+            statement_origin(value.origin)
         else {
             continue;
         };
@@ -26,8 +23,8 @@ pub(crate) fn state_value_summary(
             continue;
         }
 
-        state_graph.semantics.values.values.append_to_span(
-            &mut values,
+        append_or_enrich_value(
+            &mut state_values,
             StateValueFact {
                 machine_symbol,
                 state_symbol,
@@ -36,11 +33,120 @@ pub(crate) fn state_value_summary(
                     statement_index,
                     role: remap_value_statement_role(role),
                 },
+                arithmetic_policy_adapter: program
+                    .facts
+                    .operators
+                    .policy_adapter_evidence_for_expression_in_origin(
+                        value.expression,
+                        value.origin,
+                    ),
             },
         );
     }
 
-    StateValueSummary { values }
+    // Operator collection walks every root expression recursively while
+    // retaining the root's statement origin. Preserve those nested operator
+    // expressions too: a policy adapter applies at each arithmetic node, not
+    // merely at the statement's outermost value.
+    for (_, operator_use) in program.facts.operators.uses.iter() {
+        append_operator_value(
+            &mut state_values,
+            key,
+            operator_use.expression,
+            operator_use.origin,
+            operator_use.policy_adapter,
+        );
+    }
+    for (_, operator_use) in program.facts.operators.named_uses.iter() {
+        append_operator_value(
+            &mut state_values,
+            key,
+            operator_use.expression,
+            operator_use.origin,
+            operator_use.policy_adapter,
+        );
+    }
+
+    StateValueSummary {
+        values: state_graph
+            .semantics
+            .values
+            .values
+            .insert_many(state_values),
+    }
+}
+
+fn append_operator_value(
+    values: &mut Vec<StateValueFact>,
+    key: StateKey,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+    origin: CheckedValueOrigin,
+    arithmetic_policy_adapter: ArithmeticPolicyAdapter,
+) {
+    let Some((machine_symbol, state_symbol, statement_index, role)) = statement_origin(origin)
+    else {
+        return;
+    };
+    if machine_symbol != key.machine || state_symbol != key.state {
+        return;
+    }
+    append_or_enrich_value(
+        values,
+        StateValueFact {
+            machine_symbol,
+            state_symbol,
+            expression,
+            origin: StateValueOrigin::Statement {
+                statement_index,
+                role: remap_value_statement_role(role),
+            },
+            arithmetic_policy_adapter: Some(arithmetic_policy_adapter),
+        },
+    );
+}
+
+fn append_or_enrich_value(values: &mut Vec<StateValueFact>, value: StateValueFact) {
+    if let Some(index) = values.iter().position(|existing| {
+        existing.machine_symbol == value.machine_symbol
+            && existing.state_symbol == value.state_symbol
+            && existing.expression == value.expression
+            && existing.origin == value.origin
+    }) {
+        match (
+            values[index].arithmetic_policy_adapter,
+            value.arithmetic_policy_adapter,
+        ) {
+            (None, Some(adapter)) => values[index].arithmetic_policy_adapter = Some(adapter),
+            (Some(left), Some(right)) if left != right => {
+                // Retain the contradiction as a second fact. Downstream lookup
+                // rejects conflicting carried evidence instead of choosing one.
+                values.push(value);
+            }
+            _ => {}
+        }
+        return;
+    }
+    values.push(value);
+}
+
+fn statement_origin(
+    origin: CheckedValueOrigin,
+) -> Option<(
+    omega_core::symbols::SymbolHandle,
+    omega_core::symbols::SymbolHandle,
+    usize,
+    CheckedValueStatementRole,
+)> {
+    let CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        role,
+    } = origin
+    else {
+        return None;
+    };
+    Some((machine_symbol, state_symbol, statement_index, role))
 }
 
 pub(crate) fn remap_state_value_summary(
