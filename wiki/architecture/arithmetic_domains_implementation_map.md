@@ -107,6 +107,11 @@
 > `arithmetic/runtime_integer_casts_exit` intentionally remains on compatibility
 > `as`: it pins the legacy cast-initializer/transition-parameter lowering shape
 > until that surface is retired, independently of the named conversion cohort.
+> The macOS GUI provider now widens framebuffer dimensions into its Core
+> Graphics `i64` staging fields and explicitly wrapping-narrows the raw
+> Objective-C liveness result. Its residual numeric casts are all float
+> conversions reserved for F7, and the native provider/sample rows retain the
+> integer behavior.
 
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the

@@ -414,6 +414,12 @@ ceilings, and publication-before-ledger-record all reject.
   materialization instead of being mistaken for elided aliases. The constructor,
   totals/divide, clock, sleep, cross-target, and filesystem-time canaries pin
   both proof and native delivery.
+- `std::macos_gui` now names its integer payload conversions: framebuffer
+  dimensions widen from `u32` to the Core Graphics `i64` ABI fields, and the
+  raw Objective-C liveness result narrows to `u32` with the existing wrapping
+  policy. Its residual numeric casts are the six integer-to-float conversions
+  that belong to F7; the native provider and GUI sample cohort pins the
+  integer migration.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
