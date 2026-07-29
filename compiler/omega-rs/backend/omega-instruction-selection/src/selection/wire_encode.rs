@@ -71,6 +71,13 @@ enum WireFieldContent {
         count: Option<RuntimeStoragePlace>,
         max_count: usize,
     },
+    /// An unbounded borrowed scalar slice. The source place is its
+    /// `{ptr, element_count}` descriptor; one dynamic operation retains and
+    /// realizes the plan's two-pass work/capacity obligation.
+    ScalarSlice {
+        element: omega_checked_trees::wire::WireScalarEncoding,
+        descriptor: RuntimeStoragePlace,
+    },
 }
 
 /// Lower a recognized `encode` call statement; `true` when the statement
@@ -357,6 +364,22 @@ pub(super) fn select_wire_encode_call(
                     written_offset: written_place.byte_offset,
                 });
             }
+            WireFieldContent::ScalarSlice {
+                element,
+                descriptor,
+            } => {
+                push(SelectedInstructionKind::AppendWireScalarSlice {
+                    source_region: descriptor.region,
+                    source_offset: descriptor.byte_offset,
+                    element_byte_size: element.byte_size,
+                    zigzag: element.zigzag,
+                    out_region: out_place.region,
+                    out_offset: out_place.byte_offset,
+                    out_length: out_place.byte_count,
+                    written_region: written_place.region,
+                    written_offset: written_place.byte_offset,
+                });
+            }
             WireFieldContent::Nested {
                 schema: child_schema,
                 children,
@@ -569,6 +592,33 @@ fn collect_field_appends(
                     base,
                     count,
                     max_count: repeated.max_count,
+                },
+            });
+            continue;
+        }
+
+        if let Some(slice) = input
+            .program
+            .wire_field_borrowed_scalar_slice_encoding(field)
+        {
+            if !allow_nested {
+                return None;
+            }
+            let descriptor = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                member_handle,
+            )?;
+            if descriptor.byte_count != input.runtime_abi.slice_descriptor_size() {
+                return None;
+            }
+            fields.push(WireFieldAppend {
+                number: field.number,
+                content: WireFieldContent::ScalarSlice {
+                    element: slice.element,
+                    descriptor,
                 },
             });
             continue;

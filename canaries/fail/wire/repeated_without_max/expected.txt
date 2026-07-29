@@ -1,1 +1,0 @@
-the current compact_binary generated realization needs a statically bounded repeated carrier

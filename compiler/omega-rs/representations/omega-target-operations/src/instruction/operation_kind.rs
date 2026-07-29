@@ -140,6 +140,17 @@ pub enum TargetOperationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    AppendWireScalarSlice {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        element_byte_size: usize,
+        zigzag: bool,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        out_length: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     /// compact_binary v0 wire decoding: expect one compile-time framing byte
     /// at the stored cursor (the caller's `read` slot); a bounds miss or a
     /// mismatch clears the sticky `ok` flag.

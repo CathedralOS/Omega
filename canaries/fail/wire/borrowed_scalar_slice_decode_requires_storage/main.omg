@@ -1,0 +1,30 @@
+data Telemetry {
+    #0 readings: &[i32];
+}
+
+data TelemetrySample {
+    readings: &[i32];
+}
+
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    source: [i32; 4];
+    buffer: [u8; 64];
+    read: u64;
+    verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    let decoded: TelemetrySample =
+        TelemetrySample { readings: self.source[0..0] };
+    Telemetry::decode(
+        &mut decoded,
+        &self.buffer,
+        &mut self.read,
+        &mut self.verdict
+    );
+}

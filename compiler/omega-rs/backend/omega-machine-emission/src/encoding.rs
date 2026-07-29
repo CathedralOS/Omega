@@ -410,6 +410,25 @@ pub(super) fn encode_machine_instruction_bytes(
             *out_length,
             *written_offset,
         ),
+        SelectedInstructionKind::AppendWireScalarSlice {
+            source_region,
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset,
+            ..
+        } => omega_instruction_selection::encode_append_wire_scalar_slice(
+            input.target.architecture,
+            *source_region,
+            *source_offset,
+            *element_byte_size,
+            *zigzag,
+            *out_offset,
+            *out_length,
+            *written_offset,
+        ),
         SelectedInstructionKind::ReadWireExpectedByte {
             buffer_offset,
             buffer_length,

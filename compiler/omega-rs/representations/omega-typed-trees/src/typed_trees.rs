@@ -30,6 +30,7 @@ pub struct TypedTrees {
     /// schema's placements, referenced by span from `wire_schema_plans` --
     /// arena-backed storage, HandleSpan ownership.
     pub wire_placements: Arena<wire::WirePlacement>,
+    pub wire_encode_obligations: Arena<wire::WireEncodeObligation>,
     pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
     /// MP4: deterministic records of generic-machine specializations applied
     /// before checked lowering. The template keeps its declaration symbol;
@@ -204,6 +205,7 @@ impl TypedTrees {
             semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
             plan_laid_layouts: Vec::new(),
             wire_placements: Arena::new(),
+            wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
             boundary_calling_plans: Vec::new(),
@@ -216,11 +218,14 @@ impl TypedTrees {
         &mut self,
         schema: omega_core::symbols::SymbolHandle,
         placements: impl IntoIterator<Item = wire::WirePlacement>,
+        encode_obligations: impl IntoIterator<Item = wire::WireEncodeObligation>,
     ) {
         let span = self.wire_placements.insert_many(placements);
+        let obligations = self.wire_encode_obligations.insert_many(encode_obligations);
         self.wire_schema_plans.push(wire::WireSchemaPlan {
             schema,
             placements: span,
+            encode_obligations: obligations,
         });
     }
 
@@ -234,6 +239,17 @@ impl TypedTrees {
             .iter()
             .find(|plan| plan.schema == schema)
             .and_then(|plan| self.wire_placements.span(plan.placements))
+    }
+
+    /// Dynamic encode obligations retained beside one schema's placements.
+    pub fn wire_schema_encode_obligations(
+        &self,
+        schema: omega_core::symbols::SymbolHandle,
+    ) -> Option<&[wire::WireEncodeObligation]> {
+        self.wire_schema_plans
+            .iter()
+            .find(|plan| plan.schema == schema)
+            .and_then(|plan| self.wire_encode_obligations.span(plan.encode_obligations))
     }
 
     pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
@@ -610,6 +626,40 @@ impl TypedTrees {
                 _ => return false,
             }
         }
+    }
+
+    /// A borrowed/unbounded slice's element type, looking through reference
+    /// and constraint shells.
+    pub fn wire_field_slice_element(
+        &self,
+        field: &wire::WireField,
+    ) -> Option<types::TypeReferenceHandle> {
+        let mut handle = field.type_reference;
+        loop {
+            if !handle.is_valid() {
+                return None;
+            }
+            match self.type_reference_table.type_reference(handle) {
+                types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+                types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                types::TypeReferenceNode::Slice { element_type } => return Some(*element_type),
+                _ => return None,
+            }
+        }
+    }
+
+    /// A general borrowed scalar slice supported by compact_binary's
+    /// allocation-free encode path. `&[u8]` remains the distinct raw-byte
+    /// path because `u8` is not in the packed scalar vocabulary.
+    pub fn wire_field_borrowed_scalar_slice_encoding(
+        &self,
+        field: &wire::WireField,
+    ) -> Option<wire::WireBorrowedScalarSliceEncoding> {
+        let element = self.wire_field_slice_element(field)?;
+        let element = self
+            .primitive_type_reference(element)
+            .and_then(wire::WireScalarEncoding::for_primitive)?;
+        Some(wire::WireBorrowedScalarSliceEncoding { element })
     }
 
     /// A wire field's bounded repeated carrier. Fixed arrays carry exactly

@@ -2309,6 +2309,17 @@ impl<'program> Evaluator<'program> {
                 ));
                 continue;
             }
+            if let Some(slice) = self
+                .program
+                .wire_field_borrowed_scalar_slice_encoding(field)
+            {
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpField::ScalarSlice(slice),
+                ));
+                continue;
+            }
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
@@ -2329,7 +2340,9 @@ impl<'program> Evaluator<'program> {
         let has_text_field = fields.iter().any(|(_, _, content)| {
             matches!(
                 content,
-                WireInterpField::Direct(WireFieldEncoding::Text) | WireInterpField::ByteSlice
+                WireInterpField::Direct(WireFieldEncoding::Text)
+                    | WireInterpField::ByteSlice
+                    | WireInterpField::ScalarSlice(_)
             )
         });
 
@@ -2476,6 +2489,33 @@ impl<'program> Evaluator<'program> {
                                 "`{schema_name}::encode` repeated field `{field_name}` has no inline array storage"
                             )));
                         }
+                    }
+                    bytes.extend(wire_varint_bytes(body.len() as u64));
+                    bytes.extend(body);
+                }
+                WireInterpField::ScalarSlice(slice) => {
+                    let elements = match &*raw.borrow() {
+                        Value::Array(elements) => elements.clone(),
+                        _ => {
+                            return Err(Halt::Trap(format!(
+                                "`{schema_name}::encode` field `{field_name}` is not a borrowed scalar-slice value"
+                            )));
+                        }
+                    };
+                    let mut body = Vec::new();
+                    for element in &elements {
+                        let element_raw =
+                            self.deref_cell(Rc::clone(element)).borrow().as_int().ok_or_else(
+                                || {
+                                    Halt::Trap(format!(
+                                        "`{schema_name}::encode` borrowed scalar-slice field `{field_name}` element is not a scalar value"
+                                    ))
+                                },
+                            )?;
+                        body.extend(wire_varint_bytes(wire_scalar_varint_value(
+                            element_raw,
+                            slice.element,
+                        )?));
                     }
                     bytes.extend(wire_varint_bytes(body.len() as u64));
                     bytes.extend(body);
@@ -8309,6 +8349,7 @@ enum WireInterpField {
     Direct(omega_typed_trees::wire::WireFieldEncoding),
     Nested(Vec<(String, u64, omega_typed_trees::wire::WireScalarEncoding)>),
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
+    ScalarSlice(omega_typed_trees::wire::WireBorrowedScalarSliceEncoding),
     /// A borrowed byte slice `&[u8]`: encodes as RAW bytes (length varint then
     /// the bytes), reading the field's element array.
     ByteSlice,

@@ -135,6 +135,7 @@ impl Lowerer<'_> {
             semantic_domains,
             plan_laid_layouts: _,
             wire_placements: _,
+            wire_encode_obligations: _,
             wire_schema_plans: _,
             machine_specializations: _,
             boundary_calling_plans: _,

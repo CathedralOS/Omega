@@ -343,9 +343,12 @@ The admitted `compact_binary` realization now derives bounded repeated framing
 from carrier semantics: `[T; N]` contributes exactly `N` elements and
 `FixedVec<T, N>` contributes its intrinsic live length up to `N`; the retired
 array-plus-synthetic-count convention is gone. Borrowed byte slices use the
-existing zero-copy length-delimited path. General scalar slices await explicit
-runtime length/work/output-capacity requirements, and `Vec<T>` awaits its
-allocator contract.
+existing zero-copy length-delimited path. General borrowed scalar slices now
+encode through a normalized runtime obligation row: descriptor element count,
+two scalar passes per element, and exact packed-payload output capacity. The
+generated native operation measures before emitting and allocates no staging
+buffer. Packed scalar decode still needs owned or caller-provided mutable
+storage, and `Vec<T>` awaits its allocator contract.
 Step 8 now also has a normalized symbolic foundation: sealed
 `Data(DataSymbolId) | Entry(EntryStubId)` source
 identities derive resolved writes, native whole-pointer relocations, or

@@ -24,15 +24,16 @@ use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
     encode_add_x_immediate, encode_add_x_register, encode_adrp_placeholder,
     encode_and_x_immediate_low_seven, encode_asr_x_immediate, encode_cbz_x,
-    encode_compare_x_register, encode_conditional_branch_higher_or_same, encode_eor_x_register,
-    encode_load_byte_w_post_increment, encode_lsr_x_immediate, encode_move_x_register,
+    encode_compare_x_register, encode_conditional_branch_higher,
+    encode_conditional_branch_higher_or_same, encode_eor_x_register,
+    encode_load_byte_w_post_increment, encode_lsr_x_immediate, encode_move_x_register, encode_movz,
     encode_movz_w, encode_orr_x_immediate_bit_seven, encode_sign_extend_word_to_x,
     encode_store_byte_w_post_increment, encode_subs_x_immediate, encode_unconditional_branch,
 };
 use super::widths::{
     append_wire_literal_byte_width, append_wire_repeated_scalar_varint_width,
-    append_wire_scalar_varint_width, append_wire_text_bytes_width, wire_text_copy_loop_width,
-    wire_varint_emit_loop_width,
+    append_wire_scalar_slice_width, append_wire_scalar_varint_width, append_wire_text_bytes_width,
+    wire_text_copy_loop_width, wire_varint_emit_loop_width,
 };
 
 /// Shared prologue: x16 = out base + out offset + cursor, x17 = cursor,
@@ -382,6 +383,240 @@ pub fn encode_append_wire_text_bytes(
     debug_assert_eq!(
         bytes.len(),
         append_wire_text_bytes_width(source_offset, out_offset, out_length, written_offset)
+    );
+    Ok(bytes)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum WireSliceLabel {
+    MeasureOuter,
+    MeasureVarint,
+    MeasureScalarDone,
+    MeasureDone,
+    PrefixCount,
+    PrefixDone,
+    EmitOuter,
+    Done,
+}
+
+enum WireSliceInstruction {
+    Fixed(Vec<u8>),
+    Cbz(u8, WireSliceLabel),
+    BHi(WireSliceLabel),
+    B(WireSliceLabel),
+}
+
+fn wire_slice_fixed(word: [u8; 4]) -> WireSliceInstruction {
+    WireSliceInstruction::Fixed(word.to_vec())
+}
+
+fn append_wire_slice_scalar_load(
+    program: &mut Vec<(Option<WireSliceLabel>, WireSliceInstruction)>,
+    element_byte_size: usize,
+    zigzag: bool,
+) -> Result<(), Diagnostic> {
+    let mut load = Vec::new();
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut load,
+        26,
+        21,
+        0,
+        element_byte_size,
+        19,
+    )?;
+    program.push((None, WireSliceInstruction::Fixed(load)));
+    program.push((
+        None,
+        wire_slice_fixed(encode_add_x_immediate(21, 21, element_byte_size)?),
+    ));
+    if zigzag {
+        if element_byte_size == 4 {
+            program.push((None, wire_slice_fixed(encode_sign_extend_word_to_x(26, 26))));
+        }
+        program.push((None, wire_slice_fixed(encode_asr_x_immediate(19, 26, 63))));
+        program.push((None, wire_slice_fixed(encode_add_x_register(26, 26, 26))));
+        program.push((None, wire_slice_fixed(encode_eor_x_register(26, 26, 19))));
+    }
+    Ok(())
+}
+
+fn append_wire_slice_varint_emit(
+    program: &mut Vec<(Option<WireSliceLabel>, WireSliceInstruction)>,
+) -> Result<(), Diagnostic> {
+    for word in [
+        encode_and_x_immediate_low_seven(19, 26),
+        encode_lsr_x_immediate(26, 26, 7),
+        encode_cbz_x(26, 20)?,
+        encode_orr_x_immediate_bit_seven(19, 19),
+        encode_store_byte_w_post_increment(19, 16, 1)?,
+        encode_add_x_immediate(17, 17, 1)?,
+        encode_unconditional_branch(-24)?,
+        encode_store_byte_w_post_increment(19, 16, 1)?,
+        encode_add_x_immediate(17, 17, 1)?,
+    ] {
+        program.push((None, wire_slice_fixed(word)));
+    }
+    Ok(())
+}
+
+fn emit_wire_slice_program(
+    bytes: &mut Vec<u8>,
+    program: &[(Option<WireSliceLabel>, WireSliceInstruction)],
+) -> Result<(), Diagnostic> {
+    let mut positions = std::collections::HashMap::new();
+    let mut cursor = 0usize;
+    for (label, instruction) in program {
+        if let Some(label) = label {
+            positions.insert(*label, cursor);
+        }
+        cursor += match instruction {
+            WireSliceInstruction::Fixed(bytes) => bytes.len(),
+            _ => 4,
+        };
+    }
+    positions.insert(WireSliceLabel::Done, cursor);
+
+    cursor = 0;
+    for (_, instruction) in program {
+        let offset =
+            |target: &WireSliceLabel| -> isize { positions[target] as isize - cursor as isize };
+        match instruction {
+            WireSliceInstruction::Fixed(fixed) => bytes.extend(fixed),
+            WireSliceInstruction::Cbz(register, target) => {
+                bytes.extend(encode_cbz_x(*register, offset(target))?)
+            }
+            WireSliceInstruction::BHi(target) => {
+                bytes.extend(encode_conditional_branch_higher(offset(target))?)
+            }
+            WireSliceInstruction::B(target) => {
+                bytes.extend(encode_unconditional_branch(offset(target))?)
+            }
+        }
+        cursor += match instruction {
+            WireSliceInstruction::Fixed(fixed) => fixed.len(),
+            _ => 4,
+        };
+    }
+    Ok(())
+}
+
+/// Encode a borrowed scalar slice without staging allocation. The first pass
+/// measures the exact packed-varint body; after the exact remaining-capacity
+/// check, the second pass emits the length prefix and body.
+pub fn encode_append_wire_scalar_slice(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(element_byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 wire encoder cannot varint-encode {element_byte_size}-byte slice elements yet"
+        )));
+    }
+    let _ = source_region;
+    let mut bytes = Vec::with_capacity(append_wire_scalar_slice_width(
+        source_offset,
+        element_byte_size,
+        zigzag,
+        out_offset,
+        out_length,
+        written_offset,
+    ));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // x25 = original ptr, x21 = walking ptr; x23 = original count, x22 =
+    // remaining count; x24 = exact body bytes; x28 = output capacity.
+    bytes.extend(encode_adrp_placeholder(26));
+    bytes.extend(encode_add_page_offset_placeholder(26));
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut bytes,
+        25,
+        26,
+        source_offset,
+        8,
+        19,
+    )?;
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut bytes,
+        22,
+        26,
+        source_offset + 8,
+        8,
+        19,
+    )?;
+    bytes.extend(encode_move_x_register(21, 25));
+    bytes.extend(encode_move_x_register(23, 22));
+    bytes.extend(encode_movz(24, 0));
+    append_unsigned_immediate(&mut bytes, 28, out_length as u64);
+
+    use WireSliceInstruction::{B, BHi, Cbz};
+    use WireSliceLabel::{
+        Done, EmitOuter, MeasureDone, MeasureOuter, MeasureScalarDone, MeasureVarint, PrefixCount,
+        PrefixDone,
+    };
+    let mut program = Vec::new();
+    program.push((None, wire_slice_fixed(encode_compare_x_register(22, 28))));
+    program.push((None, BHi(Done)));
+    program.push((Some(MeasureOuter), Cbz(22, MeasureDone)));
+    append_wire_slice_scalar_load(&mut program, element_byte_size, zigzag)?;
+    program.push((
+        Some(MeasureVarint),
+        wire_slice_fixed(encode_add_x_immediate(24, 24, 1)?),
+    ));
+    program.push((None, wire_slice_fixed(encode_lsr_x_immediate(26, 26, 7))));
+    program.push((None, Cbz(26, MeasureScalarDone)));
+    program.push((None, B(MeasureVarint)));
+    program.push((
+        Some(MeasureScalarDone),
+        wire_slice_fixed(encode_subs_x_immediate(22, 22, 1)?),
+    ));
+    program.push((None, B(MeasureOuter)));
+
+    program.push((
+        Some(MeasureDone),
+        wire_slice_fixed(encode_move_x_register(26, 24)),
+    ));
+    program.push((None, wire_slice_fixed(encode_movz(27, 0))));
+    program.push((
+        Some(PrefixCount),
+        wire_slice_fixed(encode_add_x_immediate(27, 27, 1)?),
+    ));
+    program.push((None, wire_slice_fixed(encode_lsr_x_immediate(26, 26, 7))));
+    program.push((None, Cbz(26, PrefixDone)));
+    program.push((None, B(PrefixCount)));
+    program.push((
+        Some(PrefixDone),
+        wire_slice_fixed(encode_add_x_register(19, 17, 24)),
+    ));
+    program.push((None, wire_slice_fixed(encode_add_x_register(19, 19, 27))));
+    program.push((None, wire_slice_fixed(encode_compare_x_register(19, 28))));
+    program.push((None, BHi(Done)));
+    program.push((None, wire_slice_fixed(encode_move_x_register(26, 24))));
+    append_wire_slice_varint_emit(&mut program)?;
+    program.push((None, wire_slice_fixed(encode_move_x_register(21, 25))));
+    program.push((None, wire_slice_fixed(encode_move_x_register(22, 23))));
+    program.push((Some(EmitOuter), Cbz(22, Done)));
+    append_wire_slice_scalar_load(&mut program, element_byte_size, zigzag)?;
+    append_wire_slice_varint_emit(&mut program)?;
+    program.push((None, wire_slice_fixed(encode_subs_x_immediate(22, 22, 1)?)));
+    program.push((None, B(EmitOuter)));
+    emit_wire_slice_program(&mut bytes, &program)?;
+
+    append_wire_append_epilogue(&mut bytes, written_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_scalar_slice_width(
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset
+        )
     );
     Ok(bytes)
 }

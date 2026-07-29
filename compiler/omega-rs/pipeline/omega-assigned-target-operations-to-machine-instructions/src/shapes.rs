@@ -77,6 +77,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::AppendWireTextBytes { .. } => {
             MachineInstructionKind::WireTextBytesAppend
         }
+        SelectedInstructionKind::AppendWireScalarSlice { .. } => {
+            MachineInstructionKind::WireScalarSliceAppend
+        }
         SelectedInstructionKind::ReadWireExpectedByte { .. } => {
             MachineInstructionKind::WireExpectedByteRead
         }

@@ -78,6 +78,39 @@ pub fn encode_append_wire_text_bytes(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn encode_append_wire_scalar_slice(
+    architecture: Architecture,
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_append_wire_scalar_slice(
+            source_region,
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset,
+        ),
+        Architecture::X86_64 => x86_64::encode_append_wire_scalar_slice(
+            source_region,
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn encode_append_wire_repeated_scalar_varint(
     architecture: Architecture,
     source_region: RuntimeStorageRegion,
@@ -226,6 +259,45 @@ mod tests {
     }
 
     #[test]
+    fn wire_scalar_slice_widths_match_encoded_bytes() {
+        const LENGTHS: &[usize] = &[1, 16, 64, 4096, 65536];
+        for architecture in [Architecture::Aarch64, Architecture::X86_64] {
+            for &source_offset in OFFSETS {
+                for &out_length in LENGTHS {
+                    for (element_byte_size, zigzag) in
+                        [(1, false), (4, false), (4, true), (8, false), (8, true)]
+                    {
+                        let bytes = encode_append_wire_scalar_slice(
+                            architecture,
+                            RuntimeStorageRegion::RuntimeFrame,
+                            source_offset,
+                            element_byte_size,
+                            zigzag,
+                            64,
+                            out_length,
+                            72,
+                        )
+                        .expect("scalar-slice append should encode");
+                        assert_eq!(
+                            bytes.len(),
+                            widths::append_wire_scalar_slice_width(
+                                architecture,
+                                source_offset,
+                                element_byte_size,
+                                zigzag,
+                                64,
+                                out_length,
+                                72
+                            ),
+                            "{architecture:?} scalar-slice width drifted at source {source_offset} length {out_length} size {element_byte_size} zigzag {zigzag}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn wire_repeated_scalar_varint_widths_match_encoded_bytes() {
         const INDICES: &[u64] = &[0, 1, 7, 100, 5000];
         for architecture in [Architecture::Aarch64, Architecture::X86_64] {
@@ -308,6 +380,18 @@ mod tests {
                             < widths::append_wire_text_bytes_width(
                                 architecture,
                                 0,
+                                out_offset,
+                                64,
+                                written_offset
+                            )
+                    );
+                    assert!(
+                        source_page
+                            < widths::append_wire_scalar_slice_width(
+                                architecture,
+                                0,
+                                4,
+                                true,
                                 out_offset,
                                 64,
                                 written_offset

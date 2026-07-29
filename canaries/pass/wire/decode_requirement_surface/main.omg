@@ -1,6 +1,6 @@
-// Chapter 21 decode policy is an ordinary requirement surface. The preserving
-// carrier keeps the validated known value separate from uninterpreted relay
-// bytes and codec-private ordering metadata.
+// Chapter 21 encode and decode policies are ordinary requirement surfaces.
+// The preserving carrier keeps the validated known value separate from
+// uninterpreted relay bytes and codec-private ordering metadata.
 
 use omega::language::std::wire;
 
@@ -9,6 +9,13 @@ data Message {
 }
 
 data ExamplePolicy {
+}
+
+machine encode(
+    value: &Message,
+    out: &mut [u8],
+    written: &mut u64
+) satisfies Encode<ExamplePolicy, Message>::encode {
 }
 
 machine strict_decode(bytes: &[u8]) -> DecodeResult<Message>

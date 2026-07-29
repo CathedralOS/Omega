@@ -12,7 +12,8 @@ pub use wire_decode::{
 };
 pub use wire_encode::{
     encode_append_wire_literal_byte, encode_append_wire_repeated_scalar_varint,
-    encode_append_wire_scalar_varint, encode_append_wire_text_bytes,
+    encode_append_wire_scalar_slice, encode_append_wire_scalar_varint,
+    encode_append_wire_text_bytes,
 };
 
 pub use dispatch::{

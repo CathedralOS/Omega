@@ -193,6 +193,7 @@ pub(super) fn statement_has_wire_encode_lowering(
                 omega_target_operations::TargetOperationKind::AppendWireLiteralByte { .. }
                     | omega_target_operations::TargetOperationKind::AppendWireScalarVarint { .. }
                     | omega_target_operations::TargetOperationKind::AppendWireTextBytes { .. }
+                    | omega_target_operations::TargetOperationKind::AppendWireScalarSlice { .. }
                     | omega_target_operations::TargetOperationKind::ReadWireExpectedByte { .. }
                     | omega_target_operations::TargetOperationKind::ReadWireScalarVarint { .. }
                     | omega_target_operations::TargetOperationKind::ReadWireByteSlice { .. }

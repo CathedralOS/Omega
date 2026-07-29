@@ -35,10 +35,15 @@ const WIRE_GRAMMAR_POLICY: &str = "CompactBinary::plan";
 /// A schema field's shape fact, mirrored to the std `FieldKind` cases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FieldShape {
-    Scalar { byte_size: u64 },
+    Scalar {
+        byte_size: u64,
+    },
     Text,
     Nested,
     Repeated,
+    BorrowedScalarSlice {
+        element: omega_typed_trees::wire::WireScalarEncoding,
+    },
 }
 
 impl FieldShape {
@@ -48,6 +53,7 @@ impl FieldShape {
             Self::Text => "Text",
             Self::Nested => "Nested",
             Self::Repeated => "Repeated",
+            Self::BorrowedScalarSlice { .. } => "Repeated",
         }
     }
 
@@ -73,6 +79,10 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
                 FieldShape::Nested
             } else if typed.is_borrowed_byte_slice(field.type_reference) {
                 FieldShape::Text
+            } else if let Some(slice) = typed.wire_field_borrowed_scalar_slice_encoding(field) {
+                FieldShape::BorrowedScalarSlice {
+                    element: slice.element,
+                }
             } else {
                 match typed.primitive_type_reference(field.type_reference) {
                     Some(primitive) => FieldShape::Scalar {
@@ -140,11 +150,29 @@ pub(crate) fn compute_wire_plans(typed: &mut TypedTrees) -> Result<(), Vec<Diagn
             }
         }
 
-        plans.push((symbol, derived));
+        let obligations = fields
+            .iter()
+            .filter_map(|&(field_number, shape)| {
+                let FieldShape::BorrowedScalarSlice { element } = shape else {
+                    return None;
+                };
+                Some(omega_typed_trees::wire::WireEncodeObligation {
+                    field_number,
+                    element,
+                    length:
+                        omega_typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
+                    work:
+                        omega_typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
+                    output_capacity:
+                        omega_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
+                })
+            })
+            .collect::<Vec<_>>();
+        plans.push((symbol, derived, obligations));
     }
 
-    for (schema, placements) in plans {
-        typed.record_wire_schema_plan(schema, placements);
+    for (schema, placements, obligations) in plans {
+        typed.record_wire_schema_plan(schema, placements, obligations);
     }
     Ok(())
 }

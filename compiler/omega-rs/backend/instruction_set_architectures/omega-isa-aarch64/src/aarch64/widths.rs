@@ -2488,6 +2488,32 @@ pub fn append_wire_text_bytes_width(
         + store_data_offset_width(written_offset, 8)
 }
 
+pub fn append_wire_scalar_slice_width(
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> usize {
+    let zigzag_instructions = if zigzag {
+        if element_byte_size == 4 { 4 } else { 3 }
+    } else {
+        0
+    };
+    // Dynamic block: 25 control/accounting instructions, two nine-word
+    // varint emit loops, and two scalar load/advance/zigzag blocks.
+    let dynamic_instructions = 25 + 18 + 2 * (2 + zigzag_instructions);
+    wire_append_prologue_width(out_offset, written_offset)
+        + 8
+        + load_data_offset_width(source_offset, 8)
+        + load_data_offset_width(source_offset + 8, 8)
+        + 12
+        + unsigned_immediate_width(out_length as u64)
+        + dynamic_instructions * 4
+        + store_data_offset_width(written_offset, 8)
+}
+
 /// Byte offset of the WRITTEN page adrp pair inside both wire appends (the
 /// relocation planner points it at the written slot's region symbol).
 pub fn wire_append_written_page_offset(out_offset: usize) -> usize {

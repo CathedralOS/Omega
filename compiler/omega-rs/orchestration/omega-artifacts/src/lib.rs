@@ -547,8 +547,20 @@ impl ArtifactWriter {
             if let Some(identity) = schema.codec_requirement_identity {
                 output.push_str(&format!("codec requirement identity: 0x{identity:016x}\n"));
             }
+            if let Some(requirement) = &schema.encode_requirement {
+                output.push_str(&format!("encode requirement: {requirement}\n"));
+            }
+            if let Some(identity) = schema.encode_requirement_identity {
+                output.push_str(&format!("encode requirement identity: 0x{identity:016x}\n"));
+            }
             if let Some(identity) = schema.normalized_plan_identity {
                 output.push_str(&format!("normalized plan identity: 0x{identity:016x}\n"));
+            }
+            if !schema.encode_obligations.is_empty() {
+                output.push_str("encode obligations:\n");
+                for obligation in &schema.encode_obligations {
+                    output.push_str(&format!("  {obligation}\n"));
+                }
             }
             if let Some(origin) = &schema.realization_origin {
                 output.push_str(&format!("realization origin: {}\n", origin.describe()));
@@ -1700,7 +1712,10 @@ pub struct WireSchemaReportEntry {
     pub encoding: Option<String>,
     pub codec_requirement: Option<String>,
     pub codec_requirement_identity: Option<u64>,
+    pub encode_requirement: Option<String>,
+    pub encode_requirement_identity: Option<u64>,
     pub normalized_plan_identity: Option<u64>,
+    pub encode_obligations: Vec<String>,
     pub realization_origin: Option<WireRealizationOrigin>,
     pub trust_class: Option<WireTrustClass>,
     pub realization_evidence: Vec<String>,

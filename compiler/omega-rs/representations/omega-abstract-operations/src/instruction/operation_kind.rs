@@ -168,6 +168,23 @@ pub enum AbstractOperationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    /// compact_binary v0 borrowed scalar-slice encoding: the source is a
+    /// `{ptr, element_count}` slice descriptor. The operation measures the
+    /// exact packed-varint body, verifies that the remaining output capacity
+    /// covers its canonical length prefix plus body, then walks the elements
+    /// again to emit them. This is the executable form of the normalized
+    /// runtime length/work/output-capacity obligation.
+    AppendWireScalarSlice {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        element_byte_size: usize,
+        zigzag: bool,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        out_length: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     /// compact_binary v0 wire decoding (chapter 20, wire stage 2b): expect one
     /// COMPILE-TIME framing byte (era and field-tag varint bytes are known
     /// when the schema is) at the stored cursor. The cursor lives in the

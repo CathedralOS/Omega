@@ -9193,6 +9193,203 @@ pub fn encode_append_wire_text_bytes(
     Ok(bytes)
 }
 
+fn append_wire_rel32_branch(bytes: &mut Vec<u8>, opcode: &[u8]) -> usize {
+    bytes.extend_from_slice(opcode);
+    let displacement = bytes.len();
+    bytes.extend(0i32.to_le_bytes());
+    displacement
+}
+
+fn patch_wire_rel32(bytes: &mut [u8], displacement: usize, target: usize) {
+    let relative = target as isize - (displacement as isize + 4);
+    bytes[displacement..displacement + 4].copy_from_slice(&(relative as i32).to_le_bytes());
+}
+
+fn append_wire_slice_scalar_load(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    zigzag: bool,
+) -> Result<(), Diagnostic> {
+    match (byte_size, zigzag) {
+        (8, _) => bytes.extend([0x49, 0x8b, 0x00]), // mov rax, [r8]
+        (4, false) => bytes.extend([0x41, 0x8b, 0x00]), // mov eax, [r8]
+        (4, true) => bytes.extend([0x49, 0x63, 0x00]), // movsxd rax, dword [r8]
+        (1, _) => bytes.extend([0x41, 0x0f, 0xb6, 0x00]), // movzx eax, byte [r8]
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 wire encoder cannot varint-encode {byte_size}-byte slice elements yet"
+            )));
+        }
+    }
+    bytes.extend([0x49, 0x83, 0xc0, byte_size as u8]); // add r8, stride
+    if zigzag {
+        bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+        bytes.extend([0x49, 0xc1, 0xfb, 0x3f]); // sar r11, 63
+        bytes.extend([0x48, 0xc1, 0xe0, 0x01]); // shl rax, 1
+        bytes.extend([0x4c, 0x31, 0xd8]); // xor rax, r11
+    }
+    Ok(())
+}
+
+fn append_wire_varint_emit_loop(bytes: &mut Vec<u8>) {
+    bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+    bytes.extend([0x49, 0x83, 0xe3, 0x7f]); // and r11, 0x7f
+    bytes.extend([0x48, 0xc1, 0xe8, 0x07]); // shr rax, 7
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    bytes.extend([0x74, 0x12]); // je last
+    bytes.extend([0x49, 0x81, 0xcb, 0x80, 0x00, 0x00, 0x00]); // or r11, 0x80
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0xeb, 0xde]); // jmp loop
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+}
+
+fn build_append_wire_scalar_slice(
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = wire_encode_capacity_imm32(out_length)?;
+    let mut bytes = Vec::new();
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // Descriptor and stable loop inputs: r9 = original ptr, r8 = walking
+    // ptr, rdi = original count, rcx = remaining count, rdx = exact body
+    // byte count.
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, 0);
+    bytes.extend([0x4d, 0x8b, 0x8b]); // mov r9, [r11+ptr]
+    bytes.extend(disp32(source_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x8b, 0x8b]); // mov rcx, [r11+len]
+    bytes.extend(disp32(source_offset + 8)?.to_le_bytes());
+    bytes.extend([0x4d, 0x89, 0xc8]); // mov r8, r9
+    bytes.extend([0x48, 0x89, 0xcf]); // mov rdi, rcx
+    bytes.extend([0x31, 0xd2]); // xor edx, edx
+
+    // Every scalar needs at least one output byte. A count larger than the
+    // whole output capacity violates both the work and capacity precondition;
+    // fail closed without walking an unbounded descriptor.
+    bytes.extend([0x48, 0x81, 0xf9]); // cmp rcx, imm32
+    bytes.extend(capacity.to_le_bytes());
+    let count_over_capacity = append_wire_rel32_branch(&mut bytes, &[0x0f, 0x87]); // ja done
+
+    let measure_outer = bytes.len();
+    bytes.extend([0x48, 0x85, 0xc9]); // test rcx, rcx
+    let measure_done_fixup = append_wire_rel32_branch(&mut bytes, &[0x0f, 0x84]); // jz
+    append_wire_slice_scalar_load(&mut bytes, element_byte_size, zigzag)?;
+    let measure_varint = bytes.len();
+    bytes.extend([0x48, 0xff, 0xc2]); // inc rdx
+    bytes.extend([0x48, 0xc1, 0xe8, 0x07]); // shr rax, 7
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    let measure_more = append_wire_rel32_branch(&mut bytes, &[0x0f, 0x85]); // jnz
+    patch_wire_rel32(&mut bytes, measure_more, measure_varint);
+    bytes.extend([0x48, 0xff, 0xc9]); // dec rcx
+    let measure_next = append_wire_rel32_branch(&mut bytes, &[0xe9]);
+    patch_wire_rel32(&mut bytes, measure_next, measure_outer);
+
+    let measure_done = bytes.len();
+    patch_wire_rel32(&mut bytes, measure_done_fixup, measure_done);
+
+    // rsi = canonical byte width of the packed-body length.
+    bytes.extend([0x48, 0x89, 0xd0]); // mov rax, rdx
+    bytes.extend([0x31, 0xf6]); // xor esi, esi
+    let prefix_count = bytes.len();
+    bytes.extend([0x48, 0xff, 0xc6]); // inc rsi
+    bytes.extend([0x48, 0xc1, 0xe8, 0x07]); // shr rax, 7
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    let prefix_more = append_wire_rel32_branch(&mut bytes, &[0x0f, 0x85]); // jnz
+    patch_wire_rel32(&mut bytes, prefix_more, prefix_count);
+
+    // Require cursor + exact prefix + exact body <= output capacity before
+    // mutating the payload region.
+    bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+    bytes.extend([0x48, 0x01, 0xd0]); // add rax, rdx
+    bytes.extend([0x48, 0x01, 0xf0]); // add rax, rsi
+    bytes.extend([0x48, 0x3d]); // cmp rax, imm32
+    bytes.extend(capacity.to_le_bytes());
+    let insufficient = append_wire_rel32_branch(&mut bytes, &[0x0f, 0x87]); // ja done
+
+    // Emit the length, then walk the descriptor again and emit each scalar.
+    bytes.extend([0x48, 0x89, 0xd0]); // mov rax, rdx
+    append_wire_varint_emit_loop(&mut bytes);
+    bytes.extend([0x49, 0xff, 0xc7]); // final emit did not advance r15
+    bytes.extend([0x4d, 0x89, 0xc8]); // mov r8, r9
+    bytes.extend([0x48, 0x89, 0xf9]); // mov rcx, rdi
+
+    let emit_outer = bytes.len();
+    bytes.extend([0x48, 0x85, 0xc9]); // test rcx, rcx
+    let emit_done_fixup = append_wire_rel32_branch(&mut bytes, &[0x0f, 0x84]); // jz
+    append_wire_slice_scalar_load(&mut bytes, element_byte_size, zigzag)?;
+    append_wire_varint_emit_loop(&mut bytes);
+    bytes.extend([0x49, 0xff, 0xc7]); // re-sync dest after final byte
+    bytes.extend([0x48, 0xff, 0xc9]); // dec rcx
+    let emit_next = append_wire_rel32_branch(&mut bytes, &[0xe9]);
+    patch_wire_rel32(&mut bytes, emit_next, emit_outer);
+
+    let done = bytes.len();
+    patch_wire_rel32(&mut bytes, count_over_capacity, done);
+    patch_wire_rel32(&mut bytes, insufficient, done);
+    patch_wire_rel32(&mut bytes, emit_done_fixup, done);
+    append_store_r10_to_r14(&mut bytes, written_offset, 8)?;
+    Ok(bytes)
+}
+
+pub fn append_wire_scalar_slice_width(
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> usize {
+    build_append_wire_scalar_slice(
+        source_offset,
+        element_byte_size,
+        zigzag,
+        out_offset,
+        out_length,
+        written_offset,
+    )
+    .expect("validated x86_64 wire scalar-slice shape")
+    .len()
+}
+
+pub fn encode_append_wire_scalar_slice(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    element_byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let _ = source_region;
+    let bytes = build_append_wire_scalar_slice(
+        source_offset,
+        element_byte_size,
+        zigzag,
+        out_offset,
+        out_length,
+        written_offset,
+    )?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_scalar_slice_width(
+            source_offset,
+            element_byte_size,
+            zigzag,
+            out_offset,
+            out_length,
+            written_offset
+        )
+    );
+    Ok(bytes)
+}
+
 /// Byte offset of the WRITTEN page mov inside both wire appends (the
 /// relocation planner adds the +2 imm64 offset itself).
 pub fn wire_append_written_page_offset(_out_offset: usize) -> usize {
