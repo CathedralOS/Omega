@@ -270,6 +270,21 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         },
                     )))
             }
+            resolved::expression::ExpressionNode::ZeroValue(type_reference) => {
+                let program = self.program.ok_or_else(|| {
+                    Diagnostic::error(
+                        "zero-value type lowering requires the enclosing resolved program",
+                    )
+                })?;
+                let type_reference = crate::type_reference::lower_type_reference_into_trees(
+                    program,
+                    self.target_trees,
+                    program.child_type_reference(*type_reference),
+                )?;
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::ZeroValue(type_reference)))
+            }
         }
     }
 

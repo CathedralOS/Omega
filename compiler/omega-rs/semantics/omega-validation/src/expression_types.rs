@@ -1683,5 +1683,6 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::StructLiteral(_) => "struct literal",
         ExpressionNode::String(_) => "String",
         ExpressionNode::Unary(_) => "bool",
+        ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
 }

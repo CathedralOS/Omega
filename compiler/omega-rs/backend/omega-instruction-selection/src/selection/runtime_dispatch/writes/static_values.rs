@@ -228,7 +228,8 @@ pub(super) fn resolve_runtime_static_integer(
         | Expression::Cast(_)
         | Expression::Float(_)
         | Expression::String(_)
-        | Expression::StructLiteral(_) => None,
+        | Expression::StructLiteral(_)
+        | Expression::ZeroValue(_) => None,
     }
 }
 
@@ -300,7 +301,8 @@ pub(super) fn resolve_runtime_static_integer_in_table(
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_) => None,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => None,
     }
 }
 
@@ -380,7 +382,8 @@ fn resolve_runtime_resolved_static_integer(
         | Expression::Cast(_)
         | Expression::Float(_)
         | Expression::String(_)
-        | Expression::StructLiteral(_) => None,
+        | Expression::StructLiteral(_)
+        | Expression::ZeroValue(_) => None,
     }
 }
 

@@ -1,0 +1,23 @@
+// All-zero storage selects the first case, but the default-domain fact gates
+// that storage from being an established value. A representation theorem may
+// not claim an unestablished zero as its home value.
+data Gated
+where
+    marker >= 1,
+{
+    marker: i32;
+    case #0 None;
+    case #1 Some;
+}
+
+machine zero_is_none()
+ensures
+    zero_value<Gated>() == Gated::None
+{
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

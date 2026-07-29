@@ -1,13 +1,15 @@
-// Standard optional-value surface.
-//
-// This is the source home for Option<T>. The current compiler still carries
-// transitional knowledge about optional-value behavior, but the type itself
-// should live in std rather than existing as a nameless builtin.
-//
-// Variant payloads and fully source-defined Some/None behavior are still
-// evolving. This definition gives Option<T> a real bundled module path today.
+// Standard optional-value carrier. Presence is ordinary cased data; the
+// stable identities belong to schema reflection and do not choose runtime
+// discriminants. The home-representation obligation below pins None as the
+// meaning of all-zero storage.
 
-data Option<T> {
-    case None;
-    case Some;
+data Optional<T> {
+    case #0 None;
+    case #1 Some(value: T);
+}
+
+machine zero_is_none<T>()
+ensures
+    zero_value<Optional<T>>() == Optional::None
+{
 }

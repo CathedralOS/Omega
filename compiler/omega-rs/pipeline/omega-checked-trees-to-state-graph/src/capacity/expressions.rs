@@ -180,7 +180,8 @@ fn copied_expression_capacity(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => {}
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
     capacity
 }

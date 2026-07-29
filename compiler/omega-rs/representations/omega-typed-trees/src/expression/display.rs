@@ -38,6 +38,7 @@ impl Expression {
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => format!("{value:?}"),
             Expression::Unary(unary) => unary.display_name(),
+            Expression::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
     }
 }
@@ -86,6 +87,7 @@ impl ExpressionNode {
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{value:?}"),
             Self::Unary(unary) => unary.display_name(table),
+            Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
     }
 }

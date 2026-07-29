@@ -143,5 +143,9 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
         }
         ExpressionNode::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
         ExpressionNode::String(value) => format!("{value:?}"),
+        ExpressionNode::ZeroValue(type_reference) => format!(
+            "zero_value<{}>()",
+            program.display_type_reference(*type_reference)
+        ),
     }
 }

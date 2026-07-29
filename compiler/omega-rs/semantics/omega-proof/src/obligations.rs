@@ -1654,7 +1654,8 @@ fn expression_constraints(
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_) => ConstraintBuffer::new(),
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => ConstraintBuffer::new(),
     }
 }
 
@@ -1730,6 +1731,7 @@ fn expression_type_reference(
                 expression_type_reference(program, machine, state, indexed.collection)?;
             element_type_reference(program, collection_type)
         }
+        ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         _ => None,
     }
 }

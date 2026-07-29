@@ -364,7 +364,8 @@ fn collect_expression_call_written_paths(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
     Some(())
 }
@@ -1419,7 +1420,8 @@ fn expression_is_call_free(program: &TypedTrees, expression: ExpressionHandle) -
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => true,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => true,
     }
 }
 
@@ -3013,7 +3015,8 @@ fn collect_self_entry_call_arguments(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 
@@ -3304,7 +3307,8 @@ fn reject_embedded_self_calls(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 
@@ -3961,6 +3965,16 @@ fn scan_expression_calls(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_) => {}
+        ExpressionNode::ZeroValue(type_reference) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` uses `zero_value<{}>()` in executable code; \
+                 `zero_value<T>()` is a proof-only representation observation and may \
+                 appear only in contracts",
+                machine.name.as_str(),
+                state.name.as_str(),
+                program.display_type_reference(*type_reference),
+            )));
+        }
     }
 }
 

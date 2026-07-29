@@ -66,7 +66,8 @@ pub(super) fn expression_uses_symbol(
         omega_typed_trees::expression::ExpressionNode::Boolean(_)
         | omega_typed_trees::expression::ExpressionNode::Float(_)
         | omega_typed_trees::expression::ExpressionNode::Integer(_)
-        | omega_typed_trees::expression::ExpressionNode::String(_) => false,
+        | omega_typed_trees::expression::ExpressionNode::String(_)
+        | omega_typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -131,7 +132,8 @@ pub(super) fn expression_uses_local_name(
         omega_typed_trees::expression::ExpressionNode::Boolean(_)
         | omega_typed_trees::expression::ExpressionNode::Float(_)
         | omega_typed_trees::expression::ExpressionNode::Integer(_)
-        | omega_typed_trees::expression::ExpressionNode::String(_) => false,
+        | omega_typed_trees::expression::ExpressionNode::String(_)
+        | omega_typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -293,6 +295,7 @@ pub(super) fn expression_uses_place_symbol(
         | omega_typed_trees::expression::ExpressionNode::Float(_)
         | omega_typed_trees::expression::ExpressionNode::Integer(_)
         | omega_typed_trees::expression::ExpressionNode::Name(_)
-        | omega_typed_trees::expression::ExpressionNode::String(_) => false,
+        | omega_typed_trees::expression::ExpressionNode::String(_)
+        | omega_typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
     }
 }

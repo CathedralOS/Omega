@@ -213,13 +213,15 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 // binary result is retained through the pre-resolution generic
                 // instance pass; a lone name keeps the established type/scoped-
                 // const leaf representation.
-                let (expression, expression_rest) =
-                    parse_const_integer_expression_handle(syntax_trees, input)?;
-                if matches!(
-                    syntax_trees.expressions.expression(expression),
-                    ExpressionNode::Binary(_) | ExpressionNode::Call(_)
-                ) && (expression_rest.at_punctuation(PunctuationKind::Comma)
-                    || expression_rest.at_punctuation(PunctuationKind::Greater))
+                let const_expression =
+                    parse_const_integer_expression_handle(syntax_trees, input).ok();
+                if let Some((expression, expression_rest)) = const_expression
+                    && matches!(
+                        syntax_trees.expressions.expression(expression),
+                        ExpressionNode::Binary(_) | ExpressionNode::Call(_)
+                    )
+                    && (expression_rest.at_punctuation(PunctuationKind::Comma)
+                        || expression_rest.at_punctuation(PunctuationKind::Greater))
                 {
                     (
                         syntax_trees

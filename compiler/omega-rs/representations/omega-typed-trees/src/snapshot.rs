@@ -548,6 +548,9 @@ pub enum ExpressionSnapshot {
         operator: String,
         operand: Box<ExpressionSnapshot>,
     },
+    ZeroValue {
+        type_reference: Box<TypeReferenceSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1216,6 +1219,9 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
         ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
             operator: unary.operator.display_name().to_owned(),
             operand: Box::new(expression_snapshot(program, unary.operand)),
+        },
+        ExpressionNode::ZeroValue(type_reference) => ExpressionSnapshot::ZeroValue {
+            type_reference: Box::new(type_reference_snapshot(program, *type_reference)),
         },
     }
 }

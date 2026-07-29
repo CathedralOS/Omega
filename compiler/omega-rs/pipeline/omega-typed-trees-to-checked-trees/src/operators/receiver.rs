@@ -78,7 +78,8 @@ fn expression_type_reference_in_state(
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_) => None,
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::ZeroValue(_) => None,
     }
 }
 

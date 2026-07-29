@@ -92,7 +92,7 @@ data DirEntry [copy] {
     is_file: bool;
 }
 // The three-way result of `read_dir_nth` (Rust's `ReadDir` iterator yields
-// `Option<io::Result<DirEntry>>`): `Ok` an entry, `End` past the last entry, or a
+// `Optional<io::Result<DirEntry>>`): `Ok` an entry, `End` past the last entry, or a
 // read `Error`.
 data DirEntryResult {
     case Error(kind: ErrorKind);

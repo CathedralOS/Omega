@@ -423,7 +423,8 @@ fn expression_contains_value_call(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 
@@ -668,7 +669,8 @@ fn scan_construction_field_domains(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 

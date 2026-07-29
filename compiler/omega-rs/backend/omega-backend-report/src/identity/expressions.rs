@@ -95,6 +95,9 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
             }
         }
         ExpressionNode::String(value) => storage.count_payload(value),
-        ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {}
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }

@@ -1,5 +1,5 @@
 // A MONOMORPHIZED generic ENUM with a T-typed payload, matched and destructured natively -- the
-// `Option<T>` shape: `Maybe<i32 in Wrapping>` constructed with `Some { value: 70 }`, matched, and
+// `Optional<T>` shape: `Maybe<i32 in Wrapping>` constructed with `Some { value: 70 }`, matched, and
 // the payload forwarded to a sub-state. Generic enums used to fail layout entirely ("unknown
 // layout-bearing type T"): the case-bearing payload-field planning sized variant payloads WITHOUT
 // the instance bindings. The payload closure is now bindings-aware, so the recorded monomorphized

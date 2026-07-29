@@ -35,6 +35,10 @@ pub(super) struct Input<'tokens, 'source> {
     /// cursor (`advanced`) preserve it; a fresh `new` (top-level item / guard
     /// boundary) resets it to 0, giving each independent construct its own budget.
     depth: u16,
+    /// The second `>` from a lexed `>>` while parsing nested generic types.
+    /// Expression parsing still sees `>>` as one shift operator; only an
+    /// explicit request to consume `>` splits the token contextually.
+    pending_greater: bool,
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
@@ -43,6 +47,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             source_id,
             tokens: skip_non_semantic_tokens(tokens),
             depth: 0,
+            pending_greater: false,
         }
     }
 
@@ -54,6 +59,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             source_id: self.source_id,
             tokens: skip_non_semantic_tokens(tokens),
             depth: self.depth,
+            pending_greater: self.pending_greater,
         }
     }
 
@@ -95,6 +101,9 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(super) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
+        if self.pending_greater {
+            return Err(self.error_here("expected `>` before the next token"));
+        }
         match self.tokens.split_first() {
             Some((token, rest)) => Ok((token, self.advanced(rest))),
             None => Err(diagnostics::unexpected_eof(self, "token")),
@@ -119,6 +128,25 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         punctuation: PunctuationKind,
         label: &str,
     ) -> Result<Self, ParseError> {
+        if self.pending_greater {
+            if punctuation == PunctuationKind::Greater {
+                return Ok(Self {
+                    pending_greater: false,
+                    ..self
+                });
+            }
+            return Err(self.error_here(format!("expected `{label}`")));
+        }
+        if punctuation == PunctuationKind::Greater
+            && self.tokens.first().and_then(Token::punctuation)
+                == Some(PunctuationKind::GreaterGreater)
+        {
+            let (_, rest) = self.expect_token()?;
+            return Ok(Self {
+                pending_greater: true,
+                ..rest
+            });
+        }
         let (token, rest) = self.expect_token()?;
         if token.punctuation() == Some(punctuation) {
             Ok(rest)
@@ -265,7 +293,13 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(super) fn at_punctuation(&self, punctuation: PunctuationKind) -> bool {
-        self.tokens.first().and_then(Token::punctuation) == Some(punctuation)
+        if self.pending_greater {
+            return punctuation == PunctuationKind::Greater;
+        }
+        let actual = self.tokens.first().and_then(Token::punctuation);
+        actual == Some(punctuation)
+            || (punctuation == PunctuationKind::Greater
+                && actual == Some(PunctuationKind::GreaterGreater))
     }
 
     pub(super) fn at_contextual(&self, name: &str) -> bool {

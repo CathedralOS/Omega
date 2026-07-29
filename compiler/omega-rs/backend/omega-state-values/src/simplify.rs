@@ -368,6 +368,7 @@ fn simplify_expression_with_bindings(
                     .collect::<Arc<[_]>>(),
             ),
         }),
+        Expression::ZeroValue(_) => expression.clone(),
     }
 }
 

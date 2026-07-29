@@ -215,7 +215,8 @@ fn expression_reads_overlapping_place(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

@@ -153,6 +153,8 @@ pub enum ExpressionNode {
     StructLiteral(TableStructLiteral),
     String(SourceText),
     Unary(TableUnaryExpression),
+    /// Proof-only observation of a type's normalized all-zero home value.
+    ZeroValue(crate::types::TypeReferenceHandle),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

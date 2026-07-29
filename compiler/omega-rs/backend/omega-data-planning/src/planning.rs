@@ -241,6 +241,7 @@ fn estimate_static_string_expression_capacity(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Mutable(_)
-        | ExpressionNode::Name(_) => {}
+        | ExpressionNode::Name(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }

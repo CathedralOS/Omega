@@ -772,7 +772,8 @@ fn assignment_value_calls_in_evaluation_order<'plan>(
             | ExpressionNode::Float(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
-            | ExpressionNode::String(_) => {}
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
         }
     }
 

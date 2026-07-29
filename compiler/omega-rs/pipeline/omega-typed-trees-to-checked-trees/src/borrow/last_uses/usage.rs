@@ -318,7 +318,8 @@ fn expression_uses_owner_path(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_) => false,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

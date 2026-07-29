@@ -760,7 +760,8 @@ fn collect_expression_tree(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 

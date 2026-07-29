@@ -90,6 +90,7 @@ fn mutable_argument_root_name(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::Unary(_) => None,
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::ZeroValue(_) => None,
     }
 }

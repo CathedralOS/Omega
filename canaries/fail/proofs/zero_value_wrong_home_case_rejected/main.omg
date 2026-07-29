@@ -1,0 +1,10 @@
+data Backwards {
+    case #0 Some;
+    case #1 None;
+}
+
+machine zero_is_none()
+ensures
+    zero_value<Backwards>() == Backwards::None
+{
+}

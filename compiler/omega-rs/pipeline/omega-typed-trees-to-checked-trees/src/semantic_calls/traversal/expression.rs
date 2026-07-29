@@ -105,6 +105,7 @@ pub(super) fn find_call_site_in_expression<'program>(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => None,
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => None,
     }
 }

@@ -55,6 +55,33 @@ fn parses_stable_field_identities_on_generic_data() {
 }
 
 #[test]
+fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
+    let source = r#"
+        data Optional<T> {
+            case None;
+            case Some(value: T);
+        }
+
+        machine zero_is_none<T>()
+        ensures
+            zero_value<Optional<T>>() == Optional::None
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens)
+        .expect("`>>` must close the nested generic type and intrinsic type argument");
+    assert!(
+        parsed
+            .expressions
+            .iter_expressions()
+            .any(|(_, expression)| { matches!(expression, ExpressionNode::ZeroValue(_)) })
+    );
+}
+
+#[test]
 fn numbered_mixed_data_is_independent_of_member_order() {
     for source in [
         "data Mixed { #1 common: u8; case #1 First; }",
