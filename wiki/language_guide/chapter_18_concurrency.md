@@ -220,7 +220,7 @@ unbounded and tooling reports the responsible path.
 
 WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
 depends on the normalized bounded-work plan tracked in
-`OWNER_QUESTIONS.md` #5. Wall-clock conversion additionally requires a
+`OWNER_QUESTIONS.md` #4. Wall-clock conversion additionally requires a
 target timing model and retains that model's trust provenance.
 
 ## Carry Policy Is A Product
@@ -347,7 +347,7 @@ a bounded pool of guarded OS-worker stacks. The safe point is reached when the
 caller parks; native completion, cancellation finalization, retained-loan
 release, and later pool admission remain independent and may be unbounded.
 These are reported separately. The reusable gateway contract remains owner
-question #6, while retained native pointers remain #2. Registered callback
+question #5, while retained native pointers remain #1. Registered callback
 entry is settled: a named static machine satisfies the callback requirement,
 the binding emits its plan-driven thunk, and a durable protocol returns a
 linear registration value. Platform adapters normalize native re-entry into
@@ -495,8 +495,7 @@ the sanctioned carve-out -- the "data types whose contracts permit concurrent
 access" -- for the places where genuinely shared mutable state is the point:
 schedulers, shared rings, counters, and lock-free structures.
 
-The direction is Rust-like atomics: dedicated core types with explicit
-orderings on every operation.
+Atomics are dedicated core types with an explicit ordering on every operation.
 
 ```omega
 data TicketLine {
@@ -504,29 +503,32 @@ data TicketLine {
 }
 
 machine TicketLine::take(&mut self) -> u32 {
-    self.next_ticket.fetch_add(1, Relaxed)
+    self.next_ticket.fetch_add(1, NoOrdering)
 }
 ```
 
 Working rules:
 
-- Atomic types are distinct core types (`AtomicU32`, `AtomicU64`, `AtomicBool`,
-  `AtomicUsize`); ordinary integers never silently become atomic.
-- Every operation names its ordering: `Relaxed`, `Acquire`, `Release`,
-  `AcqRel`, `SeqCst` -- the C11/Rust vocabulary, because hardware, existing
-  literature, and audit expectations all speak it.
+- Atomic types are distinct core types (`AtomicU32`, `AtomicU64`,
+  `AtomicBool`); ordinary integers never silently become atomic.
+- Every operation names its ordering: `NoOrdering`, `Receive`, `Publish`,
+  `ReceivePublish`, or `GlobalOrder`. These correspond to the conventional
+  relaxed, acquire, release, acquire-release, and sequentially consistent
+  literature terms while naming the relationship the source operation asks
+  for.
 - Operation legality is checked before lowering: loads allow
-  `Relaxed | Acquire | SeqCst`; stores allow `Relaxed | Release | SeqCst`;
+  `NoOrdering | Receive | GlobalOrder`; stores allow
+  `NoOrdering | Publish | GlobalOrder`;
   read-modify-write success orderings allow the full vocabulary. A
   `compare_exchange` failure ordering performs only a load, so it cannot be
-  `Release`/`AcqRel` or stronger than the success ordering.
+  `Publish`/`ReceivePublish` or stronger than the success ordering.
 - The operation set is load, store, swap, `compare_exchange` (with separate
   success/failure orderings), and the fetch-and-modify family.
 - The implemented load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/fetch_and/swap/
-  compare_exchange slice carries
-  ordering as normalized operation data through both backends. AArch64 selects
-  the LSE acquire/release form; x86 may realize a request with its stronger
-  locked instruction. Fetch/swap/CAS return the prior observed by that
+  compare_exchange slice carries ordering as normalized operation data through
+  both backends. Its source vocabulary still requires migration to the names
+  above, and instruction selection is not by itself a formal memory-model or
+  target-refinement proof. Fetch/swap/CAS return the prior observed by that
   instruction, not by a preceding load. Swap uses a first-class carrier and
   therefore does not manufacture an arithmetic-domain proof obligation.
   `fetch_sub` performs exact-width two's-complement subtraction through one
@@ -543,22 +545,35 @@ Working rules:
 - A zeroed atomic is the value zero, consistent with zero initialization
   ([Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
 
+`Receive` uses the strong portable baseline. A target may select a weaker
+acquire instruction only when a protocol proof establishes that every
+additional execution preserves the protocol's published facts. Shared
+unspecialized code remains on the baseline.
+
+`Atomic::fence` accepts the dedicated cases
+`Receive | Publish | ReceivePublish`. A fence is a normalized atomic-memory
+event even when its target realization emits no instruction. It synchronizes
+only through a qualifying atomic observation; it does not publish arbitrary
+ordinary memory by itself. Checked ISA barriers and device/DMA visibility are
+separate target/provider contracts.
+
+`Atomic::interruption_fence` provides compiler ordering between ordinary
+execution and an asynchronously entered handler on that same execution
+context. Installed-root evidence must establish that relationship; source code
+cannot assert it. The operation provides neither cross-core synchronization
+nor device visibility.
+
 Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
 IPC, so they sit below a concurrent task-runtime provider in the implementation
-order even though they appear later in this chapter.[^atomics-open]
+order even though they appear later in this chapter.
 
-[^atomics-open]: Open details: the portable standalone-fence source, ordering,
-and scope contract is owner question #1; whether `SeqCst` is restricted or
-discouraged in proofs; and how the TLA-style model treats relaxed-ordering
-visibility (first cut: the deadlock model ignores ordering and only tracks
-waits). Ordinary atomics are compiler-known core operations. Checked ISA
-fences remain distinct target instructions, and device/DMA visibility remains
-a provider contract rather than a mode of the portable atomic fence.
+## Concurrent Protocol Model
 
-## TLA-Style Model
-
-The proof checker can extract a small transition model from concurrent machine
-graphs.
+The proof checker extracts atomic events and a transition model from concurrent
+machine graphs. Atomic reports spell the relations
+`sequenced_before`, `reads_from`, `modification_order`, `synchronizes_with`,
+`happens_before`, and `global_sequential_order`; abbreviated academic names are
+not source or report vocabulary.
 
 ```text
 processes = concurrently activated machine graphs
@@ -577,8 +592,18 @@ Then it can check properties such as:
 - A host wait is either modeled, boundary, or rejected in the selected proof
   mode.
 
-This is not arbitrary-threaded-code magic. The language makes enough structure
-visible that the compiler can build a finite proof model.
+Types supply structural invariants such as initialization, exclusive ownership,
+and claim conservation. Protocol packages author the remaining semantic facts
+they promise, such as publication validity, FIFO behavior, linearizability, or
+absence of lost wakeups. The checker explores legal interleavings, observations,
+and reorderings against those facts; a stale observation is permitted when the
+protocol does not prohibit it.
+
+Finite exploration retains its activation bound and counterexample trace. It
+does not become an unbounded theorem without an authored cutoff, inductive
+invariant, ranking argument, or equivalent proof. Separately compiled packages
+also need an environment premise describing permitted concurrent use; the
+source and composition rules for those premises remain owner question #9.
 
 ## Minimal Deadlock Shapes
 

@@ -828,9 +828,11 @@ answers. Backward-edge return integrity in checked Omega derives from memory
 safety and compiler-owned, non-addressable live or parked continuation state;
 WCSU is supporting provisioning evidence, not a separate CFI mechanism.
 Forward-edge indirect targeting instead requires sealed entry references or
-descriptors retaining requirement/satisfier identity. That remaining runtime
-descriptor design is tracked in
-[`OWNER_QUESTIONS.md`](../../OWNER_QUESTIONS.md).
+descriptors retaining requirement/satisfier identity. Local dynamic
+descriptors, their object-safety rules, and their operational envelopes are
+specified in [Traits And Conformance](chapter_14_traits.md); component
+boundaries use bindings and local proxies rather than exporting those
+descriptors.
 
 An opaque provider must present an admitted `CallPlan + StatePlan` whose exits
 preserve the boundary contract or remain behind adequate hardware isolation.
@@ -1229,7 +1231,7 @@ An opaque third-party binary loaded in-process remains part of the trusted
 computing base even when a checked adapter wraps it. The boundary manifest names
 that provider and its receipt; an isolated process exposes an endpoint instead.
 The exact root declaration and safety-profile rejection surface remains owner
-question #8.
+question #7.
 
 ## Build Artifacts
 

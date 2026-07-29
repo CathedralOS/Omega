@@ -186,7 +186,7 @@ qualification consumers consult only the normalized route identity instead of
 reconstructing permission from attachment names or contract placement.
 Canonical-qualification routes and package-owner coherence are normalized in
 the same pass. The unresolved authoring surface for an explicit cross-package
-delegate is tracked in `OWNER_QUESTIONS.md` #4 and fails closed meanwhile.
+delegate is tracked in `OWNER_QUESTIONS.md` #3 and fails closed meanwhile.
 
 Implementation status (DOM alias expansion, 2026-07-28): transparent
 declared-domain aliases retain independent syntax, resolved, and typed records.
@@ -362,7 +362,10 @@ targets come from lowering; indirect calls and tail calls consume sealed,
 requirement-compatible entry IDs; dynamic descriptors retain satisfier/contract
 identity. Opaque executable providers either supply an admitted
 `CallPlan + StatePlan` covering their exits or remain hardware-isolated.
-Runtime descriptor/object-safety design remains in `OWNER_QUESTIONS.md`.
+Local dynamic descriptors, per-requirement operational envelopes, object
+safety, and the no-cross-component rule are settled in
+[chapter 14](../language_guide/chapter_14_traits.md) and
+[calling plans](../design_briefs/calling_plans.md).
 
 ### Machine semantic contract
 

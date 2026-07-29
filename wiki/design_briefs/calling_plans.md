@@ -507,6 +507,14 @@ publication authority, installation lifecycle, and device protocol. The
 compiler must not grow IDT-, vector-, PIC-, LAPIC-, or timer-shaped lifecycle
 types merely because an OS uses those generic pieces.
 
+Installation also supplies the only admissible evidence for
+`Atomic::interruption_fence`. The retained root route must identify the selected
+handler, asynchronous source, execution context, and interrupted-code
+relationship strongly enough to derive same-context entry. The operation cannot
+assert that relationship and rejects when the installed-root/provider evidence
+does not establish it. This relation orders compiler-visible coherent memory
+only; device and cross-core ordering remain separate contracts.
+
 The ledger uses one recording discipline across three
 independent resource columns: stack ceiling/realized WCSU/derivation evidence,
 structural-work ceiling/realized composed demand/control-flow evidence, and
@@ -515,7 +523,7 @@ realized facts, and validation receipts; private rankings and codegen proofs sta
 behind the evidence firewall. Structural work proves only a finite admitted
 operation path, not target WCET. Its current fixed provider-summary composer is
 the implementation precursor to the general bounded-work algebra in
-`OWNER_QUESTIONS.md` #5, not an independent permanent cost model.
+`OWNER_QUESTIONS.md` #4, not an independent permanent cost model.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,

@@ -1144,7 +1144,7 @@ Working interpretation:
 > bodies, closed semantic-role records, transparent aliases, and normalized
 > establishment routes. Canonical representation qualification is checked and
 > erased; explicit cross-package delegation remains owner-blocked on question
-> #4 and therefore fails closed. Arithmetic policies still have special
+> #3 and therefore fails closed. Arithmetic policies still have special
 > lowering paths. General domain work must preserve every domain-theory axis
 > independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).
