@@ -146,6 +146,10 @@ floating arithmetic followed by a width cast.
 The compatibility x86-64 lowering uses a sticky-half-then-double sequence for
 upper-half `u64` inputs, while AArch64 selects `UCVTF`; both now preserve source
 signedness instead of routing every integer through a signed conversion.
+The compatibility `Math::fused_multiply_add` value call now routes through the
+shared fused definition in the interpreter, while the native libm binding and
+the interpreter are pinned by an edge where fused evaluation leaves a positive
+`2^-104` residual and multiply-then-add produces zero.
 Publishing the source-visible executable operation identities, routing the
 remaining FMA/classification/directed call surfaces, and adding their
 build-time/runtime twins remain part of this first F7 rung. The legacy `as`

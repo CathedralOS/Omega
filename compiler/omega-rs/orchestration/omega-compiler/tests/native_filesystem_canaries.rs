@@ -507,12 +507,10 @@ fn native_float_two_args_exits_5() {
     );
 }
 
-// Three f64 args reaching v2 (the HFA ABI proof): Math::fused_multiply_add(x,y,z)
-// -> f64 via libm fma. fma(2,3,4) = 10.0 round-tripped through round_nearest ->
-// exit 10. Establishes that an HFA of ≤4 doubles (NSRect) marshals into v0–v3,
-// since HFA members and N separate double args occupy the same v-registers.
+// Three f64 args reaching v2 (the HFA ABI proof) and genuine fused semantics:
+// (1 + 2^-52)^2 - (1 + 2^-51) is positive only when evaluated as one FMA.
 #[test]
-fn native_float_three_args_exits_10() {
+fn native_float_three_args_preserves_fused_semantics() {
     let main_path = repo_root().join("canaries/pass/float/native_float_three_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-float3-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -529,8 +527,8 @@ fn native_float_three_args_exits_10() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(
         out.status.code(),
-        Some(10),
-        "fma(2,3,4) round-tripped should be 10 (args in v0,v1,v2)"
+        Some(70),
+        "libm fma must receive v0/v1/v2 and preserve its single-rounding result"
     );
 }
 

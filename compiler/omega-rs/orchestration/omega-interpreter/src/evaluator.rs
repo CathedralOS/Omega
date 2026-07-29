@@ -5137,6 +5137,15 @@ impl<'program> Evaluator<'program> {
                 // else resolves, mirroring the native collection (which keys on
                 // boundary-trait signature symbols).
 
+                // Compatibility Math boundary calls are still imported through
+                // the host tables natively. The interpreter must nevertheless
+                // consume the same executable semantic definition as build-time
+                // folding and ordinary landed arithmetic; otherwise FMA acquires
+                // a third, host-language meaning (or remains unsupported).
+                if let Some(value) = self.try_float_compatibility_value_call(target, call, frame)? {
+                    return Ok(value);
+                }
+
                 // Value-returning FilesystemHost ops (assignment-position calls
                 // like `self.fd = self.fs.create(path, mode)`).
                 let fs_args = self
@@ -5296,6 +5305,62 @@ impl<'program> Evaluator<'program> {
                 .push((handle, value.clone()));
         }
         Ok(value)
+    }
+
+    fn try_float_compatibility_value_call(
+        &mut self,
+        target: &str,
+        call: &omega_typed_trees::expression::TableCallExpression,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        if !call.receiver.is_valid() || !matches!(target, "square_root" | "fused_multiply_add") {
+            return Ok(None);
+        }
+
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        let expected_arity = if target == "square_root" { 1 } else { 3 };
+        if arguments.len() != expected_arity {
+            return Ok(None);
+        }
+        let format = if matches!(
+            self.expression_scalar_type(arguments[0], frame),
+            Some((PrimitiveType::F32, _))
+        ) {
+            SemanticFloatFormat::BINARY32
+        } else {
+            SemanticFloatFormat::BINARY64
+        };
+        let mut operands = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            let value = self.eval_expression(argument, frame)?;
+            let Value::Float(value) = value else {
+                return Err(Halt::Trap(format!(
+                    "{target} expects float arguments, got {value:?}"
+                )));
+            };
+            operands.push(if format == SemanticFloatFormat::BINARY32 {
+                FloatSemantics::convert(format, &FloatMeaning::from_f64(value))
+            } else {
+                FloatMeaning::from_f64(value)
+            });
+        }
+
+        let result = if target == "square_root" {
+            FloatSemantics::square_root(format, &operands[0])
+        } else {
+            FloatSemantics::fused_multiply_add(format, &operands[0], &operands[1], &operands[2])
+        };
+
+        // These spellings are compatibility boundary imports, so build-time
+        // evaluation must still observe the boundary touch even though their
+        // mathematical result is supplied by the shared pure engine.
+        self.host_boundary_touched = true;
+        self.non_fs_host_boundary_touched = true;
+        Ok(Some(Value::Float(result.to_interpreter_value(format))))
     }
 
     fn resolve_value_call_target(
