@@ -11,7 +11,7 @@ domain [u8; 8]::Utf8 {
 }
 
 data NameList {
-    0: names: [[u8; 8] in Utf8; 4];
+    #0 names: [[u8; 8] in Utf8; 4];
 }
 
 data NameListValue {

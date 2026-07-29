@@ -578,13 +578,17 @@ impl SyntaxTrees {
             other.items.data_members(span),
             |this, member| match member {
                 DataMember::Field(field) => DataMember::Field(DataField {
+                    identity: field.identity,
                     name: field.name.clone(),
                     type_reference: this.copy_type_reference_handle(other, field.type_reference),
                 }),
                 DataMember::Variant(variant) => DataMember::Variant(DataVariant {
+                    identity: variant.identity,
                     name: variant.name.clone(),
                     payload: this.copy_data_payload_field_span(other, variant.payload),
+                    retired_payload_identities: variant.retired_payload_identities.clone(),
                 }),
+                DataMember::Retired(identity) => DataMember::Retired(*identity),
             },
             |this, member| this.items.append_data_member(member),
         )
@@ -598,6 +602,7 @@ impl SyntaxTrees {
         self.copy_mapped_span(
             other.items.data_payload_fields(span),
             |this, field| DataField {
+                identity: field.identity,
                 name: field.name.clone(),
                 type_reference: this.copy_type_reference_handle(other, field.type_reference),
             },

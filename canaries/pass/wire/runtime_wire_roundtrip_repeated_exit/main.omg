@@ -25,9 +25,9 @@
 use omega::language::std::console;
 
 data SensorReadings {
-    0: sensor_id: u32;
-    1: samples: [i32; 4];
-    2: flag: bool;
+    #0 sensor_id: u32;
+    #1 samples: [i32; 4];
+    #2 flag: bool;
 }
 
 data SensorSample {

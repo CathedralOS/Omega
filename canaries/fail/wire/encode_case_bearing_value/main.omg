@@ -6,7 +6,7 @@
 use omega::language::std::console;
 
 data EventMessage {
-    0: bonus: i32;
+    #0 bonus: i32;
 }
 
 data RoomEvent {

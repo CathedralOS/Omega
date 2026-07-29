@@ -124,6 +124,7 @@ fn render_punctuation(punctuation: PunctuationKind) -> &'static str {
         PunctuationKind::Greater => ">",
         PunctuationKind::GreaterEqual => ">=",
         PunctuationKind::GreaterGreater => ">>",
+        PunctuationKind::Hash => "#",
         PunctuationKind::LeftBrace => "{",
         PunctuationKind::LeftBracket => "[",
         PunctuationKind::LeftParen => "(",

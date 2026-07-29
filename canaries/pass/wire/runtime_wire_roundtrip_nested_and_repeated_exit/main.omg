@@ -25,13 +25,13 @@
 use omega::language::std::console;
 
 data RoomHeader {
-    0: room_id: u32;
+    #0 room_id: u32;
 }
 
 data RoomPacket {
-    0: header: RoomHeader;
-    1: samples: [i32; 4];
-    2: depth: i32;
+    #0 header: RoomHeader;
+    #1 samples: [i32; 4];
+    #2 depth: i32;
 }
 
 data RoomHeaderValue {

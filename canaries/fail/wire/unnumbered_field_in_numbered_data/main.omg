@@ -3,7 +3,7 @@
 // tagged grammar consumes numbers only; a silent unnumbered field would be
 // dropped from every encoding).
 data Save {
-    1: seed: u64;
+    #1 seed: u64;
     name: u32;
 }
 data Main { }

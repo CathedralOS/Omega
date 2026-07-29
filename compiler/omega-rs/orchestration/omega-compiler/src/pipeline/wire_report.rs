@@ -33,7 +33,7 @@ fn build_wire_protocol_report(typed: &TypedTrees) -> WireProtocolReport {
 
 struct ScopeTable {
     fields: Vec<WireFieldReportEntry>,
-    reserved: Vec<i64>,
+    reserved: Vec<u64>,
 }
 
 fn collect_scope_table(typed: &TypedTrees, members: HandleSpan<WireMember>) -> ScopeTable {

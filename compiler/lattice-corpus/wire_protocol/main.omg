@@ -3,8 +3,8 @@
 // it back and verify all fields round-trip correctly.
 //
 // Wire schema:
-//   RoomHeader  { 0: room_id: u32 }
-//   SensorPacket{ 0: header: RoomHeader; 1: samples: [i32; 4]; 2: depth: i32 }
+//   RoomHeader  { #0 room_id: u32 }
+//   SensorPacket{ #0 header: RoomHeader; #1 samples: [i32; 4]; #2 depth: i32 }
 //
 // Test values:
 //   header.room_id = 300
@@ -19,14 +19,14 @@
 
 use omega::language::std::console;
 
-wire data RoomHeader {
-    0: room_id: u32;
+data RoomHeader {
+    #0 room_id: u32;
 }
 
-wire data SensorPacket {
-    0: header: RoomHeader;
-    1: samples: [i32; 4];
-    2: depth: i32;
+data SensorPacket {
+    #0 header: RoomHeader;
+    #1 samples: [i32; 4];
+    #2 depth: i32;
 }
 
 data RoomHeaderValue {
@@ -40,12 +40,17 @@ data SensorPacketValue {
     depth: i32;
 }
 
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     buffer: [u8; 64];
     written: u64;
     read: u64;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -58,7 +63,7 @@ machine Main::main(&mut self) {
         depth: 0 - 64
     };
 
-    SensorPacket::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    SensorPacket::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
@@ -69,9 +74,9 @@ machine Main::main(&mut self) {
         depth: 0
     };
 
-    SensorPacket::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    SensorPacket::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
-    let ok_and_sizes: bool = self.ok && self.written == 13 && self.read == 13;
+    let ok_and_sizes: bool = self.verdict == WireVerdict::Sound && self.written == 13 && self.read == 13;
     transition ok_and_sizes {
         true -> check_fields()
         false -> bad_sizes()

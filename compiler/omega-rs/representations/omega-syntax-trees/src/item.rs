@@ -170,14 +170,14 @@ impl Default for WireDataMember {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireDataField {
-    pub number: i64,
+    pub number: u64,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WireDataReserved {
-    pub number: i64,
+    pub number: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -551,6 +551,7 @@ pub enum TypeParameterKind {
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
+    Retired(u64),
 }
 
 impl Default for DataMember {
@@ -561,17 +562,20 @@ impl Default for DataMember {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataField {
+    pub identity: Option<u64>,
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
+    pub identity: Option<u64>,
     pub name: Identifier,
     /// Named payload fields (`case Say(text: String);`). Payload-less cases have an
     /// empty span. Stored in their own arena so the parent's member span stays
     /// contiguous while a case's payload is parsed.
     pub payload: HandleSpan<DataField>,
+    pub retired_payload_identities: Vec<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

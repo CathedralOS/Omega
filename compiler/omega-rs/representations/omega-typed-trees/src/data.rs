@@ -21,6 +21,7 @@ pub struct DataDefinition {
     /// R2 rung 2b: zero violates the default domain (copied; see the
     /// resolved record).
     pub zero_gated: bool,
+    pub retired_identities: Vec<u64>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -36,6 +37,7 @@ impl Default for DataDefinition {
             quotient: None,
             where_facts: HandleSpan::empty(),
             zero_gated: false,
+            retired_identities: Vec::new(),
             members: HandleSpan::empty(),
         }
     }
@@ -140,6 +142,7 @@ pub enum TypeParameterKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
+    pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_reference: TypeReferenceHandle,
@@ -148,6 +151,7 @@ pub struct DataField {
 impl Default for DataField {
     fn default() -> Self {
         Self {
+            identity: None,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_reference: TypeReferenceHandle::invalid(),
@@ -157,19 +161,23 @@ impl Default for DataField {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
+    pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: Identifier,
     /// Named payload fields (`case Say(text: String);`); empty for payload-less cases.
     /// Stored in the `data_payload_fields` arena, separate from the parent's member span.
     pub payload: HandleSpan<DataField>,
+    pub retired_payload_identities: Vec<u64>,
 }
 
 impl Default for DataVariant {
     fn default() -> Self {
         Self {
+            identity: None,
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             payload: HandleSpan::empty(),
+            retired_payload_identities: Vec::new(),
         }
     }
 }

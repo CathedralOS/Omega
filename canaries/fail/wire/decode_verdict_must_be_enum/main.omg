@@ -3,7 +3,7 @@
 // `&mut ok: bool` spelling gets this guided error.
 use omega::language::std::console;
 data Msg {
-    0: v: u32;
+    #0 v: u32;
 }
 data Val {
     v: u32;

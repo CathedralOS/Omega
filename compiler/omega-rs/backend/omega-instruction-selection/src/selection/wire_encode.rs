@@ -41,7 +41,7 @@ use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_i
 
 /// One field of the CURRENT era, ready to append.
 struct WireFieldAppend {
-    number: i64,
+    number: u64,
     content: WireFieldContent,
 }
 
@@ -217,9 +217,7 @@ pub(super) fn select_wire_encode_call(
                             ..
                         }
                     );
-                    placement.tag()
-                        == u64::try_from(field.number)
-                            .expect("wire collection rejects negative field numbers")
+                    placement.tag() == field.number
                         && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
                 });
         if !agrees {
@@ -232,9 +230,7 @@ pub(super) fn select_wire_encode_call(
         let tag = plan
             .and_then(|placements| placements.get(field_index))
             .map(|placement| placement.tag())
-            .unwrap_or_else(|| {
-                u64::try_from(field.number).expect("wire collection rejects negative field numbers")
-            });
+            .unwrap_or(field.number);
         for byte in wire_varint_bytes(tag) {
             push(SelectedInstructionKind::AppendWireLiteralByte {
                 out_region: out_place.region,
@@ -357,9 +353,7 @@ pub(super) fn select_wire_encode_call(
                             .iter()
                             .zip(children.iter())
                             .all(|(placement, child)| {
-                                placement.tag()
-                                    == u64::try_from(child.number)
-                                        .expect("wire collection rejects negative field numbers")
+                                placement.tag() == child.number
                                     && matches!(placement, WirePlacement::Varint { .. })
                             });
                     if !agrees {
@@ -384,7 +378,7 @@ pub(super) fn select_wire_encode_call(
                         else {
                             unreachable!("collection admits only scalar children");
                         };
-                        wire_varint_bytes(child.number as u64).len() + scalar.max_varint_length()
+                        wire_varint_bytes(child.number).len() + scalar.max_varint_length()
                     })
                     .sum();
                 let scratch_base = input.runtime_storage.wire_scratch_base;
@@ -418,10 +412,7 @@ pub(super) fn select_wire_encode_call(
                     let child_tag = child_plan
                         .and_then(|placements| placements.get(child_index))
                         .map(|placement| placement.tag())
-                        .unwrap_or_else(|| {
-                            u64::try_from(child.number)
-                                .expect("wire collection rejects negative field numbers")
-                        });
+                        .unwrap_or(child.number);
                     for byte in wire_varint_bytes(child_tag) {
                         push(SelectedInstructionKind::AppendWireLiteralByte {
                             out_region: RuntimeStorageRegion::RuntimeFrame,
@@ -491,10 +482,6 @@ fn collect_field_appends(
         let WireMember::Field(field) = member else {
             continue;
         };
-        if field.number < 0 {
-            return None;
-        }
-
         let member_handle = expressions.insert(ExpressionNode::Member(
             omega_checked_trees::expression::TableMemberExpression {
                 receiver,

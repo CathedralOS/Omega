@@ -9653,6 +9653,12 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
 }
 
 #[test]
+fn numbered_case_identities_compile() {
+    compile_canary_without_output(&pass_canary("wire/numbered_case_identities"))
+        .expect("numbered case identities should survive the compiler pipeline");
+}
+
+#[test]
 fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     // Wire stage 2b: encode { counter: 300, delta: -2, flag: true } into
     // [0x00, 0x00, 0xAC, 0x02, 0x01, 0x03, 0x02, 0x01] (hand-computed in the
@@ -39083,6 +39089,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/layout_domain_on_non_bytes",
     "wire/wire_data_form_retired",
     "wire/reserved_spelling_retired",
+    "wire/legacy_numbered_field_spelling",
     "wire/unnumbered_field_in_numbered_data",
     "expressions/arithmetic_domain_mixed",
     "expressions/nested_i32_mul_overflow",

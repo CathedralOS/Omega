@@ -17,6 +17,15 @@ pub(crate) fn lower_data_definition(
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
+    let retired_identities = syntax_trees
+        .items
+        .data_members(data_definition.members)
+        .iter()
+        .filter_map(|member| match member {
+            syntax::item::DataMember::Retired(identity) => Some(*identity),
+            _ => None,
+        })
+        .collect();
     let quotient = data_definition
         .quotient
         .as_ref()
@@ -95,6 +104,7 @@ pub(crate) fn lower_data_definition(
             quotient,
             where_facts,
             zero_gated,
+            retired_identities,
             members,
         },
     })
@@ -209,6 +219,9 @@ fn lower_data_members(
     let mut span = HandleSpan::empty();
 
     for member in syntax_trees.items.data_members(members) {
+        if matches!(member, syntax::item::DataMember::Retired(_)) {
+            continue;
+        }
         let member = lower_data_member(lowerer, syntax_trees, member)?;
         lowerer
             .symbol_resolved_trees
@@ -228,6 +241,7 @@ fn lower_data_member(
 ) -> Result<DataMember, Diagnostic> {
     match member {
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
+            identity: field.identity,
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&field.name),
             type_reference: lower_type_reference_handle(
@@ -240,6 +254,7 @@ fn lower_data_member(
             let mut payload = HandleSpan::empty();
             for field in syntax_trees.items.data_payload_fields(variant.payload) {
                 let lowered = DataField {
+                    identity: field.identity,
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(&field.name),
                     type_reference: lower_type_reference_handle(
@@ -256,10 +271,13 @@ fn lower_data_member(
                     .append_to_span(&mut payload, lowered);
             }
             Ok(DataMember::Variant(DataVariant {
+                identity: variant.identity,
                 symbol: SymbolHandle::invalid(),
                 name: crate::name::lower_name(&variant.name),
                 payload,
+                retired_payload_identities: variant.retired_payload_identities.clone(),
             }))
         }
+        syntax::item::DataMember::Retired(_) => unreachable!("retired identities are metadata"),
     }
 }

@@ -30,8 +30,8 @@ domain [u8]::Utf8 {
 use omega::language::std::console;
 
 data LabelMessage {
-    0: count: u32;
-    1: label: &[u8] in Utf8;
+    #0 count: u32;
+    #1 label: &[u8] in Utf8;
 }
 
 data LabelSample {

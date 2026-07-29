@@ -64,7 +64,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         // identity-keyed grammars at carriers.
         return Err(input.error_here(
             "`wire data` is retired: declare a plain `data` with identity numbers on its fields \
-             (`data Save { 1: seed: u64; retired 2; }`) -- numbers are optional schema facts, \
+             (`data Save { #1 seed: u64; retired #2; }`) -- numbers are optional schema facts, \
              consumed by identity-keyed grammars (chapter 20)",
         ));
     }
@@ -342,7 +342,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
 /// Parse the body of an IDENTITY-NUMBERED data declaration (ch20): the caller
 /// (`parse_data_definition`) has consumed `data Name ... {` and peeked a
-/// numbered/`retired` first member. Numbers are optional schema facts on plain
+/// `#N`/`retired #N` first member. Numbers are optional schema facts on plain
 /// `data` -- any values, any order, sparse -- but within one declaration they
 /// are all-or-nothing today (a numbered schema with an unnumbered field is a
 /// guided error; the tagged grammar consumes numbers only). The legacy
@@ -408,7 +408,8 @@ fn parse_wire_data_member<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, WireDataMember> {
     if input.at_contextual("retired") {
         let input = input.take_contextual("retired")?;
-        let (number, input) = input.take_integer()?;
+        let input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+        let (number, input) = input.take_identity()?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((WireDataMember::Reserved(WireDataReserved { number }), input));
     }
@@ -417,7 +418,7 @@ fn parse_wire_data_member<'tokens, 'source>(
         // The `reserved N;` spelling died with the `wire data` form: a retired
         // identity number is a DECLARATION, not a tombstone field.
         return Err(input.error_here(
-            "`reserved` is retired: tombstone an identity number with `retired N;` (chapter 20)",
+            "`reserved` is retired: tombstone an identity number with `retired #N;` (chapter 21)",
         ));
     }
 
@@ -433,14 +434,14 @@ fn parse_wire_data_member<'tokens, 'source>(
         ));
     }
 
-    if !input.at_integer() {
+    if !input.at_punctuation(PunctuationKind::Hash) {
         return Err(input.error_here(
             "identity numbers are all-or-nothing within one declaration: every field of a \
-             numbered data needs its `N:` prefix (`N: name: Type;`)",
+             numbered data needs its `#N` prefix (`#N name: Type;`)",
         ));
     }
-    let (number, input) = input.take_integer()?;
-    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+    let (number, input) = input.take_identity()?;
     let (name, input) = input.take_identifier()?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     // A wire field may be a borrowed view (`&[u8]`): the zero-copy raw-bytes

@@ -542,7 +542,7 @@ fn validate_wire_encode_call(
     // as length varint + raw bytes, rides the same runtime-sized Text constraints
     // (at most one, encodes last), and matches a `&[u8]` value field.
     let mut byte_slice_fields: Vec<&WireField> = Vec::new();
-    let mut max_field_number = i64::MIN;
+    let mut max_field_number = 0u64;
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
         let WireMember::Field(field) = member else {
@@ -556,14 +556,6 @@ fn validate_wire_encode_call(
         // and a nested-message element would need per-element staging, so both
         // reject loudly.
         if let Some((_, max_count)) = program.wire_field_fixed_array(field) {
-            if field.number < 0 {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
-                    schema.name, field.name, field.number
-                )));
-                schema_rejects = true;
-                continue;
-            }
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated runtime-sized text and repeated nested messages reject until they have an honest encoding)",
@@ -576,8 +568,7 @@ fn validate_wire_encode_call(
             };
             let _ = max_count;
             max_field_number = max_field_number.max(field.number);
-            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number as u64)
-                .len()
+            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number).len()
                 + repeated.worst_case_payload_bytes();
             repeated_fields.push((field, repeated));
             continue;
@@ -588,17 +579,8 @@ fn validate_wire_encode_call(
         // value field below. (A `[u8; N]` owned array is a repeated field,
         // handled above; only the borrowed slice reaches here.)
         if program.is_borrowed_byte_slice(field.type_reference) {
-            if field.number < 0 {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
-                    schema.name, field.name, field.number
-                )));
-                schema_rejects = true;
-                continue;
-            }
             max_field_number = max_field_number.max(field.number);
-            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number as u64)
-                .len()
+            worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number).len()
                 + omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH;
             text_fields.push(field);
             byte_slice_fields.push(field);
@@ -618,16 +600,8 @@ fn validate_wire_encode_call(
             schema_rejects = true;
             continue;
         }
-        if field.number < 0 {
-            diagnostics.push(Diagnostic::error(format!(
-                "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
-                schema.name, field.name, field.number
-            )));
-            schema_rejects = true;
-            continue;
-        }
         max_field_number = max_field_number.max(field.number);
-        let tag_bytes = omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len();
+        let tag_bytes = omega_typed_trees::wire::wire_varint_bytes(field.number).len();
         if let Some(child) = nested {
             // A nested message field encodes as tag + LENGTH varint + the
             // sub-message's fields WITHOUT an era discriminator (decision 10:
@@ -898,14 +872,6 @@ fn validate_wire_decode_call(
         // LENGTH-delimited packed payload (bounds-checked loop capped at the
         // declared maximum); non-scalar elements reject.
         if program.wire_field_fixed_array(field).is_some() {
-            if field.number < 0 {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
-                    schema.name, field.name, field.number
-                )));
-                schema_rejects = true;
-                continue;
-            }
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated runtime-sized text and repeated nested messages reject until they have an honest encoding)",
@@ -923,14 +889,6 @@ fn validate_wire_decode_call(
         // view into the buffer, no owned copy and so no allocator. (An owned
         // An owned-copy destination would instead need allocator/package policy.)
         if program.is_borrowed_byte_slice(field.type_reference) {
-            if field.number < 0 {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
-                    schema.name, field.name, field.number
-                )));
-                schema_rejects = true;
-                continue;
-            }
             byte_slice_fields.push(field);
             continue;
         }
@@ -943,14 +901,6 @@ fn validate_wire_decode_call(
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
-            )));
-            schema_rejects = true;
-            continue;
-        }
-        if field.number < 0 {
-            diagnostics.push(Diagnostic::error(format!(
-                "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
-                schema.name, field.name, field.number
             )));
             schema_rejects = true;
             continue;

@@ -9,10 +9,11 @@ use omega_syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataProperties, DataVariant, QuotientDefinition,
     TypeParameter, TypeParameterKind,
 };
-use omega_tokens::PunctuationKind;
+use omega_tokens::{PunctuationKind, TokenKind};
+use std::collections::HashSet;
 
 /// A parsed `data` declaration: plain, or IDENTITY-NUMBERED (ch20 -- fields
-/// carry optional identity numbers, `retired N;` tombstones one; such a
+/// carry optional identity numbers, `retired #N;` tombstones one; such a
 /// declaration is the schema the identity-keyed grammars consume, and it
 /// lowers through the wire-schema representation).
 pub(super) enum ParsedDataDefinition {
@@ -96,7 +97,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     // An IDENTITY-NUMBERED data (ch20): the first member starting with an
-    // integer (`1: seed: u64;`) or `retired` decides the form; numbers are
+    // `#` (`#1 seed: u64;`) or `retired` decides the form; numbers are
     // all-or-nothing within one declaration (guided error otherwise, inside
     // the member parser). A numbered schema may start with a historical
     // `version vN { N: field: Type; }` block, so peek inside that first block;
@@ -108,19 +109,25 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             .ok()
             .and_then(|after| after.take_identifier().ok())
             .and_then(|(_, after)| after.take_punctuation(PunctuationKind::LeftBrace, "{").ok())
-            .is_some_and(|inner| inner.at_integer() || inner.at_contextual("retired"));
-    if input.at_integer() || input.at_contextual("retired") || leading_version_is_numbered {
-        if !type_parameters.is_empty() || !lifetime_parameters.is_empty() {
-            return Err(input.error_here(
-                "identity-numbered data does not take generic parameters yet (the schema the \
-                 tagged grammar consumes is concrete)",
-            ));
-        }
-        if properties != DataProperties::default() {
-            return Err(
-                input.error_here("identity-numbered data does not take declared properties yet")
-            );
-        }
+            .is_some_and(|inner| {
+                inner.at_punctuation(PunctuationKind::Hash) || inner.at_contextual("retired")
+            });
+    if input.at_integer() {
+        return Err(input.error_here(
+            "the legacy numbered-field spelling `N: name: Type;` is retired; \
+             write `#N name: Type;`",
+        ));
+    }
+    let uses_legacy_wire_lowering = type_parameters.is_empty()
+        && lifetime_parameters.is_empty()
+        && properties == DataProperties::default()
+        && where_facts.is_empty()
+        && !body_contains_top_level_case(input);
+    if uses_legacy_wire_lowering
+        && (input.at_punctuation(PunctuationKind::Hash)
+            || input.at_contextual("retired")
+            || leading_version_is_numbered)
+    {
         let (definition, input) =
             crate::parser::item::parse_identity_data_body(syntax_trees, name, input)?;
         return Ok((ParsedDataDefinition::Numbered(definition), input));
@@ -142,6 +149,37 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         }),
         input,
     ))
+}
+
+fn body_contains_top_level_case(input: Input<'_, '_>) -> bool {
+    let mut braces = 0usize;
+    let mut brackets = 0usize;
+    let mut parentheses = 0usize;
+
+    for token in input.tokens {
+        if token.is_non_semantic() {
+            continue;
+        }
+        match token.punctuation() {
+            Some(PunctuationKind::LeftBrace) => braces += 1,
+            Some(PunctuationKind::RightBrace) if braces == 0 => break,
+            Some(PunctuationKind::RightBrace) => braces -= 1,
+            Some(PunctuationKind::LeftBracket) => brackets += 1,
+            Some(PunctuationKind::RightBracket) => brackets = brackets.saturating_sub(1),
+            Some(PunctuationKind::LeftParen) => parentheses += 1,
+            Some(PunctuationKind::RightParen) => parentheses = parentheses.saturating_sub(1),
+            _ if braces == 0
+                && brackets == 0
+                && parentheses == 0
+                && matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                && token.lexeme.as_str() == "case" =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// An opaque carrier supplied by a boundary provider. It has no source-visible
@@ -413,13 +451,106 @@ fn parse_data_members<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(member_start, member_count)
     };
+    validate_data_identity_modes(syntax_trees.items.data_members(members), input)?;
     Ok((members, input))
+}
+
+fn validate_data_identity_modes(
+    members: &[DataMember],
+    input: Input<'_, '_>,
+) -> Result<(), crate::parse_error::ParseError> {
+    let fields: Vec<Option<u64>> = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field.identity),
+            _ => None,
+        })
+        .collect();
+    let cases: Vec<Option<u64>> = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Variant(case) => Some(case.identity),
+            _ => None,
+        })
+        .collect();
+    let retired: Vec<u64> = members
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Retired(identity) => Some(*identity),
+            _ => None,
+        })
+        .collect();
+
+    if !retired.is_empty() && !fields.is_empty() && !cases.is_empty() {
+        return Err(input.error_here(
+            "`retired #N;` is ambiguous in mixed field-and-case data; publish separate record \
+             and sum shapes so each retired identity has one structural scope",
+        ));
+    }
+    validate_identity_scope(
+        "record fields",
+        &fields,
+        if cases.is_empty() { &retired } else { &[] },
+        input,
+    )?;
+    validate_identity_scope(
+        "sum cases",
+        &cases,
+        if fields.is_empty() { &retired } else { &[] },
+        input,
+    )
+}
+
+fn validate_identity_scope(
+    scope: &str,
+    identities: &[Option<u64>],
+    retired: &[u64],
+    input: Input<'_, '_>,
+) -> Result<(), crate::parse_error::ParseError> {
+    let numbered = identities
+        .iter()
+        .filter(|identity| identity.is_some())
+        .count();
+    if numbered > 0 && numbered != identities.len() {
+        return Err(input.error_here(format!(
+            "stable identities are all-or-nothing for {scope}: number every member with `#N` \
+             or number none of them"
+        )));
+    }
+    if !retired.is_empty() && identities.iter().any(Option::is_none) {
+        return Err(input.error_here(format!(
+            "`retired #N;` enters numbered mode for {scope}: every live member also needs `#N`"
+        )));
+    }
+
+    let mut seen = HashSet::new();
+    for identity in identities
+        .iter()
+        .flatten()
+        .copied()
+        .chain(retired.iter().copied())
+    {
+        if !seen.insert(identity) {
+            return Err(input.error_here(format!(
+                "stable identity #{identity} is declared more than once among {scope} and their retired identities"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn parse_data_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
+    if input.at_contextual("retired") {
+        input = input.take_contextual("retired")?;
+        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+        let (identity, input) = input.take_identity()?;
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((DataMember::Retired(identity), input));
+    }
+
     if input.at_contextual("version") {
         // Retire only the old `version Era { ... }` MEMBER shape. `version`
         // remains an ordinary identifier, so `version: u32;` must reach the
@@ -439,11 +570,19 @@ fn parse_data_member<'tokens, 'source>(
         // Distinguish a `case Name;` member from a field named `case`
         // (`case: i32;`) by what follows the contextual keyword.
         let after_case = input.take_contextual("case")?;
-        if after_case.at_name_like() {
+        if after_case.at_name_like() || after_case.at_punctuation(PunctuationKind::Hash) {
             return parse_case_member(syntax_trees, after_case);
         }
     }
 
+    let identity = if input.at_punctuation(PunctuationKind::Hash) {
+        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+        let (identity, next) = input.take_identity()?;
+        input = next;
+        Some(identity)
+    } else {
+        None
+    };
     let (field_name, next) = input.take_identifier()?;
     input = next;
 
@@ -477,6 +616,7 @@ fn parse_data_member<'tokens, 'source>(
         };
         return Ok((
             DataMember::Field(DataField {
+                identity,
                 name: field_name,
                 type_reference,
             }),
@@ -495,16 +635,25 @@ fn parse_data_member<'tokens, 'source>(
 
 fn parse_case_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
+    mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
+    let identity = if input.at_punctuation(PunctuationKind::Hash) {
+        input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+        let (identity, next) = input.take_identity()?;
+        input = next;
+        Some(identity)
+    } else {
+        None
+    };
     let (case_name, mut input) = input.take_identifier()?;
 
-    let payload = if input.at_punctuation(PunctuationKind::LeftParen) {
+    let (payload, retired_payload_identities) = if input.at_punctuation(PunctuationKind::LeftParen)
+    {
         let (payload, next) = parse_case_payload_fields(syntax_trees, input)?;
         input = next;
         payload
     } else {
-        HandleSpan::empty()
+        (HandleSpan::empty(), Vec::new())
     };
 
     input = if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -514,8 +663,10 @@ fn parse_case_member<'tokens, 'source>(
     };
     Ok((
         DataMember::Variant(DataVariant {
+            identity,
             name: case_name,
             payload,
+            retired_payload_identities,
         }),
         input,
     ))
@@ -528,12 +679,33 @@ fn parse_case_member<'tokens, 'source>(
 fn parse_case_payload_fields<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<DataField>> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<DataField>, Vec<u64>)> {
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
     let mut payload_start = Handle::invalid();
     let mut payload_count = 0u32;
 
+    let mut retired_identities = Vec::new();
     while !input.at_punctuation(PunctuationKind::RightParen) {
+        if input.at_contextual("retired") {
+            input = input.take_contextual("retired")?;
+            input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+            let (identity, next) = input.take_identity()?;
+            retired_identities.push(identity);
+            input = next;
+            if input.at_punctuation(PunctuationKind::Comma) {
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            break;
+        }
+        let identity = if input.at_punctuation(PunctuationKind::Hash) {
+            input = input.take_punctuation(PunctuationKind::Hash, "#")?;
+            let (identity, next) = input.take_identity()?;
+            input = next;
+            Some(identity)
+        } else {
+            None
+        };
         let (field_name, next) = input.take_identifier()?;
         input = next.take_punctuation(PunctuationKind::Colon, ":")?;
         // Case payloads may also carry borrows (decision 15 stage 2).
@@ -542,6 +714,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
         input = next;
 
         let handle = syntax_trees.items.append_data_payload_field(DataField {
+            identity,
             name: field_name,
             type_reference,
         });
@@ -565,7 +738,19 @@ fn parse_case_payload_fields<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(payload_start, payload_count)
     };
-    Ok((payload, input))
+    let identities: Vec<Option<u64>> = syntax_trees
+        .items
+        .data_payload_fields(payload)
+        .iter()
+        .map(|field| field.identity)
+        .collect();
+    validate_identity_scope(
+        "structured case-payload fields",
+        &identities,
+        &retired_identities,
+        input,
+    )?;
+    Ok(((payload, retired_identities), input))
 }
 
 #[derive(Default)]

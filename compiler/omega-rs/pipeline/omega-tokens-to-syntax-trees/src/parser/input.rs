@@ -215,6 +215,27 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// A nonnegative structural identity carried through the complete `u64`
+    /// range. Unlike array lengths and legacy discriminants, stable schema
+    /// identities are opaque unsigned keys rather than signed arithmetic
+    /// values.
+    pub(super) fn take_identity(self) -> Result<(u64, Self), ParseError> {
+        let (token, rest) = self.expect_token()?;
+        if let Some(kind) = token.integer_literal_kind() {
+            let literal = parse_integer_literal(token.lexeme.as_str(), kind)
+                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
+            let value = literal.value_u64().ok_or_else(|| {
+                ParseError::at_source_span(
+                    "stable identity must be a nonnegative u64 value",
+                    self.source_span(token),
+                )
+            })?;
+            Ok((value, rest))
+        } else {
+            Err(diagnostics::expected(self, token, "stable identity"))
+        }
+    }
+
     pub(super) fn take_string(self) -> Result<(String, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if token.is_string_literal() {
@@ -297,7 +318,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     /// Whether the next token is an integer literal (the identity-number
-    /// prefix of a numbered data field, `N: name: Type;`).
+    /// payload of a stable member identity, `#N name: Type;`.
     pub(super) fn at_integer(&self) -> bool {
         self.tokens
             .first()

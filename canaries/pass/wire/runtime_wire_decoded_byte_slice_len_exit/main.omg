@@ -13,7 +13,7 @@
 use omega::language::std::console;
 
 data Blob {
-    0: bytes: &[u8];
+    #0 bytes: &[u8];
 }
 
 data BlobSample {

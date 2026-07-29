@@ -583,9 +583,6 @@ move it to a convenience library.
 The language model is settled in guide chapters 21-22 and the programmable
 layouts brief. Complete the implementation in dependency order:
 
-- migrate numbered field syntax to `#N name: Type`, add `case #N Name`, and
-  enforce all-or-nothing numbering independently for record fields, sum cases,
-  and structured case-payload fields; make `retired #N;` enter numbered mode;
 - rename the standard cased carrier to `Optional<T>`, retain `None | Some(T)`
   as ordinary cases, and add the home-representation proof requirement that
   all-zero storage denotes `None`;

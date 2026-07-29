@@ -95,6 +95,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     crate::item::DataMember::Variant(variant) => {
                         count_identifier(&variant.name, counts);
                     }
+                    crate::item::DataMember::Retired(_) => {}
                 }
             }
         }

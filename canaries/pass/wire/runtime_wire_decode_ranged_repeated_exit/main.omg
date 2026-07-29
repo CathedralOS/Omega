@@ -6,7 +6,7 @@
 use omega::language::std::console;
 
 data Samples {
-    0: values: [i32; 2];
+    #0 values: [i32; 2];
 }
 
 data RangedSamples {

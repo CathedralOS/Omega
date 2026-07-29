@@ -2354,7 +2354,7 @@ impl<'program> Evaluator<'program> {
 
         let mut bytes = wire_varint_bytes(era);
         for (field_name, number, content) in &fields {
-            bytes.extend(wire_varint_bytes(*number as u64));
+            bytes.extend(wire_varint_bytes(*number));
 
             let raw = match &*value_cell.borrow() {
                 Value::Struct { fields, .. } => fields
@@ -2387,7 +2387,7 @@ impl<'program> Evaluator<'program> {
                     // rides only the top-level envelope (decision 10).
                     let mut body = Vec::new();
                     for (child_name, child_number, scalar) in children {
-                        body.extend(wire_varint_bytes(*child_number as u64));
+                        body.extend(wire_varint_bytes(*child_number));
                         let child_raw = match &*raw.borrow() {
                             Value::Struct { fields, .. } => fields
                                 .get(child_name)
@@ -2790,7 +2790,7 @@ impl<'program> Evaluator<'program> {
         }
 
         for (field_name, number, content) in &fields {
-            for byte in wire_varint_bytes(*number as u64) {
+            for byte in wire_varint_bytes(*number) {
                 expect_byte(&mut cursor, &mut ok, byte);
             }
 
@@ -2869,7 +2869,7 @@ impl<'program> Evaluator<'program> {
                         ok = false;
                     }
                     for (child_name, child_number, encoding, range) in children {
-                        for byte in wire_varint_bytes(*child_number as u64) {
+                        for byte in wire_varint_bytes(*child_number) {
                             expect_byte(&mut cursor, &mut ok, byte);
                         }
                         let raw = read_varint(&mut cursor, &mut ok);
@@ -8273,7 +8273,7 @@ fn is_canonical_host_method(name: &str) -> bool {
 /// field list (chapter 20).
 enum WireInterpField {
     Direct(omega_typed_trees::wire::WireFieldEncoding),
-    Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
+    Nested(Vec<(String, u64, omega_typed_trees::wire::WireScalarEncoding)>),
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
     /// A borrowed byte slice `&[u8]`: encodes as RAW bytes (length varint then
     /// the bytes), reading the field's element array.
@@ -8291,7 +8291,7 @@ enum WireInterpScalarField {
     Nested(
         Vec<(
             String,
-            i64,
+            u64,
             omega_typed_trees::wire::WireScalarEncoding,
             Option<omega_core::wire::WireScalarRange>,
         )>,
@@ -8316,7 +8316,7 @@ enum WireInterpScalarField {
 fn wire_nested_scalar_fields(
     program: &TypedTrees,
     child: &omega_typed_trees::wire::WireSchema,
-) -> Result<Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>, Halt> {
+) -> Result<Vec<(String, u64, omega_typed_trees::wire::WireScalarEncoding)>, Halt> {
     use omega_typed_trees::wire::{WireMember, WireScalarEncoding};
 
     let mut children = Vec::new();
@@ -8348,7 +8348,7 @@ fn wire_nested_decode_scalar_fields(
 ) -> Result<
     Vec<(
         String,
-        i64,
+        u64,
         omega_typed_trees::wire::WireScalarEncoding,
         Option<omega_core::wire::WireScalarRange>,
     )>,

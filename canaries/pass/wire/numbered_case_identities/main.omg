@@ -1,0 +1,10 @@
+// Stable sum-case and structured payload identities are ordinary data
+// metadata. They do not select or alter the runtime discriminant.
+data Lookup<T> {
+    case #1 Found(#1 value: T, retired #2);
+    case #2 Missing;
+    retired #3;
+}
+
+data Main { }
+machine Main::main(&mut self) { }

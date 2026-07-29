@@ -30,6 +30,7 @@ pub struct DataDefinitionStorage {
     /// (not zero-constructible; literals must prove the domain; reading
     /// zeroed storage as the type is refused by rung 3's access gate).
     pub zero_gated: bool,
+    pub retired_identities: Vec<u64>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -134,6 +135,7 @@ pub enum TypeParameterKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
+    pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
@@ -142,6 +144,7 @@ pub struct DataField {
 impl Default for DataField {
     fn default() -> Self {
         Self {
+            identity: None,
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::default(),
             type_reference: TypeReference::Unit,
@@ -151,8 +154,10 @@ impl Default for DataField {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
+    pub identity: Option<u64>,
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     /// Named payload fields (`case Say(text: String);`); empty for payload-less cases.
     pub payload: HandleSpan<DataField>,
+    pub retired_payload_identities: Vec<u64>,
 }

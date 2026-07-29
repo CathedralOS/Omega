@@ -1,12 +1,11 @@
-// Chapter 20 (Wire Protocols): reserved field numbers prevent accidental reuse
-// of a retired wire tag (`retired 3;`). Unimplemented: `wire` is not a
-// top-level declaration keyword, so the reserved-field policy cannot be reached.
+// Chapter 21 (Wire Protocols): retired field identities prevent accidental
+// reuse of a published identity (`retired #3;`).
 
 data CounterMessage {
-    0: counter: i32;
-    1: timestamp_millis: i64;
+    #0 counter: i32;
+    #1 timestamp_millis: i64;
 
-    retired 3;
+    retired #3;
 }
 
 data Main {
