@@ -626,9 +626,17 @@ rejection returns that loan, and `place` consumes the accepted token. Current
 view-borrow and retained source-loan polarity are checked independently.
 Exposure uses the settled `Exported | BindingPrivate` vocabulary; stable
 compound mutation is derived, external compound mutation is unavailable, and
-atomic permissions distinguish the exact operation families. `TASKS.md` owns
-resource-profile admission, placed projection, and target-specific
-external/atomic emission.
+atomic permissions distinguish the exact operation families. Admitted
+`ResourceProfile` supply is now normalized into disjoint offset-keyed regions
+and bound by provider receipt to an exact range, address space, provenance,
+mapping era, required rights, and reach. Exact subrange loans intersect and
+rebase that supply without filling uncovered bytes. The placement/profile join
+checks interval containment, observation, operation and reach subsets, and
+exact widths; it derives one power-of-two base congruence before admission,
+while admission checks the concrete loan base and returns a rejected loan
+intact. Accepted placements and sealed primitive requests retain the provider
+receipt and effective per-field supply. `TASKS.md` owns placed projection and
+target-specific external/atomic emission.
 
 ## IPC and DMA
 
