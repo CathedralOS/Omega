@@ -142,14 +142,14 @@ measured-recursion rule without the runtime tail-position lowering fence.
 Productive machines may deliberately run forever. A transition loop that does
 not promise termination therefore owes no ranking witness.
 
-## Partial correctness, outcomes, and effects
+## Partial correctness, outcomes, and reach
 
 `ensures` remains partial correctness: **if** a return edge is reached, the
 result and state satisfy the proposition. A result domain cannot prove that
 the edge is ever reached, because completion classifies executions rather
 than values.
 
-`effects` remains a service-reach ceiling. `suspends` and `blocks` remain
+`reaches` remains a service-reach ceiling. `suspends` and `blocks` remain
 independent operational may-ceilings. Reaching a `ProcessExit` service may
 appear in the row; the `Aborted` terminal outcome is not itself an effect. The
 checked artifact may derive a completion
@@ -226,7 +226,7 @@ contract, not in the hidden ranking witness.
 6. Adding a second user measure cannot reinterpret a short-form witness.
 7. Every edge in a mutually cyclic component decreases one joint ranking.
 8. `terminates` plus `suspends` remains conditional on the pinned wake/progress
-   premises; the effect row alone cannot invent them.
+   premises; the reach row alone cannot invent them.
 9. An ungranted provider cannot self-assert a sealed progress profile.
 10. Swapping a provider's valid ranking witness revalidates that provider only;
     caller and requirement contract identities remain unchanged.

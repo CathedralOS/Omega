@@ -2,7 +2,7 @@
 
 [Pipeline](../pipeline.md) | Previous: [Symbol Resolved Trees To Typed Trees](symbol_resolved_trees_to_typed_trees.md) | Next: [Checked Trees To State Graph](checked_trees_to_state_graph.md)
 
-This stage validates semantic obligations and builds the checked fact model used by proof, borrow, effect, and flow checks.
+This stage validates semantic obligations and builds the checked fact model used by proof, borrow, reach, and flow checks.
 
 ## Stage Contract
 
@@ -16,7 +16,7 @@ Primary responsibility: validate semantic obligations and build checked facts.
 
 This stage is the first durable semantic fact owner. It should be the place
 where source/type meaning becomes queryable evidence for proof, borrow, flow,
-effect, and boundary validation.
+reach, and boundary validation.
 The representation root is `CheckedTrees`: typed syntax remains under `typed`,
 while durable semantic evidence lives under `CheckFacts`. Checked flow evidence
 is grouped under `FlowFacts` roots for contexts, invalidations, borrow
@@ -25,7 +25,7 @@ through `CheckedTrees::with_roots`, `CheckFacts::with_roots`, `ProofFacts::with_
 and `FlowFacts::with_roots` so later stages can see the semantic spine at a
 glance. `CheckedTrees::state_acceptance` is the first unified query doorway over
 that evidence: a checked tree exists only after diagnostics are clear, and the
-acceptance views expose the proof, borrow, boundary, effect, invalidation, and
+acceptance views expose the proof, borrow, boundary, reach, invalidation, and
 call/exit evidence that made each state operation admissible.
 
 | Noun | Ownership |
@@ -36,9 +36,9 @@ call/exit evidence that made each state operation admissible.
 | Loans | First-class borrow facts, accesses, loans, activations, weakenings, and overlap checks. |
 | Moves | First-class checked-flow event arenas/spans exist. Initial producers are type-aware for direct assignments, local initializers, indexed element reads, aggregate literals, binary/range operands, by-value direct-call arguments, nested expression-call arguments, and transition target arguments. |
 | Drops | First-class checked-flow event arenas/spans exist. Initial state-exit local drop producers skip copy-like scalar locals. |
-| Calls | First-class call facts for contracts, borrows, flow, and effects. |
+| Calls | First-class call facts for contracts, borrows, flow, reach, and synchronous invocation. |
 | Transitions | Checked for proof/arguments; ownership transfer needs more explicit data. |
-| Effects | Direct/transitive effect plans are available. |
+| Reach | Direct/transitive reach and direct synchronous invocation facts are available. |
 | Boundary edges | First-class checked-flow events for calls into states supplied by boundary trait signatures. |
 
 ## Ownership Rules
@@ -47,7 +47,7 @@ Must own:
 
 - Proof obligations and whether current facts discharge them.
 - Borrow facts, accesses, loans, activations, weakenings, and overlap failures.
-- Effect summaries and boundary contract facts that later stages must preserve.
+- Reach summaries, invocation edges, and boundary contract facts that later stages must preserve.
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
 - A durable checked-flow representation of calls and transitions.

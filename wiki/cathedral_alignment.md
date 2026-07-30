@@ -130,7 +130,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    the wider gauntlet. Value-side carry is a compiler-built-in four-axis
    product. Ordinary data derives structurally; accepted resource claims begin
    strict and gain positive per-claim permissions through result contracts.
-   Suspension is checked locally against effects; CPU/thread/address demands
+   Suspension is checked locally against the operational envelope; CPU/thread/address demands
    join the runtime's born-pessimistic behavior contract at admission.
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
@@ -185,7 +185,7 @@ Cathedral's `part_3/00_ipc_and_service_invocation` and
 `part_2/01_scheduler_and_resources` lean directly on the concurrency model;
 reconciliation against the amended chapter 18 + the atomics work:
 
-REQUIRES REVALIDATION after the effects/suspension amendment:
+REQUIRES REVALIDATION after the reach/suspension amendment:
 - The scheduler document's single-level carry-set claim was tied to the
   superseded spawn-only model. Its one-mailbox `many_to_one` actor remains a
   strong bounded-storage pattern, and Omega still rejects an `async`/`Future`
@@ -255,16 +255,19 @@ None block current compiler development; all should stay visible.
   gives the compiler the exact context for private thunk/relocation lowering.
   Durable protocols return a linear registration value and keep instance state
   in Omega behind an inert context token or generational handle. Platform
-  adapters normalize native re-entry into locally checked handler surfaces.
+  adapters normalize native re-entry into locally checked handler surfaces;
+  direct synchronous entry is published through `invokes` and must form an
+  acyclic component-boundary graph.
   General runtime function values remain a separate facility.
 - **TBD: const evaluation** — const params are structural; compile-time
   function evaluation is unspecified. Kernels lean on this hard.
 - **TBD: authority-flow completeness** — facts through returns/derives across
   nested calls (the package capability manifest is only as good as this
   inference).
-- **DECIDED, engineering pending: effects vocabulary operationalization** —
+- **DECIDED, engineering pending: reach vocabulary operationalization** —
   decision 22 replaces global lowercase names with boundary-trait service
-  identities plus independent `suspends` and `blocks` clauses. Define
+  identities, direct `invokes` ceilings, and independent `suspends` and
+  `blocks` clauses. Define
   Cathedral's `DeviceIo`, `MemoryMap`, DMA, and interrupt-control boundaries
   with explicit capability parameters; do not grow the compatibility bitset.
 - **TBD: deterministic scheduler / virtual-provider injection hooks** for

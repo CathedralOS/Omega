@@ -66,9 +66,9 @@ case extraction are proof obligations and reject by default. Recoverable
 failure remains a return sum with case-specific guarantees.
 
 Traps, cancellation, and deliberate non-return occupy the failure/control axis
-of the complete machine contract; they are not effect-row members. Reaching a
+of the complete machine contract; they are not reach-row members. Reaching a
 process-exit boundary also contributes the `ProcessExit` service identity to
-the effect row. These facts are independent: graceful exit and nuclear abort
+the reach row. These facts are independent: graceful exit and nuclear abort
 may reach the same service while having different cleanup and control
 contracts.
 
@@ -78,7 +78,7 @@ Termination is not a worst-case execution-time theorem. WCET additionally
 needs target timing assumptions and compositional bounds for loops, calls,
 memory behavior, and suspension. Quantitative memory and retention bounds
 likewise belong to the resource algebra rather than a single `budget` clause
-or qualitative effect-row member.
+or qualitative reach-row member.
 
 Hard external roots expose the intermediate structural tier explicitly.
 Admission may require a public maximum-work profile and compare it with the

@@ -6,53 +6,9 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Last pruned: 2026-07-28.
+Last pruned: 2026-07-29.
 
-## 1. How does a foreign contract declare retained data-pointer lifetime?
-
-The extern model already distinguishes borrowed-out, borrowed-in, transferred,
-and opaque-handle pointer relationships. Borrowed-out is intentionally
-call-scoped: a checked adapter may lend a slice to one synchronous native call,
-and the borrow ends when that call returns. Real APIs also retain pointers for
-asynchronous work, registration, or later callbacks. The checked IR currently
-has no normalized contract fact that distinguishes those APIs, so it cannot
-reject a call-scoped pointer passed to a retaining leaf without guessing from
-ABI shape, suspension, or a raw address.
-
-This is the data-lifetime sibling of the settled registered-callback model, not
-the same decision. A callback requirement and linear registration govern
-foreign control entering Omega; retention governs foreign custody of Omega
-storage after an outbound call. Some APIs use both and need two independently
-auditable contracts.
-
-Decide:
-
-- which existing boundary declaration owns the call-scoped-versus-retaining
-  fact, and whether it is selected per pointer parameter, per return, or by a
-  named registration protocol;
-- how retained read, retained write, ownership transfer, and foreign allocation
-  differ without turning one pointer annotation into a grab bag;
-- which pinned `Extent` loan or transferred allocation must accompany a
-  retained pointer, and how the foreign contract binds the exact range,
-  polarity, lifetime, provenance, and permitted service reach;
-- which linear receipt represents the foreign-held loan, how completion,
-  cancellation, unregistration, or process teardown returns it, and which
-  quiescence evidence is required before reuse;
-- how a checked adapter proves that a call-scoped borrow cannot escape through
-  a retaining contract, including indirect provider calls; and
-- which residual claims are proved from checked providers versus accepted under
-  a boundary receipt, with missing or opaque lifetime evidence failing closed.
-
-Recommendation: keep pointer representation and ABI classification separate
-from lifetime. Put a normalized, per-parameter foreign-use contract on the
-ordinary boundary requirement, with call-scoped borrow as the strict default.
-A retaining contract must consume or borrow an explicit pinned loan and return
-a linear custody/registration receipt whose completion releases that exact
-range. Reuse `Extent`, external-loan, provider-admission, and quiescence
-machinery; do not infer retention from `suspends`, `blocks`, pointer shape, or
-the fact that a native function happens to return later.
-
-## 2. What is the public boundary write-frame clause spelling?
+## 1. What is the public boundary write-frame clause spelling?
 
 Omega already computes normalized body write frames and uses them to preserve
 facts across calls. Boundary requirements need an authored frame because no
@@ -82,11 +38,11 @@ Decide:
 
 Recommendation: rename the provisional clause to `writes` and keep it a plain
 machine-contract clause with a comma-separated place list. It says exactly what
-the checker needs and avoids colliding with authority retention. Keep effects,
+the checker needs and avoids colliding with authority retention. Keep reach,
 resource consumption, foreign retention, and hardware state out of the write
 frame; they already have independent contracts.
 
-## 3. How does a domain owner delegate canonical qualification authority?
+## 2. How does a domain owner delegate canonical qualification authority?
 
 `RepresentationQualification<Q>` now opens a bodyless domain only when its
 satisfier is declared in the domain-owning package. The semantic rule also
@@ -122,7 +78,7 @@ Do not derive authority from imports, build dependency aliases, public trait
 visibility, carrier ownership, or the presence of a conformer. Until this
 surface settles, third-party canonical satisfiers must continue to fail closed.
 
-## 4. What is the normalized bounded-work plan and composition algebra?
+## 3. What is the normalized bounded-work plan and composition algebra?
 
 WCSU gives Omega a static space bound: a closed activation can reserve one
 fixed, nonmoving stack and retain it across suspension. It says nothing about
@@ -175,7 +131,7 @@ trusted as its weakest timing premise. Do not use elapsed compiler time, infer
 safe points from optimizer placement, or make build evaluation's optional
 budget policy the language's work semantics.
 
-## 5. What is the reusable hosted-FFI execution and gateway contract?
+## 4. What is the reusable hosted-FFI execution and gateway contract?
 
 An opaque native function supplies neither checked WCSU nor Omega's blocking,
 cancellation, retention, callback, and failure guarantees. A direct adapter can
@@ -226,7 +182,7 @@ abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
 
-## 6. How are claim-content projections and backing authored?
+## 5. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
 each content-bearing qualification publishes one normalized projection into
@@ -266,7 +222,7 @@ references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, and separated
 composition without executing owner-defined code.
 
-## 7. How are opaque in-process executable dependencies surfaced and refused?
+## 6. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -301,7 +257,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 8. What does contained execution failure do to outstanding obligations?
+## 7. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -333,7 +289,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 9. How are modular concurrency environment premises authored and discharged?
+## 8. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -377,7 +333,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 10. What is the public float-conversion requirement family?
+## 9. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not their public operation
 names or signatures. `FloatSemantics` already defines format conversion,

@@ -33,7 +33,7 @@ whether facts discharge runtime proof obligations.
 | Drops | Type information can imply future drop requirements; scheduling is deferred. |
 | Calls | Typed call signatures, argument expectations, and return expectations. |
 | Transitions | Typed transition arguments and return/exit expectations. |
-| Effects | Typed effect declarations and call surfaces. |
+| Reach | Typed reach declarations, invocation ceilings, and call surfaces. |
 | Boundary edges | Typed boundary contracts and operator signatures. |
 
 ## Ownership Rules

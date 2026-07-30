@@ -1,13 +1,12 @@
-# Design Brief: Service Reach, Operational Ceilings, Authority, And Observation
+# Design Brief: Service Reach, Synchronous Invocation, Authority, And Observation
 
-Revised 2026-07-27 (decision 22 split amendment and direct-call
-acknowledgements). This brief defines a service-
-reach `effects` row plus independent `suspends` and `blocks` operational
-ceilings. `terminates` remains the separate positive progress guarantee settled
-by decision 23. It records each axis's propagation/refinement laws and its
-relationship to authority and trust. General trace theorems, quantitative
-resource entries, service-row polymorphism, and additional operational clauses
-remain explicitly deferred.
+Revised 2026-07-29. This brief defines a service-reach `reaches` row, a direct
+synchronous `invokes` ceiling, and independent `suspends` and `blocks`
+operational ceilings. `terminates` remains the separate positive progress
+guarantee settled by decision 23. It records each axis's
+propagation/refinement laws and its relationship to authority and trust.
+General trace theorems, quantitative resource entries, service-row
+polymorphism, and additional operational clauses remain explicitly deferred.
 
 ## The surface
 
@@ -18,19 +17,19 @@ machine backup(
     src: [u8] in Utf8,
     dst: [u8] in Utf8
 ) -> BackupResult
-   effects Readable + Queryable;
+   reaches Readable + Queryable;
    suspends;
 {
 }
 ```
 
-An `effects` row is a `+`-separated set of name-resolved boundary-service
+The `reaches` row is a `+`-separated set of name-resolved boundary-service
 identities such as `Readable`, `Queryable`, `Clock`, or `ProcessExit`.
 Boundary traits contribute service reach; ordinary traits do not.
 
 `suspends;` says an invocation may park its current activation. `blocks;` says
 it may occupy its worker while waiting. These are independent public may-
-ceilings, not service identities and not members of the `effects` row.
+ceilings, not service identities and not members of the `reaches` row.
 `terminates;` has the opposite polarity: under its pinned premises, every
 invocation eventually reaches a terminal outcome. It is neither an effect nor
 an operational may-clause.
@@ -60,12 +59,13 @@ operation-granular.
 
 ## Contract axes
 
-The complete machine contract retains seven independent axes even though only
-one is spelled with `effects`:
+The complete machine contract retains independent axes with distinct source
+and artifact homes:
 
 | Axis | Durable home |
 |---|---|
-| Service reach | `effects` row |
+| Service reach | `reaches` row |
+| Direct synchronous boundary invocation | `invokes` clause and erased direct-edge metadata |
 | Possible suspension | `suspends` clause and suspension plan |
 | Possible worker blocking | `blocks` clause and blocking plan |
 | Authority possession | capability values, domains, and parameters |
@@ -79,7 +79,7 @@ Frame size is compiler-derived and reported. Task activation capacity is
 declared or proved through task-pool authority. Version retention is a
 component/deployment budget. Heap/region capacity is an explicit resource
 value. Only frame size is report-only; no unbounded retention becomes
-invisible merely because it does not belong in the effects row.
+invisible merely because it does not belong in the reach row.
 
 ## Polarity and ceilings
 
@@ -100,7 +100,7 @@ run.
 
 Internal machines may omit these clauses and receive inferred service,
 suspension, and blocking summaries. Exported machines, boundary operations,
-and trait requirements publish each ceiling. An omitted `effects` row there is
+and trait requirements publish each ceiling. An omitted `reaches` row there is
 empty; omitted `suspends` means never parks; omitted `blocks` means never
 blocks a worker. Diagnostics name the violated axis.
 
@@ -147,6 +147,46 @@ Provider admission is deterministic. A machine compiled against a slot that
 `suspends` but does not `block` remains nonblocking; a provider whose checked or
 accepted contract blocks fails refinement. A slot declaring both clauses
 admits either behavior and its consumers carry both possibilities honestly.
+
+## Direct synchronous boundary invocation
+
+Service reach is a transitive audit and admission ceiling. It intentionally
+forgets which boundary edge was crossed next and whether an external root ran
+later. The `invokes` clause preserves the direct synchronous information needed
+for component-cycle and stack-topology checks:
+
+```omega
+boundary trait EventSource {
+    machine register_and_fire(handler: Handler) -> Registration
+    invokes handler;
+}
+```
+
+`invokes handler` means this invocation may synchronously enter the binding
+named by `handler` before returning. It automatically contributes the
+handler's boundary-trait identity and the selected conformance's realized
+operational envelope to the current invocation's normalized reach. It does not
+say that every execution calls the handler.
+
+Bodyful machines infer their `invokes` sets from checked bodies, including
+forwarding through local helpers. Exported implementations check that inferred
+set against their published ceiling. Bodyless requirements declare it;
+omission means no synchronous invocation. Parameter paths retain per-value
+precision when several bindings satisfy the same trait. A trait identity may
+name an internally selected boundary binding when no parameter path exists.
+
+Moving a handler into a linear registration establishes a future external root
+instead. The registration operation does not inherit that root's reach unless
+it also declares `invokes handler`. Root establishment separately requires the
+selected admission policy to permit the concrete handler envelope, and the
+registration value's compiler-tracked claim metadata retains that conformance
+without widening to the trait ceiling.
+
+Cycle checking consumes the realized direct `invokes` graph, never the
+transitive `reaches` row. The synchronous graph across Omega component
+boundaries must be acyclic. A mailbox, queue, scheduler handoff, or other
+new-activation boundary breaks an edge structurally. The final artifact may
+still contain reach cycles among independently entered roots.
 
 ## Call-site acknowledgements
 
@@ -259,7 +299,7 @@ ordinary trait or helper. A logger that reaches `Writable` propagates
 `Writable`; a provider that blocks derives `may_block` in its checked contract
 and cannot satisfy a slot that omits `blocks`.
 
-## Effects and the other axes
+## Reach and the other axes
 
 ### Authority and trust
 
@@ -319,7 +359,7 @@ closed operational clauses, `suspends` and `blocks`. Additional operational
 clauses, quantitative service entries, and service-row polymorphism are
 deferred until their algebras have real customers.
 
-The compiler now uses the semantic model directly: suspension and blocking use
+The compiler now uses the service-reach semantic model directly: suspension and blocking use
 dedicated recursive boolean summaries, while boundary-trait declarations
 mint canonical symbol-keyed identities after resolution, and normalized rows
 with parent closure drive recursive inference, checked ceilings, static-machine
@@ -331,7 +371,7 @@ symbol-exact, capability flows use normalized call topology, and categorical
 provider authority/reporting no longer projects service names. Static-machine
 refinement consumes exact service rows, checked trees carry grouped
 `ServiceReachFacts` directly, and machine-contract identity has no legacy
-effect-row field or fingerprint input. The obsolete
+legacy effect-row field or fingerprint input. The obsolete
 `EffectRowId`/`EffectRowTable` carrier and global lowercase service-name/u64
 table are deleted. Core, resolved trees, and typed trees retain only
 symbol-resolved `ServiceReachRowId` values.
@@ -368,15 +408,21 @@ identifiers resolve normally; there is no global hard-coded service table.
     `suspend block`, even when one selected provider is currently narrower.
 13. A `suspend` call nested inside an argument or operator rejects before
     continuation lowering.
+14. A bodyless operation may synchronously call a boundary binding only when
+    its `invokes` ceiling names that binding.
+15. A deferred registration root carries the concrete selected conformance's
+    envelope without adding a synchronous edge to the registration call.
+16. A realized synchronous component-boundary cycle rejects.
 
 ## Deferred, explicitly
 
 - General trace propositions, deadline/starvation contracts, and entailment
   between decision 23's opaque progress profiles.
 - The normalized abstract-work plan and sequential/branch/SCC composition
-  algebra in `OWNER_QUESTIONS.md` #4.
+  algebra in `OWNER_QUESTIONS.md` #3.
 - Additional operational-clause declarations.
-- Service-row polymorphism and higher-order/callback row variables.
+- Named service-row variables beyond the concrete envelope substitution used
+  by `invokes`.
 - Fixed-stack park/resume lowering and suspension-safe loans. WCSU-derived
   `StackPlan` owns capacity.
 - Component-version budgets and admission mechanics beyond the pinned-row law.

@@ -420,7 +420,7 @@ recursive edge, not an implicit conversion between `u64` and structural `Nat`.
 ## Termination Proofs
 
 Termination is a proof over every cycle in the reachable machine/state graph,
-not an `ensures` proposition evaluated after a return and not an effect-row
+not an `ensures` proposition evaluated after a return and not a reach-row
 member.
 
 ```omega
@@ -549,7 +549,7 @@ Working rules:
   report sees every grant, private or public.
 - **The grant row is the language's `unsafe`.** A granted false statement
   can corrupt anything proofs protect — bounds, domains, and through
-  corrupted memory, everything downstream. Effects cannot be waived by
+  corrupted memory, everything downstream. Reach restrictions cannot be waived by
   facts (they ride the call graph, and a boundary machine has no body),
   but a false range fact reaches the same place dynamically. Omega has no
   `unsafe` keyword because this is the one unsafe door: root-only, pinned,

@@ -135,8 +135,8 @@ Conformance validation requires:
 - the satisfier is declared by the domain-owning package or by an explicitly
   delegated owner-authorized package.
 
-The trap/control check is independent of the effect row: terminal outcomes are
-not operational effects.
+The trap/control check is independent of the reach row: terminal outcomes are
+not service reach.
 
 One visible home satisfier permits the `as` shorthand. If several are visible,
 implicit selection rejects and lists them; the program calls the intended

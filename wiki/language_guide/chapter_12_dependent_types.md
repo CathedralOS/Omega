@@ -300,8 +300,8 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
   calls and returns are consumption points (chapter 11), so a callee cannot
   return — or call onward, or hand out a borrow — with an open window.
 - Callee `ensures` adds facts back.
-- Capability effects havoc the facts established from that capability's boundary.
-  Effects frame capability-reachable state only; they never name program
+- Capability reach havocs the facts established from that capability's boundary.
+  Reach frames capability-reachable state only; it never names program
   places.
 
 At machine boundaries the written set is declared with a `stores` clause —

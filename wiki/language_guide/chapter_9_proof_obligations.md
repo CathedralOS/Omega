@@ -1,6 +1,6 @@
 # Chapter 9: Proof Obligations
 
-Typed states, bounded values, borrows, transitions, effects, drops, and host
+Typed states, bounded values, borrows, transitions, service reach, drops, and host
 boundaries imply compiler-generated obligations.
 
 This chapter is about the compiler's proving job, not new surface syntax.
@@ -165,12 +165,12 @@ promise termination. Productive loops may omit the promise and run forever.
 
 `ensures` remains partial correctness: it states what is true **if** a return
 edge is reached. Result domains therefore cannot replace termination.
-`effects` remains an event/service/operational ceiling and cannot replace
+`reaches` remains a service-reach ceiling and cannot replace
 termination either. The normalized artifact derives its terminal-outcome
 classification from the termination guarantee, reachable outcomes, and
 explicit premises without adding phantom `Completes<...>` surface syntax.
 
-Pinned operations and providers, not effect rows, identify positive progress
+Pinned operations and providers, not reach rows, identify positive progress
 premises. V1 boundary progress profiles are opaque, sealed commitments using
 the existing grant/receipt machinery; they participate in deterministic slot
 admission and appear through ordinary requirements such as

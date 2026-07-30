@@ -5,7 +5,7 @@ control-flow system, and no ambient panic. Recoverable failure is **data**;
 deliberate termination is an **opt-in control outcome**; everything else that
 other languages call a "trap" is, in a proof-oriented language, a **compile
 error**. Reaching the service that performs process exit is separately visible
-in the effect row; the terminal outcome itself is not an effect.
+in the reach row; the terminal outcome itself is not service reach.
 
 ## Recoverable Failure Is A Sum, Handled At A Transition Boundary
 
@@ -143,7 +143,7 @@ exhaustiveness with no handler), not by asserting it at runtime.
 
 A program that genuinely must die rather than recover opts into an explicit
 abort outcome in its complete machine contract. It is not a service-reach or
-operational effect-row member. The outcome is:
+operational reach-row member. The outcome is:
 
 - **contagious** — `main` declares it, and it propagates to every caller; a
   boundary fronting something abortable must itself declare it;
@@ -159,14 +159,14 @@ chapter does not introduce an `abort` effect keyword.
 
 The control outcome and service reach are separate contract axes. Calling the
 process-exit boundary contributes the `ProcessExit` boundary-trait identity to
-the chapter 19 effect row. Nuclear abortability propagates separately as a
+the chapter 19 reach row. Nuclear abortability propagates separately as a
 non-returning control outcome. Both are normalized into the complete machine
 contract and artifacts; neither is hidden at a call boundary. A graceful
 `exit(code)` and an abort may therefore reach the same service while promising
 different cleanup and control behavior.
 
 **Graceful shutdown is not `abort`.** Releasing resources and exiting cleanly is
-ordinary control flow: transition to a cleanup state, run its effects, then call
+ordinary control flow: transition to a cleanup state, run its cleanup work, then call
 `exit(code)` (a normal host boundary). Only the no-cleanup, give-up case is the
 nuclear abort outcome.
 

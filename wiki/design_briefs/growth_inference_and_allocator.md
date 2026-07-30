@@ -64,7 +64,7 @@ loop:**
 **The future bounded allocator surface is an explicit `Arena`; static storage
 remains inline/BSS and dynamic storage is an arena Allocation or a later general
 Allocator request.** The proof target is peak live requested bytes within the
-declared Arena/provider budget; effects stay honest (allocation-service reach
+declared Arena/provider budget; reach stays honest (allocation-service reach
 records the possibility of a runtime request), and a target's ceiling is enforced by withholding allocation
 authority. Extent range authority, Arena allocation permission, and
 Allocation-owned bytes remain distinct. The whole field (Zig, Ada/SPARK,
@@ -344,7 +344,7 @@ already in place for range-refined fields.
   patched it with a runtime `panic_allocator`), lifetime mismatch. Odin's static
   virtual arena (reserve big, commit-on-demand, stable base) is a clean
   **peak-not-net** substrate. *Omega may keep ambient ergonomics only if the
-  defaulted capability stays **visible to the checker** (effect-row) — quiet, never
+  defaulted capability stays **visible to the checker** (reach row) — quiet, never
   invisible.*
 - **Ada / SPARK** — *the closest prior art, and it draws the exact boundary Omega
   must cross.* GNATprove discharges **every local value/range run-time error EXCEPT
@@ -399,7 +399,7 @@ already in place for range-refined fields.
   storage came from at the type level; Omega's "domains stay bound to storage, no
   storage-less domains" is the correct opposite stance.*
 
-**Where Omega already exceeds the field:** capabilities + effects + `'name`
+**Where Omega already exceeds the field:** capabilities + reach + `'name`
 lifetimes + interval refinements + FixedVec's compile-time push obligation + ZII
 are all shipped — ahead of Zig/Jai/Odin (unproven) and orthogonal to Rust (no
 viral generic). **Where it lags:** global peak-accounting (the work Ada
@@ -507,13 +507,13 @@ The entry point mints capabilities only up to the declared ceiling. Set `ceiling
 proven` and the Arena/allocation capability is **never created**, so code that
 needs it **fails to type-check at the acquisition/use site**. Reaching the
 selected allocation boundary contributes that boundary trait's service identity
-to the inferred effects row; exhaustion remains an explicit outcome and resource
+to the inferred reach row; exhaustion remains an explicit outcome and resource
 use remains a dependent contract. The compiler can therefore report the full
 blame path without conflating the axes: *"`render_map` requires Arena authority
 and reaches the allocation service via `load → parse → allocate`; that authority
 and service ceiling are unavailable in this profile."* Disabling is the absence
 of authority plus a ceiling that excludes the service, not a lint. A bounded-memory
-claim additionally checks the quantitative provisioning artifact; an effects row
+claim additionally checks the quantitative provisioning artifact; a reach row
 alone does not prove a resource bound. (Open: profile selection in target/build
 configuration, with optional package-level tightening.)
 
@@ -555,14 +555,14 @@ The allocation boundary trait contributes allocator **service reach**. An
 consumed. Its dependent contract accounts for peak/retained capacity.
 Exhaustion is a return/failure outcome. These facts often appear together at an
 allocation call, but they are not interchangeable: holding an Arena does not
-mean allocation occurs, an effect ceiling does not mint an Arena, and reaching
+mean allocation occurs, a reach ceiling does not mint an Arena, and reaching
 a checked allocator still consumes the explicit resource.
 
 Therefore “does this allocate?” is answered by whether an allocator operation
 is reachable after stable control-flow normalization. No `Arena` in scope
 makes the allocation untypable, so the site must prove a static bound or fail
 to compile. An `Arena` in scope permits the request only when the caller's
-effect ceiling and resource contract also admit it. Static bound inference can
+reach ceiling and resource contract also admit it. Static bound inference can
 erase the dynamic request and its allocator reach; it never manufactures
 authority or hides a possible failure.
 

@@ -5,9 +5,9 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-28.
+Last pruned: 2026-07-29.
 
-## Effects, resources, and progress
+## Reach, resources, and progress
 
 - Extend decision 23's opaque, sealed progress profiles into a general trace
   logic only when a concrete customer needs machine-side fairness, deadlines,
@@ -15,7 +15,7 @@ Last pruned: 2026-07-28.
   operational clauses,
   and ungranted provider claims do not manufacture those theorems.
 - Settle the quantitative resource algebra before adding entries such as
-  `Alloc<Peak, Retained>` to effect rows, general owned-buffer splitting, or
+  `Alloc<Peak, Retained>` to reach rows, general owned-buffer splitting, or
   claiming compile-time reconciliation of local task-pool child leases.
 - Defer additional operational clauses and service-row polymorphism
   until a concrete customer forces their declaration, coherence, and
@@ -24,7 +24,7 @@ Last pruned: 2026-07-28.
   conservative suspension-safe-loan subset. WCSU derives one fixed nonmoving
   `StackPlan` per lowered activation; settled `suspend` and `block` markers
   acknowledge the exact statically known call envelope.
-- Settle and implement the normalized abstract-work plan in owner question #4,
+- Settle and implement the normalized abstract-work plan in owner question #3,
   including attributed unbounded paths and work-to-next-safe-point queries.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
@@ -41,19 +41,19 @@ Last pruned: 2026-07-28.
   checker. Complete contention tests, migrate the source ordering vocabulary,
   and keep checked ISA plus device/DMA barriers distinct.
 - Settle modular package environment premises and their composition in owner
-  question #9.
+  question #8.
 - Migrate the task-plan prototype away from generalized runtime supply.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
   restricted values demand the corresponding preservation evidence.
 - Implement settled registered callback entry: a named static machine satisfies
   the callback requirement, the binding emits its plan-driven thunk, and a
-  durable protocol returns a linear registration value. Retained foreign-pointer
-  lifetime remains owner question #1; the reusable hosted-FFI gateway resource
-  and cancellation contract remains #5.
+  durable protocol returns a linear registration value. Retained foreign
+  storage uses call-scoped borrows or linear in-flight claims; the reusable
+  hosted-FFI gateway resource and cancellation contract remains #4.
 - Settle root-level visibility/profile rejection for opaque in-process native
-  providers in owner question #7, and contained execution failure with
-  outstanding obligations in #8.
+  providers in owner question #6, and contained execution failure with
+  outstanding obligations in #7.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
@@ -73,7 +73,7 @@ Last pruned: 2026-07-28.
 - Finish the remaining domain spaces: external quantity-kind equations,
   general open-family linking, `weakens_to` certificate syntax, affine
   quantities, and the named float-conversion requirement surface (owner
-  question #10).
+  question #9).
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

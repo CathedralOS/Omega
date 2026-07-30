@@ -15,7 +15,7 @@ own architecture doing so).
    keeps these as proved facts: ownership gives sound pervasive non-aliasing
    (when Rust first fed LLVM real `noalias` it exposed latent LLVM bugs — evidence
    LLVM was never stressed with that much alias info), domains give value ranges,
-   effects give purity, content-addressing gives whole-program inlining across
+   empty reach gives purity, content-addressing gives whole-program inlining across
    what would be ABI boundaries. The ceiling is genuinely higher — the pedestal
    is partly unearned.
 

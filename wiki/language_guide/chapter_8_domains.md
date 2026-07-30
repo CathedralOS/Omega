@@ -185,7 +185,7 @@ referent:
 |---|---|
 | mathematical value or referent | unchanged |
 | proof | discharged before lowering |
-| effects and control | no effects, allocation, suspension, failure, or user code |
+| reach and control | no service reach, allocation, suspension, failure, or user code |
 | policy | no hidden lossy or executable conversion choice |
 
 For a domain with a body, `value as T in D` succeeds only when the prover

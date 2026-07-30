@@ -16,7 +16,7 @@ Every stage document should answer:
 - Input representation.
 - Output representation.
 - Primary responsibility.
-- Places, values, facts, loans, moves, drops, calls, transitions, effects, and
+- Places, values, facts, loans, moves, drops, calls, transitions, reach, and
   boundary edges.
 - What this stage must not own.
 - Known gaps.
@@ -34,7 +34,7 @@ Every stage document should answer:
 - Calls: invocations of machines, states, operators, helpers, or imported
   boundary entries.
 - Transitions: control and argument transfers between states or exits.
-- Effects: externally visible behavior classes such as allocation, IO, process
+- Reach: externally visible service classes such as allocation, IO, process
   exit, or host interaction.
 - Boundary edges: points where Omega accepts a declared contract from
   compiler/runtime/host/toolchain code.
@@ -50,7 +50,7 @@ Use this rule when a pass starts to sprawl:
 
 - If it discovers identity, it belongs near symbol resolution.
 - If it decides type/signature compatibility, it belongs near typing.
-- If it proves obligations, records facts, creates loans, or validates effects,
+- If it proves obligations, records facts, creates loans, or validates reach,
   it belongs near checked trees.
 - If it schedules already-checked events into graph/control form, it belongs in
   graph or control-flow lowering.
@@ -99,7 +99,7 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 `scheduled`, `lowered`, `assigned`, `encoded`, `artifact`, `metadata`, or
 `final`.
 
-| Stage | Places | Values | Facts | Loans | Moves | Drops | Calls | Transitions | Effects | Boundaries |
+| Stage | Places | Values | Facts | Loans | Moves | Drops | Calls | Transitions | Reach | Boundaries |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Source Files To Tokens | none | none | none | none | none | none | none | none | none | token |
 | Tokens To Syntax Trees | syntax | syntax | syntax | none | none | none | syntax | syntax | syntax | syntax |

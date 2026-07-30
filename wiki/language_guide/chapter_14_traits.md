@@ -130,8 +130,8 @@ This keeps machine identity clean:
 - `Player::draw` is still the machine.
 - `Drawable` is the trait requirement it satisfies.
 - `Self` inside the trait requirement binds to `Player`.
-- The compiler checks that the params, return type, effects, and obligations
-  match the trait requirement.
+- The compiler checks that the params, return type, service reach, direct
+  synchronous invocation ceiling, and obligations match the trait requirement.
 
 Post-signature clauses should compose with the rest of Omega's contract surface.
 
@@ -145,7 +145,7 @@ where
     Canvas satisfies RasterTarget
 requires
     self.health > 0
-effects
+reaches
     draw_io
 {
     canvas.draw_sprite(self.sprite);
@@ -477,7 +477,8 @@ See [chapter 10](chapter_10_compile_time_proofs.md) and
 Erasing implementation identity must not erase the static facts needed to
 check the caller. Each eligible requirement therefore retains a compile-time
 operational envelope: the operational projection of its normalized machine
-contract. It includes service reach and effects, write frame, capability
+contract. It includes service reach, direct synchronous invocation, write
+frame, capability
 requirements, suspension, blocking, failure, termination, and quantitative
 resource ceilings. Carry remains a property of the dynamic value rather than
 of an individual requirement.
@@ -508,7 +509,7 @@ A transparent refinement gives a reusable name to a narrower trait contract:
 ```omega
 pub trait LocalLogger = Logger {
     machine *
-        effects;
+        reaches;
         suspends false;
         blocks false;
         terminates;
@@ -516,11 +517,11 @@ pub trait LocalLogger = Logger {
 
 pub trait BufferedLogger = Logger {
     machine Logger::write
-        effects;
+        reaches;
         suspends false;
 
     machine Logger::flush
-        effects Storage;
+        reaches Storage;
 }
 ```
 
@@ -555,8 +556,8 @@ fingerprinting.
 
 Within a machine contract, an omitted `suspends` or `blocks` clause means
 false. Within a refinement, omission means inherit; `suspends false` and
-`blocks false` explicitly narrow. `effects;` means an empty row, while
-`effects _;` introduces an independent abstract effect row for that
+`blocks false` explicitly narrow. `reaches;` means an empty row, while
+`reaches _;` introduces an independent abstract reach row for that
 requirement. Correlating several requirements with one named row is a later
 extension.
 
@@ -582,7 +583,7 @@ data LoggingProxy {
 
 machine LoggingProxy::write(&self, text: &[u8])
     satisfies Logger::write as ComponentLogger
-    effects LoggingService
+    reaches LoggingService
     suspends
 {
     suspend self.service.write(text);
@@ -633,7 +634,7 @@ checks the complete surface. Structural checks still answer whether the
 declared conformance fits a transparent refinement, but they never create the
 nominal edge.
 
-## Invariants And Effects
+## Invariants And Reach
 
 A trait can require more than machine names. It can require the facts that make
 those machines safe to use.
@@ -653,8 +654,9 @@ This matters because a reusable surface is not only "these calls exist." It is
 also "these calls preserve the obligations callers rely on."
 
 Trait machine requirements carry the same separate ceilings as other exported
-machines. `effects` names reachable boundary traits such as `Readable` or
-`Writable`; `suspends` and `blocks` publish operational possibilities. An
+machines. `reaches` names reachable boundary traits such as `Readable` or
+`Writable`; `invokes` names boundary bindings the current invocation may enter
+before returning; `suspends` and `blocks` publish operational possibilities. An
 ordinary trait is not automatically a service member: it may state a service-
 reach ceiling for its machines, but only a boundary trait contributes a service
 identity. Omission on a trait requirement means an empty service row,
@@ -665,7 +667,7 @@ envelope with `suspend` and `block`. A concrete or transparent refinement that
 statically removes one possibility removes only that call-site marker; it does
 not rewrite the base trait's published contract.
 
-For hot swapping and driver-like code, trait effects may be part of replacement
+For hot swapping and driver-like code, trait reach may be part of replacement
 safety:
 
 ```omega
@@ -682,7 +684,7 @@ trait QuiescentMigratable<Old, New> {
 ```
 
 The syntax is open, but the answer is yes: traits should be able to require
-invariants, effects, and proof obligations in addition to machine signatures.
+invariants, reach, and proof obligations in addition to machine signatures.
 
 ## Trait Parameters And Related Types
 
@@ -887,7 +889,7 @@ Point satisfies Hashable;    // expands the body for Point's fields
 
   Build-time code runs ONLY where the trait declarer wrote it -- a
   conformance item triggers expansion but never contains code -- and
-  generator bodies must carry zero effects. One auditable site per trait, no
+  generator bodies must carry empty reach. One auditable site per trait, no
   IO at build time, ever.
 
 Once trait generators exist, the synthesized core set above stops being

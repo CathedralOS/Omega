@@ -2,7 +2,7 @@
 
 [Pipeline](../pipeline.md) | Previous: [Source Files To Tokens](source_files_to_tokens.md) | Next: [Syntax Trees To Symbol Resolved Trees](syntax_trees_to_symbol_resolved_trees.md)
 
-This stage parses tokens into source-shaped syntax without deciding which names, types, or effects they mean.
+This stage parses tokens into source-shaped syntax without deciding which names, types, or reach clauses they mean.
 
 ## Stage Contract
 
@@ -35,7 +35,7 @@ source shape without turning nested syntax into scattered heap objects.
 - `parser/expression/postfix.rs` owns calls, argument lists, indexing/ranges, member access, and casts.
 - `parser/machine.rs` owns machine headers, body/member sequencing, implicit entry construction, and attached-data path splitting.
 - `parser/machine/clauses.rs` owns machine `satisfies`, external-realization
-  `via <Binding>`, `terminates [by ...]`, `effects`, `requires`, and `ensures`
+  `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `requires`, and `ensures`
   clauses. `via` is terminal and mutually exclusive with an executable body.
   The current standalone `decreases` parser is migration debt under decision
   23.
@@ -66,7 +66,7 @@ name denotes.
 | Drops | Not owned. |
 | Calls | Syntactic call expressions/statements plus ordered `suspend` / `block` acknowledgements. |
 | Transitions | Syntactic transition statements and targets. |
-| Effects | Effect clauses as unresolved names. |
+| Reach | Reach clauses and synchronous invocation ceilings as unresolved names. |
 | Boundary edges | Parsed `boundary` traits, operators, authority contracts, library entries, and target policies. |
 
 ## Ownership Rules
