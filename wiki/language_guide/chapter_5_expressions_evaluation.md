@@ -225,6 +225,9 @@ Working interpretation:
   element or view is uniquely writable.
 - Slice ranges such as `items[1..]` resolve to a range-slice operator that
   creates a new view with a narrower extent and updated facts.
+- Borrow overlap uses those normalized extents. A live `items[1..]` view does
+  not prevent writing `items[0]`, while writing `items[1]` still conflicts;
+  dynamic bounds remain conservative unless current facts prove disjointness.
 - Text windows use ordinary slice byte indexing and ranges. Character or
   grapheme indexing must be a separate semantic
   operation because UTF-8 byte positions are not the same as user-visible

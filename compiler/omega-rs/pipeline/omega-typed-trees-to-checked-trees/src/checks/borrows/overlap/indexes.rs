@@ -41,6 +41,21 @@ pub(super) fn index_expressions_may_overlap(
     }
 }
 
+pub(super) fn index_expression_may_contain_fixed(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    index: usize,
+) -> bool {
+    let Ok(index) = i64::try_from(index) else {
+        return true;
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value.value_i64().is_none_or(|value| value == index),
+        ExpressionNode::Range(range) => range_may_contain_integer(program, range, index),
+        _ => true,
+    }
+}
+
 fn range_may_contain_integer(
     program: &omega_typed_trees::TypedTrees,
     range: &TableRangeExpression,
@@ -198,6 +213,22 @@ mod tests {
         let left = range(&mut program, 0, 3, true);
         let right = range(&mut program, 3, 5, false);
         assert!(index_expressions_may_overlap(&program, left, right));
+    }
+
+    #[test]
+    fn tail_range_excludes_fixed_index_before_its_start() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let one = integer(&mut program, 1);
+        let tail = program
+            .expression_table
+            .insert(ExpressionNode::Range(TableRangeExpression {
+                start: one,
+                end: ExpressionHandle::invalid(),
+                end_inclusive: false,
+            }));
+
+        assert!(!index_expression_may_contain_fixed(&program, tail, 0));
+        assert!(index_expression_may_contain_fixed(&program, tail, 1));
     }
 
     #[test]

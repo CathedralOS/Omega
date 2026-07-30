@@ -114,6 +114,7 @@ Current ownership is:
   borrow overlap entry dispatch and root matching,
   `checks/borrows/overlap/segments.rs` owns place-segment overlap policy,
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
+  handles normalized fixed-index/range pairs as well as range/range pairs;
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
   immutable program-static storage (direct/nested literals, folded literal
