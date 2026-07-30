@@ -83,6 +83,9 @@ impl ExternalBinding {
         match case {
             "Syscall" => payload.parse().ok().map(|number| Self::Syscall { number }),
             "VtableSlot" => payload.parse().ok().map(|index| Self::VtableSlot { index }),
+            "CompilerIntrinsic" => Some(Self::CompilerIntrinsic {
+                name: payload.to_owned(),
+            }),
             "DllImport" => {
                 let (module, symbol) = payload.split_once(',')?;
                 Some(Self::DllImport {
@@ -107,6 +110,7 @@ impl ExternalBinding {
                 format!("DllImport({module},{symbol})")
             }
             Self::VtableSlot { index } => format!("VtableSlot({index})"),
+            Self::CompilerIntrinsic { name } => format!("CompilerIntrinsic({name})"),
             Self::VtableField { field } => format!("VtableField({})", field.as_str()),
             Self::TableFunction { field } => {
                 format!("TableFunction({})", field.as_str())
@@ -128,6 +132,10 @@ pub enum ExternalBinding {
     /// Windows' stable ABI is named DLL exports:
     /// `Binding::DllImport("kernel32", "ExitProcess")`.
     DllImport { module: String, symbol: String },
+    /// A compiler-known target operation already present in the selected
+    /// target package. This selects and validates that existing lowering; it
+    /// never installs or overrides a host binding.
+    CompilerIntrinsic { name: String },
     /// COM/UEFI per-object dispatch: `Binding::VtableSlot(1)` (deref `this`, read the
     /// vtable pointer, read slot N, call at the declared convention).
     VtableSlot { index: i64 },
@@ -145,6 +153,24 @@ pub enum ExternalBinding {
 impl Default for ExternalBinding {
     fn default() -> Self {
         Self::Syscall { number: 0 }
+    }
+}
+
+#[cfg(test)]
+mod external_binding_tests {
+    use super::ExternalBinding;
+
+    #[test]
+    fn compiler_intrinsic_normalized_rendering_round_trips() {
+        let binding = ExternalBinding::CompilerIntrinsic {
+            name: "Console::write_byte".to_owned(),
+        };
+        let rendering = binding.normalized_rendering();
+        assert_eq!(rendering, "CompilerIntrinsic(Console::write_byte)");
+        assert_eq!(
+            ExternalBinding::from_normalized_rendering(&rendering),
+            Some(binding)
+        );
     }
 }
 

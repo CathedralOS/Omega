@@ -20,6 +20,44 @@ fn parses_stable_identities_through_the_full_u64_range() {
 }
 
 #[test]
+fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
+    let source = r#"
+        boundary trait Console {
+            machine write_byte(byte: i32);
+        }
+
+        machine console_write_byte(byte: i32)
+        satisfies Console::write_byte
+        via Binding::CompilerIntrinsic("Console::write_byte");
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("compiler intrinsic binding should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "console_write_byte" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("external leaf machine");
+    let clause = parsed
+        .items
+        .satisfies_clauses(machine.satisfies)
+        .first()
+        .expect("satisfies clause");
+    assert!(matches!(
+        clause.via.as_ref(),
+        Some(omega_syntax_trees::item::ExternalBinding::CompilerIntrinsic { name })
+            if name == "Console::write_byte"
+    ));
+}
+
+#[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
     let tokens = Lexer::new(source)

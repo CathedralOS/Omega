@@ -445,14 +445,18 @@ slot is pre-zeroed; only an arrived byte writes the non-zero tag, so the
 EOF path executes no write at all).
 
 Implementation state: the standard Console is a boundary trait with canonical
-service rows. Its friendly `write` and `write_line` members are ordinary checked Omega
-adapters over `write_byte`: they accept a borrowed byte view directly and walk
-it with a measured state machine. The raw byte operation remains the provider
-leaf. `read_line` accepts a mutable byte view. Its current owned-destination
-route requires a concrete `[u8; N] in D` carrier at the call site: boundary
-planning derives `N` from that place, writes directly into its inline bytes,
-and establishes the carrier's runtime length. A shorter carrier never inherits
-the old implementation's 256-byte scratch ceiling.
+service rows. Each hosted target package selects one complete
+`ConsoleNativeProvider` plan. Its friendly `write` and `write_line` members are
+ordinary checked Omega adapters over `write_byte`: they accept a borrowed byte
+view directly and walk it with a measured state machine. The remaining rows use
+the closed `Binding::CompilerIntrinsic` case to select compiler-owned target
+lowerings; this case installs no foreign binding and must exactly name an
+existing `Trait::method` lowering on the selected target. `read_line` therefore
+retains a mutable byte view without publishing it as a foreign ABI. Its
+owned-destination route requires a concrete `[u8; N] in D` carrier at the call
+site: boundary planning derives `N` from that place, writes directly into its
+inline bytes, and establishes the carrier's runtime length. A shorter carrier
+never inherits the old implementation's 256-byte scratch ceiling.
 
 Bounded in-place text construction is likewise proof-carrying: straight-line
 reaching writes supply the current maximum length, overlapping writes invalidate

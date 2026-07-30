@@ -94,6 +94,10 @@ pub enum ProviderBinding {
     Import { library: String, symbol: String },
     /// Direct system call by number.
     Syscall { number: u32 },
+    /// A compiler-known operation furnished by the selected target package.
+    /// The name is canonical `BoundaryTrait::method` identity; ABI planning
+    /// validates that the target already owns the matching lowering.
+    CompilerIntrinsic { name: String },
     /// COM/UEFI slot dispatch: callee address read from the receiver.
     VtableSlot { index: i64 },
     /// Field-model vtable dispatch: the fn-ptr field of a named table

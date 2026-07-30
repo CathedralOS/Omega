@@ -87,8 +87,8 @@ pub(crate) fn rewrite_adapter_calls(
             // A retained whole-provider selection is authoritative: activate
             // only the exact checked-adapter rows copied into that immutable
             // plan. Free adapters remain a compatibility fallback solely for
-            // slots with no selected source provider (the standard Console
-            // composites currently sit over built-in native byte leaves).
+            // slots with no selected source provider; standard Console now
+            // supplies a complete selected nominal closure.
             if !selected_row && !(selected_slot.is_none() && is_free_adapter) {
                 continue;
             }

@@ -484,6 +484,12 @@ fn parse_provider_binding_case<'tokens, 'source>(
             let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
             Ok((ExternalBinding::DllImport { module, symbol }, input))
         }
+        "CompilerIntrinsic" => {
+            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (name, input) = input.take_string()?;
+            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+            Ok((ExternalBinding::CompilerIntrinsic { name }, input))
+        }
         // A service-table function: dispatch through the `over` struct's
         // fn-ptr FIELD like a bare-field arm, but the table pointer is
         // dispatch-only -- never a wire argument (EFI table services take
@@ -506,6 +512,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
         other => Err(input.error_here(format!(
             "unknown Binding case `{other}`: external leaves require one of \
              `Binding::Syscall(n)`, `Binding::DllImport(\"module\", \"symbol\")`, \
+             `Binding::CompilerIntrinsic(\"Trait::method\")`, \
              `Binding::VtableSlot(n)`, `Binding::VtableField(field)`, or \
              `Binding::TableFunction(field)`"
         ))),
