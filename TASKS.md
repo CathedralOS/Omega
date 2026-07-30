@@ -532,24 +532,6 @@ address, keeps state ownership in Omega, and cannot release a reclaimable code
 lease before explicit unregistration. The Windows adapter demonstrates that
 application-handler re-entry restrictions use ordinary local reach analysis.
 
-### Compile-time machine parameters and generics
-
-Compile-time machine parameters are live; do not cite them as a generic
-blocker. Distinguish them from runtime reification of machine identity.
-
-- **MP6:** finish consuming `Seq::map`/`filter` and remaining concrete generic
-  collection slices.
-- Complete backend monomorphization and cache identity for generic data and
-  machine instantiations.
-- Keep general `Entry::of<H>`-style runtime relocation reification separate
-  from callback lowering. A callback registration parameter provides the exact
-  requirement context needed to select a named static machine and emit its
-  private relocation; type-parameter invocation alone does not.
-
-Acceptance: a declared `<machine F>` with its required `where machine F(...)`
-contract monomorphizes and calls directly; omitted contracts reject even when
-current consumers happen to align.
-
 ### Frames, domains, reach, and trust
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
