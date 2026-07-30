@@ -52,7 +52,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             decrease_order,
             decrease_view_arguments,
             decrease_range,
-            effects,
+            service_reaches,
             suspends,
             blocks,
             contracts,
@@ -114,7 +114,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 decrease_order,
                 decrease_view_arguments,
                 decrease_range,
-                effects,
+                service_reaches,
                 suspends,
                 blocks,
                 contracts,
@@ -226,7 +226,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             decrease_order,
             decrease_view_arguments,
             decrease_range,
-            effects,
+            service_reaches,
             suspends,
             blocks,
             contracts,
@@ -324,7 +324,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             after_return,
             false,
         )?;
-        let ((effects, suspends, blocks, contracts, terminates_guarantee), mut rest) =
+        let ((service_reaches, suspends, blocks, contracts, terminates_guarantee), mut rest) =
             crate::parser::trait_definition::parse_signature_clauses(
                 syntax_trees,
                 after_nested_contracts,
@@ -343,7 +343,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
-            effects,
+            service_reaches,
             suspends,
             blocks,
             contracts,

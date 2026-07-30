@@ -11,6 +11,8 @@ impl<'facts> AcceptanceView for OperatorAcceptance<'facts> {
                 + self.operator_use.ensures.len()
                 + self.operator_use.boundary.len(),
             0,
+            0,
+            0,
             self.operator_use.boundary.len(),
             0,
         )

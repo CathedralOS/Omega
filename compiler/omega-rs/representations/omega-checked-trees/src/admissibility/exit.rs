@@ -13,6 +13,8 @@ impl<'facts> AcceptanceView for ExitAcceptance<'facts> {
             0,
             0,
             0,
+            0,
+            0,
         )
     }
 }

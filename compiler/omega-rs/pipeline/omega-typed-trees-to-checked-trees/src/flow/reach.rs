@@ -16,12 +16,12 @@ pub(super) fn attach_reach_summaries(
             })
             .unwrap_or_default();
 
-        let effect_state = operations
+        let operational_state = operations
             .machines()
             .iter()
             .flat_map(|machine| operations.states.span_or_empty(machine.states))
             .find(|summary| summary.symbol == state.state_symbol);
-        state.operational = effect_state
+        state.operational = operational_state
             .map(|summary| {
                 let direct_may_suspend = summary.direct_may_suspend
                     || operations
@@ -59,7 +59,7 @@ pub(super) fn attach_reach_summaries(
                 })
                 .unwrap_or_default();
 
-            let effect_call = effect_state.and_then(|state| {
+            let operational_call = operational_state.and_then(|state| {
                 operations
                     .calls
                     .span_or_empty(state.calls)
@@ -70,7 +70,7 @@ pub(super) fn attach_reach_summaries(
                             && summary.target_state_symbol == call.target_symbol
                     })
             });
-            call.operational = effect_call
+            call.operational = operational_call
                 .map(|summary| OperationalMaySummary {
                     direct_may_suspend: summary.direct_may_suspend,
                     transitive_may_suspend: summary.transitive_may_suspend,
@@ -78,7 +78,7 @@ pub(super) fn attach_reach_summaries(
                     transitive_may_block: summary.transitive_may_block,
                 })
                 .unwrap_or_default();
-            call.operational_acknowledgement = effect_call
+            call.operational_acknowledgement = operational_call
                 .map(|summary| summary.acknowledgement)
                 .unwrap_or_default();
         }

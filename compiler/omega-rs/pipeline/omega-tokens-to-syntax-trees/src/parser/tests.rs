@@ -582,9 +582,11 @@ fn parses_plain_and_boundary_traits() {
     assert_eq!(traits[1].machines.len(), 1);
     let signature_handle = parsed.items.state_signatures(traits[1].machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
-    let effects = parsed.items.identifier_path_members(signature.effects);
-    assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0].as_str(), "Console");
+    let service_reaches = parsed
+        .items
+        .identifier_path_members(signature.service_reaches);
+    assert_eq!(service_reaches.len(), 1);
+    assert_eq!(service_reaches[0].as_str(), "Console");
 }
 
 #[test]
@@ -611,9 +613,11 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         .expect("machine item");
     assert!(machine.suspends);
     assert!(machine.blocks);
-    let effects = parsed.items.identifier_path_members(machine.effects);
-    assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0].as_str(), "Console");
+    let service_reaches = parsed
+        .items
+        .identifier_path_members(machine.service_reaches);
+    assert_eq!(service_reaches.len(), 1);
+    assert_eq!(service_reaches[0].as_str(), "Console");
 
     let trait_definition = parsed
         .root_items()
@@ -626,9 +630,11 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let signature = parsed.items.state_signature(signature_handle);
     assert!(signature.suspends);
     assert!(signature.blocks);
-    let effects = parsed.items.identifier_path_members(signature.effects);
-    assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0].as_str(), "Clock");
+    let service_reaches = parsed
+        .items
+        .identifier_path_members(signature.service_reaches);
+    assert_eq!(service_reaches.len(), 1);
+    assert_eq!(service_reaches[0].as_str(), "Clock");
 }
 
 #[test]
@@ -1338,13 +1344,15 @@ fn parses_trait_machine_contract_clauses() {
     let signature_handle = parsed.items.state_signatures(trait_definition.machines)[0];
     let signature = parsed.items.state_signature(signature_handle);
     let contracts = parsed.items.capability_contracts(signature.contracts);
-    let effects = parsed.items.identifier_path_members(signature.effects);
+    let service_reaches = parsed
+        .items
+        .identifier_path_members(signature.service_reaches);
 
     assert_eq!(contracts.len(), 2);
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
     assert_eq!(parsed.items.proof_facts(contracts[1].facts).len(), 1);
-    assert_eq!(effects.len(), 1);
-    assert_eq!(effects[0].as_str(), "Filesystem");
+    assert_eq!(service_reaches.len(), 1);
+    assert_eq!(service_reaches[0].as_str(), "Filesystem");
 }
 
 #[test]
@@ -2689,7 +2697,10 @@ fn parses_machine_parameter_with_mandatory_contract() {
     assert_eq!(parsed.items.state_parameters(contract.parameters).len(), 1);
     assert!(contract.return_type.is_valid());
     assert_eq!(
-        parsed.items.identifier_path_members(contract.effects).len(),
+        parsed
+            .items
+            .identifier_path_members(contract.service_reaches)
+            .len(),
         1
     );
     assert_eq!(

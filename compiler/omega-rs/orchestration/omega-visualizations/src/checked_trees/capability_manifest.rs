@@ -176,7 +176,7 @@ mod tests {
     use omega_typed_trees::state::State;
 
     #[test]
-    fn executable_manifest_uses_normalized_split_effect_axes() {
+    fn executable_manifest_uses_normalized_split_behavior_axes() {
         let machine_symbol = SymbolHandle::from_arena_index(10);
         let state_symbol = SymbolHandle::from_arena_index(11);
         let mut program = CheckedTrees::default();

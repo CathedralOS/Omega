@@ -1249,7 +1249,7 @@ fn validates_local_state_call_arguments_from_source_pipeline() {
 }
 
 #[test]
-fn rejects_unknown_trait_machine_effects() {
+fn rejects_unknown_trait_machine_service_reaches() {
     let source = r#"
     boundary trait Console {
         machine write_line(text: &[u8])
@@ -2641,7 +2641,7 @@ fn rejects_public_alias_that_publishes_private_constituent() {
 }
 
 #[test]
-fn rejects_machine_effects_outside_trait_ceiling() {
+fn rejects_machine_service_reaches_outside_trait_ceiling() {
     let source = r#"
     boundary trait Filesystem {}
 
@@ -2684,7 +2684,7 @@ fn rejects_machine_effects_outside_trait_ceiling() {
 }
 
 #[test]
-fn accepts_machine_effects_within_trait_ceiling() {
+fn accepts_machine_service_reaches_within_trait_ceiling() {
     let source = r#"
     boundary trait Console {
         machine write_line(text: &[u8])
@@ -2719,7 +2719,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
 }
 
 #[test]
-fn accepts_machine_effects_below_trait_ceiling() {
+fn accepts_machine_service_reaches_below_trait_ceiling() {
     let source = r#"
     boundary trait Console {
         machine write_line(text: &[u8])

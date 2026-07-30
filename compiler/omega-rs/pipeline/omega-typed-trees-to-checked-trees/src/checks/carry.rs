@@ -217,7 +217,8 @@ impl Default for CrossingAccumulator {
 
 /// Reject a call that may suspend while a suspension-forbidden lexical value
 /// remains live in the caller activation. This is deliberately a local check:
-/// suspension joins the value policy with the callee's inferred effect reach
+/// suspension joins the value policy with the callee's inferred suspension
+/// possibility
 /// here. The independent activation-wide analysis derives CPU/thread
 /// preservation obligations without publishing a provider preemption mode.
 pub(super) fn check_suspension_carry(

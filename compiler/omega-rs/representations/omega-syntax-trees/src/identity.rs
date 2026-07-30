@@ -399,11 +399,11 @@ fn count_state_signature(
     if signature.return_type.is_valid() {
         count_type_reference_handle(syntax_trees, signature.return_type, counts);
     }
-    for effect in syntax_trees
+    for service in syntax_trees
         .items
-        .identifier_path_members(signature.effects)
+        .identifier_path_members(signature.service_reaches)
     {
-        count_identifier(effect, counts);
+        count_identifier(service, counts);
     }
     for contract in syntax_trees.items.capability_contracts(signature.contracts) {
         count_contract(syntax_trees, contract, counts);
@@ -432,11 +432,11 @@ fn count_state_signature_node(
     if signature.return_type.is_valid() {
         count_type_reference_handle(syntax_trees, signature.return_type, counts);
     }
-    for effect in syntax_trees
+    for service in syntax_trees
         .items
-        .identifier_path_members(signature.effects)
+        .identifier_path_members(signature.service_reaches)
     {
-        count_identifier(effect, counts);
+        count_identifier(service, counts);
     }
     for contract in syntax_trees.items.capability_contracts(signature.contracts) {
         count_contract(syntax_trees, contract, counts);

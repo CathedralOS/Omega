@@ -81,7 +81,8 @@ pub struct SymbolResolvedDeclarationStorage {
     pub machine_states: Arena<state::State>,
     pub trait_requirements: Arena<crate::trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
-    pub signature_effects: Arena<crate::name::DiagnosticName>,
+    pub decrease_orders: Arena<crate::name::DiagnosticName>,
+    pub signature_service_reaches: Arena<crate::name::DiagnosticName>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub statement_path_members: Arena<crate::name::DiagnosticName>,
@@ -228,13 +229,13 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn signature_effects(
+    pub fn signature_service_reaches(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
         self.tables
             .declarations
-            .signature_effects
+            .signature_service_reaches
             .span_or_empty(span)
     }
 
@@ -248,11 +249,11 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
-    pub fn machine_effects(
+    pub fn machine_service_reaches(
         &self,
         machine: &crate::machine::Machine,
     ) -> &[crate::name::DiagnosticName] {
-        self.signature_effects(machine.effects)
+        self.signature_service_reaches(machine.service_reaches)
     }
 
     pub fn machine_type_parameters(
@@ -266,10 +267,7 @@ impl SymbolResolvedTrees {
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
     ) -> &[crate::name::DiagnosticName] {
-        self.tables
-            .declarations
-            .signature_effects
-            .span_or_empty(span)
+        self.tables.declarations.decrease_orders.span_or_empty(span)
     }
 
     pub fn machine_contracts(
@@ -391,9 +389,9 @@ impl DerefMut for SymbolResolvedTrees {
 mod tests {
     use crate::{
         SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
-        invariant, machine, operator, trait_definition,
+        invariant, machine, name::DiagnosticName, operator, trait_definition,
     };
-    use omega_core::arena::OrderedRootArena;
+    use omega_core::arena::{HandleSpan, OrderedRootArena};
     use omega_core::symbols::SymbolTable;
 
     #[test]
@@ -433,5 +431,32 @@ mod tests {
         assert_eq!(trees.roots, roots);
         assert_eq!(trees.tables, tables);
         assert_eq!(trees.symbols, symbols);
+    }
+
+    #[test]
+    fn decrease_orders_and_service_reaches_use_independent_arenas() {
+        let mut trees = SymbolResolvedTrees::default();
+        let mut decrease_order = HandleSpan::empty();
+        let mut service_reaches = HandleSpan::empty();
+
+        trees
+            .tables
+            .declarations
+            .decrease_orders
+            .append_to_span(&mut decrease_order, DiagnosticName::generated("remaining"));
+        trees
+            .tables
+            .declarations
+            .signature_service_reaches
+            .append_to_span(&mut service_reaches, DiagnosticName::generated("Console"));
+
+        assert_eq!(
+            trees.machine_decrease_order(decrease_order)[0].as_str(),
+            "remaining"
+        );
+        assert_eq!(
+            trees.signature_service_reaches(service_reaches)[0].as_str(),
+            "Console"
+        );
     }
 }

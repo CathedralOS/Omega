@@ -45,7 +45,7 @@ pub(super) fn assign_statement_reference_symbols(
             satisfies: _,
             decreases: _,
             decrease_order: _,
-            effects: _,
+            service_reaches: _,
             contracts: _,
             states,
             ..

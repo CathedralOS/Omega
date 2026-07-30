@@ -37,7 +37,7 @@ pub(crate) fn lower_machine(
         decrease_order: omega_core::arena::HandleSpan::empty(),
         decrease_view_arguments: omega_core::arena::HandleSpan::empty(),
         decrease_range: typed::expression::ExpressionHandle::invalid(),
-        effects: omega_core::arena::HandleSpan::empty(),
+        service_reaches: omega_core::arena::HandleSpan::empty(),
         suspends: machine.suspends,
         blocks: machine.blocks,
         contracts: omega_core::arena::HandleSpan::empty(),
@@ -143,17 +143,17 @@ pub(crate) fn lower_machine(
         .source_trees
         .machine_decrease_order(machine.decrease_order)
     {
-        lowerer.typed_trees.signature_effects.append_to_span(
+        lowerer.typed_trees.decrease_orders.append_to_span(
             &mut typed_machine.decrease_order,
             crate::name::lower_name(member),
         );
     }
 
-    for effect in lowerer.source_trees.machine_effects(machine) {
-        let effect = crate::name::lower_name(effect);
+    for service in lowerer.source_trees.machine_service_reaches(machine) {
+        let service = crate::name::lower_name(service);
         lowerer
             .typed_trees
-            .push_machine_effect(&mut typed_machine, effect);
+            .push_machine_service_reach(&mut typed_machine, service);
     }
 
     for contract in lowerer.source_trees.machine_contracts(machine) {

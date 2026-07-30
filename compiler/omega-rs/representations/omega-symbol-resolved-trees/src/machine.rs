@@ -48,7 +48,7 @@ pub struct MachineStorage {
     /// TPR3: the optional `in <range>` rank constraint (a Range expression;
     /// invalid = absent). The checker verifies it structurally.
     pub decrease_range: ExpressionHandle,
-    pub effects: HandleSpan<DiagnosticName>,
+    pub service_reaches: HandleSpan<DiagnosticName>,
     /// Authored operational ceilings, copied independently from the service
     /// row compatibility span.
     pub suspends: bool,

@@ -113,7 +113,7 @@ pub(crate) fn lower_state_signature_node(
         signature.parameters,
         signature.return_type,
         signature.is_default,
-        signature.effects,
+        signature.service_reaches,
         signature.suspends,
         signature.blocks,
         signature.contracts,
@@ -131,7 +131,7 @@ pub(crate) fn lower_state_signature_parts(
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
     is_default: bool,
-    effects: HandleSpan<syntax::identifier::Identifier>,
+    service_reaches: HandleSpan<syntax::identifier::Identifier>,
     suspends: bool,
     blocks: bool,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
@@ -144,7 +144,7 @@ pub(crate) fn lower_state_signature_parts(
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
-    let effects = lower_signature_effects(lowerer, syntax_trees, effects);
+    let service_reaches = lower_signature_service_reaches(lowerer, syntax_trees, service_reaches);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
     Ok(StateSignature {
@@ -159,7 +159,7 @@ pub(crate) fn lower_state_signature_parts(
             is_default,
             parameters,
             return_type,
-            effects,
+            service_reaches,
             service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             suspends,
             blocks,
@@ -169,20 +169,20 @@ pub(crate) fn lower_state_signature_parts(
     })
 }
 
-pub(crate) fn lower_signature_effects(
+pub(crate) fn lower_signature_service_reaches(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    effects: HandleSpan<syntax::identifier::Identifier>,
+    service_reaches: HandleSpan<syntax::identifier::Identifier>,
 ) -> HandleSpan<omega_symbol_resolved_trees::name::DiagnosticName> {
     let mut span = HandleSpan::empty();
 
-    for effect in syntax_trees.items.identifier_path_members(effects) {
+    for service in syntax_trees.items.identifier_path_members(service_reaches) {
         lowerer
             .symbol_resolved_trees
             .tables
             .declarations
-            .signature_effects
-            .append_to_span(&mut span, crate::name::lower_name(effect));
+            .signature_service_reaches
+            .append_to_span(&mut span, crate::name::lower_name(service));
     }
 
     span

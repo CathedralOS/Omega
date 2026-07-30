@@ -145,7 +145,8 @@ pub struct TypedTreeTables {
     pub data_conformances: Arena<trait_definition::DataConformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
-    pub signature_effects: Arena<crate::name::Identifier>,
+    pub decrease_orders: Arena<crate::name::Identifier>,
+    pub signature_service_reaches: Arena<crate::name::Identifier>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
@@ -994,7 +995,7 @@ impl TypedTrees {
     }
 
     /// Find a machine-parameter contract and its declaring machine by its
-    /// normalized symbol. Used by effect/proof consumers that see only a call
+    /// normalized symbol. Used by service-reach/proof consumers that see only a call
     /// target, not the lexical generic scope.
     pub fn machine_parameter_signature(
         &self,
@@ -1092,24 +1093,28 @@ impl TypedTrees {
             .collect()
     }
 
-    pub fn push_machine_effect(
+    pub fn push_machine_service_reach(
         &mut self,
         machine: &mut machine::Machine,
-        effect: crate::name::Identifier,
+        service: crate::name::Identifier,
     ) {
-        self.signature_effects
-            .append_to_span(&mut machine.effects, effect);
+        self.signature_service_reaches
+            .append_to_span(&mut machine.service_reaches, service);
     }
 
-    pub fn machine_effects(&self, machine: &machine::Machine) -> &[crate::name::Identifier] {
-        self.signature_effects.span_or_empty(machine.effects)
+    pub fn machine_service_reaches(
+        &self,
+        machine: &machine::Machine,
+    ) -> &[crate::name::Identifier] {
+        self.signature_service_reaches
+            .span_or_empty(machine.service_reaches)
     }
 
     pub fn machine_decrease_order(
         &self,
         span: HandleSpan<crate::name::Identifier>,
     ) -> &[crate::name::Identifier] {
-        self.signature_effects.span_or_empty(span)
+        self.decrease_orders.span_or_empty(span)
     }
 
     pub fn push_machine_contract(
@@ -1192,20 +1197,21 @@ impl TypedTrees {
             .span_or_empty(signature.type_parameters)
     }
 
-    pub fn push_state_signature_effect(
+    pub fn push_state_signature_service_reach(
         &mut self,
         signature: &mut signature::StateSignature,
-        effect: crate::name::Identifier,
+        service: crate::name::Identifier,
     ) {
-        self.signature_effects
-            .append_to_span(&mut signature.effects, effect);
+        self.signature_service_reaches
+            .append_to_span(&mut signature.service_reaches, service);
     }
 
-    pub fn state_signature_effects(
+    pub fn state_signature_service_reaches(
         &self,
         signature: &signature::StateSignature,
     ) -> &[crate::name::Identifier] {
-        self.signature_effects.span_or_empty(signature.effects)
+        self.signature_service_reaches
+            .span_or_empty(signature.service_reaches)
     }
 
     pub fn push_state_signature_contract(
@@ -1364,8 +1370,8 @@ impl DerefMut for TypedTrees {
 #[cfg(test)]
 mod tests {
     use crate::{
-        TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine, operator,
-        trait_definition,
+        TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine,
+        name::Identifier, operator, trait_definition,
     };
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolTable;
@@ -1407,5 +1413,31 @@ mod tests {
         assert_eq!(trees.roots, roots);
         assert_eq!(trees.tables, tables);
         assert_eq!(trees.symbols, symbols);
+    }
+
+    #[test]
+    fn decrease_orders_and_service_reaches_use_independent_arenas() {
+        let mut trees = TypedTrees::default();
+        let mut decrease_order = HandleSpan::empty();
+        let mut service_reaches = HandleSpan::empty();
+
+        trees
+            .decrease_orders
+            .append_to_span(&mut decrease_order, Identifier::generated("remaining"));
+        trees
+            .signature_service_reaches
+            .append_to_span(&mut service_reaches, Identifier::generated("Console"));
+
+        assert_eq!(
+            trees.machine_decrease_order(decrease_order)[0].as_str(),
+            "remaining"
+        );
+        assert_eq!(
+            trees
+                .signature_service_reaches
+                .span_or_empty(service_reaches)[0]
+                .as_str(),
+            "Console"
+        );
     }
 }

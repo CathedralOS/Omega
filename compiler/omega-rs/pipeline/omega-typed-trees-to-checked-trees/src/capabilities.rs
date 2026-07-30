@@ -3,7 +3,7 @@
 //! Capability-flow facts describe how authority-bearing values move through a
 //! package (chapter 18, "Capabilities And Authority Flow"). Each boundary call
 //! is classified into one or more verbs, inferred from boundary provenance,
-//! receiver provenance, signature effects, and capability-typed returns — no new
+//! receiver provenance, signature service reach, and capability-typed returns — no new
 //! source keywords are required:
 //!
 //! - `uses`     — a boundary capability is reached by a call.
@@ -190,8 +190,8 @@ pub(crate) fn build_capability_facts(
     CapabilityFlowPlan::with_roots(flows)
 }
 
-/// A nested-call edge in the effect plan's call graph: a caller state calling a
-/// target state, with the source location of the call.
+/// A nested-call edge in the service-reach plan's call graph: a caller state
+/// calling a target state, with the source location of the call.
 struct CallEdge {
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,

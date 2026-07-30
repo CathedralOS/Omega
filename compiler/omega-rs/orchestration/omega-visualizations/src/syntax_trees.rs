@@ -334,13 +334,15 @@ fn append_state_signature(
         signature.name.as_str(),
         signature.parameters.len()
     );
-    let effects = syntax.items.identifier_path_members(signature.effects);
-    if !effects.is_empty() {
-        label.push_str("\neffects: ");
+    let service_reaches = syntax
+        .items
+        .identifier_path_members(signature.service_reaches);
+    if !service_reaches.is_empty() {
+        label.push_str("\nreaches: ");
         label.push_str(
-            &effects
+            &service_reaches
                 .iter()
-                .map(|effect| effect.as_str())
+                .map(|service| service.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
         );
@@ -447,13 +449,13 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 value.satisfies.len(),
                 contract_summary(syntax, value.contracts)
             );
-            let effects = syntax.items.identifier_path_members(value.effects);
-            if !effects.is_empty() {
-                label.push_str("\neffects: ");
+            let service_reaches = syntax.items.identifier_path_members(value.service_reaches);
+            if !service_reaches.is_empty() {
+                label.push_str("\nreaches: ");
                 label.push_str(
-                    &effects
+                    &service_reaches
                         .iter()
-                        .map(|effect| effect.as_str())
+                        .map(|service| service.as_str())
                         .collect::<Vec<_>>()
                         .join(", "),
                 );

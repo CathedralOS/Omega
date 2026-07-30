@@ -39,18 +39,27 @@ pub(super) fn borrow_constraint_count(
         .count()
 }
 
-pub(super) fn behavior_evidence_count(
+pub(super) fn service_reach_evidence_count(
     facts: &CheckFacts,
     service_reach: omega_core::semantics::ServiceReachSummary,
-    operational: omega_core::semantics::OperationalMaySummary,
 ) -> usize {
     facts
         .service_reaches
         .rows
         .services(service_reach.transitive)
         .len()
-        + usize::from(operational.transitive_may_suspend)
-        + usize::from(operational.transitive_may_block)
+}
+
+pub(super) const fn suspension_evidence_count(
+    operational: omega_core::semantics::OperationalMaySummary,
+) -> usize {
+    operational.transitive_may_suspend as usize
+}
+
+pub(super) const fn blocking_evidence_count(
+    operational: omega_core::semantics::OperationalMaySummary,
+) -> usize {
+    operational.transitive_may_block as usize
 }
 
 pub(super) fn machine_decrease_count(facts: &CheckFacts, machine_symbol: SymbolHandle) -> usize {

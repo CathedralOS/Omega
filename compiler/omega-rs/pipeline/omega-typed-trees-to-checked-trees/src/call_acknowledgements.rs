@@ -15,15 +15,15 @@ pub(crate) fn validate_call_acknowledgements(
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let Some(effect_state) = operations
+            let Some(operational_state) = operations
                 .machines()
                 .iter()
                 .flat_map(|machine| operations.states.span_or_empty(machine.states))
-                .find(|effect| effect.symbol == state.symbol)
+                .find(|operation| operation.symbol == state.symbol)
             else {
                 continue;
             };
-            let effect_calls = operations.calls.span_or_empty(effect_state.calls);
+            let operational_calls = operations.calls.span_or_empty(operational_state.calls);
             let statements = program.statement_table.statements(state.statement_nodes);
 
             for (statement_index, statement) in statements.iter().enumerate() {
@@ -34,7 +34,7 @@ pub(crate) fn validate_call_acknowledgements(
                     statement,
                     statement_index,
                     terminal,
-                    effect_calls,
+                    operational_calls,
                     &mut call_ordinal,
                     &mut diagnostics,
                 );
@@ -54,7 +54,7 @@ fn validate_statement(
     statement: &StatementNode,
     statement_index: usize,
     terminal: bool,
-    effect_calls: &[CallOperational],
+    operational_calls: &[CallOperational],
     call_ordinal: &mut usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -66,7 +66,7 @@ fn validate_statement(
                 assignment.target,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -75,7 +75,7 @@ fn validate_statement(
                 assignment.value,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -85,7 +85,7 @@ fn validate_statement(
                 call.target.as_str(),
                 statement_index,
                 true,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -95,7 +95,7 @@ fn validate_statement(
                     *argument,
                     statement_index,
                     false,
-                    effect_calls,
+                    operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
@@ -106,7 +106,7 @@ fn validate_statement(
             *expression,
             statement_index,
             terminal,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -115,7 +115,7 @@ fn validate_statement(
             local.initial_value,
             statement_index,
             true,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -127,7 +127,7 @@ fn validate_statement(
                     guard,
                     statement_index,
                     true,
-                    effect_calls,
+                    operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
@@ -142,7 +142,7 @@ fn validate_expression(
     expression: ExpressionHandle,
     statement_index: usize,
     direct_position: bool,
-    effect_calls: &[CallOperational],
+    operational_calls: &[CallOperational],
     call_ordinal: &mut usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -156,7 +156,7 @@ fn validate_expression(
             atomic.value,
             statement_index,
             false,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -167,7 +167,7 @@ fn validate_expression(
                     *value,
                     statement_index,
                     false,
-                    effect_calls,
+                    operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
@@ -179,7 +179,7 @@ fn validate_expression(
                 binary.left,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -188,7 +188,7 @@ fn validate_expression(
                 binary.right,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -198,7 +198,7 @@ fn validate_expression(
             cast.value,
             statement_index,
             false,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -207,7 +207,7 @@ fn validate_expression(
                 call.target.as_str(),
                 statement_index,
                 direct_position,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -216,7 +216,7 @@ fn validate_expression(
                 call.receiver,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -226,7 +226,7 @@ fn validate_expression(
                     *argument,
                     statement_index,
                     false,
-                    effect_calls,
+                    operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
@@ -238,7 +238,7 @@ fn validate_expression(
                 indexed.collection,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -247,7 +247,7 @@ fn validate_expression(
                 indexed.index,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -257,7 +257,7 @@ fn validate_expression(
             member.receiver,
             statement_index,
             false,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -266,7 +266,7 @@ fn validate_expression(
             *inner,
             statement_index,
             false,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -276,7 +276,7 @@ fn validate_expression(
                 range.start,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -285,7 +285,7 @@ fn validate_expression(
                 range.end,
                 statement_index,
                 false,
-                effect_calls,
+                operational_calls,
                 call_ordinal,
                 diagnostics,
             );
@@ -297,7 +297,7 @@ fn validate_expression(
                     field.value,
                     statement_index,
                     false,
-                    effect_calls,
+                    operational_calls,
                     call_ordinal,
                     diagnostics,
                 );
@@ -308,7 +308,7 @@ fn validate_expression(
             unary.operand,
             statement_index,
             false,
-            effect_calls,
+            operational_calls,
             call_ordinal,
             diagnostics,
         ),
@@ -325,13 +325,13 @@ fn validate_call(
     target: &str,
     statement_index: usize,
     direct_position: bool,
-    effect_calls: &[CallOperational],
+    operational_calls: &[CallOperational],
     call_ordinal: &mut usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let ordinal = *call_ordinal;
     *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
-    let Some(call) = effect_calls
+    let Some(call) = operational_calls
         .iter()
         .find(|call| call.statement_index == statement_index && call.call_ordinal == ordinal)
     else {

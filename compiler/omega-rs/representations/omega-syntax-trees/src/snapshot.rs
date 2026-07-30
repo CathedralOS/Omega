@@ -129,7 +129,7 @@ pub enum ItemSnapshot {
         terminates: bool,
         decreases: Vec<ExpressionSnapshot>,
         decrease_order: Vec<IdentifierSnapshot>,
-        effects: Vec<IdentifierSnapshot>,
+        service_reaches: Vec<IdentifierSnapshot>,
         suspends: bool,
         blocks: bool,
         contracts: Vec<CapabilityContractSnapshot>,
@@ -346,7 +346,7 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
-    pub effects: Vec<IdentifierSnapshot>,
+    pub service_reaches: Vec<IdentifierSnapshot>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<CapabilityContractSnapshot>,
@@ -773,8 +773,10 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     .items
                     .identifier_path_members(value.decrease_order),
             ),
-            effects: snapshot_identifier_slice(
-                syntax_trees.items.identifier_path_members(value.effects),
+            service_reaches: snapshot_identifier_slice(
+                syntax_trees
+                    .items
+                    .identifier_path_members(value.service_reaches),
             ),
             suspends: value.suspends,
             blocks: value.blocks,
@@ -1176,10 +1178,10 @@ fn snapshot_state_signature(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
-        effects: snapshot_identifier_slice(
+        service_reaches: snapshot_identifier_slice(
             syntax_trees
                 .items
-                .identifier_path_members(signature.effects),
+                .identifier_path_members(signature.service_reaches),
         ),
         suspends: signature.suspends,
         blocks: signature.blocks,
@@ -1222,10 +1224,10 @@ fn snapshot_state_signature_node(
             })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
-        effects: snapshot_identifier_slice(
+        service_reaches: snapshot_identifier_slice(
             syntax_trees
                 .items
-                .identifier_path_members(signature.effects),
+                .identifier_path_members(signature.service_reaches),
         ),
         suspends: signature.suspends,
         blocks: signature.blocks,

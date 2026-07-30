@@ -126,7 +126,7 @@ pub(crate) fn lower_state_signature(
             .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
-        effects: Default::default(),
+        service_reaches: Default::default(),
         service_reach_row: signature.service_reach_row,
         suspends: signature.suspends,
         blocks: signature.blocks,
@@ -173,10 +173,14 @@ pub(crate) fn lower_state_signature(
             .push_state_signature_parameter(&mut typed_signature, parameter);
     }
 
-    for effect in lowerer.source_trees.signature_effects(signature.effects) {
-        lowerer
-            .typed_trees
-            .push_state_signature_effect(&mut typed_signature, crate::name::lower_name(effect));
+    for service in lowerer
+        .source_trees
+        .signature_service_reaches(signature.service_reaches)
+    {
+        lowerer.typed_trees.push_state_signature_service_reach(
+            &mut typed_signature,
+            crate::name::lower_name(service),
+        );
     }
 
     for contract in lowerer
