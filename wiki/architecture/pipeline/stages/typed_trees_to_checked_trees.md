@@ -116,13 +116,13 @@ Current ownership is:
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
-  immutable program-static storage (direct/nested literals and machine results
-  whose every value exit resolves to such a source), and retains that provenance
-  through exact persistent-place copies within the same state. The shortcut is
-  cleared at opaque statement calls. It fails closed on other writes into
-  attached or machine-owned persistent storage until loan propagation across
-  graph-state transitions, call mutation summaries, and state-parameter root
-  rebasing are implemented.
+  immutable program-static storage (direct/nested literals, folded literal
+  joins, and machine results whose every value exit resolves to such a source),
+  and retains that provenance through exact persistent-place copies within the
+  same state. The shortcut is cleared at opaque statement calls. It fails closed
+  on other writes into attached or machine-owned persistent storage until loan
+  propagation across graph-state transitions, call mutation summaries, and
+  state-parameter root rebasing are implemented.
 - `checks/carry.rs` joins canonical place liveness with direct/transitive
   possible suspension. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state

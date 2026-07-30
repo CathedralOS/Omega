@@ -2323,6 +2323,21 @@ fn accepts_program_static_literal_in_persistent_borrow_storage() {
 }
 
 #[test]
+fn accepts_folded_static_literal_join_in_persistent_borrow_storage() {
+    let source = r#"
+        data Main {
+            stored: &[u8];
+        }
+
+        machine Main::store(&mut self) {
+            self.stored = "program " + "static";
+        }
+    "#;
+
+    check_program(source).expect("a folded literal join remains program-static storage");
+}
+
+#[test]
 fn accepts_nested_program_static_literal_in_persistent_aggregate_storage() {
     let source = r#"
         data Message {
