@@ -131,11 +131,13 @@ selected reach may touch the supplied range.
 The current `omega-access-plans` implementation is the normalized bootstrap:
 it validates geometry, exact widths, observation/operation compatibility,
 borrow polarity, atomic orderings, exact loan facts, and sealed lowering
-requests. Its current name-keyed vector, per-entry reach, and reusable grant are
-migration work rather than the target source surface. Exposure uses the settled
-`BindingPrivate` spelling; stable compound mutation is derived from read+write
-and exclusivity, external compound mutation is unavailable, and atomic
-permissions distinguish exact operation families. See
+requests. It now carries exactly one inaccessible-defaulted slot per schema
+field and binds field keys to the exact layout. Its current per-entry reach and
+reusable grant are migration work rather than the target source surface.
+Exposure uses the settled `BindingPrivate` spelling; stable compound mutation
+is derived from read+write and exclusivity, destructive external reads remain
+distinct, external compound mutation is unavailable, and atomic permissions
+distinguish exact operation families. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
 model.
