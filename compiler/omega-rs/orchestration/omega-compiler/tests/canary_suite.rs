@@ -15658,6 +15658,35 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("forwarding-adapter canary should compile to checked trees");
+    let console_plan = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == "Console")
+        .expect("std Console must retain a selected nominal provider plan");
+    assert_eq!(console_plan.provider_type, "ConsoleNativeProvider");
+    assert_eq!(console_plan.rows.len(), 6);
+    assert!(console_plan.covers_schema());
+    for method in ["write", "write_line"] {
+        assert!(console_plan.rows.iter().any(|row| {
+            row.method == method
+                && matches!(
+                    &row.binding,
+                    omega_effects::provider_plan::ProviderBinding::CheckedAdapter { machine }
+                        if machine == &format!("ConsoleNativeProvider::{method}")
+                )
+        }));
+    }
+    for method in ["read_line", "read_byte", "write_byte", "exit_process"] {
+        assert!(console_plan.rows.iter().any(|row| {
+            row.method == method
+                && matches!(
+                    &row.binding,
+                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                        if name == &format!("Console::{method}")
+                )
+        }));
+    }
     let main = checked
         .machines()
         .iter()
@@ -15677,8 +15706,9 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
         })
         .collect::<Vec<_>>();
     assert!(
-        call_targets.contains(&"console_write") && call_targets.contains(&"console_write_line"),
-        "std Console composite calls must rewrite to checked adapters: {call_targets:?}"
+        call_targets.contains(&"ConsoleNativeProvider::write")
+            && call_targets.contains(&"ConsoleNativeProvider::write_line"),
+        "std Console composite calls must rewrite to the selected nominal adapters: {call_targets:?}"
     );
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
@@ -41030,6 +41060,22 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
         );
     }
     let _ = fs::remove_dir_all(&build_dir);
+
+    for target in ["macos_arm64", "linux_arm64"] {
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-bytes-{target}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: main_path.clone(),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("byte-op canary should cross-compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&build_dir);
+    }
 
     let build_dir = std::env::temp_dir().join(format!("omega-bytes-linux-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);

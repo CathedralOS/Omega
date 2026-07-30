@@ -2751,6 +2751,76 @@ fn accepts_machine_service_reaches_below_trait_ceiling() {
 }
 
 #[test]
+fn accepts_nominal_boundary_adapter_with_forwarded_service_receiver() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Console {
+            machine write(text: &[u8])
+            reaches
+                Console;
+        }
+
+        data ConsoleProvider {}
+
+        machine ConsoleProvider::write(console: Console, text: &[u8])
+        satisfies Console::write
+        reaches
+            Console
+        {
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a nominal checked adapter may receive the boundary receiver explicitly");
+}
+
+#[test]
+fn compiler_intrinsic_may_retain_a_compiler_owned_safe_carrier_surface() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Console {
+            machine read_line(out_line: &mut [u8])
+            reaches
+                Console;
+        }
+
+        machine console_read_line(out_line: &mut [u8])
+        satisfies Console::read_line
+        via Binding::CompilerIntrinsic("Console::read_line");
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a compiler intrinsic owns the safe carrier lowering rather than a foreign ABI");
+}
+
+#[test]
+fn foreign_import_still_rejects_a_private_safe_carrier_surface() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Console {
+            machine read_line(out_line: &mut [u8])
+            reaches
+                Console;
+        }
+
+        machine console_read_line(out_line: &mut [u8])
+        satisfies Console::read_line
+        via Binding::DllImport("host", "read_line");
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a foreign ABI cannot inherit the safe slice layout");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot use safe slice `&mut [u8]` as a default-native parameter")
+    }));
+}
+
+#[test]
 fn rejects_published_service_ceiling_below_reached_services() {
     let source = r#"
     boundary trait Input {

@@ -271,6 +271,9 @@ pub(crate) fn derive_satisfies_plans(
                         library: module.clone(),
                         symbol: symbol.clone(),
                     },
+                    ExternalBinding::CompilerIntrinsic { name } => {
+                        ProviderBinding::CompilerIntrinsic { name: name.clone() }
+                    }
                     ExternalBinding::VtableSlot { index } => {
                         ProviderBinding::VtableSlot { index: *index }
                     }

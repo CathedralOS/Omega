@@ -121,6 +121,9 @@ fn extract_external_binding_rows(
                     module: module.clone(),
                     symbol: symbol.clone(),
                 },
+                ExternalBinding::CompilerIntrinsic { name } => {
+                    ExternalBindingKind::CompilerIntrinsic { name: name.clone() }
+                }
                 ExternalBinding::VtableSlot { index } => {
                     ExternalBindingKind::VtableSlot { index: *index }
                 }

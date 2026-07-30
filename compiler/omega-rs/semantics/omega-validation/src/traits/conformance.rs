@@ -25,6 +25,18 @@ pub(crate) fn validate_external_leaf_native_shapes(
         .iter()
         .filter(|conformance| conformance.via.is_some())
     {
+        // Compiler intrinsics are not foreign ABI leaves: they select a
+        // compiler-owned lowering whose safe carrier semantics are already
+        // part of the target plan. In particular, Console::read_line may
+        // retain its checked mutable-slice surface while the lowering derives
+        // the concrete owned destination's capacity and live-length write.
+        if conformance
+            .via
+            .as_deref()
+            .is_some_and(|binding| binding.starts_with("CompilerIntrinsic("))
+        {
+            continue;
+        }
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
             continue;
         };
@@ -494,13 +506,14 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
 ) {
     let mut actual_parameters = program.state_parameters(state);
     let required_parameters = program.state_signature_parameters(requirement);
-    // PRV4 self-forwarding adapters: a FREE machine satisfying a BOUNDARY
-    // trait requirement may take the trait ITSELF as one extra LEADING
-    // parameter (adapter dispatch forwards the call's receiver there); the
-    // tail must match the requirement exactly. Attached machines and plain
-    // traits keep the strict positional match.
+    // PRV4 self-forwarding adapters: a machine satisfying a BOUNDARY trait
+    // requirement may take the trait ITSELF as one extra LEADING parameter
+    // (adapter dispatch forwards the call's receiver there); the tail must
+    // match the requirement exactly. This includes nominal provider adapters:
+    // attachment groups rows into one provider closure but does not add a
+    // runtime provider receiver. Plain traits keep the strict positional
+    // match.
     if trait_definition.is_boundary
-        && machine.attached_data.is_none()
         && actual_parameters.len() == required_parameters.len() + 1
         && actual_parameters.first().is_some_and(|parameter| {
             let label = type_reference_label(program, parameter.type_reference);

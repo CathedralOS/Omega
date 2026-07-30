@@ -1105,6 +1105,12 @@ pub enum ExternalBindingKind {
         module: String,
         symbol: String,
     },
+    /// Select an existing compiler-known platform lowering. Unlike the other
+    /// cases this contributes no new `HostBinding`; the target plan must
+    /// already contain the named boundary operation.
+    CompilerIntrinsic {
+        name: String,
+    },
     VtableSlot {
         index: i64,
     },
@@ -1161,6 +1167,27 @@ pub fn merge_external_binding_rows(
     // the duplicate-binding check below catches a genuinely repeated
     // (trait, method) pair like any other collision.
     for row in external_bindings {
+        if let ExternalBindingKind::CompilerIntrinsic { name } = &row.binding {
+            let expected_name = format!("{}::{}", row.trait_name, row.method);
+            if name != &expected_name {
+                return Err(format!(
+                    "compiler intrinsic `{name}` cannot bind `{}::{}`; the intrinsic name must be exactly `{expected_name}`",
+                    row.trait_name, row.method,
+                ));
+            }
+            let has_lowering = plan.platform_call_lowerings.iter().any(|(_, lowering)| {
+                lowering.state.as_ref() == row.method
+                    && (lowering.platform.as_ref() == row.trait_name
+                        || lowering.platform.as_ref() == "*")
+            });
+            if !has_lowering {
+                return Err(format!(
+                    "compiler intrinsic `{name}` is unavailable on target `{:?}`; the selected target package must furnish that lowering",
+                    plan.target,
+                ));
+            }
+            continue;
+        }
         let key = HostOperationKey::from_names(&row.trait_name, &row.method);
         if plan
             .bindings
@@ -1212,6 +1239,9 @@ pub fn merge_external_binding_rows(
                 library: module.as_str().into(),
                 symbol: symbol.as_str().into(),
             },
+            ExternalBindingKind::CompilerIntrinsic { .. } => {
+                unreachable!("compiler intrinsics validate and continue above")
+            }
             ExternalBindingKind::Syscall { number } => HostBindingMechanism::Syscall {
                 name: row.method.as_str().into(),
                 number: u32::try_from(*number).map_err(|_| {
@@ -1426,7 +1456,8 @@ mod binding_plan_tests {
     use super::{
         CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow,
         HostBindingMechanism, HostCapability, HostOperation, PlatformCallData, ValueShape,
-        build_host_abi_plan, evaluate_ordinary_boundary_entry_plan, merge_external_binding_rows,
+        build_freestanding_abi_plan, build_host_abi_plan, evaluate_ordinary_boundary_entry_plan,
+        merge_external_binding_rows,
     };
     use omega_target::NativeTarget;
 
@@ -1466,6 +1497,48 @@ mod binding_plan_tests {
             .evaluate_binding_call_plan(&linux_binding.mechanism, &signature)
             .expect("Linux syscall plan");
         assert_eq!(linux_plan.policy, CallingPolicy::LinuxSyscallAarch64);
+    }
+
+    #[test]
+    fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
+        let row = |name: &str, method: &str| ExternalBindingRow {
+            target_name: "macos_arm64".to_owned(),
+            trait_name: "Console".to_owned(),
+            method: method.to_owned(),
+            table_type: "ConsoleNativeProvider".to_owned(),
+            parameter_count: 1,
+            boundary_entry_plan: None,
+            binding: ExternalBindingKind::CompilerIntrinsic {
+                name: name.to_owned(),
+            },
+        };
+
+        let mut hosted = build_host_abi_plan(NativeTarget::macos_arm64());
+        let binding_count = hosted.bindings.iter().count();
+        merge_external_binding_rows(&mut hosted, &[row("Console::write_byte", "write_byte")])
+            .expect("the selected target already owns Console::write_byte");
+        assert_eq!(
+            hosted.bindings.iter().count(),
+            binding_count,
+            "an intrinsic selects an existing lowering and installs no host binding"
+        );
+
+        let identity_error =
+            merge_external_binding_rows(&mut hosted, &[row("Console::read_byte", "write_byte")])
+                .expect_err("an intrinsic cannot impersonate another requirement");
+        assert!(identity_error.contains("must be exactly `Console::write_byte`"));
+
+        let unavailable =
+            merge_external_binding_rows(&mut hosted, &[row("Console::missing", "missing")])
+                .expect_err("an absent target lowering must reject");
+        assert!(unavailable.contains("is unavailable on target"));
+
+        let freestanding = build_freestanding_abi_plan(
+            NativeTarget::uefi_x64(),
+            &[row("Console::write_byte", "write_byte")],
+        )
+        .expect_err("a freestanding target has no implicit Console intrinsic");
+        assert!(freestanding.contains("is unavailable on target"));
     }
 
     #[test]
