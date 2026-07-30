@@ -606,9 +606,12 @@ the admitted provider is trusted to tell the truth about the backing.
 The current `omega-access-plans` foundation predates this source model. It
 already validates normalized field geometry, exact widths, operation and
 observation compatibility, borrow polarity, atomic orderings, exact loan facts,
-and sealed lowering requests. It now normalizes to one inaccessible-defaulted
-slot per schema field, binds opaque field keys to the exact layout, and keeps
-destructive external reads distinct from ordinary reads. A normalized
+and sealed lowering requests. The ordinary source records now live with the
+layout vocabulary in `omega::language::core::layout`; the existing `Plan`
+record remains the current source spelling of `LayoutPlan`. The Rust foundation
+normalizes to one inaccessible-defaulted slot per schema field, binds opaque
+field keys to the exact layout, and keeps destructive external reads distinct
+from ordinary reads. A normalized
 `PlacementPlan` now owns the complete layout/access pairing and its one
 normalized boundary reach; admission checks that reach once and lowering
 requests retain it. Placement admission consumes and owns the exact Extent loan;

@@ -17,7 +17,7 @@
 // carriers remain only where a value is genuinely signed or an explicitly
 // retained sentinel requires one.
 
-use omega::language::std::option;
+use omega::language::core::option;
 
 // One field of a schema, target-resolved by the compiler: byte size,
 // alignment, and the declared identity number (-1 when unnumbered). Ranges
@@ -109,8 +109,162 @@ data Plan {
     align: u64;
 }
 
+// Placed-access policy vocabulary (chapter 20). `Plan` above is the current
+// source spelling of LayoutPlan. These records are ordinary library data: the
+// compiler evaluates policy machines and validates their returned values, but
+// source code cannot construct lowering authority from the records alone.
+
+data Exposure {
+    case Exported;
+    case BindingPrivate;
+}
+
+data Observation {
+    case Stable;
+    case External;
+    case Atomic;
+}
+
+data ExternalRead {
+    case None;
+    case Read;
+    case Take;
+}
+
+data AtomicOperations [copy] {
+    load: bool;
+    store: bool;
+    fetch_add: bool;
+    fetch_sub: bool;
+    fetch_xor: bool;
+    fetch_or: bool;
+    fetch_and: bool;
+    swap: bool;
+    compare_exchange: bool;
+}
+
+// Transfer width and alignment are byte-count facts. Access authors do not
+// choose offsets; validated layout geometry supplies those.
+data TransferRule [copy] {
+    width_bits: u64;
+    alignment_bytes: u64;
+}
+
+// Invalid observation/operation cross-products are unrepresentable. The
+// effective transfer rule comes from the validated layout/resource join.
+data FieldAccess {
+    case Inaccessible;
+    case Stable(
+        read: bool,
+        write: bool,
+        exposure: Exposure
+    );
+    case External(
+        read: ExternalRead,
+        write: bool,
+        exposure: Exposure
+    );
+    case Atomic(
+        operations: AtomicOperations,
+        exposure: Exposure
+    );
+}
+
+data AccessFieldEntry {
+    key: u64;
+    access: FieldAccess;
+}
+
+// Fixed capacity is a bootstrap carrier only. The compiler requires exactly
+// `field_count` canonical schema decisions and ignores the zero tail.
+data AccessPlan {
+    entries: [AccessFieldEntry; 32];
+    field_count: u64 [0..=32];
+}
+
+// A normalized static set of boundary-service keys. Suspension and blocking
+// are independent contract axes and never enter this record.
+data BoundaryReach {
+    services: [u64; 32];
+    service_count: u64 [0..=32];
+}
+
+data PlacementPlan {
+    layout: Plan;
+    access: AccessPlan;
+    reach: BoundaryReach;
+}
+
+data RelativeRange [copy] {
+    offset: u64;
+    length: u64;
+}
+
+data StableCapability {
+    case None;
+    case Read;
+    case Write;
+    case ReadWrite;
+}
+
+data ExternalReadBehavior {
+    case None;
+    case Repeatable;
+    case Destructive;
+}
+
+data TransferRules {
+    entries: [TransferRule; 16];
+    rule_count: u64 [0..=16];
+}
+
+data ExternalCapability {
+    case None;
+    case Access(
+        read: ExternalReadBehavior,
+        write: bool,
+        transfers: TransferRules
+    );
+}
+
+data AtomicTransferRule {
+    transfer: TransferRule;
+    operations: AtomicOperations;
+}
+
+data AtomicTransferRules {
+    entries: [AtomicTransferRule; 16];
+    rule_count: u64 [0..=16];
+}
+
+data AtomicCapability {
+    case None;
+    case Access(transfers: AtomicTransferRules);
+}
+
+data ResourceRegion {
+    range: RelativeRange;
+    stable: StableCapability;
+    external: ExternalCapability;
+    atomic: AtomicCapability;
+    reach: BoundaryReach;
+}
+
+data ResourceProfile {
+    regions: [ResourceRegion; 32];
+    region_count: u64 [0..=32];
+}
+
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
 trait Layout {
     machine plan(schema: Schema) -> Plan;
+}
+
+trait Access {
+    machine plan(schema: Schema, layout: Plan) -> AccessPlan;
+}
+
+trait Placement {
+    machine plan(schema: Schema) -> PlacementPlan;
 }

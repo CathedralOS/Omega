@@ -1,4 +1,4 @@
-use omega::language::std::option;
+use omega::language::core::option;
 
 data Main {
     value: Optional<u64>;

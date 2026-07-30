@@ -6,7 +6,7 @@
 // layout would observe zero and exit 71. This is the foreign-record view bridge
 // used by the filesystem struct-stat migration.
 use omega::language::std::console;
-use omega::language::std::layout;
+use omega::language::core::layout;
 
 data Spread {
     entries: [FieldEntry; 64];

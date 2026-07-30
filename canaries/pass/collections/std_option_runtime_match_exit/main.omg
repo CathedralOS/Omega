@@ -1,7 +1,7 @@
 // The std `Optional<T>` works at runtime for presence/absence matching and
 // payload extraction. `b` is never written: its all-zero home representation
 // must dispatch as None.
-use omega::language::std::option;
+use omega::language::core::option;
 use omega::language::std::console;
 
 data Main {
