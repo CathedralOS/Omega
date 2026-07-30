@@ -92,6 +92,43 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
     // maps aliases for the sources loaded alongside it.
     let mut depend_aliases: Vec<(String, PathBuf)> = Vec::new();
 
+    load_pending_imports(
+        &mut source_storage,
+        &mut imports,
+        root_path,
+        target_name,
+        &mut depend_aliases,
+        timings,
+    )?;
+
+    inject_build_prelude(&mut source_storage, timings)?;
+
+    if native {
+        substitute_native_gui_provider(
+            &mut source_storage,
+            root_path,
+            target_name,
+            &mut imports,
+            &mut depend_aliases,
+            timings,
+        )?;
+    }
+
+    validate_selected_target(&source_storage, target_name)?;
+    let source_file_count = source_storage.file_count();
+    let syntax = assemble_syntax(source_storage)?;
+
+    Ok((source_file_count, syntax))
+}
+
+fn load_pending_imports(
+    source_storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    root_path: &Path,
+    target_name: Option<&str>,
+    depend_aliases: &mut Vec<(String, PathBuf)>,
+    timings: &mut CompileTimings,
+) -> Result<(), Vec<Diagnostic>> {
     while imports.has_pending() {
         let frontier = imports.take_frontier();
         let first_source_id = source_storage.next_source_id();
@@ -105,9 +142,9 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         crate::pipeline::frontend::collect_depend_aliases(
             &parsed,
             &source_storage.syntax_trees,
-            &mut depend_aliases,
+            depend_aliases,
         );
-        for (_, directory) in &depend_aliases {
+        for (_, directory) in depend_aliases.iter() {
             source_storage.register_package_root(directory.clone());
         }
         let discovered_imports = discover_imports(
@@ -115,24 +152,14 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             &source_storage.syntax_trees,
             root_path,
             target_name,
-            &mut depend_aliases,
+            depend_aliases,
         )?;
 
         imports.enqueue(discovered_imports)?;
-        extend_source_storage(&mut source_storage, parsed)?;
+        extend_source_storage(source_storage, parsed)?;
     }
 
-    inject_build_prelude(&mut source_storage, timings)?;
-
-    if native {
-        substitute_native_gui_provider(&mut source_storage, target_name, timings)?;
-    }
-
-    validate_selected_target(&source_storage, target_name)?;
-    let source_file_count = source_storage.file_count();
-    let syntax = assemble_syntax(source_storage)?;
-
-    Ok((source_file_count, syntax))
+    Ok(())
 }
 
 /// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
@@ -221,7 +248,10 @@ const DARWIN_BOUNDARY_PROVIDERS: &[(&str, &str)] = &[("Gui", "MacosGui"), ("Inpu
 
 fn substitute_native_gui_provider(
     source_storage: &mut SourceStorage,
+    root_path: &Path,
     target_name: Option<&str>,
+    imports: &mut ImportQueue,
+    depend_aliases: &mut Vec<(String, PathBuf)>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
     // Gate strictly on darwin/Mach-O: on Windows `Gui`/`Input` have real Win32 host
@@ -260,8 +290,12 @@ fn substitute_native_gui_provider(
         return Ok(());
     }
 
-    // Inject the bundled provider module (self-contained; declares its own
-    // ObjectiveC/CoreGraphics boundary traits + CString domain, no `use`).
+    // Inject the bundled provider module, then load its ordinary dependency
+    // closure. Injection happens after the root import queue is exhausted, so
+    // simply parsing its `use` declarations is not enough: newly discovered
+    // imports must re-enter the same queue and recursive loader as authored
+    // sources. This became observable when MacosGui adopted the public numeric
+    // conversion machines.
     if !has_provider_module {
         let provider_source = read_bundled_std_source("macos_gui")?;
         let first_source_id = source_storage.next_source_id();
@@ -273,7 +307,31 @@ fn substitute_native_gui_provider(
         let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
             parse_sources(lexed, &mut source_storage.syntax_trees)
         })?;
+        crate::pipeline::frontend::collect_depend_aliases(
+            &parsed,
+            &source_storage.syntax_trees,
+            depend_aliases,
+        );
+        for (_, directory) in depend_aliases.iter() {
+            source_storage.register_package_root(directory.clone());
+        }
+        let discovered_imports = discover_imports(
+            &parsed,
+            &source_storage.syntax_trees,
+            root_path,
+            target_name,
+            depend_aliases,
+        )?;
+        imports.enqueue(discovered_imports)?;
         extend_source_storage(source_storage, parsed)?;
+        load_pending_imports(
+            source_storage,
+            imports,
+            root_path,
+            target_name,
+            depend_aliases,
+            timings,
+        )?;
     }
 
     // Rewrite each `<field>: <Boundary>` FIELD -> its provider data type. Collect first
