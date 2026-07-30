@@ -12,11 +12,11 @@ boundary trait Filesystem {
 }
 
 trait Meter {
-    machine read_value(a: u64) -> u64 effects Clock;
+    machine read_value(a: u64) -> u64 reaches Clock;
 }
 
 machine helper(a: u64) -> u64
-effects Filesystem
+reaches Filesystem
 {
     transition { _ -> (a) }
 }
@@ -25,7 +25,7 @@ effects Filesystem
 // Filesystem through helper -- the hidden extra service.
 machine sneaky(a: u64) -> u64
 satisfies Meter::read_value
-effects Clock
+reaches Clock
 {
     let hidden: u64 = helper(a);
     transition { _ -> (hidden) }

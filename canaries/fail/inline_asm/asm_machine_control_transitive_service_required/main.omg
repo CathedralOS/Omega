@@ -2,7 +2,7 @@ use omega::language::core::assembly;
 
 data Main {}
 
-machine Main::helper(&mut self) effects MachineControl {
+machine Main::helper(&mut self) reaches MachineControl {
     asm { hlt }
 }
 

@@ -7,7 +7,7 @@ data Main {
     value: u64;
 }
 
-machine Main::main(&mut self) effects MachineControl {
+machine Main::main(&mut self) reaches MachineControl {
     asm where clobbers rax, rcx, rdx, r10, r11, r15 {
         rdmsr self.value, 3221225600;
         wrmsr 3221225600, self.value

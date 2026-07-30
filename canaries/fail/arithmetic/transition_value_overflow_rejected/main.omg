@@ -9,7 +9,7 @@
 
 boundary trait Console {
     machine exit_process(code: i32)
-    effects
+    reaches
         Console;
 }
 

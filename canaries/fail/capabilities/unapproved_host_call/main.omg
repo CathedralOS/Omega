@@ -5,7 +5,7 @@
 
 boundary trait LocalDisk {
     machine write_bytes(path: &[u8])
-    effects
+    reaches
         LocalDisk;
 }
 
@@ -14,7 +14,7 @@ data Disk {
 }
 
 machine Disk::write_bytes(path: &[u8]) satisfies LocalDisk
-effects
+reaches
     LocalDisk
 {
 }

@@ -1,11 +1,11 @@
-// Chapter 18 "Standard Effects": declared effects are ceilings; a concrete
+// Declared service-reach rows are ceilings; a concrete
 // machine "may not declare a new effect outside the trait requirement." The trait
 // requires only `Console`, but the implementation declares `Filesystem` too,
 // which is outside the trait ceiling and is rejected.
 
 boundary trait Console {
     machine write_line(text: &[u8])
-    effects
+    reaches
         Console;
 }
 
@@ -17,7 +17,7 @@ data MyConsole {
 }
 
 machine MyConsole::write_line(text: &[u8]) satisfies Console
-effects
+reaches
     Console
     Filesystem
 {

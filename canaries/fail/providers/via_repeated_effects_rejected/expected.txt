@@ -1,1 +1,1 @@
-repeats an authored `effects` row
+repeats an authored `reaches` row

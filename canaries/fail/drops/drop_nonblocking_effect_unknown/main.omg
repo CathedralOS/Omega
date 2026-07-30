@@ -6,7 +6,7 @@ data Guard {
 }
 
 machine Guard::drop(&mut self)
-effects
+reaches
     nonblocking
 {
 }

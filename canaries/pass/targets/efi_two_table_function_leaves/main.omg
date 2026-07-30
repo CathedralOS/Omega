@@ -13,7 +13,7 @@ boundary trait BootServices {
         desc_version: &mut u32
     ) -> i32;
     machine exit_boot_services(this: addr, handle: addr, key: u64) -> i32
-    effects BootServices;
+    reaches BootServices;
 }
 data EfiBootServicesTable {
     hdr: u64;
@@ -48,7 +48,7 @@ data Main {
     map_buf: [u8; 256];
 }
 boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32
-effects BootServices + BootServices
+reaches BootServices + BootServices
 {
     self.map_size = 256;
     let boot_services: addr = table.boot_services;

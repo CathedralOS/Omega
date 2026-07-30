@@ -184,7 +184,7 @@ pub(crate) fn derive_satisfies_plans(
                 (None, false) => {
                     // A CHECKED ADAPTER derives a plan row only over a
                     // BOUNDARY trait (a service schema). A plain trait's
-                    // conformance -- including its effect ceiling -- is the
+                    // conformance -- including its service-reach ceiling -- is the
                     // existing trait machinery's business (the decision-20
                     // admission fixtures pin it) and derives nothing here.
                     let is_boundary_trait = typed.traits().iter().any(|definition| {

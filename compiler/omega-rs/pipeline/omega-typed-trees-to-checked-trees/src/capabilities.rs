@@ -709,19 +709,19 @@ mod tests {
             r#"
             boundary trait Folder {
                 machine write_line(text: String)
-                effects
+                reaches
                     Folder;
             }
 
             boundary trait SubFolder {
                 machine write_line(text: String)
-                effects
+                reaches
                     SubFolder;
             }
 
             boundary trait Workspace {
                 machine subfolder(parent: Folder) -> SubFolder
-                effects
+                reaches
                     Workspace;
             }
 
@@ -773,13 +773,13 @@ mod tests {
             r#"
             boundary trait Folder {
                 machine write_line(text: String)
-                effects
+                reaches
                     Folder;
             }
 
             boundary trait RootDir {
                 machine open() -> Folder
-                effects
+                reaches
                     RootDir;
             }
 
@@ -878,13 +878,13 @@ mod tests {
             r#"
             boundary trait Folder {
                 machine write_line(text: String)
-                effects
+                reaches
                     Folder;
             }
 
             boundary trait RootDir {
                 machine open() -> Folder
-                effects
+                reaches
                     RootDir;
             }
 

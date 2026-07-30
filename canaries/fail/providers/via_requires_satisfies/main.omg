@@ -1,5 +1,5 @@
 // An external realization fills one named requirement. `via` without that
-// identity would create an orphan binding whose contract and effect ceiling
+// identity would create an orphan binding whose contract and service-reach ceiling
 // cannot be derived.
 boundary trait Process {
     machine exit(code: i32);

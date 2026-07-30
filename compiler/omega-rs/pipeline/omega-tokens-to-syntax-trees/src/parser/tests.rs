@@ -556,7 +556,7 @@ fn parses_plain_and_boundary_traits() {
 
         boundary trait Console {
             machine write_line(text: String)
-            effects
+            reaches
                 Console;
         }
         "#;
@@ -590,11 +590,11 @@ fn parses_plain_and_boundary_traits() {
 #[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
-        machine run() effects Console suspends; blocks; {
+        machine run() reaches Console suspends; blocks; {
         }
 
         trait Worker {
-            machine wait() effects Clock suspends; blocks; ensures true;
+            machine wait() reaches Clock suspends; blocks; ensures true;
         }
         "#;
 
@@ -646,18 +646,33 @@ fn rejects_duplicate_operational_clauses() {
 }
 
 #[test]
-fn rejects_operational_members_in_service_effect_rows() {
+fn rejects_legacy_effects_reach_clause() {
+    let source = "machine run() effects Console {}";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("legacy reach spelling must fail");
+    assert!(
+        error.message.contains("`effects` reach clause is retired"),
+        "got: {}",
+        error.message
+    );
+    assert!(error.message.contains("`reaches <Service> + ...`"));
+}
+
+#[test]
+fn rejects_operational_members_in_service_reach_rows() {
     for (retired, replacement) in [
         ("Suspend", "suspends;"),
         ("Block", "blocks;"),
         ("thread_block", "blocks;"),
     ] {
-        let source = format!("machine run() effects Console, {retired} {{}}");
+        let source = format!("machine run() reaches Console, {retired} {{}}");
         let tokens = Lexer::new(&source)
             .tokenize()
             .expect("tokenize should succeed");
         let error = parse_syntax_trees(&tokens).expect_err("retired effect member must fail");
-        assert!(error.message.contains("boundary-service reach only"));
+        assert!(error.message.contains("boundary-service identities only"));
         assert!(
             error.message.contains(replacement),
             "got: {}",
@@ -1304,7 +1319,7 @@ fn parses_trait_machine_contract_clauses() {
                 path in String::NonEmpty
             ensures
                 handle in FileHandle::Open
-            effects
+            reaches
                 Filesystem;
         }
         "#;
@@ -1730,7 +1745,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
     let source = r#"
         data Main {}
 
-        machine Main::main(&mut self) effects MachineControl {
+        machine Main::main(&mut self) reaches MachineControl {
             asm where clobbers none { cli; sti }
         }
         "#;
@@ -1767,7 +1782,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
     let source = r#"
         data Main { saved: u64; }
 
-        machine Main::main(&mut self) effects MachineControl {
+        machine Main::main(&mut self) reaches MachineControl {
             asm where clobbers r10, r15 {
                 pushfq self.saved;
                 popfq self.saved
@@ -1813,7 +1828,7 @@ fn parses_x86_msr_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) effects MachineControl {
+        machine Main::main(&mut self) reaches MachineControl {
             asm where clobbers rax, rcx, rdx, r10, r11, r15 {
                 rdmsr self.value, 3221225600;
                 wrmsr 3221225600, self.value
@@ -1859,7 +1874,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) effects MachineControl {
+        machine Main::main(&mut self) reaches MachineControl {
             asm where clobbers rax, r10, r11, r15 {
                 read_cr0 self.value;
                 write_cr0 self.value;
@@ -2643,7 +2658,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
 
         machine Deck::best<machine Key>(&self, card: &Card) -> u64
         where machine Key(value: &Card) -> u64
-        effects Console
+        reaches Console
         requires value in Card::Scorable
         {
             0

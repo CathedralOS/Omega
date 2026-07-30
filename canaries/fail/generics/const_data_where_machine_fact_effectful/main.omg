@@ -3,7 +3,7 @@
 boundary trait Console { machine exit_process(return_code: i32); }
 
 machine is_buffer_size(value: u64) -> bool
-effects
+reaches
     Console
 {
     value > 0 && value <= 8

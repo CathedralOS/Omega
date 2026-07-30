@@ -3,7 +3,7 @@ use omega::language::core::interrupt;
 data Main {}
 
 machine Main::settle(acknowledgement: InterruptAcknowledgement in Pending)
-effects PortIo
+reaches PortIo
 {
     acknowledgement.complete();
 }

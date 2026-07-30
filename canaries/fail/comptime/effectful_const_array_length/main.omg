@@ -11,7 +11,7 @@ data Main {
 }
 
 machine loud_size() -> u64
-effects
+reaches
     Console
 {
     transition {

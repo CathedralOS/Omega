@@ -4,7 +4,7 @@
 // derivation).
 boundary trait Console {
     machine write_line(text: &[u8])
-    effects
+    reaches
         Console;
     machine exit_process(return_code: i32);
 }

@@ -10,7 +10,7 @@ boundary trait Allocator {
 
 boundary trait Net {
     machine write_line(text: &[u8] in Utf8)
-    effects
+    reaches
         Net
         Allocator;
 }

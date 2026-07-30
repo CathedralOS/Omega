@@ -6,7 +6,7 @@ use omega::language::core::assembly;
 
 data Main {}
 
-machine Main::main(&mut self) effects MachineControl {
+machine Main::main(&mut self) reaches MachineControl {
     asm where clobbers none {
         cli;
         sti

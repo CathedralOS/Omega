@@ -185,6 +185,7 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
                 input.at_punctuation(PunctuationKind::LeftBrace)
                     || input.at_contextual("requires")
                     || input.at_contextual("ensures")
+                    || input.at_contextual("reaches")
                     || input.at_contextual("effects")
                     || input.at_contextual("terminates")
                     || input.tokens.is_empty()
@@ -206,11 +207,12 @@ fn parse_state_arrival_contracts<'tokens, 'source>(
     }
 
     if input.at_contextual("ensures")
+        || input.at_contextual("reaches")
         || input.at_contextual("effects")
         || input.at_contextual("terminates")
     {
         return Err(input.error_here(
-            "state signatures admit only arrival `requires`; put exit guarantees, effects, and termination policy on the owning machine",
+            "state signatures admit only arrival `requires`; put exit guarantees, service reach, and termination policy on the owning machine",
         ));
     }
 

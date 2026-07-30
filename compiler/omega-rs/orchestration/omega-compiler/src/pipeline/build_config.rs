@@ -202,7 +202,7 @@ pub(crate) fn compute_build_config(
     if !undeclared.is_empty() {
         return Err(vec![Diagnostic::error(format!(
             "`{machine_name}` reaches boundary service{} `{}` without declaring {} in its \
-             service ceiling; add `effects {}` to the build machine's signature",
+             service ceiling; add `reaches {}` to the build machine's signature",
             if undeclared.len() == 1 { "" } else { "s" },
             undeclared.join(", "),
             if undeclared.len() == 1 { "it" } else { "them" },

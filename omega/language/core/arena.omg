@@ -26,10 +26,10 @@ use omega::language::core::extent;
 
 boundary trait Arena {
     machine allocate(size: u64, align: u64) -> Extent
-    effects
+    reaches
         Arena;
 
     machine deallocate(extent: Extent)
-    effects
+    reaches
         Arena;
 }

@@ -9,7 +9,7 @@ domain [u8]::Utf8 {
 
 boundary trait Disk {
     machine write_line(text: &[u8] in Utf8)
-    effects
+    reaches
         Disk;
 }
 

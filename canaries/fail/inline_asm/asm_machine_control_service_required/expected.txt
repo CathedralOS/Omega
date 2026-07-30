@@ -1,1 +1,1 @@
-uses asm instruction `hlt` but does not declare its service contract: add `effects MachineControl`
+uses asm instruction `hlt` but does not declare its service contract: add `reaches MachineControl`

@@ -327,7 +327,7 @@ pub enum MachineSupplyMode {
     Accepted,
     /// PRV4: an irreducible external leaf -- `satisfies Requirement via
     /// <Binding>;` on a bodyless machine. The satisfied requirement supplies
-    /// the public contract/effect ceiling; the normalized binding is the
+    /// the public contract and service/operational ceilings; the normalized binding is the
     /// realization the lowering consumes. Composite lowerings are ordinary
     /// CheckedBody machines and never carry a binding.
     ExternalRealization { binding: ExternalBindingId },

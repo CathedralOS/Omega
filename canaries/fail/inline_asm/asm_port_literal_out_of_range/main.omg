@@ -3,6 +3,6 @@
 use omega::language::core::assembly;
 
 data Main {}
-machine Main::main(&mut self) effects PortIo {
+machine Main::main(&mut self) reaches PortIo {
     asm { out 70000, 256 }
 }

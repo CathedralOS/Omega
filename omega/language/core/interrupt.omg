@@ -29,11 +29,11 @@ pub domain InterruptMaskGuard::Active;
 boundary data InterruptMaskControl;
 
 boundary machine InterruptMaskControl::save_and_mask(&mut self) -> InterruptMaskGuard
-effects MachineControl
+reaches MachineControl
 ensures true;
 
 boundary machine InterruptMaskGuard::restore(self)
-effects MachineControl
+reaches MachineControl
 requires
     self in InterruptMaskGuard::Active
 ensures true;
@@ -49,7 +49,7 @@ data InterruptAcknowledgement [linear] {
 pub domain InterruptAcknowledgement::Pending;
 
 boundary machine InterruptAcknowledgement::complete(self)
-effects PortIo
+reaches PortIo
 requires
     self in InterruptAcknowledgement::Pending
 ensures true;

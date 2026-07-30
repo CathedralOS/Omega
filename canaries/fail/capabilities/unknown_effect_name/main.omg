@@ -3,7 +3,7 @@
 
 boundary trait Console {
     machine write_line(text: &[u8])
-    effects
+    reaches
         teleport_io;
 }
 

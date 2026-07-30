@@ -13,7 +13,7 @@ data Main {
 }
 
 machine Main::main(&mut self)
-effects MachineControl + PortIo
+reaches MachineControl + PortIo
 {
     asm where clobbers rax, rcx, rdx, r10, r11, r15 {
         out self.port, self.byte;

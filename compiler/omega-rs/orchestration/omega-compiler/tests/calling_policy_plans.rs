@@ -128,12 +128,12 @@ machine X86InterruptPolicy::plan(
 
 boundary trait TimerRoot: Calling<X86InterruptPolicy> {
     machine tick(acknowledgement: InterruptAcknowledgement in Pending)
-    effects PortIo;
+    reaches PortIo;
 }
 
 machine timer_leaf(acknowledgement: InterruptAcknowledgement in Pending)
     satisfies TimerRoot::tick
-    effects PortIo
+    reaches PortIo
 {
     acknowledgement.complete();
 }
