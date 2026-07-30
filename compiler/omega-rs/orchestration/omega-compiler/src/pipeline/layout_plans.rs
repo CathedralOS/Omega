@@ -17,13 +17,13 @@ const SCHEMA_FIELD_CAPACITY: usize = 32;
 const PLAN_ENTRY_CAPACITY: usize = 64;
 
 #[derive(Debug, Clone)]
-struct SchemaFieldInfo {
-    name: String,
-    identity: Option<u64>,
-    key: u64,
-    size: u64,
-    align: u64,
-    source_bits: u64,
+pub(super) struct SchemaFieldInfo {
+    pub(super) name: String,
+    pub(super) identity: Option<u64>,
+    pub(super) key: u64,
+    pub(super) size: u64,
+    pub(super) align: u64,
+    pub(super) source_bits: u64,
 }
 
 pub fn compute_layout_plan(
@@ -50,7 +50,7 @@ pub fn compute_layout_plan(
     validate_plan(&plan, &schema_fields, schema_identity, policy_machine)
 }
 
-fn schema_fields(
+pub(super) fn schema_fields(
     typed: &TypedTrees,
     schema_data: &str,
 ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
@@ -311,7 +311,7 @@ fn build_schema_field_value(field: Option<&SchemaFieldInfo>) -> BuildTimeValue {
     }
 }
 
-fn build_schema_value(
+pub(super) fn build_schema_value(
     typed: &TypedTrees,
     schema_data: &str,
     schema_fields: &[SchemaFieldInfo],
@@ -471,7 +471,7 @@ fn build_schema_value(
     })
 }
 
-fn validate_plan(
+pub(super) fn validate_plan(
     plan: &BuildTimeValue,
     schema_fields: &[SchemaFieldInfo],
     schema_identity: u64,

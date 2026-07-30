@@ -274,23 +274,6 @@ establishment from raw bytes reject.
 **READY.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the source model.
 
-- The ordinary `PlacementPlan`, `AccessPlan`, `ResourceProfile`,
-  `BoundaryReach`, transfer-rule, exposure, observation, and operation records
-  now live in `omega::language::core::layout`. The existing source spelling
-  `Plan` remains the layout-plan record while source-visible layout evaluation
-  is migrated.
-- Add build-time `Placement::plan(schema)` and
-  `Access::plan(schema, validated_layout)` evaluation. Construct each access
-  plan from an all-inaccessible seed using compiler-issued schema field keys.
-- The normalized Rust model now starts from exact canonical schema cardinality
-  with inaccessible defaults and layout-bound field keys. `PlacementPlan` owns
-  one normalized boundary reach for its complete layout/access pairing.
-  Admission consumes and owns the exact Extent loan, and rejection returns that
-  loan. Exposure uses the settled `Exported | BindingPrivate` vocabulary;
-  stable compound mutation is derived from read+write plus exclusive current
-  and source borrows, destructive external reads remain distinct, external
-  compound mutation is unavailable, and atomic permissions name exact
-  operation families.
 - Implement offset-keyed admitted resource profiles, profile restriction on
   subrange loans, consumer-demand/provider-supply compatibility, and the
   build-time base-congruence plus runtime-base alignment split.

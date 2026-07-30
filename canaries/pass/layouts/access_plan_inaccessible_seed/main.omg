@@ -1,0 +1,33 @@
+// Source access policies start from one compiler-keyed inaccessible decision
+// per reflected field and functionally replace only the permissions they mean
+// to expose.
+
+use omega::language::core::layout;
+
+data Pair {
+    readable: u32;
+    hidden: u32;
+}
+
+data PairAccess {}
+
+machine PairAccess::plan(schema: Schema, layout: Plan) -> AccessPlan
+satisfies Access::plan
+{
+    let plan: AccessPlan = AccessPlan::inaccessible(schema);
+    transition { _ -> expose(schema, plan) }
+
+    state expose(schema: Schema, plan: AccessPlan) -> AccessPlan {
+        plan.with(
+            schema.fields[0].key,
+            FieldAccess::Stable {
+                read: true,
+                write: false,
+                exposure: Exposure::Exported
+            }
+        )
+    }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

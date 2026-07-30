@@ -130,15 +130,18 @@ selected reach may touch the supplied range.
 
 The ordinary source records now live in
 `omega::language::core::layout`; its existing `Plan` record remains the current
-source spelling of `LayoutPlan`. The `omega-access-plans` normalized bootstrap
-validates geometry, exact widths, observation/operation compatibility, borrow
-polarity, atomic orderings, exact loan facts, and sealed lowering requests. It
-carries exactly one inaccessible-defaulted slot per schema field and binds
-field keys to the exact layout. Its normalized `PlacementPlan` owns the complete
-layout/access pairing and one normalized boundary reach, which admission checks
-once and lowering retains. Admission consumes and owns the exact Extent loan,
-rejection returns it, and `place` consumes the accepted token. Current
-view-borrow and retained source-loan polarity are checked independently.
+source spelling of `LayoutPlan`. Source access policies construct their exact
+schema cardinality from `AccessPlan::inaccessible(schema)` and keyed functional
+replacement. The compiler evaluates `Access::plan` against a reified validated
+layout, derives transfer widths from that geometry, and evaluates
+`Placement::plan` into one normalized layout/access/reach identity. The
+`omega-access-plans` bootstrap validates geometry, exact widths,
+observation/operation compatibility, borrow polarity, atomic orderings, exact
+loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns
+the complete layout/access pairing and one normalized boundary reach, which
+admission checks once and lowering retains. Admission consumes the exact
+Extent loan, rejection returns it, and `place` consumes the accepted token.
+Current view-borrow and retained source-loan polarity are checked independently.
 Exposure uses the settled `BindingPrivate` spelling; stable compound mutation
 is derived from read+write and exclusivity, destructive external reads remain
 distinct, external compound mutation is unavailable, and atomic permissions
@@ -429,9 +432,9 @@ code rather than compiler types.
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
-- implement the specified `AccessPlan`/`ResourceProfile` source records,
-  `Placement::plan`, admission token, `Placed<P, T>` projection, and
-  target-specific accessor lowering over the live normalized validator;
+- implement offset-keyed `ResourceProfile` admission, `Placed<P, T>`
+  projection, and target-specific accessor lowering over the live normalized
+  validator;
 - recast syntax and diagnostics;
 - independent generated-codec verification against public requirements and
   preserving-codec realizations for unknown members (artifacts already keep

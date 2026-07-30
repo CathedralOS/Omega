@@ -311,6 +311,7 @@ dependencies = [
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
+ "omega-access-plans",
  "omega-artifacts",
  "omega-backend-pipeline",
  "omega-backend-plan",

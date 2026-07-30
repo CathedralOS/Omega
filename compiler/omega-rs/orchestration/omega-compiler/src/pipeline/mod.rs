@@ -1,3 +1,4 @@
+mod access_plans;
 mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
@@ -30,6 +31,7 @@ mod trust_report;
 mod wire_plans;
 mod wire_report;
 
+pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::compile_to_checked;
 pub use compile_options::CompileOptions;
@@ -38,6 +40,7 @@ pub use compiler::compile;
 pub use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
 };
+pub use omega_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
 pub use omega_layout_plans::{
     ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, MaterializationAction,
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
