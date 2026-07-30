@@ -102,7 +102,7 @@ construction resolves its boundary slot against this carrier and copies the
 resulting plan identity into the root candidate before validation; an absent or
 ambiguous retained selection rejects.
 
-The normalized service schema also retains each linear bodyless parameter
+The normalized service schema also retains each linear routed parameter
 qualification as a structured entry claim. Its carrier-aware semantic-domain
 identity, `accepts` authority-flow verb, and born-strict compiler carry policy
 participate in provider-plan identity. The external-root selection bridge
@@ -156,7 +156,7 @@ containment do not prevent that binary from modifying arbitrary process memory.
 The selected-provider manifest retains its exact identity and trust receipt.
 Process- or hardware-isolated providers instead remain external endpoints.
 The root declaration and build-profile rejection surface for these transitive
-trust dependencies remains owner question #5.
+trust dependencies remains owner question #4.
 
 ## Calling plans
 
@@ -221,7 +221,7 @@ A hosted gateway is an ordinary boundary provider backed by a bounded native
 worker resource. Reaching its submission safe point does not bound native
 completion, cancellation finalization, retained-loan release, or later gateway
 admission. Pool/queue/backpressure and failure-domain semantics remain owner
-question #3.
+question #2.
 
 ## Registered callbacks
 
@@ -443,9 +443,9 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 - dynamic-library loading/unloading under component versioning;
 - transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #5);
+  executable providers (`OWNER_QUESTIONS.md` #4);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #6); and
+  (`OWNER_QUESTIONS.md` #5); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

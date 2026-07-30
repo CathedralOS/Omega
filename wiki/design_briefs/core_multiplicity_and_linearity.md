@@ -123,7 +123,7 @@ Divisibility is not implied by linearity. Most linear values are indivisible:
 file handles, acknowledgement tokens, and DMA completions have no composition
 operator. A content-bearing qualified claim may separately project into a
 compiler-owned partial composition algebra. The initial closed vocabulary is
-`Indivisible | Interval<Scalar>`. Owner question #4 governs the authored
+`Indivisible | Interval<Scalar>`. Owner question #3 governs the authored
 selection/defaulting rule; ordinary linearity never implies a content
 projection.
 

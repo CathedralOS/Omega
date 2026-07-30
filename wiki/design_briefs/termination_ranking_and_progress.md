@@ -175,7 +175,7 @@ capability values. They use ordinary domain declaration syntax, for example:
 domain Scheduler::WeakFair;
 ```
 
-The qualification is bodyless: it supplies no predicate or operators, never
+The qualification is routed and predicate-free: it supplies no predicate or operators, never
 flow-narrows into existence, and does not entail another profile in v1.
 Profile establishment uses owner-authored provider requirements and admitted
 receipts:

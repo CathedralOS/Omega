@@ -61,7 +61,7 @@ pub domain CounterDiskKnown::Decoded;
 
 The format package's checked validator establishes the fact. Tests may
 construct historical shapes directly; trusted consumers may require
-`CounterDiskKnown in Decoded`. The security boundary is validated provenance,
+`CounterDiskKnown::Decoded`. The security boundary is validated provenance,
 not an inability to construct ordinary data.
 
 Exhaustive matching makes adding a known era loud. A package that needs the

@@ -127,7 +127,7 @@ field.
 
 Admitted suppliers originate root Extents through boundary-machine receipts:
 boot handoff, an address-space mapper, a parent allocator's backing store, or a
-device provider. `Granted` is bodyless, so an ordinary `as` proof cannot create
+device provider. `Granted` is routed, so an ordinary `as` proof cannot create
 it. The provider requirement names the exact qualified result that admission
 may establish, and the receipt records that origin. Checked code derives
 children through resource transformations whose outcome mappings conserve the
@@ -182,7 +182,7 @@ and separated composition remain decidable. Until it exists, owned
 virtual-to-physical decomposition rejects; the initial content vocabulary is
 `Indivisible | Interval<Scalar>`.
 
-The source migration depends on bodyless establishment, admitted
+The source migration depends on routed establishment, admitted
 boundary-machine receipts, and generic resource-frontier outcome mappings. See
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
 
@@ -1266,10 +1266,10 @@ The IDT is consequently a first serious customer, not a special construct:
 The source obligation contract is live in
 `omega::language::core::interrupt`. `InterruptMaskGuard` is ordinary linear
 data carrying the exact root, invocation, control, guard, prior-state, and
-masked-state identities used at settlement; bodyless `Active` records valid
+masked-state identities used at settlement; routed `Active` records valid
 issuance and is required by consuming `restore`. An independent ordinary
 linear `InterruptAcknowledgement` carries the exact root, provider execution,
-invocation, policy, and acknowledgement identities; bodyless `Pending` is
+invocation, policy, and acknowledgement identities; routed `Pending` is
 required by consuming `complete`. Reconstructing either field set does not
 reconstruct the fact. Restoring the prior CPU interrupt mask reaches
 `machine_control`, while acknowledging the interrupt source reaches
@@ -1281,7 +1281,7 @@ invocation or acknowledgement identities reject, nested saved-mask guards
 restore only the newest exact prior state, active entries pin root retirement,
 and deriver-owned exit requires the entry mask state plus the exact completed
 acknowledgement. The compiler-selected root schema now retains a linear
-bodyless entry qualification such as `InterruptAcknowledgement::Pending` as a
+routed entry qualification such as `InterruptAcknowledgement::Pending` as a
 structured `accepts` row with born-strict carry. The provider-plan receipt
 identity binds that row, the external-root selection bridge preserves it, and
 the qualification artifact reports it. This closes the static admitted-entry

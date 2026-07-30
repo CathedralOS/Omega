@@ -140,7 +140,7 @@ Three open threads are secretly the *same* problem — carrying a proven fact
 through code without re-proving it:
 
 - **arithmetic-range** (S4 narrowing → return `Wrapping` ops to Exact),
-- **text validity** (`[u8] in Utf8` → retire the `String` vestige),
+- **text validity** (`[u8]::Utf8` → retire the `String` vestige),
 - **recoverable errors** (a "fallible" fact on a sum → strict-use + inferred
   failure surface, ch16).
 

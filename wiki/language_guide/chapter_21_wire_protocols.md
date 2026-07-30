@@ -32,7 +32,7 @@ An identity-keyed schema assigns stable identities to fields:
 ```omega
 data LoginMessage {
     #1 account_id: AccountId;
-    #2 login: Text in LoginName;
+    #2 login: Text::LoginName;
     #3 nickname: Optional<Text>;
     retired #5;
 }
@@ -270,7 +270,7 @@ required values remain explicit and auditable.
 Domain-qualified fields make semantic evolution visible to the checker:
 
 ```omega
-#2 login: Text in LoginName;
+#2 login: Text::LoginName;
 ```
 
 Changing that field to another semantic domain is a type change even if both

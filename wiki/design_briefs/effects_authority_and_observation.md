@@ -14,8 +14,8 @@ Omega spells service reach and execution behavior separately:
 
 ```omega
 machine backup(
-    src: [u8] in Utf8,
-    dst: [u8] in Utf8
+    src: [u8]::Utf8,
+    dst: [u8]::Utf8
 ) -> BackupResult
    reaches Readable + Queryable;
    suspends;
@@ -45,7 +45,7 @@ ceilings separately:
 ```omega
 boundary trait Readable {
     machine read(
-        path: [u8] in Utf8,
+        path: [u8]::Utf8,
         out: &mut Vec<u8>
     ) -> ReadResult
       suspends;
@@ -419,7 +419,7 @@ identifiers resolve normally; there is no global hard-coded service table.
 - General trace propositions, deadline/starvation contracts, and entailment
   between decision 23's opaque progress profiles.
 - The normalized abstract-work plan and sequential/branch/SCC composition
-  algebra in `OWNER_QUESTIONS.md` #2.
+  algebra in `OWNER_QUESTIONS.md` #1.
 - Additional operational-clause declarations.
 - Named service-row variables beyond the concrete envelope substitution used
   by `invokes`.

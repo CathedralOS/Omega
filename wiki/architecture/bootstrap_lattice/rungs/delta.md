@@ -93,7 +93,7 @@ The checker stays as small as it can possibly be.
 - The term language and inference rule set: how small can the checker be while
   expressing the math we want?
 - The certificate format shared with producers (also proof-engine-north-star open
-  question #3).
+  question #2).
 - The soundness bridge to the reference interpreter's operational semantics.
 - Reconciling the fast native checker against the slow reference route.
 - Relationship to the existing `omega-rs` contract-entailment engine, which today

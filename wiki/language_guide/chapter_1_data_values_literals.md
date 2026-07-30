@@ -12,7 +12,7 @@ Omega starts with explicit data shapes and explicit values.
 > makes `health` mandatory because `0` is out of its range. This generalizes the
 > case-bearing rule below ("common fields may not declare default initializers; ZII
 > makes the zero valid") to *all* data. A convenience non-zero default, if wanted, is
-> an explicit constructor machine (`Config::with_defaults() -> Config in Ready`), not
+> an explicit constructor machine (`Config::with_defaults() -> Config::Ready`), not
 > a hidden field default. This prohibition includes scalar, record, array, and
 > every other aggregate initializer after a data field. *Settled model; not yet
 > implemented — today scalar defaults emit and array defaults silently drop;
@@ -171,9 +171,8 @@ appears at a USE site. Checks, patterns, and compositions all use the one
 ([Domains](chapter_8_domains.md)):
 
 ```omega
-domain Command::Interactive {
-    self in Command::Move | Command::Say
-}
+domain Command::Interactive
+    requires self in Command::Move | Command::Say;
 ```
 
 A case-subset domain replaces the shadow-enum pattern (`Direction` vs
@@ -260,9 +259,11 @@ case-bearing subject must cover every case through decidable arms (case arms
 and pure case-union domain arms) or close with `_`; counted gaps name the
 missing cases, and uncountable arms (predicate domains, `if`-guarded
 patterns, value compares) make the error suggest `_`. The case-subset
-spelling `domain Command::Interactive { self in Command::Move |
-Command::Say }` parses, and the body fact participates in executable
-membership, so a subset domain works as a runtime arm.
+  semantics are live, and the target spelling is
+  `domain Command::Interactive requires self in Command::Move |
+  Command::Say;`; the predicate participates in executable membership, so a
+  subset domain works as a runtime arm. Source migration to the `requires`
+  spelling is tracked with the domain-establishment work.
 Mixed shapes are live (see the rules above). Still pending:
 `match`-statement arms and recursive Equatable types (both rejected loudly at
 the conformance item). Bounded byte carriers participate in synthesized
@@ -274,7 +275,7 @@ statement must reuse that spelling rather than inventing another pattern
 language. Generic payloads use ordinary cased data (`Optional<T>`-style), while the layout rule for payload storage
 (tag-prefixed overlay with the zero case payload-free). A domain declared as a
 pure case union is recognized for exhaustiveness
-SYNTACTICALLY -- the domain body must contain exactly the fact
+  SYNTACTICALLY -- the domain `requires` clause must contain exactly the fact
 `self in Type::A | Type::B` over the target type's own cases; recognition by
 general fact analysis remains a possible later widening.
 
@@ -368,7 +369,7 @@ The rule is **copy, never synthesize or interpret**:
   relationship, and even that is minimizable.
 
 To treat a literal as text, establish the encoding domain explicitly
-(`"hi" as [u8] in Utf8`, which the compiler discharges by checking the bytes at
+(`"hi" as [u8]::Utf8`, which the compiler discharges by checking the bytes at
 compile time — [Chapter 8](chapter_8_domains.md)). The literal itself stays raw
 bytes.
 

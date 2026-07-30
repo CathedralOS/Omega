@@ -109,7 +109,7 @@ nonzero float embeds into signed `Rat` exactly (binary values are dyadic
 rationals), while signed zero, infinity, and NaN inhabit the separate
 proof-level `FloatMeaning` cases. Float verification invokes executable
 `FloatSemantics` functions whose finite branches are exact Rat arithmetic plus
-one format rounding step. Its `FiniteNonZero` payload is `Rat in NonZero`, so
+one format rounding step. Its `FiniteNonZero` payload is `Rat::NonZero`, so
 the proof carrier has no overlapping zero representation. `Int` follows when
 subtraction-closed reasoning wants it, with one rule stated at introduction:
 `Int`'s order has no floor, so ranking views over it must produce a
@@ -367,7 +367,8 @@ terminates by items -> Slice::Length;
     }
 }
 
-domain [i32]::SortedAscending { sorted(self); }
+domain [i32]::SortedAscending
+    requires sorted(self);
 ```
 
 The definition also specifies the decider: a checked validator runs it (or a

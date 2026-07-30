@@ -8,43 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-30.
 
-## 1. How does a domain owner delegate canonical qualification authority?
-
-`RepresentationQualification<Q>` now opens a bodyless domain only when its
-satisfier is declared in the domain-owning package. The semantic rule also
-allows an explicit owner-authorized delegate, but no source declaration says
-which package receives that authority. Import visibility, dependency aliases,
-trait visibility, and matching names cannot safely imply delegation: each is
-caller-controlled or too broad, while canonical qualification licenses erased
-fact establishment.
-
-Decide:
-
-- whether delegation is authored on the domain declaration, in an owner package
-  manifest, through an owner-owned boundary requirement, or through another
-  existing declaration relationship;
-- how the delegate package is identified across dependency aliases, relocation,
-  versioning, and separate compilation without treating a filesystem path as
-  semantic identity;
-- whether authority targets one exact domain, a transparent alias, a domain
-  subtree, or a broader package surface, and whether the carrier and canonical
-  satisfier identity are pinned independently;
-- whether delegation is public and re-exportable, explicitly non-transitive, or
-  may itself be delegated under a separately authored grant;
-- how compatibility and revocation work when either package evolves, including
-  whether changing the grant is a semantic-interface break; and
-- which normalized grant identity appears beside the domain and satisfier in
-  checked qualification evidence and package-admission reports.
-
-Recommendation: use an owner-authored, non-transitive grant naming one exact
-atomic bodyless domain and one normalized package identity. The grant should
-be part of the owner's semantic interface, copied into the dependent package's
-admission inputs, and retained in every delegated qualification-use artifact.
-Do not derive authority from imports, build dependency aliases, public trait
-visibility, carrier ownership, or the presence of a conformer. Until this
-surface settles, third-party canonical satisfiers must continue to fail closed.
-
-## 2. What is the normalized bounded-work plan and composition algebra?
+## 1. What is the normalized bounded-work plan and composition algebra?
 
 WCSU gives Omega a static space bound: a closed activation can reserve one
 fixed, nonmoving stack and retain it across suspension. It says nothing about
@@ -97,7 +61,7 @@ trusted as its weakest timing premise. Do not use elapsed compiler time, infer
 safe points from optimizer placement, or make build evaluation's optional
 budget policy the language's work semantics.
 
-## 3. What is the reusable hosted-FFI execution and gateway contract?
+## 2. What is the reusable hosted-FFI execution and gateway contract?
 
 An opaque native function supplies neither checked WCSU nor Omega's blocking,
 cancellation, retention, callback, and failure guarantees. A direct adapter can
@@ -148,7 +112,7 @@ abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
 
-## 4. How are claim-content projections and backing authored?
+## 3. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
 each content-bearing qualification publishes one normalized projection into
@@ -188,7 +152,7 @@ references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, and separated
 composition without executing owner-defined code.
 
-## 5. How are opaque in-process executable dependencies surfaced and refused?
+## 4. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -223,7 +187,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 6. What does contained execution failure do to outstanding obligations?
+## 5. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -255,7 +219,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 7. How are modular concurrency environment premises authored and discharged?
+## 6. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -299,22 +263,22 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 8. What is the public float-conversion requirement family?
+## 7. What is the public float-conversion requirement family?
 
-The float record settles conversion semantics but not their public operation
-names or signatures. `FloatSemantics` already defines format conversion,
-integer-to-float rounding, and exact/trapping/saturating float-to-integer
-results. The language record also settles that compatibility `as` is not the
-public conversion API, that directed rounding uses separately named operations,
-and that arithmetic policies are static qualifications rather than runtime mode
-arguments. Publishing guessed names now would freeze a core API that the owning
-brief never chose.
+The float record settles conversion semantics but not the public names or
+signatures for policy-bearing conversions. `FloatSemantics` already defines
+format conversion, integer-to-float rounding, and
+exact/trapping/saturating float-to-integer results. Exact
+denotation-preserving coercion belongs to `as`; directed rounding and every
+lossy, trapping, saturating, or checked-result choice require separately
+visible operations. Publishing guessed names now would freeze a core API that
+the owning brief never chose.
 
 Decide:
 
-- whether destination-qualified operations such as `F32::from_f64` and
-  `I32::from_f64` are the canonical identities, or whether one generic
-  conversion requirement carries source and destination types;
+- which non-exact cases use destination-qualified operations such as
+  `F32::from_f64` and `I32::from_f64`, and whether one generic conversion
+  requirement instead carries source and destination types;
 - whether exact, trapping, and saturating float-to-integer behavior is selected
   solely from the destination qualification or appears in distinct requirement
   identities;
@@ -323,9 +287,10 @@ Decide:
   parameter;
 - how source-visible primitive carrier requirements cite the proof-only
   `FloatSemantics` conversion functions and integer meaning;
-- whether same-format conversion is a real identity operation or absent from
-  the requirement family; and
-- which names replace compatibility `as` in diagnostics and migration canaries.
+- whether same-format policy conversion is a real operation or absent from the
+  requirement family; and
+- which diagnostics distinguish rejected exact `as` from the available
+  policy-bearing operations.
 
 Recommendation: use destination-qualified, statically typed requirement
 identities; let the destination arithmetic-policy qualification select
