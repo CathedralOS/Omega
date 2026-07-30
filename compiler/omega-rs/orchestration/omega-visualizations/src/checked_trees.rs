@@ -183,6 +183,73 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n    }");
     }
+    let mut boundary_authority_rows = program
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| {
+            plan.schema.methods.iter().flat_map(move |method| {
+                method.entry_claims.iter().map(move |claim| {
+                    (
+                        plan,
+                        method,
+                        claim,
+                        method
+                            .parameter_type_identities
+                            .get(claim.parameter_index)
+                            .map(String::as_str),
+                    )
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    boundary_authority_rows.sort_by(
+        |(left_plan, left_method, left_claim, _), (right_plan, right_method, right_claim, _)| {
+            left_plan
+                .name
+                .cmp(&right_plan.name)
+                .then_with(|| left_method.name.cmp(&right_method.name))
+                .then_with(|| left_claim.parameter_index.cmp(&right_claim.parameter_index))
+                .then_with(|| left_claim.domain.cmp(&right_claim.domain))
+        },
+    );
+
+    json.push_str("\n  ],\n  \"boundary_authority_flow\": [");
+    for (index, (plan, method, claim, subject_type)) in boundary_authority_rows.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"flow\": ");
+        push_json_string(&mut json, claim.authority_flow.as_str());
+        json.push_str(",\n      \"boundary\": ");
+        push_json_string(&mut json, &plan.schema.trait_name);
+        json.push_str(",\n      \"requirement\": ");
+        push_json_string(
+            &mut json,
+            &format!("{}::{}", plan.schema.trait_name, method.name),
+        );
+        json.push_str(",\n      \"parameter_index\": ");
+        json.push_str(&claim.parameter_index.to_string());
+        json.push_str(",\n      \"subject_type\": ");
+        if let Some(subject_type) = subject_type {
+            push_json_string(&mut json, subject_type);
+        } else {
+            json.push_str("null");
+        }
+        json.push_str(",\n      \"domain\": ");
+        push_json_string(&mut json, &claim.domain);
+        json.push_str(",\n      \"effective_carry\": ");
+        push_carry_policy_json(&mut json, claim.effective_carry);
+        json.push_str(",\n      \"provider_plan\": ");
+        push_json_string(&mut json, &plan.name);
+        json.push_str(",\n      \"receipt_identity\": ");
+        push_json_string(
+            &mut json,
+            &format!("0x{:016x}", plan.identity_fingerprint()),
+        );
+        json.push_str("\n    }");
+    }
+
     json.push_str("\n  ],\n  \"canonical_qualification_uses\": [");
     for (index, use_fact) in program
         .facts

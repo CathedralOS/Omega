@@ -1268,6 +1268,57 @@ impl TypedTrees {
         self.type_reference_table.arithmetic_domain(type_reference)
     }
 
+    /// The normalized usage multiplicity of a typed value. This belongs to the
+    /// typed representation rather than an individual checker: provider
+    /// schemas, ownership checking, and later admission all need the same
+    /// answer for constrained, generic, and aggregate carriers.
+    pub fn type_multiplicity(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> omega_core::semantics::Multiplicity {
+        use omega_core::semantics::Multiplicity;
+        use types::TypeReferenceNode;
+
+        if !type_reference.is_valid() {
+            return Multiplicity::Affine;
+        }
+        match self.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Unit => {
+                Multiplicity::Unrestricted
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => self.type_multiplicity(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                self.type_multiplicity(*element_type)
+            }
+            TypeReferenceNode::Named { symbol, name } => {
+                if let Some(parameter) = self
+                    .data_type_parameters
+                    .iter()
+                    .find_map(|(_, parameter)| (parameter.symbol == *symbol).then_some(parameter))
+                {
+                    return parameter.bounds.multiplicity;
+                }
+                if types::PrimitiveType::from_name(name.as_str()).is_some() {
+                    return Multiplicity::Unrestricted;
+                }
+                self.data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == name.as_str())
+                    .map(|definition| definition.properties.multiplicity)
+                    .unwrap_or(Multiplicity::Affine)
+            }
+            TypeReferenceNode::Generic { base_name, .. } => self
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == base_name.as_str())
+                .map(|definition| definition.properties.multiplicity)
+                .unwrap_or(Multiplicity::Affine),
+            TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {
+                Multiplicity::Affine
+            }
+        }
+    }
+
     pub fn type_reference_symbol(
         &self,
         type_reference: types::TypeReferenceHandle,

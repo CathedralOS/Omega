@@ -33,6 +33,11 @@ pub struct ServiceMethod {
     /// are part of these identities, so a provider plan cannot be replayed
     /// after an authority-bearing parameter is weakened or replaced.
     pub parameter_type_identities: Vec<String>,
+    /// Linear bodyless qualifications accepted at this boundary entry. These
+    /// are structured separately from the complete type identity so provider
+    /// admission, carry planning, and authority-flow artifacts do not have to
+    /// parse a display string to recover a source obligation.
+    pub entry_claims: Vec<ServiceEntryClaim>,
     /// Whether the method declares a return type.
     pub has_result: bool,
     /// Semantic identity of the declared result type. `None` denotes no
@@ -49,6 +54,33 @@ pub struct ServiceMethod {
     /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
     /// `Calling<C>` relationship. Policy type/source identity is excluded.
     pub calling_plan_fingerprint: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceEntryAuthorityFlow {
+    /// The selected provider accepts a caller/external-world claim at entry.
+    Accepts,
+}
+
+impl ServiceEntryAuthorityFlow {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepts => "accepts",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceEntryClaim {
+    /// Positional parameter ordinal after excluding any receiver.
+    pub parameter_index: usize,
+    /// Carrier-aware normalized semantic-domain identity retained by the typed
+    /// constraint. This is not the authored short spelling.
+    pub domain: String,
+    /// Accepted resource claims are born maximally strict. Exact positive
+    /// carry permissions remain separate constrained-type facts.
+    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub authority_flow: ServiceEntryAuthorityFlow,
 }
 
 /// How one method binds on one target -- the Binding sum's union with the
@@ -202,6 +234,7 @@ fn collect_service_methods(
                         .into_string()
                 })
                 .collect(),
+            entry_claims: service_entry_claims(program, signature),
             has_result: signature.return_type.is_valid(),
             result_type_identity: signature.return_type.is_valid().then(|| {
                 program
@@ -217,6 +250,83 @@ fn collect_service_methods(
                 signature.symbol,
             ),
         });
+    }
+}
+
+fn service_entry_claims(
+    program: &omega_typed_trees::TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> Vec<ServiceEntryClaim> {
+    let mut claims = Vec::new();
+    for (parameter_index, parameter) in program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .enumerate()
+    {
+        if program.type_multiplicity(parameter.type_reference)
+            != omega_core::semantics::Multiplicity::Linear
+        {
+            continue;
+        }
+        append_bodyless_entry_claims(
+            program,
+            parameter.type_reference,
+            parameter_index,
+            &mut claims,
+        );
+    }
+    claims.sort_by(|left, right| {
+        left.parameter_index
+            .cmp(&right.parameter_index)
+            .then_with(|| left.domain.cmp(&right.domain))
+    });
+    claims.dedup_by(|left, right| {
+        left.parameter_index == right.parameter_index && left.domain == right.domain
+    });
+    claims
+}
+
+fn append_bodyless_entry_claims(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    parameter_index: usize,
+    claims: &mut Vec<ServiceEntryClaim>,
+) {
+    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            append_bodyless_entry_claims(program, *referee, parameter_index, claims);
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            append_bodyless_entry_claims(program, *base_type, parameter_index, claims);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                let TypeConstraintNode::Domain(domain) = constraint else {
+                    continue;
+                };
+                if domain.symbol.is_valid()
+                    && domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+                {
+                    claims.push(ServiceEntryClaim {
+                        parameter_index,
+                        domain: domain
+                            .semantic_id
+                            .is_valid()
+                            .then(|| program.semantic_domains.name(domain.semantic_id))
+                            .flatten()
+                            .unwrap_or_else(|| domain.name.as_str())
+                            .to_owned(),
+                        effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+                        authority_flow: ServiceEntryAuthorityFlow::Accepts,
+                    });
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -275,6 +385,21 @@ impl ProviderPlan {
             for parameter in &method.parameter_type_identities {
                 rendered.push_str("\nmp:");
                 rendered.push_str(parameter);
+            }
+            let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
+            entry_claims.sort_by(|left, right| {
+                left.parameter_index
+                    .cmp(&right.parameter_index)
+                    .then_with(|| left.domain.cmp(&right.domain))
+            });
+            for claim in entry_claims {
+                rendered.push_str(&format!(
+                    "\nmc:{}/{}/{}/{}",
+                    claim.parameter_index,
+                    claim.domain,
+                    claim.authority_flow.as_str(),
+                    claim.effective_carry,
+                ));
             }
             if let Some(result) = &method.result_type_identity {
                 rendered.push_str("\nmr:");
@@ -388,6 +513,7 @@ mod tests {
                     name: "write_line".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["String".to_owned()],
+                    entry_claims: Vec::new(),
                     has_result: false,
                     result_type_identity: None,
                     service_reach: vec!["Console".to_owned()],
@@ -399,6 +525,7 @@ mod tests {
                     name: "read_byte".to_owned(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
                     has_result: true,
                     result_type_identity: Some("u8".to_owned()),
                     service_reach: vec!["Console".to_owned()],
@@ -410,6 +537,7 @@ mod tests {
                     name: "exit_process".to_owned(),
                     parameter_count: 1,
                     parameter_type_identities: vec!["i32".to_owned()],
+                    entry_claims: Vec::new(),
                     has_result: false,
                     result_type_identity: None,
                     service_reach: vec!["Console".to_owned()],
@@ -503,6 +631,33 @@ mod tests {
         assert_ne!(
             qualified_parameter.identity_fingerprint(),
             changed_result.identity_fingerprint()
+        );
+    }
+
+    #[test]
+    fn structured_entry_claims_enter_provider_identity() {
+        let baseline = windows_console_plan();
+        let mut accepted = baseline.clone();
+        accepted.schema.methods[0].entry_claims = vec![ServiceEntryClaim {
+            parameter_index: 0,
+            domain: "InterruptAcknowledgement::Pending".to_owned(),
+            effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        }];
+
+        assert_ne!(
+            accepted.identity_fingerprint(),
+            baseline.identity_fingerprint(),
+            "the receipt identity must bind structured accepted authority, not only display types"
+        );
+
+        let mut relaxed = accepted.clone();
+        relaxed.schema.methods[0].entry_claims[0].effective_carry =
+            omega_core::semantics::CarryPolicy::PERMISSIVE;
+        assert_ne!(
+            accepted.identity_fingerprint(),
+            relaxed.identity_fingerprint(),
+            "the compiler-owned entry carry policy is receipt identity"
         );
     }
 
