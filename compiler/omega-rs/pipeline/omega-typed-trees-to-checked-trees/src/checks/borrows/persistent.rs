@@ -143,6 +143,10 @@ fn is_state_independent_borrow_source(
         omega_typed_trees::expression::ExpressionNode::Cast(cast) => {
             is_state_independent_borrow_source(program, cast.value)
         }
+        omega_typed_trees::expression::ExpressionNode::Binary(binary) => {
+            is_state_independent_borrow_source(program, binary.left)
+                && is_state_independent_borrow_source(program, binary.right)
+        }
         omega_typed_trees::expression::ExpressionNode::Call(call) => {
             let Some(state) = crate::semantic_calls::find_state(program, call.target_symbol) else {
                 return false;
@@ -151,7 +155,6 @@ fn is_state_independent_borrow_source(
         }
         omega_typed_trees::expression::ExpressionNode::ArrayLiteral(_)
         | omega_typed_trees::expression::ExpressionNode::Atomic(_)
-        | omega_typed_trees::expression::ExpressionNode::Binary(_)
         | omega_typed_trees::expression::ExpressionNode::Boolean(_)
         | omega_typed_trees::expression::ExpressionNode::Float(_)
         | omega_typed_trees::expression::ExpressionNode::Indexed(_)
