@@ -34,7 +34,7 @@ transitions, while preserved semantic evidence lives under
 | Drops | Preserved from checked-flow ownership events into graph ownership summaries. |
 | Calls | State/helper calls become graph actions or edge computations. |
 | Transitions | First-class graph edges with targets, guards, continuations, and payloads. |
-| Effects | Accumulated per machine/state/edge where later reporting or lowering needs them. |
+| Reach | Accumulated per machine/state/edge where later reporting or lowering needs it. |
 | Boundary edges | Preserved from checked-flow boundary events into state-local graph boundary summaries. |
 
 ## Ownership Rules

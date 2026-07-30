@@ -19,7 +19,7 @@ machine build(
     b: &mut Build,
     fs: &mut Filesystem
 )
-    effects Filesystem + Console
+    reaches Filesystem + Console
 {
     ...
 }

@@ -236,7 +236,7 @@ The v1 rule: *a call may change exactly what its signature admits — the paths
 it takes by exclusive borrow (per-field inferred intra-unit; declared via a
 `stores` clause at machine boundaries, mandatory on boundary traits — SPARK's
 assume-pure import default is a documented trap), plus the abstract regions
-of its declared capability effects. Caller havocs atom-wise on that set;
+of its declared capability reach. Caller havocs atom-wise on that set;
 ensures adds deltas; requires-scope binders name entry values (no `old`).*
 States: the signature is the arrival contract — parameter refinements +
 state-level `requires`, proven at every in-edge, assumed at entry, consumed

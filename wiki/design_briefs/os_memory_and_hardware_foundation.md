@@ -41,7 +41,7 @@ status.
 | boundary entry plan | one normalized contract containing a `CallPlan` and a `StatePlan` | firmware entry, interrupts, exceptions, syscalls, callbacks |
 | symbolic materialization | toolchain-resolved identities placed into structures at the last legal phase | IDT targets, image symbols, callbacks |
 | executable-artifact installation | validate and place immutable admitted code under scoped authority; never convert arbitrary bytes to code | boot images, components, AP trampolines |
-| external-root ledger | all installed inbound roots plus their effects, trust, stack domains, preemption relations, and version pins | interrupts, callbacks, runtime entries |
+| external-root ledger | all installed inbound roots plus their reach, trust, stack domains, preemption relations, and version pins | interrupts, callbacks, runtime entries |
 | external loan | a linear token standing in for a borrower the checker cannot observe | DMA and device ownership transfer |
 | carry/runtime contracts | value demands joined with scheduler/storage behavior at admission | suspension, migration, CPU/thread affinity, address stability |
 
@@ -304,7 +304,7 @@ same reflected schema and the already validated layout so it can reject or
 hide fields that do not admit a primitive access. The placement policy chooses
 both and states the static service reach. Runtime provenance proves that this
 reach may touch the supplied region; it never manufactures or changes a
-machine's effect row. Transfer containers and effective widths are derived from
+machine's reach row. Transfer containers and effective widths are derived from
 the validated layout; the access policy does not restate geometry.
 
 `Schema` carries opaque compiler-issued field keys. Access policies address
@@ -1124,14 +1124,14 @@ external root because hardware reaches it without an Omega caller.
 The root ledger is a normalized artifact, not user-authored prose. Each entry
 records package-qualified requirement/provider identities, evaluated boundary
 plan, artifact and receipt identities, authority and scope actually granted,
-effects, stack domain, preemption/nesting relationships, and version/liveness
+reach, stack domain, preemption/nesting relationships, and version/liveness
 pins. It also records the public ceilings, realized demands or footprints, and
 validation receipts for the root's stack, structural work, and machine-state
 resource columns. Friendly names are presentation only.
 
 The ledger closes three whole-program holes:
 
-- effects and trust reachable only from hardware callbacks remain visible;
+- reach and trust reachable only from hardware callbacks remain visible;
 - WCSU composes across interrupt nesting and same-stack roots; and
 - hard-root structural work and final machine-state use refine their admitted
   ceilings instead of disappearing behind the absence of an Omega caller; and
@@ -1196,7 +1196,7 @@ canonical fixed-work provider summaries compose transitively while rejecting
 missing callees, cycles, zero invocation bounds, overflow, and excess demand. The report is
 deliberately not a numbered compiler phase because roots may be installed after
 image build. A sealed provider-execution binding now joins the normalized
-selected provider-plan identity, exact entry and boundary, effects, and the
+selected provider-plan identity, exact entry and boundary, reach, and the
 three independent resource realizations at root admission. It is identity-bound
 into the ledger/report and cannot be replayed after entry or realization drift.
 IDT construction is an acceptance customer for these generic mechanisms, not
@@ -1347,9 +1347,9 @@ fact. An activation that may retain CPU- or thread-restricted values requires
 the selected provider to establish the corresponding preservation claim,
 commonly by consuming or borrowing an affinity/pinning capability.
 
-The effect row stays static: a live mask or affinity token may make a particular
+The reach row stays static: a live mask or affinity token may make a particular
 call locally inadmissible without editing or masking the machine's published
-effects. A value that forbids suspension is checked locally at explicit
+reach. A value that forbids suspension is checked locally at explicit
 semantic suspension points; provider selection cannot erase that ceiling.
 Address stability of stack-resident values follows from the fixed nonmoving
 `StackLease`.

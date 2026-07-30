@@ -54,7 +54,7 @@ an explicit `MachineOwner` authority requirement, and no general-purpose
 register clobbers. Their contracts record that `cli` clears RFLAGS.IF before
 the next instruction, while `sti` does not recognize maskable interrupts until
 after the following instruction. The current authority discharge admits them
-only in a freestanding boot root; listing `effects machine_control` in hosted
+only in a freestanding boot root; listing `reaches machine_control` in hosted
 code does not mint authority. Higher-level interrupt-control providers must
 still expose save/restore as the ordinary linear token described below rather
 than leaking a bare unmask operation into application code.
@@ -126,7 +126,7 @@ package cannot silence the obligation by moving the instruction into a helper.
 
 ```omega
 machine critical(control: &mut InterruptMaskControl)
-effects machine_control
+reaches machine_control
 {
     let guard: InterruptMaskGuard = control.save_and_mask();
     // Checked work while the prior mask state is held.

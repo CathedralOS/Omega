@@ -1,10 +1,10 @@
-# Chapter 19: Capabilities, Effects, And Boundaries
+# Chapter 19: Capabilities, Reach, And Boundaries
 
 Omega should model host and compiler boundaries explicitly.
 
 > **Current service and operational contract model
 > ([effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
-> `effects` contains boundary-service reach only. Independent `suspends` and
+> `reaches` contains boundary-service reach only. Independent `suspends` and
 > `blocks` clauses publish operational may-ceilings; `terminates` remains a
 > separate positive progress guarantee. Authority remains capability values, trust remains
 > provider receipts, failure remains sums, mutation remains ownership, and v1
@@ -26,7 +26,7 @@ declared kind identifies what crosses:
 
 | Declaration | Crossing concern |
 |---|---|
-| boundary machine/operator | control, calling, effects, and guarantees |
+| boundary machine/operator | control, calling, service reach, and guarantees |
 | boundary trait | service requirement and provider realization |
 | boundary data | representation |
 
@@ -78,19 +78,19 @@ or codegen mechanism used after the contract is proved.
 
 A boundary trait names callable behavior whose realization is selected at a
 crossing. It is still a trait: callers see machine signatures, requirements,
-guarantees, and effects. The selected realization may be checked Omega code or
+guarantees, and service reach. The selected realization may be checked Omega code or
 an implementation accepted through a host package, target binding, firmware
 surface, dynamic loader, or other provider edge.
 
-`boundary` is not a synonym for "has effects." These are separate axes:
+`boundary` is not a synonym for "reaches a service." These are separate axes:
 
-- `effects` names what externally visible behavior class can happen.
+- `reaches` names what externally visible behavior class can happen.
 - `export` names what symbols belong to an artifact/API surface.
 - `boundary` names the crossing whose supply, contracts, and receipts are
   represented explicitly.
 
-Ordinary Omega code can have effects if it calls lower boundary surfaces. It is
-still proved Omega code. An accepted provider supplies guarantees through a
+Ordinary Omega code can reach services by calling lower boundary surfaces. It
+is still proved Omega code. An accepted provider supplies guarantees through a
 receipt when its implementation is unavailable as checked Omega source.
 
 ```omega
@@ -112,7 +112,7 @@ Working interpretation:
   boundary.
 - `ensures` clauses are guarantees accepted from the boundary implementation.
 - Boundary-trait identity automatically contributes service reach; a written
-  `effects` clause adds other reachable services. `suspends` and `blocks`
+  `reaches` clause adds other reachable services. `suspends` and `blocks`
   publish the operation's independent operational ceilings.
 - Build policy decides which boundary providers are allowed for a target.
 - Safe application packages cannot silently create new host boundaries. A
@@ -190,7 +190,7 @@ data LoggingProxy {
 
 machine LoggingProxy::write(&self, text: &[u8])
     satisfies Logger::write as ComponentLogger
-    effects LoggingService
+    reaches LoggingService
     suspends
 {
     suspend self.service.write(text);
@@ -205,7 +205,7 @@ auditable seam.
 
 ## Service Reach And Operational Clauses
 
-The source `effects` row is a `+`-separated ceiling of name-resolved boundary
+The source `reaches` row is a `+`-separated ceiling of name-resolved boundary
 services. Operational possibilities use their own clauses:
 
 ```omega
@@ -213,7 +213,7 @@ machine backup(
     src: [u8] in Utf8,
     dst: [u8] in Utf8
 ) -> BackupResult
-  effects Readable + Queryable;
+  reaches Readable + Queryable;
   suspends;
 {
 }
@@ -224,7 +224,7 @@ occupy its worker while waiting. `terminates;` separately guarantees eventual
 terminal progress under pinned premises. Service reach accumulates by row
 union; suspension and blocking accumulate independently by boolean may. If
 `blocks` is omitted from a public contract, no checked callee or admitted
-provider may block a worker. If `Writable` is absent from `effects`, the machine
+provider may block a worker. If `Writable` is absent from `reaches`, the machine
 cannot reach that service even when it possesses Writable authority.
 
 At a direct call, those two possibilities are acknowledged independently:
@@ -261,8 +261,8 @@ the service/operation contract brief.
 
 ## Service Identities And Inference
 
-An `effects` member resolves to a boundary-trait identity. There is no global
-standard-effect vocabulary or numeric effect bitset. `Console`,
+Each `reaches` member resolves to a boundary-trait identity. There is no global
+standard-service vocabulary or numeric reach bitset. `Console`,
 `FilesystemHost`, `Arena`, `MachineControl`, and application-defined boundary
 traits all enter the same symbol-resolved service-row model. Boundary-trait
 inheritance contributes parent closure.
@@ -273,20 +273,20 @@ private bodies infer them. Empty service reach plus neither operational
 possibility still does not prove termination, absence of failure, absence of
 authority use, or absence of owned-state mutation.
 
-Declared effects are ceilings. A trait can say "any implementation of this
-machine may require at most these effects." A concrete machine may declare the
-same set or a smaller set, because some providers are less effectful on a given
-target. It may not declare a new effect outside the trait requirement.
+Declared reach rows are ceilings. A trait can say "any implementation of this
+machine may reach at most these services." A concrete machine may declare the
+same set or a smaller set, because some providers reach fewer services on a
+given target. It may not declare a new service outside the trait requirement.
 
 ```omega
 boundary trait Console {
     machine write_line(text: &[u8])
-    effects
+    reaches
         Console;
 }
 
 machine Console::write_line(text: &[u8])
-effects
+reaches
     Console
 {
     HostConsole::write_line(text);
@@ -304,24 +304,26 @@ syscall, imported symbol, firmware call, loader hook, or boundary test surface.
 Service reach propagates through the call graph. The compiler computes direct
 and transitive canonical rows for each machine, state, and call.
 
-Effect declarations are policy surfaces, not required noise on every machine:
+Reach declarations are policy surfaces, not required noise on every machine:
 
-- Boundary traits must declare effects. They are the boundary edge where
-  externally visible behavior enters the program.
-- Exported library APIs should declare effects. This makes the public contract
-  stable and lets callers reject libraries that unexpectedly grow filesystem,
-  network, process, dynamic-link, or other host behavior.
-- Private/internal machines may omit effects. The compiler infers and reports
-  their reached effects from their bodies and callees.
-- Executable entry points may omit effects in normal development builds. The
-  final executable manifest still records the union of effects reachable from
+- Boundary requirements always publish reach. Their own boundary-trait identity
+  is implicit; a written `reaches` row names additional services reachable
+  through the requirement.
+- Exported library APIs publish reach. Omission means empty reach, keeping the
+  public contract stable and preventing an implementation from unexpectedly
+  growing filesystem, network, process, dynamic-link, or other host behavior.
+- Private/internal machines may omit `reaches`. The compiler infers and reports
+  their reached services from their bodies and callees.
+- Executable entry points may omit `reaches` in normal development builds. The
+  final executable manifest still records the union of services reachable from
   the entry point so an OS, loader, store, or build policy can prompt, deny, or
   audit the requested behavior classes and authority flows.
 
-When a concrete machine declares an `effects` block, that block is a ceiling
-for the machine's reached effects. Omitting the block means "infer and report
-this machine's effects." Declaring the block means "this machine must not
-reach anything outside this set."
+When a private concrete machine declares a `reaches` block, that block is a
+ceiling for the machine's reached services. Omitting the block means "infer and
+report this machine's reach." On a published surface, omission means the strict
+empty ceiling. Declaring the block always means "this machine must not reach
+anything outside this set."
 
 ```text
 Main::main
@@ -339,15 +341,62 @@ Grep::search
 ```
 
 A stricter release, OS, or audited build can require an explicit checked-in
-effect and authority manifest for executable entry points. That requirement
+reach and authority manifest for executable entry points. That requirement
 belongs to build policy. It does not mean ordinary application authors must
-manually thread every reached effect through `main` while iterating locally.
+manually thread every reached service through `main` while iterating locally.
 
 Rows use compact interned identities and deterministic normalized sets, while
 source, diagnostics, and manifests render canonical trait names. Provider
 metadata records whether a `Console` implementation uses Darwin `libSystem`,
 Linux syscalls, Windows APIs, firmware, or a test harness; that implementation
 detail does not create a second service taxonomy.
+
+## Synchronous Boundary Invocation
+
+`reaches` is deliberately transitive and trait-granular. It is the stable
+authorization and audit ceiling, not a synchronous call graph. Machines use a
+separate `invokes` clause to publish the boundary bindings they may enter
+before returning:
+
+```omega
+boundary trait EventSource {
+    machine register_and_fire(handler: Handler) -> Registration
+    invokes handler;
+}
+```
+
+The clause is a may-ceiling: an execution need not call `handler`. If it does,
+the call occurs synchronously within the current invocation. The handler
+trait and the selected conformance's realized operational envelope contribute
+automatically to the current invocation's reach.
+
+Bodyful machines infer `invokes` from their checked bodies, including
+forwarding through local helpers. Bodyless requirements declare it; omission
+means no synchronous invocation. Parameter paths distinguish two values of the
+same boundary trait. Internally selected bindings may be named by their trait
+identity when no parameter path exists.
+
+Moving a binding into a linear registration has different timing:
+
+```omega
+boundary trait EventSource {
+    machine register(handler: Handler) -> Registration;
+}
+```
+
+The registration establishes an independently entered external root and adds
+no synchronous edge to the registration call. The root may run later or
+concurrently once established; that timing does not nest its stack beneath the
+registration invocation. Establishment requires the root-admission policy to
+permit the concrete handler envelope. The registration value retains that
+selected conformance and envelope in compiler-tracked claim metadata, rather
+than widening to the trait ceiling. An operation that also enters the handler
+on its current call chain declares `invokes handler`.
+
+The realized synchronous invocation graph across component boundaries must be
+acyclic. Cycle checking uses `invokes`, never the transitive `reaches` closure.
+Queues, mailboxes, scheduler handoffs, and other new-activation boundaries
+break cycles structurally; adding another synchronous trait does not.
 
 Console boundaries should use the same shape:
 
@@ -362,27 +411,27 @@ data ByteRead {
 
 boundary trait Console {
     machine write(text: &[u8])
-    effects
+    reaches
         Console;
 
     machine write_line(text: &[u8])
-    effects
+    reaches
         Console;
 
     machine read_line(out: &mut [u8])
-    effects
+    reaches
         Console;
 
     machine read_byte() -> ByteRead
-    effects
+    reaches
         Console;
 
     machine write_byte(byte: i32)
-    effects
+    reaches
         Console;
 
     machine exit_process(code: i32)
-    effects
+    reaches
         Console;
 }
 ```
@@ -407,7 +456,7 @@ the old implementation's 256-byte scratch ceiling.
 
 Bounded in-place text construction is likewise proof-carrying: straight-line
 reaching writes supply the current maximum length, overlapping writes invalidate
-it, and calls or opaque effects erase it conservatively. The provider never
+it, and calls or opaque service reach erase it conservatively. The provider never
 receives a request to append beyond the destination's proved capacity.
 
 Domain requirements stay normal proof language. A filesystem boundary should
@@ -420,7 +469,7 @@ domain [u8]::NonEmpty {
 
 boundary trait Filesystem {
     machine open(path: &[u8] in NonEmpty)
-    effects
+    reaches
         Filesystem;
 }
 ```
@@ -433,7 +482,7 @@ actually needs:
 ```omega
 boundary trait CConsole {
     machine write(text: &[u8] in Utf8 & NoNul)
-    effects
+    reaches
         CConsole;
 }
 ```
@@ -456,7 +505,7 @@ downstream reads the carried fact instead of re-scanning the byte sequence.
 
 ## Capabilities And Authority Flow
 
-Effects are not authority by themselves. `Readable` or `Writable` says the
+Reach declarations are not authority by themselves. `Readable` or `Writable` says the
 corresponding service surface may be reached, but it does not say whether the
 code was handed a folder by the caller, prompted the user, stored a handle for
 later, or merely derived a narrower file handle from a folder it already had.
@@ -541,7 +590,7 @@ machine Thumbnailer::write_cache(
 )
 requires
     cache in Folder::Writable
-effects
+reaches
     Writable
 {
     Filesystem::write_bytes(cache, "thumb.bin", image.thumbnail_bytes());
@@ -560,7 +609,7 @@ authority flow:
   returns: none
   releases: none
 
-effects:
+service reach:
   Writable
 ```
 
@@ -568,7 +617,7 @@ Example acquisition:
 
 ```omega
 machine Thumbnailer::choose_and_write_cache(image: Image)
-effects
+reaches
     Desktop + Writable
 {
     let cache: Folder = Desktop::choose_folder("Choose cache folder");
@@ -588,7 +637,7 @@ authority flow:
   returns: none
   releases: none
 
-effects:
+service reach:
   Desktop, Writable
 ```
 
@@ -699,7 +748,7 @@ machine build(b: &mut Build) {
 
 The build declaration can select only a complete candidate already present in
 the loaded dependency closure and applicable to the selected target. It does
-not append rows, admit a candidate, or widen the requirement's effects.
+not append rows, admit a candidate, or widen the requirement's reach.
 
 This is the same proof shape as a library import:
 
@@ -778,7 +827,7 @@ Provider-specific register allocation and footprint certificates remain
 implementation evidence behind that published plan identity.
 
 Hardware entry points with no Omega caller are external artifact roots. Their
-effects, trust receipts, state footprints, stack domains, nesting relations,
+reach, trust receipts, state footprints, stack domains, nesting relations,
 and version pins must enter whole-artifact analysis at installation; otherwise
 an interrupt or callback could launder behavior by sitting outside the ordinary
 call graph.
@@ -853,7 +902,7 @@ The service identities are normalized package-qualified requirements, not
 friendly type names and not a compiler-hard-coded list of "dangerous"
 keywords. Registry/build policy classifies those identities. Direct checked
 assembly contributes the same reach as the abstract operation it realizes, and
-installed inbound entries are additional effect roots, so neither wrappers nor
+installed inbound entries are additional service-reach roots, so neither wrappers nor
 hardware callbacks can launder reach out of the report.
 
 Policy approval still does not manufacture authority. Admission must supply the
@@ -984,9 +1033,20 @@ foreign choices unstated. Their private `{pointer, length}` or
 descriptor. A native leaf declares the counterparty's actual shape: separate
 pointer and length parameters, a null-terminated pointer, or a declared record
 only when the foreign API genuinely takes that record. A checked adapter scopes
-a borrowed-out pointer for a synchronous call; a retaining API requires an
-explicit loan, transfer, or registration contract. Text crosses as bytes, with
-`Utf8` forgotten outbound or validated and established inbound.
+a borrowed-out pointer for a synchronous call. A retaining API instead moves
+the backing keepalive/authority into a linear in-flight claim and returns it
+only at a protocol-correlated completion; it is not a long borrow. Permanent
+retention transfers that authority to a stable custodian. Foreign-owned views
+use ordinary borrows when exclusive receiver access dominates every
+invalidator, and explicit linear view claims otherwise. Text crosses as bytes,
+with `Utf8` forgotten outbound or validated and established inbound.
+
+`addr` and `Ptr<T>` are inert representation carriers, never memory authority.
+Calling and marshaling policies may explain how parameters encode an extent,
+but safe types, ownership, `requires`, and `ensures` state what may be accessed
+and when it returns. A selected provider era is retained only by values whose
+meaning depends on that exact era; a rebindable service binding names a slot
+and creates no old-era pin.
 
 The rule is one test: when the semantic type determines the ABI, the policy may
 classify it; when ABI facts remain choices, the leaf must declare them. A custom
@@ -1214,9 +1274,9 @@ the foreign protocol carries an explicit context token or a checked
 generational handle into package-owned state.
 
 Platform packages normally expose a safer handler API above a re-entrant native
-callback. The package knows which of its own operations can synchronously
-re-enter, so the checker can reject those operations from a restricted handler
-using ordinary local reach analysis. Synchronous platform queries use bounded
+callback. Bodyless package surfaces declare direct synchronous entry through
+`invokes`; bodyful handlers infer it. The checker rejects cycles in the
+realized direct invocation graph. Synchronous platform queries use bounded
 handlers; ordinary notifications may be queued until native dispatch returns.
 Applications therefore consume a normal event/handler surface instead of
 participating directly in the platform's recursive callback graph.
@@ -1231,7 +1291,7 @@ An opaque third-party binary loaded in-process remains part of the trusted
 computing base even when a checked adapter wraps it. The boundary manifest names
 that provider and its receipt; an isolated process exposes an endpoint instead.
 The exact root declaration and safety-profile rejection surface remains owner
-question #7.
+question #6.
 
 ## Build Artifacts
 
@@ -1258,7 +1318,7 @@ authority flow:
   releases:
     none
 
-effects:
+service reach:
   declared: Writable
   reached: Writable
 

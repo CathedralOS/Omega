@@ -125,7 +125,7 @@ only the irreducible substrate first-class:
   bindings;
 - liveness pins for frames, borrows, callbacks, registrations, and authorities;
 - admitted boundary operations for loading and atomic installation; and
-- ownership, linear obligations, effects, trust receipts, and checked machines.
+- ownership, linear obligations, reach, trust receipts, and checked machines.
 
 The replaceable unit is a selected provider realization plus the closed code,
 state, resource, and version graph it owns. It is not intrinsically a package.
@@ -148,7 +148,7 @@ runtime ledger's residual for the relevant lifetime cohort to be empty.
 Capture owns device, clock, scheduler, and other boundary reach. Replayable
 upgrade code operates on owned old state and captured context, writes an
 exclusive output, observes no shared or atomic racing state, and calls only
-deterministic providers. An empty effects row alone is necessary but not
+deterministic providers. An empty reach row alone is necessary but not
 sufficient to establish determinism.
 
 Semantic requirement compatibility is separate from resource admission. Each

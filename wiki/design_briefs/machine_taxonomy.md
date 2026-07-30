@@ -2,7 +2,7 @@
 
 Settled 2026-07-18 (frozen decision 20). This brief settles
 what a machine *is* and how the one construct is supplied and consumed. It did
-not itself settle the effects algebra; decision 22 has since done so.
+not itself settle the reach algebra; decision 22 has since done so.
 Decision 23 has since settled termination guarantees, private ranking
 witnesses, and opaque boundary progress profiles. Suspension lowering and
 component-versioning policy remain downstream contracts over this model.
@@ -34,7 +34,7 @@ observe or rely upon:
 
 - input, state, and result relations;
 - failure, trapping, and cancellation behavior;
-- effects and required authority;
+- service reach and required authority;
 - progress and temporal guarantees, including whether it may suspend or
   occupy a worker thread;
 - atomicity and reentrancy promises;
@@ -133,7 +133,7 @@ Checked adapters remain ordinary machines. A Console operation that obtains a
 handle and performs two writes is authored as an Omega body satisfying the
 Console requirement; only its irreducible DLL/syscall/instruction leaves use
 `via`. The toolchain derives `ProviderPlan` coverage, dependency closure,
-effects, identity, and admission inputs from the explicitly selected
+reach, identity, and admission inputs from the explicitly selected
 conformance closure. Programs never assemble plan rows imperatively.
 
 ## Consumption modes
@@ -150,7 +150,7 @@ Consumption answers **how a valid machine is used**:
 Eligibility is derived from the complete contract and the consuming context,
 not declared through parallel species such as `async machine`, `proof
 machine`, or `const machine`. For example, compile-time evaluation rejects
-effects or unbounded work that its context forbids; an interrupt context
+reach or unbounded work that its context forbids; an interrupt context
 rejects a machine whose effect/resource ceiling exceeds its own; concurrent
 activation adds ownership, provider-admission, lifecycle, and capacity
 obligations.
@@ -196,7 +196,7 @@ proof artifacts, provider admission, and hot-swap checks must continue to
 reference the normalized contract identity.
 
 Do not re-derive this taxonomy from booleans, keyword presence, or whichever
-effects happen to be implemented. See
+reach happens to be implemented. See
 `architecture/semantic_taxonomy_representation.md` for the compiler migration.
 
 ## Acceptance register
@@ -223,8 +223,8 @@ effects happen to be implemented. See
 
 ## Deferred design spaces
 
-- Effects, authority, and observation are now settled by frozen decision 22;
-  see [Effects, Authority, And Observation](effects_authority_and_observation.md).
+- Reach, authority, and observation are now settled by frozen decision 22;
+  see [Reach, Authority, And Observation](effects_authority_and_observation.md).
   Its compiler representation remains engineering work.
 - Continuation lowering and suspension-safe loans.
 - Task-runtime activation planning, linear lifecycle claims, provider

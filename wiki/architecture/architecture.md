@@ -14,7 +14,7 @@ lowers?"
 - [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
   migration from lossy booleans/bitsets to the settled domain, machine,
-  multiplicity, effect-row, and termination-plan semantic forms.
+  multiplicity, reach-row, and termination-plan semantic forms.
 - [Authority Values And Boundary Evidence](../design_briefs/authority_values_and_boundary_evidence.md):
   transparent runtime authority carriers, bodyless qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
@@ -32,8 +32,8 @@ prover may gate legality, discharge obligations, or enable erasure and
 optimization; it may never redefine a published identity.
 
 This applies uniformly to normalized domain/type identity (decision 19),
-machine/requirement-binding contract identity (decision 20), and effect-row identity
-(decision 22). Decision 23 applies the same law to termination contracts while
+machine/requirement-binding contract identity (decision 20), and reach-row plus
+direct-invocation contract identity (decision 22). Decision 23 applies the same law to termination contracts while
 placing ranking witnesses behind an implementation-evidence firewall. Solver
 timeouts, tactic selection, path-sensitive discoveries,
 or a stronger future prover may turn rejection into acceptance, but cannot

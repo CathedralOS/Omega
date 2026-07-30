@@ -17,7 +17,7 @@ instruction contributes a complete normalized contract:
 - target applicability.
 
 An instruction without a compiler-known contract is rejected. Raw `db`/byte
-escape hatches do not compile merely by declaring a conservative effect row.
+escape hatches do not compile merely by declaring a conservative reach row.
 
 ## Separate service families
 
@@ -39,7 +39,7 @@ lowercase effect keywords.
 
 The three ledgers remain independent:
 
-- The normalized effect row reports which privileged service may be reached.
+- The normalized reach row reports which privileged service may be reached.
 - Capability/evidence values prove that this call possesses the required
   authority.
 - Provider/admission receipts report why the implementation contract is

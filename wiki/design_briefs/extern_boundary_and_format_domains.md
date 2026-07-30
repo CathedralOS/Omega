@@ -121,7 +121,7 @@ reach, suspension, and blocking ceilings. The external realization's behavior
 is derived from the binding/provider contract and must refine every ceiling at
 validation/admission. A `via` machine does not repeat those clauses.
 
-## Effects, authority, and trust
+## Reach, authority, and trust
 
 Decision 22 applies without an extern exception:
 
@@ -141,7 +141,7 @@ containment do not prevent that binary from modifying arbitrary process memory.
 The selected-provider manifest retains its exact identity and trust receipt.
 Process- or hardware-isolated providers instead remain external endpoints.
 The root declaration and build-profile rejection surface for these transitive
-trust dependencies remains owner question #7.
+trust dependencies remains owner question #6.
 
 ## Calling plans
 
@@ -206,7 +206,7 @@ A hosted gateway is an ordinary boundary provider backed by a bounded native
 worker resource. Reaching its submission safe point does not bound native
 completion, cancellation finalization, retained-loan release, or later gateway
 admission. Pool/queue/backpressure and failure-domain semantics remain owner
-question #5. Retained pointer custody remains owner question #1.
+question #4.
 
 ## Registered callbacks
 
@@ -225,6 +225,37 @@ Foreign context storage carries an inert protocol token or generational handle,
 while the owning state remains in an Omega registry or another ordinary
 package-owned value.
 
+Synchronous entry and deferred registration are separate contracts. A bodyful
+machine infers its `invokes` set from the body, including forwarding through
+local helpers. A bodyless requirement declares every binding it may invoke
+before returning:
+
+```omega
+boundary trait EventSource {
+    machine register_and_fire(handler: Handler) -> Registration
+    invokes handler;
+}
+```
+
+`invokes handler` contributes the handler trait and the selected conformance's
+operational envelope to the current invocation's normalized reach. The returned
+linear registration separately establishes a future external root carrying
+that same concrete conformance and envelope. A registration operation without
+`invokes handler` cannot enter the handler synchronously on its current call
+chain. A separately activated root may run according to the registration
+contract, including concurrently with registration.
+Root establishment requires the selected root policy to admit the concrete
+handler envelope; the sealed registration establishment route records that
+fact. It is not a freely assertable postcondition.
+
+Cycle checking uses the direct synchronous `invokes` graph, never the
+transitive service-reach closure. The realized synchronous graph across Omega
+component boundaries must be acyclic. A protocol that needs a cycle moves one
+edge within an artifact or breaks it structurally through a mailbox, queue,
+scheduler handoff, or other new-activation boundary. Deferred roots may form
+reach cycles in the final program graph without creating nested component
+stacks.
+
 Hosted callback entry may continue on the provider stack, preflight its
 remaining capacity against the exact Omega WCSU and target reserve, or enter a
 target-supported owned stack. Preflight proves the predicted segment fits; an
@@ -233,13 +264,11 @@ boundary. Foreign calls made by a separated-stack callback return to the
 provider stack domain before entering opaque code.
 
 Native protocols may synchronously re-enter application callbacks. A platform
-adapter defines a safer handler requirement, classifies which of its own
-operations can re-enter, and checks each ordinary Omega handler's inferred
-reach locally. It may answer synchronous platform queries through restricted
-handlers and queue ordinary application events until the outermost native
+adapter exposes exact `invokes` ceilings, checks each ordinary Omega handler's
+realized envelope, answers synchronous platform queries through restricted
+handlers, and queues ordinary application events until the outermost native
 dispatch returns. This package-local construction does not require inferring
-the provider's internal call graph or a general higher-order callback-cycle
-analysis.
+the opaque provider's internal call graph.
 
 A raw opaque callback remains trust-relative. Its binding may enforce a
 chain-scoped active/depth limit only when the protocol supplies a valid
@@ -279,27 +308,75 @@ bit positions are checked target-format implementation facts, not provider-plan
 retirement path until placed/recast views can consume the validated layout plan
 directly; exposing a public raw-offset accessor is not an acceptable bridge.
 
-## Foreign pointer cases
+## Foreign addresses and storage lifetime
 
-Foreign pointers fit four contract shapes:
+`addr` is numerical address data. `Ptr<T>` is a sealed, inert foreign-ABI
+carrier whose parameter supplies representation and pointee-shape information
+to boundary lowering. Neither is authority. Ordinary Omega code cannot
+dereference, index, or manufacture a reference from either carrier. A binding
+materializes a `Ptr<T>` only from an established storage claim after validating
+the selected marshaling and calling policies; inbound carriers become checked
+views only through an authorized establishment route.
 
-1. **Borrowed out:** Omega-owned storage is lent to a foreign call for the
-   declared call duration.
-2. **Borrowed in:** foreign-owned storage is exposed through a lifetime- and
-   provenance-bounded view supplied by the boundary.
-3. **Callback entry:** a compiler-generated entry stub validates the calling
-   plan, reconstructs typed context, and enters an Omega boundary machine.
-4. **Opaque handle:** foreign identity remains an uninspectable capability whose
-   operations stay behind the boundary trait.
+Foreign storage use has three outbound lifetime shapes:
 
-Raw address arithmetic is not a fifth user-facing escape hatch. Pointer access
-must remain attributable to one of these ownership/provenance contracts.
+1. **Call-scoped:** an ordinary `&T`, `&[T]`, `&mut T`, or `&mut [T]` permits
+   only access before the call returns.
+2. **In flight:** storage authority moves into an ordinary linear protocol
+   value such as `PendingRead`; a terminal completion redeems it.
+3. **Permanent:** the authority moves to a stable custodian for the remainder
+   of that custodian's lifetime.
 
-Borrowed-out is specifically the synchronous, non-retaining case. A checked
-adapter may derive the foreign pointer and length from a safe slice, but the
-borrow ends with that native call. A foreign API that retains the pointer,
-completes asynchronously, or stores it for later callbacks requires an explicit
-pinned loan, ownership transfer, or registration protocol.
+In-flight retention is not a long borrow. The linear claim owns the keepalive
+and reclamation authority for its backing place, not necessarily the bytes
+inline. It may lend ordinary lexical views over rights the foreign side does
+not hold. A read-only foreign operation can therefore preserve semantic facts
+and lend Omega read views; a writing operation invalidates facts over exactly
+the writable extent and re-establishes them from terminal completion evidence.
+Separated partial release is an ordinary split in the claim-content algebra:
+the returned subextent leaves flight while the disjoint remainder stays under
+the same protocol claim.
+
+The reverse direction uses the same types. A provider-owned view whose
+invalidators require exclusive access to one receiver is an ordinary borrow
+from that receiver. More precise or nonlexical protocols return a linear view
+claim and require every invalidating operation to consume the claims it kills.
+Global, thread-local, or asynchronously invalidated foreign storage must be
+copied, mediated by such a protocol claim, or accepted under an admitted
+stability promise. A claim cannot prevent an opaque provider from invalidating
+storage through an unmodeled route.
+
+Completion is an establishment point. Its contract correlates one event with
+one live claim through a unique/nonreused identity, a generation-checked
+identity, or an exclusively ordered channel. A progress event releases nothing
+unless its contract returns an exact separated subclaim; cancellation requests
+release nothing until a terminal acknowledgement. Reused tokens require
+generations wherever stale foreign copies can survive.
+
+The selected provider era enters the compiler-tracked set of live claims for a
+value (its claim frontier) only when that value's meaning depends on state owned
+by the exact era. A
+provider-created handle or pending operation pins that era; a rebindable service
+binding names a slot and does not. Pins block reclamation rather than teardown
+execution: an old era remains callable while it discharges roots it owns, then
+waits for application-held claims, establishes quiescence, and unloads. Static
+custodians discharge their outlives relationships at build time and create no
+runtime ledger noise.
+
+The safe parameter and result types carry access and lifetime behavior.
+Calling/marshaling plans describe representation only: for example, that
+`BoundarySignature` parameters 0 and 1 encode one contiguous slice, or that one
+validated descriptor denotes several separated extents. A selected policy that
+defines a native slice ABI derives the ordinary reference case. Raw
+pointer/count pairs and descriptor graphs require an authored binding policy;
+the compiler never guesses their association.
+
+Omega presently has shared and exclusive read/write references but no precise
+provider-writes-only view. Until a core write-only claim/view lands, a binding
+must not silently widen write-only access to read/write when doing so would
+disclose existing bytes, and it cannot expose uninitialized receive storage
+under a contract that permits foreign reads. Identity-only retention is an
+ordinary stable keepalive claim that lends no memory view.
 
 The native leaf declares the foreign signature's actual parameter structure.
 Separate pointer and length parameters are not interchangeable with a record
@@ -312,7 +389,7 @@ aggregate facts the policy consumes. Omega never performs C array decay.
 
 Every reclaimable installed callback/interrupt entry is also an external
 artifact root. Because no Omega call edge reaches it, the dynamic root ledger
-retains its effects, authority/trust receipts, state footprint, stack domain,
+retains its reach, authority/trust receipts, state footprint, stack domain,
 nesting relation, and version pins until its linear registration proves
 unregistration and required quiescence. A process-lifetime statically linked
 callback needs the same build report but no live replacement ledger. This
@@ -344,18 +421,16 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 4. Lower imported calls and inbound stubs from checked plans only.
 5. Integrate programmable layout validation/materialization.
 6. Add final-artifact state-footprint validation and external-root reporting.
-7. Add callback and foreign-pointer lifetime canaries.
+7. Add callback, foreign-retention, and provider-view canaries.
 8. Delete host-string special cases and legacy target blocks.
 
 ## Still open
 
-- retained foreign borrows and their completion/revocation receipts
-  (`OWNER_QUESTIONS.md` #1);
 - dynamic-library loading/unloading under component versioning;
 - transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #7);
+  executable providers (`OWNER_QUESTIONS.md` #6);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #8); and
+  (`OWNER_QUESTIONS.md` #7); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

@@ -172,7 +172,7 @@ normalization, containment, equality, and partial separated composition. New
 algebra kinds require a compiler release and a concrete customer; arbitrary
 owner-defined composition is not authority evidence.
 
-Owner question #6 governs how a source declaration marks a claim as
+Owner question #5 governs how a source declaration marks a claim as
 content-bearing and selects this algebra, including whether an explicit content
 clause may omit `Indivisible`. Ordinary linear claims never default into the
 content algebra merely because they are linear.
@@ -310,7 +310,7 @@ crossing:
 
 | Declaration | Crossing concern |
 |---|---|
-| boundary machine | control, calling, effects, and guarantees |
+| boundary machine | control, calling, reach, and guarantees |
 | boundary trait | service requirement and provider realization |
 | boundary data | representation supplied at a crossing |
 

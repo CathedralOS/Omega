@@ -26,7 +26,7 @@ distinct activation.
 
 `TaskRuntime` is a working core boundary requirement/capability, not a new
 language construct. Starting and controlling a task reach that service through
-the ordinary effects/provider model from chapter 19.
+the ordinary reach/provider model from chapter 19.
 
 The full custody/storage/claim model and implementation sequence are recorded
 in [Task Runtime And Lifecycle](../design_briefs/task_runtime_and_lifecycle.md).
@@ -220,7 +220,7 @@ unbounded and tooling reports the responsible path.
 
 WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
 depends on the normalized bounded-work plan tracked in
-`OWNER_QUESTIONS.md` #4. Wall-clock conversion additionally requires a
+`OWNER_QUESTIONS.md` #3. Wall-clock conversion additionally requires a
 target timing model and retains that model's trust provenance.
 
 ## Carry Policy Is A Product
@@ -271,7 +271,7 @@ operation. Omega does not combine these independent facts into a universal
 runtime-supply record.
 
 The future temporal/model checker will consume the same policies, provenance
-anchors, operation contracts, effects, and provider hypotheses; carry is an
+anchors, operation contracts, reach, and provider hypotheses; carry is an
 input to that model, not a miniature trace language.
 
 ## Task Storage: Accountable, Provider-Planned
@@ -347,7 +347,8 @@ a bounded pool of guarded OS-worker stacks. The safe point is reached when the
 caller parks; native completion, cancellation finalization, retained-loan
 release, and later pool admission remain independent and may be unbounded.
 These are reported separately. The reusable gateway contract remains owner
-question #5, while retained native pointers remain #1. Registered callback
+question #4. Retained native pointers use the settled call-scoped-borrow or
+linear-in-flight-claim model. Registered callback
 entry is settled: a named static machine satisfies the callback requirement,
 the binding emits its plan-driven thunk, and a durable protocol returns a
 linear registration value. Platform adapters normalize native re-entry into
@@ -603,7 +604,7 @@ Finite exploration retains its activation bound and counterexample trace. It
 does not become an unbounded theorem without an authored cutoff, inductive
 invariant, ranking argument, or equivalent proof. Separately compiled packages
 also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #9.
+source and composition rules for those premises remain owner question #8.
 
 ## Minimal Deadlock Shapes
 

@@ -431,6 +431,31 @@ artifact or component lease. Its explicit terminal operation unregisters the
 foreign entry before releasing those obligations. Call-scoped callback
 parameters instead remain ordinary borrows and produce no durable registration.
 
+Calling plans do not describe whether a callback runs. That is ordinary machine
+behavior. A bodyful machine infers its direct synchronous boundary invocations;
+a bodyless requirement declares them with `invokes`:
+
+```omega
+boundary trait EventSource {
+    machine register_and_fire(handler: Handler) -> Registration
+    invokes handler;
+}
+```
+
+The clause means the current invocation may enter `handler` before returning.
+It automatically contributes the handler trait and the selected conformance's
+operational envelope to the current invocation's normalized service reach.
+Omission means no synchronous invocation. A returned linear registration
+separately establishes a future external root; its root-admission obligation
+and compiler-tracked claim metadata retain the concrete conformance and
+envelope without widening every registration to the trait ceiling.
+
+The realized synchronous boundary-invocation graph must be acyclic. Cycle
+checking consumes direct `invokes` edges rather than the transitive service
+row. A mailbox, queue, scheduler handoff, or other new-activation boundary
+breaks a cycle structurally; merely inserting another synchronous trait does
+not.
+
 Per-instance state does not ride implicitly on a C function pointer. The
 binding package uses the protocol's explicit context parameter, a checked
 generational handle recoverable from callback arguments, or package-owned
@@ -451,12 +476,12 @@ foreign frames remain in the provider stack domain; an exact separated-stack
 profile returns to that domain before making another foreign call.
 
 Platform packages may normalize a re-entrant native callback protocol into a
-safer Omega handler API. The package classifies its own exposed operations that
-may synchronously re-enter, infers ordinary application-handler reach locally,
-handles synchronous platform queries through restricted handlers, and queues
-or defers ordinary application events. This needs no inference over the opaque
-provider's internal call graph. A direct raw callback path instead retains the
-provider's admitted behavior and resource provenance.
+safer Omega handler API. The package declares exact `invokes` ceilings on its
+bodyless surfaces, infers ordinary application-handler reach locally, handles
+synchronous platform queries through restricted handlers, and queues or defers
+ordinary application events. This needs no inference over the opaque provider's
+internal call graph. A direct raw callback path instead retains the provider's
+admitted behavior and resource provenance.
 
 ## External roots
 
@@ -490,7 +515,7 @@ nested provider-selected stacks, overflow, and active dedicated-class re-entry
 reject.
 
 A sealed provider-execution binding joins the normalized selected provider
-plan, exact entry/boundary/effects, and all three resource realizations into
+plan, exact entry/boundary/reach, and all three resource realizations into
 admission; it cannot be replayed after realization drift, and its identity is
 reportable. Exact validated compiler-selected plans survive checked lowering
 in one canonical fact set. External-root candidates bind the retained plan
@@ -523,7 +548,7 @@ realized facts, and validation receipts; private rankings and codegen proofs sta
 behind the evidence firewall. Structural work proves only a finite admitted
 operation path, not target WCET. Its current fixed provider-summary composer is
 the implementation precursor to the general bounded-work algebra in
-`OWNER_QUESTIONS.md` #4, not an independent permanent cost model.
+`OWNER_QUESTIONS.md` #3, not an independent permanent cost model.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,

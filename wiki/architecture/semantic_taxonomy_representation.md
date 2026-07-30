@@ -10,7 +10,7 @@ reconstructs the distinctions later, it loses a clean representation and will
 eventually encode policy in scattered conditionals.
 
 This record audits the current loss and defines the migration target. Decision
-22 supplies the effects algebra and decision 23 supplies the termination
+22 supplies the reach algebra and decision 23 supplies the termination
 guarantee/ranking-witness firewall. The compiler must represent both directly
 rather than extending old booleans and bitsets by convention.
 
@@ -186,7 +186,7 @@ qualification consumers consult only the normalized route identity instead of
 reconstructing permission from attachment names or contract placement.
 Canonical-qualification routes and package-owner coherence are normalized in
 the same pass. The unresolved authoring surface for an explicit cross-package
-delegate is tracked in `OWNER_QUESTIONS.md` #3 and fails closed meanwhile.
+delegate is tracked in `OWNER_QUESTIONS.md` #2 and fails closed meanwhile.
 
 Implementation status (DOM alias expansion, 2026-07-28): transparent
 declared-domain aliases retain independent syntax, resolved, and typed records.
@@ -392,7 +392,7 @@ MachineSupplyMode =
 `ExternalRealization` is sourced by `satisfies ... via <Binding>`. The binding
 expression is compile-time evaluated and normalized before checked-plan
 construction. It is not an executable body, and it does not author a trust
-class or a second effects row. The satisfied requirement supplies the public
+class or a second reach row. The satisfied requirement supplies the public
 contract/ceiling; validation and admission check the binding/provider behavior
 as a refinement and produce any trust receipt. `ProviderPlan` is then derived
 from explicit conformance closure rather than authored rows.
@@ -591,10 +591,10 @@ root-lineage mapping, and exact separated-conservation witness. The initial
 closed vocabulary is `Indivisible | Interval<Scalar>`; correspondence-bearing
 symbolic mappings and runtime-indexed extraction remain fail-closed extensions.
 
-### Service reach and operational ceilings
+### Service reach, synchronous invocation, and operational ceilings
 
 Represent service reach as symbol-resolved boundary-trait identities and keep
-suspension and blocking in independent plans:
+synchronous invocation, suspension, and blocking as independent contract axes:
 
 ```text
 ServiceReachId  = normalized boundary-trait identity
@@ -603,6 +603,11 @@ ServiceReachRow = normalized set of ServiceReachId + parent closure
 ServiceReachPlan {
   interface: InternalInferred | PublishedCeiling(ServiceReachRowId),
   checked_inferred: ServiceReachRowId,
+}
+
+SynchronousInvocationContract {
+  interface: InternalInferred | PublishedCeiling(Set<BindingPath>),
+  checked_direct: Set<SelectedBoundaryBinding>,
 }
 
 SuspensionPlan {
@@ -622,9 +627,13 @@ CallOperationalAcknowledgement {
 }
 ```
 
-Boundary-trait declarations mint service identities. `suspends;` and `blocks;`
-publish independent may-ceilings; omission on a public requirement is the
-corresponding negative guarantee. Private omission infers each axis. The
+Boundary-trait declarations mint service identities. `invokes` publishes the
+boundary bindings the current invocation may enter before returning;
+composition substitutes each binding path with its selected conformance and
+retains the realized direct edges for cycle and stack-topology checks.
+`suspends;` and `blocks;` publish independent may-ceilings; omission on a
+public requirement is the corresponding negative guarantee. Private omission
+infers each axis. The
 deterministic normalizer owns service-row and operational contract identity;
 the entailment engine may gate reachability or legality but never rewrite a
 published ceiling. `MachineTerminationPlan` remains independent and retains
@@ -645,7 +654,7 @@ published `false`, preserving omission as a negative public guarantee instead
 of treating it as “not computed.” Authored `suspends;` / `blocks;` clauses now
 parse independently, survive syntax/resolved/typed trees and snapshots, enter
 checked `MachineContractPlan` values and fingerprints, and drive task
-admission. Operational names are rejected in source `effects` rows, normalized
+admission. Operational names are rejected in source `reaches` rows, normalized
 service rows filter every operational member, and the migrated task/carry
 fixtures use the split spelling. Boundary traits now mint canonical identities
 after symbol assignment; machine, requirement, and nested machine-parameter
@@ -662,7 +671,7 @@ provider authority is categorical metadata, and reports never reconstruct
 authority from service names. Static-machine refinement compares normalized
 service rows directly. Checked trees now expose grouped `ServiceReachFacts` as
 a first-class root; their duplicate `EffectRowFacts` carrier and the legacy
-effect-row field/input in machine contract artifacts and fingerprints are
+reach-row field/input in machine contract artifacts and fingerprints are
 deleted. The obsolete `EffectRowId`/`EffectRowTable` carrier is also gone from
 core, resolved trees, and typed trees; those stages retain only
 symbol-resolved `ServiceReachRowId` values. General validation consumes

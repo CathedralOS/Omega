@@ -20,7 +20,7 @@ machine add_zero_right(n: Nat) -> Nat
 ```
 
 The same checked machine contract may serve runtime, compile-time evaluation,
-or proof citation when its types and effects permit it. A fact-only invocation
+or proof citation when its types and reach permit it. A fact-only invocation
 emits no runtime work.
 
 ## Quantification and proof data

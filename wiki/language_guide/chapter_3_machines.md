@@ -18,7 +18,7 @@ owning data type.
 ## One Construct, Several Uses
 
 The same machine can be called at runtime and evaluated by the compiler when
-its contract, effects, and totality make that evaluation legal. It can also be
+its contract, reach, and totality make that evaluation legal. It can also be
 cited as proof, started through a task runtime, or used to satisfy a
 trait/boundary requirement.
 Those contexts change eligibility and lowering; they do not create parallel

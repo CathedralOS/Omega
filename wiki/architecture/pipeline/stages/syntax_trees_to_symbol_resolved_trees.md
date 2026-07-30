@@ -28,7 +28,7 @@ borrow-correct, callable, reachable, or safe.
 | Drops | Not owned. |
 | Calls | Call targets become symbol-facing candidates. |
 | Transitions | Target states become symbol-facing candidates. |
-| Effects | Effect names become symbol-facing candidates. |
+| Reach | Reach and invocation names become symbol-facing candidates. |
 | Boundary edges | Boundary declarations point at resolved constructs, but provider validity is deferred. |
 
 ## Ownership Rules

@@ -192,7 +192,7 @@ Rules:
   becomes `Card::power(value)`.
 - Generic bodies are checked modularly against the authored `where machine`
   contract: they prove the parameter machine's `requires`, assume its
-  `ensures`, and include its published effects and other contract axes. At an
+  `ensures`, and include its published reach and other contract axes. At an
   instantiation, the selected machine must refine that requirement. The
   checker does not infer a stronger generic API from whichever implementation
   happens to be selected.
@@ -266,8 +266,8 @@ Common requirements:
 - Trait requirements: `T satisfies CounterLike`.
 - One-off machine requirements: `machine T::poll(&mut self) -> PollResult`.
 - Value/proof requirements: `N > 0`.
-- Effect requirements: a generic operation may be callable only when its
-  effects fit the caller's context.
+- Reach requirements: a generic operation may be callable only when its
+  service reach fits the caller's context.
 
 `where` is one construct across the language: its facts hold at every
 observation of the declared thing. On a compile-time-known operand (a const
@@ -323,12 +323,12 @@ generic machine + concrete type arguments -> concrete machine instance
 ```
 
 This gives the compiler concrete layouts, concrete drop obligations, concrete
-effects, and concrete machine targets during later pipeline stages.
+reach, and concrete machine targets during later pipeline stages.
 
 The language may later support shared generic code generation where profitable,
 but that should be an optimization. It should not change generic semantics.
 
-## Generic Invariants And Effects
+## Generic Invariants And Reach
 
 Generic code emits generic obligations.
 

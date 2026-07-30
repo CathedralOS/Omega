@@ -33,14 +33,14 @@ Primary responsibility: preserve source identity and split text into tokens.
 | Drops | Not known. |
 | Calls | Not known. |
 | Transitions | Not known. |
-| Effects | Not known. |
+| Reach | Not known. |
 | Boundary edges | Not known; `boundary` is only token text here. |
 
 ## Ownership Rules
 
 - Must preserve byte spans and source text slices faithfully enough for diagnostics and later lowering.
 - Must classify tokens only by spelling-level rules.
-- Must not own language meaning, import semantics, symbol resolution, type facts, proof facts, borrow facts, effects, or boundary authority.
+- Must not own language meaning, import semantics, symbol resolution, type facts, proof facts, borrow facts, reach, or boundary authority.
 
 ## Known Gaps
 

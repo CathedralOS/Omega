@@ -32,7 +32,7 @@ machine MutexGuard::drop(&mut self)
 ```
 
 `drop` receives one whole valid value. It may call ordinary machines and carry
-declared effects or boundary reach, but automatic cleanup is always:
+declared service reach, but automatic cleanup is always:
 
 - terminating;
 - infallible;
@@ -250,11 +250,11 @@ both to the failing caller and to the originating cleanup edge; the caller
 should not have to discover a remote implicit drop from a bare unsatisfied
 predicate.
 
-## Effects, Resources, And Cycles
+## Reach, Resources, And Cycles
 
 Cleanup contributes to the enclosing machine contract on the existing axes:
 
-- effects, reach, write frames, and capabilities combine by their ordinary
+- reach, write frames, and capabilities combine by their ordinary
   union rules;
 - structural work sums actions taken on one edge, then takes the maximum across
   alternative acyclic edges;
