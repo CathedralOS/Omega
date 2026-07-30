@@ -217,12 +217,10 @@ pays in unification.
 
 ## 5. Frames — fact preservation across effectful calls
 
-The gap the research closed last (no prior coverage in the wiki). Survey
-verdict: kill-on-call is the measured worst default (ACSL's
-assigns-everything); ownership-based verifiers (Flux, Creusot, Verus) ship
-**zero** frame clauses because the borrow signature *is* the frame; SPARK's
-"inferred inside the unit, written at boundaries" coincides exactly with
-Omega's frozen contract-inference decision.
+Ownership supplies the baseline frame: a call can mutate only places reachable
+through exclusive borrows and separately authorized capability state. Checked
+bodies refine that baseline with exact inferred mutation summaries. Opaque
+calls retain the conservative signature-derived bound.
 
 Omega's floor is uniquely high: **declared ranges, domain memberships, and
 default-domain couplings survive every call unconditionally**, because calls
@@ -233,11 +231,12 @@ flow-scoped extras (guard narrowings, established subdomains) die, atom-wise, on
 written places.
 
 The v1 rule: *a call may change exactly what its signature admits — the paths
-it takes by exclusive borrow (per-field inferred intra-unit; declared via a
-`stores` clause at machine boundaries, mandatory on boundary traits — SPARK's
-assume-pure import default is a documented trap), plus the abstract regions
-of its declared capability reach. Caller havocs atom-wise on that set;
-ensures adds deltas; requires-scope binders name entry values (no `old`).*
+reachable through exclusive borrows plus the abstract regions of its declared
+capability reach. Checked bodies refine that set with inferred implementation
+summaries. Opaque calls and unknown dynamic conformances remain maximal over
+their reachable mutable places. Caller havocs atom-wise on that set; ordinary
+`ensures` restores any preservation guarantee the public interface chooses to
+publish.* Narrow mutable signatures state useful structural precision directly.
 States: the signature is the arrival contract — parameter refinements +
 state-level `requires`, proven at every in-edge, assumed at entry, consumed
 as the induction hypothesis by the existing strict-decrease rung. Cyclic

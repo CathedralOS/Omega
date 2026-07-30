@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-29.
+Last pruned: 2026-07-30.
 
 ## Reach, resources, and progress
 
@@ -24,7 +24,7 @@ Last pruned: 2026-07-29.
   conservative suspension-safe-loan subset. WCSU derives one fixed nonmoving
   `StackPlan` per lowered activation; settled `suspend` and `block` markers
   acknowledge the exact statically known call envelope.
-- Settle and implement the normalized abstract-work plan in owner question #3,
+- Settle and implement the normalized abstract-work plan in owner question #2,
   including attributed unbounded paths and work-to-next-safe-point queries.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
@@ -41,7 +41,7 @@ Last pruned: 2026-07-29.
   checker. Complete contention tests, migrate the source ordering vocabulary,
   and keep checked ISA plus device/DMA barriers distinct.
 - Settle modular package environment premises and their composition in owner
-  question #8.
+  question #7.
 - Migrate the task-plan prototype away from generalized runtime supply.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
@@ -50,10 +50,10 @@ Last pruned: 2026-07-29.
   the callback requirement, the binding emits its plan-driven thunk, and a
   durable protocol returns a linear registration value. Retained foreign
   storage uses call-scoped borrows or linear in-flight claims; the reusable
-  hosted-FFI gateway resource and cancellation contract remains #4.
+  hosted-FFI gateway resource and cancellation contract remains #3.
 - Settle root-level visibility/profile rejection for opaque in-process native
-  providers in owner question #6, and contained execution failure with
-  outstanding obligations in #7.
+  providers in owner question #5, and contained execution failure with
+  outstanding obligations in #6.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
@@ -73,7 +73,7 @@ Last pruned: 2026-07-29.
 - Finish the remaining domain spaces: external quantity-kind equations,
   general open-family linking, `weakens_to` certificate syntax, affine
   quantities, and the named float-conversion requirement surface (owner
-  question #9).
+  question #8).
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

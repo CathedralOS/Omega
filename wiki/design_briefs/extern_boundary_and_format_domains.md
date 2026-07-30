@@ -141,7 +141,7 @@ containment do not prevent that binary from modifying arbitrary process memory.
 The selected-provider manifest retains its exact identity and trust receipt.
 Process- or hardware-isolated providers instead remain external endpoints.
 The root declaration and build-profile rejection surface for these transitive
-trust dependencies remains owner question #6.
+trust dependencies remains owner question #5.
 
 ## Calling plans
 
@@ -206,7 +206,7 @@ A hosted gateway is an ordinary boundary provider backed by a bounded native
 worker resource. Reaching its submission safe point does not bound native
 completion, cancellation finalization, retained-loan release, or later gateway
 admission. Pool/queue/backpressure and failure-domain semantics remain owner
-question #4.
+question #3.
 
 ## Registered callbacks
 
@@ -428,9 +428,9 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 - dynamic-library loading/unloading under component versioning;
 - transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #6);
+  executable providers (`OWNER_QUESTIONS.md` #5);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #7); and
+  (`OWNER_QUESTIONS.md` #6); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

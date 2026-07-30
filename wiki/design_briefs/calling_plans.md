@@ -548,7 +548,7 @@ realized facts, and validation receipts; private rankings and codegen proofs sta
 behind the evidence firewall. Structural work proves only a finite admitted
 operation path, not target WCET. Its current fixed provider-summary composer is
 the implementation precursor to the general bounded-work algebra in
-`OWNER_QUESTIONS.md` #3, not an independent permanent cost model.
+`OWNER_QUESTIONS.md` #2, not an independent permanent cost model.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,
