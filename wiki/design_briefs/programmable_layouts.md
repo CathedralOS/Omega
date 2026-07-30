@@ -128,19 +128,21 @@ expose only admitted operation families and orderings. Boundary reach belongs
 to the placement, not individual fields, and runtime provenance proves that the
 selected reach may touch the supplied range.
 
-The current `omega-access-plans` implementation is the normalized bootstrap:
-it validates geometry, exact widths, observation/operation compatibility,
-borrow polarity, atomic orderings, exact loan facts, and sealed lowering
-requests. It now carries exactly one inaccessible-defaulted slot per schema
-field and binds field keys to the exact layout. Its normalized `PlacementPlan`
-owns the complete layout/access pairing and one normalized boundary reach,
-which admission checks once and lowering retains. Admission consumes and owns
-the exact Extent loan, rejection returns it, and `place` consumes the accepted
-token. Current view-borrow and retained source-loan polarity are checked
-independently. Exposure uses the settled `BindingPrivate` spelling; stable
-compound mutation is derived from read+write and exclusivity, destructive
-external reads remain distinct, external compound mutation is unavailable, and
-atomic permissions distinguish exact operation families. See
+The ordinary source records now live in
+`omega::language::core::layout`; its existing `Plan` record remains the current
+source spelling of `LayoutPlan`. The `omega-access-plans` normalized bootstrap
+validates geometry, exact widths, observation/operation compatibility, borrow
+polarity, atomic orderings, exact loan facts, and sealed lowering requests. It
+carries exactly one inaccessible-defaulted slot per schema field and binds
+field keys to the exact layout. Its normalized `PlacementPlan` owns the complete
+layout/access pairing and one normalized boundary reach, which admission checks
+once and lowering retains. Admission consumes and owns the exact Extent loan,
+rejection returns it, and `place` consumes the accepted token. Current
+view-borrow and retained source-loan polarity are checked independently.
+Exposure uses the settled `BindingPrivate` spelling; stable compound mutation
+is derived from read+write and exclusivity, destructive external reads remain
+distinct, external compound mutation is unavailable, and atomic permissions
+distinguish exact operation families. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
 model.

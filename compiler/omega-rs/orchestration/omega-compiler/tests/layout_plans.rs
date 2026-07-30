@@ -27,7 +27,7 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     main_path
 }
 
-/// The vocabulary (mirrors omega/language/std/layout.omg) + the CLayout
+/// The vocabulary (mirrors omega/language/core/layout.omg) + the CLayout
 /// policy + a UEFI-ish schema. Inlined because temp-dir programs cannot
 /// resolve `use omega::...` library paths.
 const PILOT: &str = r#"
@@ -560,8 +560,8 @@ fn reflected_schema_exposes_stable_case_identity_without_using_discriminant() {
     let main_path = write_program(
         "stable-case-schema",
         r#"
-use omega::language::std::layout;
-use omega::language::std::option;
+use omega::language::core::layout;
+use omega::language::core::option;
 
 data Choice {
     case #41 First;
@@ -613,7 +613,7 @@ machine Main::main(&mut self) { }
     let reordered_path = write_program(
         "stable-case-schema-reordered",
         r#"
-use omega::language::std::layout;
+use omega::language::core::layout;
 
 data Choice {
     case #7 SecondRenamed;

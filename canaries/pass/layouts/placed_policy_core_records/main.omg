@@ -1,0 +1,17 @@
+use omega::language::core::layout;
+
+// Browsability rail for the ordinary source-visible placed-policy vocabulary.
+// Construction alone grants no placed access; compiler validation, provider
+// admission, and one exact Extent loan remain required.
+data PolicySurface {
+    placement: PlacementPlan;
+    profile: ResourceProfile;
+    transfer: TransferRule;
+    observation: Observation;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

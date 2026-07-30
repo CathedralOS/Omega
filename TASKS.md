@@ -274,9 +274,11 @@ establishment from raw bytes reject.
 **READY.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the source model.
 
-- Add the ordinary `PlacementPlan`, `AccessPlan`, `ResourceProfile`,
+- The ordinary `PlacementPlan`, `AccessPlan`, `ResourceProfile`,
   `BoundaryReach`, transfer-rule, exposure, observation, and operation records
-  to `omega::core`.
+  now live in `omega::language::core::layout`. The existing source spelling
+  `Plan` remains the layout-plan record while source-visible layout evaluation
+  is migrated.
 - Add build-time `Placement::plan(schema)` and
   `Access::plan(schema, validated_layout)` evaluation. Construct each access
   plan from an all-inaccessible seed using compiler-issued schema field keys.

@@ -19,7 +19,7 @@
 // canonical declaration in the sibling std module; this ergonomic layer imports
 // them (rather than re-declaring the trait) and builds `File`/result enums on top.
 use omega::language::std::filesystem_host;
-use omega::language::std::layout;
+use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 
 // The per-target DIRECTORY-WALK implementations (fs portable-contract settle
