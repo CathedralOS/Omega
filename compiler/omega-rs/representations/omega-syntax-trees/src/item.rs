@@ -262,7 +262,7 @@ impl Default for LibraryFunction {
                 is_default: false,
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
-                effects: HandleSpan::empty(),
+                service_reaches: HandleSpan::empty(),
                 suspends: false,
                 blocks: false,
                 contracts: HandleSpan::empty(),
@@ -705,9 +705,9 @@ pub struct Machine {
     /// the syntax->resolved lowering refuses it loudly until TPR3's cycle
     /// checker consumes ranges (never silently dropped).
     pub decrease_range: crate::expression::ExpressionHandle,
-    pub effects: HandleSpan<Identifier>,
+    pub service_reaches: HandleSpan<Identifier>,
     /// Independent authored operational may-clauses (decision 22). These are
-    /// never members of `effects`.
+    /// never members of `service_reaches`.
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -753,7 +753,7 @@ pub struct StateSignature {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
-    pub effects: HandleSpan<Identifier>,
+    pub service_reaches: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -1111,7 +1111,7 @@ impl ItemTable {
             is_default: signature.is_default,
             parameters: signature.parameters,
             return_type: signature.return_type,
-            effects: signature.effects,
+            service_reaches: signature.service_reaches,
             suspends: signature.suspends,
             blocks: signature.blocks,
             contracts: signature.contracts,
@@ -1134,7 +1134,7 @@ impl ItemTable {
         self.state_storage.machines.append(MachineNode {
             name: machine.name.clone(),
             satisfies: machine.satisfies,
-            effects: machine.effects,
+            service_reaches: machine.service_reaches,
             suspends: machine.suspends,
             blocks: machine.blocks,
             contracts: machine.contracts,
@@ -1214,7 +1214,7 @@ pub struct StateSignatureNode {
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
-    pub effects: HandleSpan<Identifier>,
+    pub service_reaches: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -1236,7 +1236,7 @@ pub struct StateNode {
 pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
-    pub effects: HandleSpan<Identifier>,
+    pub service_reaches: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,

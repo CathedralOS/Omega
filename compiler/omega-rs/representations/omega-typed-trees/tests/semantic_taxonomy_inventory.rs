@@ -67,8 +67,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
 /// view, never contract identity) -- populated ONCE at the syntax->resolved
 /// lowering and COPIED downstream. The distinction the old pin named is
 /// representable; the invariant test below witnesses the firewall. STILL
-/// LOST here: no normalized `MachineSemanticContract`, the effect span is
-/// STILL flat (decision 22's kinded rows ride STR4), and the
+/// LOST here: no single normalized `MachineSemanticContract`, and the
 /// `terminates`/`decreases`/`decrease_order` compatibility shape remains the
 /// checker's input until TPR3 migrates it onto the plan (TPR6 retires it).
 #[test]
@@ -100,7 +99,7 @@ fn machine_record_carries_one_public_termination_interface() {
             decrease_order: _,
             decrease_view_arguments: _, // TPR3: argumented-view arguments
             decrease_range: _,          // TPR3: the rank-range constraint
-            effects: _,                 // STILL decision 22's kinded rows, as a flat name span
+            service_reaches: _,         // authored service names retained for diagnostics
             suspends: _,                // EFX: independent authored suspension ceiling
             blocks: _,                  // EFX: independent authored blocking ceiling
             contracts: _,

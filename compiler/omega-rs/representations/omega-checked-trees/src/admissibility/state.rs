@@ -7,7 +7,10 @@ use crate::{
     ContractOperatorUseFact, ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact,
     FlowStatementFact, OperatorAcceptance, StateAcceptance, StateOperationAcceptance,
     StatementAcceptance,
-    admissibility::helpers::{behavior_evidence_count, machine_decrease_count},
+    admissibility::helpers::{
+        blocking_evidence_count, machine_decrease_count, service_reach_evidence_count,
+        suspension_evidence_count,
+    },
 };
 
 use evidence::{
@@ -57,7 +60,9 @@ impl<'facts> AcceptanceView for StateAcceptance<'facts> {
         AcceptanceSummary::accepted(
             state_borrow_evidence_count(&self.facts.flow, self.state, statements, calls, exits),
             state_proof_evidence_count(calls, exits) + operator_proof_evidence,
-            behavior_evidence_count(self.facts, self.state.service_reach, self.state.operational),
+            service_reach_evidence_count(self.facts, self.state.service_reach),
+            suspension_evidence_count(self.state.operational),
+            blocking_evidence_count(self.state.operational),
             state_boundary_evidence_count(self.state, calls) + operator_boundary_evidence,
             machine_decrease_count(self.facts, self.state.machine_symbol),
         )

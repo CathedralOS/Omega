@@ -5,7 +5,8 @@ use crate::{
     ContractProofFactRef, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef,
     FlowInvalidationFact, FlowSemanticContextRef,
     admissibility::helpers::{
-        behavior_evidence_count, borrow_constraint_count, constraints, semantic_contexts,
+        blocking_evidence_count, borrow_constraint_count, constraints, semantic_contexts,
+        service_reach_evidence_count, suspension_evidence_count,
     },
 };
 
@@ -17,7 +18,9 @@ impl<'facts> AcceptanceView for CallAcceptance<'facts> {
                 + borrow_constraint_count(&self.facts.flow, self.call.requires_constraints)
                 + borrow_constraint_count(&self.facts.flow, self.call.exit_constraints),
             self.call.requires.len() + self.call.ensures.len(),
-            behavior_evidence_count(self.facts, self.call.service_reach, self.call.operational),
+            service_reach_evidence_count(self.facts, self.call.service_reach),
+            suspension_evidence_count(self.call.operational),
+            blocking_evidence_count(self.call.operational),
             self.call.boundary_edges.len(),
             0,
         )

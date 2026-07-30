@@ -48,7 +48,7 @@ use crate::machine_data::validate_owned_data;
 use crate::places::validate_assignment_target_handle;
 use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
-    validate_machine_effects,
+    validate_machine_service_reaches,
 };
 use crate::symbols::MachineSymbols;
 pub use crate::symbols::TopLevelSymbols;
@@ -185,7 +185,7 @@ fn validate_program_internal(
         }
 
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
-        validate_machine_effects(program, machine, &mut diagnostics);
+        validate_machine_service_reaches(program, machine, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);
         let generic_contract_was_prevalidated = generic_contract_entailment_prevalidated
             && (program
@@ -241,7 +241,7 @@ fn validate_program_internal(
                     machine.name,
                 )));
             }
-            if via_count == 1 && !program.machine_effects(machine).is_empty() {
+            if via_count == 1 && !program.machine_service_reaches(machine).is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
                     "external leaf `{}` repeats an authored `reaches` row, but `via` \
                      derives behavior from the satisfied requirement and admitted binding; \

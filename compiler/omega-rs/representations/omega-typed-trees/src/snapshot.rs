@@ -317,7 +317,7 @@ pub struct MachineSnapshot {
     pub termination: TerminationInterfaceSnapshot,
     pub decreases: Vec<ExpressionSnapshot>,
     pub decrease_order: Vec<String>,
-    pub effects: Vec<String>,
+    pub service_reaches: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
     pub blocks: bool,
@@ -389,7 +389,7 @@ pub struct StateSignatureSnapshot {
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: Option<TypeReferenceSnapshot>,
-    pub effects: Vec<String>,
+    pub service_reaches: Vec<String>,
     pub service_reach: Vec<String>,
     pub suspends: bool,
     pub blocks: bool,
@@ -787,8 +787,8 @@ fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> MachineSnapshot 
             .iter()
             .map(ToString::to_string)
             .collect(),
-        effects: program
-            .machine_effects(machine)
+        service_reaches: program
+            .machine_service_reaches(machine)
             .iter()
             .map(ToString::to_string)
             .collect(),
@@ -951,8 +951,8 @@ fn state_signature_snapshot(
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
         return_type: type_reference_snapshot_option(program, signature.return_type),
-        effects: program
-            .state_signature_effects(signature)
+        service_reaches: program
+            .state_signature_service_reaches(signature)
             .iter()
             .map(ToString::to_string)
             .collect(),

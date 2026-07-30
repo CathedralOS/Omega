@@ -163,8 +163,16 @@ fn acceptance_summary_derives_rejection_from_dimension_records() {
             1,
         ),
         omega_checked_trees::AcceptanceCheck::accepted(
-            omega_checked_trees::AcceptanceDimension::Effects,
+            omega_checked_trees::AcceptanceDimension::ServiceReach,
             1,
+        ),
+        omega_checked_trees::AcceptanceCheck::accepted(
+            omega_checked_trees::AcceptanceDimension::Suspension,
+            0,
+        ),
+        omega_checked_trees::AcceptanceCheck::accepted(
+            omega_checked_trees::AcceptanceDimension::Blocking,
+            0,
         ),
         omega_checked_trees::AcceptanceCheck::accepted(
             omega_checked_trees::AcceptanceDimension::Boundaries,
@@ -198,10 +206,18 @@ fn acceptance_summary_derives_rejection_from_dimension_records() {
 fn acceptance_dimensions_have_canonical_iteration_order_and_names() {
     let dimensions = omega_checked_trees::AcceptanceDimension::ALL;
 
-    assert_eq!(dimensions.len(), 5);
+    assert_eq!(dimensions.len(), 7);
     assert_eq!(
         dimensions.map(omega_checked_trees::AcceptanceDimension::as_str),
-        ["borrow", "proof", "effects", "boundaries", "termination"]
+        [
+            "borrow",
+            "proof",
+            "service_reach",
+            "suspension",
+            "blocking",
+            "boundaries",
+            "termination",
+        ]
     );
 }
 

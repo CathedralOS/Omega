@@ -56,7 +56,7 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
                     &services,
                     &mut rows,
                     program
-                        .machine_effects(machine)
+                        .machine_service_reaches(machine)
                         .iter()
                         .map(|name| name.as_str()),
                 ),
@@ -76,7 +76,7 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
                     &services,
                     &mut rows,
                     program
-                        .signature_effects(signature.effects)
+                        .signature_service_reaches(signature.service_reaches)
                         .iter()
                         .map(|name| name.as_str()),
                 ),
@@ -153,14 +153,14 @@ fn normalize_machine_parameter_rows(
         collect_parameter_spans(type_parameters, root, &mut spans);
     }
 
-    let effect_names = spans
+    let service_reach_names = spans
         .iter()
         .flat_map(|span| type_parameters.span_or_empty(*span))
         .filter_map(|parameter| match &parameter.kind {
             TypeParameterKind::Machine { contract } => Some((
                 parameter.symbol,
                 program
-                    .signature_effects(contract.effects)
+                    .signature_service_reaches(contract.service_reaches)
                     .iter()
                     .map(|name| name.as_str().to_owned())
                     .collect::<Vec<_>>(),
@@ -175,7 +175,7 @@ fn normalize_machine_parameter_rows(
             let TypeParameterKind::Machine { contract } = &mut parameter.kind else {
                 continue;
             };
-            let names = effect_names
+            let names = service_reach_names
                 .iter()
                 .find(|(symbol, _)| *symbol == parameter.symbol)
                 .map(|(_, names)| names.as_slice())

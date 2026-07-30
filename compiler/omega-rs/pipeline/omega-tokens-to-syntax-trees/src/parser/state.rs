@@ -32,7 +32,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             is_default: false,
             parameters,
             return_type,
-            effects: HandleSpan::empty(),
+            service_reaches: HandleSpan::empty(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
@@ -169,7 +169,7 @@ pub(super) fn parse_state<'tokens, 'source>(
 }
 
 /// Parse a state's explicit arrival contract. Unlike a machine signature, a
-/// state has no exit contract or effect surface: `requires` is the induction
+/// state has no exit contract or behavior surface: `requires` is the induction
 /// hypothesis that every named incoming edge must establish.
 fn parse_state_arrival_contracts<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

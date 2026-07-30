@@ -469,13 +469,13 @@ fn trait_machine_signature_label(program: &TypedTrees, machine: &StateSignature)
         symbol_label(machine.symbol),
         machine.parameters.len()
     );
-    let effects = program.state_signature_effects(machine);
-    if !effects.is_empty() {
-        label.push_str("\neffects: ");
+    let service_reaches = program.state_signature_service_reaches(machine);
+    if !service_reaches.is_empty() {
+        label.push_str("\nreaches: ");
         label.push_str(
-            &effects
+            &service_reaches
                 .iter()
-                .map(|effect| effect.as_str())
+                .map(|service| service.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
         );

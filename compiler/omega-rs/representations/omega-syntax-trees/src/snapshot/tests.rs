@@ -22,6 +22,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
             syntax_trees
                 .items
                 .append_data_member(DataMember::Field(DataField {
+                    identity: None,
                     name: Identifier::generated("field"),
                     type_reference: i32_type,
                 })),
@@ -53,6 +54,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                 },
                 quotient: None,
                 members: vec![super::DataMemberSnapshot::Field {
+                    identity: None,
                     name: super::IdentifierSnapshot {
                         text: "field".to_owned(),
                         source_id: 0,

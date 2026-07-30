@@ -1374,9 +1374,9 @@ fn clone_specialized_machine(
     cloned.owned_data = HandleSpan::empty();
     cloned.satisfies = HandleSpan::empty();
     cloned.decreases = copy_expression_span(source, program, source_machine.decreases, &symbol_map);
-    cloned.decrease_order = program.signature_effects.insert_many(
+    cloned.decrease_order = program.decrease_orders.insert_many(
         source
-            .signature_effects
+            .decrease_orders
             .span_or_empty(source_machine.decrease_order)
             .iter()
             .cloned(),
@@ -1389,10 +1389,10 @@ fn clone_specialized_machine(
     );
     cloned.decrease_range =
         copy_expression(source, program, source_machine.decrease_range, &symbol_map);
-    cloned.effects = program.signature_effects.insert_many(
+    cloned.service_reaches = program.signature_service_reaches.insert_many(
         source
-            .signature_effects
-            .span_or_empty(source_machine.effects)
+            .signature_service_reaches
+            .span_or_empty(source_machine.service_reaches)
             .iter()
             .cloned(),
     );
@@ -2014,15 +2014,15 @@ fn template_contract_fingerprint(program: &TypedTrees, machine_index: usize) -> 
         bytes.extend(shape);
         bytes.push(0xfd);
     }
-    let mut effects: Vec<_> = program
-        .machine_effects(machine)
+    let mut service_reaches: Vec<_> = program
+        .machine_service_reaches(machine)
         .iter()
-        .map(|effect| effect.as_str())
+        .map(|service| service.as_str())
         .collect();
-    effects.sort_unstable();
-    effects.dedup();
-    for effect in effects {
-        bytes.extend(effect.as_bytes());
+    service_reaches.sort_unstable();
+    service_reaches.dedup();
+    for service in service_reaches {
+        bytes.extend(service.as_bytes());
         bytes.push(0);
     }
     bytes.push(u8::from(machine.suspends));
@@ -2246,8 +2246,8 @@ fn encode_state_signature(
         binders,
         output,
     );
-    for effect in program.state_signature_effects(signature) {
-        output.extend(effect.as_bytes());
+    for service in program.state_signature_service_reaches(signature) {
+        output.extend(service.as_bytes());
         output.push(0);
     }
     output.push(u8::from(signature.suspends));

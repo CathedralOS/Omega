@@ -37,7 +37,7 @@ pub struct Machine {
     /// TPR3: the optional `in <range>` rank constraint (a Range expression;
     /// invalid = absent). The checker verifies it structurally.
     pub decrease_range: ExpressionHandle,
-    pub effects: HandleSpan<Identifier>,
+    pub service_reaches: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<SignatureContract>,
@@ -62,7 +62,7 @@ impl Default for Machine {
             decrease_order: HandleSpan::empty(),
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: ExpressionHandle::invalid(),
-            effects: HandleSpan::empty(),
+            service_reaches: HandleSpan::empty(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),

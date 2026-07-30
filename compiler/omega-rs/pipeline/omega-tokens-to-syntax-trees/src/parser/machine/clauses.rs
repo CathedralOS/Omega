@@ -47,8 +47,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut decrease_order = HandleSpan::empty();
     let mut decrease_view_arguments = HandleSpan::empty();
     let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
-    let mut effect_start = Handle::invalid();
-    let mut effect_count = 0u32;
+    let mut service_start = Handle::invalid();
+    let mut service_count = 0u32;
     let mut suspends = false;
     let mut blocks = false;
     let mut contract_start = Handle::invalid();
@@ -128,15 +128,15 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("where")
                 && !input.at_contextual("satisfies")
             {
-                let (effect, rest) = input.take_identifier()?;
-                reject_retired_operational_reach(&effect, rest)?;
-                let handle = syntax_trees.items.append_identifier_path_member(effect);
-                if effect_count == 0 {
-                    effect_start = handle;
+                let (service, rest) = input.take_identifier()?;
+                reject_retired_operational_reach(&service, rest)?;
+                let handle = syntax_trees.items.append_identifier_path_member(service);
+                if service_count == 0 {
+                    service_start = handle;
                 }
-                effect_count = effect_count
+                service_count = service_count
                     .checked_add(1)
-                    .expect("machine effect span count overflow");
+                    .expect("machine service span count overflow");
                 input = rest;
 
                 if input.at_punctuation(PunctuationKind::Comma) {
@@ -279,10 +279,10 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         ]));
     }
 
-    let effects = if effect_count == 0 {
+    let service_reaches = if service_count == 0 {
         HandleSpan::empty()
     } else {
-        HandleSpan::from_parts(effect_start, effect_count)
+        HandleSpan::from_parts(service_start, service_count)
     };
     let contracts = if contract_count == 0 {
         HandleSpan::empty()
@@ -297,7 +297,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             decrease_order,
             decrease_view_arguments,
             decrease_range,
-            effects,
+            service_reaches,
             suspends,
             blocks,
             contracts,

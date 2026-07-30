@@ -472,13 +472,13 @@ fn trait_machine_signature_label(
         symbol_label(machine.symbol),
         machine.parameters.len()
     );
-    let effects = program.signature_effects(machine.effects);
-    if !effects.is_empty() {
-        label.push_str("\neffects: ");
+    let service_reaches = program.signature_service_reaches(machine.service_reaches);
+    if !service_reaches.is_empty() {
+        label.push_str("\nreaches: ");
         label.push_str(
-            &effects
+            &service_reaches
                 .iter()
-                .map(|effect| effect.as_str())
+                .map(|service| service.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
         );
@@ -510,13 +510,13 @@ fn machine_label(
         attached_data,
         machine.satisfies.len(),
     );
-    let effects = program.machine_effects(machine);
-    if !effects.is_empty() {
-        label.push_str("\neffects: ");
+    let service_reaches = program.machine_service_reaches(machine);
+    if !service_reaches.is_empty() {
+        label.push_str("\nreaches: ");
         label.push_str(
-            &effects
+            &service_reaches
                 .iter()
-                .map(|effect| effect.as_str())
+                .map(|service| service.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
         );

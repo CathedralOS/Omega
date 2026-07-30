@@ -1,7 +1,7 @@
 use crate::data::lower_type_parameters;
 use crate::expression::lower_expression_into_table;
 use crate::lowerer::Lowerer;
-use crate::state::{lower_signature_contracts, lower_signature_effects, lower_state_node};
+use crate::state::{lower_signature_contracts, lower_signature_service_reaches, lower_state_node};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -34,7 +34,8 @@ pub(crate) fn lower_machine_into(
     } else {
         omega_symbol_resolved_trees::expression::ExpressionHandle::invalid()
     };
-    let effects = lower_signature_effects(lowerer, syntax_trees, machine.effects);
+    let service_reaches =
+        lower_signature_service_reaches(lowerer, syntax_trees, machine.service_reaches);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, machine.contracts)?;
     let machine_name = crate::name::lower_name(&machine.name);
     let attached_data = machine.attached_data.as_ref().map(crate::name::lower_name);
@@ -109,7 +110,7 @@ pub(crate) fn lower_machine_into(
             decrease_order,
             decrease_view_arguments,
             decrease_range,
-            effects,
+            service_reaches,
             suspends: machine.suspends,
             blocks: machine.blocks,
             contracts,
@@ -370,7 +371,7 @@ fn lower_machine_decrease_order(
             .symbol_resolved_trees
             .tables
             .declarations
-            .signature_effects
+            .decrease_orders
             .append_to_span(&mut lowered, crate::name::lower_name(member));
     }
 

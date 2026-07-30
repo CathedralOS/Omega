@@ -584,12 +584,16 @@ current consumers happen to align.
   certificates. Delegated package authority is owner-blocked on #1.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
-  canary, sample, and Cathedral source corpora use the new spelling. Finish
-  independent service reach, `suspends`, `blocks`, termination, mutation, and
-  trust publication/admission. Remove remaining legacy internal mixed-row
-  names and records after their consumers migrate. Imported transparent-
-  refinement spelling must supply the narrowed operational envelope consumed
-  by the completed exact call-acknowledgement checker.
+  canary, sample, and Cathedral source corpora use the new spelling. Syntax,
+  symbol-resolved, and typed records/snapshots now name authored reach as
+  service reach; termination decrease orders use independent arenas; and
+  checked admissibility reports service reach, suspension, and blocking as
+  separate dimensions. Finish independent service reach, `suspends`, `blocks`,
+  termination, mutation, and trust publication/admission, then retire the
+  remaining legacy internal umbrella names after their consumers migrate.
+  Imported transparent-refinement spelling must supply the narrowed
+  operational envelope consumed by the completed exact call-acknowledgement
+  checker.
 - **INV:** add the `invokes` contract axis. Infer it from bodyful machines,
   require it on bodyless requirements, substitute the concrete selected
   binding at composition, retain direct synchronous edges in artifacts, and

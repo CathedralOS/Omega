@@ -167,7 +167,7 @@ pub(crate) fn validate_canonical_qualification_conformance(
                 "{label} cannot own or mutate machine data"
             )));
         }
-        if !program.machine_effects(machine).is_empty()
+        if !program.machine_service_reaches(machine).is_empty()
             || !program
                 .service_reach_rows
                 .services(machine.service_reach_row)

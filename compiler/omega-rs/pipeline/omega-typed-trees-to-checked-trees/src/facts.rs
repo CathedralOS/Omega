@@ -84,7 +84,7 @@ pub(crate) fn build_check_facts(
 fn build_contract_plans(
     program: &TypedTrees,
     service_reaches: &omega_checked_trees::ServiceReachFacts,
-    effects: &OperationalPlan,
+    operations: &OperationalPlan,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let frame_resolver = omega_validation::CallFrameResolver::new(program);
@@ -254,7 +254,7 @@ fn build_contract_plans(
             }
         }
         canonical_facts.sort();
-        let operational_summary = effects
+        let operational_summary = operations
             .machines()
             .iter()
             .find(|summary| summary.symbol == machine.symbol);

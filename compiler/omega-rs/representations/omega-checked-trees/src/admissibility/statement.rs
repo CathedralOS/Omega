@@ -12,6 +12,8 @@ impl<'facts> AcceptanceView for StatementAcceptance<'facts> {
             0,
             0,
             0,
+            0,
+            0,
         )
     }
 }
