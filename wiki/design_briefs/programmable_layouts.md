@@ -156,7 +156,11 @@ accessors whose named read, destructive-take, write, stable-compound, and
 atomic-family methods are the only routes to a sealed primitive request. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
-model.
+model. Source compilation now derives unique opaque stable/external accessors
+for concrete `Placed<P, T>` spellings and omits inaccessible or unauthorized
+operations. Atomic fields deliberately remain unprojectable until exact
+operation-family accessors land; package-private exposure, admitted-loan
+construction, and target lowering are still open.
 
 ## Codecs are ordinary checked requirements
 
@@ -440,8 +444,9 @@ code rather than compiler types.
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
-- implement `Placed<P, T>` projection and target-specific accessor lowering
-  over the live normalized access/resource validator;
+- finish `Placed<P, T>` projection (exact atomic families, binding-private
+  ownership, and admitted-loan construction) and target-specific accessor
+  lowering over the live normalized access/resource validator;
 - recast syntax and diagnostics;
 - independent generated-codec verification against public requirements and
   preserving-codec realizations for unknown members (artifacts already keep

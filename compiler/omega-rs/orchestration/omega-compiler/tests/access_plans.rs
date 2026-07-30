@@ -374,6 +374,148 @@ fn source_placement_policy_normalizes_layout_access_and_reach_together() {
 }
 
 #[test]
+fn placed_view_exposes_derived_source_accessors() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    let status: u32 = view.status.read();
+    view.transmit.write(1);
+    let snapshot: u16 = view.snapshot.read();
+    view.snapshot.write(snapshot);
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-accessors", &source);
+    let checked =
+        compile_to_checked(&main, None).expect("derived placed-view accessors should compile");
+    let status_read = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine.name.as_str() == "PlacedField<UartPlacement,Registers,status>::read"
+        })
+        .expect("status read accessor");
+    let conformances = checked.typed.machine_trait_conformances(status_read);
+    assert_eq!(conformances.len(), 1);
+    assert_eq!(conformances[0].name.as_str(), "Readable");
+    assert_eq!(
+        conformances[0]
+            .requirement
+            .as_ref()
+            .expect("single readable requirement")
+            .as_str(),
+        "read"
+    );
+}
+
+#[test]
+fn placed_view_distinguishes_destructive_take_from_read() {
+    let source = POLICY_SOURCE
+        .replace("ExternalRead::Read", "ExternalRead::Take")
+        .replace(
+            "data Main {}",
+            r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    let status: u32 = view.status.take();
+}
+
+data Main {}
+"#,
+        );
+    let main = write_program("placed-view-take", &source);
+    let checked =
+        compile_to_checked(&main, None).expect("destructive placed-view accessor should compile");
+    assert!(checked.typed.machines().iter().any(|machine| {
+        machine.name.as_str() == "PlacedField<UartPlacement,Registers,status>::take"
+    }));
+    assert!(!checked.typed.machines().iter().any(|machine| {
+        machine.name.as_str() == "PlacedField<UartPlacement,Registers,status>::read"
+    }));
+}
+
+#[test]
+fn placed_view_omits_inaccessible_fields() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) -> u8 {
+    view.reserved
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-inaccessible", &source);
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("inaccessible fields must not project");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("reserved"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn placed_view_omits_operations_not_admitted_by_the_policy() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    let value: u8 = view.transmit.read();
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-operation", &source);
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("write-only fields must not acquire read");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("read"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn placed_view_keeps_atomic_projection_closed_until_exact_accessors_land() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {
+    let value: u64 = view.counter.load(Relaxed);
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-atomic-closed", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a built-in atomic carrier would widen the admitted operation subset");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("counter"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
 fn source_access_policy_requires_one_decision_per_schema_field() {
     let source = POLICY_SOURCE.replace(
         "data Main {}",

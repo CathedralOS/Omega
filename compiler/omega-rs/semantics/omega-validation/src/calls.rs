@@ -1462,7 +1462,12 @@ fn validate_machine_call_type_parameter_bounds(
     // realization, so allowing an ordinary body call would turn "introduces
     // no fact" into a hidden runtime implementation hole.  Contract
     // expressions are not body call sites and remain free to name the symbol.
+    let compiler_placed_accessor = callee_machine
+        .attached_data
+        .as_ref()
+        .is_some_and(|attached| attached.as_str().starts_with("PlacedField<"));
     if callee_machine.supply_mode == omega_core::semantics::MachineSupplyMode::Boundary
+        && !compiler_placed_accessor
         && program
             .statement_table
             .statements(callee_state.statement_nodes)
@@ -4390,6 +4395,12 @@ fn validate_expression_call_bounds(
     // same-type sibling that the by-type walk would misresolve) loudly instead
     // of binding 0. STATEMENT-position nested calls are validated separately
     // (`validate_call_node`) and remain unsupported -- see TASKS D2.
+    let receiver_type_reference = crate::places::declared_place_type(
+        program,
+        current_machine,
+        Some(current_state),
+        call.receiver,
+    );
     let receiver_type = machine_symbols
         .callable_field_type(receiver_name)
         .or_else(|| {
@@ -4403,6 +4414,10 @@ fn validate_expression_call_bounds(
                 Some(current_state),
                 &chain,
             )
+        })
+        .or_else(|| {
+            receiver_type_reference
+                .and_then(|type_reference| named_type_reference_name(program, type_reference))
         });
 
     // N6 attached lift: a quotient has no runtime representative or attached
@@ -4411,12 +4426,6 @@ fn validate_expression_call_bounds(
     // receiver and every explicit carrier argument. Resolve that projection
     // only from the receiver's exact quotient type; no method is installed on
     // the quotient and no runtime dispatch target is minted.
-    let receiver_type_reference = crate::places::declared_place_type(
-        program,
-        current_machine,
-        Some(current_state),
-        call.receiver,
-    );
     if let Some(receiver_type_reference) = receiver_type_reference
         && let Some((callee_machine, callee_state)) =
             crate::quotients::representative_operation_for_quotient(
