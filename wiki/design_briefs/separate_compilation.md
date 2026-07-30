@@ -177,7 +177,7 @@ for example:
 
 ```text
 v1 retained by Cache.sessions[14]
-  claim: Transaction in Live
+  claim: Transaction::Live
   custodian: PaymentProvider@v1
 ```
 

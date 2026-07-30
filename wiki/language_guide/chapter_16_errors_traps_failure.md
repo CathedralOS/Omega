@@ -131,7 +131,7 @@ incompleteness produces a required handler or an explicit opt-in — never a hid
 death.
 
 The one in-language failure that legitimately reaches runtime is **opt-in
-`Trapping` arithmetic** (decision 17): `T in Trapping` emits a hardware trap on
+`Trapping` arithmetic** (decision 17): `T::Trapping` emits a hardware trap on
 overflow. It is explicit in the type, chosen deliberately, and already
 implemented. That is the model — not a default.
 

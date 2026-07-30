@@ -12,7 +12,7 @@ use omega::language::std::targets::linux_arm64::console_impl;
 
 // The result of a byte-level stdin read. `Eof` is ORDINAL 0: a
 // zero-initialized ByteRead IS end-of-input -- ZII, no magic sentinel
-// (owner ruling 2026-07-16, OWNER_QUESTIONS #12: sentinel -1 vetoed).
+// (the byte result has no sentinel).
 data ByteRead {
     case Eof;
     case Byte(value: i32 [0..=255]);

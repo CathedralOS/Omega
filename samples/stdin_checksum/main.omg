@@ -6,7 +6,7 @@
 // interpreter exit against the table below, and kernel-proves the claim.
 //
 // End-of-input is `ByteRead::Eof` — ordinal 0, the ZII zero case of the std
-// console byte read (no sentinel; the owner ruling on OWNER_QUESTIONS #12).
+// console byte read (the byte result has no sentinel).
 //
 // Expected exit: 0.
 // INPUT-GRID:

@@ -328,7 +328,7 @@ An admitted portable range can therefore publish:
 
 ```omega
 boundary machine BootMemory::take(entry: FirmwareRange)
-    -> Extent in Extent::Granted
+    -> Extent::Granted
                & Extent::Physical
                & Carry::Portable;
 ```
@@ -337,7 +337,7 @@ A partially relaxed result names only the transitions it permits:
 
 ```omega
 boundary machine InterruptMaskControl::save_and_mask(&mut self)
-    -> InterruptMaskGuard in InterruptMaskGuard::Active
+    -> InterruptMaskGuard::Active
                             & Carry::MovableAddress;
 ```
 

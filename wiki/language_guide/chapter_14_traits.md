@@ -90,21 +90,26 @@ names the requirement path. Clause order is signature, `satisfies`,
 `terminates [by ...]`, ordinary contracts, then the checked body. An
 irreducible external realization uses `via <Binding>;` instead of a body.
 
-### Core qualification conformance
+### Domain establishment requirements
 
-Chapter 8's canonical bodyless qualification uses the blessed core
-`RepresentationQualification<Q>` trait relationship between carrier `Self`
-and qualified type `Q`. A machine binds the sole requirement with
-`satisfies RepresentationQualification<Q>::qualify`. It follows the ordinary
-named-satisfier rule: one visible home satisfier enables implicit `as`; several
-require a direct call to the chosen satisfier.
+A domain may name an exact trait requirement in its body. This does not make
+the trait special globally; it records that requirement as one authorized
+origin for that domain:
 
-This conformance has an additional closed validator because it licenses erased
-qualification. `Q` must erase to `Self` with one added bodyless domain, the
-returned value must retain the input's dataflow identity, the machine must
-terminate with no operational or abnormal behavior, and establishment must be
-authorized by the domain owner. The satisfier's machine name is ordinary and
-does not participate in recognition.
+```omega
+domain Reservation::Issued {
+    Issues::issue;
+}
+```
+
+A machine satisfying `Issues::issue` may establish `Reservation::Issued` at
+that requirement's qualified return position. It must also prove every
+predicate in the domain's `requires` clause. A look-alike trait establishes
+nothing because the domain does not name it.
+
+Trait visibility controls who may conform, and machine visibility controls
+who may invoke a conformer. A boundary requirement additionally needs selected
+provider admission. Domain owners receive no ambient exception to these rules.
 
 A satisfying implementation inherits the requirement's authored contracts,
 including `requires`, `ensures`, service-reach ceiling, `suspends`/`blocks`

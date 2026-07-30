@@ -1,4 +1,4 @@
-// std Console BYTE OPS, natively (OWNER_QUESTIONS #12; the ByteRead ruling):
+// std Console BYTE OPS, natively (ByteRead has no sentinel):
 // `read_byte()` mints `ByteRead::Byte { value }` per stdin byte and
 // `ByteRead::Eof` at end-of-input -- Eof is ORDINAL 0, so the composite
 // instruction's PRE-ZEROED result slot IS the Eof case (ZII: the read writes

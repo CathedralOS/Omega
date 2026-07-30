@@ -92,7 +92,7 @@ than prose or a four-place relation:
 
 ```omega
 data FloatMeaning {
-    case FiniteNonZero(value: Rat in NonZero);
+    case FiniteNonZero(value: Rat::NonZero);
     case Zero(sign: Sign);
     case Infinity(sign: Sign);
     case NaN;
@@ -210,7 +210,7 @@ satisfiers and selected `ProviderPlan` realization.
   producing non-finite) / `Saturating` (overflow clamps to ±MAX_FINITE) /
   `Wrapping` = COMPILE ERROR (no modular reading of a float — the Q10
   cast ruling generalized; the Q9 lying-declaration precedent).
-- The two axes compose freely (`f32 [0.0..=1.0] in Trapping`): ranges are
+- The two axes compose freely (`f32 [0.0..=1.0]::Trapping`): ranges are
   window facts and windows are policy-independent, so no Q9-style lie
   arises (unlike ints, where the range's enforcement mechanism WAS the
   Exact machinery).
@@ -337,7 +337,7 @@ makes format-as-data descriptive, not speculative.
    has no defensible clamp; half-measures rejected). `Finite &
    Saturating` composes (value + policy = different axes) and is the
    ergonomic pairing: magnitude proofs vanish, wellness stays proven.
-   For `a / b -> f32 in Finite`, bare finite operands still require proof that
+   For `a / b -> f32::Finite`, bare finite operands still require proof that
    `b` is neither signed zero and that the rounded quotient does not overflow.
    Saturating discharges the magnitude-overflow branch but not the nonzero
    divisor obligation. A result-checked Trapping qualification may instead

@@ -220,7 +220,7 @@ unbounded and tooling reports the responsible path.
 
 WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
 depends on the normalized bounded-work plan tracked in
-`OWNER_QUESTIONS.md` #2. Wall-clock conversion additionally requires a
+`OWNER_QUESTIONS.md` #1. Wall-clock conversion additionally requires a
 target timing model and retains that model's trust provenance.
 
 ## Carry Policy Is A Product
@@ -347,7 +347,7 @@ a bounded pool of guarded OS-worker stacks. The safe point is reached when the
 caller parks; native completion, cancellation finalization, retained-loan
 release, and later pool admission remain independent and may be unbounded.
 These are reported separately. The reusable gateway contract remains owner
-question #3. Retained native pointers use the settled call-scoped-borrow or
+question #2. Retained native pointers use the settled call-scoped-borrow or
 linear-in-flight-claim model. Registered callback
 entry is settled: a named static machine satisfies the callback requirement,
 the binding emits its plan-driven thunk, and a durable protocol returns a
@@ -604,7 +604,7 @@ Finite exploration retains its activation bound and counterexample trace. It
 does not become an unbounded theorem without an authored cutoff, inductive
 invariant, ranking argument, or equivalent proof. Separately compiled packages
 also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #7.
+source and composition rules for those premises remain owner question #6.
 
 ## Minimal Deadlock Shapes
 

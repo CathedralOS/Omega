@@ -123,7 +123,7 @@ this chapter focuses on how pattern selection feeds that control model.
 
 ## Domain Patterns
 
-Domains may participate in matching when their body facts are proof-visible.
+Domains may participate in matching when their predicate requirements are proof-visible.
 Chapter 8 defines domains themselves; this section only defines how domain
 patterns participate in matching once those domains exist.
 

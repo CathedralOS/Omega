@@ -34,12 +34,16 @@
 > model in `float_semantics.md` (`Saturating` clamps finite overflow,
 > `Trapping` rejects non-finite results, and `Wrapping` is invalid for floats).
 
-> **Qualification follow-up (2026-07-25).** The language model separates
-> unchanged-value domain qualification from numeric conversion. The combined
-> `x as Wider in Policy` implementation remains compatibility syntax while
-> named width/float conversion operations are introduced. Arithmetic policies
-> remain a closed semantic role: attaching one is erased, while conversion and
-> later arithmetic carry runtime work.
+> **Exact-coercion follow-up (2026-07-30).** The language model gives `as` one
+> semantic invariant: qualified targets preserve denotation through a unique
+> compiler-derived coercion, while an explicitly bare target erases non-owning
+> semantic meaning. Exact coercion includes numeric widening, proved narrowing, direct
+> qualification, and exact unit-scale conversion. Wrapping, saturation,
+> trapping, rounding, failure, or another policy remains a named operation or
+> explicit policy-domain selection. `as` never invokes arbitrary user code.
+> The target type-use spelling is `u32::Wrapping`; the `T in D` spellings in
+> the preserved implementation log below describe the current parser and must
+> migrate under P1b.
 >
 > **Integer-conversion checkpoint (2026-07-28).** Every fixed-width integer pair
 > is live in `core::numeric_conversion`: widening only for complete range
@@ -49,7 +53,7 @@
 > negatives. Exact is contract-gated; saturation clamps the conversion itself;
 > trapping is a runtime event; and every result carries ordinary Exact
 > arithmetic. Checked-result narrowing remains design-open; float/integer
-> named operations and retirement of compatibility numeric `as` remain. The
+> named policy operations and proof-directed exact `as` remain. The
 > first migration cohort covers indexed operands, guard subjects, comparisons,
 > bitwise operands, entry results, 16-bit conversions, and signed/unsigned
 > extension. A second cohort covers decimal/binary formatting, decimal parsing,
@@ -104,9 +108,9 @@
 > classification recognizes the `min`/`max` tree produced by `clamp`. Duration
 > constructors and division, clock/sleep, cross-target, and filesystem-time
 > canaries retain the result.
-> `arithmetic/runtime_integer_casts_exit` intentionally remains on compatibility
-> `as`: it pins the legacy cast-initializer/transition-parameter lowering shape
-> until that surface is retired, independently of the named conversion cohort.
+> `arithmetic/runtime_integer_casts_exit` pins the
+> cast-initializer/transition-parameter lowering shape independently of the
+> named policy-conversion cohort.
 > The macOS GUI provider now widens framebuffer dimensions into its Core
 > Graphics `i64` staging fields and explicitly wrapping-narrows the raw
 > Objective-C liveness result. Its residual numeric casts are all float
@@ -149,7 +153,7 @@ behaviour qualifiers). Candidate homes:
   the ISA can branch on it (mirror how `is_float`/`byte_width` were threaded —
   see wiki/architecture/scalar_width_rederivation_smell.md for that pattern).
 
-## Parse surface (S1) — SPELLING DECIDED 2026-06-14: `u32 in Wrapping`
+## Current parser surface (S1) — superseded target spelling
 
 Maintainer chose `<primitive> in <ArithmeticDomain>` (reuses the existing `in`
 domain spelling). e.g. `count: u32 in Wrapping`, `total: i32 in Saturating`;

@@ -56,14 +56,13 @@ They must not describe its result as something the checker already derives.
 The runtime model is specified in
 `wiki/design_briefs/authority_values_and_boundary_evidence.md`.
 
-#### P1a — bodyless establishment and admitted roots
+#### P1a — routed establishment and admitted roots
 
 **CLEAR DIRECTION.** Authority-bearing runtime values use ordinary data fields
-plus bodyless domain facts.
+plus routed domain facts.
 
 Implementation checkpoint (2026-07-28): semantic facts distinguish evidence
-origin from program-point origin; checked carrier owners may establish their
-own bodyless result facts without bypassing bodyful predicates; transfer
+origin from program-point origin; transfer
 preserves evidence; admitted facts retain matching granted provider-plan
 receipt identity; and `05_qualification_evidence.json` publishes the result.
 Boundary admission now also retains the exact authorizing trait and state
@@ -79,7 +78,7 @@ owner-machine, domain-operator, or boundary-requirement identities; alias
 guarantees expand to atomic routes, typed constraints and snapshots preserve
 them, and checked consumers no longer reconstruct authority from names.
 Core `Extent` now exposes its ordinary `{ base: addr, length: u64 }` geometry
-and carries authority through bodyless `Extent::Granted`; every declared-domain
+and carries authority through routed `Extent::Granted`; every declared-domain
 parameter constraint becomes an implicit caller obligation, so matching runtime
 geometry cannot cross a qualified boundary without evidence. Core now also
 owns `ExtentRootProvider::grant`: a selected, build-admitted checked adapter may
@@ -96,9 +95,9 @@ composite claim-frontier work remain.
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
   root/invocation/control-or-policy identities needed for exact settlement and
-  use bodyless `Active`/`Pending` facts, so reconstructing identical fields
+  use routed `Active`/`Pending` facts, so reconstructing identical fields
   cannot settle either obligation.
-- Selected interrupt-root schemas now retain every linear bodyless entry
+- Selected interrupt-root schemas now retain every linear routed entry
   qualification as a structured `accepts` row with its carrier-aware semantic
   domain identity and born-strict compiler carry policy. The selected provider
   receipt identity binds those rows, the external-root selection bridge
@@ -113,25 +112,36 @@ composite claim-frontier work remain.
   stack-resource, and custody work tracked under TR3–TR8.
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
-an owner machine cannot satisfy a bodyful result without proving its body; an
-admitted provider cannot originate a fact outside an owner-authorized
-requirement; receipts and authority-flow reports identify every accepted
+an authorized route cannot satisfy a predicate-bearing result without proving
+its predicates; an admitted provider cannot originate a fact outside a
+requirement named by the domain; receipts and authority-flow reports identify every accepted
 origin; and Cathedral obtains one qualified root at a time from its admitted
 memory provider without split, merge, or an array of checked claims.
 
-#### P1b — delegated canonical qualification
+#### P1b — domain establishment and exact coercion surface
 
-**DESIGN BLOCKED — OWNER_QUESTIONS #1.** Decide the owner-authored source and
-package-identity relationship that delegates canonical qualification authority.
-Until then, only the domain-owning package may publish an implicitly eligible
-`RepresentationQualification<Q>` satisfier; all third-party conformers fail
-closed.
+**DESIGN SETTLED; IMPLEMENTATION PENDING.** Move predicate propositions from
+domain bodies to ordinary `requires`. Domain bodies enumerate exact
+trait-requirement identities authorized to establish provenance; every
+predicate is proved at an authorized route's qualified return. An empty domain
+has no establishment obligations and permits explicit qualification from its
+bare carrier. Remove ambient package-owner minting and retire the legacy core
+qualification relationship from domain establishment.
 
-Acceptance: an explicit delegation opens exactly the named bodyless domain for
-exactly the delegated package, survives separate compilation by normalized
-identity, is visible in qualification artifacts, and is non-transitive unless
-the settled design says otherwise. Imports, aliases, matching names, and
-ordinary trait visibility do not delegate authority.
+Implement `as` as one compiler-derived surface: qualified targets preserve
+denotation across numeric widening, proved exact narrowing, direct
+qualification, and normalized unit-scale conversion; explicitly bare targets
+erase non-owning semantic meaning. It invokes no arbitrary user code.
+Predicate-only atoms may weaken implicitly; semantic and non-owning provenance
+atoms erase only through explicit `as`; owned claims require consumption or
+transfer.
+
+Acceptance: a look-alike trait cannot establish another domain; owner code has
+no establishment privilege outside named routes; checked and admitted
+conformances retain exact route identity and receipts; `i32::Km` qualifies
+freely; `Extent::Granted` does not; exact `Km`/`M` coercions share operator
+normalization; lossy coercions reject; and no semantic domain disappears
+implicitly.
 
 #### P1c — composite resource frontiers
 
@@ -140,7 +150,7 @@ multi-output claim transformations. Per-claim carry inheritance has settled
 semantics. The source surface that marks a qualification as content-bearing and
 authors its projection, admitted backing, retirement, and conservation contract
 is **DESIGN BLOCKED —
-`OWNER_QUESTIONS.md` #4**; do not infer content from multiplicity or invent a
+`OWNER_QUESTIONS.md` #3**; do not infer content from multiplicity or invent a
 declaration spelling.
 
 Implementation checkpoint (2026-07-28): transparent records now derive one
@@ -198,12 +208,12 @@ proof/debug artifacts retain the case identity structurally.
 This is not full P1c: content projections/backing and conservation witnesses
 remain. Symbol-keyed substitutions already retain contained claims through
 nested generic transparent records. Content authoring remains blocked on owner
-question #4.
+question #3.
 
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed normalized vocabulary
-  `Indivisible | Interval<Scalar>` once owner question #4 settles how an
+  `Indivisible | Interval<Scalar>` once owner question #3 settles how an
   authored content clause selects it; never default ordinary linear claims into
   that vocabulary;
 - require admitted roots to carry backing receipts denominated in the same
@@ -364,9 +374,11 @@ ceilings, and publication-before-ledger-record all reject.
 
 ### Domain theory and numeric conversion
 
-- Finish the ordinary core float/integer and float-format conversion machines,
-  with explicit narrowing and rounding policy, then retire the legacy numeric
-  `as` spelling after its last compatibility-only consumer.
+- Finish the ordinary core float/integer and float-format conversion
+  requirements with explicit narrowing and rounding policy. Make exact
+  representable numeric coercions the ordinary `as` surface; retain named
+  machines for loss, failure, rounding, saturation, trapping, or an explicitly
+  requested policy.
 - All fixed-width integer pairs are now available from
   `core::numeric_conversion`. Widening is named only where the complete source
   range fits; every other pair—including a signed-to-wider-unsigned conversion
@@ -453,18 +465,17 @@ ceilings, and publication-before-ledger-record all reject.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
   result family merely to mirror another language. Remaining implementation
-  work is float/integer and float-format named operations, their corpus
-  migration, and retirement of numeric compatibility `as` after its last
-  internal conversion consumer.
-  Keep `arithmetic/runtime_integer_casts_exit` on compatibility `as` until that
-  retirement: its authored cast-initializer/transition-parameter shape is the
-  regression for legacy sign/zero extension and truncation lowering, while the
-  named surface has separate coverage.
+  work is float/integer and float-format policy operations plus proof-directed
+  exact `as`. Keep `arithmetic/runtime_integer_casts_exit` as coverage for
+  sign/zero extension, proved truncation, and cast-valued transition lowering;
+  the named policy surface has separate coverage.
 
-Acceptance: qualification `as` preserves carrier, payload, and runtime work;
-numeric and unit conversions are visible calls; bodyful and bodyless domains
-take their respective proof and establishment routes; and normalized identity
-does not depend on the transitional facet projection.
+Acceptance: qualified `as` targets preserve denotation, bare targets make
+non-owning semantic erasure explicit, arbitrary user code is never invoked,
+and every proof used for exactness is retained; lossy or policy-bearing conversions are
+visible calls; domain predicates and routes take their respective proof and
+establishment paths; and normalized identity does not depend on the
+transitional facet projection.
 
 ### Calling plans and boundary artifacts
 
@@ -545,8 +556,8 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Keep these summaries as inferred implementation metadata. Published
   `ensures` may state exact preservation when an interface needs it; prefer
   signatures exposing only the places a callee actually mutates.
-- **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
-  certificates. Delegated package authority is owner-blocked on #1.
+- **DOM1/DOM2/DOM3/DOM5:** finish operator ownership, predicate `requires`,
+  exact route bodies, denotation-preserving `as`, and per-domain weakening.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
@@ -588,19 +599,19 @@ improvements do not change public identity.
   independent plan schema, canonical crossings, activation-wide CPU/thread
   demands, and retirement of the generalized `TaskRuntimeContract` join are
   complete. Authority-value declarations follow P1a.
-- **WORKPLAN:** after owner question #2, implement one deterministic
+- **WORKPLAN:** after owner question #1, implement one deterministic
   abstract-work algebra for interrupt roots, work-to-next-safe-point queries,
   and build-evaluator metering. Preserve maximum/unbounded path attribution and
   keep external wait plus wall-clock conversion in separate trust-bearing
   columns.
-- **FFIGATE:** after owner question #3, implement the hosted-FFI gateway as an
+- **FFIGATE:** after owner question #2, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and
   shutdown/quiescence. Registered callback lowering is ENT4; retained storage
   follows the settled call-scoped/in-flight/permanent model in ENT2c.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to qualified `Extent` after P1.
-- Implement owned `Vec<T>` and then `Vec<u8> in Utf8` through ordinary data and
+- Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
   domain qualification.
 
 Acceptance: linear debt cannot disappear through aggregation or bulk reclaim;
@@ -706,8 +717,9 @@ and allocation handles expose no compiler-owned stack/control storage.
   selected `ProviderPlan` realization.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
-  anywhere in the owning brief; only the negative ruling that compatibility
-  `as` is not that surface is settled (`OWNER_QUESTIONS.md` #8).
+  anywhere in the owning brief. Exact `as` covers only the
+  denotation-preserving subset; policy-bearing conversion remains
+  `OWNER_QUESTIONS.md` #7.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -824,14 +836,13 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 delegated canonical qualification | third-party bodyless-domain qualification |
-| #2 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
-| #3 hosted-FFI gateway | reusable native-worker execution and backpressure |
-| #4 claim-content projection and backing | P1c content algebra and conservation |
-| #5 opaque in-process executable trust | root TCB declaration and profile rejection |
-| #6 contained execution failure | obligation poison, recovery, and reclamation |
-| #7 modular concurrency premises | separately compiled protocol verification |
-| #8 float-conversion requirements | checked integer/float and cross-format conversion |
+| #1 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
+| #2 hosted-FFI gateway | reusable native-worker execution and backpressure |
+| #3 claim-content projection and backing | P1c content algebra and conservation |
+| #4 opaque in-process executable trust | root TCB declaration and profile rejection |
+| #5 contained execution failure | obligation poison, recovery, and reclamation |
+| #6 modular concurrency premises | separately compiled protocol verification |
+| #7 float-conversion requirements | checked integer/float and cross-format conversion |
 
 ## Vertical acceptance slices
 
@@ -841,9 +852,9 @@ blocked work.
   termination, mutation, and trust normalize independently. Candidate resource
   demand and installed provision admit separately; a fixed resource ceiling is
   contract identity only when policy deliberately publishes one.
-- **Units:** implement two units in one dimension with canonical bodyless
-  qualification, explicit conversion, arithmetic-policy composition, generic
-  preservation, and operator coherence.
+- **Units:** implement two obligation-free units in one dimension with exact
+  `as` scale coercion, arithmetic-policy composition, fact preservation, and
+  operator coherence.
 - **OS gauntlet:** UART/MMIO, Cathedral-owned address translation, DMA,
   hostile/trusted shared-page IPC, Cathedral-owned exception/timer entry, and
   SMP AP bringup. A new customer-shaped compiler concept fails the slice.

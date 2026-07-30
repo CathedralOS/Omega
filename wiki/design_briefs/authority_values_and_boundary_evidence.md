@@ -1,6 +1,6 @@
 # Design Brief: Authority Values And Boundary Evidence
 
-Status: semantic direction settled 2026-07-26. The core `Extent` declaration,
+Status: semantic direction updated 2026-07-30. The core `Extent` declaration,
 owner-authored root requirement, state-local constrained-parameter evidence
 boundary, Cathedral's first admitted `Granted` root, and ordinary interrupt
 obligation carriers are live; further provider, carry, resource-frontier, and
@@ -27,45 +27,38 @@ range descends from a live admitted or checked authority claim. Reconstructing
 the same fields creates another value but does not reproduce that membership.
 
 Multiplicity belongs to the data type. `Extent` is linear because every owned
-range must eventually be discharged. Its outstanding provenance survives
-qualification forgetting. Operations that release, split, map, or otherwise
-consume authority require the relevant domain membership, so an unqualified
-value has no legal resource consumer.
+range must eventually be discharged. Its outstanding provenance cannot be
+cast away; it must be consumed or transferred. Operations that release, split,
+map, or otherwise consume authority require the relevant domain membership.
 
 ## Qualification evidence
 
-A domain may have a predicate body or be bodyless:
-
-- a bodyful qualification is established by proof, including proof guaranteed
-  by a checked validator or accepted under an admitted receipt;
-- a bodyless qualification is established by an owner-authorized machine,
-  propagation, checked transformation, or admitted receipt under an
-  owner-authorized boundary requirement.
-
-The source spelling for a bodyless fact is:
+A domain declares predicate obligations in `requires` and exact authorized
+establishment requirements in its body. `Extent::Granted` names its boundary
+root directly:
 
 ```omega
-pub domain Reservation::Issued;
+pub domain Extent::Granted {
+    ExtentRootProvider::grant;
+}
 ```
 
-`Extent::Granted` uses the same declaration shape:
+The body does not call `grant`; it authorizes that exact requirement to
+originate the domain at its qualified return position. A selected provider
+satisfies the requirement, and admission records its receipt. A third party
+cannot create a look-alike trait or machine to establish `Granted`.
 
-```omega
-pub domain Extent::Granted;
-```
-
-External origination is authorized by the requirement being satisfied rather
-than by a modifier on the domain. The domain owner publishes the boundary
-requirement whose result names the exact qualified subject. A selected provider
-satisfies that requirement, and admission records its receipt. A third party
-cannot make its own declaration an implicit establishment route for someone
-else's domain.
+Predicate-only membership is established by proof, including proof guaranteed
+by a checked validator or accepted under an admitted receipt. Routed
+membership is established by an authorized checked conformance, propagation,
+checked transformation, or admitted boundary conformance. When one domain has
+both forms, its predicates are proved at the authorized route's return.
 
 Core's first live authority root uses this exact shape:
 
 ```omega
 pub boundary trait ExtentRootProvider {
-    machine grant(root: Extent) -> Extent
+    machine grant(root: Extent) -> Extent::Granted
     ensures
         result in Extent::Granted;
 }
@@ -76,14 +69,13 @@ surface does not mint `Granted`. Semantic checking consumes the boundary
 requirement and admitted receipt first; only afterward does execution dispatch
 rewrite the selected trait slot to that adapter.
 
-The compiler therefore does not treat a bodyless `boundary machine` guarantee
+The compiler therefore does not treat an unlisted `boundary machine` guarantee
 as domain evidence merely because the machine is accepted. An admitted
 membership guarantee must be inherited from a boundary requirement, must spell
 the bare `result` as its subject, and must return the carrier targeted by the
 domain. Checked proof facts retain both the authorizing boundary trait and the
 exact requirement signature; the qualification-evidence artifact publishes
-that signature with the selected provider-plan receipt. Package-owner
-coherence remains a separate declaration-ownership gate.
+that signature with the selected provider-plan receipt.
 
 This keeps crossing semantics on machines and requirements. Internal checked
 operations may still transfer the same fact, subject to resource-frontier
@@ -95,28 +87,28 @@ A qualified result type or `ensures` clause is an obligation on a checked
 implementation. It becomes available to callers only when the implementation
 does one of the following:
 
-- proves a nonempty domain body from visible propositions;
+- proves the domain's predicate requirements from visible propositions;
 - receives the fact from a guard, parameter, or checked callee guarantee;
 - validates runtime input through an ordinary checked machine;
 - transfers an existing resource claim through a checked transformation; or
-- crosses an admitted boundary satisfying an owner-authorized requirement
+- crosses an admitted boundary satisfying a requirement named by the domain
   whose receipt supplies the fact.
 
 These evidence sources feed one membership judgment while retaining their own
 validation rules. Arithmetic proof, resource transfer, and accepted provider
 evidence are not interchangeable.
 
-Domain bodies may use ordinary declaration visibility. A public body lets
-consumers discharge its propositions directly. A body whose supporting
-predicates are not visible outside the package is established externally
-through the package's checked validators and guarantees. A bodyless qualification
-has no structural derivation and therefore depends entirely on existing
-evidence, checked resource transformations, or permitted boundary receipts.
+Domain predicates use ordinary declaration visibility. Public predicates let
+consumers discharge their propositions directly. Predicates not visible
+outside the package are established externally through checked validators and
+guarantees. A routed qualification depends on its exact authorized
+conformance, existing evidence, checked resource transformations, or admitted
+boundary receipts.
 
 ## Root authority
 
 Root authority bottoms out at an admitted crossing. A platform memory provider
-may return `Extent in Extent::Granted` together with address-space and rights
+may return `Extent::Granted` together with address-space and rights
 facts through the memory requirement it satisfies. Omega cannot prove that
 firmware, a hypervisor, or a host OS transferred those ranges; provider
 admission supplies that evidence and records its scope.
@@ -172,7 +164,7 @@ normalization, containment, equality, and partial separated composition. New
 algebra kinds require a compiler release and a concrete customer; arbitrary
 owner-defined composition is not authority evidence.
 
-Owner question #4 governs how a source declaration marks a claim as
+Owner question #3 governs how a source declaration marks a claim as
 content-bearing and selects this algebra, including whether an explicit content
 clause may omit `Indivisible`. Ordinary linear claims never default into the
 content algebra merely because they are linear.
@@ -342,7 +334,7 @@ values. Content-bearing reports additionally retain the normalized projection,
 receipt backing, root lineage, outcome mapping, and n-ary conservation witness.
 
 For hardware-entered provider slots, the selected service schema records a
-linear bodyless parameter qualification as a structured `accepts` row. The row
+linear routed parameter qualification as a structured `accepts` row. The row
 uses the carrier-aware semantic-domain identity, begins with the strict
 compiler carry policy, participates in provider-plan identity, and survives the
 external-root selection bridge. This is the static admission contract bound by
@@ -359,9 +351,9 @@ result contracts may establish the positive compiler-owned permissions
 all four.
 
 The carry entry belongs to the undischarged permission provenance rather than
-the current predicate-fact set. Forgetting an authority qualification therefore
-retains the claim's demand. Freshly constructed unqualified data has no claim
-entry and follows its structural/type-wide carry policy.
+the current predicate-fact set. Authority casts cannot discard that entry;
+only consumption or transfer changes it. Freshly constructed unqualified data
+has no claim entry and follows its structural/type-wide carry policy.
 
 Checked-internal claims derive from the provenance and storage they inherit.
 Claim transfer and conserved decomposition preserve permissions; combined
@@ -373,14 +365,11 @@ and rejects a transformation whose provenance assignment is ambiguous.
 
 The implementation requires:
 
-1. The domain surface supports bodyless declarations and transparent
-   declared-domain aliases. Exact owner-machine, domain-operator, and boundary
-   requirement establishment relationships are normalized independently and
-   consumed by checked qualification. Selected boundary-entry schemas now
-   retain linear bodyless accepted claims with strict carry and publish them in
-   the qualification artifact. It still must add package-owner coherence and
-   concrete invocation-receipt-backed guarantees throughout source
-   qualification and the remaining authority-flow consumers.
+1. Migrate the domain surface to predicate `requires` plus exact requirement
+   routes, remove ambient package-owner establishment, and retain route-backed
+   claims in selected boundary-entry `accepts` rows and qualification
+   artifacts. Concrete invocation receipts must remain connected throughout
+   source qualification and the remaining authority-flow consumers.
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.

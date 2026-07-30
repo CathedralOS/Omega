@@ -211,7 +211,7 @@ era rather than replaying an old provenance edge.
 
 This is normalized provider accounting, not a second source-visible task or
 lease type. Connecting it to `Task<T>` awaits the ordinary selected
-task-runtime realization plus bodyless establishment and admitted
+task-runtime realization plus routed establishment and admitted
 boundary-machine evidence for the runtime's ordinary authority value; those
 implementation dependencies are tracked separately.
 
@@ -338,7 +338,7 @@ continuation capacity, preemption granularity, continuation movement, and
 inline-completion runtime fields have been removed. Its lifecycle ledger is
 now explicitly downstream of an already selected runtime and exact activation
 plan rather than pretending to perform provider admission. Provider selection,
-bodyless establishment, transactional start, stack leases and WCSU-backed
+routed establishment, transactional start, stack leases and WCSU-backed
 provisioning, and source-level ledger connection remain ordinary implementation
 work under the settled model in
 [`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md).
@@ -378,7 +378,7 @@ the responsible call/path and the bounded computation around it rather than
 collapsing the result to an unattributed infinity.
 
 Maximum abstract work between safe points requires the normalized `WorkPlan`
-and repeated-path algebra in `OWNER_QUESTIONS.md` #2. WCSU proves space, not
+and repeated-path algebra in `OWNER_QUESTIONS.md` #1. WCSU proves space, not
 work or wall-clock latency. A target may convert checked work to time only
 through a separately derived or admitted timing model whose trust provenance
 remains visible.
@@ -425,7 +425,7 @@ runtime mode. It can pool guarded native stacks and keep native blocking off
 Omega scheduler workers, but it does not prove completion or cancellation.
 Pool exhaustion, retained loans, cancellation finalization, and shutdown
 remain separate resource obligations. The reusable gateway contract is owner
-question #3. Retained foreign storage uses the settled call-scoped-borrow or
+question #2. Retained foreign storage uses the settled call-scoped-borrow or
 linear-in-flight-claim model.
 
 The compiler task canary now carries an admitted suspension-only permission
@@ -498,7 +498,7 @@ arguments remain TR3–TR8 work.
    `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
    to selected runtime values and source `Task<T>` after provider selection and
-   bodyless establishment land. The ledger already prevents premature
+   routed establishment lands. The ledger already prevents premature
    close/reclaim and preserves a claim on failed settlement.
 6. Implement fixed nonmoving stack lowering, WCSU-backed `StackPlan`, stack
    reservation, and a first provider. A future stackless plan is a separate
@@ -508,8 +508,8 @@ arguments remain TR3–TR8 work.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.
-9. Implement the normalized bounded-work plan after owner question #2; keep
+9. Implement the normalized bounded-work plan after owner question #1; keep
    work, wait, and timing conversion distinct.
 10. Implement registered callback lowering under the calling-plan/boundary
-    lane and keep hosted FFI gateway policy under owner question #3 rather
+    lane and keep hosted FFI gateway policy under owner question #2 rather
     than adding either to `TaskRuntime`.

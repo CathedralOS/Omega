@@ -100,7 +100,7 @@ operations remain behind the provider boundary.
 `DataSupplyMode::BoundaryOpaque` remains the representation mode for
 proof-boundary data whose carrier is supplied by admission, such as abstract
 `Real`. Runtime authority declarations migrate from that mode to ordinary data
-as bodyless establishment, receipt-backed boundary guarantees, and
+as routed establishment, receipt-backed boundary guarantees, and
 resource-frontier transformations land.
 
 The compiler records whether each domain fact originated through checked proof,
@@ -150,43 +150,38 @@ consume the declaration's stable semantic identity, qualification consults
 predicate-body presence for proof, and operator selection consumes semantic
 roles. Domain conjunction validation permits contributions in different roles
 (`Degrees & Wrapping`) and rejects multiple distinct contributors to one role.
-The checked core qualification relationship is a trusted semantic role rather
-than a name convention.
+Exact coercion consumes normalized semantic roles and proof obligations rather
+than a privileged qualification trait or name convention.
 
-Implementation status (DOM1 body presence, 2026-07-28): `domain T::Fact;` and
-`domain T::Fact {}` both parse as an explicit bodyless predicate-body record,
-while `{ true; }` is explicitly predicate-bearing. Syntax, symbol-resolved, and
-typed trees plus their snapshots preserve that record. Predicate consumers
-inspect it directly rather than reconstructing body presence from fact count.
+Target representation (DOM1 establishment surface, 2026-07-30): domain
+propositions normalize from `requires`; exact requirement identities in the
+body normalize as alternative establishment routes. An empty declaration has
+no obligations and permits explicit qualification from its bare carrier.
+Syntax, symbol-resolved, typed, and checked trees must preserve predicates and
+routes independently rather than reconstructing either from body presence.
 
 Implementation status (P1a evidence origin, 2026-07-28): checked semantic facts
 now carry an establishment-evidence axis independent of their program-point
 origin. The normalized origin classes distinguish prover, checked validation,
-owner establishment, checked transformation, admitted receipt, propagation,
-and canonical qualification. A checked machine attached to a domain's carrier
-may discharge its own bodyless result guarantee; the same route does not bypass
-a bodyful predicate and an unrelated carrier machine cannot mint the fact.
-Call-result binding and ordinary statement transfer preserve the evidence.
+authorized-route establishment, checked transformation, admitted receipt,
+propagation, and vacuous qualification. No package receives ambient
+establishment privilege. Call-result binding and ordinary statement transfer
+preserve the evidence.
 Granted selected provider plans attach their normalized plan fingerprint to
 matching admitted facts, and checked artifacts publish
 `05_qualification_evidence.json` with origin, source, program point, and receipt
 identity. Exact owner-authorized admitted-subject matching is now live.
-Canonical qualification uses now retain the normalized domain and selected
-satisfier in checked facts before both shorthand casts and named calls erase.
+Exact `as` uses retain the normalized domain and derivation before lowering.
 
 Implementation status (P1a establishment routes, 2026-07-28):
-`DomainEstablishmentRoute` records the exact symbol identity of an
-owner-checked machine, domain-owned operator, or authorizing boundary
-trait/requirement pair. Syntax-to-resolved lowering normalizes those
+`DomainEstablishmentRoute` records the exact trait-requirement identity
+authorized by a domain body. Syntax-to-resolved lowering normalizes those
 relationships once after symbol assignment, recursively expands aliases to
 their atomic domain facts, and deduplicates without losing declaration order.
 Resolved and typed domain definitions, typed binding-site constraints, and
-structural snapshots preserve the records. Checked owner and boundary
-qualification consumers consult only the normalized route identity instead of
-reconstructing permission from attachment names or contract placement.
-Canonical-qualification routes and package-owner coherence are normalized in
-the same pass. The unresolved authoring surface for an explicit cross-package
-delegate is tracked in `OWNER_QUESTIONS.md` #1 and fails closed meanwhile.
+structural snapshots preserve the records. Checked qualification consumers
+consult only the normalized route identity instead of reconstructing
+permission from attachment names, package ownership, or contract placement.
 
 Implementation status (DOM alias expansion, 2026-07-28): transparent
 declared-domain aliases retain independent syntax, resolved, and typed records.
@@ -324,7 +319,7 @@ closed compiler vocabulary, including parser expansion of `Carry::Portable`
 and transparent user aliases over the atoms. Boundary call guarantees admit
 only an exact owner-authorized result permission and retain its requirement and
 provider receipt; a direct call to the checked adapter does not grant it.
-Admitted linear bodyless resource facts additionally seed an independent
+Admitted linear routed resource facts additionally seed an independent
 born-strict `CarryOrigin`. Local transfers and one-to-one state-parameter
 handoffs preserve that origin and its exact per-axis relaxations even when the
 qualification fact is later absent. Call exits infer the same carry mapping for
@@ -561,7 +556,7 @@ record-constructor fields are joined to their caller receiving paths without
 minting caller-local identities or origins. Checked states now publish complete
 normalized output maps, and opaque n-ary calls consume those maps across
 expression calls and qualified tail transitions without treating argument
-order as authority evidence. Ambiguous/bodyless targets still reject, while the
+order as authority evidence. Ambiguous routed targets still reject, while the
 checked artifact retains every output path and input-relative or established
 source. Nontrivial state-exit code actions now target the settled
 `EdgeCleanupPlan`: materialize outgoing values, commit the transfer map, clean
@@ -751,12 +746,14 @@ service reach.
 - No checked-stage query infers predicate bodies, semantic roles, or
   establishment permission from punctuation, body emptiness, or operator
   presence.
-- A domain carrying both a predicate body and semantic roles is representable
+- A domain carrying both predicate requirements and semantic roles is representable
   without duplication.
 - Static qualification survives generics and containers while proven
   predicates remain flow facts.
-- A canonical bodyless qualification conformance is value-identical,
-  terminating, behavior-free, owner-authorized, and erased.
+- A qualified `as` coercion preserves denotation, an explicitly bare target
+  erases only non-owning semantic meaning, arbitrary user code is never
+  invoked, and every proof used for bounds, divisibility, and domain
+  establishment survives until lowering.
 - Requirement/provider/accepted/checked supply modes survive into artifacts.
 - A requirement's termination guarantee can be inherited while its checked
   implementation carries a private ranking witness.

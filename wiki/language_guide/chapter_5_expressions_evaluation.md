@@ -168,9 +168,9 @@ Core collection and text concepts:
 - `Array[T; N]`: fixed-size owned inline storage.
 - `Vec[T]`: owned dynamic contiguous storage.
 - `Slice[T]`: borrowed contiguous view over elements.
-- `[u8; N] in Utf8`: bounded owned text storage.
-- `Vec<u8> in Utf8`: growable owned text storage once allocation is available.
-- `&[u8] in Utf8`: borrowed text window (`&mut [u8]` plus an establishment
+- `[u8; N]::Utf8`: bounded owned text storage.
+- `Vec<u8>::Utf8`: growable owned text storage once allocation is available.
+- `&[u8]::Utf8`: borrowed text window (`&mut [u8]` plus an establishment
   contract when mutation must preserve the encoding).
 
 The surface uses the ordinary carrier plus domain spelling:
@@ -178,8 +178,8 @@ The surface uses the ordinary carrier plus domain spelling:
 ```omega
 let fixed: [Item; 4];
 let view: &[Item] = fixed.as_slice();
-let text: [u8; 64] in Utf8 = "hello";
-let text_view: &[u8] in Utf8 = text;
+let text: [u8; 64]::Utf8 = "hello";
+let text_view: &[u8]::Utf8 = text;
 ```
 
 `Array`, `Vec`, and `Slice` are visible core concepts, not just implicit
@@ -402,55 +402,20 @@ Two rules keep it honest:
   qualification or first weaken the Wrapping operand to Exact. Explicit always
   wins.
 
-> **Conversion migration.** Every fixed-width integer pair now has named
-> ordinary machines in `core::numeric_conversion`. Widening names only
-> range-containing conversions. Every other pair—including signed-to-wider-
-> unsigned conversion, whose target excludes negatives—uses Exact, Wrapping,
-> Saturating, or Trapping narrowing. Exact carries a proven representability
-> contract, and every result returns to ordinary Exact arithmetic.
-> Checked-result narrowing remains design-open in the appendix; float/integer
-> conversion and the not-yet-migrated corpus still use compatibility `as` while
-> their named operations land. The migrated integer cohort covers guard,
-> comparison, bitwise, entry-result, indexed-operand, and signedness-sensitive
-> lowering shapes plus decimal/binary formatting, decimal parsing, hashing, and
-> checksums. Representative CLI samples now exercise named widening and
-> trapping conversion as user-facing code, and the sample corpus no longer uses
-> compatibility `as` for runtime integer width/signedness conversion. Residual
-> integer-looking spellings are same-carrier qualification (plus a same-type
-> wire-policy compatibility spelling). A resolved pure or disjoint conversion
-> call preserves unrelated dominating range facts; an opaque call or a frame
-> that overlaps the guarded place invalidates them. PRNG consumers use named
-> wrapping narrowing for high-word extraction; nested conversion arguments
-> retain caller alias substitution through binary/member expressions instead
-> of reading an unmaterialized callee parameter slot. Filesystem metadata
-> consumers likewise use named widening for raw-stat byte decodes, including
-> the byte-assembly setup of the cast-field compatibility regression; that
-> fixture retains only the final cast-valued field it exists to test.
-> Nonnegative signed host counts now use named exact narrowing after their
-> dominating guards, including target-specific positioned I/O; nested call
-> contract proof rebinds the target-state parameter through the incoming
-> transition argument. The converted count is materialized under a distinct
-> local name before enum construction, preserving the payload through native
-> lowering. Target timestamp byte encoders, POSIX directory counters/record
-> decoders, Windows attribute decoding, and portable stat width extensions now
-> use the named integer surface as well. Residual filesystem `as` spellings are
-> same-carrier Wrapping qualification, target-owned boolean-to-foreign-bit
-> encoding, or a compatibility-specific lowering shape. `std::time` likewise
-> names every runtime integer width/signedness conversion; its remaining
-> integer-looking casts only qualify or forget a same-carrier arithmetic
-> policy. A store-enforced Exact local range can prove an exact conversion
-> precondition, but a broader declaration cannot. Nested conversion calls keep
-> enclosing parameter substitutions through compiler-elided scalar locals and
-> `min`/`max`/`clamp` expressions without re-expanding aggregate or value-call
-> result locals that own runtime materialization. The legacy
-> `arithmetic/runtime_integer_casts_exit` fixture deliberately retains numeric
-> `as` because its cast-initializer/transition-parameter shape is compatibility
-> lowering coverage, not an unmigrated library consumer. The domain model
-> reserves qualification `as` for changing static facts without changing
-> carrier, payload, or runtime work.
-> `std::macos_gui` likewise names its `u32`-to-`i64` framebuffer widening and
-> wrapping `u64`-to-`u32` foreign-result narrowing. Its remaining numeric casts
-> are integer-to-float conversions awaiting the F7 named surface.
+> **Exact coercion and conversion policy.** `as` is the ordinary explicit
+> coercion when the compiler proves one unique transformation preserves the
+> value's denotation; an explicitly bare target may instead erase non-owning
+> semantic meaning. Integer widening and representable narrowing therefore
+> use `as`; the proof may come from the complete source range, a dominating
+> guard, or a retained contract fact. The same rule covers direct domain
+> qualification and exact rational unit-scale changes.
+>
+> A transformation that wraps, saturates, traps, rounds, can fail, allocates,
+> or otherwise selects policy is an ordinary named machine or an explicitly
+> selected policy domain. `core::numeric_conversion` retains those named
+> surfaces and may also offer named exact helpers, but callers do not need a
+> value-machine call merely to express a proved exact cast. `as` never invokes
+> arbitrary user code.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.
@@ -459,7 +424,7 @@ proof obligation like any other in the language.
 
 In a compound expression, a domain-bearing operation produces its
 declared-width result **before** the enclosing operation consumes it. With
-`a: u32 in Wrapping` holding `0 - 2` (that is, `0xFFFF_FFFE`):
+`a: u32::Wrapping` holding `0 - 2` (that is, `0xFFFF_FFFE`):
 
 ```omega
 let b: u32 = a >> 1;    // 0x7FFF_FFFF -- shifts the WRAPPED 32-bit value
@@ -538,7 +503,7 @@ semantic function:
 
 ```omega
 data FloatMeaning {
-    case FiniteNonZero(value: Rat in NonZero);
+    case FiniteNonZero(value: Rat::NonZero);
     case Zero(sign: Sign);
     case Infinity(sign: Sign);
     case NaN;
@@ -569,9 +534,9 @@ the bootstrap realization until explicit target satisfiers replace it.
 ```omega
 data Particle {
     x: f64;                            // bare: may hold NaN/±inf quietly
-    speed: f64 in Finite;              // NaN and ±inf forbidden
+    speed: f64::Finite;                // NaN and ±inf forbidden
     alpha: f32 [0.0..=1.0];            // range fact — implies Finite for free
-    mass: f64 in Finite & Positive;    // domains conjoin with the landed `&`
+    mass: f64::Finite & Positive;      // domains conjoin with the landed `&`
 }
 ```
 
@@ -582,7 +547,7 @@ data Particle {
 - A float range (`0.0f..=100000.0f`) is a window-checked value fact — and
   every range implies `Finite`: NaN fails every comparison, so no range
   admits it.
-- A domain chain `in A & B & C` carries any number of value domains and
+- A domain chain `::A & B & C` carries any number of value domains and
   **at most one** policy domain (two policies is the existing
   mixed-domain rejection).
 - Float constraints are not runtime metadata.
@@ -610,8 +575,8 @@ into wraparound):
 For example, finite operands alone do not prove finite division:
 
 ```omega
-machine divide(a: f32 in Finite, b: f32 in Finite)
-    -> f32 in Finite
+machine divide(a: f32::Finite, b: f32::Finite)
+    -> f32::Finite
 {
     return a / b;
 }

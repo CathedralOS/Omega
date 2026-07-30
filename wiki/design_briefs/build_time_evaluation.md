@@ -110,9 +110,10 @@ overflow, signed zero, infinities, NaN comparisons and min/max, classification,
 square root, every directed arithmetic family, and fused-versus-unfused
 behavior. Core float requirements backed by the hermetic semantic engine do
 not count as host observation; compatibility imports retain the dynamic host-
-boundary purity fence. The exact public float-conversion requirement family is
-a language-design blocker: the settled record excludes compatibility `as` but
-does not choose the replacement names or signatures.
+boundary purity fence. The public float-conversion requirement family remains
+a language-design blocker: exact denotation-preserving coercions may use `as`,
+while rounding, trapping, saturation, checked failure, and cross-format policy
+still need explicit requirement names and signatures.
 
 ## Admission uses the complete invocation contract
 

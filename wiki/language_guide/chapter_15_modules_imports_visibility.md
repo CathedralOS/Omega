@@ -150,7 +150,7 @@ Structural access never manufactures an abstract qualification. A public range
 record may be freely assembled; an authority *about* that range remains
 evidence-backed and cannot be forged by placing the two beside each other.
 When an invariant is not structurally expressible, useful operations require a
-bodyless qualification such as `Tree in Valid`.
+routed qualification such as `Tree::Valid`.
 
 Changing a published source shape changes the pinned package identity and
 causes dependents to rebuild or fail loudly. It does not silently alter an ABI.
@@ -164,10 +164,10 @@ published geometry or handle bits remain inspectable; reconstructing those
 fields does not reproduce its authority, validation, or provenance facts.
 Checked operations require the qualification they consume.
 
-An admitted provider may originate a bodyless qualification when it satisfies
-an owner-authorized boundary requirement naming the exact subject and fact;
-admission records the receipt. Checked resource transformations preserve or
-divide that evidence while accounting for every linear claim. See
+An admitted provider may originate a routed qualification when it satisfies
+an exact boundary requirement named in the domain declaration; admission
+records the receipt. Checked resource transformations preserve or divide that
+evidence while accounting for every linear claim. See
 [`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 Confidential state remains in provider custody. A public value may carry an

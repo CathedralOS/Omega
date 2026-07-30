@@ -5,15 +5,15 @@ carrier.
 
 > **Current domain model
 > ([domain_facets_and_qualification.md](../design_briefs/domain_facets_and_qualification.md)).**
-> One domain declaration may contribute a predicate body, semantic
-> declarations, owner-authorized establishment routes, and transparent alias
+> One domain declaration may contribute predicate requirements, semantic
+> declarations, exact authorized establishment routes, and transparent alias
 > expansion. Those aspects share a source name because they compose, but the
 > compiler stores and checks them independently.
 >
-> `Utf8` has a predicate body, `Km` contributes denotation and unit
+> `Utf8` has predicate requirements, `Km` contributes denotation and unit
 > operations, `Wrapping` contributes an arithmetic policy, `Percent` may carry
 > both a range predicate and unit meaning, and `Reservation::Issued` is a
-> bodyless historical fact.
+> routed historical fact.
 >
 > Flow inference changes what is known. Static binding qualifications determine
 > which semantic roles participate in operator resolution. Multiplicity governs
@@ -21,9 +21,10 @@ carrier.
 > permissions govern operations; and carry governs mobility.
 
 Domains are not runtime tags, wrapper types, hidden storage, or a second
-object model. Attaching, proving, selecting, or forgetting a domain never
-changes representation or adds runtime metadata; validation and conversion
-remain ordinary operations and may perform runtime work.
+object model. Domain evidence adds no runtime metadata. Exact `as` coercions
+may change representation while preserving denotation; validation and
+noncanonical conversion remain ordinary operations and may perform runtime
+work.
 
 > **Every data type has a DEFAULT DOMAIN.** The invariants a
 > `data` type "always has" are its default domain — the one domain that is always in
@@ -66,26 +67,23 @@ data Player {
     in_cutscene: bool;
 }
 
-domain Player::Valid {
-    self.health >= 0;
-    self.health <= 100;
-}
+domain Player::Valid
+    requires self.health >= 0
+          && self.health <= 100;
 
-domain Player::Dead {
-    self in Player::Valid;
-    self.health <= 0;
-    self.in_cutscene == false;
-}
+domain Player::Dead
+    requires self in Player::Valid
+          && self.health <= 0
+          && self.in_cutscene == false;
 
-domain Player::Alive {
-    self in Player::Valid;
-    self.health > 0;
-}
+domain Player::Alive
+    requires self in Player::Valid
+          && self.health > 0;
 ```
 
-`self` is the value being classified. Domain bodies are proof facts. They do
-not create fields and they do not run unless the program explicitly asks for a
-runtime diagnostic/checking build.
+`self` is the value being classified. A domain's `requires` clause states its
+predicate obligations. They do not create fields and they run only when the
+program explicitly asks for a runtime diagnostic/checking build.
 
 This chapter assumes Chapter 7's contract model already exists. Domains do not
 replace contracts; they give contracts reusable semantic names.
@@ -120,17 +118,15 @@ data Game {
     winner: Optional<PlayerId>;
 }
 
-domain Game::NewGame {
-    self.phase == GamePhase.NewGame;
-    self.turns == 0;
-    self.board.empty;
-    self.winner == None;
-}
+domain Game::NewGame
+    requires self.phase == GamePhase.NewGame
+          && self.turns == 0
+          && self.board.empty
+          && self.winner == None;
 
-domain Game::Playing {
-    self.phase == GamePhase.Playing;
-    self.winner == None;
-}
+domain Game::Playing
+    requires self.phase == GamePhase.Playing
+          && self.winner == None;
 
 machine Game::start_game(&mut self)
     requires self in Game::NewGame
@@ -141,32 +137,60 @@ machine Game::start_game(&mut self)
 
 ## Establishing And Qualifying Domains
 
-A domain body is a proof obligation. Membership may come from a
-compile-time-known value, a dominating guard, a prior contract guarantee, a
-checked validator, or an admitted receipt. The evidence source remains visible
-in checked artifacts where trust or authority depends on it.
+A domain declaration states two independent kinds of establishment evidence:
 
-A bodyless domain names a qualification that cannot be derived from its
-carrier:
+- `requires` contains propositions about `self`; all of them must be proved.
+- The body contains exact trait-requirement identities authorized to originate
+  membership. Each body entry is an alternative establishment route.
 
 ```omega
-pub domain Reservation::Issued;
+domain [u8]::Path
+    requires no_nul(self);
+
+pub domain Reservation::Issued {
+    Issues::issue;
+}
+
+domain Reservation::Confirmed
+    requires has_seat(self)
+{
+    Confirms::confirm;
+}
 ```
 
-The empty braced form is equivalent. It is not an always-true predicate; an
-explicitly universal predicate writes `true` in its body.
+The body does not execute those requirements. It authorizes their selected
+conformances to establish the domain at the requirement's qualified return
+position. Every predicate obligation is checked there once; callers consume
+the resulting guarantee rather than re-proving it.
 
-Bodyless membership may come from an owner-authorized machine, propagation
-from an existing qualified value, a checked transformation of existing
-evidence, or an admitted provider satisfying an owner-authorized boundary
-requirement. A qualified result type or `ensures` clause is an implementation
-obligation rather than evidence by itself.
+An empty declaration has neither predicate nor provenance obligations:
 
-A parameter declared `value: T in D` imposes an implicit
-`requires value in D` at every call boundary. Predicate-bearing `D` discharges
-through proof; bodyless `D` requires retained establishment evidence. The
+```omega
+domain i32::Km;
+```
+
+Every bare `i32` may therefore be explicitly qualified as `i32::Km`. This is
+not a package-owner privilege. The same declaration means the same thing in
+every package.
+
+A route changes that rule. Neither the domain-owning package nor any other
+code may manufacture `Reservation::Issued` with `as`; establishment must pass
+through one of the exact requirements named by the domain. Trait visibility
+controls who may conform, machine visibility controls who may invoke a
+conformer, and a boundary requirement additionally requires provider selection
+and admission. Public ordinary conformances are allowed when the domain author
+deliberately publishes an open checked route.
+
+Membership may also propagate from an existing qualified value or through a
+checked evidence-preserving transformation. A qualified result type or
+`ensures` clause is an implementation obligation rather than evidence by
+itself unless it is the return of an authorized route.
+
+A parameter declared `value: T::D` imposes an implicit
+`requires value in T::D` at every call boundary. Predicate-only `D` discharges
+through proof; a routed `D` requires retained establishment evidence. The
 callee may then treat the immutable parameter as qualified and forward that
-fact. Matching the runtime representation of `T` never satisfies this
+fact. Matching the runtime representation of `T` never satisfies a routed
 obligation by itself.
 
 For a graph machine this obligation belongs to the exact state declaring the
@@ -177,72 +201,57 @@ state-local obligation.
 
 ### `as`
 
-`as` applies a compiler-known coercion after statically discharging its
-obligation. It preserves the carrier's mathematical value or a reference's
-referent:
+`as` is one explicit, compiler-derived coercion and erasure surface:
+
+> **`as` never silently changes denotation: qualified targets preserve it;
+> an explicitly bare target erases non-owning semantic meaning.**
+
+It may change representation or the carrier's stored numeral when the compiler
+derives one unique exact transformation from normalized type and domain
+semantics. It never selects or invokes arbitrary user code.
 
 | Axis | Requirement |
 |---|---|
-| mathematical value or referent | unchanged |
-| proof | discharged before lowering |
+| denoted value or referent | unchanged |
+| proof | predicates, bounds, and divisibility discharged before lowering |
 | reach and control | no service reach, allocation, suspension, failure, or user code |
-| policy | no hidden lossy or executable conversion choice |
+| policy | no hidden loss, rounding, saturation, trapping, or ambiguous choice |
 
-For a domain with a body, `value as T in D` succeeds only when the prover
-discharges every proposition in that body. `as` never performs validation.
-
-For a bodyless domain, `as` is available only through the domain owner's
-canonical `RepresentationQualification<Q>` conformance from
-`omega::language::core::qualification`. That conformance is checked
-compile-time evidence and emits no call. A bodyful domain always takes the
-proof route; an establisher cannot bypass its predicate.
-
-Core validates the bodyless qualification relationship between carrier `Self`
-and qualified type `Q`:
-
-- erasing `Q` yields `Self` and adds one normalized qualification;
-- the output retains the input's dataflow identity;
-- the complete contract has no service reach, suspension, blocking, mutation,
-  trap, failure, abort, or other abnormal outcome; and
-- termination is guaranteed.
-
-Only the domain-owning package or its explicit delegate supplies an implicitly
-eligible satisfier. One visible home satisfier enables `as`; several make the
-implicit form ambiguous, and the caller names the intended satisfier machine.
-Machine names such as `new` are library conventions rather than language
-hooks.
+This includes value-preserving width changes, proven exact narrowing, adding
+an obligation-free domain, and exact scale conversion between compatible unit
+domains. Unit conversion reuses the same normalized dimension, kind, and scale
+algebra as operator resolution; it is not a separately authored conversion
+registry.
 
 ```omega
-use omega::language::core::qualification;
-
-domain i64::Km;
-
-machine qualify_km(value: i64) -> i64 in Km
-satisfies RepresentationQualification<i64 in Km>::qualify {
-    value
-}
-
-let distance: i64 in Km = 5 as i64 in Km;
-let selected: i64 in Km = qualify_km(5);
+let distance: i32::Km = 5;
+let meters: i32::M = distance as i32::M;
+let widened: u16 = byte as u16;
+let narrowed: u8 = bounded_word as u8;
 ```
 
-The direct call is the ambiguity escape hatch. Because it targets this blessed
-conformance, it erases just like the shorthand; checked qualification evidence
-retains the selected domain and satisfier identity.
+The last conversion is accepted only when representability is proved.
+`meters as i32::Km` likewise requires exact divisibility and range proofs.
+Incompatible dimensions reject. Lossy, fallible, allocating, policy-bearing,
+or otherwise noncanonical transformations use named machines.
+
+For a predicate-only domain, `value as T::D` succeeds only when the prover
+discharges every proposition in its `requires` clause. `as` never performs
+validation. For a routed domain, `as` cannot fabricate provenance.
 
 Examples:
 
-- `bytes as [u8] in Path` requires a proof of `no_nul(bytes)`;
-- `5 as i32 in Km` may use `Km`'s canonical qualification route;
+- `bytes as [u8]::Path` requires a proof of `no_nul(bytes)`;
+- `5 as i32::Km` is direct qualification because `Km` states no obligations;
 - `small as u32` succeeds only when representability is proved;
 - `&card as &dyn Card::PowerOrder` proves the named conformance fits and
   packages the same referent with its local dispatch table;
-- `reservation as Reservation in Issued` fails when issuance requires
+- `reservation as Reservation::Issued` fails when issuance requires
   `BoxOffice` state;
-- `extent as Extent in Granted` fails when authority requires an admitted root
+- `extent as Extent::Granted` fails when authority requires an admitted root
   or a conserved predecessor; and
-- kilometres-to-metres uses a named conversion because the carrier's numeric
-  value changes from, for example, `5` to `5000`.
+- `distance as i32::M` converts kilometres to metres exactly while preserving
+  the represented physical quantity.
 
 An `as` lowering may emit a bounded intrinsic instruction such as
 zero-extension or construct a fat reference. This is packaging, not an
@@ -250,27 +259,48 @@ invocation of user code. A narrowing numeric conversion with no proof is
 rejected; truncating, saturating, or trapping behavior uses an explicitly
 named operation.
 
-### Qualification, validation, and conversion
+### Qualification, erasure, validation, and conversion
 
-| Operation | Mathematical value/referent | Packaging | Runtime behavior |
-|---|---|---|---|
-| qualify or coerce with `as` | same | may change | compiler intrinsic only |
-| forget qualification | same | unchanged | none |
-| representation recast | same bits under its validated plan | changes carrier | none |
-| validation | same | unchanged | ordinary checked work |
-| conversion | may change carrier value | same or different carrier | ordinary contracted work |
+An explicitly bare target erases non-owning semantic meaning:
 
-Forgetting `raw 1 in Km` yields raw `1`; converting it to metres yields
-`1000`. Runtime validators and numeric or unit conversions remain ordinary
-machines rather than hidden qualification behavior.
+```omega
+let raw: i32 = distance as i32;
+```
+
+That erasure is never implicit. A direct cast from `i32::Km` to
+`i32::Degrees` rejects because no denotation-preserving relationship exists;
+the conspicuous two-step `distance as i32 as i32::Degrees` explicitly erases
+and then relabels.
+
+Weakening is checked per domain atom:
+
+- predicate-only facts may weaken implicitly;
+- semantic or non-owning provenance facts require explicit `as` erasure;
+- a domain with both predicates and a route follows the stronger routed rule;
+  and
+- an owned claim cannot be cast away and must be consumed or transferred.
+
+The last rule comes from ownership and custody, not merely from the presence
+of a route. A non-owning historical fact may be explicitly forgotten; a live
+`Extent::Granted` claim remains accountable.
+
+| Operation | Denotation | Runtime behavior |
+|---|---|---|
+| exact coercion with `as` | preserved | compiler-derived intrinsic work only |
+| explicit non-owning semantic erasure | discarded visibly | none |
+| predicate weakening | preserved, fact forgotten | none |
+| representation recast | same bits under its validated plan | none |
+| validation | establishes a proposition | ordinary checked work |
+| noncanonical conversion | operation contract defines it | ordinary named machine |
 
 ### Evidence and receipts
 
-An admitted boundary may establish a bodyful or bodyless qualification when it
-satisfies an owner-authorized requirement whose signature names that exact
-fact and subject. Provider selection and admission produce the receipt. The
-receipt records external trust; `boundary` remains on the machine or
-requirement where the crossing occurs.
+An admitted boundary may establish a routed qualification when it satisfies
+one of the exact requirements named in the domain declaration. Provider
+selection and admission produce the receipt. The receipt records external
+trust; `boundary` remains on the machine or requirement where the crossing
+occurs. Any predicate requirements on the same domain are proved at the
+route's return position.
 
 For admitted qualification, “exact subject” means the requirement spells the
 bare `result`, and the result's unqualified carrier matches the domain target.
@@ -330,29 +360,26 @@ implementations, or consumers.
 
 ### Weakening
 
-A semantic domain weakens implicitly to its carrier only if (1) the identity
-representation map **preserves denotation** and (2) every default operation
-**agrees with the qualified operation** throughout the default's accepted
-region. Certified arithmetic policies pass both; units fail (1) even where
-raw arithmetic coincides. Each semantic domain declares its denotation map,
-so the criterion is checked, not intuited: **mechanically decidable for
-recognized schemas** (rationally scaled units, blessed policies), **otherwise
-proof-obligated via an explicit `weakens_to` certificate — never guessed.**
-Once a certificate is accepted, the certified operator theory is **sealed**:
-overlapping later extensions must re-prove the agreement law or be rejected.
-Units and kinds therefore never weaken silently; certified policies weaken
-implicitly — sound because the exact-loud default reinstates obligations on
-the far side.
+Weakening is evaluated independently for each domain atom. An `i32::Km &
+Positive` may implicitly shed `Positive` when an `i32::Km` is expected, while
+`Km` prevents the same value from implicitly becoming bare `i32`.
+
+A predicate-only atom weakens implicitly because forgetting a proved
+proposition cannot make the carrier invalid. A semantic atom or a non-owning
+provenance atom requires an explicit `as` to the target without that atom.
+When one declaration carries both predicates and an establishment route, the
+route governs removal. An owned obligation cannot weaken or cast away; custody
+requires consumption or transfer.
 
 Establishing a domain over *runtime* data is therefore ordinary code, not a
-compiler builtin. To turn untrusted bytes into `&[u8] in Utf8` you write a
+compiler builtin. To turn untrusted bytes into `&[u8]::Utf8` you write a
 machine that reads the bytes, guards that each unit is valid, and casts in the
 arm where the whole sequence is proven:
 
 ```omega
 data Utf8Scan {
     case NotText;
-    case Text(view: &[u8] in Utf8);
+    case Text(view: &[u8]::Utf8);
 }
 
 machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
@@ -362,7 +389,7 @@ machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
     state step(&mut self, bytes: &[u8]) -> Utf8Scan {
         transition self.i < bytes.len {
             true -> check(bytes)
-            _    -> (Utf8Scan::Text { view: bytes as &[u8] in Utf8 })  // all units proven
+            _    -> (Utf8Scan::Text { view: bytes as &[u8]::Utf8 })  // all units proven
         }
     }
     state check(&mut self, bytes: &[u8]) -> Utf8Scan {
@@ -380,9 +407,9 @@ machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
 
 > **Surface status (2026-07-04).** This example illustrates the settled *model*.
 > Explicit `as` qualification into an **arithmetic** domain works today
-> (`x as u8 in Saturating`; see `expressions/arithmetic_domain_cast_exit`). The
+> (`x as u8::Saturating`; see `expressions/arithmetic_domain_cast_exit`). The
 > `as` qualification into a **reference/encoding/layout** domain shown here
-> (`bytes as &[u8] in Utf8`) is the recast surface that is **not yet
+> (`bytes as &[u8]::Utf8`) is the recast surface that is **not yet
 > implemented** — it is pending on qualification plus the
 > invariant-prover's reach). The shape above is the intended spelling, not
 > currently compilable. Existing arithmetic forms that also change numeric
@@ -403,7 +430,8 @@ If you want a `Valid | Invalid`-style result, you declare that sum type yourself
 ### Declarations And The Zero Value
 
 The one place a domain appears without a written `as` is a declaration —
-`x: T in D`, or a `data` field `f: T in D`. The cast is implicit there, but it
+`x: T::D`, or a `data` field `f: T::D`. The qualification is implicit there,
+but it
 is still checked: the compiler proves the **ZII default** (the zero value)
 satisfies `D`. A domain that excludes its zero value therefore cannot be
 default-declared.
@@ -424,19 +452,16 @@ data Player {
     health: i32;
 }
 
-domain Player::Valid {
-    self.health >= 0;
-}
+domain Player::Valid
+    requires self.health >= 0;
 
-domain Player::Alive {
-    self in Player::Valid;
-    self.health > 0;
-}
+domain Player::Alive
+    requires self in Player::Valid
+          && self.health > 0;
 
-domain Player::Dead {
-    self in Player::Valid;
-    self.health == 0;
-}
+domain Player::Dead
+    requires self in Player::Valid
+          && self.health == 0;
 ```
 
 The type definition defines ordinary `Player` validity. Domains name semantic
@@ -453,9 +478,8 @@ data Player {
 }
 
 // Invalid when the ordinary validity rules say health must stay positive.
-domain Player::Dead {
-    self.health == 0;
-}
+domain Player::Dead
+    requires self.health == 0;
 ```
 
 An invariant window may temporarily suspend a required fact inside a machine
@@ -513,17 +537,20 @@ source order is part of the program.
 
 ## Sub-Domains
 
-A domain is *only* its invariant facts — there is no separate classifier clause
-(there is no `when` keyword). A domain that participates in matching just gets
-tested by evaluating its body; when the body's leading fact is a cheap field
-compare, that test *is* cheap, with nothing extra to declare.
+A domain's predicate requirements are its classifier facts; there is no separate classifier clause
+(there is no separate classifier declaration). A domain that participates in
+matching is tested through its predicate requirements; a leading cheap field
+comparison remains cheap without another declaration.
 
 Refinement is expressed structurally, by nesting the name: `A::B::C` is a
-**sub-domain** of `A::B`, and its body auto-includes the parent's facts.
+**sub-domain** of `A::B`, and its predicate requirements auto-include the
+parent's facts.
 
 ```omega
-domain Game::Playing             { self.phase == GamePhase.Playing; self.winner == None; }
-domain Game::Playing::RoundStart { self.turn == 1; }
+domain Game::Playing
+    requires self.phase == GamePhase.Playing && self.winner == None;
+domain Game::Playing::RoundStart
+    requires self.turn == 1;
 // RoundStart ≡ { self in Game::Playing; self.turn == 1 } — the parent facts are inherited
 ```
 
@@ -541,10 +568,10 @@ match game {
 ```
 
 `A::B::C` is single-parent (one name path). A domain that refines two unrelated
-parents still writes the explicit intersection in its body (`self in X & Y`) —
+parents still writes the explicit intersection in `requires` (`self in X & Y`) —
 the name path is for the common refinement chain, `&` for the DAG cases.
 
-A domain pattern is executable when its body's facts are pure, finite, and
+A domain pattern is executable when its predicate requirements are pure, finite, and
 runtime-checkable:
 
 ```omega
@@ -578,15 +605,19 @@ machine in_span(g: Game) -> bool {
     g.turn in 1..=9
 }
 
-domain Game::Playing { self.phase == GamePhase.Playing; in_span(self); }
-domain Game::Sudden  { self.phase == GamePhase.Playing; in_span(self); self.turn == 9; }
+domain Game::Playing
+    requires self.phase == GamePhase.Playing && in_span(self);
+domain Game::Sudden
+    requires self.phase == GamePhase.Playing
+          && in_span(self)
+          && self.turn == 9;
 ```
 
 The distinction: a **sub-domain** is a named membership set with identity (you
 `match` / `as` / `require` it); a **named predicate** is an anonymous reusable
 condition with no identity (a helper like `in_bounds`). Use the first for a
 meaningful state, the second for a shared fact-bundle. They compose — a
-sub-domain body may call named predicates, and a predicate may reference
+sub-domain `requires` clause may call named predicates, and a predicate may reference
 membership.
 
 ## Overlap And Intersections
@@ -594,14 +625,11 @@ membership.
 Domains may overlap when they are just proof facts.
 
 ```omega
-domain Password::Valid {
-    self.len >= 12;
-    self.has_symbol;
-}
+domain Password::Valid
+    requires self.len >= 12 && self.has_symbol;
 
-domain Password::Secure {
-    self.entropy_bits >= 80;
-}
+domain Password::Secure
+    requires self.entropy_bits >= 80;
 ```
 
 A value can be both:
@@ -645,20 +673,18 @@ For example, a package may choose a canonical representation for cyclic
 degrees:
 
 ```omega
-domain i32::Degrees {
-    self >= 0;
-    self < 360;
-}
+domain i32::Degrees
+    requires self >= 0 && self < 360;
 
 operator add(
-    left: i32 in i32::Degrees,
-    right: i32 in i32::Degrees
-) -> sum: i32 in i32::Degrees
+    left: i32::Degrees,
+    right: i32::Degrees
+) -> sum: i32::Degrees
     spelling +
     ensures degree_sum(left, right, sum);
 ```
 
-`45 as i32 in i32::Degrees` is accepted when the prover discharges the
+`45 as i32::Degrees` is accepted when the prover discharges the
 predicate. An arbitrary runtime integer uses an ordinary checked machine such
 as `Degrees::normalize(raw)`, which performs Euclidean reduction and
 guarantees the predicate afterward; `as` never performs that normalization.
@@ -719,15 +745,14 @@ contract; the `spelling` clause only binds the surface symbol that resolves to
 it.
 
 ```omega
-domain Quantity {
-    // semantic facts about quantity values
-}
+domain Quantity;
 
 operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
 ```
 
-Domain operators declared inside a `domain` block may carry a `spelling`.
-Domain-sensitive resolution then selects among spelled candidates by
+Operators associated with a domain remain ordinary named declarations; the
+domain body is reserved for establishment routes. Domain-sensitive resolution
+selects among spelled candidates by
 the complete operand-type tuple plus the bindings' selected semantic domains.
 Competing participating meanings for the same use are a compile error; inactive
 same-carrier declarations may coexist.
@@ -801,12 +826,12 @@ occupy the denotation/dimension role. Domain-sensitive operators resolve from
 static binding-site selections, not runtime type mutation or the flow-fact
 environment.
 
-Arithmetic-policy weakening is directional. A value selected into `Wrapping`,
-`Saturating`, or `Trapping` may be passed to an unqualified binding, where
+Arithmetic-policy erasure is explicit. A value selected into `Wrapping`,
+`Saturating`, or `Trapping` may use `as` to become unqualified, where
 arithmetic is Exact by default: its current payload is unchanged, and every
 later operation must prove the Exact obligations anew. This does not recover a
-mathematical value lost by earlier wrapping. Selecting a non-Exact policy for
-an Exact binding is explicit because it changes future operator behavior.
+mathematical value lost by earlier wrapping. Selecting or removing a non-Exact
+policy is explicit because it changes future operator behavior.
 
 **Normalization is not entailment.** A small deterministic, confluent,
 terminating normalizer owns what a domain expression *is* (canonical
@@ -822,8 +847,8 @@ For the currently authored conjunction form, normalization is concrete:
 declared terms resolve to their semantic-domain identity, arithmetic-policy
 terms use their closed canonical identity, conjunctions are sorted and
 deduplicated, and nested constraint shells flatten before identity is
-computed. Thus `T in A & B`, `T in B & A`, and `T in A & A & B` are one
-semantic type and one monomorphization key. `T in A` and `T in B` remain
+computed. Thus `T::A & B`, `T::B & A`, and `T::A & A & B` are one
+semantic type and one monomorphization key. `T::A` and `T::B` remain
 distinct even though diagnostic renderings happen to contain the same number
 of constraints. Human-readable type rendering is never an equality or cache
 key.
@@ -839,11 +864,11 @@ exist, and `String`/`Bytes` are not among them:
 - an encoding's **codec** (decode/encode/boundary), expressed as
   *domain-sensitive operators*, not a predicate.
 
-"A UTF-8 string" is therefore `[u8] in Utf8`, not a `String`:
+"A UTF-8 string" is therefore `[u8]::Utf8`, not a `String`:
 
 ```omega
 &[u8]   in Utf8           // text view, zero-copy
-Vec<u8> in Utf8           // owned text (needs the allocator)
+Vec<u8>::Utf8             // owned text (needs the allocator)
 [u8; N] in Utf8           // fixed text buffer
 ```
 
@@ -862,9 +887,12 @@ property like UTF-8 is a pure, terminating machine over the bytes (see the
 recogniser below):
 
 ```omega
-domain Slice<u8>::Ascii { all_below(self, 0x80) }   // per-element predicate (library code)
-domain Slice<u8>::NoNul { no_interior_nul(self) }   // per-element predicate
-domain Slice<u8>::Utf8  { utf8_ok(self) }           // sequence recogniser (below)
+domain Slice<u8>::Ascii
+    requires all_below(self, 0x80);       // per-element predicate (library code)
+domain Slice<u8>::NoNul
+    requires no_interior_nul(self);       // per-element predicate
+domain Slice<u8>::Utf8
+    requires utf8_ok(self);               // sequence recogniser (below)
 ```
 
 `utf8_ok` is an ordinary machine, not a builtin. Ranked recursion is legal
@@ -899,9 +927,9 @@ runs at runtime to establish membership — one definition, no separate spec.
 Host and ABI boundaries then ask for the domain they actually need, with no
 bespoke type per case:
 
-- `[u8] in Utf8` for APIs that require UTF-8 text,
-- `[u8] in Utf8 & NoNul` for C-style boundaries that reject interior NULs,
-- `[u8] in Utf16` (a different validity + codec) for a UTF-16 boundary.
+- `[u8]::Utf8` for APIs that require UTF-8 text,
+- `[u8]::Utf8 & NoNul` for C-style boundaries that reject interior NULs,
+- `[u8]::Utf16` (a different validity + codec) for a UTF-16 boundary.
 
 `CString`, `OsString`, `Utf16String`, `Str`/`StrView` and the like all collapse
 into `[u8] in <domain>` intersections. There is no `String` type and no `Bytes`
@@ -923,10 +951,10 @@ always fine. The only operation that can break UTF-8 is re-slicing, so the proof
 obligation lives on `slice`, in the open:
 
 ```omega
-operator concat(left: Slice<u8> in Utf8, right: Slice<u8> in Utf8)
-    -> Slice<u8> in Utf8 spelling +;          // concat preserves UTF-8: proven once
+operator concat(left: Slice<u8>::Utf8, right: Slice<u8>::Utf8)
+    -> Slice<u8>::Utf8 spelling +;          // concat preserves UTF-8: proven once
 
-operator slice(s: Slice<u8> in Utf8, range: Range) -> Slice<u8> in Utf8
+operator slice(s: Slice<u8>::Utf8, range: Range) -> Slice<u8>::Utf8
     requires char_boundary(s, range.start) && char_boundary(s, range.end)
     spelling [];                              // cannot cut mid-codepoint
 ```
@@ -955,14 +983,14 @@ boundary and the operators.
 
 > Implementation note: builtin `string`/`String` and
 > `PrimitiveType::String` are retired. The honest borrowed bytes/text wire field
-> is `&[u8]` (the ordinary fat slice), and bounded ownership is `[u8; N] in D`.
+> is `&[u8]` (the ordinary fat slice), and bounded ownership is `[u8; N]::D`.
 > A byte view is variable-length, so it rides a raw-byte encoding (length varint
 > plus raw bytes, like protobuf `bytes`), distinct from a `[u8; N]` repeated
 > scalar field (packed per-element varints). Domains over byte views and bounded
 > carriers, direct literal construction, bounded returns, wire encode/decode,
 > and native/interpreter carrier lowering are built. The source corpus and
 > injected build vocabulary are carrier-native; the allocator-backed growable
-> surface remains ordinary future `Vec<u8> in Utf8` work rather than a reason to
+> surface remains ordinary future `Vec<u8>::Utf8` work rather than a reason to
 > keep a compatibility primitive. Mutable boundary/operator
 > statement calls already invalidate facts for their exact mutable operands and
 > re-establish declared domain-membership guarantees on those caller places;
@@ -1007,10 +1035,10 @@ A byte container EARNS its encoding domain in exactly one of two ways -- and
 never from the transport:
 
 - **By construction.** A literal, or a value built from known-good bytes, is
-  `[u8] in Utf8` by construction: the compiler knows the bytes, so there is no
+  `[u8]::Utf8` by construction: the compiler knows the bytes, so there is no
   runtime check. The preservation operators above (`concat`, boundary-`slice`)
   carry the domain forward, so text stays text without re-validation.
-  For an owned bounded carrier `[u8; N] in Utf8`, construction additionally
+  For an owned bounded carrier `[u8; N]::Utf8`, construction additionally
   proves the exact literal byte length is at most `N`. The same rule applies in
   argument and machine-result positions; there is no truncation or deferred
   capacity failure.
@@ -1027,8 +1055,8 @@ never from the transport:
 
   ```omega
   data Decoded {
-      case Ascii(text: [u8] in Ascii);   // payload already carries the domain
-      case Utf8(text:  [u8] in Utf8);
+      case Ascii(text: [u8]::Ascii);   // payload already carries the domain
+      case Utf8(text:  [u8]::Utf8);
       case Invalid(error: DecodeError);
   }
   machine classify(bytes: &[u8]) -> Decoded { /* scans once */ }
@@ -1102,13 +1130,15 @@ Working interpretation:
 
 - `domain` is a contextual keyword in declaration position.
 - Domains are type-scoped named static theories over an unchanged carrier.
-- A domain may contribute a predicate body, semantic roles, establishment
+- A domain may contribute predicate requirements, semantic roles, establishment
   routes, and alias expansion.
-- A domain body may not contradict the invariants of the type it classifies.
-- There is no `when` classifier keyword; a domain is only its invariant facts.
-- `Type::A::B` is a sub-domain of `Type::A` — its body auto-includes the parent's
-  facts (single-parent; use `self in X & Y` for the DAG case).
-- A named predicate is a pure bool machine, called from domain bodies for
+- Domain predicates may not contradict the invariants of the type they classify.
+- There is no separate classifier declaration; matching evaluates the domain's
+  predicate requirements.
+- `Type::A::B` is a sub-domain of `Type::A` — its predicate requirements
+  auto-include the parent's predicate requirements (single-parent; use
+  `self in X & Y` for the DAG case).
+- A named predicate is a pure bool machine, called from domain `requires` for
   horizontal fact reuse (no separate `predicate` binder).
 - `requires x in Type::Domain` is a caller obligation.
 - `ensures x in Type::Domain` is a callee guarantee.
@@ -1125,26 +1155,28 @@ Working interpretation:
   qualification, or `requires`) participate in operator resolution;
   flow-established knowledge never changes operator meaning.
 - Different semantic roles compose; competing contributions to one role reject.
-- A bodyless domain is established through an owner-authorized machine,
-  existing evidence, a checked transformation, or an admitted receipt under an
-  owner-authorized requirement.
-- `as` proves a body when one exists. For a bodyless domain it consumes one
-  canonical core qualification conformance. Both routes preserve carrier,
-  payload, and runtime work.
+- Domain `requires` propositions conjoin. Body entries name alternative exact
+  trait requirements authorized to establish provenance.
+- A domain with neither predicates nor routes permits explicit qualification
+  from its bare carrier.
+- Qualified `as` targets preserve denotation through compiler-derived exact
+  coercion; explicitly bare targets erase non-owning semantic meaning. `as`
+  never invokes arbitrary user code or fabricates routed provenance.
 - Multiplicity governs copy/discard and must-discharge behavior. A
   content-bearing qualified claim may separately select a compiler-owned
   decomposition algebra; permissions govern operations, and carry governs
   mobility. None is inferred merely from the domain's spelling.
 - Qualification and proof evidence erase from runtime code. Static semantic
   roles may affect later operator lowering without adding runtime metadata.
-- Qualification, forgetting, recast, validation, and conversion remain
-  distinct according to carrier identity, payload identity, and runtime work.
+- Qualification, explicit erasure, recast, validation, and noncanonical
+  conversion remain distinct according to denotation, representation, and
+  runtime work.
 
 > **Implementation gate:** the current Rust trees carry independent predicate
 > bodies, closed semantic-role records, transparent aliases, and normalized
-> establishment routes. Canonical representation qualification is checked and
-> erased; explicit cross-package delegation remains owner-blocked on question
-> #3 and therefore fails closed. Arithmetic policies still have special
-> lowering paths. General domain work must preserve every domain-theory axis
-> independently in the IR; see
+> establishment routes. The source migration to predicate `requires`, route
+> bodies, open empty declarations, exact denotation-preserving `as`, and
+> per-domain erasure is not yet implemented. Arithmetic policies still have
+> special lowering paths. General domain work must preserve every domain-theory
+> axis independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

@@ -39,7 +39,7 @@ What makes this hold layer by layer:
 Invariants and domains describe ESTABLISHED values, not raw storage. The
 compiler derives zero establishment by evaluating the default domain at zero
 and recurring through common fields and the first case's payload. A field
-contracted to `1..=100`, a bodyless default fact, or a zero-reachable nested
+contracted to `1..=100`, an obligation-free default fact, or a zero-reachable nested
 type with the same gate prevents establishment. Later sum cases do not matter
 because their payload is inactive at tag zero.
 

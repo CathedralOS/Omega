@@ -139,7 +139,7 @@ provider's checked implementation still uses `pushfq`/`cli`; those instruction
 contracts require the appropriate authority, contribute the normalized
 interrupt-control reach, and record flag/state changes. The live ordinary
 `InterruptMaskGuard` carrier exposes only compact settlement identities. Its
-bodyless `Active` qualification records valid issuance and forces the caller to
+routed `Active` qualification records valid issuance and forces the caller to
 consume `restore`; reconstructing the same runtime fields, copying the linear
 value, or directly restoring the saved state is not a valid protocol.
 

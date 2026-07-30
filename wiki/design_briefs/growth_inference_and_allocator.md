@@ -215,8 +215,8 @@ with a **proven byte bound that sizes the carrier**:
    compute a symbolic upper bound `B` on the final `len` — straight-line by the
    blessed concat law, loops by the blessed loop-append invariant of §2.2.
 2. If `B` is a static constant or `≤ N` for a declared input refinement, **size a
-   bounded owned carrier** `[u8; B] in Utf8` (heap-free). *(Probed 2026-06-24:
-   `[u8; N] in Utf8` — with a carrier-matched `domain [u8; N]::Utf8` — already
+   bounded owned carrier** `[u8; B]::Utf8` (heap-free). *(Probed 2026-06-24:
+   `[u8; N]::Utf8` — with a carrier-matched `domain [u8; N]::Utf8` — already
    compiles AND runs in the interpreter for a literal write + content guard
    (exit 70). So the carrier exists at the prover level and the FixedVec
    generic-`B` frontier is NOT on the critical path; see the caveat below.)*
@@ -236,7 +236,7 @@ the declared carrier, mirroring the construction-1c + assignment-#63 enforcement
 already in place for range-refined fields.
 
 > **Carrier — prover and core codegen are built; corpus migration is in
-> progress (`7bf89867`, 2026-06-25 onward).** `[u8; N] in Utf8` is the owned bounded-text carrier:
+> progress (`7bf89867`, 2026-06-25 onward).** `[u8; N]::Utf8` is the owned bounded-text carrier:
 > with `domain [u8; N]::Utf8` declared it compiles and the interpreter runs
 > `self.buf = "hello"; self.buf == "hello"` to exit 70 — **no FixedVec generic-`B`
 > needed.** The append's *prover* obligation is now discharged by two coupled
@@ -248,7 +248,7 @@ already in place for range-refined fields.
 >    `ByteSequencePredicate::is_concat_preserving`). This is the
 >    value-proves-domain / "(a)" side, reusing the #60–#64 catalog.
 > 2. **Length-fits guard** — the "(b)" side and what makes (1) sound. A write into
->    `[u8; N] in D` must have a **statically bounded** maximum byte length `≤ N`
+>    `[u8; N]::D` must have a **statically bounded** maximum byte length `≤ N`
 >    (`static_max_byte_length`: a literal's exact length, a concat's operand sum,
 >    a `self.field` read's `[u8; M]` capacity, or a value call's declared bounded
 >    return capacity), else it is rejected. Crucially
@@ -299,7 +299,7 @@ already in place for range-refined fields.
 > This dissolves the earlier (A)/(B)/(C) fork cleanly:
 > * The fat-ness of an owned buffer comes from `[u8; N]` *being* a length-carrying
 >   bounded slice — **not** from the `in Utf8` domain. So `[u8; N]` and
->   `[u8; N] in Utf8` share one layout; the domain still changes nothing. The
+>   `[u8; N]::Utf8` share one layout; the domain still changes nothing. The
 >   "domains don't change layout" principle survives (this was what killed A).
 > * The length is an **explicit `len` word**, not an in-band prefix/sentinel (B's
 >   hack is avoided).
@@ -584,7 +584,7 @@ Arena.
 ### 4.9 Decision: reach stays honest; do not launder possible allocation
 
 The live debate was whether proving the spill-arm of an SSO type (`String<N,D>` =
-inline `[u8;N] in D` | spilled `Allocation<u8>`) dead should **mask** its allocation
+inline `[u8;N]::D` | spilled `Allocation<u8>`) dead should **mask** its allocation
 reach. Verdict: **no — keep reach honest, and don't ship the silent-SSO wrapper
 as a default.** Reasoning, with the decider being that *frictionless allocation is
 the disease, not the goal* (a 2026 Rust program is `Vec<Vec<Vec<…>>>` — heap allocs

@@ -22,7 +22,7 @@
 > nested-field, indexed-field, literal, return-value, and subslice routes have
 > their own canaries as well.
 >
-> Growable text remains ordinary allocator work (`Vec<u8> in Utf8`); it no
+> Growable text remains ordinary allocator work (`Vec<u8>::Utf8`); it no
 > longer keeps a compatibility primitive alive.
 >
 > Fixed-carrier equality is no longer a migration blocker. The shared
@@ -33,7 +33,7 @@
 > oracles alongside native execution.
 >
 > ZII and copy routes are migrating on the same representation. A never-written
-> `[u8; N] in Utf8` is empty text (`len == 0`), not an always-full N-byte zero
+> `[u8; N]::Utf8` is empty text (`len == 0`), not an always-full N-byte zero
 > array; native and interpreter execution now agree on that default. Nested
 > case-payload equality, mutable carrier aliases, and copying a local record's
 > carrier field through a mutable output parameter likewise no longer depend on
@@ -49,15 +49,15 @@
 > `state_parameter_field_domain_write_unestablished` canary pins that distinction.
 >
 > Frame argument materialization is now type-driven rather than size-driven.
-> A by-value `[u8; N] in D` that happens to occupy 16 bytes remains the inline
+> A by-value `[u8; N]::D` that happens to occupy 16 bytes remains the inline
 > `{len, bytes}` carrier; only an actual slice/string descriptor receives the
 > `{ptr, len}` rewrite. This closes the smallest-capacity case where layout size
 > alone previously confused two unrelated representations.
 >
 > Bounded carriers now also cross ordinary machine-result and borrowed-view
-> seams. A literal may directly satisfy a `[u8; N] in D` argument or terminal
+> seams. A literal may directly satisfy a `[u8; N]::D` argument or terminal
 > result only when its byte length is at most `N`; over-capacity returns fail at
-> the construction site. A value call returning `[u8; N] in D` contributes `N`
+> the construction site. A value call returning `[u8; N]::D` contributes `N`
 > to the destination's static length proof, and projecting that owned carrier
 > to `&[u8]` synthesizes `{ptr = &inline_bytes, len = runtime_len}`. It never
 > reinterprets the carrier's leading length word as a pointer or exposes the
@@ -95,7 +95,7 @@
 > Bounded-carrier fields, literals, and legacy String callers all cross this seam
 > in both engines, while a ZII bounded carrier arrives as an empty view.
 > `read_line` accepts `&mut [u8]`; when the actual destination is an owned
-> `[u8; N] in D` carrier, planning derives the writable inline capacity from
+> `[u8; N]::D` carrier, planning derives the writable inline capacity from
 > that concrete place and writes its runtime length. It never applies the
 > legacy 256-byte String scratch limit to a shorter carrier. Native/interpreter
 > input differentials and AArch64 compilation pin the standard surface.
@@ -114,7 +114,7 @@ The keystone (string literals satisfying `PrimitiveType::String`) cascades to ev
 `: string` / `String` declaration the moment it changes, and **all 15 compiler
 sites are live** — `String` is *implemented as* the fat-slice/text descriptor
 (`size = pointer*2`, `fat_descriptor_layout`, `text_descriptor`), and the
-`&[u8] in Utf8` path was already added *beside* it (e.g. `guards.rs`:
+`&[u8]::Utf8` path was already added *beside* it (e.g. `guards.rs`:
 "recognize such a slice-descriptor place **not** `PrimitiveType::String` too").
 So there is no dead branch to delete incrementally; the variant and its uses come
 out together.
@@ -123,15 +123,15 @@ out together.
 
 The split that actually matters:
 
-- **borrowed `&string`** → `&[u8] in Utf8` — ungated, the easy part.
+- **borrowed `&string`** → `&[u8]::Utf8` — ungated, the easy part.
 - **owned-FIXED `String`** (struct/machine fields, field-copy, concat-into-buffer,
   text builders) — lowers and runs through fixed/inline storage without an
   allocator. It was historically pervasive across the canary corpus and
   dungeon. Retiring it means migrating every remaining site onto a bounded carrier
-  (`FixedVec<u8>` / `[u8;N] in Utf8`, which ship today) **without regressing the
+  (`FixedVec<u8>` / `[u8;N]::Utf8`, which ship today) **without regressing the
   runtime behavior or the differential oracle**. Ungated, but the hard, careful
   core of the arc — not mechanical.
-- **owned-GROWABLE text** becomes `Vec<u8> in Utf8` and is genuinely
+- **owned-GROWABLE text** becomes `Vec<u8>::Utf8` and is genuinely
   allocator-gated. It is a future collection/library surface, not a reason to
   retain `String`, `str.omg`, or compiler compatibility branches.
 
@@ -144,9 +144,9 @@ gates only the future growable feature itself.
 
 | Today | After |
 | --- | --- |
-| string literal `"..."` (typed owned `String`) | static `&[u8] in Utf8` view |
-| `&string` borrowed window | `&[u8] in Utf8` |
-| owned `String` (capacity, `push_str`) | `Vec<u8> in Utf8` (boundary-gated, unchanged status) or `FixedVec<u8> in Utf8` (bounded, works now) |
+| string literal `"..."` (typed owned `String`) | static `&[u8]::Utf8` view |
+| `&string` borrowed window | `&[u8]::Utf8` |
+| owned `String` (capacity, `push_str`) | `Vec<u8>::Utf8` (boundary-gated, unchanged status) or `FixedVec<u8>::Utf8` (bounded, works now) |
 
 Borrowed operators rewrite: `Str::Length`→`.len`, `Str::bytes`→the slice itself,
 `Str::byte(t,i)`→`t[i]`, `Str::range(t,a,b)`→`t[a..b]`. The `Utf8`/`NoNul` domain +
@@ -202,7 +202,7 @@ carrier (the grant validator already exists).
    ```
 
 4. **`str.omg`** — deleted. Borrowed operations are ordinary slice operations;
-   future growable text is `Vec<u8> in Utf8` and will arrive with allocation.
+   future growable text is `Vec<u8>::Utf8` and will arrive with allocation.
 5. **Retire the type** — removed the variant, both builtin registrations, and
    name conversion arms. A user may now declare ordinary data named `String`;
    a negative canary proves that spelling receives no hidden properties.
@@ -231,6 +231,6 @@ the negative tests cover the behavior previously pinned by each category.
 
 - Distinguish **growable** from **owned-fixed**: growable operations ride the
   future allocated `Vec<u8>` path; bounded ownership already uses
-  `FixedVec<u8>`/`[u8; N] in Utf8` throughout the corpus and dungeon.
+  `FixedVec<u8>`/`[u8; N]::Utf8` throughout the corpus and dungeon.
 - This recipe is the main-compiler counterpart to the memory note
   `string-encoding-domain-model`; keep them in sync.

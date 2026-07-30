@@ -96,7 +96,7 @@ receipt when its implementation is unavailable as checked Omega source.
 ```omega
 boundary trait Readable {
     machine read(
-        path: [u8] in Utf8,
+        path: [u8]::Utf8,
         out: &mut Vec<u8>
     ) -> ReadResult
       suspends;
@@ -210,8 +210,8 @@ services. Operational possibilities use their own clauses:
 
 ```omega
 machine backup(
-    src: [u8] in Utf8,
-    dst: [u8] in Utf8
+    src: [u8]::Utf8,
+    dst: [u8]::Utf8
 ) -> BackupResult
   reaches Readable + Queryable;
   suspends;
@@ -453,7 +453,7 @@ the closed `Binding::CompilerIntrinsic` case to select compiler-owned target
 lowerings; this case installs no foreign binding and must exactly name an
 existing `Trait::method` lowering on the selected target. `read_line` therefore
 retains a mutable byte view without publishing it as a foreign ABI. Its
-owned-destination route requires a concrete `[u8; N] in D` carrier at the call
+owned-destination route requires a concrete `[u8; N]::D` carrier at the call
 site: boundary planning derives `N` from that place, writes directly into its
 inline bytes, and establishes the carrier's runtime length. A shorter carrier
 never inherits the old implementation's 256-byte scratch ceiling.
@@ -467,12 +467,11 @@ Domain requirements stay normal proof language. A filesystem boundary should
 not invent special "initialized" words when a domain is what it means:
 
 ```omega
-domain [u8]::NonEmpty {
-    self.len > 0;
-}
+domain [u8]::NonEmpty
+    requires self.len > 0;
 
 boundary trait Filesystem {
-    machine open(path: &[u8] in NonEmpty)
+    machine open(path: &[u8]::NonEmpty)
     reaches
         Filesystem;
 }
@@ -485,7 +484,7 @@ actually needs:
 
 ```omega
 boundary trait CConsole {
-    machine write(text: &[u8] in Utf8 & NoNul)
+    machine write(text: &[u8]::Utf8 & NoNul)
     reaches
         CConsole;
 }
@@ -525,15 +524,16 @@ data Folder {
 }
 
 domain Folder::Readable {
+    Desktop::choose_readable_folder;
 }
 
 domain Folder::Writable {
+    Desktop::choose_folder;
 }
 
-domain Folder::ReadWrite {
-    self in Folder::Readable;
-    self in Folder::Writable;
-}
+domain Folder::ReadWrite
+    requires self in Folder::Readable
+          && self in Folder::Writable;
 ```
 
 Boundary and standard-library APIs then state normal requirements and
@@ -541,19 +541,18 @@ guarantees:
 
 ```omega
 boundary trait Desktop {
-    machine choose_folder(prompt: &[u8] in Utf8) -> Folder
-    ensures
-        result in Folder::Writable;
+    machine choose_readable_folder(prompt: &[u8]::Utf8) -> Folder::Readable;
+    machine choose_folder(prompt: &[u8]::Utf8) -> Folder::Writable;
 }
 
 boundary trait Writable {
-    machine write_bytes(folder: Folder, path: &[u8] in Path, bytes: &[u8])
+    machine write_bytes(folder: Folder, path: &[u8]::Path, bytes: &[u8])
     requires
         folder in Folder::Writable;
 }
 
 boundary trait Readable {
-    machine read_bytes(folder: Folder, path: &[u8] in Path, out: &mut Vec<u8>)
+    machine read_bytes(folder: Folder, path: &[u8]::Path, out: &mut Vec<u8>)
     requires
         folder in Folder::Readable;
 }
@@ -982,8 +981,8 @@ The same split applies to the core collection and text concepts:
 
 - `Array` owns fixed-size inline storage and can borrow as `Slice`.
 - `Vec` owns dynamic contiguous storage and can borrow as `Slice`.
-- Text is not a separate carrier: `[u8; N] in Utf8` is bounded owned text,
-  `Vec<u8> in Utf8` is the eventual growable form, and `&[u8] in Utf8` is the
+- Text is not a separate carrier: `[u8; N]::Utf8` is bounded owned text,
+  `Vec<u8>::Utf8` is the eventual growable form, and `&[u8]::Utf8` is the
   borrowed window. The text window is the ordinary `{ptr,len}` byte-slice
   descriptor plus a carried domain fact.
 - Low-level carriers such as `Ptr` or buffer descriptors may exist in core or
@@ -996,13 +995,13 @@ Working private carrier model:
   pointer plus a length.
 - `&mut [T]` uses the same descriptor shape, plus the type/borrow checker owns
   the uniqueness and writable-region facts.
-- `&[u8] in Utf8` lowers to a byte pointer plus live byte length; the domain
+- `&[u8]::Utf8` lowers to a byte pointer plus live byte length; the domain
   fact states that those bytes satisfy the selected encoding.
 - `Array<T, N>` owns inline storage and can produce a slice descriptor whose
   base points at the first element and whose length is `N`.
 - `Vec<T>` owns a growable buffer carrier with base pointer, length, capacity,
   and allocator/runtime provenance.
-- `[u8; N] in Utf8` owns `{len, inline bytes}`; `Vec<u8> in Utf8` will use the
+- `[u8; N]::Utf8` owns `{len, inline bytes}`; `Vec<u8>::Utf8` will use the
   ordinary vector carrier plus the same text-domain facts once allocation is
   available.
 - `Ptr<T>` and pointer-range construction are primitive-boundary concepts, not
@@ -1122,8 +1121,9 @@ n-to-m transformation proves consumed content equals the separated composition
 of produced content plus any authorized retirement. Per-output containment and
 scalar measures do not establish this theorem.
 
-For example, an admitted platform provider may return an ordinary linear
-`Extent { base: addr, length: u64 } in Extent::Granted & Extent::Physical`.
+For example, an admitted platform provider may return an
+`Extent::Granted & Physical`; its ordinary linear runtime carrier is
+`Extent { base: addr, length: u64 }`.
 Reconstructing those fields produces an unqualified Extent. `Granted` projects
 the qualified subject into the compiler-owned interval algebra. Split consumes
 the qualified parent and proves its interval equals the separated composition
@@ -1132,10 +1132,10 @@ the same theorem in reverse. Permission attenuation cannot be reversed by
 joining permissions; authority that must return is represented as a claim or
 loan.
 
-Bodyless qualifications use owner-authorized establishment machines.
-Representation-identical, premise-free establishment may satisfy the core
-qualification requirement and thereby support `as`; conditional establishment
-remains an ordinary named machine. See
+Routed qualifications name their exact authorized trait requirements in the
+domain declaration. Obligation-free domains may be qualified directly with
+`as`; predicates must be proved, and routed provenance cannot be fabricated.
+See
 [`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
 ## Boundary Primitive Registry
@@ -1299,7 +1299,7 @@ An opaque third-party binary loaded in-process remains part of the trusted
 computing base even when a checked adapter wraps it. The boundary manifest names
 that provider and its receipt; an isolated process exposes an endpoint instead.
 The exact root declaration and safety-profile rejection surface remains owner
-question #5.
+question #4.
 
 ## Build Artifacts
 

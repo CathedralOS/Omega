@@ -1,25 +1,24 @@
 # Design Brief: Domains And Qualification
 
-Current design as of 2026-07-25. Chapter 8 carries the language-guide
+Current design as of 2026-07-30. Chapter 8 carries the language-guide
 surface. This brief owns domain meaning, establishment, `as`, semantic roles,
 normalization, and the staged units model.
 
 ## One surface, independent internal aspects
 
-A **domain** is a zero-cost static theory attached to an unchanged runtime
-carrier. One domain may contribute any compatible combination of:
+A **domain** is a zero-cost static theory attached to a runtime carrier. One
+domain may contribute any compatible combination of:
 
-- a predicate body, discharged by the prover;
+- predicate requirements, discharged by the prover;
 - semantic declarations, such as denotation, dimension, operators, or
   conversions;
-- owner-authorized establishment routes for facts that are not derivable from
-  the carrier; and
+- exact trait requirements authorized to establish provenance; and
 - transparent aliases over compatible domain atoms.
 
 These aspects share one source declaration because they compose. `Utf8` has a
-predicate body, `Km` contributes denotation and unit operations,
+predicate requirement, `Km` contributes denotation and unit operations,
 `Wrapping` contributes an arithmetic policy, `Percent` may contribute both a
-range predicate and unit meaning, and `Reservation::Issued` is a bodyless
+range predicate and unit meaning, and `Reservation::Issued` is a routed
 historical fact.
 
 They remain separate compiler records and algebras:
@@ -27,9 +26,9 @@ They remain separate compiler records and algebras:
 ```text
 DomainTheory {
     carrier,
-    optional_predicate_body,
+    predicate_requirements,
     semantic_contributions_by_role,
-    establishment_routes,
+    authorized_establishment_requirements,
     alias_expansion,
 }
 ```
@@ -44,119 +43,87 @@ Domains add no runtime tag, wrapper, hidden storage, or second object model.
 Qualification changes the static theory carried by a value, not its runtime
 representation.
 
-## Domain bodies
+## Predicates and establishment routes
 
-A nonempty body states propositions about the classified value:
+The declaration separates propositions from provenance:
 
 ```omega
-domain [u8]::Path {
-    no_nul(self);
+domain [u8]::Path
+    requires no_nul(self);
+
+pub domain Reservation::Issued {
+    Issues::issue;
+}
+
+domain Reservation::Confirmed
+    requires has_seat(self)
+{
+    Confirms::confirm;
 }
 ```
 
-Membership may be established only when those propositions are proved. The
-owner is subject to the same obligation as every consumer. A checked validator
-may perform runtime work and guarantee the domain in its successful result; an
-admitted boundary may assert the fact under a receipt. Neither route turns the
-predicate into an unchecked cast.
+`requires` is uniformly propositional, exactly as it is on a machine. Every
+predicate must hold. The body contains exact trait-requirement identities;
+each entry is an alternative authorized origin for the domain.
 
-A bodyless declaration names a qualification that cannot be derived from the
-carrier:
+The domain body does not invoke those requirements. It licenses their selected
+conformances to establish membership at the qualified return position. A
+checked conformer proves every predicate there. A boundary conformer also
+requires selection and admission, whose receipt remains attached to the
+result.
+
+The domain owner has no ambient minting privilege. A bare qualified result or
+`ensures` clause supplies an obligation, not evidence. Owner code and
+third-party code alike must prove the predicates or return through an exact
+authorized route. Trait visibility controls who may conform; machine
+visibility controls who may invoke an existing route. A public ordinary route
+deliberately permits checked external conformers, while a public boundary
+route admits opaque external providers.
+
+An empty declaration has no establishment obligations:
 
 ```omega
-pub domain Reservation::Issued;
+domain i32::Km;
 ```
 
-The braced empty form has the same meaning. It is not an always-true predicate.
-An explicitly universal predicate writes `true` in its body.
+Every bare `i32` may therefore be explicitly qualified as `i32::Km`. This is
+the vacuous case of the same rule, not an implicit owner grant.
 
-Bodyless membership is established only by:
-
-- an owner-authorized checked machine;
-- propagation from an already-qualified value;
-- a checked transformation of existing evidence or resource provenance; or
-- an admitted boundary receipt authorized by the owner-authored requirement
-  being satisfied.
-
-A qualified result or `ensures` clause is an obligation on a checked
-implementation, not evidence by itself.
-
-## `as`: qualification without value change
+## `as`: exact coercion and explicit erasure
 
 The governing rule is:
 
-> **`as` changes static qualification, never the runtime value.**
+> **`as` never silently changes denotation: qualified targets preserve it;
+> an explicitly bare target erases non-owning semantic meaning.**
 
-Every accepted domain-qualification `as` preserves all three independent
-runtime axes:
+It may change representation or the carrier's stored numeral when one unique
+exact transformation is derived from normalized type and domain semantics. It
+never invokes arbitrary user code.
 
 | Axis | Requirement |
 |---|---|
-| carrier type and layout | unchanged |
-| runtime payload value | unchanged |
-| runtime work and control | none |
-
-For a domain with a predicate body, `as` asks the prover to discharge that
-body at the exact use site. A literal, dominating guard, prior guarantee, or
-validator result may provide the proof. `as` never runs a validator.
-
-For a bodyless domain, `as` is available only when the domain owner publishes
-a canonical representation-qualification conformance. The conformance is
-compile-time evidence and emits no call. It is not an alternative route for a
-domain with a predicate body: a body must always be proved.
+| denoted value or referent | unchanged |
+| proof | predicates, bounds, and divisibility discharged before lowering |
+| reach and control | no service reach, allocation, suspension, failure, or user code |
+| policy | no hidden loss, rounding, saturation, trapping, or ambiguous choice |
 
 Consequences:
 
-- `bytes as [u8] in Path` succeeds only when `no_nul(bytes)` is known;
-- `5 as i32 in Km` may use `Km`'s canonical open qualification route;
-- `reservation as Reservation in Issued` fails when issuance requires
-  `BoxOffice` state;
-- `extent as Extent in Granted` fails when authority must originate from an
-  admitted receipt or conserved predecessor; and
-- converting kilometres to metres is an ordinary named conversion because it
-  changes the numeric payload.
+- `bytes as [u8]::Path` succeeds only when `no_nul(bytes)` is known;
+- `5 as i32::Km` is direct qualification into an obligation-free domain;
+- `byte as u16` is an exact integer coercion;
+- `bounded_word as u8` succeeds only when representability is proved;
+- `distance as i32::M` applies the compiler-derived exact scale relation
+  between compatible unit domains;
+- `reservation as Reservation::Issued` fails because `as` cannot fabricate
+  route provenance; and
+- lossy, fallible, allocating, policy-bearing, or noncanonical transformation
+  remains a named machine.
 
-### The core qualification requirement
-
-Core publishes one blessed trait relationship between a carrier `Self` and a
-qualified type `Q`. A satisfying machine is an evidence witness, not a runtime
-implementation selected by `as`.
-
-Conformance validation requires:
-
-- erasing `Q` yields `Self`;
-- `Q` adds exactly one normalized bodyless qualification;
-- the returned value retains the input value's dataflow identity: aliases and
-  proof statements may intervene, but transformation or reconstruction may
-  not;
-- the complete machine contract has no service reach, suspension, blocking,
-  mutation, trap, failure, abort, or other abnormal outcome;
-- termination is guaranteed; and
-- the satisfier is declared by the domain-owning package or by an explicitly
-  delegated owner-authorized package.
-
-The trap/control check is independent of the reach row: terminal outcomes are
-not service reach.
-
-One visible home satisfier permits the `as` shorthand. If several are visible,
-implicit selection rejects and lists them; the program calls the intended
-named satisfier directly. Satisfier names are ordinary library names and have
-no compiler significance. Both the shorthand and a direct call through this
-blessed conformance erase to the unchanged input value.
-
-The core declaration is:
-
-```omega
-pub trait RepresentationQualification<Q> {
-    machine qualify(value: Self) -> Q
-    terminates;
-}
-```
-
-A conformer names the relationship as
-`satisfies RepresentationQualification<Q>::qualify`. Recognition is by the
-trusted core declaration's semantic role, never by a user-authored lookalike
-name.
+Unit coercion and operator normalization consume the same normalized
+dimension, kind, and rational-scale algebra. No authored conversion machine is
+injected behind `as`, and no second conversion registry competes with operator
+resolution.
 
 ## Establishment, propagation, and conservation
 
@@ -165,14 +132,14 @@ source:
 
 | Evidence source | What it establishes |
 |---|---|
-| prover | a nonempty predicate body |
-| canonical qualification conformance | an open bodyless qualification |
-| owner checked machine | a bodyless fact under that machine's contracts |
+| prover | the domain's predicate requirements |
+| vacuous qualification | a domain with no predicates or routes |
+| authorized checked conformance | routed provenance plus its proved predicates |
 | checked transformation | inherited or conserved evidence |
-| admitted receipt | an explicitly accepted external assertion or root |
+| admitted boundary conformance | routed provenance under its selected provider receipt |
 
-An admitted membership assertion is valid only on the bare result of a
-boundary requirement whose result carrier matches the domain target. A direct
+An admitted membership assertion is valid only on the qualified result of an
+exact boundary requirement named in the domain body. A direct
 accepted-machine membership guarantee is not authorization. Checked proof
 facts retain the boundary trait and exact requirement signature, and the
 artifact records that signature, the public origin class, and the selected
@@ -181,8 +148,8 @@ witnesses remain private evidence.
 
 Reconstructing equal carrier fields does not reproduce qualification. Existing
 qualified values retain their facts through ordinary assignment, move, and
-permitted copy. Mutation invalidates a bodyless subject-bound fact unless the
-operation explicitly preserves or re-establishes it.
+permitted copy. Mutation invalidates a subject-bound fact unless the operation
+explicitly preserves or re-establishes it.
 
 Multiplicity, not the domain declaration, governs duplication and debt:
 
@@ -284,52 +251,51 @@ Mixed arithmetic policies reject. Arithmetic-policy removal or replacement
 changes only future operator selection; it does not reinterpret an already
 stored payload.
 
-An arithmetic-policy qualification may weaken to the unqualified carrier,
-whose arithmetic is Exact by default. The current payload is preserved and
-every later Exact operation must discharge its ordinary safety obligations.
-This does not reinterpret earlier wrapping arithmetic as exact mathematics.
-Selecting Wrapping, Saturating, or Trapping from an Exact binding remains an
-explicit choice because it changes future operation behavior.
+An arithmetic-policy qualification may be explicitly erased to the
+unqualified carrier, whose arithmetic is Exact by default. The current payload
+is preserved and every later Exact operation must discharge its ordinary
+safety obligations. This does not reinterpret earlier wrapping arithmetic as
+exact mathematics. Selecting or removing Wrapping, Saturating, or Trapping is
+explicit because it changes future operation behavior.
 
-Core's arithmetic-policy qualifications satisfy the same canonical
-representation-qualification relationship as an authored unit such as `Km`.
-Their primitive lowering is special; their establishment and `as` behavior is
-not a second qualification mechanism.
+Core arithmetic-policy domains use the same empty or predicate-qualified
+establishment rules as an authored unit such as `Km`. Their primitive lowering
+is special; their establishment and `as` behavior is not a second
+qualification mechanism.
 
 ## The operation taxonomy
 
-Carrier identity, payload identity, and runtime work are independent:
+Denotation, carrier representation, and runtime work are independent:
 
-| Operation | Carrier | Payload | Runtime work |
-|---|---|---|---|
-| qualify with `as` | same | same | none |
-| forget qualification | same | same | none |
-| representation recast | changes | same bits under its validated plan | none |
-| validation | same | same | yes |
-| conversion | same or different | may change | ordinary contracted work |
+| Operation | Denotation | Runtime behavior |
+|---|---|---|
+| exact coercion with `as` | preserved | compiler-derived intrinsic work only |
+| explicit non-owning semantic erasure | discarded visibly | none |
+| predicate weakening | preserved, fact forgotten | none |
+| representation recast | same bits under its validated plan | none |
+| validation | establishes a proposition | ordinary checked work |
+| noncanonical conversion | operation contract defines it | ordinary named machine |
 
-Numeric width conversion and unit conversion are conversions, not domain
-qualification. Narrowing additionally chooses a trapping, saturating,
-wrapping, or checked-result policy explicitly. The current numeric `as`
-spelling is a compatibility surface to migrate after named numeric conversion
-operations are fixed.
+Numeric widening, proven exact narrowing, and exact unit-scale changes belong
+to `as` because they preserve denotation. Narrowing that wraps, saturates,
+traps, rounds, or returns a checked result selects that policy through a named
+machine or an explicit policy domain.
 
 ## Weakening and forgetting
 
-A semantic qualification may weaken implicitly to its carrier only when:
+Weakening is evaluated independently for each normalized domain atom:
 
-1. the identity map preserves denotation; and
-2. every default operation agrees with the qualified operation throughout the
-   default operation's accepted region.
+- predicate-only atoms may disappear implicitly;
+- semantic atoms and non-owning routed provenance require an explicit `as`
+  whose target omits them;
+- a domain carrying both predicates and a route follows the routed rule; and
+- owned claims cannot be cast away and must be consumed or transferred.
 
-Certified arithmetic policies can satisfy this law because exact arithmetic
-reinstates its proof obligations after weakening. Units fail the denotation
-condition: forgetting `1 Km` yields raw `1`, while converting it to metres
-yields `1000`. Unit qualification therefore never disappears silently.
-
-Accepted weakening certificates seal the overlapping theory. Later extensions
-must re-prove agreement rather than changing the meaning of an existing
-program.
+Thus an `i32::Km & Positive` may pass where `i32::Km` is expected but not where
+bare `i32` is expected. `distance as i32` explicitly erases the semantic unit.
+Direct `distance as i32::Degrees` rejects because no denotation-preserving
+relation exists; an author can still write the conspicuous
+`distance as i32 as i32::Degrees`.
 
 ## Transparent aliases
 
@@ -370,65 +336,53 @@ presentation`:
 
 - dimension composes structurally through multiplication and division;
 - kind distinguishes equal-dimension meanings such as Energy and Torque;
-- scale is a rational factor and changes only through explicit conversion;
+- scale is a rational factor normalized by exact `as` coercion and operators;
 - presentation is a non-semantic display alias removed before identity.
 
-Mixed-scale addition requires explicit conversion. A quantity may combine its
-denotation role with an arithmetic policy such as `Wrapping`; the roles
-compose rather than competing for the `+` spelling.
+Mixed-scale addition derives the same exact normalization used by `as`, subject
+to representability. A quantity may combine its denotation role with an
+arithmetic policy such as `Wrapping`; the roles compose rather than competing
+for the `+` spelling.
 
 Required tests:
 
-1. `Km + Metre` rejects without conversion.
+1. `Km + Metre` normalizes through one exact declared scale relation.
 2. `Km / Metre` preserves the scale factor.
 3. Energy and Torque remain distinct despite equal dimensions.
 4. Generic identity preserves unit qualification.
-5. Passing a unit-qualified value to its carrier requires certified weakening,
-   explicit forgetting, or conversion as appropriate.
+5. Passing a unit-qualified value to its carrier requires explicit `as`
+   erasure.
 6. `Km & Wrapping` composes while `Wrapping & Trapping` rejects.
-7. `(5 as Km) as Metres` rejects because metres require a payload-changing
-   conversion.
+7. `(5 as i32::Km) as i32::M` succeeds exactly, while an unproved
+   metres-to-kilometres coercion rejects.
 
 ## Implementation staging
 
-The compiler now carries independent predicate-body and closed semantic-role
-records alongside special arithmetic-domain paths. Semicolon and empty-braced declarations now
-both normalize to an explicit bodyless predicate-body record in syntax,
-symbol-resolved, and typed trees; an explicit `{ true; }` body remains
-predicate-bearing. This removes fact-count inference for body presence.
-Checked facts now also retain a normalized establishment origin separately
-from their program-point origin. Carrier-owner checked machines can establish
-their own bodyless result facts, while bodyful and unrelated-owner results
-still require ordinary proof; call-result and statement transfer preserve the
-evidence. The checked artifact publishes origin/source/receipt rows, and a
-granted selected provider plan supplies the normalized receipt identity for
-matching admitted facts. This is the first P1a tranche: exact admitted-subject
-authorization and transparent declared-domain aliases are now implemented.
-Aliases retain independent syntax/resolved/typed records, expand to atoms
-before type and contract identity, compatibility, admission, and executable
-predicate lowering, validate nonempty/acyclic/same-carrier/public expansions,
-and diagnose unmet atoms. Operator-bearing declarations contribute the
-`DenotationDimension` role once during syntax lowering; arithmetic domains
-contribute `ArithmeticPolicy`; different roles compose and same-role
-collisions reject. Establishment relationships now normalize once after symbol
-assignment as exact owner-machine, domain-operator, or boundary
-trait/requirement identities. Alias guarantees expand to their atomic facts;
-resolved and typed declarations, binding-site constraints, snapshots, and
-checked qualification consumers preserve the records without re-inferring
-permission from names. Canonical `as`, package-owner coherence, and
-compiler-owned `Carry` atoms remain.
+The compiler already carries independent predicate, semantic-role,
+establishment-origin, normalized route, alias, and receipt records. The source
+parser, establishment checker, coercion resolver, and artifact schema still
+need to adopt the surface and rules in this brief.
+
 Migration should:
 
-1. publish and validate the core representation-qualification trait;
-2. add package-owner coherence to authored establishment routes;
-3. preserve normalized qualification through generics, contracts, artifacts,
-   and separate compilation; and
-4. migrate numeric width conversions away from the qualification spelling once
-   their named operations are fixed.
+1. move domain propositions to ordinary `requires` and parse exact requirement
+   identities as alternative body routes;
+2. make an empty declaration obligation-free and remove ambient owner-package
+   establishment;
+3. remove the legacy core qualification relationship from domain
+   establishment;
+4. make an authorized route's return position establish provenance only after
+   every domain predicate is proved;
+5. implement exact denotation-preserving `as` across numeric representation
+   and normalized unit scales without invoking user code;
+6. implement per-atom implicit weakening, explicit semantic erasure, and
+   ownership-governed claim removal; and
+7. preserve those facts through generics, contracts, artifacts, and separate
+   compilation.
 
-General open operator-family linking, external unit-kind equations, authored
-weakening-certificate syntax, and richer unit families remain separate
-customers. They do not change the qualification model.
+General open operator-family linking, external unit-kind equations, and richer
+unit families remain separate customers. They do not change the qualification
+model.
 
 ## Cross-references
 
