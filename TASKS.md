@@ -271,9 +271,12 @@ establishment from raw bytes reject.
   `Access::plan(schema, validated_layout)` evaluation. Construct each access
   plan from an all-inaccessible seed using compiler-issued schema field keys.
 - Migrate the normalized Rust model from name-keyed vectors, per-entry reach,
-  generic RMW, `ProviderPrivate`, and reusable placed-view grants to exact
-  schema cardinality, reach per placement, derived RMW legality,
-  `BindingPrivate`, and an admission token owning the exact Extent loan.
+  and reusable placed-view grants to exact schema cardinality, reach per
+  placement, and an admission token owning the exact Extent loan. Exposure now
+  uses the settled `Exported | BindingPrivate` vocabulary; stable compound
+  mutation is derived from read+write and exclusivity, external compound
+  mutation is unavailable, and atomic permissions name exact operation
+  families.
 - Implement offset-keyed admitted resource profiles, profile restriction on
   subrange loans, consumer-demand/provider-supply compatibility, and the
   build-time base-congruence plus runtime-base alignment split.
