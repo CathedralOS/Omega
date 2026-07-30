@@ -372,6 +372,33 @@ data ResourceProfile {
     region_count: u64 [0..=32];
 }
 
+// Granular placed-field requirements. These are ordinary generic contracts so
+// helpers can accept one accessor without receiving the whole placed view.
+// The compiler derives conforming accessor types from a normalized placement;
+// source cannot construct the opaque template or use it as placement evidence.
+trait Readable<T> {
+    machine read(&self) -> T;
+}
+
+trait DestructiveRead<T> {
+    machine take(&mut self) -> T;
+}
+
+trait Writable<T> {
+    machine write(&mut self, value: T);
+}
+
+boundary data PlacedField<T>;
+
+boundary machine PlacedField::read<T>(&self) -> T
+satisfies Readable<T>::read;
+
+boundary machine PlacedField::take<T>(&mut self) -> T
+satisfies DestructiveRead<T>::take;
+
+boundary machine PlacedField::write<T>(&mut self, value: T)
+satisfies Writable<T>::write;
+
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.
 trait Layout {

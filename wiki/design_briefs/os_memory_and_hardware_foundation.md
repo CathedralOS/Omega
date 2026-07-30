@@ -641,8 +641,17 @@ a borrow-carrying field accessor, and only named read, destructive-take, write,
 stable-compound, and individual atomic-family methods can seal a primitive
 request. Inaccessible fields yield no accessor; current view-borrow and source
 loan polarity remain independent checks at the operation boundary. `TASKS.md`
-owns source `Placed<P, T>` derivation and target-specific external/atomic
-emission.
+owns the remaining source and lowering work. The compiler now performs the
+first fail-closed source derivation for each concrete `Placed<P, T>` spelling:
+it evaluates the canonical placement policy before ordinary resolution,
+revalidates the normalized identity in the authoritative typed program, and
+synthesizes unique opaque stable/external field accessors implementing only
+the admitted `Readable`, `DestructiveRead`, and `Writable` requirements.
+Inaccessible and unauthorized operations have no projection/method. Atomic
+fields remain absent rather than being widened to ordinary built-in atomics.
+Binding-private package enforcement, exact atomic-family accessors, connection
+to admitted source loans, and target-specific external/atomic emission remain
+open.
 
 ## IPC and DMA
 
