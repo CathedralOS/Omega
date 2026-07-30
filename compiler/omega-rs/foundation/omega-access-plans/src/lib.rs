@@ -5,7 +5,7 @@
 //! prevents wire layouts from acquiring MMIO vocabulary and prevents an
 //! arbitrary-offset volatile escape hatch from bypassing plan validation.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use omega_extents::{AddressSpaceId, ExtentLoan, ExtentProvenanceId, ExtentRights, LoanPolarity};
@@ -50,6 +50,13 @@ pub enum AccessExposure {
     BindingPrivate,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExternalRead {
+    None,
+    Read,
+    Take,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AtomicPermissions {
     pub load: bool,
@@ -80,40 +87,175 @@ impl AtomicPermissions {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccessPermissions {
     pub read: bool,
+    pub take: bool,
     pub write: bool,
     pub atomic: AtomicPermissions,
 }
 
 impl AccessPermissions {
     pub const fn any(self) -> bool {
-        self.read || self.write || self.atomic.any()
+        self.read || self.take || self.write || self.atomic.any()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FieldAccess {
+    Inaccessible,
+    Stable {
+        transfer_width_bits: u16,
+        read: bool,
+        write: bool,
+        exposure: AccessExposure,
+    },
+    External {
+        transfer_width_bits: u16,
+        read: ExternalRead,
+        write: bool,
+        exposure: AccessExposure,
+        /// Bootstrap owner for reach until `PlacementPlan` carries this fact.
+        service_reach: BoundaryServiceReachId,
+    },
+    Atomic {
+        transfer_width_bits: u16,
+        operations: AtomicPermissions,
+        exposure: AccessExposure,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccessFieldKey {
+    layout_fingerprint: u64,
+    slot: u32,
+}
+
+impl AccessFieldKey {
+    pub const fn slot(self) -> u32 {
+        self.slot
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AccessFieldEntry {
-    pub field: String,
-    /// Width of the actual memory transaction, not the logical bit fragment.
-    pub transfer_width_bits: u16,
-    pub observation: ObservationModel,
-    pub permissions: AccessPermissions,
-    pub exposure: AccessExposure,
-    /// Statically normalized service reach contributed by every primitive
-    /// access. Runtime extent provenance cannot rewrite this value.
-    pub service_reach: Option<BoundaryServiceReachId>,
+    key: AccessFieldKey,
+    field: String,
+    access: FieldAccess,
+}
+
+impl AccessFieldEntry {
+    pub const fn key(&self) -> AccessFieldKey {
+        self.key
+    }
+
+    pub fn field(&self) -> &str {
+        &self.field
+    }
+
+    pub const fn access(&self) -> &FieldAccess {
+        &self.access
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AccessPlan {
-    pub entries: Vec<AccessFieldEntry>,
+    layout_fingerprint: u64,
+    entries: Vec<AccessFieldEntry>,
+}
+
+impl AccessPlan {
+    pub fn inaccessible(layout: &LayoutPlanReport) -> Result<Self, AccessPlanDiagnostic> {
+        let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
+        let mut canonical_fields = BTreeMap::new();
+        let mut presentation_names = BTreeMap::new();
+        for entry in &layout.entries {
+            if entry.field.is_empty() {
+                return Err(AccessPlanDiagnostic(
+                    "layout field name cannot be empty".into(),
+                ));
+            }
+            let identity = match entry.member_identity {
+                Some(identity) => CanonicalFieldIdentity::Numbered(identity),
+                None => CanonicalFieldIdentity::Positional(entry.field.clone()),
+            };
+            if let Some(prior) = presentation_names.insert(identity.clone(), entry.field.clone())
+                && prior != entry.field
+            {
+                return Err(AccessPlanDiagnostic(format!(
+                    "layout field identity names both `{prior}` and `{}`",
+                    entry.field
+                )));
+            }
+            canonical_fields.insert(identity, entry.field.clone());
+        }
+        let entries = canonical_fields
+            .into_values()
+            .enumerate()
+            .map(|(slot, field)| {
+                let slot = u32::try_from(slot).map_err(|_| {
+                    AccessPlanDiagnostic("layout has more than u32::MAX schema fields".into())
+                })?;
+                Ok(AccessFieldEntry {
+                    key: AccessFieldKey {
+                        layout_fingerprint,
+                        slot,
+                    },
+                    field,
+                    access: FieldAccess::Inaccessible,
+                })
+            })
+            .collect::<Result<Vec<_>, AccessPlanDiagnostic>>()?;
+        Ok(Self {
+            layout_fingerprint,
+            entries,
+        })
+    }
+
+    pub const fn layout_fingerprint(&self) -> u64 {
+        self.layout_fingerprint
+    }
+
+    pub fn entries(&self) -> &[AccessFieldEntry] {
+        &self.entries
+    }
+
+    pub fn key_at(&self, slot: usize) -> Option<AccessFieldKey> {
+        self.entries.get(slot).map(AccessFieldEntry::key)
+    }
+
+    pub fn set(
+        &mut self,
+        key: AccessFieldKey,
+        access: FieldAccess,
+    ) -> Result<(), AccessPlanDiagnostic> {
+        if key.layout_fingerprint != self.layout_fingerprint {
+            return Err(AccessPlanDiagnostic(
+                "access field key belongs to a different validated layout".into(),
+            ));
+        }
+        let entry = self.entries.get_mut(key.slot as usize).ok_or_else(|| {
+            AccessPlanDiagnostic("access field key is outside the schema cardinality".into())
+        })?;
+        if entry.key != key {
+            return Err(AccessPlanDiagnostic(
+                "access field key does not identify this schema slot".into(),
+            ));
+        }
+        entry.access = access;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum CanonicalFieldIdentity {
+    Numbered(u64),
+    Positional(String),
 }
 
 /// Normalizer-owned identity of one validated access policy.
 ///
-/// Authored entry order is not semantic: fields are name-keyed, so validation
-/// canonicalizes them before computing this identity. The identity includes
-/// every operation, observation, exposure, transfer-width, and service-reach
-/// fact that lowering is allowed to consume.
+/// The plan contains exactly one canonical slot per layout schema field,
+/// including inaccessible fields. Its identity includes every operation,
+/// observation, exposure, transfer-width, and temporary per-entry reach fact
+/// that lowering is allowed to consume.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccessPlanId(u64);
 
@@ -129,6 +271,7 @@ impl AccessPlanId {
 /// descriptor, so later lowering never accepts an author-supplied byte offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldAccessDescriptor {
+    key: AccessFieldKey,
     field: String,
     container_byte_offset: u64,
     transfer_width_bits: u16,
@@ -139,6 +282,10 @@ pub struct FieldAccessDescriptor {
 }
 
 impl FieldAccessDescriptor {
+    pub const fn key(&self) -> AccessFieldKey {
+        self.key
+    }
+
     pub fn field(&self) -> &str {
         &self.field
     }
@@ -171,7 +318,8 @@ impl FieldAccessDescriptor {
 /// The only value accepted by primitive placed-access lowering.
 ///
 /// It combines plan-derived geometry with a borrow-specific operation check.
-/// Authors can name fields and operations but cannot construct this token.
+/// Callers carry compiler-issued field keys and operations but cannot
+/// construct this token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedFieldAccess {
     descriptor: FieldAccessDescriptor,
@@ -215,12 +363,15 @@ impl ValidatedAccessPlan {
         &self.plan
     }
 
-    pub fn field(&self, field: &str) -> Option<&AccessFieldEntry> {
-        self.plan.entries.iter().find(|entry| entry.field == field)
+    pub fn field(&self, key: AccessFieldKey) -> Option<&AccessFieldEntry> {
+        self.plan
+            .entries
+            .get(key.slot as usize)
+            .filter(|entry| entry.key == key)
     }
 
-    pub fn field_descriptor(&self, field: &str) -> Option<&FieldAccessDescriptor> {
-        self.fields.iter().find(|entry| entry.field == field)
+    pub fn field_descriptor(&self, key: AccessFieldKey) -> Option<&FieldAccessDescriptor> {
+        self.fields.iter().find(|entry| entry.key == key)
     }
 
     pub fn field_descriptors(&self) -> &[FieldAccessDescriptor] {
@@ -233,14 +384,15 @@ impl ValidatedAccessPlan {
 
     pub fn authorize(
         &self,
-        field: &str,
+        key: AccessFieldKey,
         borrow: BorrowPolarity,
         operation: AccessOperation,
     ) -> Result<AuthorizedFieldAccess, AccessPlanDiagnostic> {
-        let descriptor = self.field_descriptor(field).ok_or_else(|| {
-            AccessPlanDiagnostic(format!(
-                "field `{field}` has no access entry in the validated plan"
-            ))
+        let entry = self.field(key).ok_or_else(|| {
+            AccessPlanDiagnostic("field key does not belong to the validated access plan".into())
+        })?;
+        let descriptor = self.field_descriptor(key).ok_or_else(|| {
+            AccessPlanDiagnostic(format!("field `{}` is inaccessible", entry.field))
         })?;
         authorize_descriptor(descriptor, borrow, operation)?;
         Ok(AuthorizedFieldAccess {
@@ -260,6 +412,9 @@ pub enum BorrowPolarity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccessOperation {
     Read,
+    /// One destructive external read. It consumes the device event through an
+    /// exclusive current borrow and never derives ordinary readability.
+    Take,
     Write,
     /// Ordinary stable compound mutation. Legality is derived from stable
     /// read+write permission and an exclusive borrow; it is never an external
@@ -318,49 +473,54 @@ impl std::fmt::Display for AccessPlanDiagnostic {
 impl std::error::Error for AccessPlanDiagnostic {}
 
 pub fn validate_access_plan(
-    mut plan: AccessPlan,
+    plan: AccessPlan,
     layout: &LayoutPlanReport,
 ) -> Result<ValidatedAccessPlan, AccessPlanDiagnostic> {
     let layout_size = layout.size.ok_or_else(|| {
         AccessPlanDiagnostic("placed access requires a fixed-size layout plan".into())
     })?;
-
-    let mut fields = BTreeSet::new();
-    for entry in &plan.entries {
-        if entry.field.is_empty() {
-            return Err(AccessPlanDiagnostic(
-                "access entry field name cannot be empty".into(),
-            ));
-        }
-        if !fields.insert(entry.field.as_str()) {
-            return Err(AccessPlanDiagnostic(format!(
-                "field `{}` has more than one access entry",
-                entry.field
-            )));
-        }
+    let expected = AccessPlan::inaccessible(layout)?;
+    if plan.layout_fingerprint != expected.layout_fingerprint {
+        return Err(AccessPlanDiagnostic(
+            "access plan belongs to a different validated layout".into(),
+        ));
     }
-    // Field identity, not authored list position, owns access semantics.
-    // Canonical ordering makes equivalent policy machines normalize to the
-    // same plan and gives every later consumer one deterministic traversal.
-    plan.entries
-        .sort_unstable_by(|left, right| left.field.cmp(&right.field));
+    if plan.entries.len() != expected.entries.len()
+        || plan
+            .entries
+            .iter()
+            .zip(&expected.entries)
+            .any(|(actual, expected)| actual.key != expected.key || actual.field != expected.field)
+    {
+        return Err(AccessPlanDiagnostic(
+            "access plan does not contain exactly one canonical decision per schema field".into(),
+        ));
+    }
 
     let mut descriptors = Vec::with_capacity(plan.entries.len());
     for entry in &plan.entries {
-        validate_entry_policy(entry)?;
-        let container_byte_offset = validate_entry_geometry(entry, layout, layout_size)?;
+        let Some(policy) = validate_entry_policy(entry)? else {
+            continue;
+        };
+        let container_byte_offset = validate_entry_geometry(
+            &entry.field,
+            policy.transfer_width_bits,
+            layout,
+            layout_size,
+        )?;
         descriptors.push(FieldAccessDescriptor {
+            key: entry.key,
             field: entry.field.clone(),
             container_byte_offset,
-            transfer_width_bits: entry.transfer_width_bits,
-            observation: entry.observation,
-            permissions: entry.permissions,
-            exposure: entry.exposure,
-            service_reach: entry.service_reach,
+            transfer_width_bits: policy.transfer_width_bits,
+            observation: policy.observation,
+            permissions: policy.permissions,
+            exposure: policy.exposure,
+            service_reach: policy.service_reach,
         });
     }
 
-    let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
+    let layout_fingerprint = plan.layout_fingerprint;
     let identity = normalized_access_plan_identity(&plan, layout_fingerprint);
     Ok(ValidatedAccessPlan {
         identity,
@@ -376,54 +536,85 @@ fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
     let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.access-plan.v3");
+    hash_bytes(&mut hash, b"omega.access-plan.v4");
     hash_u64(&mut hash, layout_fingerprint);
     hash_u64(&mut hash, plan.entries.len() as u64);
     for entry in &plan.entries {
-        hash_u64(&mut hash, entry.field.len() as u64);
-        hash_bytes(&mut hash, entry.field.as_bytes());
-        hash_u64(&mut hash, u64::from(entry.transfer_width_bits));
-        hash_byte(
-            &mut hash,
-            match entry.observation {
-                ObservationModel::Stable => 0,
-                ObservationModel::External => 1,
-                ObservationModel::Atomic => 2,
-            },
-        );
-        hash_byte(&mut hash, u8::from(entry.permissions.read));
-        hash_byte(&mut hash, u8::from(entry.permissions.write));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.load));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.store));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_add));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_sub));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_xor));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_or));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_and));
-        hash_byte(&mut hash, u8::from(entry.permissions.atomic.swap));
-        hash_byte(
-            &mut hash,
-            u8::from(entry.permissions.atomic.compare_exchange),
-        );
-        hash_byte(
-            &mut hash,
-            match entry.exposure {
-                AccessExposure::Exported => 0,
-                AccessExposure::BindingPrivate => 1,
-            },
-        );
-        match entry.service_reach {
-            Some(reach) => {
+        hash_u64(&mut hash, u64::from(entry.key.slot));
+        match &entry.access {
+            FieldAccess::Inaccessible => hash_byte(&mut hash, 0),
+            FieldAccess::Stable {
+                transfer_width_bits,
+                read,
+                write,
+                exposure,
+            } => {
                 hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, u64::from(*transfer_width_bits));
+                hash_byte(&mut hash, u8::from(*read));
+                hash_byte(&mut hash, u8::from(*write));
+                hash_exposure(&mut hash, *exposure);
+            }
+            FieldAccess::External {
+                transfer_width_bits,
+                read,
+                write,
+                exposure,
+                service_reach,
+            } => {
+                hash_byte(&mut hash, 2);
+                hash_u64(&mut hash, u64::from(*transfer_width_bits));
+                hash_byte(
+                    &mut hash,
+                    match read {
+                        ExternalRead::None => 0,
+                        ExternalRead::Read => 1,
+                        ExternalRead::Take => 2,
+                    },
+                );
+                hash_byte(&mut hash, u8::from(*write));
+                hash_exposure(&mut hash, *exposure);
+                let reach = *service_reach;
                 hash_u64(&mut hash, reach.normalized_identity());
             }
-            None => hash_byte(&mut hash, 0),
+            FieldAccess::Atomic {
+                transfer_width_bits,
+                operations,
+                exposure,
+            } => {
+                hash_byte(&mut hash, 3);
+                hash_u64(&mut hash, u64::from(*transfer_width_bits));
+                for enabled in [
+                    operations.load,
+                    operations.store,
+                    operations.fetch_add,
+                    operations.fetch_sub,
+                    operations.fetch_xor,
+                    operations.fetch_or,
+                    operations.fetch_and,
+                    operations.swap,
+                    operations.compare_exchange,
+                ] {
+                    hash_byte(&mut hash, u8::from(enabled));
+                }
+                hash_exposure(&mut hash, *exposure);
+            }
         }
     }
     // Zero is reserved as the inert/no-plan identity throughout the semantic
     // spine. A hash hitting it remains deterministic but is remapped out of
     // the reserved value.
     AccessPlanId(if hash == 0 { 1 } else { hash })
+}
+
+fn hash_exposure(hash: &mut u64, exposure: AccessExposure) {
+    hash_byte(
+        hash,
+        match exposure {
+            AccessExposure::Exported => 0,
+            AccessExposure::BindingPrivate => 1,
+        },
+    );
 }
 
 fn hash_u64(hash: &mut u64, value: u64) {
@@ -521,21 +712,22 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
 
     pub fn authorize<'view>(
         &'view self,
-        field: &str,
+        key: AccessFieldKey,
         operation: AccessOperation,
     ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
         let borrow = match self.loan.polarity() {
             LoanPolarity::Shared => BorrowPolarity::Shared,
             LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
         };
-        let access = self.plan.authorize(field, borrow, operation)?;
+        let access = self.plan.authorize(key, borrow, operation)?;
         let primitive_address = self
             .loan
             .base()
             .checked_add(access.descriptor().container_byte_offset())
             .ok_or_else(|| {
                 AccessPlanDiagnostic(format!(
-                    "field `{field}` primitive address overflows address width"
+                    "field `{}` primitive address overflows address width",
+                    access.descriptor().field()
                 ))
             })?;
         Ok(PlacedFieldAccess {
@@ -702,86 +894,128 @@ pub fn derive_placed_view<'extent, 'plan>(
     })
 }
 
-fn validate_entry_policy(entry: &AccessFieldEntry) -> Result<(), AccessPlanDiagnostic> {
-    if entry.transfer_width_bits == 0
-        || entry.transfer_width_bits > 128
-        || !entry.transfer_width_bits.is_multiple_of(8)
+#[derive(Debug, Clone, Copy)]
+struct ValidatedEntryPolicy {
+    transfer_width_bits: u16,
+    observation: ObservationModel,
+    permissions: AccessPermissions,
+    exposure: AccessExposure,
+    service_reach: Option<BoundaryServiceReachId>,
+}
+
+fn validate_entry_policy(
+    entry: &AccessFieldEntry,
+) -> Result<Option<ValidatedEntryPolicy>, AccessPlanDiagnostic> {
+    let policy = match entry.access {
+        FieldAccess::Inaccessible => return Ok(None),
+        FieldAccess::Stable {
+            transfer_width_bits,
+            read,
+            write,
+            exposure,
+        } => {
+            if !read && !write {
+                return Err(AccessPlanDiagnostic(format!(
+                    "stable field `{}` exposes no operation; use Inaccessible",
+                    entry.field
+                )));
+            }
+            ValidatedEntryPolicy {
+                transfer_width_bits,
+                observation: ObservationModel::Stable,
+                permissions: AccessPermissions {
+                    read,
+                    write,
+                    ..AccessPermissions::default()
+                },
+                exposure,
+                service_reach: None,
+            }
+        }
+        FieldAccess::External {
+            transfer_width_bits,
+            read,
+            write,
+            exposure,
+            service_reach,
+        } => {
+            if read == ExternalRead::None && !write {
+                return Err(AccessPlanDiagnostic(format!(
+                    "external field `{}` exposes no operation; use Inaccessible",
+                    entry.field
+                )));
+            }
+            ValidatedEntryPolicy {
+                transfer_width_bits,
+                observation: ObservationModel::External,
+                permissions: AccessPermissions {
+                    read: read == ExternalRead::Read,
+                    take: read == ExternalRead::Take,
+                    write,
+                    ..AccessPermissions::default()
+                },
+                exposure,
+                service_reach: Some(service_reach),
+            }
+        }
+        FieldAccess::Atomic {
+            transfer_width_bits,
+            operations,
+            exposure,
+        } => {
+            if !operations.any() {
+                return Err(AccessPlanDiagnostic(format!(
+                    "atomic field `{}` exposes no operation; use Inaccessible",
+                    entry.field
+                )));
+            }
+            ValidatedEntryPolicy {
+                transfer_width_bits,
+                observation: ObservationModel::Atomic,
+                permissions: AccessPermissions {
+                    atomic: operations,
+                    ..AccessPermissions::default()
+                },
+                exposure,
+                service_reach: None,
+            }
+        }
+    };
+    if policy.transfer_width_bits == 0
+        || policy.transfer_width_bits > 128
+        || !policy.transfer_width_bits.is_multiple_of(8)
     {
         return Err(AccessPlanDiagnostic(format!(
             "field `{}` transfer width {} is not a supported whole-byte width in 8..=128",
-            entry.field, entry.transfer_width_bits
+            entry.field, policy.transfer_width_bits
         )));
     }
-    if !entry.permissions.any() {
-        return Err(AccessPlanDiagnostic(format!(
-            "field `{}` exposes no primitive operation",
-            entry.field
-        )));
-    }
-
-    match entry.observation {
-        ObservationModel::Atomic => {
-            if entry.permissions.read || entry.permissions.write {
-                return Err(AccessPlanDiagnostic(format!(
-                    "atomic field `{}` cannot also expose ordinary read/write",
-                    entry.field
-                )));
-            }
-            if !entry.permissions.atomic.any() {
-                return Err(AccessPlanDiagnostic(format!(
-                    "atomic field `{}` exposes no atomic operation",
-                    entry.field
-                )));
-            }
-        }
-        ObservationModel::Stable | ObservationModel::External => {
-            if entry.permissions.atomic.any() {
-                return Err(AccessPlanDiagnostic(format!(
-                    "non-atomic field `{}` cannot expose atomic operations",
-                    entry.field
-                )));
-            }
-        }
-    }
-
-    if entry.observation == ObservationModel::External && entry.service_reach.is_none() {
-        return Err(AccessPlanDiagnostic(format!(
-            "external field `{}` must pin boundary-service reach",
-            entry.field
-        )));
-    }
-    if entry.observation == ObservationModel::Stable && entry.service_reach.is_some() {
-        return Err(AccessPlanDiagnostic(format!(
-            "stable field `{}` cannot disguise a boundary event as ordinary access",
-            entry.field
-        )));
-    }
-    Ok(())
+    Ok(Some(policy))
 }
 
 fn validate_entry_geometry(
-    access: &AccessFieldEntry,
+    field: &str,
+    transfer_width_bits: u16,
     layout: &LayoutPlanReport,
     layout_size: u64,
 ) -> Result<u64, AccessPlanDiagnostic> {
     let placements = layout
         .entries
         .iter()
-        .filter(|entry| entry.field == access.field)
+        .filter(|entry| entry.field == field)
         .map(|entry| entry.placement)
         .collect::<Vec<_>>();
     if placements.is_empty() {
         return Err(AccessPlanDiagnostic(format!(
-            "access field `{}` does not exist in the layout plan",
-            access.field
+            "access field `{field}` does not exist in the layout plan"
         )));
     }
 
-    let transfer_bytes = u64::from(access.transfer_width_bits / 8);
+    let transfer_bytes = u64::from(transfer_width_bits / 8);
     match placements.as_slice() {
         [LayoutPlacementReport::At { offset }] => {
             let offset = *offset;
-            validate_transfer_range(access, offset, transfer_bytes, layout_size)?;
+            validate_transfer_range(field, offset, transfer_bytes, layout_size)?;
             Ok(offset)
         }
         placements => {
@@ -794,14 +1028,13 @@ fn validate_entry_geometry(
                 } = placement
                 else {
                     return Err(AccessPlanDiagnostic(format!(
-                        "access field `{}` mixes whole and fragmented placement",
-                        access.field
+                        "access field `{field}` mixes whole and fragmented placement"
                     )));
                 };
-                if *container_width != u64::from(access.transfer_width_bits) {
+                if *container_width != u64::from(transfer_width_bits) {
                     return Err(AccessPlanDiagnostic(format!(
                         "access field `{}` requests a {}-bit transfer over a {container_width}-bit container",
-                        access.field, access.transfer_width_bits
+                        field, transfer_width_bits
                     )));
                 }
                 if container
@@ -810,33 +1043,32 @@ fn validate_entry_geometry(
                 {
                     return Err(AccessPlanDiagnostic(format!(
                         "fragmented field `{}` spans multiple containers and cannot be projected through one exact access",
-                        access.field
+                        field
                     )));
                 }
             }
             let container = container.expect("nonempty placements");
-            validate_transfer_range(access, container, transfer_bytes, layout_size)?;
+            validate_transfer_range(field, container, transfer_bytes, layout_size)?;
             Ok(container)
         }
     }
 }
 
 fn validate_transfer_range(
-    access: &AccessFieldEntry,
+    field: &str,
     offset: u64,
     transfer_bytes: u64,
     layout_size: u64,
 ) -> Result<(), AccessPlanDiagnostic> {
     let end = offset.checked_add(transfer_bytes).ok_or_else(|| {
         AccessPlanDiagnostic(format!(
-            "access field `{}` transfer byte range overflows",
-            access.field
+            "access field `{field}` transfer byte range overflows"
         ))
     })?;
     if end > layout_size {
         return Err(AccessPlanDiagnostic(format!(
             "access field `{}` transfer at {offset}..{end} exceeds {layout_size}-byte layout",
-            access.field
+            field
         )));
     }
     Ok(())
@@ -850,6 +1082,7 @@ fn authorize_descriptor(
     validate_operation_ordering(operation)?;
     let permitted = match operation {
         AccessOperation::Read => descriptor.permissions.read,
+        AccessOperation::Take => descriptor.permissions.take && borrow == BorrowPolarity::Exclusive,
         AccessOperation::Write => {
             descriptor.permissions.write && borrow == BorrowPolarity::Exclusive
         }
@@ -960,69 +1193,152 @@ mod tests {
         }
     }
 
-    fn ordinary(read: bool, write: bool) -> AccessPermissions {
-        AccessPermissions {
-            read,
-            write,
-            atomic: AtomicPermissions::default(),
+    fn access_plan(layout: &LayoutPlanReport, decisions: &[(&str, FieldAccess)]) -> AccessPlan {
+        let mut plan = AccessPlan::inaccessible(layout).expect("inaccessible seed");
+        for (field, access) in decisions {
+            let key = plan
+                .entries()
+                .iter()
+                .find(|entry| entry.field() == *field)
+                .map(AccessFieldEntry::key)
+                .expect("schema field key");
+            plan.set(key, access.clone())
+                .expect("replace field decision");
         }
+        plan
+    }
+
+    fn field_key(plan: &ValidatedAccessPlan, field: &str) -> AccessFieldKey {
+        plan.plan()
+            .entries()
+            .iter()
+            .find(|entry| entry.field() == field)
+            .map(AccessFieldEntry::key)
+            .expect("validated schema field key")
+    }
+
+    fn uart_access_source(layout: &LayoutPlanReport) -> AccessPlan {
+        access_plan(
+            layout,
+            &[
+                (
+                    "status",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                        service_reach: reach(),
+                    },
+                ),
+                (
+                    "transmit",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::None,
+                        write: true,
+                        exposure: AccessExposure::Exported,
+                        service_reach: reach(),
+                    },
+                ),
+                (
+                    "control",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: true,
+                        exposure: AccessExposure::BindingPrivate,
+                        service_reach: reach(),
+                    },
+                ),
+            ],
+        )
     }
 
     fn uart_access_plan() -> ValidatedAccessPlan {
-        validate_access_plan(
-            AccessPlan {
-                entries: vec![
-                    AccessFieldEntry {
-                        field: "status".into(),
-                        transfer_width_bits: 32,
-                        observation: ObservationModel::External,
-                        permissions: ordinary(true, false),
-                        exposure: AccessExposure::Exported,
-                        service_reach: Some(reach()),
-                    },
-                    AccessFieldEntry {
-                        field: "transmit".into(),
-                        transfer_width_bits: 32,
-                        observation: ObservationModel::External,
-                        permissions: ordinary(false, true),
-                        exposure: AccessExposure::Exported,
-                        service_reach: Some(reach()),
-                    },
-                    AccessFieldEntry {
-                        field: "control".into(),
-                        transfer_width_bits: 32,
-                        observation: ObservationModel::External,
-                        permissions: ordinary(true, true),
-                        exposure: AccessExposure::BindingPrivate,
-                        service_reach: Some(reach()),
-                    },
-                ],
-            },
-            &uart_layout(),
-        )
-        .expect("UART plan")
+        let layout = uart_layout();
+        let plan = uart_access_source(&layout);
+        validate_access_plan(plan, &layout).expect("UART plan")
     }
 
     #[test]
-    fn normalized_identity_is_name_keyed_and_order_independent() {
-        let forward = uart_access_plan();
-        let mut reversed_source = forward.plan().clone();
-        reversed_source.entries.reverse();
-        let reversed =
-            validate_access_plan(reversed_source, &uart_layout()).expect("reordered UART plan");
-
-        assert_eq!(forward.identity(), reversed.identity());
-        assert_eq!(forward.plan(), reversed.plan());
+    fn inaccessible_seed_has_exact_canonical_schema_cardinality() {
+        let layout = uart_layout();
+        let plan = AccessPlan::inaccessible(&layout).expect("inaccessible plan");
+        assert_eq!(plan.entries().len(), 3);
         assert_eq!(
-            forward
-                .plan()
-                .entries
+            plan.entries()
                 .iter()
-                .map(|entry| entry.field.as_str())
+                .map(AccessFieldEntry::field)
                 .collect::<Vec<_>>(),
             vec!["control", "status", "transmit"]
         );
-        assert_ne!(forward.identity().normalized_identity(), 0);
+        assert!(
+            plan.entries()
+                .iter()
+                .all(|entry| entry.access() == &FieldAccess::Inaccessible)
+        );
+        let validated = validate_access_plan(plan, &layout).expect("all-inaccessible plan");
+        assert!(validated.field_descriptors().is_empty());
+        assert!(
+            validated
+                .authorize(
+                    field_key(&validated, "status"),
+                    BorrowPolarity::Shared,
+                    AccessOperation::Read,
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn numbered_field_rename_does_not_change_access_identity() {
+        let mut original_layout = LayoutPlanReport {
+            schema_identity: 0x44,
+            entries: vec![LayoutFieldEntryReport {
+                field: "word".into(),
+                member_identity: Some(7),
+                placement: LayoutPlacementReport::At { offset: 0 },
+            }],
+            offsets: Some(vec![0]),
+            size: Some(4),
+            align: 4,
+        };
+        let original = validate_access_plan(
+            access_plan(
+                &original_layout,
+                &[(
+                    "word",
+                    FieldAccess::Stable {
+                        transfer_width_bits: 32,
+                        read: true,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            &original_layout,
+        )
+        .expect("original numbered plan");
+
+        original_layout.entries[0].field = "renamed_word".into();
+        let renamed = validate_access_plan(
+            access_plan(
+                &original_layout,
+                &[(
+                    "renamed_word",
+                    FieldAccess::Stable {
+                        transfer_width_bits: 32,
+                        read: true,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            &original_layout,
+        )
+        .expect("renamed numbered plan");
+        assert_eq!(original.identity(), renamed.identity());
     }
 
     #[test]
@@ -1038,33 +1354,44 @@ mod tests {
             size: Some(8),
             align: 8,
         };
-        let validate = |entry: AccessFieldEntry| {
-            validate_access_plan(
-                AccessPlan {
-                    entries: vec![entry],
-                },
-                &layout,
-            )
-            .expect("identity test plan")
-            .identity()
+        let validate = |access: FieldAccess| {
+            validate_access_plan(access_plan(&layout, &[("word", access)]), &layout)
+                .expect("identity test plan")
+                .identity()
         };
-        let stable_read = AccessFieldEntry {
-            field: "word".into(),
+        let stable_read = FieldAccess::Stable {
             transfer_width_bits: 32,
-            observation: ObservationModel::Stable,
-            permissions: ordinary(true, false),
+            read: true,
+            write: false,
             exposure: AccessExposure::Exported,
-            service_reach: None,
         };
         let mut stable_write = stable_read.clone();
-        stable_write.permissions = ordinary(false, true);
+        let FieldAccess::Stable { read, write, .. } = &mut stable_write else {
+            unreachable!()
+        };
+        *read = false;
+        *write = true;
         let mut wider = stable_read.clone();
-        wider.transfer_width_bits = 64;
+        let FieldAccess::Stable {
+            transfer_width_bits,
+            ..
+        } = &mut wider
+        else {
+            unreachable!()
+        };
+        *transfer_width_bits = 64;
         let mut private = stable_read.clone();
-        private.exposure = AccessExposure::BindingPrivate;
-        let mut external = stable_read.clone();
-        external.observation = ObservationModel::External;
-        external.service_reach = Some(reach());
+        let FieldAccess::Stable { exposure, .. } = &mut private else {
+            unreachable!()
+        };
+        *exposure = AccessExposure::BindingPrivate;
+        let external = FieldAccess::External {
+            transfer_width_bits: 32,
+            read: ExternalRead::Read,
+            write: false,
+            exposure: AccessExposure::Exported,
+            service_reach: reach(),
+        };
 
         let identities = [
             validate(stable_read),
@@ -1088,7 +1415,11 @@ mod tests {
         let plan = uart_access_plan();
 
         let status = plan
-            .authorize("status", BorrowPolarity::Shared, AccessOperation::Read)
+            .authorize(
+                field_key(&plan, "status"),
+                BorrowPolarity::Shared,
+                AccessOperation::Read,
+            )
             .expect("shared snapshot read");
         assert_eq!(status.descriptor().field(), "status");
         assert_eq!(status.descriptor().container_byte_offset(), 0);
@@ -1102,24 +1433,28 @@ mod tests {
         assert_eq!(status.operation(), AccessOperation::Read);
         assert_eq!(plan.field_descriptors().len(), 3);
         assert_eq!(
-            plan.field_descriptor("control")
+            plan.field_descriptor(field_key(&plan, "control"))
                 .expect("control descriptor")
                 .container_byte_offset(),
             8
         );
         assert!(
-            plan.authorize("transmit", BorrowPolarity::Shared, AccessOperation::Write)
-                .is_err()
+            plan.authorize(
+                field_key(&plan, "transmit"),
+                BorrowPolarity::Shared,
+                AccessOperation::Write,
+            )
+            .is_err()
         );
         plan.authorize(
-            "transmit",
+            field_key(&plan, "transmit"),
             BorrowPolarity::Exclusive,
             AccessOperation::Write,
         )
         .expect("exclusive whole write");
         assert!(
             plan.authorize(
-                "control",
+                field_key(&plan, "control"),
                 BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
@@ -1130,47 +1465,57 @@ mod tests {
 
     #[test]
     fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
-        let mut entry = AccessFieldEntry {
-            field: "status".into(),
-            transfer_width_bits: 32,
-            observation: ObservationModel::Stable,
-            permissions: ordinary(true, true),
-            exposure: AccessExposure::Exported,
-            service_reach: None,
-        };
+        let layout = uart_layout();
         let plan = validate_access_plan(
-            AccessPlan {
-                entries: vec![entry.clone()],
-            },
-            &uart_layout(),
+            access_plan(
+                &layout,
+                &[(
+                    "status",
+                    FieldAccess::Stable {
+                        transfer_width_bits: 32,
+                        read: true,
+                        write: true,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            &layout,
         )
         .expect("stable read-write plan");
         plan.authorize(
-            "status",
+            field_key(&plan, "status"),
             BorrowPolarity::Exclusive,
             AccessOperation::CompoundMutation,
         )
         .expect("exclusive stable read-write access derives compound mutation");
         assert!(
             plan.authorize(
-                "status",
+                field_key(&plan, "status"),
                 BorrowPolarity::Shared,
                 AccessOperation::CompoundMutation,
             )
             .is_err()
         );
 
-        entry.permissions.write = false;
         let plan = validate_access_plan(
-            AccessPlan {
-                entries: vec![entry],
-            },
-            &uart_layout(),
+            access_plan(
+                &layout,
+                &[(
+                    "status",
+                    FieldAccess::Stable {
+                        transfer_width_bits: 32,
+                        read: true,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
+            &layout,
         )
         .expect("stable read-only plan");
         assert!(
             plan.authorize(
-                "status",
+                field_key(&plan, "status"),
                 BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
@@ -1179,40 +1524,106 @@ mod tests {
     }
 
     #[test]
-    fn external_compound_mutation_and_missing_reach_reject() {
-        let mut entry = AccessFieldEntry {
-            field: "status".into(),
-            transfer_width_bits: 32,
-            observation: ObservationModel::External,
-            permissions: ordinary(true, true),
-            exposure: AccessExposure::Exported,
-            service_reach: Some(reach()),
-        };
+    fn destructive_external_read_does_not_derive_readable() {
+        let layout = uart_layout();
         let plan = validate_access_plan(
-            AccessPlan {
-                entries: vec![entry.clone()],
-            },
-            &uart_layout(),
+            access_plan(
+                &layout,
+                &[(
+                    "status",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Take,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                        service_reach: reach(),
+                    },
+                )],
+            ),
+            &layout,
+        )
+        .expect("destructive external plan");
+        assert!(
+            plan.authorize(
+                field_key(&plan, "status"),
+                BorrowPolarity::Shared,
+                AccessOperation::Read,
+            )
+            .is_err()
+        );
+        assert!(
+            plan.authorize(
+                field_key(&plan, "status"),
+                BorrowPolarity::Shared,
+                AccessOperation::Take,
+            )
+            .is_err()
+        );
+        plan.authorize(
+            field_key(&plan, "status"),
+            BorrowPolarity::Exclusive,
+            AccessOperation::Take,
+        )
+        .expect("destructive read requires exclusive access");
+    }
+
+    #[test]
+    fn external_compound_mutation_rejects() {
+        let layout = uart_layout();
+        let plan = validate_access_plan(
+            access_plan(
+                &layout,
+                &[(
+                    "status",
+                    FieldAccess::External {
+                        transfer_width_bits: 32,
+                        read: ExternalRead::Read,
+                        write: true,
+                        exposure: AccessExposure::Exported,
+                        service_reach: reach(),
+                    },
+                )],
+            ),
+            &layout,
         )
         .expect("external read-write access is valid");
         let error = plan
             .authorize(
-                "status",
+                field_key(&plan, "status"),
                 BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
             .expect_err("external access must never derive compound mutation");
         assert!(error.0.contains("does not permit"));
+    }
 
-        entry.service_reach = None;
-        let error = validate_access_plan(
-            AccessPlan {
-                entries: vec![entry],
+    #[test]
+    fn empty_access_cases_reject_in_favor_of_inaccessible() {
+        let layout = uart_layout();
+        for access in [
+            FieldAccess::Stable {
+                transfer_width_bits: 32,
+                read: false,
+                write: false,
+                exposure: AccessExposure::Exported,
             },
-            &uart_layout(),
-        )
-        .expect_err("external access cannot launder service reach");
-        assert!(error.0.contains("reach"));
+            FieldAccess::External {
+                transfer_width_bits: 32,
+                read: ExternalRead::None,
+                write: false,
+                exposure: AccessExposure::Exported,
+                service_reach: reach(),
+            },
+            FieldAccess::Atomic {
+                transfer_width_bits: 32,
+                operations: AtomicPermissions::default(),
+                exposure: AccessExposure::Exported,
+            },
+        ] {
+            let error = validate_access_plan(access_plan(&layout, &[("status", access)]), &layout)
+                .expect_err("empty access case must reject");
+            assert!(error.0.contains("Inaccessible"));
+        }
     }
 
     #[test]
@@ -1229,31 +1640,35 @@ mod tests {
             align: 4,
         };
         let plan = validate_access_plan(
-            AccessPlan {
-                entries: vec![AccessFieldEntry {
-                    field: "head".into(),
-                    transfer_width_bits: 32,
-                    observation: ObservationModel::Atomic,
-                    permissions: AccessPermissions {
-                        atomic: AtomicPermissions {
+            access_plan(
+                &layout,
+                &[(
+                    "head",
+                    FieldAccess::Atomic {
+                        transfer_width_bits: 32,
+                        operations: AtomicPermissions {
                             load: true,
                             store: true,
                             fetch_add: true,
                             compare_exchange: true,
                             ..AtomicPermissions::default()
                         },
-                        ..AccessPermissions::default()
+                        exposure: AccessExposure::Exported,
                     },
-                    exposure: AccessExposure::Exported,
-                    service_reach: None,
-                }],
-            },
+                )],
+            ),
             &layout,
         )
         .expect("atomic IPC plan");
 
         let mut alternate_source = plan.plan().clone();
-        let alternate_permissions = &mut alternate_source.entries[0].permissions.atomic;
+        let FieldAccess::Atomic {
+            operations: alternate_permissions,
+            ..
+        } = &mut alternate_source.entries[0].access
+        else {
+            panic!("atomic field decision")
+        };
         alternate_permissions.fetch_add = false;
         alternate_permissions.fetch_sub = true;
         let alternate =
@@ -1265,17 +1680,17 @@ mod tests {
         );
 
         let store = AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Release));
-        plan.authorize("head", BorrowPolarity::Shared, store)
+        plan.authorize(field_key(&plan, "head"), BorrowPolarity::Shared, store)
             .expect("shared mutation is explicitly atomic");
         plan.authorize(
-            "head",
+            field_key(&plan, "head"),
             BorrowPolarity::Shared,
             AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(MemoryOrdering::AcqRel)),
         )
         .expect("admitted fetch-add");
         assert!(
             plan.authorize(
-                "head",
+                field_key(&plan, "head"),
                 BorrowPolarity::Shared,
                 AccessOperation::Atomic(AtomicAccessOperation::FetchSub(MemoryOrdering::AcqRel)),
             )
@@ -1285,12 +1700,20 @@ mod tests {
         let invalid_load =
             AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Release));
         let error = plan
-            .authorize("head", BorrowPolarity::Shared, invalid_load)
+            .authorize(
+                field_key(&plan, "head"),
+                BorrowPolarity::Shared,
+                invalid_load,
+            )
             .expect_err("release cannot order an atomic load");
         assert!(error.0.contains("invalid ordering"));
         assert!(
-            plan.authorize("head", BorrowPolarity::Exclusive, AccessOperation::Write)
-                .is_err()
+            plan.authorize(
+                field_key(&plan, "head"),
+                BorrowPolarity::Exclusive,
+                AccessOperation::Write,
+            )
+            .is_err()
         );
 
         let grant = PlacedViewGrant::from_admitted_provider(
@@ -1306,7 +1729,7 @@ mod tests {
         let view = derive_placed_view(loan, &plan, &grant).expect("admitted atomic view");
         let request = view
             .authorize(
-                "head",
+                field_key(&plan, "head"),
                 AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
                     success: MemoryOrdering::AcqRel,
                     failure: MemoryOrdering::Acquire,
@@ -1364,16 +1787,18 @@ mod tests {
             align: 4,
         };
         let error = validate_access_plan(
-            AccessPlan {
-                entries: vec![AccessFieldEntry {
-                    field: "entry".into(),
-                    transfer_width_bits: 32,
-                    observation: ObservationModel::Stable,
-                    permissions: ordinary(true, false),
-                    exposure: AccessExposure::Exported,
-                    service_reach: None,
-                }],
-            },
+            access_plan(
+                &layout,
+                &[(
+                    "entry",
+                    FieldAccess::Stable {
+                        transfer_width_bits: 32,
+                        read: true,
+                        write: false,
+                        exposure: AccessExposure::Exported,
+                    },
+                )],
+            ),
             &layout,
         )
         .expect_err("one token cannot hide two primitive accesses");
@@ -1381,39 +1806,40 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_and_unknown_access_fields_reject() {
-        let entry = AccessFieldEntry {
-            field: "missing".into(),
-            transfer_width_bits: 32,
-            observation: ObservationModel::Stable,
-            permissions: ordinary(true, false),
-            exposure: AccessExposure::Exported,
-            service_reach: None,
-        };
-        let error = validate_access_plan(
-            AccessPlan {
-                entries: vec![entry.clone(), entry],
-            },
-            &uart_layout(),
-        )
-        .expect_err("duplicate fields reject before geometry");
-        assert!(error.0.contains("more than one"));
-
-        let error = validate_access_plan(
-            AccessPlan {
-                entries: vec![AccessFieldEntry {
-                    field: "missing".into(),
+    fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
+        let layout = uart_layout();
+        let mut plan = AccessPlan::inaccessible(&layout).expect("UART seed");
+        let mut alternate_layout = layout.clone();
+        alternate_layout.schema_identity = 2;
+        let alternate = AccessPlan::inaccessible(&alternate_layout).expect("alternate schema seed");
+        let error = plan
+            .set(
+                alternate.key_at(0).expect("alternate key"),
+                FieldAccess::Stable {
                     transfer_width_bits: 32,
-                    observation: ObservationModel::Stable,
-                    permissions: ordinary(true, false),
+                    read: true,
+                    write: false,
                     exposure: AccessExposure::Exported,
-                    service_reach: None,
-                }],
-            },
-            &uart_layout(),
-        )
-        .expect_err("unknown field rejects");
-        assert!(error.0.contains("does not exist"));
+                },
+            )
+            .expect_err("cross-layout key must reject");
+        assert!(error.0.contains("different validated layout"));
+
+        let error = plan
+            .set(
+                AccessFieldKey {
+                    layout_fingerprint: plan.layout_fingerprint(),
+                    slot: u32::MAX,
+                },
+                FieldAccess::Stable {
+                    transfer_width_bits: 32,
+                    read: true,
+                    write: false,
+                    exposure: AccessExposure::Exported,
+                },
+            )
+            .expect_err("out-of-cardinality key must reject");
+        assert!(error.0.contains("outside the schema cardinality"));
     }
 
     fn extent_id<T>(
@@ -1465,13 +1891,13 @@ mod tests {
         let shared_view =
             derive_placed_view(shared_loan, &plan, &grant).expect("admitted shared view");
         let status = shared_view
-            .authorize("status", AccessOperation::Read)
+            .authorize(field_key(&plan, "status"), AccessOperation::Read)
             .expect("shared read");
         assert_eq!(status.primitive_address(), 0x1000);
         assert_eq!(status.access().borrow(), BorrowPolarity::Shared);
         assert!(
             shared_view
-                .authorize("transmit", AccessOperation::Write)
+                .authorize(field_key(&plan, "transmit"), AccessOperation::Write)
                 .is_err()
         );
         let request = status.into_primitive_request();
@@ -1490,7 +1916,7 @@ mod tests {
         let exclusive_view =
             derive_placed_view(exclusive_loan, &plan, &grant).expect("admitted exclusive view");
         let transmit = exclusive_view
-            .authorize("transmit", AccessOperation::Write)
+            .authorize(field_key(&plan, "transmit"), AccessOperation::Write)
             .expect("exclusive write");
         assert_eq!(transmit.primitive_address(), 0x1008);
         assert_eq!(transmit.access().borrow(), BorrowPolarity::Exclusive);
@@ -1532,8 +1958,12 @@ mod tests {
             .expect("status layout entry")
             .placement = LayoutPlacementReport::At { offset: 12 };
         alternate_layout.size = Some(16);
-        let alternate = validate_access_plan(plan.plan().clone(), &alternate_layout)
-            .expect("non-overlapping alternate geometry");
+        let error = validate_access_plan(plan.plan().clone(), &alternate_layout)
+            .expect_err("plan keys bind their exact layout");
+        assert!(error.0.contains("different validated layout"));
+        let alternate =
+            validate_access_plan(uart_access_source(&alternate_layout), &alternate_layout)
+                .expect("fresh plan over non-overlapping alternate geometry");
         assert_ne!(plan.identity(), alternate.identity());
         assert_ne!(
             plan.layout_fingerprint(),

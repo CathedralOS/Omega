@@ -606,9 +606,11 @@ the admitted provider is trusted to tell the truth about the backing.
 The current `omega-access-plans` foundation predates this source model. It
 already validates normalized field geometry, exact widths, operation and
 observation compatibility, borrow polarity, atomic orderings, exact loan facts,
-and sealed lowering requests. Its current name-keyed entry vector,
-per-entry reach, and reusable placed-view grant are bootstrap representations
-to migrate, not the target source contract above. Exposure uses the settled
+and sealed lowering requests. It now normalizes to one inaccessible-defaulted
+slot per schema field, binds opaque field keys to the exact layout, and keeps
+destructive external reads distinct from ordinary reads. Its current per-entry
+reach and reusable placed-view grant are bootstrap representations to migrate,
+not the target source contract above. Exposure uses the settled
 `Exported | BindingPrivate` vocabulary; stable compound mutation is derived,
 external compound mutation is unavailable, and atomic permissions distinguish
 the exact operation families. `TASKS.md` owns the remaining migration and
