@@ -13,7 +13,9 @@ boundary trait ClaimProvider {
         result in Token::SuspensionSafe;
 }
 
-machine grant_claim(token: Token) -> Token
+data ClaimProviderImpl {}
+
+machine ClaimProviderImpl::grant_claim(token: Token) -> Token
 satisfies ClaimProvider::grant
 {
     token

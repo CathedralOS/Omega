@@ -9,9 +9,9 @@
 //! Without a satisfying adapter the call keeps its host-lowering route
 //! (the built-in tables or selected external leaves serve it).
 //!
-//! Adapters are static machines; receiver state never reaches one. They may be
-//! free during migration or attached to a nominal provider type so selection
-//! can choose that type's whole conformance closure. Two call shapes are admitted:
+//! Adapters are static machines attached to a nominal provider type; receiver
+//! state never reaches one. Selection chooses that type's whole conformance
+//! closure. Two call shapes are admitted:
 //! * EXACT: the adapter's entry signature matches the requirement -- the
 //!   call rewrites to a bare call (the boundary field is dispatch-only).
 //! * SELF-FORWARDING: the adapter takes the requirement's OWN trait as one
@@ -83,13 +83,10 @@ pub(crate) fn rewrite_adapter_calls(
                         )
                 })
             });
-            let is_free_adapter = machine.attached_data.is_none();
             // A retained whole-provider selection is authoritative: activate
             // only the exact checked-adapter rows copied into that immutable
-            // plan. Free adapters remain a compatibility fallback solely for
-            // slots with no selected source provider; standard Console now
-            // supplies a complete selected nominal closure.
-            if !selected_row && !(selected_slot.is_none() && is_free_adapter) {
+            // plan. Unselected adapters never participate in dispatch.
+            if !selected_row {
                 continue;
             }
             // Self-forwarding: entry takes the trait itself first, then the

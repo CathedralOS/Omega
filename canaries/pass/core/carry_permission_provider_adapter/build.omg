@@ -1,3 +1,4 @@
 machine build(b: &mut Build) {
     b.accept_boundary<ClaimProvider>();
+    b.select_provider<ClaimProvider, ClaimProviderImpl>();
 }

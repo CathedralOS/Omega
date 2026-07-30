@@ -14,7 +14,9 @@ data Main {
     console: TestConsole;
 }
 
-machine write_line_bad(code: i32, text: &[u8]) satisfies TestConsole::write_line
+data TestConsoleProvider {}
+
+machine TestConsoleProvider::write_line_bad(code: i32, text: &[u8]) satisfies TestConsole::write_line
 reaches
     TestConsole
 {

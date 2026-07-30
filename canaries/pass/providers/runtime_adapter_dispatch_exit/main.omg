@@ -1,13 +1,13 @@
 // PRV4 ADAPTER DISPATCH (dual-engine): a call through a field whose
 // declared type is a boundary trait rewrites -- in BOTH engine pipelines,
-// before checking -- to a direct call to the unique checked adapter
-// satisfying that requirement, and runs as ordinary Omega. Without an
-// adapter the call keeps its host-lowering route.
+// before checking -- to the checked adapter retained by the selected nominal
+// provider plan, and runs as ordinary Omega.
 use omega::language::std::console;
 boundary trait Echo {
     machine echo(x: i32) -> i32;
 }
-machine echo_adapter(x: i32) -> i32 satisfies Echo::echo {
+data EchoProvider {}
+machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
 data Main { console: Console; e: Echo; }

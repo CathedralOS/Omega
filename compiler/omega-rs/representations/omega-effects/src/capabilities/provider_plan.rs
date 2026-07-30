@@ -132,8 +132,9 @@ pub struct ProviderPlan {
     /// slot-selection key).
     pub name: String,
     /// The nominal provider type whose explicit conformance closure produced
-    /// this plan. Empty for a free adapter or external leaf; slot overrides
-    /// select this identity, never individual rows.
+    /// this plan. Empty only for a free external leaf; checked adapters belong
+    /// to nominal provider types. Slot overrides select this identity, never
+    /// individual rows.
     pub provider_type: String,
     /// The target this plan serves (`windows_x64`; empty = every target).
     pub target: String,

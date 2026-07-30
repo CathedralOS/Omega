@@ -1,0 +1,12 @@
+// A checked boundary adapter participates only through a selected nominal
+// provider closure. A free machine cannot form an anonymous dispatch fallback.
+boundary trait Echo {
+    machine echo(value: i32) -> i32;
+}
+
+machine echo_adapter(value: i32) -> i32 satisfies Echo::echo {
+    value
+}
+
+data Main {}
+machine Main::main(&mut self) {}

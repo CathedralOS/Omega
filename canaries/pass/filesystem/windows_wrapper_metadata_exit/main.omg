@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) -- native windows metadata via msvcrt `_stat64`, unfenced
-// 2026-07-08 once the value-machine const-index miscompile was fixed (the decode
-// reads `stat_buf[FilesystemHost::ST_*_OFF + k]` = a pure-const binary index that
-// now const-folds). Writes a known-size file, `stat`s it through the ergonomic
+// 2026-07-08 once the value-machine const-index miscompile was fixed. The
+// foreign offsets have since moved into the Windows `StatLayout`; this canary
+// reads the resulting `StatView`. Writes a known-size file, `stat`s it through the ergonomic
 // wrapper, and asserts the fields `_stat64` reports reliably, checking the DECODED
 // values directly: the size (`meta.len`, `st_size` @24) and the file-type bits of
 // the mode (`st_mode` @6: S_IFREG 0x8000, S_IFDIR 0x4000). The mask-compare is
