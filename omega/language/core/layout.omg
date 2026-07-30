@@ -182,6 +182,123 @@ data AccessPlan {
     field_count: u64 [0..=32];
 }
 
+// The inaccessible seed is the only source constructor for a fresh access
+// decision set. Every live slot copies its compiler-issued Schema key; the
+// fixed-capacity tail is semantically absent because field_count excludes it.
+machine AccessPlan::inaccessible(schema: Schema) -> AccessPlan {
+    AccessPlan {
+        entries: [
+            AccessFieldEntry { key: schema.fields[0].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[1].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[2].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[3].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[4].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[5].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[6].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[7].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[8].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[9].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[10].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[11].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[12].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[13].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[14].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[15].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[16].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[17].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[18].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[19].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[20].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[21].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[22].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[23].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[24].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[25].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[26].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[27].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[28].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[29].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[30].key, access: FieldAccess::Inaccessible },
+            AccessFieldEntry { key: schema.fields[31].key, access: FieldAccess::Inaccessible }
+        ],
+        field_count: schema.field_count
+    }
+}
+
+// Functional replacement keeps policy construction expression-oriented.
+// A key outside the seed is deliberately retained as an extra/overwriting
+// entry so compiler validation rejects it rather than silently ignoring an
+// authored mistake.
+machine AccessPlan::with(self, key: u64, access: FieldAccess) -> AccessPlan {
+    transition { _ -> seek(self, key, access, 0) }
+
+    state seek(
+        plan: AccessPlan,
+        key: u64,
+        access: FieldAccess,
+        index: u64 [0..=32]
+    ) -> AccessPlan {
+        transition index < plan.field_count && index < 32 {
+            true -> inspect(plan, key, access, index)
+            _ -> invalid(plan, key, access)
+        }
+    }
+
+    state inspect(
+        plan: AccessPlan,
+        key: u64,
+        access: FieldAccess,
+        index: u64 [0..=31]
+    ) -> AccessPlan {
+        transition plan.entries[index].key == key {
+            true -> replace(plan, key, access, index)
+            _ -> advance(plan, key, access, index)
+        }
+    }
+
+    state replace(
+        plan: AccessPlan,
+        key: u64,
+        access: FieldAccess,
+        index: u64 [0..=31]
+    ) -> AccessPlan {
+        let mut updated: AccessPlan = plan;
+        updated.entries[index] = AccessFieldEntry { key: key, access: access };
+        updated
+    }
+
+    state advance(
+        plan: AccessPlan,
+        key: u64,
+        access: FieldAccess,
+        index: u64 [0..=31]
+    ) -> AccessPlan {
+        transition { _ -> seek(plan, key, access, index + 1) }
+    }
+
+    state invalid(
+        plan: AccessPlan,
+        key: u64,
+        access: FieldAccess
+    ) -> AccessPlan {
+        let mut rejected: AccessPlan = plan;
+        rejected.entries[0] = AccessFieldEntry { key: key, access: access };
+        transition rejected.field_count < 32 {
+            true -> grow_invalid(rejected, rejected.field_count)
+            _ -> (rejected)
+        }
+    }
+
+    state grow_invalid(
+        plan: AccessPlan,
+        field_count: u64 [0..=31]
+    ) -> AccessPlan {
+        let mut rejected: AccessPlan = plan;
+        rejected.field_count = field_count + 1;
+        rejected
+    }
+}
+
 // A normalized static set of boundary-service keys. Suspension and blocking
 // are independent contract axes and never enter this record.
 data BoundaryReach {

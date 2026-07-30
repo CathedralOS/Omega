@@ -603,15 +603,22 @@ the admitted provider is trusted to tell the truth about the backing.
 
 ### Implementation migration
 
-The current `omega-access-plans` foundation predates this source model. It
-already validates normalized field geometry, exact widths, operation and
-observation compatibility, borrow polarity, atomic orderings, exact loan facts,
-and sealed lowering requests. The ordinary source records now live with the
-layout vocabulary in `omega::language::core::layout`; the existing `Plan`
-record remains the current source spelling of `LayoutPlan`. The Rust foundation
-normalizes to one inaccessible-defaulted slot per schema field, binds opaque
-field keys to the exact layout, and keeps destructive external reads distinct
-from ordinary reads. A normalized
+The ordinary source records live with the layout vocabulary in
+`omega::language::core::layout`; the existing `Plan` record remains the current
+source spelling of `LayoutPlan`. `AccessPlan::inaccessible(schema)` produces
+the required compiler-keyed denial seed, and functional keyed replacement
+cannot silently accept a foreign key. The compiler now evaluates
+build-time-admissible `Access::plan` machines against a reified validated
+layout and evaluates `Placement::plan` machines into one validated
+layout/access/reach result. It derives transfer widths from layout geometry
+rather than accepting a second authored copy.
+
+The `omega-access-plans` foundation validates normalized field geometry, exact
+widths, operation and observation compatibility, borrow polarity, atomic
+orderings, exact loan facts, and sealed lowering requests. It normalizes to one
+inaccessible-defaulted slot per schema field, binds opaque field keys to the
+exact layout, and keeps destructive external reads distinct from ordinary
+reads. A normalized
 `PlacementPlan` now owns the complete layout/access pairing and its one
 normalized boundary reach; admission checks that reach once and lowering
 requests retain it. Placement admission consumes and owns the exact Extent loan;
@@ -620,7 +627,7 @@ view-borrow and retained source-loan polarity are checked independently.
 Exposure uses the settled `Exported | BindingPrivate` vocabulary; stable
 compound mutation is derived, external compound mutation is unavailable, and
 atomic permissions distinguish the exact operation families. `TASKS.md` owns
-source evaluation, resource-profile admission, and target-specific
+resource-profile admission, placed projection, and target-specific
 external/atomic emission.
 
 ## IPC and DMA
