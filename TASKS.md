@@ -112,7 +112,7 @@ memory provider without split, merge, or an array of checked claims.
 
 #### P1b — delegated canonical qualification
 
-**DESIGN BLOCKED — OWNER_QUESTIONS #2.** Decide the owner-authored source and
+**DESIGN BLOCKED — OWNER_QUESTIONS #1.** Decide the owner-authored source and
 package-identity relationship that delegates canonical qualification authority.
 Until then, only the domain-owning package may publish an implicitly eligible
 `RepresentationQualification<Q>` satisfier; all third-party conformers fail
@@ -131,7 +131,7 @@ multi-output claim transformations. Per-claim carry inheritance has settled
 semantics. The source surface that marks a qualification as content-bearing and
 authors its projection, admitted backing, retirement, and conservation contract
 is **DESIGN BLOCKED —
-`OWNER_QUESTIONS.md` #5**; do not infer content from multiplicity or invent a
+`OWNER_QUESTIONS.md` #4**; do not infer content from multiplicity or invent a
 declaration spelling.
 
 Implementation checkpoint (2026-07-28): transparent records now derive one
@@ -189,12 +189,12 @@ proof/debug artifacts retain the case identity structurally.
 This is not full P1c: content projections/backing and conservation witnesses
 remain. Symbol-keyed substitutions already retain contained claims through
 nested generic transparent records. Content authoring remains blocked on owner
-question #5.
+question #4.
 
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed normalized vocabulary
-  `Indivisible | Interval<Scalar>` once owner question #5 settles how an
+  `Indivisible | Interval<Scalar>` once owner question #4 settles how an
   authored content clause selects it; never default ordinary linear claims into
   that vocabulary;
 - require admitted roots to carry backing receipts denominated in the same
@@ -565,12 +565,14 @@ current consumers happen to align.
 ### Frames, domains, reach, and trust
 
 - **R5:** finish relational frame candidates and escaping mutation checks.
-  Boundary write-frame spelling is owner-blocked on #1. Exact resolved
-  statement/value-call frames now preserve unrelated incoming range guards in
-  the proof checker and transitive range-fact collector; opaque and overlapping
-  frames remain conservative fences.
+  Exact resolved statement/value-call frames preserve unrelated incoming range
+  guards in the proof checker and transitive range-fact collector; opaque,
+  overlapping, and unknown dynamic-dispatch frames remain conservative fences.
+  Keep these summaries as inferred implementation metadata. Published
+  `ensures` may state exact preservation when an interface needs it; prefer
+  signatures exposing only the places a callee actually mutates.
 - **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
-  certificates. Delegated package authority is owner-blocked on #2.
+  certificates. Delegated package authority is owner-blocked on #1.
 - **STR/EFX:** migrate the source reach clause from `effects` to `reaches`, then
   finish independent service reach, `suspends`, `blocks`, termination,
   mutation, and trust publication/admission. Remove legacy mixed rows after
@@ -606,12 +608,12 @@ improvements do not change public identity.
   independent plan schema, canonical crossings, activation-wide CPU/thread
   demands, and retirement of the generalized `TaskRuntimeContract` join are
   complete. Authority-value declarations follow P1a.
-- **WORKPLAN:** after owner question #3, implement one deterministic
+- **WORKPLAN:** after owner question #2, implement one deterministic
   abstract-work algebra for interrupt roots, work-to-next-safe-point queries,
   and build-evaluator metering. Preserve maximum/unbounded path attribution and
   keep external wait plus wall-clock conversion in separate trust-bearing
   columns.
-- **FFIGATE:** after owner question #4, implement the hosted-FFI gateway as an
+- **FFIGATE:** after owner question #3, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and
   shutdown/quiescence. Registered callback lowering is ENT4; retained storage
@@ -725,7 +727,7 @@ and allocation handles expose no compiler-owned stack/control storage.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief; only the negative ruling that compatibility
-  `as` is not that surface is settled (`OWNER_QUESTIONS.md` #9).
+  `as` is not that surface is settled (`OWNER_QUESTIONS.md` #8).
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -837,15 +839,14 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 boundary write frame | R5 boundary mutation clauses |
-| #2 delegated canonical qualification | third-party bodyless-domain qualification |
-| #3 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
-| #4 hosted-FFI gateway | reusable native-worker execution and backpressure |
-| #5 claim-content projection and backing | P1c content algebra and conservation |
-| #6 opaque in-process executable trust | root TCB declaration and profile rejection |
-| #7 contained execution failure | obligation poison, recovery, and reclamation |
-| #8 modular concurrency premises | separately compiled protocol verification |
-| #9 float-conversion requirements | checked integer/float and cross-format conversion |
+| #1 delegated canonical qualification | third-party bodyless-domain qualification |
+| #2 normalized bounded-work plan | interrupt bounds, safe-point response, evaluator cost algebra |
+| #3 hosted-FFI gateway | reusable native-worker execution and backpressure |
+| #4 claim-content projection and backing | P1c content algebra and conservation |
+| #5 opaque in-process executable trust | root TCB declaration and profile rejection |
+| #6 contained execution failure | obligation poison, recovery, and reclamation |
+| #7 modular concurrency premises | separately compiled protocol verification |
+| #8 float-conversion requirements | checked integer/float and cross-format conversion |
 
 ## Vertical acceptance slices
 

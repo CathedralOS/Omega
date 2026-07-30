@@ -463,7 +463,6 @@ cited theorem is a fact like any other:
 machine Walker::step(&mut self)
 requires self.n >= 1 && self.n <= 6148914691236517205
 ensures self.n == collatz_step(n0)    // refinement: the u64 op IS the ideal op
-stores self.n
 { ... }
 ```
 

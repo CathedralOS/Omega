@@ -477,11 +477,11 @@ See [chapter 10](chapter_10_compile_time_proofs.md) and
 Erasing implementation identity must not erase the static facts needed to
 check the caller. Each eligible requirement therefore retains a compile-time
 operational envelope: the operational projection of its normalized machine
-contract. It includes service reach, direct synchronous invocation, write
-frame, capability
-requirements, suspension, blocking, failure, termination, and quantitative
-resource ceilings. Carry remains a property of the dynamic value rather than
-of an individual requirement.
+contract. It includes service reach, direct synchronous invocation, the
+inferred or signature-derived mutation summary, capability requirements,
+suspension, blocking, failure, termination, and quantitative resource ceilings.
+Carry remains a property of the dynamic value rather than of an individual
+requirement.
 
 The envelope adds no runtime words. A concrete coercion records the selected
 conformance's exact envelope in static type information. At control-flow joins,

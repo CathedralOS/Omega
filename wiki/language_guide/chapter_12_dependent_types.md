@@ -77,9 +77,9 @@ Working rules:
 
 - `requires` and `ensures` facts may name any parameter or reachable field of
   the signature, at any binding time — `const` is no longer required.
-- `ensures` states deltas: what changed, and to what. Preservation of
-  everything else is the frame's job (see Facts Across Calls), never a list
-  of "still equals" clauses.
+- `ensures` states results, including exact preservation guarantees where a
+  public interface needs them. Internal inferred mutation summaries preserve
+  other facts when the callee is known (see Facts Across Calls).
 - A dependent parameter range is an obligation at every call site and a
   standing fact inside the callee.
 
@@ -294,9 +294,11 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
 - A place the callee cannot reach — no borrow passed, no capability that owns
   it — keeps every fact.
 - A place passed by shared borrow is frozen: facts survive.
-- A place passed by exclusive borrow loses its flow-scoped extras
-  (guard-established narrowings, established subdomains), atom by atom. Declared
-  ranges, standing couplings, and domain memberships survive every call:
+- A place passed by exclusive borrow to an opaque callee or unknown dynamic
+  conformance loses its flow-scoped extras (guard-established narrowings,
+  established subdomains), atom by atom. A resolved checked callee invalidates
+  only the places its inferred mutation summary may overlap. Declared ranges,
+  standing couplings, and domain memberships survive every call:
   calls and returns are consumption points (chapter 11), so a callee cannot
   return — or call onward, or hand out a borrow — with an open window.
 - Callee `ensures` adds facts back.
@@ -304,34 +306,43 @@ The frame rule is **preserve-unless-written, at borrow granularity**:
   Reach frames capability-reachable state only; it never names program
   places.
 
-At machine boundaries the written set is declared with a `stores` clause —
-named for what the store checker already enforces. The clause is an UPPER
-BOUND (a may-write set): declaring more than the machine writes is always
-sound, merely coarse for callers, so path granularity is the author's
-call (`stores self.map` frames a whole subtree). For Omega callees it is
-checked callee-side by the store pass (an undeclared store is a compile
-error, fails closed); on a boundary trait there is no body to check, so
-the clause is an audited promise in the same trust class as the boundary's
-`ensures`. The clause is mandatory on boundary traits,
-optional on exported machines (omitted = the whole-receiver frame, sound
-but coarse); inferred within a compilation unit — no clause exists:
+Checked bodies infer normalized mutation summaries as implementation metadata.
+A statically selected checked callee may use that summary to preserve facts
+about disjoint places, including across separate compilation when the artifact
+publishes the summary. An opaque callee, an unknown dynamic conformance, or an
+unresolved or overlapping summary invalidates the flow-scoped facts of every
+mutable place reachable from the call's signature.
+
+Public contracts recover any precision the interface deliberately guarantees
+with ordinary postconditions:
 
 ```omega
-machine Table::insert(&mut self, item: Item)
-stores self.len, self.slots
-requires self.len == n && self.len < self.cap
-ensures self.len == n + 1
+boundary trait TableStorage {
+    machine reserve(table: &mut Table, additional: u64)
+    requires table.capacity == capacity0 && table.hasher == hasher0
+    ensures table.capacity >= capacity0
+    ensures table.hasher == hasher0;
+}
 ```
 
-**Design status:** the upper-bound and trust semantics above are settled, but
-the public clause keyword/spelling is still provisional. Compiler work may
-continue without source syntax: inferred intra-unit frames are already stored
-per state as normalized complete-or-opaque checked plans. Complete paths sort
-and deduplicate, state parameters normalize positionally, and each frame has a
-deterministic implementation fingerprint. The machine-contract artifact places
-these plans under `implementation`; they never enter the authored contract or
-specialization fingerprint. Source syntax must not be minted until the spelling
-is frozen.
+Equality to a `requires`-bound entry value transports every fact about that
+place; it is not limited to one known predicate. Prefer narrower mutable
+parameters when only a subobject changes, so the signature itself provides the
+useful frame:
+
+```omega
+machine insert(entries: &mut Entries, item: Item) { ... }
+```
+
+Broad mutable receivers therefore have broad conservative invalidation under
+opaque or abstract dispatch. Interfaces that need structural precision should
+accept the narrowest mutable place they require.
+
+Inferred summaries are normalized complete-or-opaque checked plans. Complete
+paths sort and deduplicate, state parameters normalize positionally, and each
+summary has a deterministic implementation fingerprint. They remain under the
+machine-contract artifact's `implementation` section and do not enter authored
+contract or specialization identity.
 
 A state's signature is its arrival contract. Parameter refinements —
 dependent ones included — plus an explicit state-level `requires` are proven

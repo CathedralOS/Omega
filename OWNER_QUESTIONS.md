@@ -6,43 +6,9 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Last pruned: 2026-07-29.
+Last pruned: 2026-07-30.
 
-## 1. What is the public boundary write-frame clause spelling?
-
-Omega already computes normalized body write frames and uses them to preserve
-facts across calls. Boundary requirements need an authored frame because no
-body exists from which to infer one. The semantics are settled: the clause
-names the complete set of places the call may mutate; omission means an empty
-frame; checked implementations must remain within it; and frame evidence is
-part of the public contract rather than private proof detail.
-
-The current guide spells this clause `stores`, but explicitly treats that word
-as provisional. It now also conflicts with the authority-flow report verb
-`Stores`, which means retaining authority beyond the call rather than mutating
-a place.
-
-Decide:
-
-- whether the clause is named `writes`, `modifies`, `stores`, or another single
-  verb, and whether the same spelling applies to requirements and explicit
-  implementation refinements;
-- the exact path-list grammar, including multiple paths, indexed/ranged places,
-  parameter-relative paths, and whether braces or commas are used;
-- how an explicitly empty frame is written when useful for documentation, while
-  ordinary omission continues to mean no writes;
-- whether whole-object entries subsume descendants during normalization and how
-  diagnostics present that relationship; and
-- whether any non-memory mutation belongs here, or remains represented only by
-  service reach, operational ceilings, linear obligations, and postconditions.
-
-Recommendation: rename the provisional clause to `writes` and keep it a plain
-machine-contract clause with a comma-separated place list. It says exactly what
-the checker needs and avoids colliding with authority retention. Keep reach,
-resource consumption, foreign retention, and hardware state out of the write
-frame; they already have independent contracts.
-
-## 2. How does a domain owner delegate canonical qualification authority?
+## 1. How does a domain owner delegate canonical qualification authority?
 
 `RepresentationQualification<Q>` now opens a bodyless domain only when its
 satisfier is declared in the domain-owning package. The semantic rule also
@@ -78,7 +44,7 @@ Do not derive authority from imports, build dependency aliases, public trait
 visibility, carrier ownership, or the presence of a conformer. Until this
 surface settles, third-party canonical satisfiers must continue to fail closed.
 
-## 3. What is the normalized bounded-work plan and composition algebra?
+## 2. What is the normalized bounded-work plan and composition algebra?
 
 WCSU gives Omega a static space bound: a closed activation can reserve one
 fixed, nonmoving stack and retain it across suspension. It says nothing about
@@ -131,7 +97,7 @@ trusted as its weakest timing premise. Do not use elapsed compiler time, infer
 safe points from optimizer placement, or make build evaluation's optional
 budget policy the language's work semantics.
 
-## 4. What is the reusable hosted-FFI execution and gateway contract?
+## 3. What is the reusable hosted-FFI execution and gateway contract?
 
 An opaque native function supplies neither checked WCSU nor Omega's blocking,
 cancellation, retention, callback, and failure guarantees. A direct adapter can
@@ -182,7 +148,7 @@ abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
 
-## 5. How are claim-content projections and backing authored?
+## 4. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
 each content-bearing qualification publishes one normalized projection into
@@ -222,7 +188,7 @@ references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, and separated
 composition without executing owner-defined code.
 
-## 6. How are opaque in-process executable dependencies surfaced and refused?
+## 5. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -257,7 +223,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 7. What does contained execution failure do to outstanding obligations?
+## 6. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -289,7 +255,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 8. How are modular concurrency environment premises authored and discharged?
+## 7. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -333,7 +299,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 9. What is the public float-conversion requirement family?
+## 8. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not their public operation
 names or signatures. `FloatSemantics` already defines format conversion,

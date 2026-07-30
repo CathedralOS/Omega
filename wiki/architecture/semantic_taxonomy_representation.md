@@ -186,7 +186,7 @@ qualification consumers consult only the normalized route identity instead of
 reconstructing permission from attachment names or contract placement.
 Canonical-qualification routes and package-owner coherence are normalized in
 the same pass. The unresolved authoring surface for an explicit cross-package
-delegate is tracked in `OWNER_QUESTIONS.md` #2 and fails closed meanwhile.
+delegate is tracked in `OWNER_QUESTIONS.md` #1 and fails closed meanwhile.
 
 Implementation status (DOM alias expansion, 2026-07-28): transparent
 declared-domain aliases retain independent syntax, resolved, and typed records.

@@ -254,7 +254,7 @@ predicate.
 
 Cleanup contributes to the enclosing machine contract on the existing axes:
 
-- reach, write frames, and capabilities combine by their ordinary
+- reach, inferred mutation summaries, and capabilities combine by their ordinary
   union rules;
 - structural work sums actions taken on one edge, then takes the maximum across
   alternative acyclic edges;

@@ -419,7 +419,7 @@ identifiers resolve normally; there is no global hard-coded service table.
 - General trace propositions, deadline/starvation contracts, and entailment
   between decision 23's opaque progress profiles.
 - The normalized abstract-work plan and sequential/branch/SCC composition
-  algebra in `OWNER_QUESTIONS.md` #3.
+  algebra in `OWNER_QUESTIONS.md` #2.
 - Additional operational-clause declarations.
 - Named service-row variables beyond the concrete envelope substitution used
   by `invokes`.

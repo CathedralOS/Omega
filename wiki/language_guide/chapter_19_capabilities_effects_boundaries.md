@@ -1291,7 +1291,7 @@ An opaque third-party binary loaded in-process remains part of the trusted
 computing base even when a checked adapter wraps it. The boundary manifest names
 that provider and its receipt; an isolated process exposes an endpoint instead.
 The exact root declaration and safety-profile rejection surface remains owner
-question #6.
+question #5.
 
 ## Build Artifacts
 
