@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-28.
+Last pruned: 2026-07-30.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -531,19 +531,6 @@ named machine, rejects signature/plan mismatch, emits no source-visible code
 address, keeps state ownership in Omega, and cannot release a reclaimable code
 lease before explicit unregistration. The Windows adapter demonstrates that
 application-handler re-entry restrictions use ordinary local reach analysis.
-
-### Provider plans and retirement of `provides`
-
-Reference: `wiki/design_briefs/extern_boundary_and_format_domains.md`.
-
-- **PRV4e:** migrate remaining foreign offsets/flags into format/layout policy.
-- **PRV4f:** delete compatibility `provides`, `call_shape`, and host-operation
-  chains after the final consumer moves.
-- Retire `Binding::Instruction` as parsed checked-assembly coverage lands.
-
-Acceptance: provider plans derive from declarations and selected conformances;
-no source-authored row builder or duplicate requirement-to-implementation table
-remains.
 
 ### Compile-time machine parameters and generics
 

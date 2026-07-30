@@ -2,7 +2,7 @@
 // compiler-known, closed `Binding` sum. This target-filtered declaration set
 // exercises Syscall, DllImport, and VtableSlot without retaining the retired
 // authored `provides` table surface. Provider constants are ordinary format or
-// layout facts and are tested independently while Binding::Value retires.
+// layout facts, independent of the retired Binding::Value carrier.
 boundary trait Mixed {
     machine via_syscall() reaches Mixed;
     machine via_import() reaches Mixed;

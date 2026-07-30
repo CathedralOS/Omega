@@ -1,6 +1,8 @@
 use omega::language::core::extent;
 
-machine grant_root(root: Extent) -> Extent
+data ExtentRootProviderImpl {}
+
+machine ExtentRootProviderImpl::grant_root(root: Extent) -> Extent
 satisfies ExtentRootProvider::grant
 {
     root
@@ -13,7 +15,7 @@ machine consume_granted(root: Extent in Granted) -> Extent {
 data Main {}
 
 machine Main::forward(root: Extent) -> Extent {
-    let unqualified: Extent = grant_root(root);
+    let unqualified: Extent = ExtentRootProviderImpl::grant_root(root);
     transition { _ -> (consume_granted(unqualified)) }
 }
 

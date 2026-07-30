@@ -111,14 +111,13 @@ them with the selected-plan receipt. The row records what an admitted external
 entry may supply; only the matching concrete entry receipt establishes a source
 fact for one invocation.
 
-Checked-adapter dispatch consumes that retained carrier as well. When a slot has
-a selected plan, only an exact `CheckedAdapter` row in that plan may rewrite the
-corresponding boundary call; an unrelated free adapter cannot overlay the
-selection. The rewrite retains the selected entry-state symbol and complete
-nominal machine name for both statement and value calls. A free adapter remains
-a temporary compatibility fallback only when the slot has no selected source
-provider. Standard Console no longer uses that fallback: each hosted target
-package publishes one complete nominal provider closure, with checked
+Checked-adapter dispatch consumes that retained carrier as well. Only an exact
+`CheckedAdapter` row in the selected plan may rewrite the corresponding
+boundary call; an unrelated or unselected adapter cannot overlay the selection.
+Every checked adapter belongs to a nominal provider type. The rewrite retains
+the selected entry-state symbol and complete nominal machine name for both
+statement and value calls. Standard Console publishes one complete nominal
+provider closure per hosted target, with checked
 `write`/`write_line` adapters and compiler-intrinsic rows selecting the
 target's existing `read_line`, `read_byte`, `write_byte`, and process-exit
 lowerings.

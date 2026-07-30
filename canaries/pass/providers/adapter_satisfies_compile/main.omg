@@ -8,7 +8,8 @@ boundary trait Echo {
     machine echo(x: i32) -> i32;
 }
 
-machine echo_adapter(x: i32) -> i32 satisfies Echo::echo {
+data EchoProvider {}
+machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
 

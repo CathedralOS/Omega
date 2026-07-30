@@ -1,20 +1,12 @@
 // PRV4c: two complete provider-type candidates remain separate. The build
 // root's explicit type-per-slot selection resolves the otherwise-loud
 // ambiguity without selecting or reconstructing individual rows. Dispatch
-// must consume that exact selected row: the free compatibility adapter below
-// must not overlay SecondProvider or create a duplicate-adapter error.
+// must consume the exact selected rows from SecondProvider.
 use omega::language::std::console;
 
 boundary trait Pick {
     machine choose() -> i32;
     machine mark(value: &mut i32);
-}
-
-machine compatibility_choose() -> i32 satisfies Pick::choose {
-    transition { _ -> (36) }
-}
-machine compatibility_mark(value: &mut i32) satisfies Pick::mark {
-    value = 36;
 }
 
 data FirstProvider { }

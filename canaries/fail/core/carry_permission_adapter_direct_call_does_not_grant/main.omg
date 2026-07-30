@@ -10,7 +10,9 @@ boundary trait ClaimProvider {
         result in Token::SuspensionSafe;
 }
 
-machine grant_claim(token: Token) -> Token
+data ClaimProviderImpl {}
+
+machine ClaimProviderImpl::grant_claim(token: Token) -> Token
 satisfies ClaimProvider::grant
 {
     token
@@ -23,7 +25,7 @@ machine consume_claim(token: Token in Token::SuspensionSafe) -> Token {
 data Main {}
 
 machine Main::forward(raw: Token) -> Token {
-    let unqualified: Token = grant_claim(raw);
+    let unqualified: Token = ClaimProviderImpl::grant_claim(raw);
     transition { _ -> (consume_claim(unqualified)) }
 }
 

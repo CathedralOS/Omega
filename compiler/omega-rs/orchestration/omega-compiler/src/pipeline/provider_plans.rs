@@ -1,9 +1,9 @@
 //! Provider plans derive from checked `satisfies` closures and are admitted
 //! through the chapter-10 trust path. Own-package plans remain dev-active with
 //! a standing warning until the final build grants them; lockfile receipts hash
-//! normalized plan identity so a changed plan drifts. Implicit selection
-//! consumes only a unique covering candidate, while explicit selection remains
-//! under slot-owner authority.
+//! normalized plan identity so a changed plan drifts. A unique covering
+//! candidate may still supply the declaration-era default, while explicit
+//! selection remains under slot-owner authority.
 
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use omega_typed_trees::TypedTrees;
@@ -148,9 +148,10 @@ pub fn selected_external_root_provider_plan(
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one
 /// plan per (provider type, boundary trait, target), assembled only from
 /// that provider's conformance closure. External leaves and checked adapters
-/// attached to the same provider type join one plan; legacy free machines
-/// retain one anonymous compatibility candidate until PRV4f. Coverage never
-/// combines unrelated provider types. Coverage/signatures come from the typed schema
+/// attached to the same provider type join one plan. External leaves may be
+/// free declarations; checked adapters must belong to a nominal provider type
+/// so execution can only dispatch through a retained whole-provider selection.
+/// Coverage never combines unrelated provider types. Coverage/signatures come from the typed schema
 /// (signature refinement is enforced by the conformance checker on each
 /// edge); the effect surface is the union of the SATISFIED requirements'
 /// declared effects -- the requirement supplies the ceiling, never the
@@ -324,8 +325,8 @@ fn same_semantic_name(left: &str, right: &str) -> bool {
 }
 
 /// The stable name shared by derivation, reports, selection, and backend row
-/// extraction. The anonymous form preserves the free-machine migration bridge;
-/// a real provider type is deliberately visible in artifact identity.
+/// extraction. External leaves may use the anonymous form; a real provider
+/// type is deliberately visible in artifact identity.
 pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) -> String {
     match (target.is_empty(), provider_type.is_empty()) {
         (true, true) => format!("satisfies::{trait_name}"),
@@ -356,6 +357,15 @@ pub(crate) fn validate_provider_plan_candidates(
         );
         for row in &plan.rows {
             match &row.binding {
+                ProviderBinding::CheckedAdapter { machine } if plan.provider_type.is_empty() => {
+                    diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                        "checked adapter `{machine}` for `{}::{}` has no nominal provider type; attach it as `machine ProviderType::{machine}(...) satisfies {}::{}` and select that provider for the boundary slot",
+                        plan.schema.trait_name,
+                        row.method,
+                        plan.schema.trait_name,
+                        row.method,
+                    )));
+                }
                 ProviderBinding::VtableField { table, .. }
                 | ProviderBinding::TableFunction { table, .. }
                     if table.is_empty() =>
@@ -465,9 +475,8 @@ fn resolve_provider_selection_slots(
 /// PRV4c: select one fully covering provider type per applicable boundary
 /// slot. An explicit build-root declaration wins over the selected target
 /// package's ordinary default declaration. Without either, a unique covering
-/// candidate remains the compatibility fallback until PRV4f removes the
-/// legacy provider surfaces. Rows are never selected individually and partial
-/// candidates never combine.
+/// candidate supplies the declaration-era default. Rows are never selected
+/// individually and partial candidates never combine.
 pub(crate) fn select_provider_plan_names(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_target: omega_target::NativeTarget,
@@ -1096,6 +1105,27 @@ mod tests {
             diagnostics[0]
                 .message
                 .contains("without an attached provider data type")
+        );
+    }
+
+    #[test]
+    fn checked_adapter_requires_a_nominal_provider_type() {
+        let mut plan = selection_plan("free-adapter", &["first"], &[]);
+        plan.provider_type.clear();
+        plan.rows.push(ProviderPlanRow {
+            method: "first".to_owned(),
+            binding: ProviderBinding::CheckedAdapter {
+                machine: "first_adapter".to_owned(),
+            },
+        });
+
+        let diagnostics = validate_provider_plan_candidates(&TypedTrees::default(), &[plan]);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("has no nominal provider type")
         );
     }
 

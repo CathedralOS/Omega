@@ -3,7 +3,9 @@ use omega::language::core::extent;
 // A checked adapter may realize the owner-authored provider requirement, but
 // it does not mint `Granted` when called directly. The selected boundary slot
 // and its admission receipt authorize the exact qualified result.
-machine grant_root(root: Extent) -> Extent
+data ExtentRootProviderImpl {}
+
+machine ExtentRootProviderImpl::grant_root(root: Extent) -> Extent
 satisfies ExtentRootProvider::grant
 {
     root

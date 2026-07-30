@@ -15610,10 +15610,8 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 #[test]
 fn runtime_selected_provider_adapter_exit_canary_runs() {
     // PRV4b/4c composition: a retained whole-provider selection is
-    // authoritative for adapter dispatch. The source also declares a free
-    // compatibility adapter for the same requirement; selecting
-    // SecondProvider must ignore that adapter and FirstProvider in both
-    // engines.
+    // authoritative for adapter dispatch. Selecting SecondProvider must ignore
+    // FirstProvider in both engines.
     let canary = pass_canary("providers/provider_type_slot_selected");
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
@@ -39796,6 +39794,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/provider_type_target_default_conflict",
     "providers/provider_selection_outside_build",
     "providers/scoped_provider_selection_outside_build",
+    "providers/free_adapter_rejected",
     "providers/adapter_hidden_effect",
     "providers/adapter_forwarding_bad_lead",
     "providers/via_on_axiom_rejected",

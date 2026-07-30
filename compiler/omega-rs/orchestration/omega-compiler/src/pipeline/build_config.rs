@@ -413,7 +413,7 @@ fn harvest_provider_selections(
 /// `target_machines` records the authoritative machine names before erasing
 /// their target markers. The declarations use the same type-per-slot marker as
 /// build overrides, but retain distinct provenance so selection can apply the
-/// precedence `build override > target default > compatibility fallback`.
+/// precedence `build override > target default > unique declaration default`.
 pub(crate) fn compute_target_provider_defaults(
     typed: &TypedTrees,
     target_default_machine_names: &[String],
