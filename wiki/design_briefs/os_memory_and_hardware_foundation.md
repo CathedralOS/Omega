@@ -635,8 +635,14 @@ checks interval containment, observation, operation and reach subsets, and
 exact widths; it derives one power-of-two base congruence before admission,
 while admission checks the concrete loan base and returns a rejected loan
 intact. Accepted placements and sealed primitive requests retain the provider
-receipt and effective per-field supply. `TASKS.md` owns placed projection and
-target-specific external/atomic emission.
+receipt and effective per-field supply. The foundation placed-view carrier now
+separates pure `project`/`project_mut` from the memory event: projection yields
+a borrow-carrying field accessor, and only named read, destructive-take, write,
+stable-compound, and individual atomic-family methods can seal a primitive
+request. Inaccessible fields yield no accessor; current view-borrow and source
+loan polarity remain independent checks at the operation boundary. `TASKS.md`
+owns source `Placed<P, T>` derivation and target-specific external/atomic
+emission.
 
 ## IPC and DMA
 

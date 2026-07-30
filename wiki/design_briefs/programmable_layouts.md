@@ -150,7 +150,10 @@ receipt-bound, normalized offset-keyed resource profiles. Placement/profile
 compatibility restricts profiles to exact subrange loans, checks requested
 observation, operations, widths, reach, and rights, derives the static base
 congruence, and discharges that congruence against the concrete loan base at
-admission. See
+admission. The normalized foundation carrier also separates pure field
+projection from its event: `project`/`project_mut` return borrow-carrying
+accessors whose named read, destructive-take, write, stable-compound, and
+atomic-family methods are the only routes to a sealed primitive request. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
 model.
