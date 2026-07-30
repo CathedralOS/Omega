@@ -1718,54 +1718,66 @@ impl<'extent> PlacedView<'extent> {
         self.loan.length()
     }
 
-    pub fn authorize<'view>(
+    /// Purely project one accepted field through a shared view borrow.
+    ///
+    /// Projection performs no memory event. The returned accessor remains
+    /// tied to this placed view and exposes only named operation methods that
+    /// create sealed lowering requests.
+    pub fn project<'view>(
         &'view self,
         key: AccessFieldKey,
-        operation: AccessOperation,
-    ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
-        self.authorize_with(key, BorrowPolarity::Shared, operation)
+    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+        self.project_with(key, BorrowPolarity::Shared)
     }
 
-    pub fn authorize_mut<'view>(
+    /// Purely project one accepted field through an exclusive view borrow.
+    pub fn project_mut<'view>(
         &'view mut self,
         key: AccessFieldKey,
-        operation: AccessOperation,
-    ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
-        self.authorize_with(key, BorrowPolarity::Exclusive, operation)
+    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
+        self.project_with(key, BorrowPolarity::Exclusive)
     }
 
-    fn authorize_with<'view>(
+    fn project_with<'view>(
         &'view self,
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
-        operation: AccessOperation,
-    ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
+    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
         let source_loan = match self.loan.polarity() {
             LoanPolarity::Shared => BorrowPolarity::Shared,
             LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
         };
-        let access = self
+        let descriptor = self
             .plan
             .access
-            .authorize(key, current_borrow, source_loan, operation)?;
+            .field_descriptor(key)
+            .cloned()
+            .ok_or_else(|| {
+                AccessPlanDiagnostic(format!(
+                    "field key in canonical slot {} does not expose a placed accessor",
+                    key.slot()
+                ))
+            })?;
         let supply = self.resources.field(key).ok_or_else(|| {
             AccessPlanDiagnostic(format!(
                 "field `{}` has no sealed resource compatibility",
-                access.descriptor().field()
+                descriptor.field()
             ))
         })?;
         let primitive_address = self
             .loan
             .base()
-            .checked_add(access.descriptor().container_byte_offset())
+            .checked_add(descriptor.container_byte_offset())
             .ok_or_else(|| {
                 AccessPlanDiagnostic(format!(
                     "field `{}` primitive address overflows address width",
-                    access.descriptor().field()
+                    descriptor.field()
                 ))
             })?;
-        Ok(PlacedFieldAccess {
-            access,
+        Ok(PlacedFieldProjection {
+            descriptor,
+            current_borrow,
+            source_loan,
             primitive_address,
             plan: self.plan.identity(),
             profile_receipt: self.profile_receipt,
@@ -1773,6 +1785,176 @@ impl<'extent> PlacedView<'extent> {
             reach: self.plan.reach.clone(),
             admission: self.admission,
             _loan: &self.loan,
+        })
+    }
+}
+
+/// Pure field projection from one placed view.
+///
+/// This carrier is deliberately not `Clone`: re-projecting is the explicit
+/// route to another accessor. Named operation methods are the only route from
+/// this pure projection to a sealed memory event.
+#[derive(Debug)]
+pub struct PlacedFieldProjection<'view, 'extent> {
+    descriptor: FieldAccessDescriptor,
+    current_borrow: BorrowPolarity,
+    source_loan: BorrowPolarity,
+    primitive_address: u64,
+    plan: PlacementPlanId,
+    profile_receipt: ResourceProfileReceiptId,
+    supply: EffectiveFieldSupply,
+    reach: BoundaryReach,
+    admission: PlacementAdmissionId,
+    _loan: &'view ExtentLoan<'extent>,
+}
+
+impl<'view, 'extent> PlacedFieldProjection<'view, 'extent> {
+    pub fn field(&self) -> &str {
+        self.descriptor.field()
+    }
+
+    pub const fn key(&self) -> AccessFieldKey {
+        self.descriptor.key()
+    }
+
+    pub const fn primitive_address(&self) -> u64 {
+        self.primitive_address
+    }
+
+    pub const fn observation(&self) -> ObservationModel {
+        self.descriptor.observation()
+    }
+
+    pub fn read<'access>(
+        &'access self,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Read)
+    }
+
+    pub fn take<'access>(
+        &'access mut self,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Take)
+    }
+
+    pub fn write<'access>(
+        &'access mut self,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Write)
+    }
+
+    pub fn compound_mutation<'access>(
+        &'access mut self,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::CompoundMutation)
+    }
+
+    pub fn atomic_load<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Load(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_store<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Store(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_fetch_add<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_fetch_sub<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchSub(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_fetch_xor<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchXor(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_fetch_or<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchOr(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_fetch_and<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::FetchAnd(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_swap<'access>(
+        &'access self,
+        ordering: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(AtomicAccessOperation::Swap(
+            ordering,
+        )))
+    }
+
+    pub fn atomic_compare_exchange<'access>(
+        &'access self,
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        self.authorize(AccessOperation::Atomic(
+            AtomicAccessOperation::CompareExchange { success, failure },
+        ))
+    }
+
+    fn authorize<'access>(
+        &'access self,
+        operation: AccessOperation,
+    ) -> Result<PlacedFieldAccess<'access, 'extent>, AccessPlanDiagnostic> {
+        authorize_descriptor(
+            &self.descriptor,
+            self.current_borrow,
+            self.source_loan,
+            operation,
+        )?;
+        Ok(PlacedFieldAccess {
+            access: AuthorizedFieldAccess {
+                descriptor: self.descriptor.clone(),
+                current_borrow: self.current_borrow,
+                source_loan: self.source_loan,
+                operation,
+            },
+            primitive_address: self.primitive_address,
+            plan: self.plan,
+            profile_receipt: self.profile_receipt,
+            supply: self.supply.clone(),
+            reach: self.reach.clone(),
+            admission: self.admission,
+            _loan: self._loan,
         })
     }
 }
@@ -2891,14 +3073,11 @@ mod tests {
         let admission = admit_placement(admission_id, loan, &placement, &resources)
             .expect("admitted atomic placement");
         let view = place(admission);
-        let request = view
-            .authorize(
-                field_key(placement.access(), "head"),
-                AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
-                    success: MemoryOrdering::AcqRel,
-                    failure: MemoryOrdering::Acquire,
-                }),
-            )
+        let head = view
+            .project(field_key(placement.access(), "head"))
+            .expect("pure atomic projection");
+        let request = head
+            .atomic_compare_exchange(MemoryOrdering::AcqRel, MemoryOrdering::Acquire)
             .expect("authorized compare-exchange")
             .into_primitive_request();
         assert_eq!(request.plan(), placement.identity());
@@ -3104,68 +3283,279 @@ mod tests {
         let admission =
             admit_uart(8, shared_loan, &plan, &uart_reach()).expect("admitted shared view");
         let mut shared_view = place(admission);
-        let status = shared_view
-            .authorize(field_key(plan.access(), "status"), AccessOperation::Read)
-            .expect("shared read");
-        assert_eq!(status.primitive_address(), 0x1000);
-        assert_eq!(status.access().current_borrow(), BorrowPolarity::Shared);
-        assert_eq!(status.access().source_loan(), BorrowPolarity::Shared);
-        let request = status.into_primitive_request();
-        assert_eq!(request.plan(), plan.identity());
-        assert_eq!(
-            request.admission(),
-            PlacementAdmissionId::from_normalized_identity(8).expect("admission")
-        );
-        assert_eq!(
-            request.profile_receipt(),
-            ResourceProfileReceiptId::from_normalized_identity(7).expect("profile receipt")
-        );
-        assert_eq!(
-            request.effective_supply().kind(),
-            EffectiveSupplyKind::External
-        );
-        assert_eq!(request.effective_supply().alignment_bytes(), 4);
-        assert_eq!(request.primitive_address(), 0x1000);
-        assert_eq!(request.field(), "status");
-        assert_eq!(request.transfer_width_bits(), 32);
-        assert_eq!(request.observation(), ObservationModel::External);
-        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
-        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
-        assert_eq!(request.operation(), AccessOperation::Read);
-        assert!(request.reach().contains(reach()));
-        drop(request);
-        assert!(
-            shared_view
-                .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write,)
-                .is_err()
-        );
-        assert!(
-            shared_view
-                .authorize_mut(field_key(plan.access(), "transmit"), AccessOperation::Write,)
-                .is_err(),
-            "exclusive reborrow cannot upgrade a shared source loan"
-        );
-        drop(shared_view);
+        {
+            let status = shared_view
+                .project(field_key(plan.access(), "status"))
+                .expect("pure status projection");
+            assert_eq!(status.primitive_address(), 0x1000);
+            assert_eq!(status.observation(), ObservationModel::External);
+            let read = status.read().expect("shared read");
+            assert_eq!(read.access().current_borrow(), BorrowPolarity::Shared);
+            assert_eq!(read.access().source_loan(), BorrowPolarity::Shared);
+            let request = read.into_primitive_request();
+            assert_eq!(request.plan(), plan.identity());
+            assert_eq!(
+                request.admission(),
+                PlacementAdmissionId::from_normalized_identity(8).expect("admission")
+            );
+            assert_eq!(
+                request.profile_receipt(),
+                ResourceProfileReceiptId::from_normalized_identity(7).expect("profile receipt")
+            );
+            assert_eq!(
+                request.effective_supply().kind(),
+                EffectiveSupplyKind::External
+            );
+            assert_eq!(request.effective_supply().alignment_bytes(), 4);
+            assert_eq!(request.primitive_address(), 0x1000);
+            assert_eq!(request.field(), "status");
+            assert_eq!(request.transfer_width_bits(), 32);
+            assert_eq!(request.observation(), ObservationModel::External);
+            assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+            assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+            assert_eq!(request.operation(), AccessOperation::Read);
+            assert!(request.reach().contains(reach()));
+        }
+        {
+            let mut transmit = shared_view
+                .project(field_key(plan.access(), "transmit"))
+                .expect("pure shared transmit projection");
+            assert!(
+                transmit.write().is_err(),
+                "write accessor requires an exclusive current view borrow"
+            );
+        }
+        {
+            let mut transmit = shared_view
+                .project_mut(field_key(plan.access(), "transmit"))
+                .expect("pure exclusive transmit projection");
+            assert!(
+                transmit.write().is_err(),
+                "exclusive reborrow cannot upgrade a shared source loan"
+            );
+        }
 
         let exclusive_loan = shared_extent.loan_mut(4, 12).expect("exclusive UART loan");
         let admission =
             admit_uart(9, exclusive_loan, &plan, &uart_reach()).expect("admitted exclusive view");
         let mut exclusive_view = place(admission);
+        {
+            let mut transmit = exclusive_view
+                .project(field_key(plan.access(), "transmit"))
+                .expect("pure shared transmit projection");
+            assert!(
+                transmit.write().is_err(),
+                "ordinary write requires an exclusive current view borrow"
+            );
+        }
+        {
+            let mut transmit = exclusive_view
+                .project_mut(field_key(plan.access(), "transmit"))
+                .expect("pure exclusive transmit projection");
+            let write = transmit.write().expect("exclusive write");
+            assert_eq!(write.primitive_address(), 0x1008);
+            assert_eq!(write.access().current_borrow(), BorrowPolarity::Exclusive);
+            assert_eq!(write.access().source_loan(), BorrowPolarity::Exclusive);
+        }
+    }
+
+    #[test]
+    fn placed_projection_exposes_only_granular_authorized_events() {
+        let layout = LayoutPlanReport {
+            schema_identity: 95,
+            entries: ["stable", "fifo", "counter", "hidden"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, field)| LayoutFieldEntryReport {
+                    field: field.into(),
+                    member_identity: None,
+                    placement: LayoutPlacementReport::At {
+                        offset: u64::try_from(index).expect("field index") * 4,
+                    },
+                })
+                .collect(),
+            offsets: Some(vec![0, 4, 8, 12]),
+            size: Some(16),
+            align: 4,
+        };
+        let placement = validate_placement_plan(PlacementPlan {
+            access: access_plan(
+                &layout,
+                &[
+                    (
+                        "stable",
+                        FieldAccess::Stable {
+                            transfer_width_bits: 32,
+                            read: true,
+                            write: true,
+                            exposure: AccessExposure::Exported,
+                        },
+                    ),
+                    (
+                        "fifo",
+                        FieldAccess::External {
+                            transfer_width_bits: 32,
+                            read: ExternalRead::Take,
+                            write: false,
+                            exposure: AccessExposure::Exported,
+                        },
+                    ),
+                    (
+                        "counter",
+                        FieldAccess::Atomic {
+                            transfer_width_bits: 32,
+                            operations: AtomicPermissions {
+                                load: true,
+                                fetch_add: true,
+                                ..AtomicPermissions::default()
+                            },
+                            exposure: AccessExposure::Exported,
+                        },
+                    ),
+                ],
+            ),
+            layout,
+            reach: BoundaryReach::default(),
+        })
+        .expect("heterogeneous placement");
+        let mut extent = uart_extent(0x5000, 16);
+        let loan = extent.loan_mut(0, 16).expect("exclusive placed loan");
+        let resources = ResourceProfileGrant::from_admitted_provider(
+            ResourceProfileReceiptId::from_normalized_identity(51).expect("profile receipt"),
+            0x5000,
+            16,
+            extent_id(2, AddressSpaceId::from_normalized_identity),
+            extent_id(5, ExtentProvenanceId::from_normalized_identity),
+            extent_id(6, omega_extents::MappingEraId::from_normalized_identity),
+            extent_rights(&[3]),
+            BoundaryReach::default(),
+        )
+        .expect("profile grant")
+        .admit(ResourceProfile {
+            regions: vec![
+                ResourceRegion {
+                    offset: 0,
+                    length: 4,
+                    stable: StableCapability::ReadWrite,
+                    external: ExternalCapability::None,
+                    atomic: AtomicCapability::None,
+                    reach: BoundaryReach::default(),
+                },
+                ResourceRegion {
+                    offset: 4,
+                    length: 4,
+                    stable: StableCapability::None,
+                    external: ExternalCapability::Access {
+                        read: ExternalReadBehavior::Destructive,
+                        write: false,
+                        transfers: vec![TransferRule {
+                            width_bits: 32,
+                            alignment_bytes: 4,
+                        }],
+                    },
+                    atomic: AtomicCapability::None,
+                    reach: BoundaryReach::default(),
+                },
+                ResourceRegion {
+                    offset: 8,
+                    length: 4,
+                    stable: StableCapability::None,
+                    external: ExternalCapability::None,
+                    atomic: AtomicCapability::Access {
+                        transfers: vec![AtomicTransferRule {
+                            transfer: TransferRule {
+                                width_bits: 32,
+                                alignment_bytes: 4,
+                            },
+                            operations: AtomicPermissions {
+                                load: true,
+                                fetch_add: true,
+                                ..AtomicPermissions::default()
+                            },
+                        }],
+                    },
+                    reach: BoundaryReach::default(),
+                },
+            ],
+        })
+        .expect("heterogeneous profile");
+        let admission = admit_placement(
+            PlacementAdmissionId::from_normalized_identity(52).expect("admission"),
+            loan,
+            &placement,
+            &resources,
+        )
+        .expect("heterogeneous placement admission");
+        let mut view = place(admission);
+
+        {
+            let mut stable = view
+                .project_mut(field_key(placement.access(), "stable"))
+                .expect("stable projection");
+            assert_eq!(
+                stable.read().expect("stable read").access().operation(),
+                AccessOperation::Read
+            );
+            assert_eq!(
+                stable.write().expect("stable write").access().operation(),
+                AccessOperation::Write
+            );
+            assert_eq!(
+                stable
+                    .compound_mutation()
+                    .expect("stable compound mutation")
+                    .access()
+                    .operation(),
+                AccessOperation::CompoundMutation
+            );
+        }
+        {
+            let mut fifo = view
+                .project_mut(field_key(placement.access(), "fifo"))
+                .expect("destructive projection");
+            assert!(
+                fifo.read().is_err(),
+                "destructive observation must not derive Readable"
+            );
+            assert_eq!(
+                fifo.take().expect("destructive take").access().operation(),
+                AccessOperation::Take
+            );
+        }
+        {
+            let counter = view
+                .project(field_key(placement.access(), "counter"))
+                .expect("atomic projection");
+            assert_eq!(
+                counter
+                    .atomic_load(MemoryOrdering::Acquire)
+                    .expect("atomic load")
+                    .access()
+                    .operation(),
+                AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Acquire))
+            );
+            assert_eq!(
+                counter
+                    .atomic_fetch_add(MemoryOrdering::AcqRel)
+                    .expect("atomic fetch-add")
+                    .access()
+                    .operation(),
+                AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(MemoryOrdering::AcqRel))
+            );
+            assert!(
+                counter.atomic_fetch_sub(MemoryOrdering::AcqRel).is_err(),
+                "unlisted atomic families must remain absent"
+            );
+            assert!(
+                counter.atomic_load(MemoryOrdering::Release).is_err(),
+                "operation-specific ordering legality remains sealed"
+            );
+        }
         assert!(
-            exclusive_view
-                .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write,)
+            view.project(field_key(placement.access(), "hidden"))
                 .is_err(),
-            "ordinary write requires an exclusive current view borrow"
+            "an inaccessible field must not project to an accessor"
         );
-        let transmit = exclusive_view
-            .authorize_mut(field_key(plan.access(), "transmit"), AccessOperation::Write)
-            .expect("exclusive write");
-        assert_eq!(transmit.primitive_address(), 0x1008);
-        assert_eq!(
-            transmit.access().current_borrow(),
-            BorrowPolarity::Exclusive
-        );
-        assert_eq!(transmit.access().source_loan(), BorrowPolarity::Exclusive);
     }
 
     #[test]
