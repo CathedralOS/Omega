@@ -6,6 +6,6 @@ data Main {
     saved_flags: u64;
 }
 
-machine Main::main(&mut self) effects MachineControl {
+machine Main::main(&mut self) reaches MachineControl {
     asm { popfq self.saved_flags }
 }

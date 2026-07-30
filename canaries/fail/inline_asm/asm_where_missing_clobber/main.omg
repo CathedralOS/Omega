@@ -3,7 +3,7 @@
 use omega::language::core::assembly;
 
 data Main { port: u16; status: u8; }
-machine Main::main(&mut self) effects PortIo {
+machine Main::main(&mut self) reaches PortIo {
     asm where clobbers rax, rdx, r10 {
         out self.port, self.status
     }

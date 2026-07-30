@@ -8,7 +8,7 @@ machine Main::settle(
     guard: InterruptMaskGuard in Active,
     acknowledgement: InterruptAcknowledgement in Pending
 )
-effects MachineControl + PortIo
+reaches MachineControl + PortIo
 {
     guard.restore();
     acknowledgement.complete();

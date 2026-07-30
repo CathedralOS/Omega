@@ -11,7 +11,7 @@ boundary trait BootServices {
         desc_version: &mut u32
     ) -> i32;
     machine exit_boot_services(this: addr, handle: addr, key: u64) -> i32
-    effects BootServices;
+    reaches BootServices;
 }
 data EfiBootServicesTable {
     hdr: u64;

@@ -21,7 +21,7 @@ boundary trait Filesystem {
     machine open(folder: Folder, path: &[u8] in Utf8) -> File
     ensures
         result in File::Writable
-    effects
+    reaches
         Filesystem;
 }
 
@@ -30,14 +30,14 @@ data Worker {
 }
 
 machine Worker::open_log(&mut self, folder: Folder) -> File
-effects
+reaches
     Filesystem
 {
     self.fs.open(folder, "log.txt")
 }
 
 machine Worker::open_main_log(&mut self, folder: Folder) -> File
-effects
+reaches
     Filesystem
 {
     self.open_log(folder)

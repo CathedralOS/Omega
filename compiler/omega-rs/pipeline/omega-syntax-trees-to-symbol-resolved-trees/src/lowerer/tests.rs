@@ -52,13 +52,13 @@ fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
     }
 
     boundary trait Filesystem: Readable {
-        machine inspect() effects Readable;
+        machine inspect() reaches Readable;
     }
 
     trait Policy {
     }
 
-    machine backup() effects Filesystem + Policy {
+    machine backup() reaches Filesystem + Policy {
     }
     "#;
 

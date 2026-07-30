@@ -8,12 +8,12 @@ boundary trait Clock {
 }
 
 trait Meter {
-    machine read_value(a: u64) -> u64 effects Clock;
+    machine read_value(a: u64) -> u64 reaches Clock;
 }
 
 machine honest(a: u64) -> u64
 satisfies Meter::read_value
-effects Clock
+reaches Clock
 {
     transition { _ -> (a) }
 }

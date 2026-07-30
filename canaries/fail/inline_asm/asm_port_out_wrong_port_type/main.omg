@@ -3,6 +3,6 @@
 use omega::language::core::assembly;
 
 data Main { port: u32; value: u8; }
-machine Main::main(&mut self) effects PortIo {
+machine Main::main(&mut self) reaches PortIo {
     asm { out self.port, self.value }
 }

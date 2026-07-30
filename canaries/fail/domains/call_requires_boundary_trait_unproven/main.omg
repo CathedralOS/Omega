@@ -16,7 +16,7 @@ boundary trait Console {
     machine show(item: &Item)
     requires
         item in Item::Ready
-    effects
+    reaches
         Console;
 }
 

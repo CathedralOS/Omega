@@ -35,17 +35,17 @@ boundary trait Waiting { machine call() blocks; }
 boundary trait Combined { machine call() suspends; blocks; }
 
 data Main { }
-machine run_immediate(immediate: &mut Immediate) effects Immediate {
+machine run_immediate(immediate: &mut Immediate) reaches Immediate {
     immediate.call();
 }
-machine run_parking(suspend_source: &mut Parking) effects Parking suspends; {
+machine run_parking(suspend_source: &mut Parking) reaches Parking suspends; {
     suspend suspend_source.call();
 }
-machine run_waiting(block_source: &mut Waiting) effects Waiting blocks; {
+machine run_waiting(block_source: &mut Waiting) reaches Waiting blocks; {
     block block_source.call();
 }
 machine run_combined(both_source: &mut Combined)
-effects Combined
+reaches Combined
 suspends;
 blocks;
 {
@@ -111,8 +111,8 @@ fn suspension_rejects_nested_position_while_blocking_may_nest() {
             "boundary trait Immediate { machine call(); }\nboundary trait Value { machine get() -> u64 suspends; }",
         )
         .replace(
-            "machine run_parking(suspend_source: &mut Parking) effects Parking suspends; {\n    suspend suspend_source.call();\n}",
-            "machine nested(value_source: &mut Value) -> u64 effects Value suspends; {\n    let value: u64 = 1 + suspend value_source.get();\n    value\n}",
+            "machine run_parking(suspend_source: &mut Parking) reaches Parking suspends; {\n    suspend suspend_source.call();\n}",
+            "machine nested(value_source: &mut Value) -> u64 reaches Value suspends; {\n    let value: u64 = 1 + suspend value_source.get();\n    value\n}",
         );
     let error = compile_error("nested-suspend", &nested_suspend);
     assert!(
@@ -126,8 +126,8 @@ fn suspension_rejects_nested_position_while_blocking_may_nest() {
             "boundary trait Immediate { machine call(); }\nboundary trait Value { machine get() -> u64 blocks; }",
         )
         .replace(
-            "machine run_waiting(block_source: &mut Waiting) effects Waiting blocks; {\n    block block_source.call();\n}",
-            "machine nested(value_source: &mut Value) -> u64 effects Value blocks; {\n    let value: u64 = 1 + block value_source.get();\n    value\n}",
+            "machine run_waiting(block_source: &mut Waiting) reaches Waiting blocks; {\n    block block_source.call();\n}",
+            "machine nested(value_source: &mut Value) -> u64 reaches Value blocks; {\n    let value: u64 = 1 + block value_source.get();\n    value\n}",
         );
     let main_path = write_program("nested-block", &nested_block);
     compile_to_checked(&main_path, None).expect("blocking-only call may nest");
@@ -143,23 +143,23 @@ boundary trait Scheduler { machine wait() -> u64 suspends; }
 
 data Subject { scheduler: Scheduler; }
 data Main { }
-machine Subject::wait(&mut self) -> u64 effects Scheduler suspends; {
+machine Subject::wait(&mut self) -> u64 reaches Scheduler suspends; {
     suspend self.scheduler.wait()
 }
-machine Subject::subject(&mut self) effects Scheduler suspends; {
+machine Subject::subject(&mut self) reaches Scheduler suspends; {
     transition suspend self.wait() {
         0 -> { }
         _ -> { }
     }
 }
-machine statement(event: &mut Event) effects Event suspends; {
+machine statement(event: &mut Event) reaches Event suspends; {
     suspend event.park();
 }
-machine local(value_source: &mut Value) -> u64 effects Value suspends; {
+machine local(value_source: &mut Value) -> u64 reaches Value suspends; {
     let value: u64 = suspend value_source.get();
     value
 }
-machine terminal(value_source: &mut Value) -> u64 effects Value suspends; {
+machine terminal(value_source: &mut Value) -> u64 reaches Value suspends; {
     suspend value_source.get()
 }
 machine Main::main(&mut self) { }

@@ -12,7 +12,7 @@ data Logger {
 }
 
 machine Logger::build(&mut self, b: &mut Build)
-effects
+reaches
     Console
 {
     self.log.write_line("configuring");

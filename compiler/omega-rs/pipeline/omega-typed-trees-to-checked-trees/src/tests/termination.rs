@@ -1700,7 +1700,7 @@ fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure
     }
 
     data Worker { reader: Readable; }
-    machine Worker::run(&mut self) -> u64 effects Filesystem {
+    machine Worker::run(&mut self) -> u64 reaches Filesystem {
         self.reader.read()
     }
 
@@ -1770,7 +1770,7 @@ fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
     boundary trait Queryable { }
 
     data Main { reader: Readable; }
-    machine Main::run(&mut self) -> u64 effects Queryable {
+    machine Main::run(&mut self) -> u64 reaches Queryable {
         self.reader.read()
     }
     "#;
@@ -1802,7 +1802,7 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     boundary trait Clock { machine read(); }
 
     data Sleeper { clock: Clock; }
-    machine Sleeper::wait(&mut self) effects Clock suspends; blocks; {}
+    machine Sleeper::wait(&mut self) reaches Clock suspends; blocks; {}
 
     data Main { sleeper: Sleeper; }
     machine Main::run(&mut self) {
@@ -1980,7 +1980,7 @@ fn qualification_facts_record_policy_commitments() {
 fn contract_plans_fingerprint_published_halves() {
     // STR4 checked plans (machine_taxonomy.md): the contract fingerprint
     // covers ONLY the published halves -- two machines with the same
-    // declared surface share it; a different effects clause changes it;
+    // declared surface share it; a different `reaches` clause changes it;
     // inferred rows never enter (prover-independence by construction).
     let source = r#"
     boundary trait Filesystem {}
@@ -1991,15 +1991,15 @@ fn contract_plans_fingerprint_published_halves() {
         right: u64;
     }
 
-    machine Main::quiet_a(&mut self) -> u64 effects Filesystem {
+    machine Main::quiet_a(&mut self) -> u64 reaches Filesystem {
         self.left = 1;
         1
     }
-    machine Main::quiet_b(&mut self) -> u64 effects Filesystem {
+    machine Main::quiet_b(&mut self) -> u64 reaches Filesystem {
         self.right = 2;
         2
     }
-    machine Main::loud(&mut self) -> u64 effects Network { 3 }
+    machine Main::loud(&mut self) -> u64 reaches Network { 3 }
     machine bounded_ab(x: u64, y: u64) -> u64
     requires
         x >= 1;
@@ -2071,7 +2071,7 @@ fn contract_plans_fingerprint_published_halves() {
     assert_ne!(frame(quiet_a).fingerprint(), frame(quiet_b).fingerprint());
     assert_eq!(frame(write_alpha).paths(), &["$P0".to_owned()]);
     assert_eq!(frame(write_alpha), frame(write_beta));
-    // A different effects clause -> a different fingerprint.
+    // A different `reaches` clause -> a different fingerprint.
     assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
     // Slice 2: REQUIRES clause ORDER never enters the identity...
     let ab = symbol_of_checked(&checked, "bounded_ab");

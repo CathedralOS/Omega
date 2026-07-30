@@ -4,7 +4,7 @@
 use omega::language::core::assembly;
 
 data Main { port: u16; status: u8; ready: bool; }
-machine Main::main(&mut self) effects PortIo
+machine Main::main(&mut self) reaches PortIo
 requires self.ready
 {
     asm where

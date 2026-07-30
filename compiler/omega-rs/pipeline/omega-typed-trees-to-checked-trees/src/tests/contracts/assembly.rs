@@ -5,7 +5,7 @@ fn accepts_proven_asm_entry_and_exit_facts() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects PortIo
+        machine Main::main(&mut self) reaches PortIo
         requires self.ready
         {
             asm where
@@ -25,7 +25,7 @@ fn rejects_unproven_asm_requires_at_block_entry() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects PortIo {
+        machine Main::main(&mut self) reaches PortIo {
             asm where
                 requires self.ready
                 clobbers rax, rdx, r10, r11, r15
@@ -48,7 +48,7 @@ fn rejects_unproven_asm_ensures_at_block_exit() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects PortIo {
+        machine Main::main(&mut self) reaches PortIo {
             asm where
                 clobbers rax, rdx, r10, r11, r15
                 ensures self.ready
@@ -71,7 +71,7 @@ fn rejects_asm_ensures_invalidated_by_port_input() {
     let source = r#"
         data Main { port: u16; value: u8; }
 
-        machine Main::main(&mut self) effects PortIo
+        machine Main::main(&mut self) reaches PortIo
         requires self.value == 1
         {
             asm where
@@ -123,7 +123,7 @@ fn rejects_asm_ensures_invalidated_by_msr_read() {
     let source = r#"
         data Main { value: u64; }
 
-        machine Main::main(&mut self) effects MachineControl
+        machine Main::main(&mut self) reaches MachineControl
         requires self.value == 2
         {
             asm where
@@ -149,7 +149,7 @@ fn preserves_asm_ensures_across_unrelated_port_input() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
 
-        machine Main::main(&mut self) effects PortIo
+        machine Main::main(&mut self) reaches PortIo
         requires self.ready
         {
             asm where
@@ -169,7 +169,7 @@ fn rejects_non_boolean_asm_fact_place() {
     let source = r#"
         data Main { port: u16; value: u8; }
 
-        machine Main::main(&mut self) effects PortIo {
+        machine Main::main(&mut self) reaches PortIo {
             asm where
                 requires self.value
                 clobbers rax, rdx, r10, r11, r15
@@ -190,7 +190,7 @@ fn canonical_asm_services_enter_normalized_reach_inference() {
     let source = r#"
         data Main { port: u16; value: u8; }
 
-        machine Main::main(&mut self) effects MachineControl + PortIo {
+        machine Main::main(&mut self) reaches MachineControl + PortIo {
             asm { hlt; out self.port, self.value }
         }
     "#;
@@ -252,7 +252,7 @@ fn rejects_missing_direct_port_io_service_declaration() {
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| { diagnostic.message.contains("add `effects PortIo`") })
+            .any(|diagnostic| { diagnostic.message.contains("add `reaches PortIo`") })
     );
 }
 
@@ -261,7 +261,7 @@ fn rejects_missing_transitive_machine_control_service_declaration() {
     let source = r#"
         data Main {}
 
-        machine Main::helper(&mut self) effects MachineControl {
+        machine Main::helper(&mut self) reaches MachineControl {
             asm { hlt }
         }
 

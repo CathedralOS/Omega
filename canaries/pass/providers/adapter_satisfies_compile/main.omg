@@ -1,6 +1,6 @@
 // PRV4: a CHECKED ADAPTER -- an ordinary machine with a body and a
 // requirement-named satisfies edge -- joins the plan derivation as a
-// CheckedAdapter row (coverage counts it; its transitive effects refine
+// CheckedAdapter row (coverage counts it; its transitive service reach refines
 // the requirement's declared ceiling: an effect-free body under an
 // effect-free requirement here).
 use omega::language::std::console;

@@ -333,7 +333,7 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
 
         machine apply<machine F>()
         where machine F()
-            effects DeviceIo
+            reaches DeviceIo
         {
             F();
         }

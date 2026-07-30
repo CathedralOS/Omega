@@ -4,6 +4,6 @@ data Main {
     value: u32;
 }
 
-machine Main::main(&mut self) effects MachineControl {
+machine Main::main(&mut self) reaches MachineControl {
     asm { write_cr3 self.value }
 }

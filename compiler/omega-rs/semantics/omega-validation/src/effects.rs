@@ -171,8 +171,8 @@ pub fn validate_asm_discharge(
 ///
 /// Two rules:
 /// 1. A machine whose body CONTAINS an asm intrinsic must declare that
-///    canonical service (`asm { hlt }` forces `effects MachineControl`,
-///    `asm { in/out }` forces `effects PortIo`).
+///    canonical service (`asm { hlt }` forces `reaches MachineControl`,
+///    `asm { in/out }` forces `reaches PortIo`).
 /// 2. Both asm services are strict TRANSITIVELY along known checked call
 ///    paths. This provenance-specific rule does not turn an unrelated
 ///    boundary call that happens to reach the same service into inline asm.
@@ -214,7 +214,7 @@ fn validate_asm_intrinsic_declarations(
                 if !declared_services.contains(&service) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` uses asm instruction `{}` but does not declare its \
-                         service contract: add `effects {service_name}` (every asm \
+                         service contract: add `reaches {service_name}` (every asm \
                          instruction's service reach must be declared where it is emitted)",
                         machine.name, instruction
                     )));

@@ -243,9 +243,9 @@ fn validate_program_internal(
             }
             if via_count == 1 && !program.machine_effects(machine).is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "external leaf `{}` repeats an authored `effects` row, but `via` \
+                    "external leaf `{}` repeats an authored `reaches` row, but `via` \
                      derives behavior from the satisfied requirement and admitted binding; \
-                     remove the leaf's `effects` clause",
+                     remove the leaf's `reaches` clause",
                     machine.name,
                 )));
             }

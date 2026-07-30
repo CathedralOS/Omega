@@ -56,7 +56,7 @@ data Main {
     wrapped_input: WrappedFloat; wrapped_output: WrappedFloat;
 }
 boundary machine Main::run(&self) -> i32
-effects FieldDispatch
+reaches FieldDispatch
 {
     self.dispatch.invoke(self.receiver, 7);
     self.output = self.dispatch.transform(self.receiver, self.input);

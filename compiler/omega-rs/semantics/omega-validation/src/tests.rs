@@ -816,7 +816,7 @@ fn static_machine_argument_rejects_symbol_resolved_service_widening() {
         }
 
         machine invoke<machine F>(service: &mut Queryable)
-        where machine F(service: &mut Queryable) effects Readable;
+        where machine F(service: &mut Queryable) reaches Readable;
         {}
 
         machine caller(service: &mut Queryable) {
@@ -851,7 +851,7 @@ fn static_machine_argument_admits_service_reach_within_parent_closure() {
         }
 
         machine invoke<machine F>(service: &mut Filesystem)
-        where machine F(service: &mut Filesystem) effects Filesystem;
+        where machine F(service: &mut Filesystem) reaches Filesystem;
         {}
 
         machine caller(service: &mut Filesystem) {
@@ -1253,7 +1253,7 @@ fn rejects_unknown_trait_machine_effects() {
     let source = r#"
     boundary trait Console {
         machine write_line(text: &[u8])
-        effects
+        reaches
             stdoutish;
     }
 
@@ -2647,7 +2647,7 @@ fn rejects_machine_effects_outside_trait_ceiling() {
 
     boundary trait Console {
         machine write_line(text: &[u8])
-        effects
+        reaches
             Console;
     }
 
@@ -2655,7 +2655,7 @@ fn rejects_machine_effects_outside_trait_ceiling() {
     }
 
     machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
-    effects
+    reaches
         Console + Filesystem
     {
     }
@@ -2688,7 +2688,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
     let source = r#"
     boundary trait Console {
         machine write_line(text: &[u8])
-        effects
+        reaches
             Console;
     }
 
@@ -2696,7 +2696,7 @@ fn accepts_machine_effects_within_trait_ceiling() {
     }
 
     machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
-    effects
+    reaches
         Console
     {
     }
@@ -2723,7 +2723,7 @@ fn accepts_machine_effects_below_trait_ceiling() {
     let source = r#"
     boundary trait Console {
         machine write_line(text: &[u8])
-        effects
+        reaches
             Console;
     }
 
@@ -2765,7 +2765,7 @@ fn rejects_published_service_ceiling_below_reached_services() {
     }
 
     machine Main::main(&mut self)
-    effects
+    reaches
         Output
     {
         let line: [u8; 32];
@@ -2834,7 +2834,7 @@ mod effects_analysis {
         }
 
         machine ConsoleImpl::write_line(text: &[u8]) satisfies Console
-        effects
+        reaches
             Console
         {
         }
@@ -3655,7 +3655,7 @@ mod provider_plan {
         let program = typed(
             "boundary trait Console {\n\
              machine write_line(text: &[u8])\n\
-             effects\n\
+             reaches\n\
                  Console\n\
              suspends;\n\
              blocks;\n\
@@ -3694,7 +3694,7 @@ mod provider_plan {
              data X64Convention {}\n\
              boundary trait Device {\n\
              machine read()\n\
-             effects\n\
+             reaches\n\
                  Device;\n\
              }\n\
              boundary trait Timer: Device + Calling<X64Convention> {\n\

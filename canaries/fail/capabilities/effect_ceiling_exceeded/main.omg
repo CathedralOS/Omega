@@ -1,11 +1,11 @@
-// Chapter 18 "Standard Effects": when a concrete machine declares an `effects`
-// block, that block is a ceiling for the machine's reached effects. `Worker::run`
+// When a concrete machine declares a `reaches` row, that row is a ceiling for
+// the machine's reached services. `Worker::run`
 // declares only `Console` but transitively reaches `Disk` through the
 // boundary write, so it exceeds its declared ceiling and is rejected.
 
 boundary trait Disk {
     machine write(text: &[u8])
-    effects
+    reaches
         Disk;
 }
 
@@ -17,7 +17,7 @@ data Worker {
 }
 
 machine Worker::run(&mut self)
-effects
+reaches
     Console
 {
     self.disk.write("x");

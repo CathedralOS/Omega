@@ -166,6 +166,50 @@ fn provides_syntax_is_retired_from_omega_sources() {
     );
 }
 
+#[test]
+fn effects_reach_syntax_is_retired_from_omega_sources() {
+    let root = repo_root();
+    let tracked = Command::new("git")
+        .args([
+            "-C",
+            root.to_str().expect("UTF-8 repository path"),
+            "ls-files",
+            "-z",
+            "*.omg",
+        ])
+        .output()
+        .expect("list tracked Omega source files");
+    assert!(tracked.status.success(), "git ls-files should succeed");
+
+    let mut clauses = Vec::new();
+    for relative in String::from_utf8_lossy(&tracked.stdout).split('\0') {
+        if relative.is_empty() {
+            continue;
+        }
+        let path = root.join(relative);
+        if !path.is_file() {
+            continue;
+        }
+        let source =
+            fs::read_to_string(path).unwrap_or_else(|error| panic!("read {relative}: {error}"));
+        for (index, line) in source.lines().enumerate() {
+            let authored = line.split_once("//").map_or(line, |(authored, _)| authored);
+            let has_legacy_token = authored
+                .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+                .any(|token| token == "effects");
+            if has_legacy_token {
+                clauses.push(format!("{relative}:{}: {}", index + 1, line.trim()));
+            }
+        }
+    }
+
+    assert!(
+        clauses.is_empty(),
+        "authored `effects` reach syntax is retired; clauses remain:\n{}",
+        clauses.join("\n")
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_x64_cli_mvp_emits_runnable_pe() {
@@ -35574,8 +35618,23 @@ fn pass_canaries_compile() {
     // efi members on a non-EFI-lowering host) must not exempt the rest of
     // the corpus from its compile check.
     let mut failures: Vec<String> = Vec::new();
+    let filter = std::env::var("OMEGA_PASS_CANARY_FILTER").ok();
+    let selected = |canary_name: &&str| {
+        filter.as_deref().is_none_or(|filter| {
+            filter
+                .split(',')
+                .map(str::trim)
+                .any(|candidate| !candidate.is_empty() && canary_name.contains(candidate))
+        })
+    };
+    let mut selected_count = 0usize;
 
-    for (canary_name, target) in CROSS_TARGET_PASS_CANARIES {
+    for (canary_name, target) in CROSS_TARGET_PASS_CANARIES
+        .iter()
+        .copied()
+        .filter(|(canary_name, _)| selected(canary_name))
+    {
+        selected_count += 1;
         let canary = pass_canary(canary_name);
         if let Err(diagnostics) = compile_canary_without_output_for_target(&canary, target) {
             failures.push(format!(
@@ -35591,7 +35650,8 @@ fn pass_canaries_compile() {
     }
 
     #[cfg(windows)]
-    for canary_name in WINDOWS_HOST_PASS_CANARIES {
+    for canary_name in WINDOWS_HOST_PASS_CANARIES.iter().copied().filter(selected) {
+        selected_count += 1;
         let canary = pass_canary(canary_name);
         if let Err(diagnostics) = compile_canary_without_output(&canary) {
             failures.push(format!(
@@ -35605,7 +35665,8 @@ fn pass_canaries_compile() {
             ));
         }
     }
-    for canary_name in ACTIVE_PASS_CANARIES {
+    for canary_name in ACTIVE_PASS_CANARIES.iter().copied().filter(selected) {
+        selected_count += 1;
         let canary = pass_canary(canary_name);
 
         if let Err(diagnostics) = compile_canary_without_output(&canary) {
@@ -35621,6 +35682,10 @@ fn pass_canaries_compile() {
         }
     }
 
+    assert!(
+        filter.is_none() || selected_count > 0,
+        "OMEGA_PASS_CANARY_FILTER matched no active pass canaries"
+    );
     assert!(
         failures.is_empty(),
         "{} pass canary(ies) failed to compile:\n\n{}",
@@ -36520,9 +36585,12 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     let mut selected = 0usize;
 
     for canary_name in ACTIVE_FAIL_CANARIES.iter().copied().filter(|canary_name| {
-        filter
-            .as_deref()
-            .is_none_or(|filter| canary_name.contains(filter))
+        filter.as_deref().is_none_or(|filter| {
+            filter
+                .split(',')
+                .map(str::trim)
+                .any(|candidate| !candidate.is_empty() && canary_name.contains(candidate))
+        })
     }) {
         selected += 1;
         let canary = fail_canary(canary_name);

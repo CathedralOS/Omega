@@ -107,13 +107,21 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_contextual("effects") {
-            input = input.take_contextual("effects")?;
+            return Err(input.error_here(
+                "the `effects` reach clause is retired; write `reaches <Service> + ...`",
+            ));
+        }
+
+        if input.at_contextual("reaches") {
+            input = input.take_contextual("reaches")?;
             while !input.at_punctuation(PunctuationKind::LeftBrace)
                 && !input.at_punctuation(PunctuationKind::Semicolon)
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("terminates")
                 && !input.at_contextual("decreases")
+                && !input.at_contextual("reaches")
+                && !input.at_contextual("effects")
                 && !input.at_contextual("suspends")
                 && !input.at_contextual("blocks")
                 && !input.at_contextual("boundary")
@@ -121,7 +129,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("satisfies")
             {
                 let (effect, rest) = input.take_identifier()?;
-                reject_retired_operational_effect(&effect, rest)?;
+                reject_retired_operational_reach(&effect, rest)?;
                 let handle = syntax_trees.items.append_identifier_path_member(effect);
                 if effect_count == 0 {
                     effect_start = handle;
@@ -202,6 +210,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                         || input.at_contextual("ensures")
                         || input.at_contextual("terminates")
                         || input.at_contextual("decreases")
+                        || input.at_contextual("reaches")
                         || input.at_contextual("effects")
                         || input.at_contextual("suspends")
                         || input.at_contextual("blocks")
@@ -259,7 +268,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         return Err(input.expected_one_of_here(&[
             "`terminates`",
             "`decreases`",
-            "`effects`",
+            "`reaches`",
             "`suspends;`",
             "`blocks;`",
             "`boundary`",
@@ -298,11 +307,11 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     ))
 }
 
-fn reject_retired_operational_effect(
-    effect: &Identifier,
+fn reject_retired_operational_reach(
+    service: &Identifier,
     input: Input<'_, '_>,
 ) -> Result<(), crate::parse_error::ParseError> {
-    let replacement = match effect.as_str() {
+    let replacement = match service.as_str() {
         "Suspend" => "suspends;",
         "Block" => "blocks;",
         "thread_block" => "blocks;",
@@ -310,8 +319,8 @@ fn reject_retired_operational_effect(
         _ => return Ok(()),
     };
     Err(input.error_here(format!(
-        "`effects {}` is retired: `effects` contains boundary-service reach only; write `{replacement}` as an independent operational clause",
-        effect.as_str()
+        "`reaches {}` is invalid: `reaches` contains boundary-service identities only; write `{replacement}` as an independent operational clause",
+        service.as_str()
     )))
 }
 
@@ -335,6 +344,7 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
         || input.at_punctuation(PunctuationKind::Arrow)
         || input.at_contextual("terminates")
         || input.at_contextual("decreases")
+        || input.at_contextual("reaches")
         || input.at_contextual("effects")
         || input.at_contextual("suspends")
         || input.at_contextual("blocks")

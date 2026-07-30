@@ -19,7 +19,7 @@ boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable
-    effects
+    reaches
         Desktop;
 }
 
@@ -28,7 +28,7 @@ data Vault {
 }
 
 machine Vault::pick(&mut self) -> Folder
-effects
+reaches
     Desktop
 {
     self.desktop.choose_folder("choose a backup folder")
@@ -39,7 +39,7 @@ data Backup {
 }
 
 machine Backup::stage(&mut self) -> Folder
-effects
+reaches
     Desktop
 {
     self.vault.pick()

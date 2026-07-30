@@ -582,12 +582,14 @@ current consumers happen to align.
   signatures exposing only the places a callee actually mutates.
 - **DOM1/DOM2/DOM3/DOM5:** finish operator ownership and weakening
   certificates. Delegated package authority is owner-blocked on #1.
-- **STR/EFX:** migrate the source reach clause from `effects` to `reaches`, then
-  finish independent service reach, `suspends`, `blocks`, termination,
-  mutation, and trust publication/admission. Remove legacy mixed rows after
-  migration. Imported transparent-refinement spelling must supply the narrowed
-  operational envelope consumed by the completed exact call-acknowledgement
-  checker.
+- **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
+  rejects legacy `effects` with directed migration guidance, and the Omega,
+  canary, sample, and Cathedral source corpora use the new spelling. Finish
+  independent service reach, `suspends`, `blocks`, termination, mutation, and
+  trust publication/admission. Remove remaining legacy internal mixed-row
+  names and records after their consumers migrate. Imported transparent-
+  refinement spelling must supply the narrowed operational envelope consumed
+  by the completed exact call-acknowledgement checker.
 - **INV:** add the `invokes` contract axis. Infer it from bodyful machines,
   require it on bodyless requirements, substitute the concrete selected
   binding at composition, retain direct synchronous edges in artifacts, and

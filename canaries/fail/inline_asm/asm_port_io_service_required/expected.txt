@@ -1,1 +1,1 @@
-uses asm instruction `out` but does not declare its service contract: add `effects PortIo`
+uses asm instruction `out` but does not declare its service contract: add `reaches PortIo`

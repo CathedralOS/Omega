@@ -3,7 +3,7 @@
 // non-unit return must reject just like a local/attached machine call.
 boundary trait Probe {
     machine sample(code: i32) -> bool
-    effects
+    reaches
         Probe;
 }
 

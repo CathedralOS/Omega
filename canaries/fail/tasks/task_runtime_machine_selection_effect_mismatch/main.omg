@@ -1,19 +1,19 @@
 use omega::language::core::task;
 
 // MP6/TR3: TaskRuntime's machine-parameter contract admits suspension and blocking,
-// not arbitrary service effects. A selected target must refine that authored
+// not arbitrary service reach. A selected target must refine that authored
 // contract at specialization; whole-program inference cannot widen it.
 boundary trait DiskIo {
 }
 boundary data Disk;
-boundary machine Disk::touch(value: i32) effects DiskIo;
+boundary machine Disk::touch(value: i32) reaches DiskIo;
 
 data Job {
     value: i32;
 }
 
 data Worker { }
-machine Worker::run(job: Job) -> i32 effects DiskIo {
+machine Worker::run(job: Job) -> i32 reaches DiskIo {
     let value: i32 = job.value;
     Disk::touch(value);
     value

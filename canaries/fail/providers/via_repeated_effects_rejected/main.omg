@@ -3,13 +3,13 @@
 // source of effect truth.
 boundary trait Process {
     machine exit(code: i32)
-        effects Process;
+        reaches Process;
 }
 
 machine exit_leaf(code: i32)
     satisfies Process::exit
     via Binding::Syscall(60)
-    effects Process;
+    reaches Process;
 
 data Main { }
 machine Main::main(&mut self) { }

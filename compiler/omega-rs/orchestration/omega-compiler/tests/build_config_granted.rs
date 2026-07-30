@@ -46,7 +46,7 @@ data Stager {{
 }}
 
 machine Stager::build(&mut self, b: &mut Build)
-effects
+reaches
     FilesystemHost + Console
 {{
     self.log.write_line("build: staging");

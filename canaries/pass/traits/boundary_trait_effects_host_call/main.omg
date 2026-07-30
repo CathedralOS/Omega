@@ -3,11 +3,11 @@ domain [u8]::Utf8 {
 }
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
-    effects
+    reaches
         Console;
 
     machine exit_process(return_code: i32)
-    effects
+    reaches
         Console;
 }
 
@@ -16,6 +16,6 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.console.write_line("boundary effects survive syntax");
+    self.console.write_line("boundary reach survives syntax");
     self.console.exit_process(0);
 }

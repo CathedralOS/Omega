@@ -10,7 +10,7 @@ data Main {
 }
 
 machine Main::main(&mut self)
-    effects PortIo
+    reaches PortIo
 {
     asm {
         out self.port, self.status;

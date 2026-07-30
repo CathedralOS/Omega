@@ -15,7 +15,7 @@ boundary trait CConsole {
     machine write(text: &[u8])
     requires
         text in Utf8 & NoNul
-    effects
+    reaches
         CConsole;
 }
 

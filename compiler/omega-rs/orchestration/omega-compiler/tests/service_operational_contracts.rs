@@ -33,13 +33,13 @@ fn compile_error(name: &str, source: &str) -> String {
 const CONTRACT_PROGRAM: &str = r#"
 boundary trait Clock {
     machine wait()
-    effects Clock
+    reaches Clock
     suspends;
 }
 
 boundary trait Storage {
     machine flush()
-    effects Storage
+    reaches Storage
     blocks;
 }
 
@@ -49,7 +49,7 @@ trait Worker {
         storage: &mut Storage,
         remaining: u64
     ) -> u64
-    effects Clock, Storage
+    reaches Clock, Storage
     suspends;
     blocks;
     terminates;
@@ -67,7 +67,7 @@ machine run_impl(
     remaining: u64
 ) -> u64
 satisfies Worker::run
-effects Clock, Storage
+reaches Clock, Storage
 suspends;
 blocks;
 terminates;
@@ -260,7 +260,7 @@ fn retired_operational_effect_names_do_not_reenter_service_rows() {
         "retired-mixed-row",
         r#"
 machine wait()
-effects Suspend
+reaches Suspend
 {
 }
 
@@ -269,6 +269,6 @@ machine Main::main(&mut self) { }
 "#,
     );
 
-    assert!(error.contains("`effects Suspend` is retired"), "{error}");
+    assert!(error.contains("`reaches Suspend` is invalid"), "{error}");
     assert!(error.contains("`suspends;`"), "{error}");
 }

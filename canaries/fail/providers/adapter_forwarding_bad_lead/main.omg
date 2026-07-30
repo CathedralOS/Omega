@@ -6,7 +6,7 @@
 // with a duplicate-adapter diagnostic.
 boundary trait TestConsole {
     machine write_line(text: &[u8])
-    effects
+    reaches
         TestConsole;
 }
 
@@ -15,7 +15,7 @@ data Main {
 }
 
 machine write_line_bad(code: i32, text: &[u8]) satisfies TestConsole::write_line
-effects
+reaches
     TestConsole
 {
     let x: i32 = code;

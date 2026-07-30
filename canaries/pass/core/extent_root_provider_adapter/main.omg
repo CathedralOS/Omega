@@ -18,7 +18,7 @@ data Harness {
 }
 
 machine Harness::forward(&self, root: Extent) -> Extent
-effects ExtentRootProvider
+reaches ExtentRootProvider
 {
     let granted: Extent = self.provider.grant(root);
     transition { _ -> (consume_granted(granted)) }
