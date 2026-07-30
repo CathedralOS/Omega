@@ -31,6 +31,31 @@ impl BoundaryServiceReachId {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BoundaryReach {
+    services: BTreeSet<BoundaryServiceReachId>,
+}
+
+impl BoundaryReach {
+    pub fn from_services(services: impl IntoIterator<Item = BoundaryServiceReachId>) -> Self {
+        Self {
+            services: services.into_iter().collect(),
+        }
+    }
+
+    pub fn services(&self) -> impl ExactSizeIterator<Item = BoundaryServiceReachId> + '_ {
+        self.services.iter().copied()
+    }
+
+    pub fn contains(&self, service: BoundaryServiceReachId) -> bool {
+        self.services.contains(&service)
+    }
+
+    pub fn contains_all(&self, required: &Self) -> bool {
+        required.services.is_subset(&self.services)
+    }
+}
+
 /// How repeated observations of the placed field relate to one another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ObservationModel {
@@ -112,8 +137,6 @@ pub enum FieldAccess {
         read: ExternalRead,
         write: bool,
         exposure: AccessExposure,
-        /// Bootstrap owner for reach until `PlacementPlan` carries this fact.
-        service_reach: BoundaryServiceReachId,
     },
     Atomic {
         transfer_width_bits: u16,
@@ -254,8 +277,8 @@ enum CanonicalFieldIdentity {
 ///
 /// The plan contains exactly one canonical slot per layout schema field,
 /// including inaccessible fields. Its identity includes every operation,
-/// observation, exposure, transfer-width, and temporary per-entry reach fact
-/// that lowering is allowed to consume.
+/// observation, exposure, and transfer-width fact that lowering is allowed to
+/// consume. Boundary reach belongs to the enclosing placement identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccessPlanId(u64);
 
@@ -278,7 +301,6 @@ pub struct FieldAccessDescriptor {
     observation: ObservationModel,
     permissions: AccessPermissions,
     exposure: AccessExposure,
-    service_reach: Option<BoundaryServiceReachId>,
 }
 
 impl FieldAccessDescriptor {
@@ -308,10 +330,6 @@ impl FieldAccessDescriptor {
 
     pub const fn exposure(&self) -> AccessExposure {
         self.exposure
-    }
-
-    pub const fn service_reach(&self) -> Option<BoundaryServiceReachId> {
-        self.service_reach
     }
 }
 
@@ -400,6 +418,48 @@ impl ValidatedAccessPlan {
             borrow,
             operation,
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacementPlan {
+    pub layout: LayoutPlanReport,
+    pub access: AccessPlan,
+    pub reach: BoundaryReach,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlacementPlanId(u64);
+
+impl PlacementPlanId {
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedPlacementPlan {
+    identity: PlacementPlanId,
+    layout: LayoutPlanReport,
+    access: ValidatedAccessPlan,
+    reach: BoundaryReach,
+}
+
+impl ValidatedPlacementPlan {
+    pub const fn identity(&self) -> PlacementPlanId {
+        self.identity
+    }
+
+    pub const fn layout(&self) -> &LayoutPlanReport {
+        &self.layout
+    }
+
+    pub const fn access(&self) -> &ValidatedAccessPlan {
+        &self.access
+    }
+
+    pub const fn reach(&self) -> &BoundaryReach {
+        &self.reach
     }
 }
 
@@ -516,7 +576,6 @@ pub fn validate_access_plan(
             observation: policy.observation,
             permissions: policy.permissions,
             exposure: policy.exposure,
-            service_reach: policy.service_reach,
         });
     }
 
@@ -529,6 +588,38 @@ pub fn validate_access_plan(
         fields: descriptors,
         layout_size_bytes: layout_size,
     })
+}
+
+pub fn validate_placement_plan(
+    plan: PlacementPlan,
+) -> Result<ValidatedPlacementPlan, AccessPlanDiagnostic> {
+    let PlacementPlan {
+        layout,
+        access,
+        reach,
+    } = plan;
+    let access = validate_access_plan(access, &layout)?;
+    let identity = normalized_placement_plan_identity(access.identity(), &reach);
+    Ok(ValidatedPlacementPlan {
+        identity,
+        layout,
+        access,
+        reach,
+    })
+}
+
+fn normalized_placement_plan_identity(
+    access: AccessPlanId,
+    reach: &BoundaryReach,
+) -> PlacementPlanId {
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_bytes(&mut hash, b"omega.placement-plan.v1");
+    hash_u64(&mut hash, access.normalized_identity());
+    hash_u64(&mut hash, reach.services().len() as u64);
+    for service in reach.services() {
+        hash_u64(&mut hash, service.normalized_identity());
+    }
+    PlacementPlanId(if hash == 0 { 1 } else { hash })
 }
 
 fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -> AccessPlanId {
@@ -560,7 +651,6 @@ fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -
                 read,
                 write,
                 exposure,
-                service_reach,
             } => {
                 hash_byte(&mut hash, 2);
                 hash_u64(&mut hash, u64::from(*transfer_width_bits));
@@ -574,8 +664,6 @@ fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -
                 );
                 hash_byte(&mut hash, u8::from(*write));
                 hash_exposure(&mut hash, *exposure);
-                let reach = *service_reach;
-                hash_u64(&mut hash, reach.normalized_identity());
             }
             FieldAccess::Atomic {
                 transfer_width_bits,
@@ -650,37 +738,37 @@ impl PlacedViewGrantId {
     }
 }
 
-/// Provider-admitted agreement between an extent provenance and a static
-/// access policy. It is reusable; the borrow-carrying extent loan supplies the
-/// per-view lifetime and polarity. The complete canonical plan is retained:
-/// its compact identity is useful for reports and caches, but is never the sole
-/// authorization check.
+/// Provider-admitted agreement between an extent provenance and a complete
+/// static placement policy. It is reusable; the borrow-carrying extent loan
+/// supplies the per-view lifetime and polarity. The complete canonical plan is
+/// retained: its compact identity is useful for reports and caches, but is
+/// never the sole authorization check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedViewGrant {
     identity: PlacedViewGrantId,
-    access_plan: ValidatedAccessPlan,
+    placement_plan: ValidatedPlacementPlan,
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     required_rights: ExtentRights,
-    permitted_reaches: BTreeSet<BoundaryServiceReachId>,
+    permitted_reach: BoundaryReach,
 }
 
 impl PlacedViewGrant {
     pub fn from_admitted_provider(
         identity: PlacedViewGrantId,
-        access_plan: &ValidatedAccessPlan,
+        placement_plan: &ValidatedPlacementPlan,
         address_space: AddressSpaceId,
         provenance: ExtentProvenanceId,
         required_rights: ExtentRights,
-        permitted_reaches: impl IntoIterator<Item = BoundaryServiceReachId>,
+        permitted_reach: BoundaryReach,
     ) -> Self {
         Self {
             identity,
-            access_plan: access_plan.clone(),
+            placement_plan: placement_plan.clone(),
             address_space,
             provenance,
             required_rights,
-            permitted_reaches: permitted_reaches.into_iter().collect(),
+            permitted_reach,
         }
     }
 
@@ -693,7 +781,7 @@ impl PlacedViewGrant {
 #[derive(Debug)]
 pub struct PlacedView<'extent, 'plan> {
     loan: ExtentLoan<'extent>,
-    plan: &'plan ValidatedAccessPlan,
+    plan: &'plan ValidatedPlacementPlan,
     grant: PlacedViewGrantId,
 }
 
@@ -719,7 +807,7 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
             LoanPolarity::Shared => BorrowPolarity::Shared,
             LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
         };
-        let access = self.plan.authorize(key, borrow, operation)?;
+        let access = self.plan.access.authorize(key, borrow, operation)?;
         let primitive_address = self
             .loan
             .base()
@@ -734,6 +822,7 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
             access,
             primitive_address,
             plan: self.plan.identity(),
+            reach: self.plan.reach.clone(),
             grant: self.grant,
             _loan: &self.loan,
         })
@@ -746,7 +835,8 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
 pub struct PlacedFieldAccess<'view, 'extent> {
     access: AuthorizedFieldAccess,
     primitive_address: u64,
-    plan: AccessPlanId,
+    plan: PlacementPlanId,
+    reach: BoundaryReach,
     grant: PlacedViewGrantId,
     _loan: &'view ExtentLoan<'extent>,
 }
@@ -781,7 +871,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
             observation: descriptor.observation,
             borrow,
             operation,
-            service_reach: descriptor.service_reach,
+            reach: self.reach,
             _loan: self._loan,
         }
     }
@@ -794,7 +884,7 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
 /// requires it, but may not weaken the exact event recorded here.
 #[derive(Debug)]
 pub struct PrimitiveAccessRequest<'view, 'extent> {
-    plan: AccessPlanId,
+    plan: PlacementPlanId,
     grant: PlacedViewGrantId,
     primitive_address: u64,
     field: String,
@@ -802,12 +892,12 @@ pub struct PrimitiveAccessRequest<'view, 'extent> {
     observation: ObservationModel,
     borrow: BorrowPolarity,
     operation: AccessOperation,
-    service_reach: Option<BoundaryServiceReachId>,
+    reach: BoundaryReach,
     _loan: &'view ExtentLoan<'extent>,
 }
 
 impl PrimitiveAccessRequest<'_, '_> {
-    pub const fn plan(&self) -> AccessPlanId {
+    pub const fn plan(&self) -> PlacementPlanId {
         self.plan
     }
 
@@ -839,19 +929,19 @@ impl PrimitiveAccessRequest<'_, '_> {
         self.operation
     }
 
-    pub const fn service_reach(&self) -> Option<BoundaryServiceReachId> {
-        self.service_reach
+    pub const fn reach(&self) -> &BoundaryReach {
+        &self.reach
     }
 }
 
 pub fn derive_placed_view<'extent, 'plan>(
     loan: ExtentLoan<'extent>,
-    plan: &'plan ValidatedAccessPlan,
+    plan: &'plan ValidatedPlacementPlan,
     grant: &PlacedViewGrant,
 ) -> Result<PlacedView<'extent, 'plan>, AccessPlanDiagnostic> {
-    if plan != &grant.access_plan {
+    if plan != &grant.placement_plan {
         return Err(AccessPlanDiagnostic(
-            "placed-view grant does not bind the exact validated access plan".into(),
+            "placed-view grant does not bind the exact validated placement plan".into(),
         ));
     }
     if loan.address_space() != grant.address_space {
@@ -869,22 +959,17 @@ pub fn derive_placed_view<'extent, 'plan>(
             "extent lacks rights required by placed-view grant".into(),
         ));
     }
-    if loan.length() < plan.layout_size_bytes {
+    if loan.length() < plan.access.layout_size_bytes {
         return Err(AccessPlanDiagnostic(format!(
             "{}-byte placed layout exceeds {}-byte extent loan",
-            plan.layout_size_bytes,
+            plan.access.layout_size_bytes,
             loan.length()
         )));
     }
-    for field in plan.field_descriptors() {
-        if let Some(reach) = field.service_reach()
-            && !grant.permitted_reaches.contains(&reach)
-        {
-            return Err(AccessPlanDiagnostic(format!(
-                "field `{}` reaches a service not admitted for this extent provenance",
-                field.field()
-            )));
-        }
+    if !grant.permitted_reach.contains_all(&plan.reach) {
+        return Err(AccessPlanDiagnostic(
+            "placement reaches a service not admitted for this extent provenance".into(),
+        ));
     }
 
     Ok(PlacedView {
@@ -900,7 +985,6 @@ struct ValidatedEntryPolicy {
     observation: ObservationModel,
     permissions: AccessPermissions,
     exposure: AccessExposure,
-    service_reach: Option<BoundaryServiceReachId>,
 }
 
 fn validate_entry_policy(
@@ -929,7 +1013,6 @@ fn validate_entry_policy(
                     ..AccessPermissions::default()
                 },
                 exposure,
-                service_reach: None,
             }
         }
         FieldAccess::External {
@@ -937,7 +1020,6 @@ fn validate_entry_policy(
             read,
             write,
             exposure,
-            service_reach,
         } => {
             if read == ExternalRead::None && !write {
                 return Err(AccessPlanDiagnostic(format!(
@@ -955,7 +1037,6 @@ fn validate_entry_policy(
                     ..AccessPermissions::default()
                 },
                 exposure,
-                service_reach: Some(service_reach),
             }
         }
         FieldAccess::Atomic {
@@ -977,7 +1058,6 @@ fn validate_entry_policy(
                     ..AccessPermissions::default()
                 },
                 exposure,
-                service_reach: None,
             }
         }
     };
@@ -1161,6 +1241,10 @@ mod tests {
         BoundaryServiceReachId::from_normalized_identity(7).expect("normalized reach")
     }
 
+    fn uart_reach() -> BoundaryReach {
+        BoundaryReach::from_services([reach()])
+    }
+
     fn uart_layout() -> LayoutPlanReport {
         LayoutPlanReport {
             schema_identity: 1,
@@ -1228,7 +1312,6 @@ mod tests {
                         read: ExternalRead::Read,
                         write: false,
                         exposure: AccessExposure::Exported,
-                        service_reach: reach(),
                     },
                 ),
                 (
@@ -1238,7 +1321,6 @@ mod tests {
                         read: ExternalRead::None,
                         write: true,
                         exposure: AccessExposure::Exported,
-                        service_reach: reach(),
                     },
                 ),
                 (
@@ -1248,7 +1330,6 @@ mod tests {
                         read: ExternalRead::Read,
                         write: true,
                         exposure: AccessExposure::BindingPrivate,
-                        service_reach: reach(),
                     },
                 ),
             ],
@@ -1259,6 +1340,16 @@ mod tests {
         let layout = uart_layout();
         let plan = uart_access_source(&layout);
         validate_access_plan(plan, &layout).expect("UART plan")
+    }
+
+    fn uart_placement_plan() -> ValidatedPlacementPlan {
+        let layout = uart_layout();
+        validate_placement_plan(PlacementPlan {
+            access: uart_access_source(&layout),
+            layout,
+            reach: uart_reach(),
+        })
+        .expect("UART placement plan")
     }
 
     #[test]
@@ -1342,7 +1433,7 @@ mod tests {
     }
 
     #[test]
-    fn normalized_identity_covers_operation_width_exposure_and_reach() {
+    fn access_identity_covers_operation_width_and_exposure() {
         let layout = LayoutPlanReport {
             schema_identity: 1,
             entries: vec![LayoutFieldEntryReport {
@@ -1390,7 +1481,6 @@ mod tests {
             read: ExternalRead::Read,
             write: false,
             exposure: AccessExposure::Exported,
-            service_reach: reach(),
         };
 
         let identities = [
@@ -1411,7 +1501,34 @@ mod tests {
     }
 
     #[test]
-    fn uart_access_plan_validates_geometry_reach_and_borrow_polarity() {
+    fn placement_identity_owns_normalized_reach() {
+        let layout = uart_layout();
+        let access = uart_access_source(&layout);
+        let uart = validate_placement_plan(PlacementPlan {
+            layout: layout.clone(),
+            access: access.clone(),
+            reach: BoundaryReach::from_services([reach(), reach()]),
+        })
+        .expect("UART placement");
+        let alternate_reach =
+            BoundaryServiceReachId::from_normalized_identity(8).expect("alternate reach");
+        let alternate = validate_placement_plan(PlacementPlan {
+            layout,
+            access,
+            reach: BoundaryReach::from_services([alternate_reach]),
+        })
+        .expect("alternate placement reach");
+        assert_eq!(
+            uart.reach().services().len(),
+            1,
+            "reach is a normalized set"
+        );
+        assert_eq!(uart.access().identity(), alternate.access().identity());
+        assert_ne!(uart.identity(), alternate.identity());
+    }
+
+    #[test]
+    fn uart_access_plan_validates_geometry_and_borrow_polarity() {
         let plan = uart_access_plan();
 
         let status = plan
@@ -1428,7 +1545,6 @@ mod tests {
             status.descriptor().observation(),
             ObservationModel::External
         );
-        assert_eq!(status.descriptor().service_reach(), Some(reach()));
         assert_eq!(status.borrow(), BorrowPolarity::Shared);
         assert_eq!(status.operation(), AccessOperation::Read);
         assert_eq!(plan.field_descriptors().len(), 3);
@@ -1536,7 +1652,6 @@ mod tests {
                         read: ExternalRead::Take,
                         write: false,
                         exposure: AccessExposure::Exported,
-                        service_reach: reach(),
                     },
                 )],
             ),
@@ -1580,7 +1695,6 @@ mod tests {
                         read: ExternalRead::Read,
                         write: true,
                         exposure: AccessExposure::Exported,
-                        service_reach: reach(),
                     },
                 )],
             ),
@@ -1612,7 +1726,6 @@ mod tests {
                 read: ExternalRead::None,
                 write: false,
                 exposure: AccessExposure::Exported,
-                service_reach: reach(),
             },
             FieldAccess::Atomic {
                 transfer_width_bits: 32,
@@ -1716,20 +1829,26 @@ mod tests {
             .is_err()
         );
 
+        let placement = validate_placement_plan(PlacementPlan {
+            layout: layout.clone(),
+            access: plan.plan().clone(),
+            reach: BoundaryReach::default(),
+        })
+        .expect("atomic placement plan");
         let grant = PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(10).expect("atomic view grant"),
-            &plan,
+            &placement,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
-            [],
+            BoundaryReach::default(),
         );
         let extent = uart_extent(0x2000, 4);
         let loan = extent.loan(0, 4).expect("shared atomic loan");
-        let view = derive_placed_view(loan, &plan, &grant).expect("admitted atomic view");
+        let view = derive_placed_view(loan, &placement, &grant).expect("admitted atomic view");
         let request = view
             .authorize(
-                field_key(&plan, "head"),
+                field_key(placement.access(), "head"),
                 AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
                     success: MemoryOrdering::AcqRel,
                     failure: MemoryOrdering::Acquire,
@@ -1737,7 +1856,7 @@ mod tests {
             )
             .expect("authorized compare-exchange")
             .into_primitive_request();
-        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(request.plan(), placement.identity());
         assert_eq!(request.grant(), grant.identity());
         assert_eq!(request.primitive_address(), 0x2000);
         assert_eq!(request.field(), "head");
@@ -1751,7 +1870,7 @@ mod tests {
                 failure: MemoryOrdering::Acquire,
             })
         );
-        assert_eq!(request.service_reach(), None);
+        assert_eq!(request.reach(), &BoundaryReach::default());
     }
 
     #[test]
@@ -1870,20 +1989,20 @@ mod tests {
         .expect("UART extent")
     }
 
-    fn uart_view_grant(plan: &ValidatedAccessPlan) -> PlacedViewGrant {
+    fn uart_view_grant(plan: &ValidatedPlacementPlan) -> PlacedViewGrant {
         PlacedViewGrant::from_admitted_provider(
             PlacedViewGrantId::from_normalized_identity(8).expect("view grant"),
             plan,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
-            [reach()],
+            uart_reach(),
         )
     }
 
     #[test]
     fn placed_view_derives_access_from_extent_provenance_and_actual_borrow() {
-        let plan = uart_access_plan();
+        let plan = uart_placement_plan();
         let grant = uart_view_grant(&plan);
 
         let mut shared_extent = uart_extent(0x1000, 64);
@@ -1891,13 +2010,13 @@ mod tests {
         let shared_view =
             derive_placed_view(shared_loan, &plan, &grant).expect("admitted shared view");
         let status = shared_view
-            .authorize(field_key(&plan, "status"), AccessOperation::Read)
+            .authorize(field_key(plan.access(), "status"), AccessOperation::Read)
             .expect("shared read");
         assert_eq!(status.primitive_address(), 0x1000);
         assert_eq!(status.access().borrow(), BorrowPolarity::Shared);
         assert!(
             shared_view
-                .authorize(field_key(&plan, "transmit"), AccessOperation::Write)
+                .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write,)
                 .is_err()
         );
         let request = status.into_primitive_request();
@@ -1909,14 +2028,14 @@ mod tests {
         assert_eq!(request.observation(), ObservationModel::External);
         assert_eq!(request.borrow(), BorrowPolarity::Shared);
         assert_eq!(request.operation(), AccessOperation::Read);
-        assert_eq!(request.service_reach(), Some(reach()));
+        assert!(request.reach().contains(reach()));
         drop(shared_view);
 
         let exclusive_loan = shared_extent.loan_mut(4, 12).expect("exclusive UART loan");
         let exclusive_view =
             derive_placed_view(exclusive_loan, &plan, &grant).expect("admitted exclusive view");
         let transmit = exclusive_view
-            .authorize(field_key(&plan, "transmit"), AccessOperation::Write)
+            .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write)
             .expect("exclusive write");
         assert_eq!(transmit.primitive_address(), 0x1008);
         assert_eq!(transmit.access().borrow(), BorrowPolarity::Exclusive);
@@ -1924,7 +2043,7 @@ mod tests {
 
     #[test]
     fn placed_view_rejects_unqualified_extent_or_unadmitted_reach() {
-        let plan = uart_access_plan();
+        let plan = uart_placement_plan();
         let grant = uart_view_grant(&plan);
         let short = uart_extent(0x1000, 8);
         let short_loan = short.loan(0, 8).expect("short loan");
@@ -1940,7 +2059,7 @@ mod tests {
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
             extent_rights(&[3]),
-            [],
+            BoundaryReach::default(),
         );
         let error = derive_placed_view(loan, &plan, &wrong_reach)
             .expect_err("service reach must agree with provenance grant");
@@ -1949,7 +2068,7 @@ mod tests {
 
     #[test]
     fn access_identity_and_grant_bind_exact_layout_geometry() {
-        let plan = uart_access_plan();
+        let plan = uart_placement_plan();
         let mut alternate_layout = uart_layout();
         alternate_layout
             .entries
@@ -1958,16 +2077,20 @@ mod tests {
             .expect("status layout entry")
             .placement = LayoutPlacementReport::At { offset: 12 };
         alternate_layout.size = Some(16);
-        let error = validate_access_plan(plan.plan().clone(), &alternate_layout)
+        let error = validate_access_plan(plan.access().plan().clone(), &alternate_layout)
             .expect_err("plan keys bind their exact layout");
         assert!(error.0.contains("different validated layout"));
-        let alternate =
-            validate_access_plan(uart_access_source(&alternate_layout), &alternate_layout)
-                .expect("fresh plan over non-overlapping alternate geometry");
+        let alternate = validate_placement_plan(PlacementPlan {
+            access: uart_access_source(&alternate_layout),
+            layout: alternate_layout,
+            reach: uart_reach(),
+        })
+        .expect("fresh plan over non-overlapping alternate geometry");
+        assert_ne!(plan.access().identity(), alternate.access().identity());
         assert_ne!(plan.identity(), alternate.identity());
         assert_ne!(
-            plan.layout_fingerprint(),
-            alternate.layout_fingerprint(),
+            plan.access().layout_fingerprint(),
+            alternate.access().layout_fingerprint(),
             "layout geometry is part of access-policy identity"
         );
 
@@ -1976,6 +2099,6 @@ mod tests {
         let loan = extent.loan(0, 16).expect("alternate-layout loan");
         let error = derive_placed_view(loan, &alternate, &grant)
             .expect_err("grant for one geometry cannot authorize another");
-        assert!(error.0.contains("exact validated access plan"));
+        assert!(error.0.contains("exact validated placement plan"));
     }
 }

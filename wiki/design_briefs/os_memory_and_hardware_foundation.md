@@ -608,9 +608,11 @@ already validates normalized field geometry, exact widths, operation and
 observation compatibility, borrow polarity, atomic orderings, exact loan facts,
 and sealed lowering requests. It now normalizes to one inaccessible-defaulted
 slot per schema field, binds opaque field keys to the exact layout, and keeps
-destructive external reads distinct from ordinary reads. Its current per-entry
-reach and reusable placed-view grant are bootstrap representations to migrate,
-not the target source contract above. Exposure uses the settled
+destructive external reads distinct from ordinary reads. A normalized
+`PlacementPlan` now owns the complete layout/access pairing and its one
+normalized boundary reach; grants admit that reach once and lowering requests
+retain it. The reusable placed-view grant remains a bootstrap representation to
+migrate, not the target source contract above. Exposure uses the settled
 `Exported | BindingPrivate` vocabulary; stable compound mutation is derived,
 external compound mutation is unavailable, and atomic permissions distinguish
 the exact operation families. `TASKS.md` owns the remaining migration and
