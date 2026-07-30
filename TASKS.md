@@ -280,14 +280,14 @@ establishment from raw bytes reject.
 - Add build-time `Placement::plan(schema)` and
   `Access::plan(schema, validated_layout)` evaluation. Construct each access
   plan from an all-inaccessible seed using compiler-issued schema field keys.
-- Migrate the normalized Rust model from reusable placed-view grants to an
-  admission token owning the exact Extent loan. The normalized model now starts
-  from exact canonical schema cardinality with inaccessible defaults and
-  layout-bound field keys, and `PlacementPlan` owns the one normalized boundary
-  reach for its complete layout/access pairing. Exposure uses the settled
-  `Exported | BindingPrivate` vocabulary; stable compound mutation is derived
-  from read+write and exclusivity, destructive external reads remain distinct,
-  external compound mutation is unavailable, and atomic permissions name exact
+- The normalized Rust model now starts from exact canonical schema cardinality
+  with inaccessible defaults and layout-bound field keys. `PlacementPlan` owns
+  one normalized boundary reach for its complete layout/access pairing.
+  Admission consumes and owns the exact Extent loan, and rejection returns that
+  loan. Exposure uses the settled `Exported | BindingPrivate` vocabulary;
+  stable compound mutation is derived from read+write plus exclusive current
+  and source borrows, destructive external reads remain distinct, external
+  compound mutation is unavailable, and atomic permissions name exact
   operation families.
 - Implement offset-keyed admitted resource profiles, profile restriction on
   subrange loans, consumer-demand/provider-supply compatibility, and the

@@ -341,7 +341,8 @@ impl FieldAccessDescriptor {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthorizedFieldAccess {
     descriptor: FieldAccessDescriptor,
-    borrow: BorrowPolarity,
+    current_borrow: BorrowPolarity,
+    source_loan: BorrowPolarity,
     operation: AccessOperation,
 }
 
@@ -350,8 +351,12 @@ impl AuthorizedFieldAccess {
         &self.descriptor
     }
 
-    pub const fn borrow(&self) -> BorrowPolarity {
-        self.borrow
+    pub const fn current_borrow(&self) -> BorrowPolarity {
+        self.current_borrow
+    }
+
+    pub const fn source_loan(&self) -> BorrowPolarity {
+        self.source_loan
     }
 
     pub const fn operation(&self) -> AccessOperation {
@@ -403,7 +408,8 @@ impl ValidatedAccessPlan {
     pub fn authorize(
         &self,
         key: AccessFieldKey,
-        borrow: BorrowPolarity,
+        current_borrow: BorrowPolarity,
+        source_loan: BorrowPolarity,
         operation: AccessOperation,
     ) -> Result<AuthorizedFieldAccess, AccessPlanDiagnostic> {
         let entry = self.field(key).ok_or_else(|| {
@@ -412,10 +418,11 @@ impl ValidatedAccessPlan {
         let descriptor = self.field_descriptor(key).ok_or_else(|| {
             AccessPlanDiagnostic(format!("field `{}` is inaccessible", entry.field))
         })?;
-        authorize_descriptor(descriptor, borrow, operation)?;
+        authorize_descriptor(descriptor, current_borrow, source_loan, operation)?;
         Ok(AuthorizedFieldAccess {
             descriptor: descriptor.clone(),
-            borrow,
+            current_borrow,
+            source_loan,
             operation,
         })
     }
@@ -721,13 +728,13 @@ fn hash_byte(hash: &mut u64, byte: u8) {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlacedViewGrantId(u64);
+pub struct PlacementAdmissionId(u64);
 
-impl PlacedViewGrantId {
+impl PlacementAdmissionId {
     pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
         if identity == 0 {
             return Err(AccessPlanDiagnostic(
-                "placed-view grant identity cannot be zero".into(),
+                "placement-admission identity cannot be zero".into(),
             ));
         }
         Ok(Self(identity))
@@ -738,56 +745,48 @@ impl PlacedViewGrantId {
     }
 }
 
-/// Provider-admitted agreement between an extent provenance and a complete
-/// static placement policy. It is reusable; the borrow-carrying extent loan
-/// supplies the per-view lifetime and polarity. The complete canonical plan is
-/// retained: its compact identity is useful for reports and caches, but is
-/// never the sole authorization check.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlacedViewGrant {
-    identity: PlacedViewGrantId,
+/// One accepted placement that owns the exact extent loan checked by the
+/// provider. It cannot be reused to admit another range or another loan.
+#[derive(Debug)]
+pub struct PlacementAdmission<'extent> {
+    identity: PlacementAdmissionId,
     placement_plan: ValidatedPlacementPlan,
-    address_space: AddressSpaceId,
-    provenance: ExtentProvenanceId,
-    required_rights: ExtentRights,
-    permitted_reach: BoundaryReach,
+    loan: ExtentLoan<'extent>,
 }
 
-impl PlacedViewGrant {
-    pub fn from_admitted_provider(
-        identity: PlacedViewGrantId,
-        placement_plan: &ValidatedPlacementPlan,
-        address_space: AddressSpaceId,
-        provenance: ExtentProvenanceId,
-        required_rights: ExtentRights,
-        permitted_reach: BoundaryReach,
-    ) -> Self {
-        Self {
-            identity,
-            placement_plan: placement_plan.clone(),
-            address_space,
-            provenance,
-            required_rights,
-            permitted_reach,
-        }
+impl PlacementAdmission<'_> {
+    pub const fn identity(&self) -> PlacementAdmissionId {
+        self.identity
+    }
+}
+
+#[derive(Debug)]
+pub struct PlacementRejection<'extent> {
+    loan: ExtentLoan<'extent>,
+    diagnostic: AccessPlanDiagnostic,
+}
+
+impl<'extent> PlacementRejection<'extent> {
+    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
+        &self.diagnostic
     }
 
-    pub const fn identity(&self) -> PlacedViewGrantId {
-        self.identity
+    pub fn into_parts(self) -> (ExtentLoan<'extent>, AccessPlanDiagnostic) {
+        (self.loan, self.diagnostic)
     }
 }
 
 /// A plan-qualified interpretation of one borrowed concrete range.
 #[derive(Debug)]
-pub struct PlacedView<'extent, 'plan> {
+pub struct PlacedView<'extent> {
     loan: ExtentLoan<'extent>,
-    plan: &'plan ValidatedPlacementPlan,
-    grant: PlacedViewGrantId,
+    plan: ValidatedPlacementPlan,
+    admission: PlacementAdmissionId,
 }
 
-impl<'extent, 'plan> PlacedView<'extent, 'plan> {
-    pub const fn grant(&self) -> PlacedViewGrantId {
-        self.grant
+impl<'extent> PlacedView<'extent> {
+    pub const fn admission(&self) -> PlacementAdmissionId {
+        self.admission
     }
 
     pub const fn base(&self) -> u64 {
@@ -803,11 +802,31 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
         key: AccessFieldKey,
         operation: AccessOperation,
     ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
-        let borrow = match self.loan.polarity() {
+        self.authorize_with(key, BorrowPolarity::Shared, operation)
+    }
+
+    pub fn authorize_mut<'view>(
+        &'view mut self,
+        key: AccessFieldKey,
+        operation: AccessOperation,
+    ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
+        self.authorize_with(key, BorrowPolarity::Exclusive, operation)
+    }
+
+    fn authorize_with<'view>(
+        &'view self,
+        key: AccessFieldKey,
+        current_borrow: BorrowPolarity,
+        operation: AccessOperation,
+    ) -> Result<PlacedFieldAccess<'view, 'extent>, AccessPlanDiagnostic> {
+        let source_loan = match self.loan.polarity() {
             LoanPolarity::Shared => BorrowPolarity::Shared,
             LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
         };
-        let access = self.plan.access.authorize(key, borrow, operation)?;
+        let access = self
+            .plan
+            .access
+            .authorize(key, current_borrow, source_loan, operation)?;
         let primitive_address = self
             .loan
             .base()
@@ -823,7 +842,7 @@ impl<'extent, 'plan> PlacedView<'extent, 'plan> {
             primitive_address,
             plan: self.plan.identity(),
             reach: self.plan.reach.clone(),
-            grant: self.grant,
+            admission: self.admission,
             _loan: &self.loan,
         })
     }
@@ -837,7 +856,7 @@ pub struct PlacedFieldAccess<'view, 'extent> {
     primitive_address: u64,
     plan: PlacementPlanId,
     reach: BoundaryReach,
-    grant: PlacedViewGrantId,
+    admission: PlacementAdmissionId,
     _loan: &'view ExtentLoan<'extent>,
 }
 
@@ -853,23 +872,26 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
     /// Consume one authorized access event into the only request primitive
     /// lowering accepts.
     ///
-    /// The request remains bound to the normalized plan, admitted grant,
-    /// exact address, width, observation model, operation ordering, and static
-    /// service reach that produced it. It contains no author-supplied offset.
+    /// The request remains bound to the normalized plan, exact admission and
+    /// source loan, address, width, observation model, operation ordering, and
+    /// static service reach that produced it. It contains no author-supplied
+    /// offset.
     pub fn into_primitive_request(self) -> PrimitiveAccessRequest<'view, 'extent> {
         let AuthorizedFieldAccess {
             descriptor,
-            borrow,
+            current_borrow,
+            source_loan,
             operation,
         } = self.access;
         PrimitiveAccessRequest {
             plan: self.plan,
-            grant: self.grant,
+            admission: self.admission,
             primitive_address: self.primitive_address,
             field: descriptor.field,
             transfer_width_bits: descriptor.transfer_width_bits,
             observation: descriptor.observation,
-            borrow,
+            current_borrow,
+            source_loan,
             operation,
             reach: self.reach,
             _loan: self._loan,
@@ -885,12 +907,13 @@ impl<'view, 'extent> PlacedFieldAccess<'view, 'extent> {
 #[derive(Debug)]
 pub struct PrimitiveAccessRequest<'view, 'extent> {
     plan: PlacementPlanId,
-    grant: PlacedViewGrantId,
+    admission: PlacementAdmissionId,
     primitive_address: u64,
     field: String,
     transfer_width_bits: u16,
     observation: ObservationModel,
-    borrow: BorrowPolarity,
+    current_borrow: BorrowPolarity,
+    source_loan: BorrowPolarity,
     operation: AccessOperation,
     reach: BoundaryReach,
     _loan: &'view ExtentLoan<'extent>,
@@ -901,8 +924,8 @@ impl PrimitiveAccessRequest<'_, '_> {
         self.plan
     }
 
-    pub const fn grant(&self) -> PlacedViewGrantId {
-        self.grant
+    pub const fn admission(&self) -> PlacementAdmissionId {
+        self.admission
     }
 
     pub const fn primitive_address(&self) -> u64 {
@@ -921,8 +944,12 @@ impl PrimitiveAccessRequest<'_, '_> {
         self.observation
     }
 
-    pub const fn borrow(&self) -> BorrowPolarity {
-        self.borrow
+    pub const fn current_borrow(&self) -> BorrowPolarity {
+        self.current_borrow
+    }
+
+    pub const fn source_loan(&self) -> BorrowPolarity {
+        self.source_loan
     }
 
     pub const fn operation(&self) -> AccessOperation {
@@ -934,29 +961,54 @@ impl PrimitiveAccessRequest<'_, '_> {
     }
 }
 
-pub fn derive_placed_view<'extent, 'plan>(
+pub fn admit_placement<'extent>(
+    identity: PlacementAdmissionId,
     loan: ExtentLoan<'extent>,
-    plan: &'plan ValidatedPlacementPlan,
-    grant: &PlacedViewGrant,
-) -> Result<PlacedView<'extent, 'plan>, AccessPlanDiagnostic> {
-    if plan != &grant.placement_plan {
+    plan: &ValidatedPlacementPlan,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    required_rights: &ExtentRights,
+    permitted_reach: &BoundaryReach,
+) -> Result<PlacementAdmission<'extent>, PlacementRejection<'extent>> {
+    let validation = validate_placement_admission(
+        &loan,
+        plan,
+        address_space,
+        provenance,
+        required_rights,
+        permitted_reach,
+    );
+    match validation {
+        Ok(()) => Ok(PlacementAdmission {
+            identity,
+            placement_plan: plan.clone(),
+            loan,
+        }),
+        Err(diagnostic) => Err(PlacementRejection { loan, diagnostic }),
+    }
+}
+
+fn validate_placement_admission(
+    loan: &ExtentLoan<'_>,
+    plan: &ValidatedPlacementPlan,
+    address_space: AddressSpaceId,
+    provenance: ExtentProvenanceId,
+    required_rights: &ExtentRights,
+    permitted_reach: &BoundaryReach,
+) -> Result<(), AccessPlanDiagnostic> {
+    if loan.address_space() != address_space {
         return Err(AccessPlanDiagnostic(
-            "placed-view grant does not bind the exact validated placement plan".into(),
+            "extent address space does not match placement admission".into(),
         ));
     }
-    if loan.address_space() != grant.address_space {
+    if loan.provenance() != provenance {
         return Err(AccessPlanDiagnostic(
-            "extent address space does not match placed-view grant".into(),
+            "extent provenance does not match placement admission".into(),
         ));
     }
-    if loan.provenance() != grant.provenance {
+    if !loan.rights().contains(required_rights) {
         return Err(AccessPlanDiagnostic(
-            "extent provenance does not match placed-view grant".into(),
-        ));
-    }
-    if !loan.rights().contains(&grant.required_rights) {
-        return Err(AccessPlanDiagnostic(
-            "extent lacks rights required by placed-view grant".into(),
+            "extent lacks rights required by placement admission".into(),
         ));
     }
     if loan.length() < plan.access.layout_size_bytes {
@@ -966,17 +1018,20 @@ pub fn derive_placed_view<'extent, 'plan>(
             loan.length()
         )));
     }
-    if !grant.permitted_reach.contains_all(&plan.reach) {
+    if !permitted_reach.contains_all(&plan.reach) {
         return Err(AccessPlanDiagnostic(
             "placement reaches a service not admitted for this extent provenance".into(),
         ));
     }
+    Ok(())
+}
 
-    Ok(PlacedView {
-        loan,
-        plan,
-        grant: grant.identity,
-    })
+pub fn place<'extent>(admission: PlacementAdmission<'extent>) -> PlacedView<'extent> {
+    PlacedView {
+        loan: admission.loan,
+        plan: admission.placement_plan,
+        admission: admission.identity,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1156,21 +1211,29 @@ fn validate_transfer_range(
 
 fn authorize_descriptor(
     descriptor: &FieldAccessDescriptor,
-    borrow: BorrowPolarity,
+    current_borrow: BorrowPolarity,
+    source_loan: BorrowPolarity,
     operation: AccessOperation,
 ) -> Result<(), AccessPlanDiagnostic> {
     validate_operation_ordering(operation)?;
     let permitted = match operation {
         AccessOperation::Read => descriptor.permissions.read,
-        AccessOperation::Take => descriptor.permissions.take && borrow == BorrowPolarity::Exclusive,
+        AccessOperation::Take => {
+            descriptor.permissions.take
+                && current_borrow == BorrowPolarity::Exclusive
+                && source_loan == BorrowPolarity::Exclusive
+        }
         AccessOperation::Write => {
-            descriptor.permissions.write && borrow == BorrowPolarity::Exclusive
+            descriptor.permissions.write
+                && current_borrow == BorrowPolarity::Exclusive
+                && source_loan == BorrowPolarity::Exclusive
         }
         AccessOperation::CompoundMutation => {
             descriptor.observation == ObservationModel::Stable
                 && descriptor.permissions.read
                 && descriptor.permissions.write
-                && borrow == BorrowPolarity::Exclusive
+                && current_borrow == BorrowPolarity::Exclusive
+                && source_loan == BorrowPolarity::Exclusive
         }
         AccessOperation::Atomic(AtomicAccessOperation::Load(_)) => {
             descriptor.permissions.atomic.load
@@ -1204,8 +1267,8 @@ fn authorize_descriptor(
         Ok(())
     } else {
         Err(AccessPlanDiagnostic(format!(
-            "field `{}` does not permit {operation:?} through a {borrow:?} borrow",
-            descriptor.field
+            "field `{}` does not permit {operation:?} through a {current_borrow:?} current borrow over a {source_loan:?} source loan",
+            descriptor.field,
         )))
     }
 }
@@ -1376,6 +1439,7 @@ mod tests {
                 .authorize(
                     field_key(&validated, "status"),
                     BorrowPolarity::Shared,
+                    BorrowPolarity::Shared,
                     AccessOperation::Read,
                 )
                 .is_err()
@@ -1535,6 +1599,7 @@ mod tests {
             .authorize(
                 field_key(&plan, "status"),
                 BorrowPolarity::Shared,
+                BorrowPolarity::Shared,
                 AccessOperation::Read,
             )
             .expect("shared snapshot read");
@@ -1545,7 +1610,8 @@ mod tests {
             status.descriptor().observation(),
             ObservationModel::External
         );
-        assert_eq!(status.borrow(), BorrowPolarity::Shared);
+        assert_eq!(status.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(status.source_loan(), BorrowPolarity::Shared);
         assert_eq!(status.operation(), AccessOperation::Read);
         assert_eq!(plan.field_descriptors().len(), 3);
         assert_eq!(
@@ -1558,6 +1624,7 @@ mod tests {
             plan.authorize(
                 field_key(&plan, "transmit"),
                 BorrowPolarity::Shared,
+                BorrowPolarity::Exclusive,
                 AccessOperation::Write,
             )
             .is_err()
@@ -1565,12 +1632,14 @@ mod tests {
         plan.authorize(
             field_key(&plan, "transmit"),
             BorrowPolarity::Exclusive,
+            BorrowPolarity::Exclusive,
             AccessOperation::Write,
         )
         .expect("exclusive whole write");
         assert!(
             plan.authorize(
                 field_key(&plan, "control"),
+                BorrowPolarity::Exclusive,
                 BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
@@ -1601,6 +1670,7 @@ mod tests {
         plan.authorize(
             field_key(&plan, "status"),
             BorrowPolarity::Exclusive,
+            BorrowPolarity::Exclusive,
             AccessOperation::CompoundMutation,
         )
         .expect("exclusive stable read-write access derives compound mutation");
@@ -1608,9 +1678,20 @@ mod tests {
             plan.authorize(
                 field_key(&plan, "status"),
                 BorrowPolarity::Shared,
+                BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
             .is_err()
+        );
+        assert!(
+            plan.authorize(
+                field_key(&plan, "status"),
+                BorrowPolarity::Exclusive,
+                BorrowPolarity::Shared,
+                AccessOperation::CompoundMutation,
+            )
+            .is_err(),
+            "an exclusive current borrow cannot upgrade a shared source loan"
         );
 
         let plan = validate_access_plan(
@@ -1632,6 +1713,7 @@ mod tests {
         assert!(
             plan.authorize(
                 field_key(&plan, "status"),
+                BorrowPolarity::Exclusive,
                 BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
@@ -1662,6 +1744,7 @@ mod tests {
             plan.authorize(
                 field_key(&plan, "status"),
                 BorrowPolarity::Shared,
+                BorrowPolarity::Exclusive,
                 AccessOperation::Read,
             )
             .is_err()
@@ -1670,12 +1753,14 @@ mod tests {
             plan.authorize(
                 field_key(&plan, "status"),
                 BorrowPolarity::Shared,
+                BorrowPolarity::Exclusive,
                 AccessOperation::Take,
             )
             .is_err()
         );
         plan.authorize(
             field_key(&plan, "status"),
+            BorrowPolarity::Exclusive,
             BorrowPolarity::Exclusive,
             AccessOperation::Take,
         )
@@ -1704,6 +1789,7 @@ mod tests {
         let error = plan
             .authorize(
                 field_key(&plan, "status"),
+                BorrowPolarity::Exclusive,
                 BorrowPolarity::Exclusive,
                 AccessOperation::CompoundMutation,
             )
@@ -1793,10 +1879,16 @@ mod tests {
         );
 
         let store = AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Release));
-        plan.authorize(field_key(&plan, "head"), BorrowPolarity::Shared, store)
-            .expect("shared mutation is explicitly atomic");
         plan.authorize(
             field_key(&plan, "head"),
+            BorrowPolarity::Shared,
+            BorrowPolarity::Shared,
+            store,
+        )
+        .expect("shared mutation is explicitly atomic");
+        plan.authorize(
+            field_key(&plan, "head"),
+            BorrowPolarity::Shared,
             BorrowPolarity::Shared,
             AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(MemoryOrdering::AcqRel)),
         )
@@ -1804,6 +1896,7 @@ mod tests {
         assert!(
             plan.authorize(
                 field_key(&plan, "head"),
+                BorrowPolarity::Shared,
                 BorrowPolarity::Shared,
                 AccessOperation::Atomic(AtomicAccessOperation::FetchSub(MemoryOrdering::AcqRel)),
             )
@@ -1816,6 +1909,7 @@ mod tests {
             .authorize(
                 field_key(&plan, "head"),
                 BorrowPolarity::Shared,
+                BorrowPolarity::Shared,
                 invalid_load,
             )
             .expect_err("release cannot order an atomic load");
@@ -1823,6 +1917,7 @@ mod tests {
         assert!(
             plan.authorize(
                 field_key(&plan, "head"),
+                BorrowPolarity::Exclusive,
                 BorrowPolarity::Exclusive,
                 AccessOperation::Write,
             )
@@ -1835,17 +1930,22 @@ mod tests {
             reach: BoundaryReach::default(),
         })
         .expect("atomic placement plan");
-        let grant = PlacedViewGrant::from_admitted_provider(
-            PlacedViewGrantId::from_normalized_identity(10).expect("atomic view grant"),
+        let extent = uart_extent(0x2000, 4);
+        let loan = extent.loan(0, 4).expect("shared atomic loan");
+        let required_rights = extent_rights(&[3]);
+        let admission_id =
+            PlacementAdmissionId::from_normalized_identity(10).expect("atomic admission");
+        let admission = admit_placement(
+            admission_id,
+            loan,
             &placement,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_rights(&[3]),
-            BoundaryReach::default(),
-        );
-        let extent = uart_extent(0x2000, 4);
-        let loan = extent.loan(0, 4).expect("shared atomic loan");
-        let view = derive_placed_view(loan, &placement, &grant).expect("admitted atomic view");
+            &required_rights,
+            &BoundaryReach::default(),
+        )
+        .expect("admitted atomic placement");
+        let view = place(admission);
         let request = view
             .authorize(
                 field_key(placement.access(), "head"),
@@ -1857,12 +1957,13 @@ mod tests {
             .expect("authorized compare-exchange")
             .into_primitive_request();
         assert_eq!(request.plan(), placement.identity());
-        assert_eq!(request.grant(), grant.identity());
+        assert_eq!(request.admission(), admission_id);
         assert_eq!(request.primitive_address(), 0x2000);
         assert_eq!(request.field(), "head");
         assert_eq!(request.transfer_width_bits(), 32);
         assert_eq!(request.observation(), ObservationModel::Atomic);
-        assert_eq!(request.borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
         assert_eq!(
             request.operation(),
             AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
@@ -1989,85 +2090,112 @@ mod tests {
         .expect("UART extent")
     }
 
-    fn uart_view_grant(plan: &ValidatedPlacementPlan) -> PlacedViewGrant {
-        PlacedViewGrant::from_admitted_provider(
-            PlacedViewGrantId::from_normalized_identity(8).expect("view grant"),
+    fn admit_uart<'extent>(
+        identity: u64,
+        loan: ExtentLoan<'extent>,
+        plan: &ValidatedPlacementPlan,
+        permitted_reach: &BoundaryReach,
+    ) -> Result<PlacementAdmission<'extent>, PlacementRejection<'extent>> {
+        admit_placement(
+            PlacementAdmissionId::from_normalized_identity(identity).expect("placement admission"),
+            loan,
             plan,
             extent_id(2, AddressSpaceId::from_normalized_identity),
             extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_rights(&[3]),
-            uart_reach(),
+            &extent_rights(&[3]),
+            permitted_reach,
         )
     }
 
     #[test]
     fn placed_view_derives_access_from_extent_provenance_and_actual_borrow() {
         let plan = uart_placement_plan();
-        let grant = uart_view_grant(&plan);
 
         let mut shared_extent = uart_extent(0x1000, 64);
         let shared_loan = shared_extent.loan(0, 12).expect("shared UART loan");
-        let shared_view =
-            derive_placed_view(shared_loan, &plan, &grant).expect("admitted shared view");
+        let admission =
+            admit_uart(8, shared_loan, &plan, &uart_reach()).expect("admitted shared view");
+        let mut shared_view = place(admission);
         let status = shared_view
             .authorize(field_key(plan.access(), "status"), AccessOperation::Read)
             .expect("shared read");
         assert_eq!(status.primitive_address(), 0x1000);
-        assert_eq!(status.access().borrow(), BorrowPolarity::Shared);
+        assert_eq!(status.access().current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(status.access().source_loan(), BorrowPolarity::Shared);
+        let request = status.into_primitive_request();
+        assert_eq!(request.plan(), plan.identity());
+        assert_eq!(
+            request.admission(),
+            PlacementAdmissionId::from_normalized_identity(8).expect("admission")
+        );
+        assert_eq!(request.primitive_address(), 0x1000);
+        assert_eq!(request.field(), "status");
+        assert_eq!(request.transfer_width_bits(), 32);
+        assert_eq!(request.observation(), ObservationModel::External);
+        assert_eq!(request.current_borrow(), BorrowPolarity::Shared);
+        assert_eq!(request.source_loan(), BorrowPolarity::Shared);
+        assert_eq!(request.operation(), AccessOperation::Read);
+        assert!(request.reach().contains(reach()));
+        drop(request);
         assert!(
             shared_view
                 .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write,)
                 .is_err()
         );
-        let request = status.into_primitive_request();
-        assert_eq!(request.plan(), plan.identity());
-        assert_eq!(request.grant(), grant.identity());
-        assert_eq!(request.primitive_address(), 0x1000);
-        assert_eq!(request.field(), "status");
-        assert_eq!(request.transfer_width_bits(), 32);
-        assert_eq!(request.observation(), ObservationModel::External);
-        assert_eq!(request.borrow(), BorrowPolarity::Shared);
-        assert_eq!(request.operation(), AccessOperation::Read);
-        assert!(request.reach().contains(reach()));
+        assert!(
+            shared_view
+                .authorize_mut(field_key(plan.access(), "transmit"), AccessOperation::Write,)
+                .is_err(),
+            "exclusive reborrow cannot upgrade a shared source loan"
+        );
         drop(shared_view);
 
         let exclusive_loan = shared_extent.loan_mut(4, 12).expect("exclusive UART loan");
-        let exclusive_view =
-            derive_placed_view(exclusive_loan, &plan, &grant).expect("admitted exclusive view");
+        let admission =
+            admit_uart(9, exclusive_loan, &plan, &uart_reach()).expect("admitted exclusive view");
+        let mut exclusive_view = place(admission);
+        assert!(
+            exclusive_view
+                .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write,)
+                .is_err(),
+            "ordinary write requires an exclusive current view borrow"
+        );
         let transmit = exclusive_view
-            .authorize(field_key(plan.access(), "transmit"), AccessOperation::Write)
+            .authorize_mut(field_key(plan.access(), "transmit"), AccessOperation::Write)
             .expect("exclusive write");
         assert_eq!(transmit.primitive_address(), 0x1008);
-        assert_eq!(transmit.access().borrow(), BorrowPolarity::Exclusive);
+        assert_eq!(
+            transmit.access().current_borrow(),
+            BorrowPolarity::Exclusive
+        );
+        assert_eq!(transmit.access().source_loan(), BorrowPolarity::Exclusive);
     }
 
     #[test]
     fn placed_view_rejects_unqualified_extent_or_unadmitted_reach() {
         let plan = uart_placement_plan();
-        let grant = uart_view_grant(&plan);
         let short = uart_extent(0x1000, 8);
         let short_loan = short.loan(0, 8).expect("short loan");
-        let error =
-            derive_placed_view(short_loan, &plan, &grant).expect_err("layout must fit extent loan");
-        assert!(error.0.contains("exceeds"));
+        let rejection = admit_uart(8, short_loan, &plan, &uart_reach())
+            .expect_err("layout must fit extent loan");
+        assert!(rejection.diagnostic().0.contains("exceeds"));
+        let (returned_loan, _) = rejection.into_parts();
+        assert_eq!(
+            returned_loan.length(),
+            8,
+            "rejection returns the exact loan"
+        );
+        drop(returned_loan);
 
         let extent = uart_extent(0x1000, 64);
         let loan = extent.loan(0, 12).expect("UART loan");
-        let wrong_reach = PlacedViewGrant::from_admitted_provider(
-            PlacedViewGrantId::from_normalized_identity(9).expect("view grant"),
-            &plan,
-            extent_id(2, AddressSpaceId::from_normalized_identity),
-            extent_id(5, ExtentProvenanceId::from_normalized_identity),
-            extent_rights(&[3]),
-            BoundaryReach::default(),
-        );
-        let error = derive_placed_view(loan, &plan, &wrong_reach)
-            .expect_err("service reach must agree with provenance grant");
-        assert!(error.0.contains("not admitted"));
+        let rejection = admit_uart(9, loan, &plan, &BoundaryReach::default())
+            .expect_err("service reach must agree with provenance admission");
+        assert!(rejection.diagnostic().0.contains("not admitted"));
     }
 
     #[test]
-    fn access_identity_and_grant_bind_exact_layout_geometry() {
+    fn access_keys_and_placement_identity_bind_exact_layout_geometry() {
         let plan = uart_placement_plan();
         let mut alternate_layout = uart_layout();
         alternate_layout
@@ -2093,12 +2221,5 @@ mod tests {
             alternate.access().layout_fingerprint(),
             "layout geometry is part of access-policy identity"
         );
-
-        let grant = uart_view_grant(&plan);
-        let extent = uart_extent(0x1000, 64);
-        let loan = extent.loan(0, 16).expect("alternate-layout loan");
-        let error = derive_placed_view(loan, &alternate, &grant)
-            .expect_err("grant for one geometry cannot authorize another");
-        assert!(error.0.contains("exact validated placement plan"));
     }
 }
