@@ -1,8 +1,11 @@
-// COMPILE CANARY: a nested field's declared ZII-admitting domain remains a
-// valid write source after the enclosing record crosses a mutable out-parameter
-// call. Alias invalidation may discard transient facts, but it must not discard
-// the enforced declared-domain invariant of `Cell::label`.
-domain [u8]::Utf8 {
+// COMPILE CANARY: a nested OWNED field's declared ZII-admitting domain remains
+// a valid write source after the enclosing record crosses a mutable
+// out-parameter call. Alias invalidation may discard transient facts, but it
+// must not discard the enforced declared-domain invariant of `Cell::label`.
+// Persistent room/line text uses bounded ownership; a borrowed view would need
+// an explicit outlives relation and retained loan, which this canary does not
+// exercise.
+domain [u8; 8]::Utf8 {
     valid_utf8(self);
 }
 data CellId {
@@ -13,15 +16,15 @@ data CellId {
 
 data Cell {
     id: CellId;
-    label: &[u8] in Utf8;
+    label: [u8; 8] in Utf8;
 }
 
 data CellLine {
-    text: &[u8] in Utf8;
+    text: [u8; 8] in Utf8;
 }
 
 boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
+    machine write_line(text: [u8; 8] in Utf8);
 }
 
 data Main {

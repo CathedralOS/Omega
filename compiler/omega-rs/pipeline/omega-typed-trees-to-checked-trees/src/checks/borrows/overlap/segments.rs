@@ -1,4 +1,4 @@
-use super::indexes::index_expressions_may_overlap;
+use super::indexes::{index_expression_may_contain_fixed, index_expressions_may_overlap};
 
 pub(super) fn place_segments_may_overlap(
     program: &omega_typed_trees::TypedTrees,
@@ -47,11 +47,7 @@ fn place_segment_pair_may_overlap(
         | (
             omega_facts::PlaceSegment::Index { expression },
             omega_facts::PlaceSegment::FixedIndex { index },
-        ) => program
-            .expression_table
-            .constant_integer_value(expression)
-            .and_then(|value| usize::try_from(value).ok())
-            .is_none_or(|value| value == index),
+        ) => index_expression_may_contain_fixed(program, expression, index),
         (
             omega_facts::PlaceSegment::Index {
                 expression: left_expression,
@@ -109,6 +105,30 @@ mod tests {
             &program,
             &[omega_facts::PlaceSegment::FixedIndex { index: 0 }],
             &[omega_facts::PlaceSegment::Index { expression: one }],
+        ));
+    }
+
+    #[test]
+    fn fixed_index_before_tail_range_is_disjoint() {
+        let mut program = omega_typed_trees::TypedTrees::default();
+        let one = integer_expression(&mut program, 1);
+        let tail = program.expression_table.insert(ExpressionNode::Range(
+            omega_typed_trees::expression::TableRangeExpression {
+                start: one,
+                end: ExpressionHandle::invalid(),
+                end_inclusive: false,
+            },
+        ));
+
+        assert!(!place_segments_may_overlap(
+            &program,
+            &[omega_facts::PlaceSegment::FixedIndex { index: 0 }],
+            &[omega_facts::PlaceSegment::Index { expression: tail }],
+        ));
+        assert!(place_segments_may_overlap(
+            &program,
+            &[omega_facts::PlaceSegment::FixedIndex { index: 1 }],
+            &[omega_facts::PlaceSegment::Index { expression: tail }],
         ));
     }
 }
