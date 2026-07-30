@@ -711,7 +711,12 @@ move it to a convenience library.
 ### Lifetimes and remaining source surfaces
 
 - Finish general outlives constraints, persistent owners, and remaining
-  aggregate borrow propagation.
+  aggregate borrow propagation. Program-static literal views, nested static
+  aggregate views, static-only machine results, and exact persistent-place
+  copies within one state are admitted without manufacturing a source loan;
+  opaque statement calls clear that provenance. Parameter-backed storage,
+  cross-state propagation, call mutation summaries, and state-parameter root
+  rebasing remain.
 - Implement constant data parameters after their identity/coherence rules are
   pinned by existing generic machinery.
 - Implement local dynamic traits as two-word borrowed descriptors selecting one
