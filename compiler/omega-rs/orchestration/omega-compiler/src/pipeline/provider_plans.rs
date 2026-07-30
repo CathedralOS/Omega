@@ -414,6 +414,54 @@ pub(crate) fn validate_provider_plan_candidates(
     diagnostics
 }
 
+fn authored_name_matches(authored: &str, candidate: &str, exact_exists: bool) -> bool {
+    authored == candidate
+        || (!exact_exists
+            && !authored.contains("::")
+            && candidate
+                .rsplit("::")
+                .next()
+                .is_some_and(|leaf| leaf == authored))
+}
+
+fn resolve_provider_selection_slots(
+    slot_names: &[String],
+    declarations: &[crate::pipeline::build_config::ProviderSelection],
+    owner: &str,
+) -> (
+    Vec<(String, crate::pipeline::build_config::ProviderSelection)>,
+    Vec<omega_core::diagnostics::Diagnostic>,
+) {
+    let mut resolved = Vec::new();
+    let mut diagnostics = Vec::new();
+    for declaration in declarations {
+        let exact_exists = slot_names
+            .iter()
+            .any(|slot| slot == &declaration.boundary_trait);
+        let matching_slots = slot_names
+            .iter()
+            .map(String::as_str)
+            .filter(|slot| authored_name_matches(&declaration.boundary_trait, slot, exact_exists))
+            .collect::<Vec<_>>();
+        match matching_slots.as_slice() {
+            [slot] => resolved.push(((*slot).to_owned(), declaration.clone())),
+            [] => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
+                declaration.provider_type, declaration.boundary_trait,
+            ))),
+            many => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                "{owner} names ambiguous boundary slot `{}`; it matches {} -- qualify the slot type",
+                declaration.boundary_trait,
+                many.iter()
+                    .map(|slot| format!("`{slot}`"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ))),
+        }
+    }
+    (resolved, diagnostics)
+}
+
 /// PRV4c: select one fully covering provider type per applicable boundary
 /// slot. An explicit build-root declaration wins over the selected target
 /// package's ordinary default declaration. Without either, a unique covering
@@ -437,52 +485,57 @@ pub(crate) fn select_provider_plan_names(
             .is_ok_and(|resolved| resolved == selected_target)
     };
     let mut diagnostics = Vec::new();
-    let name_matches = |authored: &str, candidate: &str| -> bool {
-        authored == candidate
-            || (!authored.contains("::")
-                && candidate
-                    .rsplit("::")
-                    .next()
-                    .is_some_and(|leaf| leaf == authored))
-    };
     let mut selected = Vec::new();
-    let mut slot_names: Vec<&str> = plans
+    let mut slot_names: Vec<String> = plans
         .iter()
         .filter(|plan| !plan.schema.methods.is_empty())
-        .map(|plan| plan.schema.trait_name.as_str())
+        .map(|plan| plan.schema.trait_name.clone())
         .collect();
-    for request in requested {
-        if !slot_names
-            .iter()
-            .any(|slot| name_matches(&request.boundary_trait, slot))
-        {
-            diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                "build selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
-                request.provider_type, request.boundary_trait,
-            )));
-        }
-    }
-    for default in defaults {
-        if !slot_names
-            .iter()
-            .any(|slot| name_matches(&default.boundary_trait, slot))
-        {
-            diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                "target package defaults provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
-                default.provider_type, default.boundary_trait,
-            )));
-        }
-    }
     slot_names.sort_unstable();
     slot_names.dedup();
 
+    // Resolve every authored slot path to ONE canonical loaded trait before
+    // applying precedence. A short leaf is convenient when unique, but it is
+    // not an identity: letting `Pick` match both `first::Pick` and
+    // `second::Pick` would turn one type-per-slot declaration into two grants.
+    // Canonicalization here also makes differently spelled aliases of the
+    // same slot participate in duplicate detection.
+    let (resolved_requests, request_diagnostics) =
+        resolve_provider_selection_slots(&slot_names, requested, "build");
+    diagnostics.extend(request_diagnostics);
+    let (resolved_defaults, default_diagnostics) =
+        resolve_provider_selection_slots(&slot_names, defaults, "target package");
+    diagnostics.extend(default_diagnostics);
+    for slot_name in &slot_names {
+        let declarations = resolved_requests
+            .iter()
+            .filter(|(slot, _)| slot == slot_name)
+            .map(|(_, declaration)| declaration)
+            .collect::<Vec<_>>();
+        if declarations.len() > 1 {
+            diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                "build declares provider selection for slot `{slot_name}` more than once: {}",
+                declarations
+                    .iter()
+                    .map(|declaration| format!(
+                        "`{} -> {}`",
+                        declaration.boundary_trait, declaration.provider_type
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )));
+        }
+    }
+
     for slot_name in slot_names {
-        let explicit = requested
+        let explicit = resolved_requests
             .iter()
-            .find(|selection| name_matches(&selection.boundary_trait, slot_name));
-        let slot_defaults: Vec<_> = defaults
+            .find(|(slot, _)| *slot == slot_name)
+            .map(|(_, selection)| selection);
+        let slot_defaults: Vec<_> = resolved_defaults
             .iter()
-            .filter(|selection| name_matches(&selection.boundary_trait, slot_name))
+            .filter(|(slot, _)| *slot == slot_name)
+            .map(|(_, selection)| selection)
             .collect();
         let candidates: Vec<&ProviderPlan> = plans
             .iter()
@@ -500,9 +553,33 @@ pub(crate) fn select_provider_plan_names(
             // absent from the selected dependency closure.
             Some(("build", explicit))
         } else if let Some(first) = slot_defaults.first().copied() {
-            let mut distinct_provider_types: Vec<&str> = slot_defaults
+            // Compare target defaults by the canonical candidate type when a
+            // spelling resolves uniquely. `Provider` and `pkg::Provider`
+            // naming the same loaded type are one default, not a conflict.
+            // Ambiguous or absent spellings stay distinct here and receive
+            // the more specific candidate diagnostic below.
+            let mut distinct_provider_types: Vec<String> = slot_defaults
                 .iter()
-                .map(|selection| selection.provider_type.as_str())
+                .map(|selection| {
+                    let exact_exists = candidates
+                        .iter()
+                        .any(|plan| plan.provider_type == selection.provider_type);
+                    let matching = candidates
+                        .iter()
+                        .copied()
+                        .filter(|plan| {
+                            authored_name_matches(
+                                &selection.provider_type,
+                                &plan.provider_type,
+                                exact_exists,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    match matching.as_slice() {
+                        [plan] => plan.provider_type.clone(),
+                        _ => selection.provider_type.clone(),
+                    }
+                })
                 .collect();
             distinct_provider_types.sort_unstable();
             distinct_provider_types.dedup();
@@ -523,10 +600,19 @@ pub(crate) fn select_provider_plan_names(
         };
 
         if let Some((owner, declaration)) = selected_declaration {
+            let exact_exists = candidates
+                .iter()
+                .any(|plan| plan.provider_type == declaration.provider_type);
             let matching: Vec<&ProviderPlan> = candidates
                 .iter()
                 .copied()
-                .filter(|plan| name_matches(&declaration.provider_type, &plan.provider_type))
+                .filter(|plan| {
+                    authored_name_matches(
+                        &declaration.provider_type,
+                        &plan.provider_type,
+                        exact_exists,
+                    )
+                })
                 .collect();
             match matching.as_slice() {
                 [plan] if plan.covers_schema() => selected.push(plan.name.clone()),
@@ -538,9 +624,17 @@ pub(crate) fn select_provider_plan_names(
                     plan.schema.methods.len(),
                 ))),
                 [] => {
+                    let exact_exists = plans.iter().any(|plan| {
+                        plan.schema.trait_name == slot_name
+                            && plan.provider_type == declaration.provider_type
+                    });
                     let wrong_target = plans.iter().any(|plan| {
                         plan.schema.trait_name == slot_name
-                            && name_matches(&declaration.provider_type, &plan.provider_type)
+                            && authored_name_matches(
+                                &declaration.provider_type,
+                                &plan.provider_type,
+                                exact_exists,
+                            )
                     });
                     diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
                         "{owner} selects provider `{}` for slot `{slot_name}`, but no {}candidate exists in the loaded dependency closure",
@@ -751,6 +845,126 @@ mod tests {
     }
 
     #[test]
+    fn unqualified_selection_refuses_an_ambiguous_boundary_slot_leaf() {
+        let mut first = selection_plan("FirstProvider", &["choose"], &["choose"]);
+        first.schema.trait_name = "first::Pick".to_owned();
+        let mut second = selection_plan("SecondProvider", &["choose"], &["choose"]);
+        second.schema.trait_name = "second::Pick".to_owned();
+
+        let diagnostics = select_provider_plan_names(
+            &[first, second],
+            omega_target::NativeTarget::host(),
+            &[],
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pick".to_owned(),
+                provider_type: "FirstProvider".to_owned(),
+            }],
+        )
+        .expect_err("one short slot name must not grant two qualified slots");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("ambiguous boundary slot `Pick`")
+                    && diagnostic.message.contains("`first::Pick`")
+                    && diagnostic.message.contains("`second::Pick`")
+            }),
+            "expected a qualification diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn exact_slot_name_wins_over_a_qualified_leaf_fallback() {
+        let exact = selection_plan("ExactProvider", &["choose"], &["choose"]);
+        let mut qualified = selection_plan("QualifiedProvider", &["choose"], &[]);
+        qualified.schema.trait_name = "package::Pair".to_owned();
+
+        let selected = select_provider_plan_names(
+            &[exact, qualified],
+            omega_target::NativeTarget::host(),
+            &[],
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "ExactProvider".to_owned(),
+            }],
+        )
+        .expect("an exact canonical slot name outranks leaf fallback");
+        assert_eq!(selected, vec!["ExactProvider".to_owned()]);
+    }
+
+    #[test]
+    fn exact_provider_name_wins_over_a_qualified_leaf_fallback() {
+        let exact = selection_plan("exact-plan", &["choose"], &["choose"]);
+        let mut qualified = selection_plan("qualified-plan", &["choose"], &["choose"]);
+        qualified.provider_type = "package::exact-plan".to_owned();
+
+        let selected = select_provider_plan_names(
+            &[exact, qualified],
+            omega_target::NativeTarget::host(),
+            &[],
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pair".to_owned(),
+                provider_type: "exact-plan".to_owned(),
+            }],
+        )
+        .expect("an exact canonical provider name outranks leaf fallback");
+        assert_eq!(selected, vec!["exact-plan".to_owned()]);
+    }
+
+    #[test]
+    fn canonical_slot_resolution_catches_duplicate_selection_spellings() {
+        let mut plan = selection_plan("FirstProvider", &["choose"], &["choose"]);
+        plan.schema.trait_name = "package::Pick".to_owned();
+
+        let diagnostics = select_provider_plan_names(
+            &[plan],
+            omega_target::NativeTarget::host(),
+            &[],
+            &[
+                crate::pipeline::build_config::ProviderSelection {
+                    boundary_trait: "Pick".to_owned(),
+                    provider_type: "FirstProvider".to_owned(),
+                },
+                crate::pipeline::build_config::ProviderSelection {
+                    boundary_trait: "package::Pick".to_owned(),
+                    provider_type: "SecondProvider".to_owned(),
+                },
+            ],
+        )
+        .expect_err("one canonical slot cannot be selected twice through aliases");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("provider selection for slot `package::Pick` more than once")),
+            "expected canonical duplicate-slot diagnostic, got {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn target_default_refuses_an_ambiguous_boundary_slot_leaf() {
+        let mut first = selection_plan("FirstProvider", &["choose"], &["choose"]);
+        first.schema.trait_name = "first::Pick".to_owned();
+        let mut second = selection_plan("SecondProvider", &["choose"], &["choose"]);
+        second.schema.trait_name = "second::Pick".to_owned();
+
+        let diagnostics = select_provider_plan_names(
+            &[first, second],
+            omega_target::NativeTarget::host(),
+            &[crate::pipeline::build_config::ProviderSelection {
+                boundary_trait: "Pick".to_owned(),
+                provider_type: "FirstProvider".to_owned(),
+            }],
+            &[],
+        )
+        .expect_err("a target default must name one canonical slot");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("target package names ambiguous boundary slot `Pick`")
+        }));
+    }
+
+    #[test]
     fn explicit_selection_refuses_partial_provider() {
         let plans = vec![selection_plan(
             "PartialProvider",
@@ -787,6 +1001,29 @@ mod tests {
         )
         .expect("the selected target package supplies the slot default");
         assert_eq!(selected, vec!["FirstProvider".to_owned()]);
+    }
+
+    #[test]
+    fn target_default_aliases_of_one_provider_do_not_conflict() {
+        let mut plan = selection_plan("package-provider", &["first"], &["first"]);
+        plan.provider_type = "package::FirstProvider".to_owned();
+        let selected = select_provider_plan_names(
+            &[plan],
+            omega_target::NativeTarget::host(),
+            &[
+                crate::pipeline::build_config::ProviderSelection {
+                    boundary_trait: "Pair".to_owned(),
+                    provider_type: "FirstProvider".to_owned(),
+                },
+                crate::pipeline::build_config::ProviderSelection {
+                    boundary_trait: "Pair".to_owned(),
+                    provider_type: "package::FirstProvider".to_owned(),
+                },
+            ],
+            &[],
+        )
+        .expect("aliases of one canonical provider type are one target default");
+        assert_eq!(selected, vec!["package-provider".to_owned()]);
     }
 
     #[test]

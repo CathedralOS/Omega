@@ -85,7 +85,11 @@ capability. A target package supplies ordinary provider-type defaults,
 `build.omg` selects a default target profile, and explicit
 build/test/component configuration may override individual slots. Defaults
 are package declarations/data, not compiler magic. Slot selection changes the
-selected provider; it does not reconstruct its rows.
+selected provider; it does not reconstruct its rows. Every authored slot path
+must resolve to exactly one canonical boundary-trait identity in the loaded
+closure. An exact canonical name wins; a short leaf fallback is accepted only
+when unique, and qualified/unqualified aliases cannot be used to select the
+same slot twice.
 
 The selected plans survive typed-to-checked lowering as one canonical checked
 fact set. Every retained plan is revalidated as fully covering, selected names
