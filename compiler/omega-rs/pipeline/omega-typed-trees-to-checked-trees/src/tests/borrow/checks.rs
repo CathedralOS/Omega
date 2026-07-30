@@ -2307,6 +2307,116 @@ fn rejects_persistent_borrow_storage_until_cross_state_loans_are_propagated() {
     );
 }
 
+#[test]
+fn accepts_program_static_literal_in_persistent_borrow_storage() {
+    let source = r#"
+        data Main {
+            stored: &[u8];
+        }
+
+        machine Main::store(&mut self) {
+            self.stored = "program static";
+        }
+    "#;
+
+    check_program(source).expect("a literal view needs no state-local source loan");
+}
+
+#[test]
+fn accepts_nested_program_static_literal_in_persistent_aggregate_storage() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+            code: i32;
+        }
+
+        data Main {
+            stored: Message;
+        }
+
+        machine Main::store(&mut self) {
+            self.stored = Message { body: "program static", code: 7 };
+        }
+    "#;
+
+    check_program(source).expect("only the aggregate's borrow-carrying field needs classification");
+}
+
+#[test]
+fn accepts_static_view_call_result_in_persistent_storage() {
+    let source = r#"
+        data Main {
+            stored: &[u8];
+        }
+
+        machine Main::pick(&self, first: bool) -> &[u8] {
+            transition first {
+                true -> "first"
+                false -> "second"
+            }
+        }
+
+        machine Main::store(&mut self) {
+            self.stored = self.pick(true);
+        }
+    "#;
+
+    check_program(source).expect("every value exit of pick is program-static storage");
+}
+
+#[test]
+fn rejects_parameter_backed_view_call_result_in_persistent_storage() {
+    let source = r#"
+        data Main {
+            stored: &[u8];
+        }
+
+        machine Main::forward(&self, text: &[u8]) -> &[u8] {
+            text
+        }
+
+        machine Main::store(&mut self, text: &[u8]) {
+            self.stored = self.forward(text);
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("the returned view still borrows the call parameter");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `stored`")),
+        "expected the persistent-loan fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn accepts_same_state_copy_from_static_persistent_storage() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+            code: i32;
+        }
+
+        data Main {
+            first: Message;
+            second: Message;
+        }
+
+        machine Main::store(&mut self) {
+            self.first = Message { body: "program static", code: 7 };
+            self.second = self.first;
+        }
+    "#;
+
+    check_program(source).expect("the copy retains the established static provenance");
+}
+
 /// The same replacement rule applies to a direct reference local: its old
 /// source is released and its new source remains borrowed through later use.
 #[test]

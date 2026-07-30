@@ -332,7 +332,9 @@ A quoted literal is **raw bytes**, nothing more. The compiler's only string job
 is turning quoted text into bytes; it knows nothing about encodings (that is
 library code — see [Chapter 8](chapter_8_domains.md)). So a string literal has
 type `&[u8]` and carries **no** encoding domain until one is explicitly
-established.
+established. Its bytes live in immutable program-static storage: the resulting
+shared view can therefore be copied into persistent machine fields without
+borrowing a state-local owner.
 
 ```omega
 let greeting = "Hello, Omega.";   // : &[u8]  -- just bytes, no Utf8 yet

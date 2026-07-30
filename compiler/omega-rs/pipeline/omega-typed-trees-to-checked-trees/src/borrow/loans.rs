@@ -27,6 +27,21 @@ pub(super) struct StatementBorrowLoan {
     pub(super) kind: omega_checked_trees::BorrowAccessKind,
 }
 
+/// The initializer expressions that supply the references structurally carried
+/// by `type_reference`. Persistent-storage checking uses this same traversal so
+/// its static-source exemption cannot disagree with local aggregate loan
+/// attribution about which nested fields actually borrow.
+pub(crate) fn borrow_initializer_expressions(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    borrowed_initializers(program, type_reference, expression, &[], &[])
+        .into_iter()
+        .map(|initializer| initializer.expression)
+        .collect()
+}
+
 pub(super) fn statement_borrow_loans(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
