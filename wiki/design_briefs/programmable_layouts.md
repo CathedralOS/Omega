@@ -145,7 +145,12 @@ Current view-borrow and retained source-loan polarity are checked independently.
 Exposure uses the settled `BindingPrivate` spelling; stable compound mutation
 is derived from read+write and exclusivity, destructive external reads remain
 distinct, external compound mutation is unavailable, and atomic permissions
-distinguish exact operation families. See
+distinguish exact operation families. Provider supply now enters through
+receipt-bound, normalized offset-keyed resource profiles. Placement/profile
+compatibility restricts profiles to exact subrange loans, checks requested
+observation, operations, widths, reach, and rights, derives the static base
+congruence, and discharges that congruence against the concrete loan base at
+admission. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
 model.
@@ -432,9 +437,8 @@ code rather than compiler types.
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
-- implement offset-keyed `ResourceProfile` admission, `Placed<P, T>`
-  projection, and target-specific accessor lowering over the live normalized
-  validator;
+- implement `Placed<P, T>` projection and target-specific accessor lowering
+  over the live normalized access/resource validator;
 - recast syntax and diagnostics;
 - independent generated-codec verification against public requirements and
   preserving-codec realizations for unknown members (artifacts already keep

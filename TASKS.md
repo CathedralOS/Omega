@@ -274,9 +274,6 @@ establishment from raw bytes reject.
 **READY.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the source model.
 
-- Implement offset-keyed admitted resource profiles, profile restriction on
-  subrange loans, consumer-demand/provider-supply compatibility, and the
-  build-time base-congruence plus runtime-base alignment split.
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
   exclusive current borrow, and exclusive source loan.
