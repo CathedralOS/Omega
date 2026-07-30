@@ -607,10 +607,12 @@ The current `omega-access-plans` foundation predates this source model. It
 already validates normalized field geometry, exact widths, operation and
 observation compatibility, borrow polarity, atomic orderings, exact loan facts,
 and sealed lowering requests. Its current name-keyed entry vector,
-`ProviderPrivate` exposure, per-entry reach, generic RMW flag, and reusable
-placed-view grant are bootstrap representations to migrate, not the target
-source contract above. `TASKS.md` owns that migration and target-specific
-external/atomic emission.
+per-entry reach, and reusable placed-view grant are bootstrap representations
+to migrate, not the target source contract above. Exposure uses the settled
+`Exported | BindingPrivate` vocabulary; stable compound mutation is derived,
+external compound mutation is unavailable, and atomic permissions distinguish
+the exact operation families. `TASKS.md` owns the remaining migration and
+target-specific external/atomic emission.
 
 ## IPC and DMA
 

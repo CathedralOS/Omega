@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use omega_core::atomic::AtomicOrderingPlan;
+use omega_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 use omega_extents::{AddressSpaceId, ExtentLoan, ExtentProvenanceId, ExtentRights, LoanPolarity};
 use omega_layout_plans::{
     LayoutPlacementReport, LayoutPlanReport, normalized_layout_plan_fingerprint,
@@ -47,20 +47,33 @@ pub enum ObservationModel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AccessExposure {
     Exported,
-    ProviderPrivate,
+    BindingPrivate,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AtomicPermissions {
     pub load: bool,
     pub store: bool,
+    pub fetch_add: bool,
+    pub fetch_sub: bool,
+    pub fetch_xor: bool,
+    pub fetch_or: bool,
+    pub fetch_and: bool,
+    pub swap: bool,
     pub compare_exchange: bool,
-    pub read_modify_write: bool,
 }
 
 impl AtomicPermissions {
     pub const fn any(self) -> bool {
-        self.load || self.store || self.compare_exchange || self.read_modify_write
+        self.load
+            || self.store
+            || self.fetch_add
+            || self.fetch_sub
+            || self.fetch_xor
+            || self.fetch_or
+            || self.fetch_and
+            || self.swap
+            || self.compare_exchange
     }
 }
 
@@ -68,15 +81,12 @@ impl AtomicPermissions {
 pub struct AccessPermissions {
     pub read: bool,
     pub write: bool,
-    /// Explicit permission for a read-followed-by-write primitive. This is not
-    /// inferred merely because both read and write are present.
-    pub read_modify_write: bool,
     pub atomic: AtomicPermissions,
 }
 
 impl AccessPermissions {
     pub const fn any(self) -> bool {
-        self.read || self.write || self.read_modify_write || self.atomic.any()
+        self.read || self.write || self.atomic.any()
     }
 }
 
@@ -251,12 +261,49 @@ pub enum BorrowPolarity {
 pub enum AccessOperation {
     Read,
     Write,
-    ReadModifyWrite,
+    /// Ordinary stable compound mutation. Legality is derived from stable
+    /// read+write permission and an exclusive borrow; it is never an external
+    /// primitive permission.
+    CompoundMutation,
     /// One atomic operation carrying the exact source-selected ordering plan.
     ///
-    /// The operation family is retained inside `AtomicOrderingPlan`; lowering
-    /// never has to reconstruct it from permissions or expression shape.
-    Atomic(AtomicOrderingPlan),
+    /// The exact operation family remains distinct while its ordering converts
+    /// to the shared `AtomicOrderingPlan` carried by the compiler pipeline.
+    Atomic(AtomicAccessOperation),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AtomicAccessOperation {
+    Load(MemoryOrdering),
+    Store(MemoryOrdering),
+    FetchAdd(MemoryOrdering),
+    FetchSub(MemoryOrdering),
+    FetchXor(MemoryOrdering),
+    FetchOr(MemoryOrdering),
+    FetchAnd(MemoryOrdering),
+    Swap(MemoryOrdering),
+    CompareExchange {
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    },
+}
+
+impl AtomicAccessOperation {
+    pub const fn ordering_plan(self) -> AtomicOrderingPlan {
+        match self {
+            Self::Load(ordering) => AtomicOrderingPlan::Load(ordering),
+            Self::Store(ordering) => AtomicOrderingPlan::Store(ordering),
+            Self::FetchAdd(ordering)
+            | Self::FetchSub(ordering)
+            | Self::FetchXor(ordering)
+            | Self::FetchOr(ordering)
+            | Self::FetchAnd(ordering) => AtomicOrderingPlan::ReadModifyWrite(ordering),
+            Self::Swap(ordering) => AtomicOrderingPlan::Swap(ordering),
+            Self::CompareExchange { success, failure } => {
+                AtomicOrderingPlan::CompareExchange { success, failure }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -329,7 +376,7 @@ fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
     let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.access-plan.v2");
+    hash_bytes(&mut hash, b"omega.access-plan.v3");
     hash_u64(&mut hash, layout_fingerprint);
     hash_u64(&mut hash, plan.entries.len() as u64);
     for entry in &plan.entries {
@@ -346,22 +393,23 @@ fn normalized_access_plan_identity(plan: &AccessPlan, layout_fingerprint: u64) -
         );
         hash_byte(&mut hash, u8::from(entry.permissions.read));
         hash_byte(&mut hash, u8::from(entry.permissions.write));
-        hash_byte(&mut hash, u8::from(entry.permissions.read_modify_write));
         hash_byte(&mut hash, u8::from(entry.permissions.atomic.load));
         hash_byte(&mut hash, u8::from(entry.permissions.atomic.store));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_add));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_sub));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_xor));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_or));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.fetch_and));
+        hash_byte(&mut hash, u8::from(entry.permissions.atomic.swap));
         hash_byte(
             &mut hash,
             u8::from(entry.permissions.atomic.compare_exchange),
         );
         hash_byte(
             &mut hash,
-            u8::from(entry.permissions.atomic.read_modify_write),
-        );
-        hash_byte(
-            &mut hash,
             match entry.exposure {
                 AccessExposure::Exported => 0,
-                AccessExposure::ProviderPrivate => 1,
+                AccessExposure::BindingPrivate => 1,
             },
         );
         match entry.service_reach {
@@ -673,12 +721,9 @@ fn validate_entry_policy(entry: &AccessFieldEntry) -> Result<(), AccessPlanDiagn
 
     match entry.observation {
         ObservationModel::Atomic => {
-            if entry.permissions.read
-                || entry.permissions.write
-                || entry.permissions.read_modify_write
-            {
+            if entry.permissions.read || entry.permissions.write {
                 return Err(AccessPlanDiagnostic(format!(
-                    "atomic field `{}` cannot also expose ordinary read/write/RMW",
+                    "atomic field `{}` cannot also expose ordinary read/write",
                     entry.field
                 )));
             }
@@ -696,14 +741,6 @@ fn validate_entry_policy(entry: &AccessFieldEntry) -> Result<(), AccessPlanDiagn
                     entry.field
                 )));
             }
-            if entry.permissions.read_modify_write
-                && !(entry.permissions.read && entry.permissions.write)
-            {
-                return Err(AccessPlanDiagnostic(format!(
-                    "field `{}` RMW requires both read and write permission",
-                    entry.field
-                )));
-            }
         }
     }
 
@@ -716,15 +753,6 @@ fn validate_entry_policy(entry: &AccessFieldEntry) -> Result<(), AccessPlanDiagn
     if entry.observation == ObservationModel::Stable && entry.service_reach.is_some() {
         return Err(AccessPlanDiagnostic(format!(
             "stable field `{}` cannot disguise a boundary event as ordinary access",
-            entry.field
-        )));
-    }
-    if entry.observation == ObservationModel::External
-        && entry.permissions.read_modify_write
-        && entry.exposure != AccessExposure::ProviderPrivate
-    {
-        return Err(AccessPlanDiagnostic(format!(
-            "external field `{}` may expose RMW only through a provider-private primitive",
             entry.field
         )));
     }
@@ -825,19 +853,39 @@ fn authorize_descriptor(
         AccessOperation::Write => {
             descriptor.permissions.write && borrow == BorrowPolarity::Exclusive
         }
-        AccessOperation::ReadModifyWrite => {
-            descriptor.permissions.read_modify_write && borrow == BorrowPolarity::Exclusive
+        AccessOperation::CompoundMutation => {
+            descriptor.observation == ObservationModel::Stable
+                && descriptor.permissions.read
+                && descriptor.permissions.write
+                && borrow == BorrowPolarity::Exclusive
         }
-        AccessOperation::Atomic(AtomicOrderingPlan::Load(_)) => descriptor.permissions.atomic.load,
-        AccessOperation::Atomic(AtomicOrderingPlan::Store(_)) => {
+        AccessOperation::Atomic(AtomicAccessOperation::Load(_)) => {
+            descriptor.permissions.atomic.load
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::Store(_)) => {
             descriptor.permissions.atomic.store
         }
-        AccessOperation::Atomic(AtomicOrderingPlan::CompareExchange { .. }) => {
+        AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(_)) => {
+            descriptor.permissions.atomic.fetch_add
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::FetchSub(_)) => {
+            descriptor.permissions.atomic.fetch_sub
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::FetchXor(_)) => {
+            descriptor.permissions.atomic.fetch_xor
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::FetchOr(_)) => {
+            descriptor.permissions.atomic.fetch_or
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::FetchAnd(_)) => {
+            descriptor.permissions.atomic.fetch_and
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::Swap(_)) => {
+            descriptor.permissions.atomic.swap
+        }
+        AccessOperation::Atomic(AtomicAccessOperation::CompareExchange { .. }) => {
             descriptor.permissions.atomic.compare_exchange
         }
-        AccessOperation::Atomic(
-            AtomicOrderingPlan::ReadModifyWrite(_) | AtomicOrderingPlan::Swap(_),
-        ) => descriptor.permissions.atomic.read_modify_write,
     };
     if permitted {
         Ok(())
@@ -850,9 +898,10 @@ fn authorize_descriptor(
 }
 
 fn validate_operation_ordering(operation: AccessOperation) -> Result<(), AccessPlanDiagnostic> {
-    let AccessOperation::Atomic(ordering) = operation else {
+    let AccessOperation::Atomic(operation) = operation else {
         return Ok(());
     };
+    let ordering = operation.ordering_plan();
     let legal = match ordering {
         AtomicOrderingPlan::Load(ordering) => ordering.valid_for_load(),
         AtomicOrderingPlan::Store(ordering) => ordering.valid_for_store(),
@@ -911,11 +960,10 @@ mod tests {
         }
     }
 
-    fn ordinary(read: bool, write: bool, rmw: bool) -> AccessPermissions {
+    fn ordinary(read: bool, write: bool) -> AccessPermissions {
         AccessPermissions {
             read,
             write,
-            read_modify_write: rmw,
             atomic: AtomicPermissions::default(),
         }
     }
@@ -928,7 +976,7 @@ mod tests {
                         field: "status".into(),
                         transfer_width_bits: 32,
                         observation: ObservationModel::External,
-                        permissions: ordinary(true, false, false),
+                        permissions: ordinary(true, false),
                         exposure: AccessExposure::Exported,
                         service_reach: Some(reach()),
                     },
@@ -936,7 +984,7 @@ mod tests {
                         field: "transmit".into(),
                         transfer_width_bits: 32,
                         observation: ObservationModel::External,
-                        permissions: ordinary(false, true, false),
+                        permissions: ordinary(false, true),
                         exposure: AccessExposure::Exported,
                         service_reach: Some(reach()),
                     },
@@ -944,8 +992,8 @@ mod tests {
                         field: "control".into(),
                         transfer_width_bits: 32,
                         observation: ObservationModel::External,
-                        permissions: ordinary(true, true, true),
-                        exposure: AccessExposure::ProviderPrivate,
+                        permissions: ordinary(true, true),
+                        exposure: AccessExposure::BindingPrivate,
                         service_reach: Some(reach()),
                     },
                 ],
@@ -1004,16 +1052,16 @@ mod tests {
             field: "word".into(),
             transfer_width_bits: 32,
             observation: ObservationModel::Stable,
-            permissions: ordinary(true, false, false),
+            permissions: ordinary(true, false),
             exposure: AccessExposure::Exported,
             service_reach: None,
         };
         let mut stable_write = stable_read.clone();
-        stable_write.permissions = ordinary(false, true, false);
+        stable_write.permissions = ordinary(false, true);
         let mut wider = stable_read.clone();
         wider.transfer_width_bits = 64;
         let mut private = stable_read.clone();
-        private.exposure = AccessExposure::ProviderPrivate;
+        private.exposure = AccessExposure::BindingPrivate;
         let mut external = stable_read.clone();
         external.observation = ObservationModel::External;
         external.service_reach = Some(reach());
@@ -1069,34 +1117,93 @@ mod tests {
             AccessOperation::Write,
         )
         .expect("exclusive whole write");
-        plan.authorize(
-            "control",
-            BorrowPolarity::Exclusive,
-            AccessOperation::ReadModifyWrite,
-        )
-        .expect("provider-private explicit RMW");
+        assert!(
+            plan.authorize(
+                "control",
+                BorrowPolarity::Exclusive,
+                AccessOperation::CompoundMutation,
+            )
+            .is_err(),
+            "external storage never derives compound mutation"
+        );
     }
 
     #[test]
-    fn exported_external_rmw_and_missing_reach_reject() {
+    fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
         let mut entry = AccessFieldEntry {
             field: "status".into(),
             transfer_width_bits: 32,
-            observation: ObservationModel::External,
-            permissions: ordinary(true, true, true),
+            observation: ObservationModel::Stable,
+            permissions: ordinary(true, true),
             exposure: AccessExposure::Exported,
-            service_reach: Some(reach()),
+            service_reach: None,
         };
-        let error = validate_access_plan(
+        let plan = validate_access_plan(
             AccessPlan {
                 entries: vec![entry.clone()],
             },
             &uart_layout(),
         )
-        .expect_err("public MMIO RMW must not be derived");
-        assert!(error.0.contains("provider-private"));
+        .expect("stable read-write plan");
+        plan.authorize(
+            "status",
+            BorrowPolarity::Exclusive,
+            AccessOperation::CompoundMutation,
+        )
+        .expect("exclusive stable read-write access derives compound mutation");
+        assert!(
+            plan.authorize(
+                "status",
+                BorrowPolarity::Shared,
+                AccessOperation::CompoundMutation,
+            )
+            .is_err()
+        );
 
-        entry.permissions.read_modify_write = false;
+        entry.permissions.write = false;
+        let plan = validate_access_plan(
+            AccessPlan {
+                entries: vec![entry],
+            },
+            &uart_layout(),
+        )
+        .expect("stable read-only plan");
+        assert!(
+            plan.authorize(
+                "status",
+                BorrowPolarity::Exclusive,
+                AccessOperation::CompoundMutation,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn external_compound_mutation_and_missing_reach_reject() {
+        let mut entry = AccessFieldEntry {
+            field: "status".into(),
+            transfer_width_bits: 32,
+            observation: ObservationModel::External,
+            permissions: ordinary(true, true),
+            exposure: AccessExposure::Exported,
+            service_reach: Some(reach()),
+        };
+        let plan = validate_access_plan(
+            AccessPlan {
+                entries: vec![entry.clone()],
+            },
+            &uart_layout(),
+        )
+        .expect("external read-write access is valid");
+        let error = plan
+            .authorize(
+                "status",
+                BorrowPolarity::Exclusive,
+                AccessOperation::CompoundMutation,
+            )
+            .expect_err("external access must never derive compound mutation");
+        assert!(error.0.contains("does not permit"));
+
         entry.service_reach = None;
         let error = validate_access_plan(
             AccessPlan {
@@ -1131,8 +1238,9 @@ mod tests {
                         atomic: AtomicPermissions {
                             load: true,
                             store: true,
+                            fetch_add: true,
                             compare_exchange: true,
-                            read_modify_write: true,
+                            ..AtomicPermissions::default()
                         },
                         ..AccessPermissions::default()
                     },
@@ -1144,14 +1252,38 @@ mod tests {
         )
         .expect("atomic IPC plan");
 
-        let store = AccessOperation::Atomic(AtomicOrderingPlan::Store(
-            omega_core::atomic::MemoryOrdering::Release,
-        ));
+        let mut alternate_source = plan.plan().clone();
+        let alternate_permissions = &mut alternate_source.entries[0].permissions.atomic;
+        alternate_permissions.fetch_add = false;
+        alternate_permissions.fetch_sub = true;
+        let alternate =
+            validate_access_plan(alternate_source, &layout).expect("alternate atomic plan");
+        assert_ne!(
+            plan.identity(),
+            alternate.identity(),
+            "distinct atomic operation families must alter normalized identity"
+        );
+
+        let store = AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Release));
         plan.authorize("head", BorrowPolarity::Shared, store)
             .expect("shared mutation is explicitly atomic");
-        let invalid_load = AccessOperation::Atomic(AtomicOrderingPlan::Load(
-            omega_core::atomic::MemoryOrdering::Release,
-        ));
+        plan.authorize(
+            "head",
+            BorrowPolarity::Shared,
+            AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(MemoryOrdering::AcqRel)),
+        )
+        .expect("admitted fetch-add");
+        assert!(
+            plan.authorize(
+                "head",
+                BorrowPolarity::Shared,
+                AccessOperation::Atomic(AtomicAccessOperation::FetchSub(MemoryOrdering::AcqRel)),
+            )
+            .is_err(),
+            "one admitted fetch family does not imply another"
+        );
+        let invalid_load =
+            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Release));
         let error = plan
             .authorize("head", BorrowPolarity::Shared, invalid_load)
             .expect_err("release cannot order an atomic load");
@@ -1175,9 +1307,9 @@ mod tests {
         let request = view
             .authorize(
                 "head",
-                AccessOperation::Atomic(AtomicOrderingPlan::CompareExchange {
-                    success: omega_core::atomic::MemoryOrdering::AcqRel,
-                    failure: omega_core::atomic::MemoryOrdering::Acquire,
+                AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
+                    success: MemoryOrdering::AcqRel,
+                    failure: MemoryOrdering::Acquire,
                 }),
             )
             .expect("authorized compare-exchange")
@@ -1191,9 +1323,9 @@ mod tests {
         assert_eq!(request.borrow(), BorrowPolarity::Shared);
         assert_eq!(
             request.operation(),
-            AccessOperation::Atomic(AtomicOrderingPlan::CompareExchange {
-                success: omega_core::atomic::MemoryOrdering::AcqRel,
-                failure: omega_core::atomic::MemoryOrdering::Acquire,
+            AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
+                success: MemoryOrdering::AcqRel,
+                failure: MemoryOrdering::Acquire,
             })
         );
         assert_eq!(request.service_reach(), None);
@@ -1237,7 +1369,7 @@ mod tests {
                     field: "entry".into(),
                     transfer_width_bits: 32,
                     observation: ObservationModel::Stable,
-                    permissions: ordinary(true, false, false),
+                    permissions: ordinary(true, false),
                     exposure: AccessExposure::Exported,
                     service_reach: None,
                 }],
@@ -1254,7 +1386,7 @@ mod tests {
             field: "missing".into(),
             transfer_width_bits: 32,
             observation: ObservationModel::Stable,
-            permissions: ordinary(true, false, false),
+            permissions: ordinary(true, false),
             exposure: AccessExposure::Exported,
             service_reach: None,
         };
@@ -1273,7 +1405,7 @@ mod tests {
                     field: "missing".into(),
                     transfer_width_bits: 32,
                     observation: ObservationModel::Stable,
-                    permissions: ordinary(true, false, false),
+                    permissions: ordinary(true, false),
                     exposure: AccessExposure::Exported,
                     service_reach: None,
                 }],
