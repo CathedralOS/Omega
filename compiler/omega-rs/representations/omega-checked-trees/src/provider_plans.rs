@@ -142,6 +142,7 @@ mod tests {
                     name: method.into(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
                     has_result: false,
                     result_type_identity: None,
                     service_reach: vec![format!("{name}Service")],

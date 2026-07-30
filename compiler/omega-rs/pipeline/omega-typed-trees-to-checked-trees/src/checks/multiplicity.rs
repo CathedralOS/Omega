@@ -2832,43 +2832,7 @@ pub(crate) fn type_multiplicity(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Multiplicity {
-    if !type_reference.is_valid() {
-        return Multiplicity::Affine;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
-        TypeReferenceNode::Constrained { base_type, .. } => type_multiplicity(program, *base_type),
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_multiplicity(program, *element_type)
-        }
-        TypeReferenceNode::Named { symbol, name } => {
-            if let Some(parameter) = program
-                .data_type_parameters
-                .iter()
-                .find_map(|(_, parameter)| (parameter.symbol == *symbol).then_some(parameter))
-            {
-                return parameter.bounds.multiplicity;
-            }
-            if omega_typed_trees::types::PrimitiveType::from_name(name.as_str()).is_some() {
-                return Multiplicity::Unrestricted;
-            }
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == name.as_str())
-                .map(|definition| definition.properties.multiplicity)
-                .unwrap_or(Multiplicity::Affine)
-        }
-        TypeReferenceNode::Generic { base_name, .. } => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == base_name.as_str())
-            .map(|definition| definition.properties.multiplicity)
-            .unwrap_or(Multiplicity::Affine),
-        TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {
-            Multiplicity::Affine
-        }
-    }
+    program.type_multiplicity(type_reference)
 }
 
 fn type_multiplicity_with_substitutions(

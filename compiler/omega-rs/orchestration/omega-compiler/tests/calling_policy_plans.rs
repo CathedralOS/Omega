@@ -200,12 +200,32 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     };
     assert!(acknowledgement.contains("InterruptAcknowledgement"));
     assert!(acknowledgement.contains("Pending"));
+    let [pending] = tick.entry_claims.as_slice() else {
+        panic!("timer root must publish one structured accepted authority claim");
+    };
+    assert_eq!(pending.parameter_index, 0);
+    assert_eq!(pending.domain, "InterruptAcknowledgement::Pending");
+    assert_eq!(
+        pending.effective_carry,
+        omega_core::semantics::CarryPolicy::STRICT
+    );
+    assert_eq!(
+        pending.authority_flow,
+        omega_effects::provider_plan::ServiceEntryAuthorityFlow::Accepts
+    );
     let mut weakened = selected.clone();
     weakened.schema.methods[0].parameter_type_identities[0] = "InterruptAcknowledgement".to_owned();
     assert_ne!(
         selected.identity_fingerprint(),
         weakened.identity_fingerprint(),
         "the provider-plan identity carried into external-root admission must drift if Pending issuance is removed"
+    );
+    let mut unreported = selected.clone();
+    unreported.schema.methods[0].entry_claims.clear();
+    assert_ne!(
+        selected.identity_fingerprint(),
+        unreported.identity_fingerprint(),
+        "the provider-plan receipt must bind the compiler-owned accepted-authority row"
     );
     let root_selection = selected_external_root_provider_plan(&checked, "TimerRoot")
         .expect("external-root bridge should retain the qualified timer schema");
@@ -219,11 +239,29 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         "the root bridge must carry the exact qualified source signature beside its receipt identity"
     );
     assert_eq!(
+        root_selection.schema.methods[0].entry_claims, selected.schema.methods[0].entry_claims,
+        "the root bridge must carry the structured accepted claim and strict carry policy beside its receipt identity"
+    );
+    assert_eq!(
         selected_external_root_provider_plan_id(&checked, "TimerRoot")
             .expect("external-root bridge should retain the selected timer plan")
             .normalized_identity(),
         selected.identity_fingerprint()
     );
+    let qualification = omega_visualizations::qualification_evidence_manifest_json(&checked);
+    assert!(qualification.contains("\"boundary_authority_flow\": ["));
+    assert!(qualification.contains("\"flow\": \"accepts\""));
+    assert!(qualification.contains("\"boundary\": \"TimerRoot\""));
+    assert!(qualification.contains("\"requirement\": \"TimerRoot::tick\""));
+    assert!(qualification.contains("\"parameter_index\": 0"));
+    assert!(qualification.contains("\"domain\": \"InterruptAcknowledgement::Pending\""));
+    assert!(qualification.contains(
+        "\"effective_carry\": {\"suspension\": \"forbidden\", \"cpu\": \"same\", \"thread\": \"same\", \"address\": \"stable\"}"
+    ));
+    assert!(qualification.contains(&format!(
+        "\"receipt_identity\": \"0x{:016x}\"",
+        selected.identity_fingerprint()
+    )));
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
 

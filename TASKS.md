@@ -98,8 +98,17 @@ composite claim-frontier work remain.
   root/invocation/control-or-policy identities needed for exact settlement and
   use bodyless `Active`/`Pending` facts, so reconstructing identical fields
   cannot settle either obligation.
-- connect installed-root entry receipts to those interrupt facts, add their
-  compiler-owned carry policy and authority-flow rows, and migrate the
+- Selected interrupt-root schemas now retain every linear bodyless entry
+  qualification as a structured `accepts` row with its carrier-aware semantic
+  domain identity and born-strict compiler carry policy. The selected provider
+  receipt identity binds those rows, the external-root selection bridge
+  preserves them, and `05_qualification_evidence.json` reports them. This
+  closes the static admitted-entry contract for `Pending`; it does not
+  manufacture a source fact from fields or substitute for a concrete
+  invocation receipt.
+- connect the concrete installed-root invocation and mask-transition receipts
+  to source `Pending`/`Active` establishment, carry those receipt identities
+  into the resulting checked facts, and migrate the
   `TaskRuntime` handle through the ordinary selected-provider behavior evidence,
   stack-resource, and custody work tracked under TR3–TR8.
 

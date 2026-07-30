@@ -341,6 +341,15 @@ which packages accept, derive, retain, return, release, or acquire qualified
 values. Content-bearing reports additionally retain the normalized projection,
 receipt backing, root lineage, outcome mapping, and n-ary conservation witness.
 
+For hardware-entered provider slots, the selected service schema records a
+linear bodyless parameter qualification as a structured `accepts` row. The row
+uses the carrier-aware semantic-domain identity, begins with the strict
+compiler carry policy, participates in provider-plan identity, and survives the
+external-root selection bridge. This is the static admission contract bound by
+the selected-plan receipt. A concrete source membership fact still requires the
+matching installed-root invocation receipt; reconstructing the parameter's
+ordinary fields or merely naming the selected plan establishes nothing.
+
 ## Carry of resource claims
 
 Accepted resource claims originate with a strict four-axis carry policy. Their
@@ -367,9 +376,11 @@ The implementation requires:
 1. The domain surface supports bodyless declarations and transparent
    declared-domain aliases. Exact owner-machine, domain-operator, and boundary
    requirement establishment relationships are normalized independently and
-   consumed by checked qualification. It still must add package-owner
-   coherence, compiler-owned carry atoms, and receipt-backed guarantees
-   throughout authority-flow consumers.
+   consumed by checked qualification. Selected boundary-entry schemas now
+   retain linear bodyless accepted claims with strict carry and publish them in
+   the qualification artifact. It still must add package-owner coherence and
+   concrete invocation-receipt-backed guarantees throughout source
+   qualification and the remaining authority-flow consumers.
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.

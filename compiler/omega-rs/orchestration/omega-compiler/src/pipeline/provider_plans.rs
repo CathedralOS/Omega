@@ -596,6 +596,7 @@ mod tests {
                         name: (*method).to_owned(),
                         parameter_count: 0,
                         parameter_type_identities: Vec::new(),
+                        entry_claims: Vec::new(),
                         has_result: false,
                         result_type_identity: None,
                         service_reach: vec!["Pair".to_owned()],

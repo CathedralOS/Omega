@@ -98,6 +98,15 @@ construction resolves its boundary slot against this carrier and copies the
 resulting plan identity into the root candidate before validation; an absent or
 ambiguous retained selection rejects.
 
+The normalized service schema also retains each linear bodyless parameter
+qualification as a structured entry claim. Its carrier-aware semantic-domain
+identity, `accepts` authority-flow verb, and born-strict compiler carry policy
+participate in provider-plan identity. The external-root selection bridge
+copies those rows beside that identity, and the qualification artifact reports
+them with the selected-plan receipt. The row records what an admitted external
+entry may supply; only the matching concrete entry receipt establishes a source
+fact for one invocation.
+
 Checked-adapter dispatch consumes that retained carrier as well. When a slot has
 a selected plan, only an exact `CheckedAdapter` row in that plan may rewrite the
 corresponding boundary call; an unrelated free adapter cannot overlay the

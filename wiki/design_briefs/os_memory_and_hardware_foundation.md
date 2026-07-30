@@ -1276,10 +1276,14 @@ invocation, initial mask state, and acknowledgement policy. Replayed
 invocation or acknowledgement identities reject, nested saved-mask guards
 restore only the newest exact prior state, active entries pin root retirement,
 and deriver-owned exit requires the entry mask state plus the exact completed
-acknowledgement. Wiring those installed-root receipts into source
-`Active`/`Pending` establishment, carry facts, and authority-flow reporting
-remains, as does the concrete Cathedral PIC/LAPIC entry implementation that
-executes the admitted transitions.
+acknowledgement. The compiler-selected root schema now retains a linear
+bodyless entry qualification such as `InterruptAcknowledgement::Pending` as a
+structured `accepts` row with born-strict carry. The provider-plan receipt
+identity binds that row, the external-root selection bridge preserves it, and
+the qualification artifact reports it. This closes the static admitted-entry
+contract; wiring the concrete invocation and mask-transition receipts into
+source `Pending`/`Active` facts remains, as does the concrete Cathedral
+PIC/LAPIC entry implementation that executes the admitted transitions.
 
 ### OS interrupt policies are consumer-owned
 
