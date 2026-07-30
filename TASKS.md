@@ -536,7 +536,6 @@ application-handler re-entry restrictions use ordinary local reach analysis.
 
 Reference: `wiki/design_briefs/extern_boundary_and_format_domains.md`.
 
-- **PRV4c:** finish target defaults and type-per-slot overrides.
 - **PRV4e:** migrate remaining foreign offsets/flags into format/layout policy.
 - **PRV4f:** delete compatibility `provides`, `call_shape`, and host-operation
   chains after the final consumer moves.

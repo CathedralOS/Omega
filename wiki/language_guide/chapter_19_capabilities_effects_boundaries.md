@@ -752,7 +752,11 @@ machine build(b: &mut Build) {
 
 The build declaration can select only a complete candidate already present in
 the loaded dependency closure and applicable to the selected target. It does
-not append rows, admit a candidate, or widen the requirement's reach.
+not append rows, admit a candidate, or widen the requirement's reach. The
+boundary type path resolves to exactly one canonical slot. An exact canonical
+name wins; otherwise an unqualified leaf is convenient when unique and must be
+qualified when ambiguous. Equivalent qualified and unqualified spellings
+cannot select the same slot twice.
 
 This is the same proof shape as a library import:
 
