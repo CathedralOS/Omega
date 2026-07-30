@@ -37,7 +37,7 @@ scanners, or receipts.
 Designs may depend on an analysis listed here only by naming the dependency.
 They must not describe its result as something the checker already derives.
 
-- **Normalized `WorkPlan` (#3):** required by bounded interrupt work,
+- **Normalized `WorkPlan` (#1):** required by bounded interrupt work,
   work-to-semantic-safe-point reporting, deterministic build-evaluation
   accounting, and complete foreign/callback work attribution. The current
   provider-local fixed-work composer is an implementation precursor, not the
@@ -47,7 +47,7 @@ They must not describe its result as something the checker already derives.
   `happens_before`, and `global_sequential_order`; mechanize the portable
   access/fence axioms; and prove the x86-64/AArch64 mappings. Existing ordering
   labels and instruction selection are implementation evidence, not this
-  analysis. Modular package premises remain owner-blocked on #8.
+  analysis. Modular package premises remain owner-blocked on #6.
 
 ## Priority queue
 
