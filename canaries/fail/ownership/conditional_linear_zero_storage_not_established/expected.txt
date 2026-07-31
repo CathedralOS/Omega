@@ -1,1 +1,1 @@
-linear value `state` has not been established
+linear value `state::Live.receipt` has not been established

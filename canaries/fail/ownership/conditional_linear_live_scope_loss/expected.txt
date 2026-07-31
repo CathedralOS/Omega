@@ -1,1 +1,1 @@
-linear value `state` reaches scope exit without being consumed or transferred
+linear value `state::Live.receipt` reaches scope exit without being consumed or transferred
