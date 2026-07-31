@@ -13,6 +13,7 @@ pub(crate) use last_uses::{
     place_symbol_is_used_in_state,
 };
 pub(crate) use loans::borrow_initializer_expressions;
+pub(crate) use tracker::BorrowOwnerSegment;
 
 use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;
