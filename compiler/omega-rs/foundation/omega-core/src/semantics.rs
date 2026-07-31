@@ -902,10 +902,6 @@ pub enum DomainEstablishmentRoute {
         trait_definition: crate::symbols::SymbolHandle,
         requirement: crate::symbols::SymbolHandle,
     },
-    /// A checked machine owned by the domain carrier.
-    OwnerCheckedMachine {
-        machine: crate::symbols::SymbolHandle,
-    },
     /// An exact result guarantee on an owner-authored boundary requirement.
     BoundaryRequirement {
         boundary_trait: crate::symbols::SymbolHandle,
@@ -917,7 +913,6 @@ impl DomainEstablishmentRoute {
     pub const fn kind_name(self) -> &'static str {
         match self {
             Self::CheckedRequirement { .. } => "checked_requirement",
-            Self::OwnerCheckedMachine { .. } => "owner_checked_machine",
             Self::BoundaryRequirement { .. } => "boundary_requirement",
         }
     }
@@ -927,7 +922,6 @@ impl DomainEstablishmentRoute {
             Self::CheckedRequirement {
                 trait_definition, ..
             } => trait_definition,
-            Self::OwnerCheckedMachine { machine } => machine,
             Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
         }
     }
@@ -936,7 +930,6 @@ impl DomainEstablishmentRoute {
         match self {
             Self::CheckedRequirement { requirement, .. }
             | Self::BoundaryRequirement { requirement, .. } => requirement,
-            Self::OwnerCheckedMachine { .. } => crate::symbols::SymbolHandle::invalid(),
         }
     }
 }
@@ -958,9 +951,6 @@ pub enum QualificationEvidenceOrigin {
     /// A checked conformance returned through an exact requirement route
     /// authored by the domain declaration.
     AuthorizedRouteEstablishment,
-    /// Transitional evidence from a legacy inferred owner-machine route.
-    /// Retained only while declarations migrate to authored routes.
-    OwnerEstablishment,
     /// Existing evidence was conserved through a checked transformation.
     CheckedTransformation,
     /// The fact crossed an admitted boundary under a public contract.
@@ -978,7 +968,6 @@ impl QualificationEvidenceOrigin {
             Self::Prover => "prover",
             Self::CheckedValidation => "checked_validation",
             Self::AuthorizedRouteEstablishment => "authorized_route_establishment",
-            Self::OwnerEstablishment => "owner_establishment",
             Self::CheckedTransformation => "checked_transformation",
             Self::AdmittedReceipt => "admitted_receipt",
             Self::Propagated => "propagated",
@@ -1040,12 +1029,6 @@ mod tests {
         assert_eq!(route.kind_name(), "boundary_requirement");
         assert_eq!(route.source_symbol(), boundary_trait);
         assert_eq!(route.requirement_symbol(), requirement);
-
-        let owner = DomainEstablishmentRoute::OwnerCheckedMachine {
-            machine: crate::symbols::SymbolHandle::from_arena_index(13),
-        };
-        assert_eq!(owner.kind_name(), "owner_checked_machine");
-        assert!(!owner.requirement_symbol().is_valid());
     }
 
     #[test]
@@ -1071,7 +1054,6 @@ mod tests {
             Origin::AuthorizedRouteEstablishment.as_str(),
             "authorized_route_establishment"
         );
-        assert_eq!(Origin::OwnerEstablishment.as_str(), "owner_establishment");
         assert_eq!(
             Origin::CheckedTransformation.as_str(),
             "checked_transformation"

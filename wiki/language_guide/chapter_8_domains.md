@@ -1194,8 +1194,9 @@ Working interpretation:
 > corpora use the settled clause. Domain operators use ordinary top-level
 > declarations with exact or uniquely inferred semantic homes; nested
 > declarations reject, and operator association grants no establishment
-> authority. Inferred owner-machine and boundary-requirement routes remain
-> during their separate migration. Exact
+> authority. Owner machines and boundary contract placement do not infer
+> establishment routes; every routed qualification names its exact checked or
+> boundary requirement in the domain declaration. Exact
 > representation/scale conversion and per-domain erasure are not yet
 > implemented. Arithmetic policies still have special lowering paths. General
 > domain work must preserve every domain-theory axis independently in the IR; see

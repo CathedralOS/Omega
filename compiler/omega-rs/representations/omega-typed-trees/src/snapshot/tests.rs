@@ -19,7 +19,8 @@ fn snapshots_empty_typed_tree_as_json() {
 #[test]
 fn snapshots_normalized_domain_semantic_roles() {
     let mut program = TypedTrees::default();
-    let machine = omega_core::symbols::SymbolHandle::from_arena_index(25);
+    let trait_definition = omega_core::symbols::SymbolHandle::from_arena_index(25);
+    let requirement = omega_core::symbols::SymbolHandle::from_arena_index(26);
     program.push_domain_definition(DomainDefinition {
         semantic_id: omega_core::semantics::SemanticDomainId(23),
         semantic_roles: omega_core::semantics::DomainSemanticRoles {
@@ -27,7 +28,10 @@ fn snapshots_normalized_domain_semantic_roles() {
             arithmetic_policy: None,
         },
         establishment_routes: vec![
-            omega_core::semantics::DomainEstablishmentRoute::OwnerCheckedMachine { machine },
+            omega_core::semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            },
         ],
         ..Default::default()
     });
@@ -41,10 +45,14 @@ fn snapshots_normalized_domain_semantic_roles() {
     assert_eq!(domain.semantic_roles.denotation_dimension, Some(23));
     assert_eq!(domain.semantic_roles.arithmetic_policy, None);
     assert_eq!(domain.establishment_routes.len(), 1);
-    assert_eq!(domain.establishment_routes[0].kind, "owner_checked_machine");
+    assert_eq!(domain.establishment_routes[0].kind, "checked_requirement");
     assert_eq!(
         domain.establishment_routes[0].source_symbol,
-        machine.arena_index()
+        trait_definition.arena_index()
+    );
+    assert_eq!(
+        domain.establishment_routes[0].requirement_symbol,
+        Some(requirement.arena_index())
     );
     assert!(snapshot.to_json_pretty().is_ok());
 }

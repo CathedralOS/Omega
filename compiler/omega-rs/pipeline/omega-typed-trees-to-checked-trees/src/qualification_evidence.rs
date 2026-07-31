@@ -237,17 +237,6 @@ fn machine_domain_establishment_origin(
                     })
                     .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment)
             }
-            DomainEstablishmentRoute::OwnerCheckedMachine {
-                machine: route_machine,
-            } => (*route_machine == machine.symbol
-                || program
-                    .machine_specializations
-                    .iter()
-                    .any(|specialization| {
-                        specialization.template == *route_machine
-                            && specialization.instance == machine.symbol
-                    }))
-            .then_some(QualificationEvidenceOrigin::OwnerEstablishment),
             DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
         })
 }

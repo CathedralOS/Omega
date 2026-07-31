@@ -104,8 +104,9 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         arithmetic_policy: None,
     };
     let establishment_routes = vec![
-        omega_core::semantics::DomainEstablishmentRoute::OwnerCheckedMachine {
-            machine: SymbolHandle::from_arena_index(13),
+        omega_core::semantics::DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition: SymbolHandle::from_arena_index(13),
+            requirement: SymbolHandle::from_arena_index(14),
         },
     ];
     let constraints = source_types.insert_constraints([

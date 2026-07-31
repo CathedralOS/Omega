@@ -104,9 +104,9 @@ as routed establishment, receipt-backed boundary guarantees, and
 resource-frontier transformations land.
 
 The compiler records whether each domain fact originated through checked proof,
-owner establishment, validation, resource transfer, or accepted boundary
-evidence. The owner-authorized requirement and provider receipt contribute to
-trust identity; private proof and transformation witnesses remain
+an authorized checked conformance, validation, resource transfer, or accepted
+boundary evidence. The domain-authorized requirement and provider receipt
+contribute to trust identity; private proof and transformation witnesses remain
 implementation evidence.
 
 Trust composes by the weakest supporting input, while provenance retains every
@@ -186,7 +186,7 @@ are gone. Checked artifacts retain the exact cast site and
 `vacuous_qualification` origin; predicate-bearing and routed atoms do not enter
 through this path.
 
-Implementation status (P1b authored route surface, 2026-07-30): syntax trees
+Implementation status (P1b authored route surface, 2026-07-31): syntax trees
 now retain predicate `requires` separately from exact requirement paths in the
 domain body. Resolved trees preserve the authored paths and normalize them
 once, after symbol assignment, to checked- or boundary-requirement identities;
@@ -198,9 +198,10 @@ syntax is now rejected with directed `requires` migration guidance, and the
 source, sample, canary, and embedded-test corpora use the independent predicate
 record. Domain operators have moved to ordinary top-level declarations with an
 exact or uniquely inferred semantic home; nested declarations reject, and
-operators no longer create establishment routes. Inferred owner-machine and
-boundary-requirement routes remain temporarily for corpus migration and are not
-the target representation.
+operators no longer create establishment routes. Owner machines and boundary
+contract placement have no ambient establishment privilege: the normalizer
+retains only exact checked- or boundary-requirement identities authored by each
+domain.
 
 Implementation status (P1a establishment routes, 2026-07-28):
 `DomainEstablishmentRoute` records the exact trait-requirement identity

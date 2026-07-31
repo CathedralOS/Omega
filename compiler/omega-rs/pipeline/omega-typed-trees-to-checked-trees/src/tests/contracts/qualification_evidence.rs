@@ -9,7 +9,9 @@ data Token {
     value: u64;
 }
 
-domain Token::Issued;
+domain Token::Issued {
+    TokenIssuer::issue;
+}
 
 boundary trait TokenIssuer {
     machine issue(value: u64) -> Token
@@ -171,15 +173,24 @@ machine Main::run(&mut self) -> Token {
 }
 
 #[test]
-fn carrier_owner_establishes_bodyless_result_and_call_retains_origin() {
+fn checked_conformance_establishes_bodyless_result_and_call_retains_origin() {
     let source = r#"
 data Token {
     value: u64;
 }
 
-domain Token::Issued;
+domain Token::Issued {
+    TokenIssuer::issue;
+}
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
 
 machine Token::issue(value: u64) -> Token
+satisfies TokenIssuer::issue
 ensures
     result in Token::Issued
 {
@@ -202,21 +213,26 @@ machine Main::run(&mut self) {
 "#;
 
     let checked = lower_typed_trees(parse_typed_trees(source))
-        .expect("the carrier owner may establish its bodyless fact");
+        .expect("the exact checked conformance may establish its routed fact");
     let issued = checked
         .domain_definitions()
         .iter()
         .find(|domain| domain.name.as_str() == "Token::Issued")
         .expect("issued domain");
-    let owner = checked
-        .machines()
+    let issuer = checked
+        .traits()
         .iter()
-        .find(|machine| machine.name.as_str() == "Token::issue")
-        .expect("owner machine");
+        .find(|definition| definition.name.as_str() == "TokenIssuer")
+        .expect("issuer trait");
+    let requirement = checked
+        .trait_machine_signatures(issuer)
+        .first()
+        .expect("issue requirement");
     assert_eq!(
         issued.establishment_routes,
-        [DomainEstablishmentRoute::OwnerCheckedMachine {
-            machine: owner.symbol,
+        [DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition: issuer.symbol,
+            requirement: requirement.symbol,
         }]
     );
     let call_fact = checked
@@ -237,7 +253,7 @@ machine Main::run(&mut self) {
 
     assert_eq!(
         call_fact.evidence.origin,
-        QualificationEvidenceOrigin::OwnerEstablishment
+        QualificationEvidenceOrigin::AuthorizedRouteEstablishment
     );
     assert!(call_fact.evidence.source_symbol.is_valid());
     assert_eq!(call_fact.evidence.receipt_identity, 0);
@@ -261,16 +277,25 @@ machine Main::run(&mut self) {
 }
 
 #[test]
-fn checked_owner_authority_is_consumed_from_the_normalized_route_record() {
+fn checked_conformance_authority_is_consumed_from_the_normalized_route_record() {
     let mut typed = parse_typed_trees(
         r#"
 data Token {
     value: u64;
 }
 
-domain Token::Issued;
+domain Token::Issued {
+    TokenIssuer::issue;
+}
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
 
 machine Token::issue(value: u64) -> Token
+satisfies TokenIssuer::issue
 ensures
     result in Token::Issued
 {
@@ -291,7 +316,7 @@ machine Main::run(&mut self) {
     issued.establishment_routes.clear();
 
     let diagnostics = lower_typed_trees(typed)
-        .expect_err("checked lowering must not reconstruct owner authority from names");
+        .expect_err("checked lowering must not reconstruct route authority from conformance names");
     assert!(
         diagnostics
             .iter()
