@@ -1,5 +1,6 @@
-use crate::InterpretOutcome;
-use crate::{FilesystemAccess, InterpretOptions};
+use crate::{
+    EvaluationUsage, FilesystemAccess, InterpretOptions, InterpretOutcome, MeasuredEvaluation,
+};
 
 /// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
 /// build.omg rung). A CHILD module so it can serve ops against the private
@@ -209,7 +210,12 @@ pub(crate) fn run_with_options(
             .expect("spawn interpreter worker thread")
             .join()
             .unwrap_or_else(|_| {
-                InterpretOutcome::error("interpreter thread panicked", Vec::new(), Vec::new())
+                InterpretOutcome::error(
+                    "interpreter thread panicked",
+                    Vec::new(),
+                    Vec::new(),
+                    EvaluationUsage::empty(),
+                )
             })
     })
 }
@@ -220,9 +226,12 @@ pub(crate) fn run_with_options(
 /// `wrap_to_width` the interpreter applies on writes, so the result is
 /// TARGET-width-correct, not host-width). The caller (the compiler's
 /// const-eval pass) owns the purity gate; this entry owns evaluation and a
-/// small fuel cap. Errors carry a human-readable reason for the compile
-/// diagnostic at the const site.
-pub(crate) fn run_const_machine(program: &TypedTrees, machine_name: &str) -> Result<i64, String> {
+/// small evaluator-step ceiling. Errors carry a human-readable reason for the
+/// compile diagnostic at the const site.
+pub(crate) fn run_const_machine(
+    program: &TypedTrees,
+    machine_name: &str,
+) -> Result<MeasuredEvaluation<i64>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -238,11 +247,13 @@ pub(crate) fn run_const_machine(program: &TypedTrees, machine_name: &str) -> Res
 fn run_const_machine_on_current_thread(
     program: &TypedTrees,
     machine_name: &str,
-) -> Result<i64, String> {
+) -> Result<MeasuredEvaluation<i64>, String> {
     let mut evaluator = Evaluator::new(program, &[]);
     evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
-    match evaluator.run_const_machine(machine_name) {
-        Ok(value) => Ok(value),
+    let result = evaluator.run_const_machine(machine_name);
+    let usage = evaluator.usage;
+    match result {
+        Ok(value) => Ok(MeasuredEvaluation::new(value, usage)),
         Err(Halt::Exit(code)) => Err(format!(
             "the machine attempted to exit the process (code {code}) instead of returning a value"
         )),
@@ -254,20 +265,23 @@ fn run_const_machine_on_current_thread(
 /// effect-free machine with compiler-built ARGUMENTS and read back its
 /// terminal value as a structured tree. Same ownership split as
 /// `run_const_machine`: the caller owns the purity gate (decision 12's
-/// transitive effect surface), this entry owns evaluation + the fuel cap.
+/// transitive effect surface), this entry owns evaluation + the evaluator-step
+/// ceiling.
 pub(crate) fn run_build_time_machine(
     program: &TypedTrees,
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
-) -> Result<crate::build_time::BuildTimeValue, String> {
+) -> Result<MeasuredEvaluation<crate::build_time::BuildTimeValue>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
-                match evaluator.run_build_time_machine(machine_name, arguments) {
-                    Ok(value) => Ok(value),
+                let result = evaluator.run_build_time_machine(machine_name, arguments);
+                let usage = evaluator.usage;
+                match result {
+                    Ok(value) => Ok(MeasuredEvaluation::new(value, usage)),
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning a value"
                     )),
@@ -289,15 +303,17 @@ pub(crate) fn run_build_time_machine_arguments(
     program: &TypedTrees,
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
-) -> Result<Vec<crate::build_time::BuildTimeValue>, String> {
+) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
-                match evaluator.run_build_time_machine_arguments(machine_name, arguments) {
-                    Ok(values) => Ok(values),
+                let result = evaluator.run_build_time_machine_arguments(machine_name, arguments);
+                let usage = evaluator.usage;
+                match result {
+                    Ok(values) => Ok(MeasuredEvaluation::new(values, usage)),
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
                     )),
@@ -316,13 +332,13 @@ pub(crate) fn run_build_time_machine_arguments(
 /// back the augmented arguments. Filesystem ops are allowed (the grant is the
 /// audit surface); any OTHER host boundary (console, clock, gui) rejects.
 /// Runs under the FULL step budget: staging assets is real work, unlike the
-/// const-eval fuel cap the pure entry rides.
+/// const-eval step ceiling the pure entry rides.
 pub(crate) fn run_granted_build_machine_arguments(
     program: &TypedTrees,
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     options: InterpretOptions,
-) -> Result<Vec<crate::build_time::BuildTimeValue>, String> {
+) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -354,8 +370,9 @@ pub(crate) fn run_granted_build_machine_arguments(
                     let _ = std::io::stderr().write_all(&evaluator.stderr);
                     let _ = std::io::stderr().flush();
                 }
+                let usage = evaluator.usage;
                 match result {
-                    Ok(values) => Ok(values),
+                    Ok(values) => Ok(MeasuredEvaluation::new(values, usage)),
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
                     )),
@@ -383,14 +400,18 @@ fn run_on_current_thread(
             evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
         }
     }
-    match evaluator.run_entry() {
+    let result = evaluator.run_entry();
+    let usage = evaluator.usage;
+    match result {
         Ok(()) => {
             // Reached a terminal transition without an explicit exit_process.
-            InterpretOutcome::exited(0, evaluator.stdout, evaluator.stderr)
+            InterpretOutcome::exited(0, evaluator.stdout, evaluator.stderr, usage)
         }
-        Err(Halt::Exit(code)) => InterpretOutcome::exited(code, evaluator.stdout, evaluator.stderr),
+        Err(Halt::Exit(code)) => {
+            InterpretOutcome::exited(code, evaluator.stdout, evaluator.stderr, usage)
+        }
         Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => {
-            InterpretOutcome::error(message, evaluator.stdout, evaluator.stderr)
+            InterpretOutcome::error(message, evaluator.stdout, evaluator.stderr, usage)
         }
     }
 }
@@ -603,10 +624,10 @@ struct Evaluator<'program> {
     /// while still rejecting every OTHER host boundary (console, clock, gui)
     /// as its dynamic backstop.
     non_fs_host_boundary_touched: bool,
-    steps: u64,
+    usage: EvaluationUsage,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
-    /// `CONST_EVAL_STEP_BUDGET` as a defense-in-depth fuel cap.
+    /// `CONST_EVAL_STEP_BUDGET` as a defense-in-depth step ceiling.
     step_budget: u64,
     call_depth: u32,
     /// Non-zero while evaluating a transition GUARD expression. Value-calls evaluated
@@ -643,7 +664,7 @@ impl<'program> Evaluator<'program> {
             real_fs: None,
             host_boundary_touched: false,
             non_fs_host_boundary_touched: false,
-            steps: 0,
+            usage: EvaluationUsage::empty(),
             // OMEGA_INTERP_STEP_BUDGET overrides the default for
             // measurement / long-running sample runs (dev knob, same
             // convention as the OMEGA_DEBUG_* flags); unset = the default.
@@ -657,8 +678,10 @@ impl<'program> Evaluator<'program> {
     }
 
     fn tick(&mut self) -> EvalResult<()> {
-        self.steps += 1;
-        if self.steps > self.step_budget {
+        self.usage
+            .charge_step()
+            .ok_or_else(|| Halt::Trap("evaluator usage overflowed".to_owned()))?;
+        if self.usage.fuel_units() > self.step_budget {
             return trap("step budget exceeded");
         }
         Ok(())

@@ -6,7 +6,9 @@
 //! machinery makes (programmable_layouts.md).
 
 use omega_compiler::compile_to_checked;
-use omega_interpreter::{BuildTimeValue, evaluate_build_time_machine};
+use omega_interpreter::{
+    BuildTimeValue, evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret,
+};
 use std::fs;
 use std::path::PathBuf;
 
@@ -50,6 +52,11 @@ machine Main::main(&mut self) { }
     );
 
     let checked = compile_to_checked(&main_path, None).expect("pilot program should compile");
+    let interpreted = interpret(&checked, &[]);
+    assert!(interpreted.error.is_none());
+    assert_eq!(interpreted.usage.schedule().schedule_version(), 1);
+    assert!(interpreted.usage.fuel_units() > 0);
+
     let schema = BuildTimeValue::Struct {
         type_name: "Schema".to_owned(),
         fields: vec![
@@ -58,8 +65,17 @@ machine Main::main(&mut self) { }
         ],
     };
 
-    let plan = evaluate_build_time_machine(&checked.typed, "Planner::plan", vec![schema])
-        .expect("plan() should evaluate at build time");
+    let first =
+        evaluate_build_time_machine_measured(&checked.typed, "Planner::plan", vec![schema.clone()])
+            .expect("plan() should evaluate with usage");
+    let second =
+        evaluate_build_time_machine_measured(&checked.typed, "Planner::plan", vec![schema])
+            .expect("equal evaluation should reproduce usage");
+    assert_eq!(first.usage(), second.usage());
+    assert_eq!(first.usage().schedule().schedule_version(), 1);
+    assert!(first.usage().fuel_units() > 0);
+    assert_eq!(first.value(), second.value());
+    let plan = first.into_value();
 
     let BuildTimeValue::Struct { type_name, fields } = plan else {
         panic!("expected a struct plan, got {plan:?}");
