@@ -291,9 +291,11 @@ backing, retirement, and ambiguity proofs remain outstanding.
   threading operation, rejection shape, and `Allocation<T>` lifetime carrier
   are not. General fragmented heaps remain fallible or require exact
   placement/reservation evidence;
-- require admitted roots to carry backing receipts denominated in the same
+- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #9:**
+  require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
-  postconditions;
+  postconditions. Provider selection and receipt identity are live, but no
+  source/IR binder yet supplies the receipt's per-invocation algebra value;
 - prove all consumed content equals the separated composition of produced
   content plus any remainder retired through an authorized route;
 - conserve every independent content-bearing claim kind and require one joint
