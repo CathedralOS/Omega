@@ -4558,6 +4558,17 @@ fn extent_root_provider_adapter_compiles() {
         evidence.contains("\"receipt_identity\": \"0x"),
         "the build grant must attach the selected provider-plan receipt:\n{evidence}"
     );
+    let outcomes = fs::read_to_string(build_dir.join("05_claim_outcomes.json"))
+        .expect("Extent claim-outcome and content-projection artifact");
+    assert!(outcomes.contains("\"content_projections\""));
+    assert!(outcomes.contains("\"domain\": \"Extent::Granted\""));
+    assert!(outcomes.contains("\"kind\": \"interval\""));
+    assert!(outcomes.contains("\"coordinate_space\": \"named(name(Nat))\""));
+    assert!(outcomes.contains("\"kind\": \"runtime_scalar_embedding\""));
+    assert!(outcomes.contains("\"path\": [\"base\"]"));
+    assert!(outcomes.contains("\"path\": [\"length\"]"));
+    assert!(outcomes.contains("\"operator\": \"add\""));
+    assert!(outcomes.contains("\"fingerprint\": \"0x"));
     let _ = fs::remove_dir_all(&build_dir);
 }
 
