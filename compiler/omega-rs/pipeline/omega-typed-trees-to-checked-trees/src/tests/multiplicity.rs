@@ -123,6 +123,35 @@ fn empty_conditional_sum_records_establishment_without_payload_debt() {
 }
 
 #[test]
+fn uninitialized_conditional_sum_cannot_be_moved_as_an_empty_value() {
+    let source = r#"
+        data Receipt [linear] { code: i32; }
+        data ReceiptState {
+            case Empty;
+            case Live(receipt: Receipt);
+        }
+        machine ReceiptState::settle(self) {}
+        data Main {}
+        machine Main::run() -> i32 {
+            let state: ReceiptState;
+            ReceiptState::settle(state);
+            0
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("implicit zero-fill does not establish a sum value");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("linear value `state::Live.receipt` has not been established")
+    }));
+}
+
+#[test]
 fn borrow_loans_share_the_permission_context_with_access_and_origin() {
     let checked = checked(
         r#"

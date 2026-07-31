@@ -2038,7 +2038,8 @@ fn apply_statement_permission_production(
         let kind = permission_kind_for_move(program, facts, machine_symbol, state_symbol, event);
         for index in matching {
             let claim_path = places[index].path.clone();
-            if !places[index].live
+            if places[index].ever_established
+                && !places[index].live
                 && places[index].conditional
                 && !event_path
                     .iter()
