@@ -1,0 +1,38 @@
+// Exact integer `as` is compiler-derived only when the complete source range
+// fits the target. The declared range proves this width narrowing and the
+// ordinary full i8 range proves the widening in the return expression.
+
+machine narrow(value: i32 [0..=255]) -> u8 {
+    value as u8
+}
+
+machine widen(value: i8) -> i32 {
+    value as i32
+}
+
+machine guard_narrow(value: i32) -> u8 {
+    transition value >= 0 {
+        true -> upper_bound(value)
+        _ -> (0)
+    }
+
+    state upper_bound(value: i32) -> u8 {
+        transition value <= 255 {
+            true -> (value as u8)
+            _ -> (0)
+        }
+    }
+}
+
+machine erase_wrapping_policy() -> u32 {
+    ((0 as u32 in Wrapping) - (1 as u32 in Wrapping)) as u32
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let small: u8 = narrow(200);
+    let wide: i32 = widen(-5);
+    let guarded: u8 = guard_narrow(42);
+    let same_carrier: u32 = erase_wrapping_policy();
+}

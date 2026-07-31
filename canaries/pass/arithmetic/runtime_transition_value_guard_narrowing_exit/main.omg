@@ -10,6 +10,7 @@
 // dec(43) = 42; main exits 42.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 data Main { console: Console; }
 
 machine Main::dec(&mut self, n: u32) -> u32 {
@@ -21,6 +22,6 @@ machine Main::dec(&mut self, n: u32) -> u32 {
 
 machine Main::main(&mut self) {
     let result: u32 = self.dec(43);
-    let code: i32 = result as i32;
+    let code: i32 = narrow_u32_to_i32_trapping(result);
     self.console.exit_process(code);
 }

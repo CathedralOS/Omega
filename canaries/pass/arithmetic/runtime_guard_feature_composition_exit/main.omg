@@ -1,5 +1,5 @@
 // COMPOSITION of the guard-subject features landed this session: a shift comparison
-// (`x >> 2 == 1`) and a cast comparison (`(x as i8) < 0`) used as leaves INSIDE
+// (`x >> 2 == 1`) and a named wrapping-conversion comparison used as leaves INSIDE
 // boolean nesting (`&&`, `||`, and a disjunction nested in a conjunction). This
 // exercises the guard value-operand path (shifts/casts) and the distribute-to-DNF
 // boolean lowering TOGETHER -- the features were each canaried alone, this locks
@@ -7,6 +7,7 @@
 // differential oracle also checks native==interpreter.
 
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -41,16 +42,16 @@ machine Main::main(&mut self) {
         transition self.x >> 2 == 1 && self.y > 0 { true -> cast_or() _ -> bad() }
     }
     state cast_or(&mut self) {
-        // cast comparison OR a comparison: ((x as i8) < 0) || (y > 0). x=4 -> as i8
-        // is 4 (>= 0), y=5 > 0 true -> true via the right leaf.
-        transition (self.x as i8) < 0 || self.y > 0 { true -> cast_or_high() _ -> bad() }
+        // conversion comparison OR a comparison: wrap-i32-to-i8(x) < 0 || y > 0.
+        // x=4 converts to 4 (>= 0), y=5 > 0 true -> true via the right leaf.
+        transition narrow_i32_to_i8_wrapping(self.x) < 0 || self.y > 0 { true -> cast_or_high() _ -> bad() }
     }
     state cast_or_high(&mut self) {
-        // Make the high bit set so the cast leaf itself is true: x=200 -> (200 as i8)
-        // == -56 < 0 true -> ((x as i8) < 0) || (y > 0) true via the LEFT leaf.
+        // Make the high bit set so the conversion leaf itself is true: x=200 -> -56
+        // < 0, so the disjunction is true via the LEFT leaf.
         self.x = 200;
         self.y = 0 - 1;
-        transition (self.x as i8) < 0 || self.y > 0 { true -> nested() _ -> bad() }
+        transition narrow_i32_to_i8_wrapping(self.x) < 0 || self.y > 0 { true -> nested() _ -> bad() }
     }
     state nested(&mut self) {
         // a shift comparison nested in an Or inside an And:

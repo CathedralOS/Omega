@@ -1,0 +1,17 @@
+// A bare Exact cast is not permission to truncate or reinterpret an integer.
+// The unrestricted i32 source does not fit u8, so a caller must prove a range
+// or choose one named policy-bearing conversion.
+
+machine narrow(value: i32) -> u8 {
+    value as u8
+}
+
+// A pre-wrap mathematical interval outside i8 is not an empty proof interval.
+// The runtime i8 result can be negative, so a subsequent exact u8 cast rejects.
+machine wrapped_then_cross_signed() -> u8 {
+    ((100 as i8 in Wrapping) + (100 as i8 in Wrapping)) as u8
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1,10 +1,10 @@
 // Integer width/sign CASTS -- a classic codegen bug source (sign-extend vs
-// zero-extend vs truncate). Locks all four behaviors:
+// zero-extend vs representation narrowing). Locks these exact behaviors:
 //   - i8(-5)  as i32  -> -5      (SIGN-extend: negative preserved)
 //   - u8(200) as i32  -> 200     (ZERO-extend: no spurious sign)
-//   - i32(300) as u8  -> 44      (NARROW: truncate to low 8 bits)
+//   - bounded i32(200) as u8 -> 200 (proved representation narrowing)
 //   - i32(-7) as i64  -> -7      (WIDEN signed)
-//   - i16(-1) as u16 as u32 -> 65535  (reinterpret with the sign bit set, then widen)
+//   - bounded i16(32767) as u16 as u32 -> 32767 (proved cross-signed cast, then widen)
 // Exits 70.
 
 use omega::language::std::console;
@@ -18,11 +18,11 @@ machine Main::main(&mut self) {
     let aw: i32 in Trapping = a8 as i32;
     let b8: u8 = 200;
     let bw: i32 in Trapping = b8 as i32;
-    let c32: i32 in Wrapping = 300;
+    let c32: i32 [0..=255] = 200;
     let cn: u8 = c32 as u8;
     let d32: i32 in Trapping = -7;
     let dw: i64 in Trapping = d32 as i64;
-    let e16: i16 = -1;
+    let e16: i16 [0..=32767] = 32767;
     let eu: u16 = e16 as u16;
     let ew: u32 in Trapping = eu as u32;
 
@@ -32,13 +32,13 @@ machine Main::main(&mut self) {
         transition bw == 200 { true -> ck3(cn, dw, ew) _ -> bad() }
     }
     state ck3(&mut self, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
-        transition cn == 44 { true -> ck4(dw, ew) _ -> bad() }
+        transition cn == 200 { true -> ck4(dw, ew) _ -> bad() }
     }
     state ck4(&mut self, dw: i64 in Trapping, ew: u32 in Trapping) {
         transition dw == -7 { true -> ck5(ew) _ -> bad() }
     }
     state ck5(&mut self, ew: u32 in Trapping) {
-        transition ew == 65535 { true -> good() _ -> bad() }
+        transition ew == 32767 { true -> good() _ -> bad() }
     }
 
     state good(&mut self) {
