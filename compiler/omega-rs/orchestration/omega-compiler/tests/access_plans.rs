@@ -315,6 +315,27 @@ machine Main::main(&mut self) {}
 "#;
 
 #[test]
+fn compiler_accessor_templates_are_inert_without_placed_views() {
+    let main = write_program(
+        "no-placed-view",
+        r#"
+data Main {}
+machine Main::main(&mut self) {}
+"#,
+    );
+    let checked =
+        compile_to_checked(&main, None).expect("ordinary program should ignore accessor templates");
+    assert!(
+        checked
+            .typed
+            .machines()
+            .iter()
+            .all(|machine| !machine.name.as_str().starts_with("PlacedField::")),
+        "compiler-only accessor templates must not enter the typed program"
+    );
+}
+
+#[test]
 fn source_access_policy_evaluates_against_validated_layout() {
     let main = write_program("source-access", POLICY_SOURCE);
     let checked = compile_to_checked(&main, None).expect("source policy should compile");
