@@ -124,6 +124,29 @@ Working rules:
   obligations.
 - The compiler must prove const constraints at each instantiation.
 
+### Structured values and indexed domains
+
+Owner question #7 stages a generalization from scalar const parameters to
+structured canonical proof/static values. Eligibility is structural: equality
+must be decidable and the value must have one unique canonical form. Index
+position erases the value; this does not imply its value kind lacks an ordinary
+runtime representation.
+
+The second stage permits an erased domain family to take a closed static index.
+The third permits a generic result-domain constraint to contain an expression
+over input indices. The exact source header is not yet settled; conceptually, a
+unit library could produce a carrier qualified by `Quantity<KM>` or by the
+closed value `Quantity<KM / SECOND>`, while a generic divide operation produces
+`Quantity<A / B>`.
+
+The domain family remains nominal. Closed index values enter semantic identity
+in canonical form. Open expressions use only compiler-supported normal forms
+licensed by the exact selected, proved algebraic conformance. Compatibility
+creates a named verification condition; canonical normalization, explicit
+local `requires` hypotheses, deterministic entailment, or a cited proof may
+discharge it. No ambient theorem search occurs, and generic code must publish
+any equality it cannot discharge.
+
 ## Machine Parameters
 
 Settled 2026-07-20. A generic parameter may name a machine symbol:

@@ -81,6 +81,30 @@ with runtime strides = Sigma types in disguise; store enforcement = the
 ownership-sound strong updates Flux (Liquid Types for Rust, PLDI 2023) showed
 make refinement of mutable memory work; engine-not-terms = perfect erasure.
 
+### Proof-static indexed domains do not add a universe
+
+An erased domain may eventually take a canonical first-order static value as
+an index. This generalizes `const N: u64` to eligible structured values and
+lets a generic result carry an index constraint computed from input indices.
+Units, coordinate frames, currencies, tensor shapes, and protocol encodings
+are library customers; none becomes compiler vocabulary.
+
+This does not introduce types-as-values, predicate indices, runtime-dependent
+layout, or arbitrary machine evaluation in type equality. The nominal domain
+family remains fixed and the index is a normalized constraint fact.
+Compatibility between an actual index expression and an expected one creates
+a verification condition. Canonical normalization decides identity; explicit
+local hypotheses, deterministic entailment, or a cited proof discharge the
+condition without redefining identity. The compiler performs no ambient lemma
+search and never invents a public generic precondition.
+
+Index eligibility is a structural compiler judgment: the value kind must have
+decidable equality and one unique canonical form. Reduced rationals and records
+of eligible fields may qualify; runtime floats, pointers, references,
+capabilities, and allocation identities do not. A conformance cannot assert
+eligibility. Open symbolic expressions normalize only under an exact selected
+algebraic conformance whose laws were checked, not admitted.
+
 ### The proof-side proposition-family fragment
 
 The systems verdict above remains unchanged for runtime data. The

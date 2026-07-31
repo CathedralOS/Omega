@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-30.
+Last pruned: 2026-07-31.
 
 ## Reach, resources, and progress
 
@@ -72,10 +72,13 @@ Last pruned: 2026-07-30.
   already fixed.
 - Decide how much predicate/domain inference to attempt beyond executable
   predicate bodies, explicit evidence, and flow narrowing.
-- Finish the remaining domain spaces: external quantity-kind equations,
-  general open-family linking, `weakens_to` certificate syntax, affine
-  quantities, and the named float-conversion requirement surface (owner
-  question #3).
+- Stage proof-static indexed domains: structured canonical const values, closed
+  indexed families, then computed result indices with retained equality
+  evidence (owner question #7). Units remain a library customer rather than a
+  compiler-owned quantity theory.
+- Finish the remaining domain spaces: general open-family linking,
+  `weakens_to` certificate syntax, and the named float-conversion requirement
+  surface (owner question #3).
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

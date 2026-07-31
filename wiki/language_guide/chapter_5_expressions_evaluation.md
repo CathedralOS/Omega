@@ -408,7 +408,7 @@ Two rules keep it honest:
 > semantic meaning. Integer widening and representable narrowing therefore
 > use `as`; the proof may come from the complete source range, a dominating
 > guard, or a retained contract fact. The same rule covers direct domain
-> qualification and exact rational unit-scale changes.
+> qualification.
 >
 > A transformation that wraps, saturates, traps, rounds, can fail, allocates,
 > or otherwise selects policy is an ordinary named machine or an explicitly
@@ -416,6 +416,10 @@ Two rules keep it honest:
 > surfaces and may also offer named exact helpers, but callers do not need a
 > value-machine call merely to express a proved exact cast. `as` never invokes
 > arbitrary user code.
+
+Unit-scale conversion is domain-library behavior, not an intrinsic cast.
+Libraries expose it through ordinary named machines or heterogeneous operator
+conformances with their own `requires` and `ensures`.
 
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.

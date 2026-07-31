@@ -70,6 +70,13 @@ ordinary data arrive as explicit values or selected requirement inputs. The
 sealed target capsule is an evaluator/cache input, not a general source-visible
 `BuildWorld`.
 
+Structured proof/static values used by future indexed domains evaluate in this
+same sealed world. Their eligibility is narrower than general evaluator output:
+each index value must have decidable structural equality and one unique
+canonical encoding. The resulting canonical value, not the evaluation trace,
+enters a closed domain's semantic identity. Open symbolic index expressions
+remain normalized artifact data rather than arbitrary evaluator programs.
+
 Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
 arithmetic evaluates the same executable `FloatSemantics` functions that define
 the target operation contracts. Constant/runtime twin canaries cover rounding
