@@ -34558,7 +34558,7 @@ fn float_operator_spellings_record_named_core_identities() {
 }
 
 #[test]
-fn primitive_float_provider_plans_are_selected_for_every_native_target() {
+fn migrated_float_provider_plans_are_selected_for_every_native_target() {
     const MIGRATED_REQUIREMENTS: &[&str] = &[
         "Float::add",
         "Float::subtract",
@@ -34570,6 +34570,12 @@ fn primitive_float_provider_plans_are_selected_for_every_native_target() {
         "Float::less_or_equal",
         "Float::greater",
         "Float::greater_or_equal",
+        "F32::minimum",
+        "F64::minimum",
+        "F32::maximum",
+        "F64::maximum",
+        "F32::square_root",
+        "F64::square_root",
     ];
     let canary = pass_canary("operators/float_operator_identities");
     for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
@@ -34702,10 +34708,135 @@ fn primitive_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count,
-            MIGRATED_REQUIREMENTS.len() * 2,
-            "each primitive requirement must retain distinct f32/f64 plan slots"
+            selected_count, 26,
+            "the 20 overloaded primitive slots and six named-operation slots must all select"
         );
+    }
+}
+
+#[test]
+fn named_float_provider_calls_rewrite_to_selected_builtins() {
+    let canary = pass_canary("float/named_provider_min_max_sqrt_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("named float provider calls should compile to checked trees");
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    for operator_use in checked.facts.operators.named_uses() {
+        if operator_use.provider_plan_identity == 0 {
+            continue;
+        }
+        let plan = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+            .expect("named operator evidence must resolve to its retained plan");
+        let [row] = plan.rows.as_slice() else {
+            panic!("named float plan must contain exactly one row");
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            panic!("named float plan must select a compiler intrinsic");
+        };
+        selected_intrinsics.insert(name.clone());
+
+        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("named operator use must remain a call expression");
+        };
+        assert!(
+            !call.receiver.is_valid(),
+            "builtin dispatch removes F32/F64"
+        );
+        let expected_builtin = if name.contains("::minimum.") {
+            "min"
+        } else if name.contains("::maximum.") {
+            "max"
+        } else if name.contains("::square_root.") {
+            "sqrt"
+        } else {
+            panic!("unexpected migrated named intrinsic `{name}`");
+        };
+        assert_eq!(call.target.as_str(), expected_builtin);
+        assert_eq!(
+            Some(call.target_symbol),
+            checked
+                .typed
+                .symbols
+                .builtin_function_symbol(match expected_builtin {
+                    "min" => omega_core::symbols::BuiltinFunction::Min,
+                    "max" => omega_core::symbols::BuiltinFunction::Max,
+                    "sqrt" => omega_core::symbols::BuiltinFunction::Sqrt,
+                    _ => unreachable!(),
+                })
+        );
+    }
+
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::maximum.f32".to_owned(),
+            "F32::minimum.f32".to_owned(),
+            "F32::square_root.f32".to_owned(),
+            "F64::maximum.f64".to_owned(),
+            "F64::minimum.f64".to_owned(),
+            "F64::square_root.f64".to_owned(),
+        ]
+        .into_iter()
+        .collect()
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70, "rewritten builtins must execute");
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-named-float-provider-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("named float provider calls should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("named float provider canary should run");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "selected named float builtins must execute natively; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-named-float-provider-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy named-float canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write cross-target build manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("named float provider calls should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
     }
 }
 
@@ -38943,6 +39074,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/float_value_call_runtime_arg_exit",
     "float/runtime_std_is_finite_exit",
     "float/f32_chain_per_op_rounding_exit",
+    "float/named_provider_min_max_sqrt_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
@@ -40027,6 +40159,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/via_repeated_effects_rejected",
     "providers/via_signature_mismatch_rejected",
     "providers/float_operator_intrinsic_mismatch_rejected",
+    "providers/named_float_intrinsic_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/cauchy_zero_precision_rejected",

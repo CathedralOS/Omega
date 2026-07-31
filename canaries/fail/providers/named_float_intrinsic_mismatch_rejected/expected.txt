@@ -1,0 +1,1 @@
+requires exact intrinsic `F32::minimum.f32`

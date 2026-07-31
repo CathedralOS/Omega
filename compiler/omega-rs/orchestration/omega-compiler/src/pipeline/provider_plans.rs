@@ -225,26 +225,62 @@ fn expected_float_intrinsic(
     let [namespace, requirement] = path else {
         return None;
     };
-    if namespace.as_str() != "Float" {
-        return None;
-    }
-    let operation = match requirement.as_str() {
-        "add" | "subtract" | "multiply" | "divide" | "equal" | "not_equal" | "less"
-        | "less_or_equal" | "greater" | "greater_or_equal" => requirement.as_str(),
+    let parameters = typed.operator_parameters(operator);
+    let (operation, primitive, expected_result) = match namespace.as_str() {
+        "Float" => {
+            let operation = match requirement.as_str() {
+                "add" | "subtract" | "multiply" | "divide" | "equal" | "not_equal" | "less"
+                | "less_or_equal" | "greater" | "greater_or_equal" => requirement.as_str(),
+                _ => return None,
+            };
+            let [left, right] = parameters else {
+                return None;
+            };
+            let primitive = typed.primitive_type_reference(left.type_reference)?;
+            if typed.primitive_type_reference(right.type_reference) != Some(primitive) {
+                return None;
+            }
+            let expected_result = if matches!(operation, "add" | "subtract" | "multiply" | "divide")
+            {
+                primitive
+            } else {
+                omega_typed_trees::types::PrimitiveType::Bool
+            };
+            (operation, primitive, expected_result)
+        }
+        "F32" | "F64" => {
+            let operation = match requirement.as_str() {
+                "minimum" | "maximum" => requirement.as_str(),
+                "square_root" => requirement.as_str(),
+                _ => return None,
+            };
+            let expected_primitive = if namespace.as_str() == "F32" {
+                omega_typed_trees::types::PrimitiveType::F32
+            } else {
+                omega_typed_trees::types::PrimitiveType::F64
+            };
+            match parameters {
+                [value] if operation == "square_root" => {
+                    if typed.primitive_type_reference(value.type_reference)
+                        != Some(expected_primitive)
+                    {
+                        return None;
+                    }
+                }
+                [left, right] if matches!(operation, "minimum" | "maximum") => {
+                    if typed.primitive_type_reference(left.type_reference)
+                        != Some(expected_primitive)
+                        || typed.primitive_type_reference(right.type_reference)
+                            != Some(expected_primitive)
+                    {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+            (operation, expected_primitive, expected_primitive)
+        }
         _ => return None,
-    };
-    let [left, right] = typed.operator_parameters(operator) else {
-        return None;
-    };
-    let primitive = typed.primitive_type_reference(left.type_reference)?;
-    if typed.primitive_type_reference(right.type_reference) != Some(primitive) {
-        return None;
-    }
-    let arithmetic = matches!(operation, "add" | "subtract" | "multiply" | "divide");
-    let expected_result = if arithmetic {
-        primitive
-    } else {
-        omega_typed_trees::types::PrimitiveType::Bool
     };
     if typed.primitive_type_reference(operator.return_type) != Some(expected_result) {
         return None;
@@ -254,7 +290,7 @@ fn expected_float_intrinsic(
         omega_typed_trees::types::PrimitiveType::F64 => "f64",
         _ => return None,
     };
-    Some(format!("Float::{operation}.{format}"))
+    Some(format!("{}::{operation}.{format}", namespace.as_str()))
 }
 
 fn evidence_source_names_boundary(

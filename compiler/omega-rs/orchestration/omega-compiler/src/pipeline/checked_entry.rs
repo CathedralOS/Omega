@@ -103,6 +103,9 @@ pub fn compile_to_checked(
         &selected_provider_plans,
         &build_config.grants,
     )?;
+    crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
+        checked_program,
+    )?;
     let selected_provider_plan_facts = checked_program.selected_provider_plans().clone();
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
