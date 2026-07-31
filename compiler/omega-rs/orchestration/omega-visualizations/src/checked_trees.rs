@@ -279,10 +279,12 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
-/// Normalized per-state claim outcome maps retained by the checked ownership
-/// pass. This is a proof/debug artifact: it exposes the exact output path and
-/// input-or-established source used for n-ary conservation without making the
-/// presentation spelling part of public contract identity.
+/// Normalized per-state claim outcome maps and content projections retained by
+/// the checked ownership and qualification passes. This proof/debug artifact
+/// exposes exact output paths, input-or-established sources, and the closed
+/// symbolic content expression without making presentation spelling part of
+/// public contract identity. Admitted backing and discharged conservation
+/// witnesses join this same artifact when their source surfaces land.
 pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     let ownership = &program.facts.flow.ownership;
     let mut json = String::from("{\n  \"claim_outcome_maps\": [");
@@ -319,8 +321,151 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str("\n      ]\n    }");
     }
+    let mut content_projections = program
+        .facts
+        .qualifications
+        .content
+        .plans
+        .iter()
+        .collect::<Vec<_>>();
+    content_projections.sort_by_key(|plan| {
+        (
+            qualification_symbol_label(program, plan.domain),
+            plan.fingerprint,
+        )
+    });
+    json.push_str("\n  ],\n  \"content_projections\": [");
+    for (index, plan) in content_projections.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"domain\": ");
+        push_json_string(&mut json, &qualification_symbol_label(program, plan.domain));
+        json.push_str(",\n      \"semantic_domain_id\": ");
+        json.push_str(&plan.semantic_domain.0.to_string());
+        json.push_str(",\n      \"carrier\": ");
+        push_json_string(&mut json, &plan.carrier_identity);
+        json.push_str(",\n      \"projection_machine\": ");
+        push_json_string(
+            &mut json,
+            &qualification_symbol_label(program, plan.machine),
+        );
+        json.push_str(",\n      \"algebra\": ");
+        push_content_algebra_json(&mut json, &plan.algebra);
+        json.push_str(",\n      \"normalized_projection\": ");
+        push_content_projection_json(&mut json, &plan.expression);
+        json.push_str(",\n      \"fingerprint\": ");
+        push_json_string(&mut json, &format!("0x{:016x}", plan.fingerprint));
+        json.push_str("\n    }");
+    }
     json.push_str("\n  ]\n}\n");
     json
+}
+
+fn push_content_algebra_json(
+    json: &mut String,
+    algebra: &omega_core::content::ContentAlgebraIdentity,
+) {
+    use omega_core::content::ContentAlgebraIdentity;
+
+    match algebra {
+        ContentAlgebraIdentity::Interval { coordinate_space } => {
+            json.push_str("{\"kind\": \"interval\", \"coordinate_space\": ");
+            push_json_string(json, coordinate_space);
+            json.push('}');
+        }
+        ContentAlgebraIdentity::CountedQuantity { unit } => {
+            json.push_str("{\"kind\": \"counted_quantity\", \"unit\": ");
+            push_json_string(json, unit);
+            json.push('}');
+        }
+    }
+}
+
+fn push_content_projection_json(
+    json: &mut String,
+    projection: &omega_core::content::ContentProjectionExpression,
+) {
+    use omega_core::content::ContentProjectionExpression;
+
+    match projection {
+        ContentProjectionExpression::Interval { start, end } => {
+            json.push_str("{\"kind\": \"interval\", \"start\": ");
+            push_content_scalar_json(json, start);
+            json.push_str(", \"end\": ");
+            push_content_scalar_json(json, end);
+            json.push('}');
+        }
+        ContentProjectionExpression::CountedQuantity { magnitude } => {
+            json.push_str("{\"kind\": \"counted_quantity\", \"magnitude\": ");
+            push_content_scalar_json(json, magnitude);
+            json.push('}');
+        }
+    }
+}
+
+fn push_content_scalar_json(
+    json: &mut String,
+    scalar: &omega_core::content::ContentScalarExpression,
+) {
+    use omega_core::content::{ContentArithmeticOperator, ContentScalarExpression};
+
+    match scalar {
+        ContentScalarExpression::SubjectField(path) => {
+            json.push_str("{\"kind\": \"subject_field\", \"path\": ");
+            push_content_field_path_json(json, path);
+            json.push('}');
+        }
+        ContentScalarExpression::RuntimeScalarEmbedding(path) => {
+            json.push_str("{\"kind\": \"runtime_scalar_embedding\", \"path\": ");
+            push_content_field_path_json(json, path);
+            json.push('}');
+        }
+        ContentScalarExpression::Natural(value) => {
+            json.push_str("{\"kind\": \"natural\", \"value\": ");
+            push_json_string(json, value);
+            json.push('}');
+        }
+        ContentScalarExpression::Successor(value) => {
+            json.push_str("{\"kind\": \"successor\", \"value\": ");
+            push_content_scalar_json(json, value);
+            json.push('}');
+        }
+        ContentScalarExpression::Arithmetic {
+            operator,
+            left,
+            right,
+        } => {
+            json.push_str("{\"kind\": \"arithmetic\", \"operator\": ");
+            push_json_string(
+                json,
+                match operator {
+                    ContentArithmeticOperator::Add => "add",
+                    ContentArithmeticOperator::Subtract => "subtract",
+                    ContentArithmeticOperator::Multiply => "multiply",
+                },
+            );
+            json.push_str(", \"left\": ");
+            push_content_scalar_json(json, left);
+            json.push_str(", \"right\": ");
+            push_content_scalar_json(json, right);
+            json.push('}');
+        }
+    }
+}
+
+fn push_content_field_path_json(
+    json: &mut String,
+    path: &[omega_core::content::ContentFieldSegment],
+) {
+    json.push('[');
+    for (index, segment) in path.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        push_json_string(json, &segment.name);
+    }
+    json.push(']');
 }
 
 fn push_claim_outcome_source_json(
@@ -1988,11 +2133,15 @@ mod tests {
         FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
         MachineContractPlan, MachineTerminationFact,
     };
+    use omega_core::content::{
+        ContentAlgebraIdentity, ContentArithmeticOperator, ContentFieldSegment,
+        ContentProjectionExpression, ContentProjectionPlan, ContentScalarExpression,
+    };
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
         CarrySuspension, MachineSupplyMode, MachineTerminationPlan, QualificationEvidenceOrigin,
-        RankingViewId, RankingWitness, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
-        TerminationInterface,
+        RankingViewId, RankingWitness, SemanticDomainId, SuspensionInterface, SuspensionPlan,
+        TerminationGuarantee, TerminationInterface,
     };
     use omega_core::symbols::SymbolHandle;
     use omega_facts::{
@@ -2056,6 +2205,33 @@ mod tests {
                 state_symbol: SymbolHandle::invalid(),
                 entries,
             });
+        program
+            .facts
+            .qualifications
+            .content
+            .plans
+            .push(ContentProjectionPlan {
+                domain: SymbolHandle::invalid(),
+                semantic_domain: SemanticDomainId(41),
+                carrier_identity: "named(name(Region))".to_owned(),
+                machine: SymbolHandle::invalid(),
+                algebra: ContentAlgebraIdentity::CountedQuantity {
+                    unit: "named(name(ByteUnit))".to_owned(),
+                },
+                expression: ContentProjectionExpression::CountedQuantity {
+                    magnitude: ContentScalarExpression::Arithmetic {
+                        operator: ContentArithmeticOperator::Add,
+                        left: Box::new(ContentScalarExpression::RuntimeScalarEmbedding(vec![
+                            ContentFieldSegment {
+                                symbol: SymbolHandle::invalid(),
+                                name: "length".to_owned(),
+                            },
+                        ])),
+                        right: Box::new(ContentScalarExpression::Natural("1".to_owned())),
+                    },
+                },
+                fingerprint: 0x0123_4567_89ab_cdef,
+            });
 
         let json = claim_outcome_manifest_json(&program);
 
@@ -2068,6 +2244,14 @@ mod tests {
         assert!(json.contains("\"statement_index\": 2"));
         assert!(json.contains("\"ordinal\": 7"));
         assert!(json.contains("\"kind\": \"state_entry\""));
+        assert!(json.contains("\"content_projections\""));
+        assert!(json.contains("\"semantic_domain_id\": 41"));
+        assert!(json.contains("\"kind\": \"counted_quantity\""));
+        assert!(json.contains("\"unit\": \"named(name(ByteUnit))\""));
+        assert!(json.contains("\"kind\": \"runtime_scalar_embedding\""));
+        assert!(json.contains("\"path\": [\"length\"]"));
+        assert!(json.contains("\"operator\": \"add\""));
+        assert!(json.contains("\"fingerprint\": \"0x0123456789abcdef\""));
     }
 
     #[test]

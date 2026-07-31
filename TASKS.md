@@ -284,6 +284,14 @@ input remains an eligible consumed source. This establishes the documented
 domain, parameter, or operation names. Full n-to-m equality, separation,
 backing, retirement, and ambiguity proofs remain outstanding.
 
+Implementation checkpoint (2026-07-31): `05_claim_outcomes.json` now retains
+every checked content projection beside the path-indexed outcome maps. Each row
+keeps exact domain and machine identity, carrier identity, structured closed
+algebra, the complete normalized symbolic expression (including runtime scalar
+embeddings and arithmetic), semantic-domain identity, and the stable projection
+fingerprint. It does not publish placeholder backing or conservation witnesses;
+those rows remain absent until their actual checked proofs exist.
+
 - **ARENA-CONTENT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #8:**
   attach the retained `CountedQuantity<Bytes>` algebra to the settled bounded
   Arena handle and conserve residual capacity across allocation/reset. The
@@ -296,10 +304,15 @@ backing, retirement, and ambiguity proofs remain outstanding.
   algebra and prove projected content is within that backing through ordinary
   postconditions. Provider selection and receipt identity are live, but no
   source/IR binder yet supplies the receipt's per-invocation algebra value;
-- prove all consumed content equals the separated composition of produced
-  content plus any remainder retired through an authorized route;
-- conserve every independent content-bearing claim kind and require one joint
-  projection when correspondence between quantities carries authority meaning;
+- **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
+  `OWNER_QUESTIONS.md` #10:** prove all consumed content equals the separated
+  composition of produced content plus any remainder retired through an
+  authorized route. The equation and closed algebras are settled, but the
+  documented `content(...)`/`old(...)` forms remain schematic: no source or IR
+  surface binds projection selection, entry snapshots, separated composition,
+  or route-authorized retirement. The same decision must conserve every
+  independent content-bearing claim kind and require one joint projection when
+  correspondence between quantities carries authority meaning;
 - keep domain facets, permission attenuation, carry, and root lineage as
   independent axes; recoverable or scarce authority uses a claim or loan rather
   than a discardable permission; and
