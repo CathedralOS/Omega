@@ -21,7 +21,7 @@ data Main {
     summer: Summer;
 }
 
-machine Summer::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine Summer::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {

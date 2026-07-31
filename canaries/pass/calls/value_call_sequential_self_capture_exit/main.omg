@@ -27,7 +27,7 @@ machine Main::main(&mut self) {
 }
 
 // cap returns a self-captured local (terminal value = a local holding self.seed).
-machine Main::cap(&mut self) -> i32 {
+machine Main::cap(&mut self) -> i32 in Wrapping {
     let s: i32 in Wrapping = self.seed;
     transition {
         _ -> s

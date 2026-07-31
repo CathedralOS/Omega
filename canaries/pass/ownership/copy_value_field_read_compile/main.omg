@@ -7,5 +7,5 @@ data Main {
 machine Main::main(&mut self) -> u32 {
     let depth: u32 in Wrapping = self.level_depth;
     let next_depth: u32 in Wrapping = depth + 1;
-    next_depth
+    next_depth as u32
 }

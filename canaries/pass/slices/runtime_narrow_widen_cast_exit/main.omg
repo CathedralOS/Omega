@@ -42,9 +42,9 @@ machine Main::main(&mut self) {
     }
 
     state store(&mut self) {
-        let narrowed: u8 = narrow_i32_to_u8_wrapping(self.i);
+        let narrowed: u8 = narrow_i32_to_u8_wrapping(self.i as i32);
         self.v = (narrowed as u8 in Wrapping) + 200;
-        self.nums[self.i] = self.v;
+        self.nums[self.i] = self.v as u8;
         self.i = self.i + 1;
         transition {
             _ -> fill()
@@ -80,7 +80,7 @@ machine Main::main(&mut self) {
     state signed_part(&mut self) {
         self.n8 = 0 - 5;
         self.isum = 0;
-        let widened: i32 = widen_i8_to_i32(self.n8);
+        let widened: i32 = widen_i8_to_i32(self.n8 as i8);
         self.isum =
             self.isum + (widened as i32 in Trapping);
         transition self.sum == 806 {

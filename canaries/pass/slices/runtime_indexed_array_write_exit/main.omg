@@ -30,7 +30,7 @@ machine Main::main(&mut self) {
 
     state store(&mut self) {
         self.v = self.i + 100;
-        self.nums[self.i] = self.v;
+        self.nums[self.i] = self.v as i32;
         self.i = self.i + 1;
         transition {
             _ -> fill()

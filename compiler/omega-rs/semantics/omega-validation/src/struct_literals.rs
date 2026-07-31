@@ -439,6 +439,15 @@ fn enforce_construction_field_obligations(
             "field",
             diagnostics,
         );
+        crate::domain_weakening::validate_implicit_domain_weakening(
+            program,
+            machine,
+            Some(state),
+            field.value,
+            field_type,
+            &slot_context,
+            diagnostics,
+        );
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
             if crate::expression_types::report_cross_class_store(
                 program,
@@ -599,6 +608,17 @@ pub(crate) fn validate_array_literal_elements(
             // the count error is not buried under class/narrowing noise.
             return;
         }
+    }
+    for element in element_handles {
+        crate::domain_weakening::validate_implicit_domain_weakening(
+            program,
+            machine,
+            Some(state),
+            *element,
+            element_type,
+            "array literal element",
+            diagnostics,
+        );
     }
     match program.primitive_type_reference(element_type) {
         // SCALAR element type: cross-class + narrowing per element.

@@ -15,7 +15,10 @@ terminates by (i, path.len) -> Nat::BoundedDistance;
         true -> walk(path, i + 1, acc)
         false -> done(acc)
     }
-    state done(&mut self, acc: i32) -> i32 { self.n }
+    state done(&mut self, acc: i32) -> i32 {
+        let result: i32 = self.n as i32;
+        result
+    }
 }
 machine Main::bump(&mut self, path: &[u8], i: u64) {
     transition i < path.len {

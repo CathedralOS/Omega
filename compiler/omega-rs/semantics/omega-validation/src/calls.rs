@@ -1809,6 +1809,15 @@ pub(crate) fn validate_call_arguments_handles(
             "argument",
             diagnostics,
         );
+        crate::domain_weakening::validate_implicit_domain_weakening(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            diagnostics,
+        );
         // NOTE: an array/scalar SHAPE check does NOT belong at the argument position
         // -- `&self.msg` (address-of a `[u8; N]` buffer) passed to an `addr`/pointer
         // param is a valid array-value-into-scalar-target flow, and boundary/host
@@ -2042,6 +2051,15 @@ fn validate_value_call_argument_classes_with_receiver(
             parameter.type_reference,
             &slot_context,
             "argument",
+            diagnostics,
+        );
+        crate::domain_weakening::validate_implicit_domain_weakening(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            &slot_context,
             diagnostics,
         );
         // (No array/scalar shape check here -- see the note in

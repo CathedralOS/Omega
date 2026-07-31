@@ -32,7 +32,7 @@ machine Main::main(&mut self) {
         false -> bad()
     }
     state good(&mut self) { self.console.exit_process(42); }
-    state bad(&mut self)  { self.console.exit_process(self.got); }
+    state bad(&mut self)  { self.console.exit_process(self.got as i32); }
 }
 // Receives a real &mut pointer, then hands it on as a SHARED reference value --
 // the callee's shared param holds the pointer, not a self-field alias.
@@ -44,7 +44,7 @@ machine Main::hold(&mut self, big: &mut Big) {
 machine Main::read(&mut self, r: &Big) {
     // Local-init off the reference-param member -- Cathedral's `let bs =
     // table.boot_services` shape, the path the pointee resolver materializes.
-    let v: i32 = r.value;
+    let v: i32 = r.value as i32;
     self.got = v;
     transition { _ -> done() }
     state done(&mut self) { }

@@ -108,7 +108,10 @@ windows_x64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -
         self.rda_close_rc = self.host.find_close(self.w_find);
         transition self.rda_rc == 0 { true -> rd_ok(path) _ -> rd_err(path) }
     }
-    state rd_ok(&mut self, path: &[u8] in Path) -> IoResult { IoResult::Ok { count: self.w_scan_count } }
+    state rd_ok(&mut self, path: &[u8] in Path) -> IoResult {
+        let count: u64 = self.w_scan_count as u64;
+        IoResult::Ok { count: count }
+    }
     state rd_nf(&mut self, path: &[u8] in Path) -> IoResult {
         let kind: ErrorKind = ErrorKind::NotFound;
         IoResult::Error { kind: kind }
@@ -206,17 +209,19 @@ windows_x64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
         transition self.w_hit_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
     }
     state rdn_ok_dir(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        let name_len: u64 = self.w_entry_len as u64;
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.w_entry_len,
+            name_len: name_len,
             is_dir: true,
             is_file: false,
         } }
     }
     state rdn_ok_file(&mut self, path: &[u8] in Path) -> DirEntryResult {
+        let name_len: u64 = self.w_entry_len as u64;
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.w_entry_len,
+            name_len: name_len,
             is_dir: false,
             is_file: true,
         } }

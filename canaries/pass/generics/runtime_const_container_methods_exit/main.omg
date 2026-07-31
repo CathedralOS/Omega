@@ -45,7 +45,7 @@ machine Main::main(&mut self) {
 
     state finish(&mut self) {
         let result: i32 in Wrapping = self.small.first() + self.large.first();
-        self.console.exit_process(result);
+        self.console.exit_process(result as i32);
     }
 
     state fail(&mut self) {

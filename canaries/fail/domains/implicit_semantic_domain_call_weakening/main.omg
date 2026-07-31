@@ -1,0 +1,14 @@
+domain i32::Degrees;
+
+operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+
+machine consume(value: i32) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let degrees: i32 in Degrees = 90 as i32 in Degrees;
+    consume(degrees);
+}

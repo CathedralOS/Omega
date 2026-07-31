@@ -30,7 +30,10 @@ terminates by (j, i) -> Nat::BoundedDistance;
         true -> count(i, j + 1)
         false -> done_leaf()
     }
-    state done_leaf(&mut self) -> i32 { self.hits }
+    state done_leaf(&mut self) -> i32 {
+        let result: i32 = self.hits as i32;
+        result
+    }
 }
 machine Main::main(&mut self) {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).

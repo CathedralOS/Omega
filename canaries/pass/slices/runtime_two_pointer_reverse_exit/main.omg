@@ -44,8 +44,8 @@ machine Main::main(&mut self) {
     state swap(&mut self) {
         self.left_value = self.nums[self.i];    // i <= j < len
         self.right_value = self.nums[self.j];   // j < len
-        self.nums[self.i] = self.right_value;   // write target proves via i <= j < len
-        self.nums[self.j] = self.left_value;    // write target proves via j < len
+        self.nums[self.i] = self.right_value as i32;   // write target proves via i <= j < len
+        self.nums[self.j] = self.left_value as i32;    // write target proves via j < len
         self.i = self.i + 1;
         self.j = self.j - 1;
         transition {

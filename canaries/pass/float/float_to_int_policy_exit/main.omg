@@ -20,15 +20,15 @@ machine Main::main(&mut self) {
     self.huge = 100000000000000000000.0;
     self.negative = 0.0 - self.huge;
     self.nan = 0.0 / 0.0;
-    self.si8 = self.huge as i8 in Saturating;
-    self.su8 = self.huge as u8 in Saturating;
-    self.si32 = self.huge as i32 in Saturating;
-    self.su32 = self.huge as u32 in Saturating;
-    self.si64 = self.huge as i64 in Saturating;
-    self.su64 = self.huge as u64 in Saturating;
-    self.ni8 = self.negative as i8 in Saturating;
-    self.nu8 = self.negative as u8 in Saturating;
-    self.nani = self.nan as i32 in Saturating;
+    self.si8 = (self.huge as i8 in Saturating) as i8;
+    self.su8 = (self.huge as u8 in Saturating) as u8;
+    self.si32 = (self.huge as i32 in Saturating) as i32;
+    self.su32 = (self.huge as u32 in Saturating) as u32;
+    self.si64 = (self.huge as i64 in Saturating) as i64;
+    self.su64 = (self.huge as u64 in Saturating) as u64;
+    self.ni8 = (self.negative as i8 in Saturating) as i8;
+    self.nu8 = (self.negative as u8 in Saturating) as u8;
+    self.nani = (self.nan as i32 in Saturating) as i32;
     transition self.si8 == 127 && self.su8 == 255
         && self.si32 == 2147483647 && self.su32 == 4294967295
         && self.si64 == 9223372036854775807

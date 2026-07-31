@@ -62,9 +62,10 @@ machine Spread16::plan(&mut self, schema: Schema) -> Plan {
         }
     }
     state write_field(&mut self, schema: Schema) {
+        let offset: u64 = self.slot as u64;
         self.entries[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
-            placement: FieldPlan::At { offset: self.slot },
+            placement: FieldPlan::At { offset: offset },
         };
         self.index = self.index + 1;
         transition { _ -> fill_loop(schema) }

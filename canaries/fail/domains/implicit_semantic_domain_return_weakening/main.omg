@@ -1,0 +1,13 @@
+domain i32::Degrees;
+
+operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+
+machine erase(degrees: i32 in Degrees) -> i32 {
+    degrees
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

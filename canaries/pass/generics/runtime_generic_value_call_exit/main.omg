@@ -10,5 +10,5 @@ data Main { console: Console; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
 machine Main::main(&mut self) {
     let v: i32 in Wrapping = self.id(70);
-    self.console.exit_process(v);
+    self.console.exit_process(v as i32);
 }

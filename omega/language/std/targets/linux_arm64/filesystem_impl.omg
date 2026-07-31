@@ -109,7 +109,8 @@ linux_arm64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -
     }
     state rd_ok(&mut self) -> IoResult {
         self.rd_lou = narrow_i32_to_u64_wrapping(self.rd_count - 2) as u64 in Wrapping;
-        IoResult::Ok { count: self.rd_lou }
+        let count: u64 = self.rd_lou as u64;
+        IoResult::Ok { count: count }
     }
     state rd_err(&mut self) -> IoResult {
         let kind: ErrorKind = self.last_error();
@@ -178,7 +179,7 @@ linux_arm64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -
     state rds_ok(&mut self) -> DirStatsResult {
         let converted_entries: u64 = narrow_i32_to_u64_wrapping(self.rd_count - 2);
         let converted_subdirs: u64 = narrow_i32_to_u64_wrapping(self.rd_dirs - 2);
-        let converted_files: u64 = narrow_i32_to_u64_wrapping(self.rd_files);
+        let converted_files: u64 = narrow_i32_to_u64_wrapping(self.rd_files as i32);
         DirStatsResult::Ok { stats: DirStats {
             entries: converted_entries,
             subdirs: converted_subdirs,
@@ -273,9 +274,10 @@ linux_arm64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
         transition self.rd_dtype == 4 { true -> rdn_ok_dir() _ -> rdn_maybe_file() }
     }
     state rdn_ok_dir(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.rd_j,
+            name_len: name_len,
             is_dir: true,
             is_file: false,
         } }
@@ -284,17 +286,19 @@ linux_arm64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: 
         transition self.rd_dtype == 8 { true -> rdn_ok_file() _ -> rdn_ok_other() }
     }
     state rdn_ok_file(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.rd_j,
+            name_len: name_len,
             is_dir: false,
             is_file: true,
         } }
     }
     state rdn_ok_other(&mut self) -> DirEntryResult {
+        let name_len: u64 = self.rd_j as u64;
         DirEntryResult::Ok { entry: DirEntry {
             name: self.entry_name,
-            name_len: self.rd_j,
+            name_len: name_len,
             is_dir: false,
             is_file: false,
         } }
@@ -392,16 +396,19 @@ linux_arm64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -
         transition self.rd_dtype == 4 { true -> rdef_ok_dir() _ -> rdef_maybe_file() }
     }
     state rdef_ok_dir(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: true, is_file: false } }
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: name_len, is_dir: true, is_file: false } }
     }
     state rdef_maybe_file(&mut self) -> DirEntryResult {
         transition self.rd_dtype == 8 { true -> rdef_ok_file() _ -> rdef_ok_other() }
     }
     state rdef_ok_file(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: true } }
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: name_len, is_dir: false, is_file: true } }
     }
     state rdef_ok_other(&mut self) -> DirEntryResult {
-        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: false } }
+        let name_len: u64 = self.rd_j as u64;
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: name_len, is_dir: false, is_file: false } }
     }
     state rdef_end(&mut self) -> DirEntryResult { DirEntryResult::End }
 }

@@ -27,7 +27,7 @@ machine Main::next_seed(
     state.seed = state.seed + 1;
 
     transition {
-        _ -> state.seed
+        _ -> (state.seed as u64)
     }
 }
 

@@ -1,0 +1,7 @@
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let wrapped: i32 in Wrapping = 1 as i32 in Wrapping;
+    let exact: i32 = wrapped;
+}

@@ -52,7 +52,8 @@ ensures
 {
     let slots: &mut [i32] = self.items.as_mut_slice();
     let index: u64 in Wrapping = self.length;
-    slots[index] = value;
+    let raw_value: i32 = value as i32;
+    slots[index] = raw_value;
     self.length = self.length + 1;
 }
 
@@ -70,7 +71,8 @@ requires
     let index: u64 in Wrapping = self.length - 1;
     let value: i32 in Wrapping = slots[index];
     self.length = index;
-    value
+    let raw_value: i32 = value as i32;
+    raw_value
 }
 
 machine FixedVecI32x4::get(&self, index: u64 in Wrapping) -> i32
