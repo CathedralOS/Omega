@@ -418,12 +418,13 @@ A staged extension may let an erased domain family take canonical static values
 as indices and let a generic result constrain its index using expressions over
 input indices. These indices are ordinary first-order proof/static data, not
 unique type IDs, predicates, runtime fields, or inhabitants of a type universe.
-The exact declaration spelling remains owner question #7.
+The generic declaration binds its carrier explicitly before using it in the
+ordinary carrier position: `domain<T, const U: Unit> T::Quantity<U>;`.
 
 Closed indices evaluate and compare canonically. An open generic index remains
 a constraint fact: use at an expected index produces an equality obligation,
-discharged by canonical normalization, explicit local hypotheses, deterministic
-entailment, or an explicitly cited proof. The successful judgment performs no
+discharged by closed evaluation, licensed canonical normalization, or an
+established local fact. Otherwise it rejects. The successful judgment performs no
 runtime transport because the domain is erased and the carrier is unchanged.
 Normalization determines interface identity; proof strength may accept more
 compatible uses but may not rewrite that identity.

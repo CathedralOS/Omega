@@ -4,7 +4,7 @@ Current direction; implementation remains staged in `TASKS.md`. The allocator
 surface uses an explicit bounded Arena capability and dependent contracts.
 Allocator boundary reach is a service member. The exact source-visible handle,
 qualification, threading operation, rejection shape, and `Allocation<T>`
-carrier are owner-blocked in `OWNER_QUESTIONS.md` #8; do not infer them from the
+carrier are owner-blocked in `OWNER_QUESTIONS.md` #7; do not infer them from the
 stage-1 boundary trait. Quantitative row entries wait for the resource-algebra
 brief.
 

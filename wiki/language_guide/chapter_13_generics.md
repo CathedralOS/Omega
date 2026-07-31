@@ -126,26 +126,49 @@ Working rules:
 
 ### Structured values and indexed domains
 
-Owner question #7 stages a generalization from scalar const parameters to
-structured canonical proof/static values. Eligibility is structural: equality
-must be decidable and the value must have one unique canonical form. Index
-position erases the value; this does not imply its value kind lacks an ordinary
-runtime representation.
+Scalar const parameters generalize in three ordered stages. First, structured
+proof/static values become eligible when equality is decidable and every value
+has one canonical form. Index position erases the value; this does not imply
+its value kind lacks an ordinary runtime representation. Current `Rat` is
+eligible only after the index site verifies its positive denominator, cancelled
+signed coordinates, and gcd-reduced numerator magnitude and denominator.
 
-The second stage permits an erased domain family to take a closed static index.
-The third permits a generic result-domain constraint to contain an expression
-over input indices. The exact source header is not yet settled; conceptually, a
-unit library could produce a carrier qualified by `Quantity<KM>` or by the
-closed value `Quantity<KM / SECOND>`, while a generic divide operation produces
-`Quantity<A / B>`.
+Second, an erased domain family may take a closed static index. The generic
+carrier is bound and then used in the ordinary position:
+
+```omega
+domain<T, const U: Unit> T::Quantity<U>;
+```
+
+The domain itself imposes no carrier constraint. An operator states only the
+operation it needs through an ordinary one-off machine bound. This one
+declaration therefore supports both `f64::Quantity<KM>` and
+`i64::Quantity<KM>`. Named closed combinations such as `KM_PER_SECOND` and a
+generic conversion returning its destination index require no symbolic
+normalizer.
+
+Third, a generic result-domain constraint may contain an expression over input
+indices. A unit divide operation can then produce `Quantity<A / B>` while
+requesting only the carrier operation it uses through the existing one-off
+machine-bound clause:
+
+```omega
+where
+    machine T::divide(left: T, right: T) -> T
+```
 
 The domain family remains nominal. Closed index values enter semantic identity
 in canonical form. Open expressions use only compiler-supported normal forms
 licensed by the exact selected, proved algebraic conformance. Compatibility
-creates a named verification condition; canonical normalization, explicit
-local `requires` hypotheses, deterministic entailment, or a cited proof may
-discharge it. No ambient theorem search occurs, and generic code must publish
-any equality it cannot discharge.
+creates a named verification condition. Closed evaluation, licensed canonical
+normalization, or an established local fact may discharge it; otherwise it
+rejects. A proof-machine call contributes its checked `ensures` as an ordinary
+local fact, so indexed domains add no citation syntax. No ambient theorem search
+occurs, and generic code must publish any equality it cannot discharge.
+Diagnostics preserve the source-written index expression when available and
+name whether compatibility came from closed evaluation, normalization, or an
+exact established local fact. Those display and evidence records do not enter
+semantic identity.
 
 ## Machine Parameters
 
