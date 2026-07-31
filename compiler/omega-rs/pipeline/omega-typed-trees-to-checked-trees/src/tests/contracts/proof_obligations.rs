@@ -2006,3 +2006,72 @@ fn incoming_guard_dies_when_value_call_writes_guarded_place() {
         "expected the bounded-assignment refusal, got {diagnostics:#?}"
     );
 }
+
+#[test]
+fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
+    let source = r#"
+        boundary trait Sink {
+            machine write(text: [u8] in Utf8);
+        }
+
+        domain [u8]::Utf8 {
+            valid_utf8(self);
+        }
+
+        domain [u8; 4]::Utf8 {
+            valid_utf8(self);
+        }
+
+        data Main {
+            sink: Sink;
+            text: [u8; 4] in Utf8;
+        }
+
+        machine Main::main(&mut self) {
+            self.text = "Gate";
+            self.sink.write(self.text);
+        }
+    "#;
+
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("a bounded Utf8 carrier should carry Utf8 through its slice projection");
+}
+
+#[test]
+fn bounded_byte_domain_projection_requires_matching_predicate_theory() {
+    let source = r#"
+        boundary trait Sink {
+            machine write(text: [u8] in Text);
+        }
+
+        domain [u8]::Text {
+            no_nul(self);
+        }
+
+        domain [u8; 4]::Text {
+            valid_utf8(self);
+        }
+
+        data Main {
+            sink: Sink;
+            text: [u8; 4] in Text;
+        }
+
+        machine Main::main(&mut self) {
+            self.text = "Gate";
+            self.sink.write(self.text);
+        }
+    "#;
+
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a carrier projection must not conflate different domain theories");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove requires contract for call write")
+                && diagnostic.message.contains("self.text in [u8]::Text")
+        }),
+        "expected the mismatched slice-domain requirement to remain unproven, got {diagnostics:#?}"
+    );
+}

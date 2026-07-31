@@ -201,7 +201,7 @@ fn subslice_grants_domain(
                 _ => return false,
             };
             if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                && !crate::field_domain::declared_domain_implies(
+                && !crate::field_domain::domain_membership_implies(
                     program,
                     fact_domain,
                     domain_symbol,
@@ -276,7 +276,7 @@ fn parameter_domain_grants(
         .into_iter()
         .any(|param_domain| {
             facts.semantic.domain_implies(param_domain, domain_symbol)
-                || crate::field_domain::declared_domain_implies(
+                || crate::field_domain::domain_membership_implies(
                     program,
                     param_domain,
                     domain_symbol,
@@ -347,7 +347,7 @@ fn value_call_return_domain_grants(
         .into_iter()
         .any(|return_domain| {
             semantic.domain_implies(return_domain, domain_symbol)
-                || crate::field_domain::declared_domain_implies(
+                || crate::field_domain::domain_membership_implies(
                     program,
                     return_domain,
                     domain_symbol,
@@ -399,7 +399,11 @@ fn explain_domain_requirement_failure(
         };
 
         if (!facts.semantic.domain_implies(fact_domain, required_domain)
-            && !crate::field_domain::declared_domain_implies(program, fact_domain, required_domain))
+            && !crate::field_domain::domain_membership_implies(
+                program,
+                fact_domain,
+                required_domain,
+            ))
             || !facts
                 .semantic
                 .places_match(program, fact_place, required_place)

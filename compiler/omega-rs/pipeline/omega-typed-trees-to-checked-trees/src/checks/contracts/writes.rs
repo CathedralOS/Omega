@@ -862,7 +862,7 @@ fn value_proves_domain(
                     _ => return false,
                 };
                 if !facts.semantic.domain_implies(fact_domain, domain_symbol)
-                    && !crate::field_domain::declared_domain_implies(
+                    && !crate::field_domain::domain_membership_implies(
                         program,
                         fact_domain,
                         domain_symbol,
@@ -938,7 +938,7 @@ fn declared_value_domain_implies(
             crate::field_domain::domain_admits_empty_byte_sequence(program, *value_domain)
         })
         .any(|value_domain| {
-            crate::field_domain::declared_domain_implies(program, value_domain, domain_symbol)
+            crate::field_domain::domain_membership_implies(program, value_domain, domain_symbol)
         })
 }
 
@@ -961,6 +961,6 @@ fn value_call_return_domain_implies(
     crate::field_domain::predicate_domain_constraint_symbols(program, target.return_type)
         .into_iter()
         .any(|return_domain| {
-            crate::field_domain::declared_domain_implies(program, return_domain, domain_symbol)
+            crate::field_domain::domain_membership_implies(program, return_domain, domain_symbol)
         })
 }
