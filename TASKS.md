@@ -284,9 +284,12 @@ input remains an eligible consumed source. This establishes the documented
 domain, parameter, or operation names. Full n-to-m equality, separation,
 backing, retirement, and ambiguity proofs remain outstanding.
 
-- add `CountedQuantity` with proof-level natural magnitude and normalized unit
-  identity to conserved residual capacity in bounded bump/arena regions;
-  general fragmented heaps remain fallible or require exact
+- **ARENA-CONTENT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #8:**
+  attach the retained `CountedQuantity<Bytes>` algebra to the settled bounded
+  Arena handle and conserve residual capacity across allocation/reset. The
+  accounting theorem is settled, but the exact handle, qualification,
+  threading operation, rejection shape, and `Allocation<T>` lifetime carrier
+  are not. General fragmented heaps remain fallible or require exact
   placement/reservation evidence;
 - require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
@@ -735,8 +738,10 @@ improvements do not change public identity.
   language call kind or plan axis. Document that an in-process worker cannot be
   killed safely, an orphan pins its worker/storage/provider era, and bounded
   recovery from a hung call requires process isolation.
-- Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
-  to qualified `Extent` after P1.
+- Replace ambient allocation with `Arena`/`Allocation`; the source-visible
+  handle and allocation surface are language-design blocked on
+  `OWNER_QUESTIONS.md` #8. Connect Arena backing to qualified `Extent` after
+  that decision and P1.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
   domain qualification.
 
