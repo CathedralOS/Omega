@@ -2432,6 +2432,117 @@ fn accepts_same_state_copy_from_static_persistent_storage() {
     check_program(source).expect("the copy retains the established static provenance");
 }
 
+#[test]
+fn accepts_same_place_reassignment_from_static_persistent_storage() {
+    let source = r#"
+        data Main {
+            stored: &[u8];
+        }
+
+        machine Main::store(&mut self) {
+            self.stored = "program static";
+            self.stored = self.stored;
+        }
+    "#;
+
+    check_program(source)
+        .expect("assignment reads established static provenance before replacing the same place");
+}
+
+#[test]
+fn accepts_indexed_aggregate_copy_after_all_borrowed_leaves_become_static() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+            code: i32;
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            let index: u64 = 1;
+            self.messages[index].body = "program static";
+            self.messages[index].code = 7;
+            self.copy = self.messages[index];
+        }
+    "#;
+
+    check_program(source)
+        .expect("an immutable indexed aggregate copy retains complete static leaf provenance");
+}
+
+#[test]
+fn rejects_aggregate_copy_with_only_partial_static_leaf_coverage() {
+    let source = r#"
+        data Message {
+            first: &[u8];
+            second: &[u8];
+        }
+
+        data Main {
+            source: Message;
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            self.source.first = "program static";
+            self.copy = self.source;
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("every borrowed source leaf needs static provenance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
+        "expected the incomplete aggregate-copy fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn rejects_indexed_static_copy_through_mutable_index_binding() {
+    let source = r#"
+        data Message {
+            body: &[u8];
+        }
+
+        data Main {
+            messages: [Message; 2];
+            copy: Message;
+        }
+
+        machine Main::store(&mut self) {
+            let mut index: u64 = 0;
+            self.messages[index].body = "program static";
+            index = 1;
+            self.copy = self.messages[index];
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("a mutable index cannot identify one persistent source");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `copy`")),
+        "expected the mutable-index provenance fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
 /// The same replacement rule applies to a direct reference local: its old
 /// source is released and its new source remains borrowed through later use.
 #[test]

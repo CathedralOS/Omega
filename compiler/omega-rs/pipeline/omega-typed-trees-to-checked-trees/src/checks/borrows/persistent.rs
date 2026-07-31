@@ -50,9 +50,15 @@ pub(super) fn check_persistent_borrow_assignments(
                 let Some((name, target_type)) =
                     persistent_target_type(program, &place, &persistent)
                 else {
+                    static_persistent_places.retain(|known| {
+                        !static_provenance_invalidated_by_mutation(program, known, &place)
+                    });
                     continue;
                 };
                 if !crate::borrow::view_link::returns_borrow(program, target_type) {
+                    static_persistent_places.retain(|known| {
+                        !static_provenance_invalidated_by_mutation(program, known, &place)
+                    });
                     continue;
                 }
                 let initializers = crate::borrow::borrow_initializer_expressions(
@@ -73,11 +79,18 @@ pub(super) fn check_persistent_borrow_assignments(
                         state.symbol,
                         statement_index,
                         assignment.value,
+                        target_type,
                         &static_persistent_places,
                     );
 
-                static_persistent_places
-                    .retain(|known| !place_contains_or_is_contained_by(known, &place));
+                // Assignment reads its source before replacing the target, so
+                // establish the source verdict against the pre-write
+                // provenance above. Retire every possibly overlapping old
+                // marker only after that read, then publish the replacement
+                // marker when the new value was proved static.
+                static_persistent_places.retain(|known| {
+                    !static_provenance_invalidated_by_mutation(program, known, &place)
+                });
                 if has_only_static_sources {
                     static_persistent_places.push(place);
                     continue;
@@ -99,6 +112,7 @@ fn source_is_known_static_persistent_place(
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: omega_typed_trees::expression::ExpressionHandle,
+    source_type: TypeReferenceHandle,
     known_static: &[crate::flow::CanonicalPlace],
 ) -> bool {
     let Some(source) = crate::flow::canonical_place_from_expression_in_state(
@@ -109,19 +123,89 @@ fn source_is_known_static_persistent_place(
     ) else {
         return false;
     };
-    known_static
+
+    let Some(state) = crate::find_state(program, state_symbol) else {
+        return false;
+    };
+    if known_static
         .iter()
-        .any(|known| place_is_prefix_of(known, &source))
+        .any(|known| place_is_proven_prefix_of(program, state, known, &source))
+    {
+        return true;
+    }
+
+    let Some(borrow_paths) =
+        crate::borrow::view_link::borrow_carrying_owner_paths(program, source_type)
+    else {
+        return false;
+    };
+    !borrow_paths.is_empty()
+        && borrow_paths.into_iter().all(|path| {
+            let Some(segments) = owner_path_place_segments(&path) else {
+                return false;
+            };
+            let mut leaf = source.clone();
+            leaf.extend_segments(&segments);
+            known_static
+                .iter()
+                .any(|known| place_is_proven_prefix_of(program, state, known, &leaf))
+        })
 }
 
-fn place_contains_or_is_contained_by(
-    left: &crate::flow::CanonicalPlace,
-    right: &crate::flow::CanonicalPlace,
+fn owner_path_place_segments(
+    path: &[crate::borrow::BorrowOwnerSegment],
+) -> Option<Vec<omega_facts::PlaceSegment>> {
+    path.iter()
+        .map(|segment| match segment {
+            crate::borrow::BorrowOwnerSegment::Field(symbol) => {
+                Some(omega_facts::PlaceSegment::Field { symbol: *symbol })
+            }
+            crate::borrow::BorrowOwnerSegment::Case(variant) => {
+                Some(omega_facts::PlaceSegment::Case { variant: *variant })
+            }
+            crate::borrow::BorrowOwnerSegment::FixedIndex(index) => {
+                Some(omega_facts::PlaceSegment::FixedIndex { index: *index })
+            }
+            crate::borrow::BorrowOwnerSegment::DynamicIndex => None,
+        })
+        .collect()
+}
+
+fn static_provenance_invalidated_by_mutation(
+    program: &omega_typed_trees::TypedTrees,
+    known: &crate::flow::CanonicalPlace,
+    mutated: &crate::flow::CanonicalPlace,
 ) -> bool {
-    place_is_prefix_of(left, right) || place_is_prefix_of(right, left)
+    if known.root == mutated.root
+        && crate::flow::canonical_place_segments_may_overlap(
+            program,
+            &known.segments,
+            &mutated.segments,
+        )
+    {
+        return true;
+    }
+
+    known.segments.iter().any(|segment| {
+        let omega_facts::PlaceSegment::Index { expression } = segment else {
+            return false;
+        };
+        crate::flow::canonical_place_from_expression(program, *expression).is_some_and(
+            |dependency| {
+                dependency.root == mutated.root
+                    && crate::flow::canonical_place_segments_may_overlap(
+                        program,
+                        &dependency.segments,
+                        &mutated.segments,
+                    )
+            },
+        )
+    })
 }
 
-fn place_is_prefix_of(
+fn place_is_proven_prefix_of(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
     prefix: &crate::flow::CanonicalPlace,
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
@@ -131,7 +215,78 @@ fn place_is_prefix_of(
             .segments
             .iter()
             .zip(&place.segments)
-            .all(|(left, right)| crate::flow::canonical_place_segments_equal(*left, *right))
+            .all(|(left, right)| place_segments_proven_equal(program, state, *left, *right))
+}
+
+fn place_segments_proven_equal(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    left: omega_facts::PlaceSegment,
+    right: omega_facts::PlaceSegment,
+) -> bool {
+    match (left, right) {
+        (
+            omega_facts::PlaceSegment::Index {
+                expression: left_expression,
+            },
+            omega_facts::PlaceSegment::Index {
+                expression: right_expression,
+            },
+        ) => {
+            if let (Some(left), Some(right)) = (
+                program
+                    .expression_table
+                    .constant_integer_value(left_expression),
+                program
+                    .expression_table
+                    .constant_integer_value(right_expression),
+            ) {
+                return left == right;
+            }
+            immutable_local_index_symbol(program, state, left_expression).is_some_and(|left| {
+                immutable_local_index_symbol(program, state, right_expression)
+                    .is_some_and(|right| left == right)
+            })
+        }
+        _ => crate::flow::canonical_place_segments_equal(left, right),
+    }
+}
+
+fn immutable_local_index_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let omega_typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+    else {
+        return None;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    let [name] = members else {
+        return None;
+    };
+    let resolved = path
+        .head_symbol
+        .is_valid()
+        .then_some(path.head_symbol)
+        .or_else(|| path.symbol.is_valid().then_some(path.symbol));
+    let mut matches = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (!local.is_mutable
+                && resolved
+                    .map(|symbol| local.symbol == symbol)
+                    .unwrap_or_else(|| local.name == *name))
+            .then_some(local.symbol)
+        });
+    let symbol = matches.next()?;
+    matches.next().is_none().then_some(symbol)
 }
 
 fn is_state_independent_borrow_source(

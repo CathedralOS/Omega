@@ -469,6 +469,188 @@ pub(crate) fn returns_borrow(program: &TypedTrees, type_reference: TypeReference
     is_reference_type(program, type_reference) || is_borrow_carrying_data(program, type_reference)
 }
 
+/// Every structural projection within `type_reference` that carries a
+/// reference. Persistent-storage checking uses this frontier to prove that a
+/// place copied as a whole is backed only by static storage even when its
+/// borrowed leaves were established by separate field writes.
+///
+/// `None` means the frontier cannot be enumerated completely (currently an
+/// unresolved fixed-array length or a recursive by-value data cycle), so callers
+/// must fail closed unless the whole source place already has static provenance.
+pub(crate) fn borrow_carrying_owner_paths(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<Vec<Vec<BorrowOwnerSegment>>> {
+    let mut output = Vec::new();
+    collect_borrow_carrying_owner_paths(
+        program,
+        type_reference,
+        &[],
+        &[],
+        &mut Vec::new(),
+        &mut output,
+    )
+    .then_some(output)
+}
+
+fn collect_borrow_carrying_owner_paths(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    owner_path: &[BorrowOwnerSegment],
+    visiting: &mut Vec<SymbolHandle>,
+    output: &mut Vec<Vec<BorrowOwnerSegment>>,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => {
+            output.push(owner_path.to_vec());
+            true
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => collect_borrow_carrying_owner_paths(
+            program,
+            *base_type,
+            substitutions,
+            owner_path,
+            visiting,
+            output,
+        ),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let omega_typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                return false;
+            };
+            for index in 0..*length {
+                let mut element_path = owner_path.to_vec();
+                element_path.push(BorrowOwnerSegment::FixedIndex(index));
+                if !collect_borrow_carrying_owner_paths(
+                    program,
+                    *element_type,
+                    substitutions,
+                    &element_path,
+                    visiting,
+                    output,
+                ) {
+                    return false;
+                }
+            }
+            true
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            let Some(definition) = data_definition(program, *base_symbol) else {
+                return true;
+            };
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments);
+            let mut nested_substitutions = substitutions.to_vec();
+            nested_substitutions.extend(
+                program
+                    .data_type_parameters(definition)
+                    .iter()
+                    .zip(arguments.iter())
+                    .map(|(parameter, argument)| (parameter.symbol, *argument)),
+            );
+            collect_data_borrow_carrying_owner_paths(
+                program,
+                definition,
+                &nested_substitutions,
+                owner_path,
+                visiting,
+                output,
+            )
+        }
+        TypeReferenceNode::Named { symbol, .. } => {
+            if let Some((_, concrete)) = substitutions
+                .iter()
+                .rev()
+                .find(|(parameter, _)| parameter == symbol)
+            {
+                return collect_borrow_carrying_owner_paths(
+                    program,
+                    *concrete,
+                    substitutions,
+                    owner_path,
+                    visiting,
+                    output,
+                );
+            }
+            let Some(definition) = data_definition(program, *symbol) else {
+                return true;
+            };
+            collect_data_borrow_carrying_owner_paths(
+                program,
+                definition,
+                substitutions,
+                owner_path,
+                visiting,
+                output,
+            )
+        }
+        TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => true,
+    }
+}
+
+fn collect_data_borrow_carrying_owner_paths(
+    program: &TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    owner_path: &[BorrowOwnerSegment],
+    visiting: &mut Vec<SymbolHandle>,
+    output: &mut Vec<Vec<BorrowOwnerSegment>>,
+) -> bool {
+    if visiting.contains(&definition.symbol) {
+        return false;
+    }
+    visiting.push(definition.symbol);
+    for member in program.data_members(definition) {
+        match member {
+            omega_typed_trees::data::DataMember::Field(field) => {
+                let mut field_path = owner_path.to_vec();
+                field_path.push(BorrowOwnerSegment::Field(field.symbol));
+                if !collect_borrow_carrying_owner_paths(
+                    program,
+                    field.type_reference,
+                    substitutions,
+                    &field_path,
+                    visiting,
+                    output,
+                ) {
+                    visiting.pop();
+                    return false;
+                }
+            }
+            omega_typed_trees::data::DataMember::Variant(variant) => {
+                for field in program.data_payload_fields(variant) {
+                    let mut field_path = owner_path.to_vec();
+                    field_path.push(BorrowOwnerSegment::Case(variant.symbol));
+                    field_path.push(BorrowOwnerSegment::Field(field.symbol));
+                    if !collect_borrow_carrying_owner_paths(
+                        program,
+                        field.type_reference,
+                        substitutions,
+                        &field_path,
+                        visiting,
+                        output,
+                    ) {
+                        visiting.pop();
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    visiting.pop();
+    true
+}
+
 /// Whether a type reference names a `data` definition that structurally carries
 /// at least one reference. The walk follows nested records, live sum payloads,
 /// fixed arrays, constraints, and concrete generic arguments. Recursive data
