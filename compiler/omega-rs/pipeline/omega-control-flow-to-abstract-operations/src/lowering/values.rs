@@ -21,6 +21,7 @@ pub(super) fn build_abstract_value_summary(control_flow: &ControlFlowPlan) -> Ab
                 expression: value.expression,
                 origin: remap_value_origin(value.origin),
                 arithmetic_policy_adapter: value.arithmetic_policy_adapter,
+                operator_provider_plan_identity: value.operator_provider_plan_identity,
             });
         }
     }

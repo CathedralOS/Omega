@@ -53,6 +53,7 @@ pub struct StateValueFact {
     pub expression: ExpressionHandle,
     pub origin: StateValueOrigin,
     pub arithmetic_policy_adapter: Option<ArithmeticPolicyAdapter>,
+    pub operator_provider_plan_identity: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

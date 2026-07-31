@@ -22,6 +22,240 @@ pub(super) enum CarriedFloatPolicyDomain {
     Invalid,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CarriedFloatProviderPlan {
+    Missing,
+    Resolved(u64),
+    Invalid,
+}
+
+/// Resolve the exact selected ProviderPlan identity carried for one migrated
+/// float operator. Compatibility operations legitimately remain `Missing`;
+/// contradictory identities are a hard lowering failure.
+pub(super) fn carried_float_provider_plan(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> CarriedFloatProviderPlan {
+    let carried = carried_float_provider_plan_in_control_flow(
+        input.control_flow,
+        source_key,
+        statement_index,
+        expression,
+    );
+    let checked = checked_float_provider_plan_for_statement(
+        input.program,
+        source_key,
+        statement_index,
+        expression,
+    );
+    reconcile_float_provider_plan_evidence(checked, carried)
+}
+
+fn checked_float_provider_plan_for_statement(
+    program: &omega_checked_trees::CheckedTrees,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> CarriedFloatProviderPlan {
+    let mut resolved = None;
+    for (candidate_expression, origin, identity) in program
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(_, operator_use)| {
+            (
+                operator_use.expression,
+                operator_use.origin,
+                operator_use.provider_plan_identity,
+            )
+        })
+        .chain(
+            program
+                .facts
+                .operators
+                .named_uses
+                .iter()
+                .map(|(_, operator_use)| {
+                    (
+                        operator_use.expression,
+                        operator_use.origin,
+                        operator_use.provider_plan_identity,
+                    )
+                }),
+        )
+    {
+        let omega_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index: candidate_statement,
+            ..
+        } = origin
+        else {
+            continue;
+        };
+        if candidate_expression != expression
+            || machine_symbol != source_key.machine
+            || state_symbol != source_key.state
+            || candidate_statement != statement_index
+            || identity == 0
+        {
+            continue;
+        }
+        match resolved {
+            Some(existing) if existing != identity => return CarriedFloatProviderPlan::Invalid,
+            None => resolved = Some(identity),
+            _ => {}
+        }
+    }
+    resolved.map_or(
+        CarriedFloatProviderPlan::Missing,
+        CarriedFloatProviderPlan::Resolved,
+    )
+}
+
+fn reconcile_float_provider_plan_evidence(
+    checked: CarriedFloatProviderPlan,
+    carried: CarriedFloatProviderPlan,
+) -> CarriedFloatProviderPlan {
+    match (checked, carried) {
+        (CarriedFloatProviderPlan::Invalid, _) | (_, CarriedFloatProviderPlan::Invalid) => {
+            CarriedFloatProviderPlan::Invalid
+        }
+        (
+            CarriedFloatProviderPlan::Resolved(expected),
+            CarriedFloatProviderPlan::Resolved(actual),
+        ) if expected == actual => CarriedFloatProviderPlan::Resolved(actual),
+        (CarriedFloatProviderPlan::Resolved(_), _) => CarriedFloatProviderPlan::Invalid,
+        (CarriedFloatProviderPlan::Missing, carried) => carried,
+    }
+}
+
+fn carried_float_provider_plan_in_control_flow(
+    control_flow: &omega_control_flow::ControlFlowPlan,
+    source_key: StateKey,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> CarriedFloatProviderPlan {
+    let Some(state) = control_flow.state_by_key(source_key).or_else(|| {
+        control_flow
+            .states
+            .iter()
+            .find(|(_, state)| state_key_matches_statement_source(state.key, source_key))
+            .map(|(_, state)| state)
+    }) else {
+        return CarriedFloatProviderPlan::Missing;
+    };
+    let mut resolved = None;
+    for value in control_flow
+        .semantics
+        .values
+        .values
+        .span_or_empty(state.values.values)
+    {
+        let omega_control_flow::StateValueOrigin::Statement {
+            statement_index: value_statement_index,
+            ..
+        } = value.origin;
+        if value_statement_index != statement_index || value.expression != expression {
+            continue;
+        }
+        let Some(identity) = value.operator_provider_plan_identity else {
+            continue;
+        };
+        if identity == 0 {
+            return CarriedFloatProviderPlan::Invalid;
+        }
+        match resolved {
+            Some(existing) if existing != identity => return CarriedFloatProviderPlan::Invalid,
+            None => resolved = Some(identity),
+            _ => {}
+        }
+    }
+    resolved.map_or(
+        CarriedFloatProviderPlan::Missing,
+        CarriedFloatProviderPlan::Resolved,
+    )
+}
+
+#[cfg(test)]
+mod float_provider_plan_tests {
+    use super::*;
+    use omega_control_flow::{
+        ControlFlowPlan, StateFlow, StateValueFact, StateValueOrigin, StateValueStatementRole,
+    };
+    use omega_core::symbols::SymbolHandle;
+
+    fn carried(identities: &[Option<u64>]) -> CarriedFloatProviderPlan {
+        let source_key = StateKey {
+            machine: SymbolHandle::from_arena_index(1),
+            state: SymbolHandle::from_arena_index(2),
+            segment_index: 3,
+        };
+        let expression = ExpressionHandle::from_arena_index(4);
+        let mut control_flow = ControlFlowPlan::default();
+        let mut state = StateFlow {
+            key: source_key,
+            ..StateFlow::default()
+        };
+        for identity in identities {
+            control_flow.semantics.values.values.append_to_span(
+                &mut state.values.values,
+                StateValueFact {
+                    machine_symbol: source_key.machine,
+                    state_symbol: source_key.state,
+                    expression,
+                    origin: StateValueOrigin::Statement {
+                        statement_index: 5,
+                        role: StateValueStatementRole::AssignmentValue,
+                    },
+                    arithmetic_policy_adapter: None,
+                    operator_provider_plan_identity: *identity,
+                },
+            );
+        }
+        control_flow.states.insert(state);
+        carried_float_provider_plan_in_control_flow(&control_flow, source_key, 5, expression)
+    }
+
+    #[test]
+    fn carried_float_provider_plan_resolves_exact_nonzero_identity() {
+        assert_eq!(
+            carried(&[Some(0x1234_5678_9abc_def0)]),
+            CarriedFloatProviderPlan::Resolved(0x1234_5678_9abc_def0)
+        );
+    }
+
+    #[test]
+    fn carried_float_provider_plan_rejects_zero_and_contradictions() {
+        assert_eq!(carried(&[Some(0)]), CarriedFloatProviderPlan::Invalid);
+        assert_eq!(
+            carried(&[Some(11), Some(12)]),
+            CarriedFloatProviderPlan::Invalid
+        );
+        assert_eq!(carried(&[None]), CarriedFloatProviderPlan::Missing);
+    }
+
+    #[test]
+    fn checked_migrated_provider_evidence_cannot_disappear_or_change_in_lowering() {
+        let checked = CarriedFloatProviderPlan::Resolved(11);
+        assert_eq!(
+            reconcile_float_provider_plan_evidence(checked, CarriedFloatProviderPlan::Missing),
+            CarriedFloatProviderPlan::Invalid
+        );
+        assert_eq!(
+            reconcile_float_provider_plan_evidence(checked, CarriedFloatProviderPlan::Resolved(12)),
+            CarriedFloatProviderPlan::Invalid
+        );
+        assert_eq!(
+            reconcile_float_provider_plan_evidence(checked, CarriedFloatProviderPlan::Resolved(11)),
+            CarriedFloatProviderPlan::Resolved(11)
+        );
+    }
+}
+
 /// Resolve one float operation's already-checked result adapter from the
 /// control-flow value spine. This deliberately does not inspect operand types:
 /// format mismatch or contradictory carried facts fail closed, while `Missing`

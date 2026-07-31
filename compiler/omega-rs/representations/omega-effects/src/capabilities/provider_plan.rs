@@ -186,6 +186,46 @@ impl ServiceSchema {
             methods,
         })
     }
+
+    /// Reify one exact overloaded boundary-operator requirement as a
+    /// single-row provider slot. `trait_name` is the legacy field name on the
+    /// shared carrier; operator slots use their stable signature identity so
+    /// f32/f64 overloads can never collide or be selected as one another.
+    pub fn from_typed_operator(
+        program: &omega_typed_trees::TypedTrees,
+        operator: &omega_typed_trees::operator::OperatorDefinition,
+    ) -> Option<Self> {
+        operator.is_boundary.then(|| Self {
+            trait_name: omega_typed_trees::operator::boundary_operator_requirement_identity(
+                program, operator,
+            ),
+            methods: vec![ServiceMethod {
+                name: "realize".to_owned(),
+                parameter_count: program.operator_parameters(operator).len(),
+                parameter_type_identities: program
+                    .operator_parameters(operator)
+                    .iter()
+                    .map(|parameter| {
+                        program
+                            .normalized_type_identity(parameter.type_reference)
+                            .into_string()
+                    })
+                    .collect(),
+                entry_claims: Vec::new(),
+                has_result: operator.return_type.is_valid(),
+                result_type_identity: operator.return_type.is_valid().then(|| {
+                    program
+                        .normalized_type_identity(operator.return_type)
+                        .into_string()
+                }),
+                service_reach: Vec::new(),
+                synchronous_invocations: Vec::new(),
+                may_suspend: false,
+                may_block: false,
+                calling_plan_fingerprint: None,
+            }],
+        })
+    }
 }
 
 fn collect_service_methods(

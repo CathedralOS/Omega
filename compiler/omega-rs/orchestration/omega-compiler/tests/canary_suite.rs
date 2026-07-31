@@ -34558,6 +34558,112 @@ fn float_operator_spellings_record_named_core_identities() {
 }
 
 #[test]
+fn float_add_provider_plans_are_selected_for_every_native_target() {
+    let canary = pass_canary("operators/float_operator_identities");
+    for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
+        let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
+            .unwrap_or_else(|diagnostics| {
+                panic!("core float provider plans should check for {target}: {diagnostics:#?}")
+            });
+        let mut selected_formats = Vec::new();
+
+        for operator_use in checked.facts.operators.resolved_uses() {
+            let Some(candidate) = checked.facts.operators.selected_candidate(operator_use) else {
+                continue;
+            };
+            let Some(operator) = checked
+                .typed
+                .operators()
+                .iter()
+                .find(|operator| operator.symbol == candidate.operator_symbol)
+            else {
+                continue;
+            };
+            let path = checked
+                .typed
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            if path != "Float::add" {
+                continue;
+            }
+
+            let [left, right] = checked.typed.operator_parameters(operator) else {
+                panic!("Float::add must retain two operands");
+            };
+            let primitive = checked
+                .typed
+                .primitive_type_reference(left.type_reference)
+                .expect("Float::add operand must retain its primitive format");
+            assert_eq!(
+                checked.typed.primitive_type_reference(right.type_reference),
+                Some(primitive),
+                "Float::add provider slot must not mix formats"
+            );
+            let expected_intrinsic = match primitive {
+                omega_typed_trees::types::PrimitiveType::F32 => "Float::add.f32",
+                omega_typed_trees::types::PrimitiveType::F64 => "Float::add.f64",
+                other => panic!("unexpected Float::add carrier {other:?}"),
+            };
+            assert_ne!(
+                operator_use.provider_plan_identity, 0,
+                "{target} Float::add use must retain the selected ProviderPlan identity"
+            );
+            let plan = checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)
+                .expect("operator evidence must resolve to one retained selected plan");
+            assert_eq!(plan.target, target);
+            assert_eq!(
+                plan.schema.trait_name,
+                omega_typed_trees::operator::boundary_operator_requirement_identity(
+                    &checked.typed,
+                    operator,
+                )
+            );
+            let [row] = plan.rows.as_slice() else {
+                panic!("exact operator plan must retain one realization row");
+            };
+            assert_eq!(row.method, "realize");
+            assert!(
+                matches!(
+                    &row.binding,
+                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                        if name == expected_intrinsic
+                ),
+                "{target} selected the wrong Float::add realization: {row:?}"
+            );
+            selected_formats.push(expected_intrinsic);
+        }
+
+        assert_eq!(
+            selected_formats,
+            ["Float::add.f32"],
+            "the canary contains exactly one used Float::add format"
+        );
+        for expected_intrinsic in ["Float::add.f32", "Float::add.f64"] {
+            assert!(
+                checked.selected_provider_plans().plans().iter().any(|plan| {
+                    plan.target == target
+                        && matches!(
+                            plan.rows.as_slice(),
+                            [row]
+                                if matches!(
+                                    &row.binding,
+                                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                                        if name == expected_intrinsic
+                                )
+                        )
+                }),
+                "{target} must select the {expected_intrinsic} overload plan even when this canary does not call it"
+            );
+        }
+    }
+}
+
+#[test]
 fn float_policy_operator_uses_record_checked_result_adapters() {
     for (canary_name, expected) in [
         (
@@ -39874,6 +39980,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/via_runtime_binding_rejected",
     "providers/via_repeated_effects_rejected",
     "providers/via_signature_mismatch_rejected",
+    "providers/float_operator_intrinsic_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/cauchy_zero_precision_rejected",

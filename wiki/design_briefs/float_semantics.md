@@ -197,6 +197,24 @@ operand-aware overflow-only adapter. Stage-copy tests and a native sentinel
 canary cover the path. This completes rung 2; rung 3 begins with explicit target
 satisfiers and selected `ProviderPlan` realization.
 
+First rung-3 checkpoint (2026-07-31): the shared provider carrier can now reify
+one exact overloaded boundary-operator signature as its own single-row service
+slot, so binary32 and binary64 requirements cannot collide under the common
+`Float::add` name. Core supplies explicit f32/f64 add satisfiers for
+`windows_x64`, `linux_x64`, `linux_arm64`, and `macos_arm64`; each selected
+plan names the matching compiler-known `Float::add.f32` or `Float::add.f64`
+realization. Selection retention validates every selected operator plan even
+when its requirement is unused, rejects mislabeled intrinsics and absent exact
+selection, and attaches the normalized plan identity to checked spelled and
+named operator evidence. That identity survives state graph, control flow, and
+abstract-operation lowering; instruction selection resolves it back through
+the retained selected-plan set and rejects zero, missing, or contradictory
+evidence. Cross-target canaries pin all four selections and a native pipeline
+compile. This is the first add-only slice, not completion of rung 3: the other
+operation families, checked software fallbacks, canonical floating-control
+state proof/restoration, and differential evidence for admitted hardware
+realizations remain.
+
 ## 2. Domains: the value/policy split
 
 - **Value domains** are unary wellness facts, conjoinable with the landed

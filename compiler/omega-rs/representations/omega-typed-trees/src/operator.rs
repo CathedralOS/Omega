@@ -117,6 +117,89 @@ pub fn resolve_named_expression_call<'program>(
     )
 }
 
+/// Resolve one machine's explicit `satisfies Namespace::requirement` edge to
+/// an exact overloaded boundary operator. Trait conformances keep their own
+/// resolver; this path is for target/provider machines realizing an operator
+/// requirement such as the f32 or f64 overload of `Float::add`.
+pub fn resolve_satisfied_boundary_operator<'program>(
+    program: &'program TypedTrees,
+    machine: &crate::machine::Machine,
+    namespace: &str,
+    requirement: &str,
+) -> Option<&'program OperatorDefinition> {
+    let state = program.machine_states(machine).first()?;
+    let actual_parameters = program.state_parameters(state);
+    let mut candidates = program.operators().iter().filter(|operator| {
+        if !operator.is_boundary
+            || !operator_path_matches(operator, program, namespace, requirement)
+        {
+            return false;
+        }
+        let required_parameters = program.operator_parameters(operator);
+        actual_parameters.len() == required_parameters.len()
+            && actual_parameters
+                .iter()
+                .zip(required_parameters.iter())
+                .all(|(actual, required)| {
+                    actual.is_self == required.is_self
+                        && actual.is_mutable == required.is_mutable
+                        && program.normalized_type_identity(actual.type_reference)
+                            == program.normalized_type_identity(required.type_reference)
+                })
+            && state.return_type.is_valid() == operator.return_type.is_valid()
+            && (!state.return_type.is_valid()
+                || program.normalized_type_identity(state.return_type)
+                    == program.normalized_type_identity(operator.return_type))
+    });
+    let selected = candidates.next()?;
+    candidates.next().is_none().then_some(selected)
+}
+
+fn operator_path_matches(
+    operator: &OperatorDefinition,
+    program: &TypedTrees,
+    namespace: &str,
+    requirement: &str,
+) -> bool {
+    let path = program.operator_path_members(operator.name);
+    matches!(path, [owner, member]
+        if owner.as_str() == namespace && member.as_str() == requirement)
+}
+
+/// Stable slot identity for one exact overloaded boundary-operator
+/// requirement. Provider selection must distinguish f32 and f64 overloads even
+/// though both are authored as `Float::add`.
+pub fn boundary_operator_requirement_identity(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+) -> String {
+    let path = program
+        .operator_path_members(operator.name)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let parameters = program
+        .operator_parameters(operator)
+        .iter()
+        .map(|parameter| {
+            program
+                .normalized_type_identity(parameter.type_reference)
+                .into_string()
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let result = operator.return_type.is_valid().then(|| {
+        program
+            .normalized_type_identity(operator.return_type)
+            .into_string()
+    });
+    format!(
+        "operator::{path}({parameters})->{}",
+        result.as_deref().unwrap_or("unit")
+    )
+}
+
 fn named_operator_path_matches_call(
     program: &TypedTrees,
     operator: &OperatorDefinition,

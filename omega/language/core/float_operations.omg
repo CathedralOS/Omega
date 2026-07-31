@@ -1,9 +1,10 @@
 // Source-visible floating-point operation identities.
 //
 // Primitive spellings resolve to the root Float operators below. Their
-// implementation remains the bootstrap compiler lowering until F7's target
-// satisfier/ProviderPlan rung replaces it, but the semantic identity and
-// contract no longer live only in Rust match arms.
+// Float::add's f32/f64 overloads now have the first target satisfier and
+// selected-ProviderPlan realization slice. The remaining requirements retain
+// bootstrap compiler lowering while their semantic identities and contracts
+// no longer live only in Rust match arms.
 //
 // Unspelled operations use format-qualified F32/F64 names. This keeps named
 // call resolution exact while the operator-call resolver is arity-based:
@@ -12,6 +13,15 @@
 
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
+use omega::language::core::targets::macos_arm64::float_impl;
+use omega::language::core::targets::linux_arm64::float_impl;
+use omega::language::core::targets::linux_x64::float_impl;
+use omega::language::core::targets::windows_x64::float_impl;
+
+// Nominal owner of the selected native float-operation provider closure.
+// Target-scoped leaves below satisfy exact overloaded boundary-operator
+// requirements; the carrier has no runtime state.
+data FloatNativeProvider { }
 
 pub data FloatClass [copy] {
     case NaN;

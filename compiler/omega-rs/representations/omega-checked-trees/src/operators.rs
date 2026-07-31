@@ -37,6 +37,9 @@ pub struct CheckedOperatorUseFact {
     pub origin: CheckedValueOrigin,
     pub spelling: OperatorSpelling,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
+    /// Exact selected ProviderPlan identity for a migrated boundary-operator
+    /// realization. Zero means the operator still uses bootstrap lowering.
+    pub provider_plan_identity: u64,
     pub selected_operator_symbol: SymbolHandle,
     pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
     pub candidate_count: usize,
@@ -53,6 +56,7 @@ pub struct CheckedNamedOperatorUseFact {
     pub origin: CheckedValueOrigin,
     pub selected_operator_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
+    pub provider_plan_identity: u64,
 }
 
 impl Default for CheckedOperatorUseFact {
@@ -62,6 +66,7 @@ impl Default for CheckedOperatorUseFact {
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
+            provider_plan_identity: 0,
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: HandleSpan::empty(),
             candidate_count: 0,
@@ -315,6 +320,20 @@ impl CheckedOperatorFacts {
             .unwrap_or_default()
     }
 
+    pub fn provider_plan_identity_for_expression_in_origin(
+        &self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    ) -> Option<u64> {
+        self.expression_use_in_origin(expression, origin)
+            .map(|operator_use| operator_use.provider_plan_identity)
+            .or_else(|| {
+                self.named_expression_use_in_origin(expression, origin)
+                    .map(|operator_use| operator_use.provider_plan_identity)
+            })
+            .filter(|identity| *identity != 0)
+    }
+
     pub fn missing_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
         self.uses_with_status(CheckedOperatorResolutionStatus::Missing)
     }
@@ -442,6 +461,7 @@ mod tests {
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
+            provider_plan_identity: 0,
             selected_operator_symbol: SymbolHandle::from_arena_index(2),
             candidates: resolved_candidates,
             candidate_count: 1,
@@ -452,6 +472,7 @@ mod tests {
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Range,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
+            provider_plan_identity: 0,
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: ambiguous_candidates,
             candidate_count: 2,
@@ -467,6 +488,7 @@ mod tests {
             policy_adapter: CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: FloatFormat::BINARY64,
             },
+            provider_plan_identity: 0,
         });
 
         let facts =

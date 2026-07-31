@@ -40,6 +40,13 @@ pub(crate) fn state_value_summary(
                         value.expression,
                         value.origin,
                     ),
+                operator_provider_plan_identity: program
+                    .facts
+                    .operators
+                    .provider_plan_identity_for_expression_in_origin(
+                        value.expression,
+                        value.origin,
+                    ),
             },
         );
     }
@@ -55,6 +62,8 @@ pub(crate) fn state_value_summary(
             operator_use.expression,
             operator_use.origin,
             operator_use.policy_adapter,
+            (operator_use.provider_plan_identity != 0)
+                .then_some(operator_use.provider_plan_identity),
         );
     }
     for (_, operator_use) in program.facts.operators.named_uses.iter() {
@@ -64,6 +73,8 @@ pub(crate) fn state_value_summary(
             operator_use.expression,
             operator_use.origin,
             operator_use.policy_adapter,
+            (operator_use.provider_plan_identity != 0)
+                .then_some(operator_use.provider_plan_identity),
         );
     }
 
@@ -82,6 +93,7 @@ fn append_operator_value(
     expression: omega_checked_trees::expression::ExpressionHandle,
     origin: CheckedValueOrigin,
     arithmetic_policy_adapter: ArithmeticPolicyAdapter,
+    operator_provider_plan_identity: Option<u64>,
 ) {
     let Some((machine_symbol, state_symbol, statement_index, role)) = statement_origin(origin)
     else {
@@ -101,6 +113,7 @@ fn append_operator_value(
                 role: remap_value_statement_role(role),
             },
             arithmetic_policy_adapter: Some(arithmetic_policy_adapter),
+            operator_provider_plan_identity,
         },
     );
 }
@@ -112,6 +125,19 @@ fn append_or_enrich_value(values: &mut Vec<StateValueFact>, value: StateValueFac
             && existing.expression == value.expression
             && existing.origin == value.origin
     }) {
+        match (
+            values[index].operator_provider_plan_identity,
+            value.operator_provider_plan_identity,
+        ) {
+            (None, Some(identity)) => {
+                values[index].operator_provider_plan_identity = Some(identity)
+            }
+            (Some(left), Some(right)) if left != right => {
+                values.push(value);
+                return;
+            }
+            _ => {}
+        }
         match (
             values[index].arithmetic_policy_adapter,
             value.arithmetic_policy_adapter,

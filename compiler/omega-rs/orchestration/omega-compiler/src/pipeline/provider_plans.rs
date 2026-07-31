@@ -62,6 +62,7 @@ pub(crate) fn retain_selected_provider_plan_facts(
                 .map(|(_, identity)| (handle, *identity))
         })
         .collect::<Vec<_>>();
+    retain_selected_operator_provider_evidence(checked, candidates, &facts)?;
     checked.retain_selected_provider_plans(facts);
     for (fact, identity) in receipt_updates {
         checked
@@ -73,6 +74,173 @@ pub(crate) fn retain_selected_provider_plan_facts(
             .receipt_identity = identity;
     }
     Ok(())
+}
+
+fn retain_selected_operator_provider_evidence(
+    checked: &mut omega_checked_trees::CheckedTrees,
+    candidates: &[ProviderPlan],
+    selected: &omega_checked_trees::SelectedProviderPlanFacts,
+) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    // Validate selected operator plans independently of use-site discovery.
+    // A malformed realization is invalid policy even when dead code happens
+    // not to mention its requirement, and later annotation may consume only
+    // plans that passed this gate.
+    let mut diagnostics = Vec::new();
+    for plan in selected.plans() {
+        let operator = checked.typed.operators().iter().find(|operator| {
+            operator.is_boundary
+                && omega_typed_trees::operator::boundary_operator_requirement_identity(
+                    &checked.typed,
+                    operator,
+                ) == plan.schema.trait_name
+        });
+        let Some(operator) = operator else {
+            continue;
+        };
+        if let Err(diagnostic) =
+            selected_operator_provider_identity(checked, candidates, selected, operator.symbol)
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+
+    let spelled = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .map(|(handle, operator_use)| (handle, operator_use.selected_operator_symbol))
+        .collect::<Vec<_>>();
+    let named = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .map(|(handle, operator_use)| (handle, operator_use.selected_operator_symbol))
+        .collect::<Vec<_>>();
+    for (handle, symbol) in spelled {
+        match selected_operator_provider_identity(checked, candidates, selected, symbol) {
+            Ok(Some(identity)) => {
+                checked
+                    .facts
+                    .operators
+                    .uses
+                    .get_mut(handle)
+                    .provider_plan_identity = identity;
+            }
+            Ok(None) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+    for (handle, symbol) in named {
+        match selected_operator_provider_identity(checked, candidates, selected, symbol) {
+            Ok(Some(identity)) => {
+                checked
+                    .facts
+                    .operators
+                    .named_uses
+                    .get_mut(handle)
+                    .provider_plan_identity = identity;
+            }
+            Ok(None) => {}
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn selected_operator_provider_identity(
+    checked: &omega_checked_trees::CheckedTrees,
+    candidates: &[ProviderPlan],
+    selected: &omega_checked_trees::SelectedProviderPlanFacts,
+    operator_symbol: omega_core::symbols::SymbolHandle,
+) -> Result<Option<u64>, omega_core::diagnostics::Diagnostic> {
+    let Some(operator) = checked
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == operator_symbol)
+    else {
+        return Ok(None);
+    };
+    let slot = omega_typed_trees::operator::boundary_operator_requirement_identity(
+        &checked.typed,
+        operator,
+    );
+    if !candidates
+        .iter()
+        .any(|candidate| candidate.schema.trait_name == slot)
+    {
+        return Ok(None);
+    }
+    let Some(plan) = selected
+        .plans()
+        .iter()
+        .find(|plan| plan.schema.trait_name == slot)
+    else {
+        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            "boundary operator `{slot}` has provider candidates but no exact selected ProviderPlan realization for this target"
+        )));
+    };
+    let [row] = plan.rows.as_slice() else {
+        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
+            plan.name,
+        )));
+    };
+    let ProviderBinding::CompilerIntrinsic { name } = &row.binding else {
+        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` uses unsupported bootstrap binding `{:?}`; the migrated target slice requires one compiler intrinsic",
+            plan.name, row.binding,
+        )));
+    };
+    let expected = expected_float_intrinsic(&checked.typed, operator).ok_or_else(|| {
+        omega_core::diagnostics::Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
+            plan.name,
+        ))
+    })?;
+    if name != &expected {
+        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` binds `{name}`, but `{slot}` requires exact intrinsic `{expected}`",
+            plan.name,
+        )));
+    }
+    Ok(Some(plan.identity_fingerprint()))
+}
+
+fn expected_float_intrinsic(
+    typed: &TypedTrees,
+    operator: &omega_typed_trees::operator::OperatorDefinition,
+) -> Option<String> {
+    let path = typed.operator_path_members(operator.name);
+    if !matches!(path, [namespace, requirement]
+        if namespace.as_str() == "Float" && requirement.as_str() == "add")
+    {
+        return None;
+    }
+    let [left, right] = typed.operator_parameters(operator) else {
+        return None;
+    };
+    let primitive = typed.primitive_type_reference(left.type_reference)?;
+    if typed.primitive_type_reference(right.type_reference) != Some(primitive)
+        || typed.primitive_type_reference(operator.return_type) != Some(primitive)
+    {
+        return None;
+    }
+    match primitive {
+        omega_typed_trees::types::PrimitiveType::F32 => Some("Float::add.f32".to_owned()),
+        omega_typed_trees::types::PrimitiveType::F64 => Some("Float::add.f64".to_owned()),
+        _ => None,
+    }
 }
 
 fn evidence_source_names_boundary(
@@ -172,6 +340,26 @@ pub(crate) fn derive_satisfies_plans(
             continue;
         }
         for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+            if clause.requirement.as_ref().is_some_and(|requirement| {
+                typed
+                    .machines()
+                    .iter()
+                    .find(|candidate| candidate.name.as_str() == machine.name.as_str())
+                    .and_then(|candidate| {
+                        omega_typed_trees::operator::resolve_satisfied_boundary_operator(
+                            typed,
+                            candidate,
+                            clause.trait_name.as_str(),
+                            requirement.as_str(),
+                        )
+                    })
+                    .is_some()
+            }) {
+                // Exact boundary-operator requirements use one overloaded
+                // signature per provider slot; derive them below rather than
+                // manufacturing an empty boundary-trait schema here.
+                continue;
+            }
             // A bodyless leaf carries `via`; a CHECKED ADAPTER is an
             // ordinary machine with a body and a requirement-named
             // satisfies edge (no via). Both contribute rows; whole-trait
@@ -259,34 +447,11 @@ pub(crate) fn derive_satisfies_plans(
                     plans.len() - 1
                 });
             let plan = &mut plans[position];
-            use omega_syntax_trees::item::ExternalBinding;
             let row_binding = match binding {
                 None => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
                 },
-                Some(binding) => match binding {
-                    ExternalBinding::Syscall { number } => ProviderBinding::Syscall {
-                        number: u32::try_from(*number).unwrap_or_default(),
-                    },
-                    ExternalBinding::DllImport { module, symbol } => ProviderBinding::Import {
-                        library: module.clone(),
-                        symbol: symbol.clone(),
-                    },
-                    ExternalBinding::CompilerIntrinsic { name } => {
-                        ProviderBinding::CompilerIntrinsic { name: name.clone() }
-                    }
-                    ExternalBinding::VtableSlot { index } => {
-                        ProviderBinding::VtableSlot { index: *index }
-                    }
-                    ExternalBinding::VtableField { field } => ProviderBinding::VtableField {
-                        table: provider_type.clone(),
-                        field: field.as_str().to_owned(),
-                    },
-                    ExternalBinding::TableFunction { field } => ProviderBinding::TableFunction {
-                        table: provider_type.clone(),
-                        field: field.as_str().to_owned(),
-                    },
-                },
+                Some(binding) => external_provider_binding(binding, &provider_type),
             };
             plan.rows.push(ProviderPlanRow {
                 method: requirement.as_str().to_owned(),
@@ -294,7 +459,108 @@ pub(crate) fn derive_satisfies_plans(
             });
         }
     }
+    plans.extend(derive_boundary_operator_plans(
+        syntax_trees,
+        typed,
+        selected_target,
+    ));
     plans
+}
+
+fn derive_boundary_operator_plans(
+    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    typed: &TypedTrees,
+    selected_target: Option<&str>,
+) -> Vec<ProviderPlan> {
+    let mut plans = Vec::<ProviderPlan>::new();
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::Machine(machine) = item else {
+            continue;
+        };
+        let Some(typed_machine) = typed
+            .machines()
+            .iter()
+            .find(|candidate| candidate.name.as_str() == machine.name.as_str())
+        else {
+            continue;
+        };
+        for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
+            let (Some(requirement), Some(binding)) =
+                (clause.requirement.as_ref(), clause.via.as_ref())
+            else {
+                continue;
+            };
+            let Some(operator) = omega_typed_trees::operator::resolve_satisfied_boundary_operator(
+                typed,
+                typed_machine,
+                clause.trait_name.as_str(),
+                requirement.as_str(),
+            ) else {
+                continue;
+            };
+            let Some(schema) = ServiceSchema::from_typed_operator(typed, operator) else {
+                continue;
+            };
+            let target = machine.target.as_ref().map_or_else(
+                || selected_target.unwrap_or_default().to_owned(),
+                |target| target.as_str().to_owned(),
+            );
+            let provider_type = machine
+                .attached_data
+                .as_ref()
+                .map(|name| name.as_str().to_owned())
+                .unwrap_or_default();
+            let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
+            let position = plans
+                .iter()
+                .position(|plan| plan.name == plan_name)
+                .unwrap_or_else(|| {
+                    plans.push(ProviderPlan {
+                        name: plan_name.clone(),
+                        provider_type: provider_type.clone(),
+                        target: target.clone(),
+                        schema: schema.clone(),
+                        rows: Vec::new(),
+                        origin_package: String::new(),
+                    });
+                    plans.len() - 1
+                });
+            plans[position].rows.push(ProviderPlanRow {
+                method: "realize".to_owned(),
+                binding: external_provider_binding(binding, &provider_type),
+            });
+        }
+    }
+    plans
+}
+
+fn external_provider_binding(
+    binding: &omega_syntax_trees::item::ExternalBinding,
+    provider_type: &str,
+) -> ProviderBinding {
+    use omega_syntax_trees::item::ExternalBinding;
+
+    match binding {
+        ExternalBinding::Syscall { number } => ProviderBinding::Syscall {
+            number: u32::try_from(*number).unwrap_or_default(),
+        },
+        ExternalBinding::DllImport { module, symbol } => ProviderBinding::Import {
+            library: module.clone(),
+            symbol: symbol.clone(),
+        },
+        ExternalBinding::CompilerIntrinsic { name } => {
+            ProviderBinding::CompilerIntrinsic { name: name.clone() }
+        }
+        ExternalBinding::VtableSlot { index } => ProviderBinding::VtableSlot { index: *index },
+        ExternalBinding::VtableField { field } => ProviderBinding::VtableField {
+            table: provider_type.to_owned(),
+            field: field.as_str().to_owned(),
+        },
+        ExternalBinding::TableFunction { field } => ProviderBinding::TableFunction {
+            table: provider_type.to_owned(),
+            field: field.as_str().to_owned(),
+        },
+    }
 }
 
 fn provider_boundary_arguments(
