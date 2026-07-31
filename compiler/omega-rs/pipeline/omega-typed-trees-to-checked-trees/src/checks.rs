@@ -1,6 +1,7 @@
 mod borrows;
 mod capabilities;
 mod carry;
+mod content;
 mod contracts;
 mod multiplicity;
 mod operators;
@@ -44,6 +45,10 @@ pub(crate) fn check_checked_facts_recording(
         multiplicity::check_linear_obligations(program, facts)
     {
         diagnostics.append(&mut multiplicity_diagnostics);
+    }
+
+    if let Err(mut content_diagnostics) = content::check_retained_content_custody(program, facts) {
+        diagnostics.append(&mut content_diagnostics);
     }
 
     if let Err(mut carry_diagnostics) = carry::check_suspension_carry(program, facts) {

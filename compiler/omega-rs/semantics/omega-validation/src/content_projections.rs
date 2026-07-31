@@ -84,6 +84,18 @@ pub(crate) fn validate_content_projection_conformances(
                 }
             };
 
+            if program.type_multiplicity(subject.carrier)
+                != omega_core::semantics::Multiplicity::Linear
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "content projection `{}` targets `{}` whose carrier `{}` is not linear; fine-grained content accounting belongs to owned linear claims",
+                    machine.name,
+                    domain.name,
+                    program.display_type_reference(subject.carrier),
+                )));
+                continue;
+            }
+
             if domain.alias.is_some() {
                 diagnostics.push(Diagnostic::error(format!(
                     "content projection machine `{}` targets transparent alias `{}`; publish content on one exact atomic qualification instead",
