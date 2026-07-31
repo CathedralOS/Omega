@@ -1,1 +1,1 @@
-linear value `outcome` reaches scope exit without being consumed or transferred
+linear value `outcome::Rejected.arguments` reaches scope exit without being consumed or transferred
