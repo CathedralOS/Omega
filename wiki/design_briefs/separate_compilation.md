@@ -148,6 +148,60 @@ Objects with independently reclaimable lifetimes occupy separate mapping
 cohorts; unrelated lifetimes must not share a page that one side expects to
 unmap.
 
+## Coexisting eras and shared services
+
+Checked Omega components have no duplicable component-local ambient runtime.
+Allocator access, output, cleanup, failure, and other services are explicit
+values or named process-static custodians rooted outside every replaceable era.
+Two component eras therefore coexist as distinct owned subtrees rather than as
+two hidden heaps or cleanup registries.
+
+Process-static services still publish an era-coexistence contract. General
+lifecycle machinery accounts for holdings: queued work and callbacks retain
+the code era they may enter, registrations return linear claims, and values
+retain an era only when their meaning depends on its state. Each service
+separately defines logical name collision and handover. A registry may reject
+duplicate key `K`, version it, or provide an atomic transfer; the component
+framework cannot infer that policy.
+
+Candidate admission checks the new era's selected-provider TCB manifest before
+publication. While eras coexist, the live report is the union of their known
+entries and the weakest applicable scope-completeness and containment evidence.
+An opaque process-static platform provider remains a deployment baseline rather
+than becoming private to either era; component-owned registrations and handles
+still receive complete disposition.
+
+## Opaque providers and mapping quarantine
+
+An uncontained opaque library private to a component defeats provable native
+unloading. It may retain threads, callbacks, native pointers, loader state, TLS,
+or process-global resources that the Omega claim graph cannot enumerate.
+Coexisting versions can also collide through those hidden resources. A
+deployment requiring reliable replacement therefore selects checked Omega or
+verified portable IR interpreted or locally lowered through its trusted path,
+or a provider with enforced containment and a separately replaceable execution
+scope.
+
+If an opaque provider retains a callback into replaceable Omega code, the
+foreign address must target a process-lifetime gateway that dispatches into the
+current era, unless the provider supplies an accepted unregistration and
+quiescence contract. The gateway preserves replaceability of the Omega target;
+it does not make the opaque library reclaimable or complete its TCB manifest.
+
+Mapping reuse has one rule:
+
+> Reuse is legal only after proof that no live authority reaches the mapping.
+
+In checked Omega, inert `addr` values and sealed inert `Ptr<T>` carriers cannot
+recreate memory or execution authority; any live authoritative reference
+therefore remains visible to quiescence accounting. Proven quiescence permits
+ordinary virtual-address reuse. An incomplete drain, poisoned obligation, or
+possible untracked opaque holder leaves the range reserved and
+unmapped/trapping until a wider isolation domain is retired. Quarantine detects
+stale entry but discharges no lock, claim, or protocol obligation. Repeated
+poisoned replacements consume reserved virtual-address capacity and report the
+attributed loss.
+
 ## Claim custody and retention reporting
 
 Claim metadata separates historical origin from current custody. Origin remains

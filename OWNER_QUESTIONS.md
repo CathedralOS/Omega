@@ -8,42 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-30.
 
-## 1. How are opaque in-process executable dependencies surfaced and refused?
-
-The boundary-provider report already names imported symbols, selected
-providers, and admission receipts. That makes an opaque native dependency
-auditable, but the root contract and build-profile rejection surface are not
-settled. An in-process native binary joins the program's trusted computing base:
-an ABI wrapper can validate calls and manage lifetimes, but cannot stop that
-binary from writing arbitrary process memory. A process-isolated provider has a
-different trust consequence even when it exposes the same abstract service.
-
-Decide:
-
-- whether transitive in-process native use appears in the machine's operational
-  effect/reach contract, a separate root trust clause, only the selected-provider
-  manifest, or a composed combination that does not conflate service reach with
-  trust;
-- how the report names the exact provider or binary rather than collapsing all
-  native dependencies into one boolean category;
-- how target-platform providers already accepted by the deployment profile are
-  distinguished from additional third-party binaries without making every
-  hosted program carry a useless universal warning;
-- how a checked adapter may narrow the public API while remaining unable to
-  launder the underlying in-process trust dependency;
-- how moving the provider behind a process, address-space, or hardware
-  isolation boundary changes the reported dependency to an endpoint rather
-  than an in-process TCB expansion; and
-- how a safety profile rejects forbidden dependencies before artifact
-  production, independently of whether a source author acknowledged them.
-
-Recommendation: retain exact provider identity and trust provenance
-transitively, publish a root-level TCB bill of materials, and let build profiles
-reject disallowed in-process providers. Treat platform baselines, third-party
-in-process binaries, and isolated endpoints as different admitted relationships.
-Do not let an ordinary wrapper erase the selected provider's trust class.
-
-## 2. What does contained execution failure do to outstanding obligations?
+## 1. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -75,7 +40,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 3. How are modular concurrency environment premises authored and discharged?
+## 2. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -119,7 +84,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 4. What is the public float-conversion requirement family?
+## 3. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not the public names or
 signatures for policy-bearing conversions. `FloatSemantics` already defines
@@ -154,7 +119,7 @@ exact/trapping/saturating result adapters; keep directed rounding as separate
 operation names; and omit same-format conversion. This follows the settled
 operand-driven provider model without carrying type or policy tags at runtime.
 
-## 5. What is the source-visible placed-storage admission surface?
+## 4. What is the source-visible placed-storage admission surface?
 
 The normalized semantics are settled: a qualified `Extent` yields a bounded
 shared or exclusive loan; a selected provider binds one offset-keyed
@@ -201,7 +166,7 @@ one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
 make `place` the sole consuming constructor for `Placed<P, T>`. Package
 wrappers may compose those operations but cannot mint or erase their evidence.
 
-## 6. What is the generic atomic accessor requirement family?
+## 5. What is the generic atomic accessor requirement family?
 
 Placed atomic fields already derive unique opaque accessors and direct atomic
 syntax is gated per load, store, swap, compare-exchange, and fetch operation.
@@ -233,7 +198,7 @@ failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
 
-## 7. What is the v1 canonical portable IR contract?
+## 6. What is the v1 canonical portable IR contract?
 
 The architecture requires one versioned, distributable, interpreter-defined IR
 whose semantics are independent from mutable optimizer representations and

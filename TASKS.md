@@ -49,7 +49,7 @@ They must not describe its result as something the checker already derives.
   `happens_before`, and `global_sequential_order`; mechanize the portable
   access/fence axioms; and prove the x86-64/AArch64 mappings. Existing ordering
   labels and instruction selection are implementation evidence, not this
-  analysis. Modular package premises remain owner-blocked on #3.
+  analysis. Modular package premises remain owner-blocked on #2.
 
 ## Priority queue
 
@@ -296,8 +296,8 @@ establishment from raw bytes reject.
 **PARTIALLY DESIGN BLOCKED.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the normalized
 model. The source-visible loan/profile admission surface is blocked on
-`OWNER_QUESTIONS.md` #5, and public generic atomic accessor requirements are
-blocked on #6. Target-specific lowering remains implementation work.
+`OWNER_QUESTIONS.md` #4, and public generic atomic accessor requirements are
+blocked on #5. Target-specific lowering remains implementation work.
 
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
@@ -310,8 +310,8 @@ blocked on #6. Target-specific lowering remains implementation work.
   accessors are restricted to machines authored in the nominal placement
   policy's canonical package, including statement-position calls whose
   generated target symbol is absent. Generic atomic-family helper contracts
-  are blocked on owner question #6. Admitted source-loan construction is
-  blocked on owner question #5.
+  are blocked on owner question #5. Admitted source-loan construction is
+  blocked on owner question #4.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.
@@ -632,7 +632,7 @@ improvements do not change public identity.
   from canonical IR and its interpreter meter rather than treating that
   provider-authored precursor as an IR proof. The v1 canonical IR schema,
   serialization, and verifier/lowering boundary are blocked on
-  `OWNER_QUESTIONS.md` #7. The current TypedTrees evaluator now publishes an
+  `OWNER_QUESTIONS.md` #6. The current TypedTrees evaluator now publishes an
   explicitly versioned deterministic step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not canonical-IR
   fuel.
@@ -646,6 +646,26 @@ improvements do not change public identity.
   `UnregisterClass`. It must express bootstrap-to-steady callback recovery,
   pinned-thread blocking, registration custody, thunk calling/state plans, and
   cycle breaking with existing machinery.
+- **TCBMANIFEST:** derive executable TCB metadata from selected-provider closure
+  rather than source reach. Retain exact provider/executable/plan identity,
+  implementation evidence, static-selection versus Omega-runtime-admission
+  origin, execution scope, and independently evidenced memory, termination,
+  fault, and resource containment guarantees. Report known entries separately
+  from `Complete(scope, evidence)` or attributed `Incomplete(scope, causes)`;
+  an uncontained opaque in-process provider forces incompleteness. Make
+  platform baselines ordinary profile allowlists, preserve fixed package
+  selections transitively, and let profiles permit-and-mark or reject before
+  installation. Add canaries showing that a checked wrapper cannot launder the
+  entry, static import adds no loader reach, explicit runtime loading does, and
+  the runtime ledger claims only Omega-mediated admissions.
+- **REPLACE-OPAQUE:** extend component acceptance tests with selected-provider
+  manifest union across coexisting eras, process-static service handover
+  contracts, and mapping reuse only after proof that no live authority reaches
+  the cohort. Proven quiescence permits ordinary reuse; incomplete/poisoned
+  drain or a possible opaque holder reserves an unmapped/trapping quarantine
+  with attributed capacity loss. A stale call must fault without being reported
+  as discharged, and an opaque callback into replaceable code must use a
+  process-lifetime gateway or an accepted unregister/quiescence contract.
 - **BLOCKEXEC:** provide an ordinary package-level blocking executor for
   codec-style native calls using activations, bounded queues, moved custody,
   linear completion claims, suspension, and provider selection. It is not a
@@ -762,7 +782,7 @@ and allocation handles expose no compiler-owned stack/control storage.
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the
   denotation-preserving subset; policy-bearing conversion remains
-  `OWNER_QUESTIONS.md` #4.
+  `OWNER_QUESTIONS.md` #3.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -879,13 +899,12 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 opaque in-process executable trust | root TCB declaration and profile rejection |
-| #2 contained execution failure | obligation poison, recovery, and reclamation |
-| #3 modular concurrency premises | separately compiled protocol verification |
-| #4 float-conversion requirements | checked integer/float and cross-format conversion |
-| #5 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
-| #6 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
-| #7 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
+| #1 contained execution failure | obligation poison, recovery, and reclamation |
+| #2 modular concurrency premises | separately compiled protocol verification |
+| #3 float-conversion requirements | checked integer/float and cross-format conversion |
+| #4 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
+| #5 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
+| #6 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
 
 ## Vertical acceptance slices
 

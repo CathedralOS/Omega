@@ -166,13 +166,57 @@ A checked wrapper may refine operational behavior or reduce trust expenditure;
 it does not erase the abstract service reach from callers compiled against that
 trait.
 
-An opaque in-process executable provider is part of the artifact's trusted
-computing base. Checked ABI adaptation, lifetime accounting, and stack
-containment do not prevent that binary from modifying arbitrary process memory.
-The selected-provider manifest retains its exact identity and trust receipt.
-Process- or hardware-isolated providers instead remain external endpoints.
-The root declaration and build-profile rejection surface for these transitive
-trust dependencies remain owner question #1.
+Reach and executable trust remain separate. Checked bodies infer complete
+service reach, bodyless surfaces publish it, and callers receive the transitive
+closure. Static import is not a runtime operation: a call through a statically
+selected Windows provider reaches `WindowSystem`, while an explicit runtime
+loader call additionally reaches `DynamicLibraryLoading`. Deployment policy
+decides which reach entries warrant refusal or a loud report; capability
+authors do not opt into propagation.
+
+TCB expansion is a selected-provider property. The same source requirement may
+select checked Omega, an opaque in-process binary, or an isolated endpoint.
+Selection therefore contributes a normalized executable entry to the artifact
+without changing the source reach contract. Each known entry retains:
+
+- exact provider, provider-plan, and executable/artifact identity;
+- implementation evidence class and admission provenance;
+- origin as static selection or Omega-mediated runtime admission;
+- execution scope; and
+- scoped containment guarantees with their own trust evidence.
+
+Containment guarantees are named by what they establish: memory isolation
+outside explicitly shared authority, forcible termination, fault containment,
+and bounded resource use. Mechanism names do not imply the complete set. A
+process needs explicit quotas before it supplies resource containment; a
+same-address-space mechanism supplies only the guarantees its admitted
+enforcement actually establishes. Implementation evidence and containment
+remain independent axes: an admitted hardware or instruction fact is not an
+opaque executable in the caller's address space.
+
+The manifest separately reports whether its known entry list is complete for
+one execution scope:
+
+```text
+Complete(scope, evidence)
+Incomplete(scope, attributed uncontained providers)
+```
+
+An uncontained opaque in-process binary makes the caller-address-space
+manifest incomplete. It may load or generate executable code without using
+Omega's loader, so the runtime ledger can report only entries Omega admitted,
+not every executable actually present. A constrained dynamic-loading envelope
+is enforceable only inside a containment regime that controls executable
+admission. A checked adapter cannot remove this provenance.
+
+Build and deployment profiles evaluate the selected entry set, manifest
+completeness and evidence, required containment guarantees, and approved
+platform or third-party identities. Platform baselines are policy allowlists,
+not different language semantics. Development profiles may admit and mark an
+incomplete artifact; safety profiles fail before artifact installation when
+their requirements are not met. An isolated provider is an endpoint in the
+caller's manifest and receives its own executable manifest for its execution
+scope.
 
 Binding authors publish the widest contract they can honestly support.
 Over-approximation may cost usability: an unconstrained synchronous invocation
@@ -487,7 +531,10 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 1. Normalize boundary-machine contracts and calling-plan identities.
 2. Represent `Binding` as resolved target/provider data.
-3. Validate provider admission and emit trust/boundary reports.
+3. Validate provider admission and emit the transitive executable-entry,
+   containment-guarantee, and scope-completeness manifest; distinguish static
+   selection from Omega-mediated runtime admission and retain exact
+   incompleteness attribution.
 4. Lower imported calls and inbound stubs from checked plans only.
 5. Integrate programmable layout validation/materialization.
 6. Add final-artifact state-footprint validation and external-root reporting.
@@ -500,11 +547,8 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 ## Still open
 
-- dynamic-library loading/unloading under component versioning;
-- transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #1);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #2); and
+  (`OWNER_QUESTIONS.md` #1); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

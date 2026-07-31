@@ -240,7 +240,7 @@ Still required:
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
-- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #3.
+- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #2.
 
 ## Proof model
 
@@ -279,7 +279,7 @@ evidence. It becomes an unbounded theorem only through an authored cutoff,
 inductive invariant, ranking argument, or equivalent proof. A separately
 compiled protocol publishes its guarantee under a normalized environment
 premise; consumers discharge that premise during composition. The source and
-composition rules for those premises remain owner question #3.
+composition rules for those premises remain owner question #2.
 
 ## Device and interrupt direction
 
