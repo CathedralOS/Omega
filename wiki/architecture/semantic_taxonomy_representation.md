@@ -593,8 +593,11 @@ contained claims through nested generic transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
 compiler-owned algebra, normalized claim projection and admitted backing,
 root-lineage mapping, and exact separated-conservation witness. The initial
-closed vocabulary is `Indivisible | Interval<Scalar>`; correspondence-bearing
-symbolic mappings and runtime-indexed extraction remain fail-closed extensions.
+closed vocabulary contains intervals and counted quantities over proof-level
+natural arithmetic. A qualification with no owner-unique `Content<A>`
+conformance participates only in whole-claim frontier accounting.
+Correspondence-bearing symbolic mappings and runtime-indexed extraction remain
+fail-closed extensions.
 
 ### Service reach, synchronous invocation, and operational ceilings
 

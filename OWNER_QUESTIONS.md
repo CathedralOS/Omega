@@ -8,49 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-30.
 
-## 1. How are claim-content projections and backing authored?
-
-The resource semantics are settled: content is independent of multiplicity,
-each content-bearing qualification publishes one normalized projection into a
-closed compiler-owned algebra, admission supplies backing in the same algebra,
-and checked transformations prove n-ary conservation plus authorized
-retirement. The initial kinds are `Indivisible | Interval<Scalar>`;
-`CountedQuantity<Scalar>` now has its first concrete customer in residual
-capacity for bounded bump/arena allocation. The current source language does
-not say how any of those facts are declared. Defaulting every linear claim to
-`Indivisible` would incorrectly turn ordinary ownership debt into resource
-content, while recognizing particular domain or field names would make
-authority depend on convention.
-
-Decide:
-
-- how a domain owner marks one exact qualification as content-bearing, and
-  whether an omitted algebra means ordinary non-content qualification or an
-  `Indivisible` content claim;
-- the source grammar for selecting `Indivisible`, `Interval<Scalar>`, or
-  `CountedQuantity<Scalar>`, naming the scalar type and coordinate-space or
-  quantity identity, and expressing subject-relative bounds;
-- how a bodyless requirement or provider result authors algebra-denominated
-  backing, including which result claim and admission identity it establishes;
-- how checked machines declare or derive authorized retirement and an explicit
-  `partitions`-style conservation contract when the ordinary outcome map is not
-  sufficient;
-- how several independent projections and one joint correspondence-bearing
-  projection are distinguished without conflating domain facets; and
-- which normalized projection identity is part of the semantic interface so
-  separate compilation, versioning, aliases, and proof/debug artifacts agree.
-
-Recommendation: add one owner-only content clause to the atomic qualification
-declaration, with omission meaning that the qualification is not content
-bearing. Let the clause choose the closed algebra and define a pure projection
-over the qualified subject; make `Indivisible` an explicit or clause-local
-default, never a default for linearity in general. Use separate requirement
-postconditions for admitted backing and authorized retirement, normalize all
-references by semantic identity, and keep the authored surface small enough
-that the compiler can decide equality, containment, restriction, subtraction,
-and separated composition without executing owner-defined code.
-
-## 2. How are opaque in-process executable dependencies surfaced and refused?
+## 1. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -85,7 +43,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 3. What does contained execution failure do to outstanding obligations?
+## 2. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -117,7 +75,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 4. How are modular concurrency environment premises authored and discharged?
+## 3. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -161,7 +119,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 5. What is the public float-conversion requirement family?
+## 4. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not the public names or
 signatures for policy-bearing conversions. `FloatSemantics` already defines
@@ -196,7 +154,7 @@ exact/trapping/saturating result adapters; keep directed rounding as separate
 operation names; and omit same-format conversion. This follows the settled
 operand-driven provider model without carrying type or policy tags at runtime.
 
-## 6. What is the source-visible placed-storage admission surface?
+## 5. What is the source-visible placed-storage admission surface?
 
 The normalized semantics are settled: a qualified `Extent` yields a bounded
 shared or exclusive loan; a selected provider binds one offset-keyed
@@ -243,7 +201,7 @@ one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
 make `place` the sole consuming constructor for `Placed<P, T>`. Package
 wrappers may compose those operations but cannot mint or erase their evidence.
 
-## 7. What is the generic atomic accessor requirement family?
+## 6. What is the generic atomic accessor requirement family?
 
 Placed atomic fields already derive unique opaque accessors and direct atomic
 syntax is gated per load, store, swap, compare-exchange, and fetch operation.
@@ -275,7 +233,7 @@ failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
 
-## 8. What is the v1 canonical portable IR contract?
+## 7. What is the v1 canonical portable IR contract?
 
 The architecture requires one versioned, distributable, interpreter-defined IR
 whose semantics are independent from mutable optimizer representations and

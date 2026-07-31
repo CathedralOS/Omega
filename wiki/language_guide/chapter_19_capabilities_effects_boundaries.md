@@ -1117,24 +1117,30 @@ evidence source in a receipt. Checked implementations still prove their
 guarantees, and checked resource transformations preserve or divide existing
 claims through normalized outcome mappings.
 
-A content-bearing claim kind publishes one normalized projection into a closed
-compiler-owned partial composition algebra. Its admitted receipt states backing
-in the same algebra. Establishment proves projected content lies within that
-backing; access proves its touched footprint lies within content; and every
-n-to-m transformation proves consumed content equals the separated composition
-of produced content plus any authorized retirement. Per-output containment and
-scalar measures do not establish this theorem.
+A content-bearing exact qualification publishes one owner-unique conformance to
+the core `Content<A>` projection requirement. The conformance selects a closed
+compiler-owned partial composition algebra and must normalize from the
+content-projection fragment: subject field reads, proof-level scalar
+embeddings, proof-defined closed arithmetic, and constructors of that algebra.
+Its admitted receipt states backing in the same algebra. Establishment proves
+projected content lies within that backing; access proves its touched footprint
+lies within content; and every n-to-m transformation proves consumed content
+equals the separated composition of produced content plus any authorized
+retirement. Per-output containment and scalar measures do not establish this
+theorem. Ordinary claims without a projection remain fully accounted for by
+whole-claim frontier transfer and cleanup.
 
 For example, an admitted platform provider may return an
 `Extent::Granted & Physical`; its ordinary linear runtime carrier is
 `Extent { base: addr, length: u64 }`.
 Reconstructing those fields produces an unqualified Extent. `Granted` projects
-the qualified subject into the compiler-owned interval algebra. Split consumes
-the qualified parent and proves its interval equals the separated composition
-of all children while preserving compatible common root lineage. Merge proves
-the same theorem in reverse. Permission attenuation cannot be reversed by
-joining permissions; authority that must return is represented as a claim or
-loan.
+the qualified subject into the compiler-owned interval algebra after its
+`no_wrap(base, length)` predicate proves the embedded proof-level natural end
+fits the target address space. Split consumes the qualified parent and proves
+its interval equals the separated composition of all children while preserving
+compatible common root lineage. Merge proves the same theorem in reverse.
+Permission attenuation cannot be reversed by joining permissions; authority
+that must return is represented as a claim or loan.
 
 Routed qualifications name their exact authorized trait requirements in the
 domain declaration. Obligation-free domains may be qualified directly with

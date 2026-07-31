@@ -43,7 +43,7 @@ Last pruned: 2026-07-30.
   checker. Complete contention tests, migrate the source ordering vocabulary,
   and keep checked ISA plus device/DMA barriers distinct.
 - Settle modular package environment premises and their composition in owner
-  question #4.
+  question #3.
 - Migrate the task-plan prototype away from generalized runtime supply.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
@@ -55,8 +55,8 @@ Last pruned: 2026-07-30.
   claims. Add the boundary-coherence canaries and narrow Windows `user32`
   acceptance slice; any blocking executor remains an ordinary package.
 - Settle root-level visibility/profile rejection for opaque in-process native
-  providers in owner question #2, and contained execution failure with
-  outstanding obligations in #3.
+  providers in owner question #1, and contained execution failure with
+  outstanding obligations in #2.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no

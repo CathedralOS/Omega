@@ -146,7 +146,7 @@ vocabulary:
 
 | Ordering | Contract |
 |---|---|
-| `NoOrdering` | request no cross-operation ordering beyond the indivisible atomic access and its per-location modification order |
+| `NoOrdering` | request no cross-operation ordering beyond the single atomic access and its per-location modification order |
 | `Receive` | when the access observes a matching publication, subsequent operations may rely on what preceded that publication |
 | `Publish` | preceding operations are ordered before the publication |
 | `ReceivePublish` | receive through the read and publish through the write of one read-modify-write operation |
@@ -240,7 +240,7 @@ Still required:
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
-- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #4.
+- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #3.
 
 ## Proof model
 
@@ -279,7 +279,7 @@ evidence. It becomes an unbounded theorem only through an authored cutoff,
 inductive invariant, ranking argument, or equivalent proof. A separately
 compiled protocol publishes its guarantee under a normalized environment
 premise; consumers discharge that premise during composition. The source and
-composition rules for those premises remain owner question #4.
+composition rules for those premises remain owner question #3.
 
 ## Device and interrupt direction
 

@@ -11,7 +11,8 @@
 The durable model is an explicit bounded `Arena` capability with dependent
 resource contracts; reaching an allocation boundary contributes its
 boundary-trait service identity. Residual arena capacity is a conserved
-`CountedQuantity<Bytes>` content projection, not a generic process-wide memory
+`CountedQuantity<Bytes>` content projection whose magnitude is a proof-level
+`Nat` and whose unit identity is `Bytes`, not a generic process-wide memory
 meter. Multiple heaps are separately provisioned allocator or `Region`
 capabilities. Quantitative operational rows such as peak concurrent retention
 remain separate from claim-content conservation.
@@ -92,7 +93,8 @@ lifetimes (decision 15), and the `{ptr,len}` descriptor ABI.
   `data` whose layout depends on `T` fails layout).
 - **B — `Arena<'a>` with a *proven capacity refinement* (the
   differentiator).** Arena construction establishes a
-  `CountedQuantity<Bytes>` residual-capacity claim; `allocate(a,n)` carries
+  `CountedQuantity<Bytes>` residual-capacity claim; its proof-level natural
+  magnitude decreases as `allocate(a,n)` carries
   obligation `normalized_footprint(n) <= remaining`, postcondition
   `remaining' = remaining - normalized_footprint(n)`; the Arena handle is
   threaded **affinely** so the capacity cannot be double-spent. `alloc` is

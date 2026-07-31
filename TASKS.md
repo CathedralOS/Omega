@@ -49,7 +49,7 @@ They must not describe its result as something the checker already derives.
   `happens_before`, and `global_sequential_order`; mechanize the portable
   access/fence axioms; and prove the x86-64/AArch64 mappings. Existing ordering
   labels and instruction selection are implementation evidence, not this
-  analysis. Modular package premises remain owner-blocked on #5.
+  analysis. Modular package premises remain owner-blocked on #3.
 
 ## Priority queue
 
@@ -159,12 +159,12 @@ implicitly.
 #### P1c — composite resource frontiers
 
 **PARTIALLY CLEAR.** Implement path-indexed partial moves and normalized
-multi-output claim transformations. Per-claim carry inheritance has settled
-semantics. The source surface that marks a qualification as content-bearing and
-authors its projection, admitted backing, retirement, and conservation contract
-is **DESIGN BLOCKED —
-`OWNER_QUESTIONS.md` #1**; do not infer content from multiplicity or invent a
-declaration spelling.
+multi-output claim transformations. Per-claim carry inheritance and
+content-projection authoring have settled semantics. An exact qualification
+selects content by publishing one owner-unique conformance to core
+`Content<A>`; ordinary postconditions state backing, correspondence, and
+authorized terminal outcomes. Do not infer content from multiplicity or
+recognize domain, field, split, or merge names.
 
 Implementation checkpoint (2026-07-28): transparent records now derive one
 tracked claim per statically named contained linear field instead of requiring
@@ -178,7 +178,7 @@ Fresh linear resources and borrow loans mint deterministic identities;
 destination bindings, aggregate fields, loan weakenings, and unique state-call
 results preserve them. Multiple contained claims established at one state entry
 share root lineage but retain distinct identities. Explicit `[linear]`
-aggregates still contribute one indivisible nominal root.
+aggregates still contribute one nominal root.
 
 Path-aligned checked state results now infer n-ary claim conservation by exact
 relative output path: each uniquely matched callee claim keeps its identity and
@@ -219,21 +219,27 @@ liveness and exact claim identity through opaque calls. Borrow owner paths and
 proof/debug artifacts retain the case identity structurally.
 
 This is not full P1c: content projections/backing and conservation witnesses
-remain. Symbol-keyed substitutions already retain contained claims through
-nested generic transparent records. Content authoring remains blocked on owner
-question #1.
+remain implementation work. Symbol-keyed substitutions already retain
+contained claims through nested generic transparent records.
 
-- make content-bearing qualified claim kinds publish one normalized projection
-  into a compiler-owned partial composition algebra;
-- implement the initial closed normalized vocabulary
-  `Indivisible | Interval<Scalar>` once owner question #1 settles how an
-  authored content clause selects it; never default ordinary linear claims into
-  that vocabulary;
-- add `CountedQuantity<Scalar>` as the first customer-driven extension for
+- add core `Content<A>` and enforce one projection per exact qualification,
+  publishable only by that qualification's owner;
+- accept only the closed content-projection fragment: subject field reads,
+  runtime-scalar embeddings, proof-defined closed arithmetic, and selected
+  algebra constructors; normalize and fingerprint the resulting symbolic
+  expression, and reject branches, loops, arbitrary calls, allocation,
+  effects, or hidden state;
+- implement interval content with proof-level natural bounds plus normalized
+  coordinate-space identity; require every `Extent::Granted` establishment
+  route to prove `no_wrap(base, length)` against the target address-space
+  bound;
+- add `CountedQuantity` with proof-level natural magnitude and normalized unit
+  identity as the first customer-driven extension for
   conserved residual capacity in bounded bump/arena regions; general fragmented
   heaps remain fallible or require exact placement/reservation evidence;
 - require admitted roots to carry backing receipts denominated in the same
-  algebra and prove projected content is within that backing;
+  algebra and prove projected content is within that backing through ordinary
+  postconditions;
 - prove all consumed content equals the separated composition of produced
   content plus any remainder retired through an authorized route;
 - conserve every independent content-bearing claim kind and require one joint
@@ -290,8 +296,8 @@ establishment from raw bytes reject.
 **PARTIALLY DESIGN BLOCKED.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the normalized
 model. The source-visible loan/profile admission surface is blocked on
-`OWNER_QUESTIONS.md` #6, and public generic atomic accessor requirements are
-blocked on #7. Target-specific lowering remains implementation work.
+`OWNER_QUESTIONS.md` #5, and public generic atomic accessor requirements are
+blocked on #6. Target-specific lowering remains implementation work.
 
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
@@ -304,8 +310,8 @@ blocked on #7. Target-specific lowering remains implementation work.
   accessors are restricted to machines authored in the nominal placement
   policy's canonical package, including statement-position calls whose
   generated target symbol is absent. Generic atomic-family helper contracts
-  are blocked on owner question #7. Admitted source-loan construction is
-  blocked on owner question #6.
+  are blocked on owner question #6. Admitted source-loan construction is
+  blocked on owner question #5.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.
@@ -626,7 +632,7 @@ improvements do not change public identity.
   from canonical IR and its interpreter meter rather than treating that
   provider-authored precursor as an IR proof. The v1 canonical IR schema,
   serialization, and verifier/lowering boundary are blocked on
-  `OWNER_QUESTIONS.md` #8. The current TypedTrees evaluator now publishes an
+  `OWNER_QUESTIONS.md` #7. The current TypedTrees evaluator now publishes an
   explicitly versioned deterministic step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not canonical-IR
   fuel.
@@ -756,7 +762,7 @@ and allocation handles expose no compiler-owned stack/control storage.
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the
   denotation-preserving subset; policy-bearing conversion remains
-  `OWNER_QUESTIONS.md` #5.
+  `OWNER_QUESTIONS.md` #4.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -873,14 +879,13 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 claim-content projection and backing | P1c content algebra and conservation |
-| #2 opaque in-process executable trust | root TCB declaration and profile rejection |
-| #3 contained execution failure | obligation poison, recovery, and reclamation |
-| #4 modular concurrency premises | separately compiled protocol verification |
-| #5 float-conversion requirements | checked integer/float and cross-format conversion |
-| #6 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
-| #7 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
-| #8 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
+| #1 opaque in-process executable trust | root TCB declaration and profile rejection |
+| #2 contained execution failure | obligation poison, recovery, and reclamation |
+| #3 modular concurrency premises | separately compiled protocol verification |
+| #4 float-conversion requirements | checked integer/float and cross-format conversion |
+| #5 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
+| #6 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
+| #7 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
 
 ## Vertical acceptance slices
 

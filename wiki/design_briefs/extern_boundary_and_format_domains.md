@@ -172,7 +172,7 @@ containment do not prevent that binary from modifying arbitrary process memory.
 The selected-provider manifest retains its exact identity and trust receipt.
 Process- or hardware-isolated providers instead remain external endpoints.
 The root declaration and build-profile rejection surface for these transitive
-trust dependencies remain owner question #2.
+trust dependencies remain owner question #1.
 
 Binding authors publish the widest contract they can honestly support.
 Over-approximation may cost usability: an unconstrained synchronous invocation
@@ -402,8 +402,10 @@ consumed `Buffer` may map into the content retained by `PendingWrite`;
 `submit(&buffer) -> PendingWrite` rejects because a borrow supplies no owned
 claim that can establish the result.
 Unambiguous consumed-input-to-produced-claim mappings are inferred; ambiguous
-or unsupported mappings reject. The source surface for authoring opaque
-claim-content projections remains governed by owner question #1.
+or unsupported mappings reject unless an ordinary postcondition pins the
+correspondence. A content-bearing exact qualification supplies its projection
+through its owner-unique core `Content<A>` conformance; the binding does not
+invent a separate foreign-extent algebra or projection annotation.
 
 The reverse direction uses the same types. A provider-owned view whose
 invalidators require exclusive access to one receiver is an ordinary borrow
@@ -500,9 +502,9 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 - dynamic-library loading/unloading under component versioning;
 - transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #2);
+  executable providers (`OWNER_QUESTIONS.md` #1);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #3); and
+  (`OWNER_QUESTIONS.md` #2); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

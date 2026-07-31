@@ -119,13 +119,14 @@ linear parameters and returns, structural propagation, path reconciliation,
 and explicit consumers. Transactions, acknowledgements, DMA submissions, and
 task lifecycle claims are immediate clients.
 
-Divisibility is not implied by linearity. Most linear values are indivisible:
-file handles, acknowledgement tokens, and DMA completions have no composition
-operator. A content-bearing qualified claim may separately project into a
-compiler-owned partial composition algebra. The initial closed vocabulary is
-`Indivisible | Interval<Scalar>`. Owner question #1 governs the authored
-selection/defaulting rule; ordinary linearity never implies a content
-projection.
+Divisibility is not implied by linearity. File handles, acknowledgement tokens,
+and DMA completions have no content composition operator: the whole-claim
+frontier already accounts for each exactly once. A content-bearing exact
+qualification may additionally publish one owner-unique conformance to the
+core `Content<A>` requirement and project into a compiler-owned partial
+composition algebra. The initial closed algebras are intervals and counted
+quantities over proof-level natural arithmetic. Ordinary linearity never
+implies a content projection.
 
 Owned decomposition proves one n-ary theorem: the separated composition of all
 consumed content equals all produced content plus any remainder retired through
@@ -264,8 +265,8 @@ Compatibility move/drop summaries alone are not sufficient; see
    being forced into exact linear reconciliation.
 9. Linearity works for a fixed-size acknowledgement token without any
    dependent-type feature enabled.
-10. A linear claim is indivisible unless its qualified claim kind selects a
-    decomposable compiler-owned content algebra.
+10. A linear claim participates only in whole-claim conservation unless its
+    exact qualification publishes a compiler-owned content projection.
 11. A split whose children overlap or duplicate content rejects even when each
     child is individually contained and their scalar measures add up.
 12. Permission attenuation cannot be undone by merge; authority that must
@@ -273,11 +274,14 @@ Compatibility move/drop summaries alone are not sufficient; see
 
 ## Deferred design spaces
 
-- Additional content algebras beyond `Indivisible | Interval<Scalar>`.
+- Additional content algebras beyond intervals and counted quantities.
   Correspondence-bearing virtual/physical decomposition requires a compact
   canonical symbolic mapping algebra with decidable containment, restriction,
   equality, and separated composition; independently conserving the two
   projections is unsound because it permits their association to be swapped.
+- Fan-out obligations requiring one value or claim to reach exactly `n`
+  distinct destinations. `CountedQuantity(n)` instead models a spendable pool
+  of `n` units and does not settle that separate semantics.
 - Quantitative operational resource accounting remains a separate algebra from
   content-bearing claim conservation.
 - Dependent-linear buffer ergonomics after the core checker exists.
