@@ -268,6 +268,9 @@ fn count_type_parameter(
             for service in typed_trees.state_signature_service_reaches(contract) {
                 count_declaration_name(service, counts);
             }
+            for binding in typed_trees.state_signature_invokes(contract) {
+                count_declaration_name(binding, counts);
+            }
             for contract in typed_trees.state_signature_contracts(contract) {
                 for fact in typed_trees.tables.proof_facts.span_or_empty(contract.facts) {
                     count_proof_fact(typed_trees, fact, counts);

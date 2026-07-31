@@ -53,6 +53,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             decrease_view_arguments,
             decrease_range,
             service_reaches,
+            invokes,
             suspends,
             blocks,
             contracts,
@@ -115,6 +116,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 decrease_view_arguments,
                 decrease_range,
                 service_reaches,
+                invokes,
                 suspends,
                 blocks,
                 contracts,
@@ -227,6 +229,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             decrease_view_arguments,
             decrease_range,
             service_reaches,
+            invokes,
             suspends,
             blocks,
             contracts,
@@ -324,12 +327,14 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             after_return,
             false,
         )?;
-        let ((service_reaches, suspends, blocks, contracts, terminates_guarantee), mut rest) =
-            crate::parser::trait_definition::parse_signature_clauses(
-                syntax_trees,
-                after_nested_contracts,
-                false,
-            )?;
+        let (
+            (service_reaches, invokes, suspends, blocks, contracts, terminates_guarantee),
+            mut rest,
+        ) = crate::parser::trait_definition::parse_signature_clauses(
+            syntax_trees,
+            after_nested_contracts,
+            false,
+        )?;
         // Permit a separator after the requirement. The semicolon belongs to
         // this `where machine` signature, never to the generic machine body.
         if rest.at_punctuation(PunctuationKind::Semicolon) {
@@ -344,6 +349,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             parameters,
             return_type,
             service_reaches,
+            invokes,
             suspends,
             blocks,
             contracts,

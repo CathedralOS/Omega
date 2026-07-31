@@ -216,6 +216,7 @@ mod tests {
                     interface: ServiceReachInterface::InternalInferred,
                     checked_inferred: service_row,
                 },
+                synchronous_invocation: Default::default(),
                 suspension: SuspensionPlan {
                     interface: SuspensionInterface::InternalInferred,
                     checked_may_suspend: true,

@@ -1,0 +1,23 @@
+// A checked provider cannot hide a callback edge behind a local helper when
+// the satisfied bodyless requirement omits that binding from `invokes`.
+
+boundary trait Handler {
+    machine handle();
+}
+
+boundary trait EventSource {
+    machine fire(handler: &mut Handler);
+}
+
+machine forward(handler: &mut Handler) {
+    handler.handle();
+}
+
+data EventProvider {
+}
+
+machine EventProvider::fire_checked(handler: &mut Handler)
+satisfies EventSource::fire
+{
+    forward(handler);
+}

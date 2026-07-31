@@ -349,6 +349,7 @@ pub(crate) fn validate_provider_plan_candidates(
     let mut diagnostics = Vec::new();
     let effect_plan = omega_effects::infer_operational_may(typed);
     let service_reach_plan = omega_effects::infer_service_reaches(typed, &effect_plan);
+    let invocation_plan = omega_effects::infer_synchronous_invocations(typed);
     for plan in plans {
         diagnostics.extend(
             plan.validate_candidate_against_schema()
@@ -397,6 +398,38 @@ pub(crate) fn validate_provider_plan_candidates(
                 .find(|method| method.name == row.method)
                 .map(|method| method.service_reach.as_slice())
                 .unwrap_or_default();
+            let invocation_ceiling = plan
+                .schema
+                .methods
+                .iter()
+                .find(|method| method.name == row.method)
+                .map(|method| method.synchronous_invocations.as_slice())
+                .unwrap_or_default();
+            let hidden_invocations = invocation_plan
+                .for_machine(adapter.symbol)
+                .into_iter()
+                .flat_map(|summary| summary.inferred_transitive.iter().copied())
+                .filter(|target| {
+                    !is_self_forwarded_invocation(
+                        typed,
+                        adapter,
+                        &plan.schema,
+                        &row.method,
+                        *target,
+                    )
+                })
+                .filter_map(|target| invocation_service_name(typed, adapter, target))
+                .filter(|target| !invocation_ceiling.contains(target))
+                .collect::<Vec<_>>();
+            if !hidden_invocations.is_empty() {
+                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "adapter `{}` does not refine `{}::{}`: its body may synchronously invoke boundary binding(s) [{}], but the requirement omits those `invokes` edges",
+                    machine,
+                    plan.schema.trait_name,
+                    row.method,
+                    hidden_invocations.join(", "),
+                )));
+            }
             let hidden_services = service_reach_plan
                 .for_machine(adapter.symbol)
                 .into_iter()
@@ -422,6 +455,178 @@ pub(crate) fn validate_provider_plan_candidates(
         }
     }
     diagnostics
+}
+
+/// Reject a cycle in the direct synchronous graph realized by the concrete
+/// provider selection. Reach closure is intentionally irrelevant: only a
+/// selected method's authored `invokes` edges participate, and a missing
+/// selected target cannot manufacture an edge.
+pub(crate) fn validate_selected_synchronous_invocation_cycles(
+    typed: &TypedTrees,
+    plans: &[omega_effects::provider_plan::ProviderPlan],
+    selected_names: &[String],
+) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    let selected = selected_names
+        .iter()
+        .filter_map(|name| plans.iter().find(|plan| plan.name == *name))
+        .collect::<Vec<_>>();
+    let inferred = omega_effects::infer_synchronous_invocations(typed);
+    let mut edges = vec![Vec::<usize>::new(); selected.len()];
+    for (source_index, source) in selected.iter().enumerate() {
+        for method in &source.schema.methods {
+            let row = source.rows.iter().find(|row| row.method == method.name);
+            let checked_targets = row.and_then(|row| {
+                let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+                    return None;
+                };
+                let adapter = typed
+                    .machines()
+                    .iter()
+                    .find(|candidate| candidate.name.as_str() == machine)?;
+                let summary = inferred.for_machine(adapter.symbol)?;
+                Some(
+                    summary
+                        .inferred_transitive
+                        .iter()
+                        .filter(|target| {
+                            !is_self_forwarded_invocation(
+                                typed,
+                                adapter,
+                                &source.schema,
+                                &method.name,
+                                **target,
+                            )
+                        })
+                        .filter_map(|target| invocation_service_name(typed, adapter, *target))
+                        .collect::<Vec<_>>(),
+                )
+            });
+            let target_names = checked_targets
+                .as_deref()
+                .unwrap_or(&method.synchronous_invocations);
+            for target_name in target_names {
+                if let Some(target_index) = selected.iter().position(|target| {
+                    target.schema.trait_name == *target_name
+                        || target
+                            .schema
+                            .trait_name
+                            .rsplit("::")
+                            .next()
+                            .is_some_and(|leaf| leaf == target_name)
+                }) && !edges[source_index].contains(&target_index)
+                {
+                    edges[source_index].push(target_index);
+                }
+            }
+        }
+    }
+
+    let mut color = vec![0u8; selected.len()];
+    let mut path = Vec::new();
+    for start in 0..selected.len() {
+        if color[start] == 0
+            && let Some(cycle) = synchronous_cycle_from(start, &edges, &mut color, &mut path)
+        {
+            let names = cycle
+                .iter()
+                .map(|index| selected[*index].schema.trait_name.as_str())
+                .chain(std::iter::once(
+                    selected[cycle[0]].schema.trait_name.as_str(),
+                ))
+                .collect::<Vec<_>>()
+                .join(" -> ");
+            return Err(vec![omega_core::diagnostics::Diagnostic::error(format!(
+                "selected providers realize a cyclic synchronous `invokes` graph: {names}; break one edge with a mailbox, queue, scheduler handoff, or other new activation",
+            ))]);
+        }
+    }
+    Ok(())
+}
+
+fn invocation_service_name(
+    typed: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    target: omega_effects::InvocationTarget,
+) -> Option<String> {
+    let symbol = match target {
+        omega_effects::InvocationTarget::Parameter(index) => typed
+            .machine_states(machine)
+            .first()
+            .into_iter()
+            .flat_map(|state| typed.state_parameters(state))
+            .filter(|parameter| !parameter.is_self)
+            .nth(index as usize)
+            .map(|parameter| {
+                typed
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                    .type_symbol(&typed.type_reference_table)
+            })?,
+        omega_effects::InvocationTarget::Service(symbol) => symbol,
+    };
+    typed
+        .traits()
+        .iter()
+        .find(|definition| definition.is_boundary && definition.symbol == symbol)
+        .map(|definition| definition.name.as_str().to_owned())
+}
+
+/// A selected checked adapter may take the satisfied boundary receiver as one
+/// extra leading parameter. Calls made through that value stay within the
+/// selected provider artifact, so composition erases them from the realized
+/// component-boundary graph. Other boundary parameters remain ordinary
+/// invocation targets and continue to refine the requirement ceiling.
+fn is_self_forwarded_invocation(
+    typed: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    schema: &omega_effects::provider_plan::ServiceSchema,
+    method_name: &str,
+    target: omega_effects::InvocationTarget,
+) -> bool {
+    let omega_effects::InvocationTarget::Parameter(0) = target else {
+        return false;
+    };
+    let Some(method) = schema
+        .methods
+        .iter()
+        .find(|method| method.name == method_name)
+    else {
+        return false;
+    };
+    let Some(boundary) = typed.traits().iter().find(|definition| {
+        definition.is_boundary && same_semantic_name(definition.name.as_str(), &schema.trait_name)
+    }) else {
+        return false;
+    };
+    omega_effects::has_self_forwarded_boundary_parameter(
+        typed,
+        machine,
+        boundary.symbol,
+        method.parameter_count,
+    )
+}
+
+fn synchronous_cycle_from(
+    node: usize,
+    edges: &[Vec<usize>],
+    color: &mut [u8],
+    path: &mut Vec<usize>,
+) -> Option<Vec<usize>> {
+    color[node] = 1;
+    path.push(node);
+    for target in &edges[node] {
+        if color[*target] == 0 {
+            if let Some(cycle) = synchronous_cycle_from(*target, edges, color, path) {
+                return Some(cycle);
+            }
+        } else if color[*target] == 1 {
+            let start = path.iter().position(|member| member == target)?;
+            return Some(path[start..].to_vec());
+        }
+    }
+    path.pop();
+    color[node] = 2;
+    None
 }
 
 fn authored_name_matches(authored: &str, candidate: &str, exact_exists: bool) -> bool {
@@ -706,6 +911,7 @@ mod tests {
                         has_result: false,
                         result_type_identity: None,
                         service_reach: vec!["Pair".to_owned()],
+                        synchronous_invocations: Vec::new(),
                         may_suspend: false,
                         may_block: false,
                         calling_plan_fingerprint: None,
@@ -721,6 +927,36 @@ mod tests {
                 .collect(),
             origin_package: String::new(),
         }
+    }
+
+    #[test]
+    fn selected_synchronous_invocation_graph_rejects_cycles_only_after_selection() {
+        let mut alpha = selection_plan("alpha", &["run"], &["run"]);
+        alpha.schema.trait_name = "Alpha".to_owned();
+        alpha.schema.methods[0].synchronous_invocations = vec!["Beta".to_owned()];
+        let mut beta = selection_plan("beta", &["run"], &["run"]);
+        beta.schema.trait_name = "Beta".to_owned();
+        beta.schema.methods[0].synchronous_invocations = vec!["Alpha".to_owned()];
+
+        validate_selected_synchronous_invocation_cycles(
+            &TypedTrees::default(),
+            &[alpha.clone(), beta.clone()],
+            &["alpha".to_owned()],
+        )
+        .expect("an unselected potential return edge is not realized");
+
+        let diagnostics = validate_selected_synchronous_invocation_cycles(
+            &TypedTrees::default(),
+            &[alpha, beta],
+            &["alpha".to_owned(), "beta".to_owned()],
+        )
+        .expect_err("the selected Alpha -> Beta -> Alpha graph must reject");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cyclic synchronous `invokes` graph")
+                && diagnostic.message.contains("Alpha -> Beta -> Alpha")
+        }));
     }
 
     #[test]

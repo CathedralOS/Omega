@@ -11,6 +11,7 @@ mod effects;
 mod entry_point;
 mod expression_types;
 mod invariants;
+mod invocations;
 mod literals;
 mod locals;
 mod machine_data;
@@ -159,6 +160,7 @@ fn validate_program_internal(
     operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
     machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
+    invocations::validate_invocation_contracts(program, &mut diagnostics);
 
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);

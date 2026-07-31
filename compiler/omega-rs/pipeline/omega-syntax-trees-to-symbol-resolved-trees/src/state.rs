@@ -114,6 +114,7 @@ pub(crate) fn lower_state_signature_node(
         signature.return_type,
         signature.is_default,
         signature.service_reaches,
+        signature.invokes,
         signature.suspends,
         signature.blocks,
         signature.contracts,
@@ -132,6 +133,7 @@ pub(crate) fn lower_state_signature_parts(
     return_type_handle: syntax::types::TypeReferenceHandle,
     is_default: bool,
     service_reaches: HandleSpan<syntax::identifier::Identifier>,
+    invokes: HandleSpan<syntax::identifier::Identifier>,
     suspends: bool,
     blocks: bool,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
@@ -145,6 +147,7 @@ pub(crate) fn lower_state_signature_parts(
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
     let service_reaches = lower_signature_service_reaches(lowerer, syntax_trees, service_reaches);
+    let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
 
     Ok(StateSignature {
@@ -160,6 +163,7 @@ pub(crate) fn lower_state_signature_parts(
             parameters,
             return_type,
             service_reaches,
+            invokes,
             service_reach_row: omega_core::semantics::ServiceReachRowId::NULL,
             suspends,
             blocks,
@@ -167,6 +171,23 @@ pub(crate) fn lower_state_signature_parts(
             terminates_guarantee,
         },
     })
+}
+
+pub(crate) fn lower_signature_invokes(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    invokes: HandleSpan<syntax::identifier::Identifier>,
+) -> HandleSpan<omega_symbol_resolved_trees::name::DiagnosticName> {
+    let mut span = HandleSpan::empty();
+    for binding in syntax_trees.items.identifier_path_members(invokes) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .signature_invokes
+            .append_to_span(&mut span, crate::name::lower_name(binding));
+    }
+    span
 }
 
 pub(crate) fn lower_signature_service_reaches(

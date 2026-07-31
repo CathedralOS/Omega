@@ -220,7 +220,47 @@ fn collect_statement_calls(
             {
                 collect_expression_calls(program, guard, statement_index, call_ordinal, calls);
             }
+            collect_transition_target_expression_calls(
+                program,
+                transition.target,
+                statement_index,
+                call_ordinal,
+                calls,
+            );
+            if transition.continuation.is_valid() {
+                collect_transition_target_expression_calls(
+                    program,
+                    transition.continuation,
+                    statement_index,
+                    call_ordinal,
+                    calls,
+                );
+            }
         }
+    }
+}
+
+fn collect_transition_target_expression_calls(
+    program: &TypedTrees,
+    target: omega_typed_trees::statement::TransitionTargetHandle,
+    statement_index: usize,
+    call_ordinal: &mut usize,
+    calls: &mut Vec<CallWork>,
+) {
+    if !target.is_valid() {
+        return;
+    }
+    match program.statement_table.transition_target(target) {
+        omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+            for argument in program.statement_table.expression_handles(*arguments) {
+                collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
+            }
+        }
+        omega_typed_trees::statement::TransitionTargetNode::Value(expression) => {
+            collect_expression_calls(program, *expression, statement_index, call_ordinal, calls);
+        }
+        omega_typed_trees::statement::TransitionTargetNode::SelfTarget
+        | omega_typed_trees::statement::TransitionTargetNode::Terminal => {}
     }
 }
 
@@ -397,13 +437,13 @@ fn direct_operational_for_signature_symbol(
     }
 
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
-        return signature_operational(signature);
+        return signature_operational(program, signature);
     }
 
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             if signature.symbol == symbol {
-                return signature_operational(signature);
+                return signature_operational(program, signature);
             }
         }
     }
@@ -412,12 +452,46 @@ fn direct_operational_for_signature_symbol(
 }
 
 fn signature_operational(
+    program: &TypedTrees,
     signature: &omega_typed_trees::signature::StateSignature,
 ) -> DirectCallOperational {
-    DirectCallOperational {
+    let mut operational = DirectCallOperational {
         may_suspend: signature.suspends,
         may_block: signature.blocks,
+    };
+    let parameters = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    for target in crate::declared_signature_invocations(program, signature) {
+        let service = match target {
+            crate::InvocationTarget::Parameter(index) => {
+                parameters.get(index as usize).map(|parameter| {
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                        .type_symbol(&program.type_reference_table)
+                })
+            }
+            crate::InvocationTarget::Service(symbol) => Some(symbol),
+        };
+        let Some(service) = service else {
+            continue;
+        };
+        let Some(trait_definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.is_boundary && definition.symbol == service)
+        else {
+            continue;
+        };
+        for invoked in program.trait_machine_signatures(trait_definition) {
+            operational.may_suspend |= invoked.suspends;
+            operational.may_block |= invoked.blocks;
+        }
     }
+    operational
 }
 
 fn propagate_operational_may(machines: &mut [MachineWork]) {

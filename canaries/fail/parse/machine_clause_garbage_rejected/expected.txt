@@ -1,1 +1,1 @@
-expected one of `terminates`, `decreases`, `reaches`, `suspends;`, `blocks;`, `boundary`, `requires`, `ensures`, `->`, `{`
+expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `boundary`, `requires`, `ensures`, `->`, `{`

@@ -72,12 +72,13 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         }
         input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
-        let ((service_reaches, suspends, blocks, contracts, terminates_guarantee), rest) =
+        let ((service_reaches, invokes, suspends, blocks, contracts, terminates_guarantee), rest) =
             parse_signature_clauses(syntax_trees, rest, true)?;
         // Body presence = the default marker.
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
         signature.is_default = is_default;
         signature.service_reaches = service_reaches;
+        signature.invokes = invokes;
         signature.suspends = suspends;
         signature.blocks = blocks;
         signature.contracts = contracts;
@@ -172,6 +173,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             parameters,
             return_type,
             service_reaches: HandleSpan::empty(),
+            invokes: HandleSpan::empty(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
@@ -260,6 +262,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     (
         (
             HandleSpan<omega_syntax_trees::identifier::Identifier>,
+            HandleSpan<omega_syntax_trees::identifier::Identifier>,
             bool,
             bool,
             HandleSpan<CapabilityContract>,
@@ -273,6 +276,8 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
 > {
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
+    let mut invokes_start = Handle::invalid();
+    let mut invokes_count = 0u32;
     let mut suspends = false;
     let mut blocks = false;
     let mut contract_start = Handle::invalid();
@@ -306,6 +311,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("reaches")
                 && !input.at_contextual("effects")
+                && !input.at_contextual("invokes")
                 && !input.at_contextual("suspends")
                 && !input.at_contextual("blocks")
                 && !input.at_contextual("where")
@@ -327,6 +333,23 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
             }
+            continue;
+        }
+
+        if input.at_contextual("invokes") {
+            input = input.take_contextual("invokes")?;
+            let (binding, after_binding) = input.take_identifier()?;
+            let handle = syntax_trees.items.append_identifier_path_member(binding);
+            if invokes_count == 0 {
+                invokes_start = handle;
+            }
+            invokes_count = invokes_count
+                .checked_add(1)
+                .expect("trait machine invocation span count overflow");
+            input = take_invokes_signature_clause(
+                after_binding,
+                allow_clauses_after_operational_separator,
+            )?;
             continue;
         }
 
@@ -372,6 +395,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
                         || input.at_contextual("ensures")
                         || input.at_contextual("reaches")
                         || input.at_contextual("effects")
+                        || input.at_contextual("invokes")
                         || input.at_contextual("suspends")
                         || input.at_contextual("blocks")
                         || input.at_contextual("where")
@@ -421,6 +445,11 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(service_start, service_count)
     };
+    let invokes = if invokes_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(invokes_start, invokes_count)
+    };
     let contracts = if contract_count == 0 {
         HandleSpan::empty()
     } else {
@@ -429,6 +458,7 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
     Ok((
         (
             service_reaches,
+            invokes,
             suspends,
             blocks,
             contracts,
@@ -436,6 +466,29 @@ pub(super) fn parse_signature_clauses<'tokens, 'source>(
         ),
         input,
     ))
+}
+
+fn take_invokes_signature_clause<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    allow_following_contract_clauses: bool,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
+        || after_semicolon.at_contextual("reaches")
+        || after_semicolon.at_contextual("effects")
+        || after_semicolon.at_contextual("invokes")
+        || after_semicolon.at_contextual("suspends")
+        || after_semicolon.at_contextual("blocks")
+        || after_semicolon.at_contextual("terminates")
+        || (allow_following_contract_clauses
+            && (after_semicolon.at_contextual("requires")
+                || after_semicolon.at_contextual("ensures")
+                || after_semicolon.at_contextual("where")))
+    {
+        Ok(after_semicolon)
+    } else {
+        Ok(input)
+    }
 }
 
 fn reject_retired_operational_reach(
@@ -465,6 +518,7 @@ fn take_operational_signature_clause<'tokens, 'source>(
     if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
         || after_semicolon.at_contextual("reaches")
         || after_semicolon.at_contextual("effects")
+        || after_semicolon.at_contextual("invokes")
         || after_semicolon.at_contextual("suspends")
         || after_semicolon.at_contextual("blocks")
         || after_semicolon.at_contextual("terminates")

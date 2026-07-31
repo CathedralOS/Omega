@@ -932,6 +932,12 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_json_string(&mut json, supply_mode_name(contract.supply_mode));
             json.push_str(",\n        \"service_reach\": ");
             push_service_reach_plan_json(&mut json, program, contract.service_reach);
+            json.push_str(",\n        \"synchronous_invocation\": ");
+            push_synchronous_invocation_plan_json(
+                &mut json,
+                &contract.synchronous_invocation,
+                false,
+            );
             json.push_str(",\n        \"suspension\": ");
             push_suspension_plan_json(&mut json, contract.suspension);
             json.push_str(",\n        \"blocking\": ");
@@ -960,6 +966,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             });
             json.push_str(",\n        \"checked_service_reach\": ");
             push_service_row_json(&mut json, program, contract.service_reach.checked_inferred);
+            json.push_str(",\n        \"checked_synchronous_invocations\": ");
+            push_string_array(&mut json, &contract.synchronous_invocation.checked_inferred);
             json.push_str(",\n        \"inferred_write_frames\": [");
             for (frame_index, state_frame) in contract.inferred_write_frames.iter().enumerate() {
                 if frame_index > 0 {
@@ -1126,6 +1134,40 @@ fn push_service_reach_plan_json(
             json.push('}');
         }
     }
+}
+
+fn push_synchronous_invocation_plan_json(
+    json: &mut String,
+    plan: &omega_core::semantics::SynchronousInvocationPlan,
+    include_checked: bool,
+) {
+    use omega_core::semantics::SynchronousInvocationInterface;
+    json.push_str("{\"interface\": ");
+    push_json_string(
+        json,
+        match plan.interface {
+            SynchronousInvocationInterface::InternalInferred => "internal_inferred",
+            SynchronousInvocationInterface::PublishedCeiling => "published_ceiling",
+        },
+    );
+    json.push_str(", \"targets\": ");
+    push_string_array(json, &plan.published);
+    if include_checked {
+        json.push_str(", \"checked\": ");
+        push_string_array(json, &plan.checked_inferred);
+    }
+    json.push('}');
+}
+
+fn push_string_array(json: &mut String, values: &[String]) {
+    json.push('[');
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        push_json_string(json, value);
+    }
+    json.push(']');
 }
 
 fn push_service_row_json(
@@ -2174,6 +2216,12 @@ mod tests {
                     ),
                     checked_inferred: service_row,
                 },
+                synchronous_invocation: omega_core::semantics::SynchronousInvocationPlan {
+                    interface:
+                        omega_core::semantics::SynchronousInvocationInterface::PublishedCeiling,
+                    published: vec!["parameter:0".to_owned()],
+                    checked_inferred: vec!["parameter:0".to_owned()],
+                },
                 suspension: SuspensionPlan {
                     interface: SuspensionInterface::PublishedMaySuspend(false),
                     checked_may_suspend: false,
@@ -2212,6 +2260,9 @@ mod tests {
             "\"service_reach\": {\"interface\": \"published_ceiling\", \"services\": [\"Readable\"]}"
         ));
         assert!(contract.contains(
+            "\"synchronous_invocation\": {\"interface\": \"published_ceiling\", \"targets\": [\"parameter:0\"]}"
+        ));
+        assert!(contract.contains(
             "\"suspension\": {\"interface\": \"published_ceiling\", \"may_suspend\": false}"
         ));
         assert!(
@@ -2228,6 +2279,10 @@ mod tests {
         assert!(json[implementation_start..].contains("\"checked_may_suspend\": false"));
         assert!(json[implementation_start..].contains("\"checked_may_block\": true"));
         assert!(json[implementation_start..].contains("\"checked_service_reach\": [\"Readable\"]"));
+        assert!(
+            json[implementation_start..]
+                .contains("\"checked_synchronous_invocations\": [\"parameter:0\"]")
+        );
         assert!(json[implementation_start..].contains("\"kind\": \"terminates\""));
         assert!(json[implementation_start..].contains("\"subjects\": [\"remaining\"]"));
         assert!(json[implementation_start..].contains("\"view\": \"Nat::Descending\""));

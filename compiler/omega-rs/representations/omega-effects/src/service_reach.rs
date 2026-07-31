@@ -278,6 +278,7 @@ fn direct_service_reach_for_call(
                 .service_reach_rows
                 .services(signature.service_reach_row),
         );
+        extend_invoked_binding_services(program, signature, &mut services);
         return services;
     }
 
@@ -303,10 +304,43 @@ fn direct_service_reach_for_call(
                 services.sort_by_key(|service| service.0);
                 services.dedup();
             }
+            extend_invoked_binding_services(program, signature, &mut services);
             return services;
         }
     }
     services
+}
+
+fn extend_invoked_binding_services(
+    program: &TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+    services: &mut Vec<ServiceReachId>,
+) {
+    let parameters = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    for target in crate::declared_signature_invocations(program, signature) {
+        let symbol = match target {
+            crate::InvocationTarget::Parameter(index) => parameters
+                .get(index as usize)
+                .map(|parameter| {
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                        .type_symbol(&program.type_reference_table)
+                })
+                .unwrap_or_else(SymbolHandle::invalid),
+            crate::InvocationTarget::Service(symbol) => symbol,
+        };
+        let Some(service) = program.service_reaches.id_for_symbol(symbol) else {
+            continue;
+        };
+        program.service_reaches.extend_closure(service, services);
+    }
+    services.sort_by_key(|service| service.0);
+    services.dedup();
 }
 
 fn extend_service_set(destination: &mut Vec<ServiceReachId>, source: &[ServiceReachId]) {

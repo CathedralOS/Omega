@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-30.
+Last pruned: 2026-07-31.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -631,11 +631,6 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Imported transparent-refinement spelling must supply the narrowed
   operational envelope consumed by the completed exact call-acknowledgement
   checker.
-- **INV:** add the `invokes` contract axis. Infer it from bodyful machines,
-  require it on bodyless requirements, substitute the concrete selected
-  binding at composition, retain direct synchronous edges in artifacts, and
-  reject synchronous component-boundary cycles. Deferred registration remains
-  an external-root ownership fact rather than an invocation edge.
 - **TPR4/TPR6:** connect progress-profile grants and receipts without putting
   ranking witnesses into public identity.
 - **GR6:** finish remaining qualification/trust consumers.
@@ -677,9 +672,8 @@ improvements do not change public identity.
   fuel.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. First add rejection canaries for a returned custody claim sourced
-  only from a borrow, blocking beneath a no-block root, incompatible
-  affinity/executor selection, and undeclared or cyclic synchronous
-  `invokes`. Then implement a narrow Windows `user32` slice:
+  only from a borrow and incompatible affinity/executor selection. Then
+  implement a narrow Windows `user32` slice:
   `RegisterClassEx`, `CreateWindowEx`/`WM_NCCREATE`, `GetMessage`,
   `DispatchMessage`, `DefWindowProc`, `DestroyWindow`, and
   `UnregisterClass`. It must express bootstrap-to-steady callback recovery,

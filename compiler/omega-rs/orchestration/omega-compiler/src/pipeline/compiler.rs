@@ -392,6 +392,11 @@ impl Compiler {
             &target_provider_defaults,
             &build_config.provider_selections,
         )?;
+        crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
+            &typed,
+            &provider_plans,
+            &selected_provider_plans,
+        )?;
         crate::pipeline::trust_lockfile::enforce_trust_lockfile(
             &self.options,
             &typed,

@@ -602,6 +602,7 @@ fn synthesize_machine_named(
         decrease_view_arguments: HandleSpan::empty(),
         decrease_range: ExpressionHandle::invalid(),
         service_reaches: signature.service_reaches,
+        invokes: signature.invokes,
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: signature.contracts,

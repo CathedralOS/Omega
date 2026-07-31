@@ -186,6 +186,7 @@ pub struct TypedTreeTables {
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub decrease_orders: Arena<crate::name::Identifier>,
     pub signature_service_reaches: Arena<crate::name::Identifier>,
+    pub signature_invokes: Arena<crate::name::Identifier>,
     pub signature_contracts: Arena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
@@ -1150,6 +1151,19 @@ impl TypedTrees {
             .span_or_empty(machine.service_reaches)
     }
 
+    pub fn push_machine_invoke(
+        &mut self,
+        machine: &mut machine::Machine,
+        binding: crate::name::Identifier,
+    ) {
+        self.signature_invokes
+            .append_to_span(&mut machine.invokes, binding);
+    }
+
+    pub fn machine_invokes(&self, machine: &machine::Machine) -> &[crate::name::Identifier] {
+        self.signature_invokes.span_or_empty(machine.invokes)
+    }
+
     pub fn machine_decrease_order(
         &self,
         span: HandleSpan<crate::name::Identifier>,
@@ -1252,6 +1266,22 @@ impl TypedTrees {
     ) -> &[crate::name::Identifier] {
         self.signature_service_reaches
             .span_or_empty(signature.service_reaches)
+    }
+
+    pub fn push_state_signature_invoke(
+        &mut self,
+        signature: &mut signature::StateSignature,
+        binding: crate::name::Identifier,
+    ) {
+        self.signature_invokes
+            .append_to_span(&mut signature.invokes, binding);
+    }
+
+    pub fn state_signature_invokes(
+        &self,
+        signature: &signature::StateSignature,
+    ) -> &[crate::name::Identifier] {
+        self.signature_invokes.span_or_empty(signature.invokes)
     }
 
     pub fn push_state_signature_contract(

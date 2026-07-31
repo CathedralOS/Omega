@@ -19,6 +19,7 @@ pub struct StateSignatureStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
     pub service_reaches: HandleSpan<DiagnosticName>,
+    pub invokes: HandleSpan<DiagnosticName>,
     /// EFX: normalized symbol-resolved boundary-service row.
     pub service_reach_row: omega_core::semantics::ServiceReachRowId,
     pub suspends: bool,

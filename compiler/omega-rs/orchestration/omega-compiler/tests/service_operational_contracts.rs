@@ -1,14 +1,19 @@
 use omega_compiler::compile_to_checked;
 use omega_core::semantics::{
-    BlockingInterface, SuspensionInterface, TerminationGuarantee, TerminationInterface,
+    BlockingInterface, SuspensionInterface, SynchronousInvocationInterface, TerminationGuarantee,
+    TerminationInterface,
 };
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory = std::env::temp_dir().join(format!(
-        "omega-service-operational-{name}-{}",
-        std::process::id()
+        "omega-service-operational-{name}-{}-{}",
+        std::process::id(),
+        NEXT_TEMP_DIRECTORY.fetch_add(1, Ordering::Relaxed),
     ));
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).expect("create service/operational test directory");
@@ -221,6 +226,54 @@ fn private_ranking_spelling_cannot_perturb_public_contract_identity() {
         "run_impl",
     );
     assert_eq!(inferred, explicit);
+}
+
+#[test]
+fn synchronous_invocation_edges_survive_in_checked_contract_identity() {
+    let with_edge = r#"
+boundary trait Handler {
+    machine handle();
+}
+
+data Published {}
+boundary machine Published::entry(&mut self, handler: &mut Handler)
+invokes handler;
+{
+    handler.handle();
+}
+
+data Main {}
+machine Main::main(&mut self) {}
+"#;
+    let main_path = write_program("invocation-artifact", with_edge);
+    let checked = compile_to_checked(&main_path, None).expect("invocation contract should compile");
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Published::entry")
+        .expect("published entry");
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .expect("published invocation contract");
+    assert_eq!(
+        contract.synchronous_invocation.interface,
+        SynchronousInvocationInterface::PublishedCeiling
+    );
+    assert_eq!(contract.synchronous_invocation.published, ["parameter:0"]);
+    assert_eq!(
+        contract.synchronous_invocation.checked_inferred,
+        ["parameter:0"]
+    );
+
+    let without_edge = with_edge.replace("invokes handler;\n{\n    handler.handle();\n}", "{\n}");
+    assert_ne!(
+        contract.fingerprint,
+        contract_fingerprint_for(&without_edge, "Published::entry")
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
 }
 
 #[test]

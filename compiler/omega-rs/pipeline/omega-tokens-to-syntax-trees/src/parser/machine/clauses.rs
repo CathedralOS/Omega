@@ -23,6 +23,7 @@ type MachineClauses = (
     HandleSpan<omega_syntax_trees::expression::ExpressionHandle>,
     omega_syntax_trees::expression::ExpressionHandle,
     HandleSpan<Identifier>,
+    HandleSpan<Identifier>,
     bool,
     bool,
     HandleSpan<CapabilityContract>,
@@ -49,6 +50,8 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut decrease_range = omega_syntax_trees::expression::ExpressionHandle::invalid();
     let mut service_start = Handle::invalid();
     let mut service_count = 0u32;
+    let mut invokes_start = Handle::invalid();
+    let mut invokes_count = 0u32;
     let mut suspends = false;
     let mut blocks = false;
     let mut contract_start = Handle::invalid();
@@ -122,6 +125,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("decreases")
                 && !input.at_contextual("reaches")
                 && !input.at_contextual("effects")
+                && !input.at_contextual("invokes")
                 && !input.at_contextual("suspends")
                 && !input.at_contextual("blocks")
                 && !input.at_contextual("boundary")
@@ -145,6 +149,20 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
             }
+            continue;
+        }
+
+        if input.at_contextual("invokes") {
+            input = input.take_contextual("invokes")?;
+            let (binding, after_binding) = input.take_identifier()?;
+            let handle = syntax_trees.items.append_identifier_path_member(binding);
+            if invokes_count == 0 {
+                invokes_start = handle;
+            }
+            invokes_count = invokes_count
+                .checked_add(1)
+                .expect("machine invocation span count overflow");
+            input = take_invokes_clause_terminator(after_binding)?;
             continue;
         }
 
@@ -212,6 +230,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                         || input.at_contextual("decreases")
                         || input.at_contextual("reaches")
                         || input.at_contextual("effects")
+                        || input.at_contextual("invokes")
                         || input.at_contextual("suspends")
                         || input.at_contextual("blocks")
                         || input.at_contextual("boundary")
@@ -269,6 +288,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             "`terminates`",
             "`decreases`",
             "`reaches`",
+            "`invokes <binding>;`",
             "`suspends;`",
             "`blocks;`",
             "`boundary`",
@@ -284,6 +304,11 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(service_start, service_count)
     };
+    let invokes = if invokes_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(invokes_start, invokes_count)
+    };
     let contracts = if contract_count == 0 {
         HandleSpan::empty()
     } else {
@@ -298,6 +323,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             decrease_view_arguments,
             decrease_range,
             service_reaches,
+            invokes,
             suspends,
             blocks,
             contracts,
@@ -305,6 +331,18 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         ),
         input,
     ))
+}
+
+fn take_invokes_clause_terminator<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    if continues_after_operational_clause(after_semicolon) {
+        Ok(after_semicolon)
+    } else {
+        // On a bodyless machine this is also the item terminator.
+        Ok(input)
+    }
 }
 
 fn reject_retired_operational_reach(
@@ -346,6 +384,7 @@ fn continues_after_operational_clause(input: Input<'_, '_>) -> bool {
         || input.at_contextual("decreases")
         || input.at_contextual("reaches")
         || input.at_contextual("effects")
+        || input.at_contextual("invokes")
         || input.at_contextual("suspends")
         || input.at_contextual("blocks")
         || input.at_contextual("boundary")
