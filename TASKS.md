@@ -265,8 +265,15 @@ proof-natural literals/constructors, closed `+`/`-`/`*`, and the selected
 the normalized coordinate-space or unit identity, carrier/domain/machine
 identity, and a stable fingerprint that deliberately excludes arena-local
 symbols. Core algebra definitions remain structurally generic through checked
-lowering. Runtime-scalar embedding is the next closed-fragment rung; the
-backing and conservation consumers are still outstanding.
+lowering.
+
+Implementation checkpoint (2026-07-31): core now exposes compiler-erased
+`embed<T>(value) -> Nat` for the closed content-projection fragment. Accepted
+projections may embed exact `u8`/`u16`/`u32`/`u64`/`addr` subject-field paths;
+checked facts retain the embedding distinctly from proof naturals and keep its
+fingerprint independent of arena-local symbols. Signed, floating, boolean,
+atomic, non-field, user-lookalike, and arbitrary call inputs remain fail-closed.
+The backing and conservation consumers are still outstanding.
 
 Implementation checkpoint (2026-07-31): checked callable signatures now use
 those retained algebra identities for the first custody-conservation gate. A

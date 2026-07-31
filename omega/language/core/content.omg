@@ -19,3 +19,9 @@ data CountedQuantity<Unit> {
 pub trait Content<A> {
     machine project(subject: &Self) -> A;
 }
+
+// Compiler-erased injection of an unsigned runtime scalar into proof-level
+// natural arithmetic. The content-fragment validator admits this generic
+// surface only for u8/u16/u32/u64/addr subject fields; arbitrary calls and
+// non-scalar arguments remain outside the fragment.
+boundary machine embed<T>(value: T) -> Nat;

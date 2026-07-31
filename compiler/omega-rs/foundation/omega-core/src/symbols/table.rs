@@ -196,6 +196,23 @@ impl SymbolTable {
         sources.same_package(left, right)
     }
 
+    /// Authored declaration provenance for one symbol. Generated symbols and
+    /// focused source-free trees return `None`; semantic consumers that admit
+    /// source-free fixtures must make that fallback explicit rather than
+    /// mistaking a spelling for toolchain ownership.
+    pub fn symbol_source_origin(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<crate::source::SourceOrigin> {
+        let sources = self.sources.as_deref()?;
+        let source_span = self.names.get(self.get(symbol).name).source_span()?;
+        sources.file_at(source_span).map(|file| file.origin)
+    }
+
+    pub fn has_source_metadata(&self) -> bool {
+        self.sources.is_some()
+    }
+
     pub fn root(&self) -> SymbolHandle {
         self.root
     }
