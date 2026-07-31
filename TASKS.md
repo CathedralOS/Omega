@@ -275,8 +275,11 @@ establishment from raw bytes reject.
 
 #### L6b — `AccessPlan` and placed views
 
-**READY.** Chapter 20 and
-`wiki/design_briefs/os_memory_and_hardware_foundation.md` own the source model.
+**PARTIALLY DESIGN BLOCKED.** Chapter 20 and
+`wiki/design_briefs/os_memory_and_hardware_foundation.md` own the normalized
+model. The source-visible loan/profile admission surface is blocked on
+`OWNER_QUESTIONS.md` #7, and public generic atomic accessor requirements are
+blocked on #8. Target-specific lowering remains implementation work.
 
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
@@ -289,7 +292,8 @@ establishment from raw bytes reject.
   accessors are restricted to machines authored in the nominal placement
   policy's canonical package, including statement-position calls whose
   generated target symbol is absent. Generic atomic-family helper contracts
-  and admitted source-loan construction remain open.
+  are blocked on owner question #8. Admitted source-loan construction is
+  blocked on owner question #7.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.
@@ -839,6 +843,8 @@ blocked work.
 | #4 contained execution failure | obligation poison, recovery, and reclamation |
 | #5 modular concurrency premises | separately compiled protocol verification |
 | #6 float-conversion requirements | checked integer/float and cross-format conversion |
+| #7 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
+| #8 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
 
 ## Vertical acceptance slices
 

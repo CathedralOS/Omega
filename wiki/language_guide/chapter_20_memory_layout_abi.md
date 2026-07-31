@@ -424,6 +424,11 @@ where
 }
 ```
 
+The stable/external requirement identities above are settled. The public names
+and signatures for generic atomic operation requirements remain an owner
+question; direct atomic syntax and per-operation placement gating do not by
+themselves choose that reusable API.
+
 A destructive read derives `DestructiveRead<T>::take(&mut self)`, never
 `Readable<T>`. Whether that operation is exported or binding-private remains a
 separate policy choice: a FIFO pop may be public, while a read-to-clear status
@@ -456,6 +461,12 @@ the effective `ResourceProfile`.
 `ExtentLoan` below is the borrow-carrying value produced from such a qualified
 Extent. It names the exact range and shared or exclusive source polarity; it is
 not another root grant.
+
+The normalized behavior below is settled, but the exact source operations that
+borrow a qualified `Extent` and bind a provider's sealed range-specific
+`ResourceProfile` receipt are not. `OWNER_QUESTIONS.md` #7 owns that public
+surface; the following signatures describe the admission judgment after those
+values exist.
 
 Placement checks consumer demand against provider supply once:
 

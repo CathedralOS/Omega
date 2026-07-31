@@ -158,9 +158,11 @@ atomic-family methods are the only routes to a sealed primitive request. See
 for the full `AccessPlan`, `ResourceProfile`, admission, and `Placed<P, T>`
 model. Source compilation now derives unique opaque stable/external accessors
 for concrete `Placed<P, T>` spellings and omits inaccessible or unauthorized
-operations. Atomic fields deliberately remain unprojectable until exact
-operation-family accessors land; package-private exposure, admitted-loan
-construction, and target lowering are still open.
+operations. Atomic fields now derive exact `bool`/`u32`/`u64` operation-family
+accessors, and binding-private operations are restricted to the nominal policy
+package. The source-visible loan/profile admission surface and public generic
+atomic requirements remain blocked on `OWNER_QUESTIONS.md` #7 and #8;
+target-specific lowering remains implementation work.
 
 ## Codecs are ordinary checked requirements
 
