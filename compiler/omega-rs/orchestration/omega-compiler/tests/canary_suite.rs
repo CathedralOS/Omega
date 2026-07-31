@@ -1,4 +1,8 @@
 use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
+use omega_core::content::{
+    ContentAlgebraIdentity, ContentArithmeticOperator, ContentProjectionExpression,
+    ContentScalarExpression,
+};
 use omega_core::diagnostics::Diagnostic;
 use std::fs;
 #[cfg(not(windows))]
@@ -4456,6 +4460,83 @@ fn authorized_route_establishment_canaries() {
 #[test]
 fn extent_root_provider_adapter_compiles() {
     let canary = pass_canary("core/extent_root_provider_adapter");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("the core Extent projection should survive checked lowering");
+    let granted = checked
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str().rsplit("::").next() == Some("Granted"))
+        .expect("core Extent::Granted domain");
+    let [omega_typed_trees::domain::ProofFact::Expression(predicate)] =
+        checked.proof_facts(granted)
+    else {
+        panic!("Extent::Granted should require exactly one no-wrap predicate");
+    };
+    let omega_typed_trees::expression::ExpressionNode::Call(no_wrap) =
+        checked.expression_table.expression(*predicate)
+    else {
+        panic!("Extent::Granted predicate should be a call");
+    };
+    assert_eq!(no_wrap.target.as_str(), "no_wrap");
+    assert!(
+        no_wrap.target_symbol.is_valid(),
+        "no_wrap target should resolve: {no_wrap:?}"
+    );
+    let no_wrap_machine = checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == no_wrap.target_symbol)
+        })
+        .expect("no_wrap call target should resolve to its owning machine");
+    assert_eq!(
+        checked.symbols.symbol_source_origin(no_wrap_machine.symbol),
+        Some(omega_core::source::SourceOrigin::Toolchain),
+        "the target-bound predicate must be the compiler-provided declaration"
+    );
+    assert!(matches!(
+        granted.establishment_routes.as_slice(),
+        [omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }]
+    ));
+
+    let plan = checked
+        .facts
+        .qualifications
+        .content
+        .plans
+        .iter()
+        .find(|plan| {
+            matches!(
+                &plan.algebra,
+                ContentAlgebraIdentity::Interval { coordinate_space }
+                    if coordinate_space == "named(name(Nat))"
+            )
+        })
+        .expect("Extent::Granted should publish its Nat-coordinate interval");
+    let ContentProjectionExpression::Interval { start, end } = &plan.expression else {
+        panic!("Extent::Granted must normalize to an interval");
+    };
+    assert!(matches!(
+        start,
+        ContentScalarExpression::RuntimeScalarEmbedding(path)
+            if matches!(path.as_slice(), [field] if field.name == "base")
+    ));
+    assert!(matches!(
+        end,
+        ContentScalarExpression::Arithmetic {
+            operator: ContentArithmeticOperator::Add,
+            left,
+            right,
+        } if matches!(left.as_ref(), ContentScalarExpression::RuntimeScalarEmbedding(path)
+            if matches!(path.as_slice(), [field] if field.name == "base"))
+            && matches!(right.as_ref(), ContentScalarExpression::RuntimeScalarEmbedding(path)
+                if matches!(path.as_slice(), [field] if field.name == "length"))
+    ));
+    assert_ne!(plan.fingerprint, 0);
+
     let build_dir = std::env::temp_dir().join(format!("omega-extent-root-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
     compile(CompileOptions {
@@ -39564,6 +39645,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/content_projection_duplicate",
     "core/content_projection_arbitrary_call",
     "core/content_projection_signed_embedding",
+    "core/extent_no_wrap_lookalike",
     "core/content_retained_custody_from_borrow",
     "core/extent_root_adapter_direct_call_does_not_grant",
     "core/carry_permission_adapter_direct_call_does_not_grant",
