@@ -216,6 +216,7 @@ impl SyntaxTrees {
                             .map(|constituent| self.copy_item_identifier_span(other, *constituent))
                             .collect(),
                     }),
+                authored_routes: domain.authored_routes.clone(),
                 predicate_body: domain.predicate_body,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),

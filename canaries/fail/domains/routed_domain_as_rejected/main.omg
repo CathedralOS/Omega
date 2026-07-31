@@ -2,13 +2,14 @@ data Token {
     value: u64;
 }
 
-domain Token::Issued;
+domain Token::Issued {
+    TokenIssuer::issue;
+}
 
-machine Token::issue(value: u64) -> Token
-ensures
-    result in Token::Issued
-{
-    Token { value: value }
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
 }
 
 data Main {}

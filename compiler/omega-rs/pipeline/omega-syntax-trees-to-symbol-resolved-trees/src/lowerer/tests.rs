@@ -458,6 +458,89 @@ fn normalizes_domain_establishment_route_identities() {
 }
 
 #[test]
+fn normalizes_authored_checked_and_boundary_requirement_routes() {
+    use omega_core::semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token { value: u64; }
+
+    domain Token::Checked {
+        CheckedIssuer::issue;
+    }
+    domain Token::Admitted {
+        BoundaryIssuer::issue;
+    }
+
+    trait CheckedIssuer {
+        machine issue(value: u64) -> Token in Checked;
+    }
+    boundary trait BoundaryIssuer {
+        machine issue(value: u64) -> Token
+        ensures result in Token::Admitted;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+    for (domain_name, trait_name, is_boundary) in [
+        ("Token::Checked", "CheckedIssuer", false),
+        ("Token::Admitted", "BoundaryIssuer", true),
+    ] {
+        let domain = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == domain_name)
+            .expect("domain");
+        let definition = program
+            .traits
+            .iter()
+            .find(|definition| definition.name.as_str() == trait_name)
+            .expect("trait");
+        let requirement = program
+            .trait_machine_signatures(definition.machines)
+            .first()
+            .expect("requirement");
+        let expected = if is_boundary {
+            DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: definition.symbol,
+                requirement: requirement.symbol,
+            }
+        } else {
+            DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition: definition.symbol,
+                requirement: requirement.symbol,
+            }
+        };
+        assert!(domain.establishment_routes.contains(&expected));
+    }
+}
+
+#[test]
+fn rejects_unresolved_authored_domain_requirement_route() {
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Issued {
+        MissingIssuer::issue;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees).expect_err("route must resolve exactly");
+    assert!(
+        diagnostic
+            .message
+            .contains("does not resolve to one exact trait")
+    );
+}
+
+#[test]
 fn expands_alias_establishment_routes_to_atomic_domains() {
     use omega_core::semantics::DomainEstablishmentRoute;
 

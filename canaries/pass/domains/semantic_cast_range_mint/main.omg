@@ -4,9 +4,9 @@
 // mints. Zero-cost; the value flows on. RUNS exit 70.
 use omega::language::std::console;
 data Main { console: Console; }
-domain i64::Km {
+domain i64::Km
+requires
     self >= 0;
-}
 machine Main::measure(&mut self, raw: i64 [0..=4096]) -> i64 {
     let distance: i64 = raw as i64 in Km;
     distance

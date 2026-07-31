@@ -1,7 +1,7 @@
 use omega_checked_trees::{BoundaryQualificationAuthorization, ContractProofFact};
 use omega_core::arena::Handle;
 use omega_core::semantics::{
-    DomainEstablishmentRoute, DomainPredicateBody, MachineSupplyMode, QualificationEvidenceOrigin,
+    DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
 };
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, QualificationEvidence};
@@ -20,46 +20,6 @@ pub(crate) fn domain_definition<'program>(
         .domain_definitions()
         .iter()
         .find(|domain| domain.symbol == domain_symbol)
-}
-
-pub(crate) fn machine_owns_bodyless_domain(
-    program: &TypedTrees,
-    machine: &Machine,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    if machine.supply_mode != MachineSupplyMode::CheckedBody {
-        return false;
-    }
-    machine_matches_bodyless_domain_owner(program, machine, domain_symbol)
-}
-
-fn machine_matches_bodyless_domain_owner(
-    program: &TypedTrees,
-    machine: &Machine,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    let Some(domain) = domain_definition(program, domain_symbol) else {
-        return false;
-    };
-    if domain.predicate_body != DomainPredicateBody::Bodyless {
-        return false;
-    }
-    domain.establishment_routes.iter().any(|route| {
-        let DomainEstablishmentRoute::OwnerCheckedMachine {
-            machine: route_machine,
-        } = route
-        else {
-            return false;
-        };
-        *route_machine == machine.symbol
-            || program
-                .machine_specializations
-                .iter()
-                .any(|specialization| {
-                    specialization.template == *route_machine
-                        && specialization.instance == machine.symbol
-                })
-    })
 }
 
 pub(crate) fn boundary_qualification_authorization(
@@ -171,10 +131,12 @@ pub(crate) fn call_contract_evidence(
             if contract.qualification_authorization.is_some() {
                 return None;
             }
-            let origin = if domain.predicate_body.is_present() {
+            let origin = if let Some(origin) =
+                machine_domain_establishment_origin(program, machine, domain_symbol)
+            {
+                origin
+            } else if domain.predicate_body.is_present() {
                 QualificationEvidenceOrigin::Prover
-            } else if machine_matches_bodyless_domain_owner(program, machine, domain_symbol) {
-                QualificationEvidenceOrigin::OwnerEstablishment
             } else {
                 QualificationEvidenceOrigin::CheckedTransformation
             };
@@ -208,6 +170,87 @@ pub(crate) fn call_contract_evidence(
         QualificationEvidenceOrigin::Propagated,
         target_symbol,
     ))
+}
+
+pub(crate) fn machine_has_checked_domain_establishment(
+    program: &TypedTrees,
+    machine: &Machine,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    machine_domain_establishment_origin(program, machine, domain_symbol).is_some()
+}
+
+fn machine_domain_establishment_origin(
+    program: &TypedTrees,
+    machine: &Machine,
+    domain_symbol: SymbolHandle,
+) -> Option<QualificationEvidenceOrigin> {
+    if !matches!(
+        machine.supply_mode,
+        MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
+    ) {
+        return None;
+    }
+    let Some(domain) = domain_definition(program, domain_symbol) else {
+        return None;
+    };
+    let machine_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str());
+
+    domain
+        .establishment_routes
+        .iter()
+        .find_map(|route| match route {
+            DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            } => {
+                let Some(trait_definition) = program
+                    .traits()
+                    .iter()
+                    .find(|definition| definition.symbol == *trait_definition)
+                else {
+                    return None;
+                };
+                let Some(requirement) = program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|signature| signature.symbol == *requirement)
+                else {
+                    return None;
+                };
+                program
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .any(|conformance| {
+                        conformance.symbol == trait_definition.symbol
+                            && conformance
+                                .requirement
+                                .as_ref()
+                                .map(|name| name.as_str())
+                                .unwrap_or(machine_name)
+                                == requirement.name.as_str()
+                    })
+                    .then_some(QualificationEvidenceOrigin::AuthorizedRouteEstablishment)
+            }
+            DomainEstablishmentRoute::OwnerCheckedMachine {
+                machine: route_machine,
+            } => (*route_machine == machine.symbol
+                || program
+                    .machine_specializations
+                    .iter()
+                    .any(|specialization| {
+                        specialization.template == *route_machine
+                            && specialization.instance == machine.symbol
+                    }))
+            .then_some(QualificationEvidenceOrigin::OwnerEstablishment),
+            DomainEstablishmentRoute::OwnerOperator { .. }
+            | DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
+        })
 }
 
 fn call_carry_permission_evidence(

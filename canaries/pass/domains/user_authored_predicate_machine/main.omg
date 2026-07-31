@@ -1,4 +1,4 @@
-// A domain body may call an ordinary user-authored predicate machine. This
+// A domain `requires` may call an ordinary user-authored predicate machine. This
 // exercises general predicate identity and fact propagation without relying
 // on the compiler-recognized byte predicates used by string-literal grants.
 
@@ -12,9 +12,9 @@ machine within_calibration(reading: Reading) -> bool {
     reading.value >= reading.minimum && reading.value <= reading.maximum
 }
 
-domain Reading::Calibrated {
+domain Reading::Calibrated
+requires
     within_calibration(self);
-}
 
 machine consume(reading: Reading in Calibrated) {}
 

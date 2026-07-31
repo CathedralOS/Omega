@@ -1,3 +1,4 @@
+use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{DomainEstablishmentRoute, DomainPredicateBody, MachineSupplyMode};
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
@@ -12,8 +13,11 @@ use omega_symbol_resolved_trees::types::TypeReference;
 /// This is the sole projection point for the currently landed route sources.
 /// Checked consumers consult these identities instead of reconstructing owner
 /// authority from attachment names or contract placement.
-pub(crate) fn normalize_domain_establishment_routes(program: &mut SymbolResolvedTrees) {
+pub(crate) fn normalize_domain_establishment_routes(
+    program: &mut SymbolResolvedTrees,
+) -> Result<(), Diagnostic> {
     let mut additions = Vec::new();
+    collect_authored_requirement_routes(program, &mut additions)?;
     collect_owner_machine_routes(program, &mut additions);
     collect_owner_operator_routes(program, &mut additions);
     collect_boundary_requirement_routes(program, &mut additions);
@@ -26,6 +30,150 @@ pub(crate) fn normalize_domain_establishment_routes(program: &mut SymbolResolved
             }
         }
     });
+    Ok(())
+}
+
+fn collect_authored_requirement_routes(
+    program: &SymbolResolvedTrees,
+    additions: &mut Vec<(SymbolHandle, DomainEstablishmentRoute)>,
+) -> Result<(), Diagnostic> {
+    for domain in &program.domain_definitions {
+        if domain.alias.is_some() && !domain.authored_routes.is_empty() {
+            return Err(Diagnostic::error(format!(
+                "domain alias `{}` cannot author establishment routes; routes belong to its atomic declarations",
+                domain.name
+            )));
+        }
+        for path in &domain.authored_routes {
+            let [trait_path @ .., requirement_name] = path.as_slice() else {
+                return Err(Diagnostic::error(format!(
+                    "domain `{}` establishment route must name an exact `Trait::requirement`",
+                    domain.name
+                )));
+            };
+            if trait_path.is_empty() {
+                return Err(Diagnostic::error(format!(
+                    "domain `{}` establishment route must name an exact `Trait::requirement`",
+                    domain.name
+                )));
+            }
+            let trait_name = trait_path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let matching_traits = program
+                .traits
+                .iter()
+                .filter(|definition| same_semantic_name(definition.name.as_str(), &trait_name))
+                .collect::<Vec<_>>();
+            let [trait_definition] = matching_traits.as_slice() else {
+                return Err(Diagnostic::error(format!(
+                    "domain `{}` establishment route `{}` does not resolve to one exact trait",
+                    domain.name,
+                    path.iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                )));
+            };
+            let matching_requirements = program
+                .trait_machine_signatures(trait_definition.machines)
+                .iter()
+                .filter(|signature| signature.name.as_str() == requirement_name.as_str())
+                .collect::<Vec<_>>();
+            let [requirement] = matching_requirements.as_slice() else {
+                return Err(Diagnostic::error(format!(
+                    "domain `{}` establishment route `{}` does not resolve to one exact trait requirement",
+                    domain.name,
+                    path.iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                )));
+            };
+            if !requirement_guarantees_domain(program, requirement, domain.symbol) {
+                return Err(Diagnostic::error(format!(
+                    "domain `{}` authorizes `{}` but that requirement does not guarantee the domain on its exact result",
+                    domain.name,
+                    path.iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                )));
+            }
+            additions.push((
+                domain.symbol,
+                if trait_definition.is_boundary {
+                    DomainEstablishmentRoute::BoundaryRequirement {
+                        boundary_trait: trait_definition.symbol,
+                        requirement: requirement.symbol,
+                    }
+                } else {
+                    DomainEstablishmentRoute::CheckedRequirement {
+                        trait_definition: trait_definition.symbol,
+                        requirement: requirement.symbol,
+                    }
+                },
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn requirement_guarantees_domain(
+    program: &SymbolResolvedTrees,
+    requirement: &omega_symbol_resolved_trees::signature::StateSignature,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    ensured_domain_symbols(
+        program,
+        program.signature_contracts(requirement.contracts),
+        true,
+    )
+    .contains(&domain_symbol)
+        || requirement.return_type.as_ref().is_some_and(|return_type| {
+            return_type_domain_symbols(program, return_type).contains(&domain_symbol)
+        })
+}
+
+fn return_type_domain_symbols(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Vec<SymbolHandle> {
+    let TypeReference::Constrained(constrained) = type_reference else {
+        return Vec::new();
+    };
+    let mut domains = Vec::new();
+    for constraint in program
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints)
+    {
+        let omega_symbol_resolved_trees::types::TypeConstraint::Domain(name) = constraint else {
+            continue;
+        };
+        for matching in program
+            .domain_definitions
+            .iter()
+            .filter(|domain| same_semantic_name(domain.name.as_str(), name.as_str()))
+        {
+            for atom in atomic_domain_symbols(program, matching.symbol) {
+                if !domains.contains(&atom) {
+                    domains.push(atom);
+                }
+            }
+        }
+    }
+    for inherited in
+        return_type_domain_symbols(program, program.child_type_reference(constrained.base_type))
+    {
+        if !domains.contains(&inherited) {
+            domains.push(inherited);
+        }
+    }
+    domains
 }
 
 fn collect_owner_machine_routes(

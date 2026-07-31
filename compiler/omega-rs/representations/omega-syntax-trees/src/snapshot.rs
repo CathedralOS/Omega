@@ -77,6 +77,8 @@ pub enum ItemSnapshot {
         is_public: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         alias: Vec<Vec<IdentifierSnapshot>>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        authored_routes: Vec<Vec<IdentifierSnapshot>>,
         predicate_body: &'static str,
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
@@ -679,6 +681,11 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         .collect()
                 })
                 .unwrap_or_default(),
+            authored_routes: value
+                .authored_routes
+                .iter()
+                .map(|route| snapshot_identifier_slice(route))
+                .collect(),
             predicate_body: value.predicate_body.as_str(),
             facts: snapshot_proof_facts(syntax_trees, value.facts),
             operators: syntax_trees

@@ -2444,6 +2444,52 @@ fn parses_domain_definition_surface() {
 }
 
 #[test]
+fn parses_domain_requires_and_requirement_routes_independently() {
+    let source = r#"
+        domain Reservation::Confirmed
+        requires
+            self.seats > 0
+        {
+            Reservations::confirm;
+            Imported::Reservations::restore;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let domain = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("domain");
+
+    assert_eq!(
+        domain.predicate_body,
+        omega_core::semantics::DomainPredicateBody::Present
+    );
+    assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
+    assert_eq!(
+        domain
+            .authored_routes
+            .iter()
+            .map(|route| {
+                route
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            })
+            .collect::<Vec<_>>(),
+        ["Reservations::confirm", "Imported::Reservations::restore"]
+    );
+    assert!(domain.operators.is_empty());
+}
+
+#[test]
 fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
     let source = r#"
         domain Reservation::Issued;

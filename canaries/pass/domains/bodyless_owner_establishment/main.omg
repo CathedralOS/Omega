@@ -1,14 +1,23 @@
-// P1a: a checked machine attached to the carrier may establish its own
-// bodyless qualification. The call-result fact must follow the returned value
-// into the local so the next call can consume the qualification.
+// P1b: a checked conformance may establish a routed qualification only through
+// the exact trait requirement named by the domain. The call-result fact must
+// follow the returned value into the local so the next call can consume it.
 
 data Token {
     value: u64;
 }
 
-domain Token::Issued;
+domain Token::Issued {
+    TokenIssuer::issue;
+}
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
 
 machine Token::issue(value: u64) -> Token
+satisfies TokenIssuer::issue
 ensures
     result in Token::Issued
 {

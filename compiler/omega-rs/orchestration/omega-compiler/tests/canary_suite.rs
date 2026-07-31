@@ -4420,7 +4420,7 @@ fn bodyless_domain_declaration_spellings_canary_runs() {
 }
 
 #[test]
-fn bodyless_owner_establishment_canaries() {
+fn authorized_route_establishment_canaries() {
     let pass = pass_canary("domains/bodyless_owner_establishment");
     let build_dir =
         std::env::temp_dir().join(format!("omega-bodyless-owner-{}", std::process::id()));
@@ -4434,7 +4434,7 @@ fn bodyless_owner_establishment_canaries() {
     .expect("a carrier-owner checked machine should establish its bodyless result");
     let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
         .expect("qualification-evidence artifact");
-    assert!(evidence.contains("\"origin\": \"owner_establishment\""));
+    assert!(evidence.contains("\"origin\": \"authorized_route_establishment\""));
     assert!(evidence.contains("\"program_point\": \"call_ensures\""));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -39544,6 +39544,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "atomics/atomic_compare_exchange_failure_stronger_rejected",
     "atomics/atomic_unknown_ordering_rejected",
     "domains/routed_domain_as_rejected",
+    "domains/domain_route_result_mismatch",
     "domains/bodyless_internal_state_reconstruction_rejected",
     "core/extent_reconstruction_does_not_grant",
     "core/extent_root_adapter_direct_call_does_not_grant",
