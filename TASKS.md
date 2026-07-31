@@ -248,8 +248,17 @@ This is not full P1c: content projections/backing and conservation witnesses
 remain implementation work. Symbol-keyed substitutions already retain
 contained claims through nested generic transparent records.
 
-- add core `Content<A>` and enforce one projection per exact qualification,
-  publishable only by that qualification's owner;
+Implementation checkpoint (2026-07-31): core now publishes `Content<A>`,
+`Interval<CoordinateSpace>`, and `CountedQuantity<Unit>`. A projection must be
+one bodyful checked machine explicitly satisfying `Content<A>::project`,
+attached to the exact atomic qualification whose carrier it reads. Foreign
+homes, alias homes, and a second projection for the same exact qualification
+reject. Projection machines are compiler-erased proof material, so their
+proof-only algebra result does not acquire a runtime layout. Generic-data
+instance rewriting also keeps conformance arguments aligned with rewritten
+machine signatures. The remaining P1c work starts at closed-fragment
+normalization:
+
 - accept only the closed content-projection fragment: subject field reads,
   runtime-scalar embeddings, proof-defined closed arithmetic, and selected
   algebra constructors; normalize and fingerprint the resulting symbolic

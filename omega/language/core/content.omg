@@ -1,0 +1,21 @@
+// Compiler-owned resource-content projection surface.
+//
+// Ordinary linear claims remain whole claims. An exact semantic
+// qualification becomes content-bearing only when its owner publishes one
+// checked machine satisfying `Content<A>::project`; `A` is one of the closed
+// compiler-normalized content algebras below. The conformance body is proof
+// material and adds no runtime metadata to the qualified carrier.
+use omega::language::core::nat;
+
+data Interval<CoordinateSpace> {
+    start: Nat;
+    end: Nat;
+}
+
+data CountedQuantity<Unit> {
+    magnitude: Nat;
+}
+
+pub trait Content<A> {
+    machine project(subject: &Self) -> A;
+}

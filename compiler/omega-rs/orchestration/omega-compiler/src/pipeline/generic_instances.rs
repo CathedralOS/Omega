@@ -1075,6 +1075,19 @@ fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHa
                 }
             }
             Item::Machine(machine) if machine.type_parameters.is_empty() => {
+                // Conformance arguments participate in the same concrete
+                // generic-data identity as the machine signature. Rewriting
+                // `-> Algebra<Unit>` while leaving
+                // `satisfies Trait<Algebra<Unit>>` generic makes an otherwise
+                // exact requirement mismatch after instance synthesis.
+                for conformance in syntax.tables.items.satisfies_clauses(machine.satisfies) {
+                    positions.extend_from_slice(
+                        syntax
+                            .tables
+                            .type_references
+                            .type_reference_handles(conformance.arguments),
+                    );
+                }
                 for state_handle in syntax.tables.items.state_handles(machine.states) {
                     let state = syntax.tables.items.state(*state_handle);
                     positions.push(state.return_type);
@@ -1971,5 +1984,68 @@ mod tests {
             .expect("synthesized View instance");
         assert_eq!(instance.lifetime_parameters[0].as_str(), "buf");
         assert!(instance.type_parameters.is_empty());
+    }
+
+    #[test]
+    fn concrete_conformance_arguments_follow_generic_result_rewrites() {
+        let source = r#"
+            data Unit {}
+            data Algebra<T> { value: T; }
+
+            trait Projection<A> {
+                machine project(subject: &Self) -> A;
+            }
+
+            data Subject {}
+
+            machine Subject::project(subject: &Subject) -> Algebra<Unit>
+            satisfies Projection<Algebra<Unit>>::project
+            {
+                Algebra { value: Unit {} }
+            }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+        desugar_generic_data_instances(&mut syntax).expect("monomorphize");
+
+        let machine = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Machine(machine) if machine.name.as_str().ends_with("::project") => {
+                    Some(machine)
+                }
+                _ => None,
+            })
+            .expect("project machine");
+        let state = syntax.items.state(
+            *syntax
+                .items
+                .state_handles(machine.states)
+                .first()
+                .expect("entry"),
+        );
+        let conformance = syntax
+            .items
+            .satisfies_clauses(machine.satisfies)
+            .first()
+            .expect("Projection conformance");
+        let conformance_argument = *syntax
+            .type_references
+            .type_reference_handles(conformance.arguments)
+            .first()
+            .expect("concrete algebra argument");
+
+        let TypeReferenceNode::Named(result) =
+            syntax.type_references.type_reference(state.return_type)
+        else {
+            panic!("concrete generic result should become one synthesized named instance");
+        };
+        let TypeReferenceNode::Named(argument) =
+            syntax.type_references.type_reference(conformance_argument)
+        else {
+            panic!("conformance argument should follow the result rewrite");
+        };
+        assert_eq!(result, argument);
     }
 }
