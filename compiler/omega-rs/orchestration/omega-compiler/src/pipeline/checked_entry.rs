@@ -89,6 +89,11 @@ pub fn compile_to_checked(
         &target_provider_defaults,
         &build_config.provider_selections,
     )?;
+    crate::pipeline::provider_plans::validate_selected_synchronous_invocation_cycles(
+        &typed,
+        &provider_plans,
+        &selected_provider_plans,
+    )?;
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
     let checked_program = Arc::get_mut(&mut checked.program)
         .expect("checked program must be uniquely owned before engine handoff");

@@ -750,6 +750,19 @@ boundary-trait identities. Build-script admission consumes exact service reach
 and admits only the pinned canonical `FilesystemHost` and `Console` staging
 slots; a custom boundary wrapper remains a distinct, rejected service.
 
+Implementation status (`invokes`, 2026-07-31): syntax, resolved, typed, and
+checked contract records retain the independent direct-invocation axis.
+Bodyful inference follows local helpers and nested expression positions while
+keeping boundary calls modular; bodyless requirements and published machines
+enforce omission as an empty ceiling. Checked-provider composition removes the
+selected plan's self-forwarded receiver, substitutes remaining binding paths
+against selected boundary slots, and rejects cycles only in the realized
+component-boundary graph. Provider schemas, plan and machine-contract
+fingerprints, snapshots, and JSON manifests retain normalized direct targets
+without replacing them with service-reach closure. Declared invocation targets
+also contribute their boundary service to normalized reach and their boundary
+contract to call operational inference. Registration alone creates no edge.
+
 Authority possession, provider trust receipts, resource bounds, failure
 outcomes, and mutation remain separate fields/analyses. Do not manufacture a
 single all-purpose effect record or reconstruct suspension/blocking from

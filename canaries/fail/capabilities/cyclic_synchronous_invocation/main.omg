@@ -1,0 +1,33 @@
+// Both selected checked providers realize one direct synchronous edge. The
+// resulting Alpha -> Beta -> Alpha component-boundary graph is forbidden even
+// though ordinary service reach may remain cyclic.
+
+boundary trait Alpha {
+    machine alpha()
+    invokes Beta;
+}
+
+boundary trait Beta {
+    machine beta()
+    invokes Alpha;
+}
+
+data AlphaProvider {
+    beta: Beta;
+}
+
+machine AlphaProvider::alpha_checked(&mut self)
+satisfies Alpha::alpha
+{
+    self.beta.beta();
+}
+
+data BetaProvider {
+    alpha: Alpha;
+}
+
+machine BetaProvider::beta_checked(&mut self)
+satisfies Beta::beta
+{
+    self.alpha.alpha();
+}

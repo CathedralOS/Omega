@@ -132,6 +132,7 @@ pub enum ItemSnapshot {
         decreases: Vec<ExpressionSnapshot>,
         decrease_order: Vec<IdentifierSnapshot>,
         service_reaches: Vec<IdentifierSnapshot>,
+        invokes: Vec<IdentifierSnapshot>,
         suspends: bool,
         blocks: bool,
         contracts: Vec<CapabilityContractSnapshot>,
@@ -349,6 +350,7 @@ pub struct StateSignatureSnapshot {
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub service_reaches: Vec<IdentifierSnapshot>,
+    pub invokes: Vec<IdentifierSnapshot>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: Vec<CapabilityContractSnapshot>,
@@ -785,6 +787,9 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     .items
                     .identifier_path_members(value.service_reaches),
             ),
+            invokes: snapshot_identifier_slice(
+                syntax_trees.items.identifier_path_members(value.invokes),
+            ),
             suspends: value.suspends,
             blocks: value.blocks,
             contracts: snapshot_capability_contracts(syntax_trees, value.contracts),
@@ -1190,6 +1195,11 @@ fn snapshot_state_signature(
                 .items
                 .identifier_path_members(signature.service_reaches),
         ),
+        invokes: snapshot_identifier_slice(
+            syntax_trees
+                .items
+                .identifier_path_members(signature.invokes),
+        ),
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: snapshot_capability_contracts(syntax_trees, signature.contracts),
@@ -1235,6 +1245,11 @@ fn snapshot_state_signature_node(
             syntax_trees
                 .items
                 .identifier_path_members(signature.service_reaches),
+        ),
+        invokes: snapshot_identifier_slice(
+            syntax_trees
+                .items
+                .identifier_path_members(signature.invokes),
         ),
         suspends: signature.suspends,
         blocks: signature.blocks,

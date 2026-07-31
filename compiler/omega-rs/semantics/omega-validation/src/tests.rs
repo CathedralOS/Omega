@@ -813,9 +813,9 @@ fn static_machine_argument_rejects_symbol_resolved_service_widening() {
             machine query();
         }
 
-        machine work(service: &mut Queryable) {
-            service.query();
-        }
+        machine work(service: &mut Queryable)
+        reaches Queryable
+        {}
 
         machine invoke<machine F>(service: &mut Queryable)
         where machine F(service: &mut Queryable) reaches Readable;
@@ -853,7 +853,9 @@ fn static_machine_argument_admits_service_reach_within_parent_closure() {
         }
 
         machine invoke<machine F>(service: &mut Filesystem)
-        where machine F(service: &mut Filesystem) reaches Filesystem;
+        where machine F(service: &mut Filesystem)
+        reaches Filesystem
+        invokes service;
         {}
 
         machine caller(service: &mut Filesystem) {
@@ -934,6 +936,288 @@ fn published_operational_omission_is_a_negative_ceiling() {
         diagnostic.message.contains("omits `blocks;`")
             && diagnostic.message.contains("body may block")
     }));
+}
+
+#[test]
+fn checked_provider_rejects_undeclared_synchronous_invocation() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Handler {
+            machine handle();
+        }
+
+        boundary trait EventSource {
+            machine fire(handler: &mut Handler);
+        }
+
+        data EventProvider {}
+
+        machine EventProvider::fire_checked(handler: &mut Handler)
+        satisfies EventSource::fire
+        {
+            handler.handle();
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a checked provider may not hide a synchronous callback edge");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not refine `EventSource::fire`")
+            && diagnostic.message.contains("omits `invokes handler;`")
+    }));
+}
+
+#[test]
+fn published_machine_rejects_omitted_synchronous_invocation() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Handler {
+            machine handle();
+        }
+
+        data Published {}
+        boundary machine Published::entry(&mut self, handler: &mut Handler) {
+            handler.handle();
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a published machine may not omit an inferred synchronous edge");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("Published::entry")
+            && diagnostic.message.contains("omits `invokes handler;`")
+    }));
+}
+
+#[test]
+fn invocation_declarations_reject_unknown_and_duplicate_bindings() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Handler {
+            machine handle();
+        }
+
+        boundary trait EventSource {
+            machine fire(handler: &mut Handler)
+            invokes missing;
+            invokes handler;
+            invokes handler;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("invocation declarations must name unique boundary bindings");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("`missing` is neither one of its boundary-binding parameters")
+    }));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("declares `invokes handler;` more than once")
+    }));
+}
+
+#[test]
+fn checked_provider_infers_declared_invocation_through_local_helper() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Handler {
+            machine handle();
+        }
+
+        boundary trait EventSource {
+            machine fire(handler: &mut Handler)
+            invokes handler;
+        }
+
+        machine forward(handler: &mut Handler) {
+            handler.handle();
+        }
+
+        data EventProvider {}
+
+        machine EventProvider::fire_checked(handler: &mut Handler)
+        satisfies EventSource::fire
+        {
+            forward(handler);
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the declared callback ceiling admits the helper-forwarded direct edge");
+    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let provider = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "EventProvider::fire_checked")
+        .expect("provider machine");
+    assert_eq!(
+        plan.for_machine(provider.symbol)
+            .expect("provider invocation summary")
+            .inferred_transitive,
+        vec![omega_effects::InvocationTarget::Parameter(0)]
+    );
+}
+
+#[test]
+fn checked_provider_normalizes_self_forwarded_receiver_before_refinement() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Handler {
+            machine handle();
+        }
+
+        boundary trait EventSource {
+            machine fire(handler: &mut Handler)
+            invokes handler;
+        }
+
+        machine forward(handler: &mut Handler) {
+            handler.handle();
+        }
+
+        data EventProvider {}
+
+        machine EventProvider::fire_checked(source: EventSource, handler: &mut Handler)
+        satisfies EventSource::fire
+        {
+            forward(handler);
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect(
+        "composition removes the forwarded provider receiver and shifts the callback to requirement parameter 0",
+    );
+    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let provider = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "EventProvider::fire_checked")
+        .expect("provider machine");
+    assert_eq!(
+        plan.for_machine(provider.symbol)
+            .expect("provider invocation summary")
+            .inferred_transitive,
+        vec![omega_effects::InvocationTarget::Parameter(1)]
+    );
+}
+
+#[test]
+fn checked_provider_infers_attached_boundary_field_as_direct_target() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Alpha {
+            machine alpha() invokes Beta;
+        }
+        boundary trait Beta {
+            machine beta() invokes Alpha;
+        }
+        data AlphaProvider { beta: Beta; }
+        machine AlphaProvider::alpha_checked(&mut self) satisfies Alpha::alpha {
+            self.beta.beta();
+        }
+        data BetaProvider { alpha: Alpha; }
+        machine BetaProvider::beta_checked(&mut self) satisfies Beta::beta {
+            self.alpha.alpha();
+        }
+        "#,
+    );
+    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let labels = |name: &str| {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("checked provider");
+        plan.for_machine(machine.symbol)
+            .expect("invocation summary")
+            .inferred_direct
+            .iter()
+            .map(|target| omega_effects::invocation_target_label(&typed, machine, *target))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(labels("AlphaProvider::alpha_checked"), ["Beta"]);
+    assert_eq!(labels("BetaProvider::beta_checked"), ["Alpha"]);
+}
+
+#[test]
+fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Alpha {
+            machine alpha();
+        }
+        boundary trait Beta {
+            machine beta();
+        }
+        data Other { binding: Beta; }
+        data Provider { binding: Alpha; }
+        machine Provider::run(&self, other: &Other) {
+            other.binding.beta();
+        }
+        "#,
+    );
+    let plan = omega_effects::infer_synchronous_invocations(&typed);
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Provider::run")
+        .expect("provider machine");
+    let labels = plan
+        .for_machine(machine.symbol)
+        .expect("invocation summary")
+        .inferred_direct
+        .iter()
+        .map(|target| omega_effects::invocation_target_label(&typed, machine, *target))
+        .collect::<Vec<_>>();
+    assert_eq!(labels, ["Beta"]);
+}
+
+#[test]
+fn invocation_and_operational_inference_visit_transition_arguments() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Handler {
+            machine value() -> i32
+            blocks;
+        }
+
+        machine run(handler: &mut Handler) {
+            transition { _ -> done(handler.value()) }
+
+            state done(value: i32) {}
+        }
+        "#,
+    );
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .expect("run machine");
+    let invocations = omega_effects::infer_synchronous_invocations(&typed);
+    assert_eq!(
+        invocations
+            .for_machine(machine.symbol)
+            .expect("run invocation summary")
+            .inferred_transitive,
+        vec![omega_effects::InvocationTarget::Parameter(0)]
+    );
+    let operations = omega_effects::infer_operational_may(&typed);
+    let operational = operations
+        .machines()
+        .iter()
+        .find(|summary| summary.symbol == machine.symbol)
+        .expect("run operational summary");
+    assert!(operational.body_may_block);
 }
 
 #[test]

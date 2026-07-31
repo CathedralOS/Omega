@@ -38,6 +38,7 @@ pub(crate) fn lower_machine(
         decrease_view_arguments: omega_core::arena::HandleSpan::empty(),
         decrease_range: typed::expression::ExpressionHandle::invalid(),
         service_reaches: omega_core::arena::HandleSpan::empty(),
+        invokes: omega_core::arena::HandleSpan::empty(),
         suspends: machine.suspends,
         blocks: machine.blocks,
         contracts: omega_core::arena::HandleSpan::empty(),
@@ -153,6 +154,12 @@ pub(crate) fn lower_machine(
         lowerer
             .typed_trees
             .push_machine_service_reach(&mut typed_machine, service);
+    }
+
+    for binding in lowerer.source_trees.machine_invokes(machine) {
+        lowerer
+            .typed_trees
+            .push_machine_invoke(&mut typed_machine, crate::name::lower_name(binding));
     }
 
     for contract in lowerer.source_trees.machine_contracts(machine) {

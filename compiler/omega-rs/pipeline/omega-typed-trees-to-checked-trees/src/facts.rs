@@ -88,6 +88,7 @@ fn build_contract_plans(
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
     let frame_resolver = omega_validation::CallFrameResolver::new(program);
+    let invocation_inference = omega_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
         let service_fact = service_reaches.for_machine(machine.symbol);
         let published_service_row = machine.service_reach_row;
@@ -115,6 +116,42 @@ fn build_contract_plans(
             checked_inferred: service_fact
                 .map(|fact| fact.inferred_transitive)
                 .unwrap_or(omega_core::semantics::ServiceReachRowTable::EMPTY_ROW),
+        };
+        let invocation_summary = invocation_inference.for_machine(machine.symbol);
+        let canonical_invocation = |target: omega_effects::InvocationTarget| match target {
+            omega_effects::InvocationTarget::Parameter(index) => format!("parameter:{index}"),
+            omega_effects::InvocationTarget::Service(symbol) => program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == symbol)
+                .map(|definition| format!("service:{}", definition.name))
+                .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
+        };
+        let mut published_invocations = invocation_summary
+            .into_iter()
+            .flat_map(|summary| summary.published.iter().copied())
+            .map(canonical_invocation)
+            .collect::<Vec<_>>();
+        published_invocations.sort_unstable();
+        published_invocations.dedup();
+        let mut checked_invocations = invocation_summary
+            .into_iter()
+            .flat_map(|summary| summary.inferred_transitive.iter().copied())
+            .map(canonical_invocation)
+            .collect::<Vec<_>>();
+        checked_invocations.sort_unstable();
+        checked_invocations.dedup();
+        let publishes_invocations = machine.supply_mode
+            != omega_core::semantics::MachineSupplyMode::CheckedBody
+            || !program.machine_invokes(machine).is_empty();
+        let synchronous_invocation = omega_core::semantics::SynchronousInvocationPlan {
+            interface: if publishes_invocations {
+                omega_core::semantics::SynchronousInvocationInterface::PublishedCeiling
+            } else {
+                omega_core::semantics::SynchronousInvocationInterface::InternalInferred
+            },
+            published: published_invocations.clone(),
+            checked_inferred: checked_invocations,
         };
         let termination = machine.termination_plan.interface.clone();
         // Slice 2: the declared requires/ensures facts in a CANONICAL,
@@ -283,6 +320,8 @@ fn build_contract_plans(
         let fingerprint = omega_checked_trees::contract_fingerprint(
             machine.supply_mode,
             &published_service_names,
+            synchronous_invocation.interface,
+            &published_invocations,
             suspension.interface,
             blocking.interface,
             &termination,
@@ -304,6 +343,7 @@ fn build_contract_plans(
             machine: machine.symbol,
             supply_mode: machine.supply_mode,
             service_reach,
+            synchronous_invocation,
             suspension,
             blocking,
             termination,

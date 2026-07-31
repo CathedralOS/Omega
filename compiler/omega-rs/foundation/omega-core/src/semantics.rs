@@ -495,6 +495,25 @@ pub struct ServiceReachPlan {
     pub checked_inferred: ServiceReachRowId,
 }
 
+/// Whether the direct synchronous invocation set is private inference or a
+/// published ceiling. Published omission is an explicit empty edge set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SynchronousInvocationInterface {
+    #[default]
+    InternalInferred,
+    PublishedCeiling,
+}
+
+/// Erased direct-edge metadata retained in checked artifacts. Targets use
+/// canonical positional identities (`parameter:N`) or canonical boundary
+/// service names (`service:Name`); they are never replaced by reach closure.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SynchronousInvocationPlan {
+    pub interface: SynchronousInvocationInterface,
+    pub published: Vec<String>,
+    pub checked_inferred: Vec<String>,
+}
+
 /// Whether suspension is inferred privately or published as an independent
 /// may-ceiling. `PublishedMaySuspend(false)` is the public negative guarantee
 /// produced by omitting `suspends;` on an export or requirement.

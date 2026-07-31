@@ -146,6 +146,7 @@ mod tests {
                     has_result: false,
                     result_type_identity: None,
                     service_reach: vec![format!("{name}Service")],
+                    synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: false,
                     calling_plan_fingerprint: None,

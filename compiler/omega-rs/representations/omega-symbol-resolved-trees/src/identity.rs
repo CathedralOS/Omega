@@ -324,6 +324,9 @@ fn count_type_parameter(
             for service in program.signature_service_reaches(contract.service_reaches) {
                 count_declaration_name(service, counts);
             }
+            for binding in program.signature_invokes(contract.invokes) {
+                count_declaration_name(binding, counts);
+            }
             for contract in program.signature_contracts(contract.contracts) {
                 for fact in program.proof_facts(contract.facts) {
                     count_proof_fact(program, fact, expression_table, counts);

@@ -289,6 +289,7 @@ impl Default for LibraryFunction {
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
                 service_reaches: HandleSpan::empty(),
+                invokes: HandleSpan::empty(),
                 suspends: false,
                 blocks: false,
                 contracts: HandleSpan::empty(),
@@ -736,6 +737,10 @@ pub struct Machine {
     /// checker consumes ranges (never silently dropped).
     pub decrease_range: crate::expression::ExpressionHandle,
     pub service_reaches: HandleSpan<Identifier>,
+    /// Direct synchronous boundary bindings this callable may enter before
+    /// returning. Bodyful machines infer this set and use an authored list as
+    /// their published ceiling; bodyless surfaces must declare it exactly.
+    pub invokes: HandleSpan<Identifier>,
     /// Independent authored operational may-clauses (decision 22). These are
     /// never members of `service_reaches`.
     pub suspends: bool,
@@ -784,6 +789,9 @@ pub struct StateSignature {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub service_reaches: HandleSpan<Identifier>,
+    /// Bodyless direct synchronous invocation ceiling. Members name callable
+    /// parameters (or a boundary-trait identity when no parameter path exists).
+    pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -1142,6 +1150,7 @@ impl ItemTable {
             parameters: signature.parameters,
             return_type: signature.return_type,
             service_reaches: signature.service_reaches,
+            invokes: signature.invokes,
             suspends: signature.suspends,
             blocks: signature.blocks,
             contracts: signature.contracts,
@@ -1165,6 +1174,7 @@ impl ItemTable {
             name: machine.name.clone(),
             satisfies: machine.satisfies,
             service_reaches: machine.service_reaches,
+            invokes: machine.invokes,
             suspends: machine.suspends,
             blocks: machine.blocks,
             contracts: machine.contracts,
@@ -1245,6 +1255,7 @@ pub struct StateSignatureNode {
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub service_reaches: HandleSpan<Identifier>,
+    pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
@@ -1267,6 +1278,7 @@ pub struct MachineNode {
     pub name: Identifier,
     pub satisfies: HandleSpan<SatisfiesClause>,
     pub service_reaches: HandleSpan<Identifier>,
+    pub invokes: HandleSpan<Identifier>,
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,

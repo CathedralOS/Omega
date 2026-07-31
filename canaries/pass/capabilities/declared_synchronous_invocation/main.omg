@@ -1,0 +1,34 @@
+// A bodyless boundary requirement publishes the callback binding it may enter
+// before return. The checked provider's helper-forwarded edge refines that
+// ceiling and remains visible in checked invocation metadata. The adapter's
+// extra leading EventSource receiver is the selected provider's intra-artifact
+// self-forwarding binding; composition removes it and shifts `handler` back to
+// requirement parameter 0.
+
+boundary trait Handler {
+    machine handle();
+}
+
+boundary trait EventSource {
+    machine fire(handler: &mut Handler)
+    invokes handler;
+}
+
+machine forward(handler: &mut Handler) {
+    handler.handle();
+}
+
+data EventProvider {
+}
+
+machine EventProvider::fire_checked(source: EventSource, handler: &mut Handler)
+satisfies EventSource::fire
+{
+    forward(handler);
+}
+
+data Main {
+}
+
+machine Main::run(&mut self) {
+}

@@ -24,12 +24,14 @@ pub(crate) fn validate_static_machine_arguments(
 ) {
     let operations = omega_effects::infer_operational_may(program);
     let service_reaches = omega_effects::infer_service_reaches(program, &operations);
+    let invocations = omega_effects::infer_synchronous_invocations(program);
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             validate_call_selection(
                 program,
                 &operations,
                 &service_reaches,
+                &invocations,
                 call.target_symbol,
                 call.target.as_str(),
                 &call.machine_arguments,
@@ -46,6 +48,7 @@ pub(crate) fn validate_static_machine_arguments(
                         program,
                         &operations,
                         &service_reaches,
+                        &invocations,
                         call.target_symbol,
                         call.target.as_str(),
                         &call.machine_arguments,
@@ -73,6 +76,7 @@ fn validate_call_selection(
     program: &TypedTrees,
     operations: &omega_effects::OperationalPlan,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
+    invocations: &omega_effects::InvocationInferencePlan,
     target_symbol: SymbolHandle,
     target_name: &str,
     arguments: &[StaticMachineArgument],
@@ -159,6 +163,7 @@ fn validate_call_selection(
             program,
             operations,
             service_reaches,
+            invocations,
             target_name,
             parameter,
             requirement,
@@ -176,6 +181,7 @@ fn validate_selected_callable_shape(
     program: &TypedTrees,
     operations: &omega_effects::OperationalPlan,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
+    invocations: &omega_effects::InvocationInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
@@ -190,6 +196,7 @@ fn validate_selected_callable_shape(
             program,
             operations,
             service_reaches,
+            invocations,
             generic_call,
             parameter,
             requirement,
@@ -220,6 +227,7 @@ fn validate_selected_callable_shape(
             program
                 .service_reach_rows
                 .services(actual_signature.service_reach_row),
+            &omega_effects::declared_signature_invocations(program, actual_signature),
             actual_signature.suspends,
             actual_signature.blocks,
             actual_signature.terminates_guarantee,
@@ -242,6 +250,7 @@ fn validate_callable_shape(
     program: &TypedTrees,
     operations: &omega_effects::OperationalPlan,
     service_reaches: &omega_effects::ServiceReachInferencePlan,
+    invocations: &omega_effects::InvocationInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &omega_typed_trees::signature::StateSignature,
@@ -273,6 +282,10 @@ fn validate_callable_shape(
     let actual_may_block = inferred
         .map(|summary| summary.transitive_may_block)
         .unwrap_or(actual_machine.blocks);
+    let actual_invocations = invocations
+        .for_machine(actual_machine.symbol)
+        .map(|summary| summary.effective.as_slice())
+        .unwrap_or_default();
     validate_callable_parts(
         program,
         &label,
@@ -282,6 +295,7 @@ fn validate_callable_shape(
         program.state_parameters(actual_state),
         actual_state.return_type,
         actual_services,
+        actual_invocations,
         actual_may_suspend,
         actual_may_block,
         matches!(
@@ -308,6 +322,7 @@ fn validate_callable_parts(
     actual_parameters: &[StateParameter],
     actual_return_type: TypeReferenceHandle,
     actual_services: &[omega_core::semantics::ServiceReachId],
+    actual_invocations: &[omega_effects::InvocationTarget],
     actual_may_suspend: bool,
     actual_may_block: bool,
     actual_terminates: bool,
@@ -403,6 +418,31 @@ fn validate_callable_parts(
             .unwrap_or("<unknown boundary service>");
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: service reach `{name}` exceeds its authored ceiling",
+            parameter.name
+        )));
+    }
+
+    let allowed_invocations = omega_effects::declared_signature_invocations(program, requirement);
+    for invocation in actual_invocations {
+        if allowed_invocations.contains(invocation) {
+            continue;
+        }
+        let name = match invocation {
+            omega_effects::InvocationTarget::Parameter(index) => required_parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .nth(*index as usize)
+                .map(|parameter| parameter.name.as_str())
+                .unwrap_or("<unknown binding>"),
+            omega_effects::InvocationTarget::Service(symbol) => program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown boundary service>"),
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: synchronous invocation `{name}` exceeds its authored `invokes` ceiling",
             parameter.name
         )));
     }
@@ -530,6 +570,7 @@ fn validate_callable_type_parameters(
                     program
                         .service_reach_rows
                         .services(actual_contract.service_reach_row),
+                    &omega_effects::declared_signature_invocations(program, actual_contract),
                     actual_contract.suspends,
                     actual_contract.blocks,
                     actual_contract.terminates_guarantee,
@@ -564,10 +605,12 @@ pub(crate) fn validate_data_machine_selection(
 ) {
     let operations = omega_effects::infer_operational_may(program);
     let service_reaches = omega_effects::infer_service_reaches(program, &operations);
+    let invocations = omega_effects::infer_synchronous_invocations(program);
     validate_selected_callable_shape(
         program,
         &operations,
         &service_reaches,
+        &invocations,
         family_name,
         parameter,
         requirement,

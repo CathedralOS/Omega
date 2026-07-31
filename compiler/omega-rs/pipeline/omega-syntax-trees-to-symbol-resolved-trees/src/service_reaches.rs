@@ -49,16 +49,29 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
         .machines
         .iter()
         .map(|machine| {
+            let mut names = program
+                .machine_service_reaches(machine)
+                .iter()
+                .map(|name| name.as_str().to_owned())
+                .collect::<Vec<_>>();
+            let parameters = program
+                .machine_state_handles(machine.states)
+                .first()
+                .map(|state| program.state_parameters(program.machine_state(*state).parameters))
+                .unwrap_or_default();
+            names.extend(invoked_service_names(
+                program,
+                &services,
+                program.machine_invokes(machine),
+                parameters,
+            ));
             (
                 machine.symbol,
                 row_for_names(
                     &program.symbols,
                     &services,
                     &mut rows,
-                    program
-                        .machine_service_reaches(machine)
-                        .iter()
-                        .map(|name| name.as_str()),
+                    names.iter().map(String::as_str),
                 ),
             )
         })
@@ -69,16 +82,24 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
         .iter()
         .flat_map(|definition| program.trait_machine_signatures(definition.machines))
         .map(|signature| {
+            let mut names = program
+                .signature_service_reaches(signature.service_reaches)
+                .iter()
+                .map(|name| name.as_str().to_owned())
+                .collect::<Vec<_>>();
+            names.extend(invoked_service_names(
+                program,
+                &services,
+                program.signature_invokes(signature.invokes),
+                program.state_parameters(signature.parameters),
+            ));
             (
                 signature.symbol,
                 row_for_names(
                     &program.symbols,
                     &services,
                     &mut rows,
-                    program
-                        .signature_service_reaches(signature.service_reaches)
-                        .iter()
-                        .map(|name| name.as_str()),
+                    names.iter().map(String::as_str),
                 ),
             )
         })
@@ -112,6 +133,56 @@ pub(crate) fn normalize_service_reaches(program: &mut SymbolResolvedTrees) {
 
     program.service_reaches = services;
     program.service_reach_rows = rows;
+}
+
+fn invoked_service_names(
+    program: &SymbolResolvedTrees,
+    services: &ServiceReachTable,
+    invokes: &[omega_symbol_resolved_trees::name::DiagnosticName],
+    parameters: &[omega_symbol_resolved_trees::signature::StateParameter],
+) -> Vec<String> {
+    let mut names = Vec::new();
+    for invocation in invokes {
+        let service = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .find(|parameter| parameter.name.as_str() == invocation.as_str())
+            .and_then(|parameter| type_symbol(program, &parameter.type_reference))
+            .and_then(|symbol| services.id_for_symbol(symbol))
+            .and_then(|service| services.definition(service))
+            .map(|definition| definition.name.clone())
+            .or_else(|| {
+                service_for_name(&program.symbols, services, invocation.as_str())
+                    .and_then(|service| services.definition(service))
+                    .map(|definition| definition.name.clone())
+            });
+        if let Some(service) = service
+            && !names.contains(&service)
+        {
+            names.push(service);
+        }
+    }
+    names
+}
+
+fn type_symbol(
+    program: &SymbolResolvedTrees,
+    type_reference: &omega_symbol_resolved_trees::types::TypeReference,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    use omega_symbol_resolved_trees::types::TypeReference;
+    match type_reference {
+        TypeReference::Reference(reference) => {
+            type_symbol(program, program.child_type_reference(reference.referee))
+        }
+        TypeReference::Constrained(constrained) => {
+            type_symbol(program, program.child_type_reference(constrained.base_type))
+        }
+        TypeReference::Generic(generic) => Some(generic.base_symbol),
+        TypeReference::DynamicTrait { symbol, .. }
+        | TypeReference::Named { symbol, .. }
+        | TypeReference::SelfType { symbol } => Some(*symbol),
+        TypeReference::FixedArray(_) | TypeReference::Slice(_) | TypeReference::Unit => None,
+    }
 }
 
 fn normalize_machine_parameter_rows(
@@ -157,14 +228,20 @@ fn normalize_machine_parameter_rows(
         .iter()
         .flat_map(|span| type_parameters.span_or_empty(*span))
         .filter_map(|parameter| match &parameter.kind {
-            TypeParameterKind::Machine { contract } => Some((
-                parameter.symbol,
-                program
+            TypeParameterKind::Machine { contract } => {
+                let mut names = program
                     .signature_service_reaches(contract.service_reaches)
                     .iter()
                     .map(|name| name.as_str().to_owned())
-                    .collect::<Vec<_>>(),
-            )),
+                    .collect::<Vec<_>>();
+                names.extend(invoked_service_names(
+                    program,
+                    services,
+                    program.signature_invokes(contract.invokes),
+                    program.state_parameters(contract.parameters),
+                ));
+                Some((parameter.symbol, names))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();

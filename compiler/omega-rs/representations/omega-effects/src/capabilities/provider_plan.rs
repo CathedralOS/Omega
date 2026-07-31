@@ -47,6 +47,10 @@ pub struct ServiceMethod {
     /// symbol-resolved service table. This includes the containing boundary
     /// trait and any explicit additional reach (with parent closure).
     pub service_reach: Vec<String>,
+    /// Direct synchronous boundary bindings this method may enter before it
+    /// returns, rendered as the selected binding's boundary-trait identity.
+    /// This remains a direct edge set; it is never replaced by reach closure.
+    pub synchronous_invocations: Vec<String>,
     /// Independent authored operational ceilings. These never derive from
     /// service reach and participate directly in provider schema identity.
     pub may_suspend: bool,
@@ -247,6 +251,7 @@ fn collect_service_methods(
                     .into_string()
             }),
             service_reach: service_reach_names(program, trait_definition, signature),
+            synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
             may_block: signature.blocks,
             calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
@@ -365,6 +370,49 @@ fn service_reach_names(
     names
 }
 
+fn synchronous_invocation_names(
+    program: &omega_typed_trees::TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> Vec<String> {
+    let parameters = program
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let mut names = crate::declared_signature_invocations(program, signature)
+        .into_iter()
+        .filter_map(|target| match target {
+            crate::InvocationTarget::Parameter(index) => parameters
+                .get(index as usize)
+                .map(|parameter| parameter.type_reference)
+                .and_then(|type_reference| boundary_trait_name_for_type(program, type_reference)),
+            crate::InvocationTarget::Service(symbol) => program
+                .traits()
+                .iter()
+                .find(|definition| definition.is_boundary && definition.symbol == symbol)
+                .map(|definition| definition.name.as_str().to_owned()),
+        })
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+fn boundary_trait_name_for_type(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+) -> Option<String> {
+    let symbol = program
+        .type_reference_table
+        .type_reference(type_reference)
+        .type_symbol(&program.type_reference_table);
+    program
+        .traits()
+        .iter()
+        .find(|definition| definition.is_boundary && definition.symbol == symbol)
+        .map(|definition| definition.name.as_str().to_owned())
+}
+
 impl ProviderPlan {
     /// PRV2: the plan's NORMALIZED IDENTITY -- an FNV-1a fingerprint over
     /// the canonical rendering (name, target, schema surface, rows in
@@ -379,11 +427,12 @@ impl ProviderPlan {
         methods.sort_by(|left, right| left.name.cmp(&right.name));
         for method in methods {
             rendered.push_str(&format!(
-                "\nm:{}/{}/{}/services:{}/suspend:{}/block:{}",
+                "\nm:{}/{}/{}/services:{}/invokes:{}/suspend:{}/block:{}",
                 method.name,
                 method.parameter_count,
                 method.has_result,
                 method.service_reach.join("+"),
+                method.synchronous_invocations.join("+"),
                 method.may_suspend,
                 method.may_block,
             ));
@@ -522,6 +571,7 @@ mod tests {
                     has_result: false,
                     result_type_identity: None,
                     service_reach: vec!["Console".to_owned()],
+                    synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: false,
                     calling_plan_fingerprint: None,
@@ -534,6 +584,7 @@ mod tests {
                     has_result: true,
                     result_type_identity: Some("u8".to_owned()),
                     service_reach: vec!["Console".to_owned()],
+                    synchronous_invocations: Vec::new(),
                     may_suspend: true,
                     may_block: false,
                     calling_plan_fingerprint: None,
@@ -546,6 +597,7 @@ mod tests {
                     has_result: false,
                     result_type_identity: None,
                     service_reach: vec!["Console".to_owned()],
+                    synchronous_invocations: Vec::new(),
                     may_suspend: false,
                     may_block: true,
                     calling_plan_fingerprint: None,

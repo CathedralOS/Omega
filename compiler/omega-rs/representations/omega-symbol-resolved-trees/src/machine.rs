@@ -49,6 +49,7 @@ pub struct MachineStorage {
     /// invalid = absent). The checker verifies it structurally.
     pub decrease_range: ExpressionHandle,
     pub service_reaches: HandleSpan<DiagnosticName>,
+    pub invokes: HandleSpan<DiagnosticName>,
     /// Authored operational ceilings, copied independently from the service
     /// row compatibility span.
     pub suspends: bool,

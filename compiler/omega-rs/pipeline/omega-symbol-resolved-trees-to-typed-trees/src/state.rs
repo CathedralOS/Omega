@@ -127,6 +127,7 @@ pub(crate) fn lower_state_signature(
             .transpose()?
             .unwrap_or_else(typed::types::TypeReferenceHandle::invalid),
         service_reaches: Default::default(),
+        invokes: Default::default(),
         service_reach_row: signature.service_reach_row,
         suspends: signature.suspends,
         blocks: signature.blocks,
@@ -171,6 +172,12 @@ pub(crate) fn lower_state_signature(
         lowerer
             .typed_trees
             .push_state_signature_parameter(&mut typed_signature, parameter);
+    }
+
+    for binding in lowerer.source_trees.signature_invokes(signature.invokes) {
+        lowerer
+            .typed_trees
+            .push_state_signature_invoke(&mut typed_signature, crate::name::lower_name(binding));
     }
 
     for service in lowerer

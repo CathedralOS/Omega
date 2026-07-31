@@ -12,7 +12,8 @@
 
 use omega_core::semantics::{
     BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachPlan, SuspensionInterface,
-    SuspensionPlan, TerminationGuarantee, TerminationInterface,
+    SuspensionPlan, SynchronousInvocationInterface, SynchronousInvocationPlan,
+    TerminationGuarantee, TerminationInterface,
 };
 use omega_core::symbols::SymbolHandle;
 
@@ -55,6 +56,8 @@ pub struct MachineContractPlan {
     pub supply_mode: MachineSupplyMode,
     /// EFX: the durable symbol-resolved service contract.
     pub service_reach: ServiceReachPlan,
+    /// Direct synchronous boundary edges, kept separate from service reach.
+    pub synchronous_invocation: SynchronousInvocationPlan,
     /// Independent authored/inferred operational axes.
     pub suspension: SuspensionPlan,
     pub blocking: BlockingPlan,
@@ -85,6 +88,8 @@ pub struct StateWriteFramePlan {
 pub fn contract_fingerprint(
     supply_mode: MachineSupplyMode,
     published_service_names: &[String],
+    invocation_interface: SynchronousInvocationInterface,
+    published_invocations: &[String],
     suspension_interface: SuspensionInterface,
     blocking_interface: BlockingInterface,
     termination: &TerminationInterface,
@@ -122,6 +127,19 @@ pub fn contract_fingerprint(
             fold(*byte);
         }
         fold(0xfa);
+    }
+    fold(match invocation_interface {
+        SynchronousInvocationInterface::InternalInferred => 1,
+        SynchronousInvocationInterface::PublishedCeiling => 2,
+    });
+    let mut canonical_invocations = published_invocations.iter().collect::<Vec<_>>();
+    canonical_invocations.sort_unstable();
+    canonical_invocations.dedup();
+    for invocation in canonical_invocations {
+        for byte in invocation.as_bytes() {
+            fold(*byte);
+        }
+        fold(0xf9);
     }
     fold(match suspension_interface {
         SuspensionInterface::InternalInferred => 1,
@@ -168,6 +186,8 @@ mod tests {
             contract_fingerprint(
                 MachineSupplyMode::Boundary,
                 &[],
+                SynchronousInvocationInterface::PublishedCeiling,
+                &[],
                 suspension,
                 blocking,
                 &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
@@ -197,6 +217,8 @@ mod tests {
             contract_fingerprint(
                 MachineSupplyMode::Boundary,
                 services,
+                SynchronousInvocationInterface::PublishedCeiling,
+                &[],
                 SuspensionInterface::PublishedMaySuspend(false),
                 BlockingInterface::PublishedMayBlock(false),
                 &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
@@ -214,10 +236,45 @@ mod tests {
     }
 
     #[test]
+    fn synchronous_invocation_ceiling_participates_in_contract_identity() {
+        let fingerprint = |interface, invocations: &[String]| {
+            contract_fingerprint(
+                MachineSupplyMode::Boundary,
+                &[],
+                interface,
+                invocations,
+                SuspensionInterface::PublishedMaySuspend(false),
+                BlockingInterface::PublishedMayBlock(false),
+                &TerminationInterface::Published(TerminationGuarantee::NoGuarantee),
+                &[],
+            )
+        };
+        let omitted = fingerprint(SynchronousInvocationInterface::PublishedCeiling, &[]);
+        let handler = fingerprint(
+            SynchronousInvocationInterface::PublishedCeiling,
+            &["parameter:0".to_owned()],
+        );
+        let composite = fingerprint(
+            SynchronousInvocationInterface::PublishedCeiling,
+            &["service:Clock".to_owned(), "parameter:0".to_owned()],
+        );
+        let reordered = fingerprint(
+            SynchronousInvocationInterface::PublishedCeiling,
+            &["parameter:0".to_owned(), "service:Clock".to_owned()],
+        );
+        let private = fingerprint(SynchronousInvocationInterface::InternalInferred, &[]);
+        assert_ne!(omitted, handler);
+        assert_ne!(omitted, private);
+        assert_eq!(composite, reordered);
+    }
+
+    #[test]
     fn internal_derivation_differs_from_published_omission() {
         let fingerprint = |termination| {
             contract_fingerprint(
                 MachineSupplyMode::CheckedBody,
+                &[],
+                SynchronousInvocationInterface::InternalInferred,
                 &[],
                 SuspensionInterface::InternalInferred,
                 BlockingInterface::InternalInferred,
