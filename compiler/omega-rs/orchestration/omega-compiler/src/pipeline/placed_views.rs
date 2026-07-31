@@ -73,6 +73,12 @@ pub(crate) fn desugar_placed_views(
 ) -> Result<Vec<PlacedViewRecord>, Vec<Diagnostic>> {
     let (applications, rewrites, schemas) = discover_applications(syntax)?;
     if applications.is_empty() {
+        // The generic boundary templates exist only as compiler input for
+        // cloning exact accessor machines. Leaving them active when a program
+        // has no `Placed<P, T>` application makes ordinary static trait
+        // selection consider `PlacedField<T>` as a real generic `Readable`,
+        // `DestructiveRead`, or `Writable` provider.
+        retire_accessor_templates(syntax);
         return Ok(Vec::new());
     }
 
