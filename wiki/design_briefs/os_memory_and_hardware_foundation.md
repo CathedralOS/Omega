@@ -1227,7 +1227,7 @@ sequential roots sharing a class provision their maximum. Missing endpoints,
 cycles, unknown nested provider-selected stacks, overflow, and re-entry of an
 already active dedicated class fail closed. Every installed root in a ledger
 must bind the same exact canonical nesting relation and provider-summary set.
-The sealed stack and work realizations retain those complete inputs; compact
+The sealed stack and fuel realizations retain those complete inputs; compact
 composition fingerprints are report keys, not admission evidence.
 
 The current Rust implementation also contains IDT-named writer, table, load,
@@ -1238,14 +1238,18 @@ symbolic/fragment materialization, external-root analysis, provider admission,
 and checked instruction contracts. `TASKS.md` P0 tracks removing the
 customer-shaped specialization.
 
-Machine-state admission checks the final footprint against the `StatePlan`;
-canonical fixed-work provider summaries compose transitively while rejecting
-missing callees, cycles, zero invocation bounds, overflow, and excess demand. The report is
-deliberately not a numbered compiler phase because roots may be installed after
-image build. A sealed provider-execution binding now joins the normalized
-selected provider-plan identity, exact entry and boundary, reach, and the
-three independent resource realizations at root admission. It is identity-bound
-into the ledger/report and cannot be replayed after entry or realization drift.
+Machine-state admission checks the final footprint against the `StatePlan`.
+Schedule-keyed fixed-fuel provider summaries compose transitively while
+rejecting mixed schedules, missing callees, cycles, zero invocation bounds,
+overflow, and excess demand. The logical-fuel provision must name the same
+schedule, and the installed-root report publishes both identities. These
+provider summaries are a precursor, not yet a canonical-IR derivation. The
+report is deliberately not a numbered compiler phase because roots may be
+installed after image build. A sealed provider-execution binding now joins the
+normalized selected provider-plan identity, exact entry and boundary, reach,
+and the three independent resource realizations at root admission. It is
+identity-bound into the ledger/report and cannot be replayed after entry or
+realization drift.
 IDT construction is an acceptance customer for these generic mechanisms, not
 another Omega subsystem. Cathedral composes an exclusively held mapped
 placement, fragmented layout/materialization plan, sealed admitted-artifact
@@ -1268,7 +1272,7 @@ policy-or-provision/realization/evidence triples:
 | column | policy or installed provision | realized artifact fact | private evidence |
 | --- | --- | --- | --- |
 | stack | selected stack domain and provision; optional fixed policy ceiling | WCSU bytes/alignment plus composed nesting demand | frame/place liveness and WCSU derivation |
-| logical work | installed canonical-IR fuel provision; optional fixed policy ceiling | composed fixed-IR demand | IR control flow, ranking bounds, callee summaries, and fixed-work proof |
+| logical fuel | installed schedule-keyed fuel provision; optional fixed policy ceiling | composed same-schedule fuel demand | current provider summaries; eventually IR control flow, ranking bounds, callee summaries, and fixed-work proof |
 | machine state | `StatePlan` permitted state and save/restore commitment | emitted transitive footprint and clobbers | instruction selection, allocation, and footprint derivation |
 
 The ledger and its report retain each applicable policy ceiling, installed
