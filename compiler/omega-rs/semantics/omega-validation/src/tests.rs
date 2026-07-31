@@ -15,6 +15,155 @@ fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
 }
 
 #[test]
+fn exact_qualification_may_publish_one_checked_content_projection() {
+    let typed = typed_program_from_source(
+        r#"
+        data Unit {}
+        data CountedQuantity<U> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Extent [linear] { base: u64; length: u64; }
+        domain Extent::Granted;
+
+        machine Granted::content(extent: &Extent) -> CountedQuantity<Unit>
+        satisfies Content<CountedQuantity<Unit>>::project
+        {
+            CountedQuantity { magnitude: extent.length }
+        }
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("one owner-attached checked content projection should validate");
+}
+
+#[test]
+fn content_projection_rejects_non_owner_machine_home() {
+    let typed = typed_program_from_source(
+        r#"
+        data Unit {}
+        data CountedQuantity<U> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Extent [linear] { base: u64; length: u64; }
+        domain Extent::Granted;
+
+        machine Foreign::content(extent: &Extent) -> CountedQuantity<Unit>
+        satisfies Content<CountedQuantity<Unit>>::project
+        {
+            CountedQuantity { magnitude: extent.length }
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a foreign machine home must not reinterpret another qualification");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("is not attached to the exact qualification it projects")
+    }));
+}
+
+#[test]
+fn exact_qualification_rejects_duplicate_content_projections() {
+    let typed = typed_program_from_source(
+        r#"
+        data Unit {}
+        data CountedQuantity<U> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Extent [linear] { base: u64; length: u64; }
+        domain Extent::Granted;
+
+        machine Granted::content(extent: &Extent) -> CountedQuantity<Unit>
+        satisfies Content<CountedQuantity<Unit>>::project
+        {
+            CountedQuantity { magnitude: extent.length }
+        }
+
+        machine Granted::again(extent: &Extent) -> CountedQuantity<Unit>
+        satisfies Content<CountedQuantity<Unit>>::project
+        {
+            CountedQuantity { magnitude: extent.length }
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an exact qualification must publish only one content projection");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("publishes more than one `Content<A>` projection")
+    }));
+}
+
+#[test]
+fn content_projection_rejects_user_defined_algebra() {
+    let typed = typed_program_from_source(
+        r#"
+        data Shape { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Extent [linear] { length: u64; }
+        domain Extent::Granted;
+
+        machine Granted::content(extent: &Extent) -> Shape
+        satisfies Content<Shape>::project
+        {
+            Shape { magnitude: extent.length }
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("content algebra vocabulary must remain closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("must select compiler-owned `Interval<CoordinateSpace>`")
+    }));
+}
+
+#[test]
+fn content_projection_rejects_arbitrary_helper_call() {
+    let typed = typed_program_from_source(
+        r#"
+        data Unit {}
+        data CountedQuantity<U> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Extent [linear] { length: u64; }
+        domain Extent::Granted;
+
+        machine hidden(extent: &Extent) -> u64 {
+            extent.length
+        }
+
+        machine Granted::content(extent: &Extent) -> CountedQuantity<Unit>
+        satisfies Content<CountedQuantity<Unit>>::project
+        {
+            CountedQuantity { magnitude: hidden(extent) }
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("an arbitrary helper call must not enter projection");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("is outside the closed projection fragment")
+    }));
+}
+
+#[test]
 fn boundary_requirement_may_authorize_its_exact_qualified_result() {
     let typed = typed_program_from_source(
         r#"

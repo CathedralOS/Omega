@@ -1,6 +1,7 @@
 mod arithmetic_domains;
 mod call_cycles;
 mod calls;
+mod content_projections;
 mod contract_entailment;
 mod data;
 mod default_domains;
@@ -132,6 +133,7 @@ fn validate_program_internal(
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
+    content_projections::validate_content_projection_conformances(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);

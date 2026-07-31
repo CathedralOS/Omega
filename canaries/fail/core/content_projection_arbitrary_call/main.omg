@@ -1,0 +1,21 @@
+use omega::language::core::content;
+
+data ByteUnit {}
+
+data Region [linear] {}
+
+domain Region::Owned;
+
+machine hidden_quantity() -> Nat {
+    Nat::Zero
+}
+
+machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: hidden_quantity() }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
