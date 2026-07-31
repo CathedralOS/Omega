@@ -360,17 +360,19 @@ fn validate_program_internal(
                 // its own writes. The flow-sensitive environment has already
                 // crossed every nested value-call frame above, so no argument can
                 // rely on a fact an earlier or opaque call may invalidate.
-                validate_value_position_calls(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    &machine_symbols,
-                    &symbols,
-                    &writable_roots,
-                    &value_env,
-                    &mut diagnostics,
-                );
+                if !content_projections::is_content_projection_machine(program, machine) {
+                    validate_value_position_calls(
+                        program,
+                        machine,
+                        state,
+                        statement,
+                        &machine_symbols,
+                        &symbols,
+                        &writable_roots,
+                        &value_env,
+                        &mut diagnostics,
+                    );
+                }
                 // PROOF MACHINES (free machines over proof-only data) are
                 // exempt from the tail-only rule: they emit no runtime code,
                 // so there is no frame to survive a non-tail call --

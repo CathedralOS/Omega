@@ -29,6 +29,7 @@ pub enum ContentArithmeticOperator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentScalarExpression {
     SubjectField(Vec<ContentFieldSegment>),
+    RuntimeScalarEmbedding(Vec<ContentFieldSegment>),
     Natural(String),
     Successor(Box<ContentScalarExpression>),
     Arithmetic {
@@ -111,12 +112,19 @@ fn encode_scalar(expression: &ContentScalarExpression, output: &mut Vec<u8>) {
                 encode_string(&segment.name, output);
             }
         }
-        ContentScalarExpression::Natural(value) => {
+        ContentScalarExpression::RuntimeScalarEmbedding(path) => {
             output.push(2);
+            output.extend_from_slice(&(path.len() as u64).to_le_bytes());
+            for segment in path {
+                encode_string(&segment.name, output);
+            }
+        }
+        ContentScalarExpression::Natural(value) => {
+            output.push(3);
             encode_string(value, output);
         }
         ContentScalarExpression::Successor(value) => {
-            output.push(3);
+            output.push(4);
             encode_scalar(value, output);
         }
         ContentScalarExpression::Arithmetic {
@@ -124,7 +132,7 @@ fn encode_scalar(expression: &ContentScalarExpression, output: &mut Vec<u8>) {
             left,
             right,
         } => {
-            output.push(4);
+            output.push(5);
             output.push(match operator {
                 ContentArithmeticOperator::Add => 1,
                 ContentArithmeticOperator::Subtract => 2,
@@ -149,6 +157,24 @@ mod tests {
     fn projection_fingerprint_ignores_arena_local_field_symbols() {
         let expression = |index| ContentProjectionExpression::CountedQuantity {
             magnitude: ContentScalarExpression::SubjectField(vec![ContentFieldSegment {
+                symbol: SymbolHandle::from_arena_index(index),
+                name: "remaining".to_owned(),
+            }]),
+        };
+        let algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(Byte))".to_owned(),
+        };
+
+        assert_eq!(
+            projection_fingerprint(&algebra, &expression(7)),
+            projection_fingerprint(&algebra, &expression(91))
+        );
+    }
+
+    #[test]
+    fn embedded_scalar_fingerprint_ignores_arena_local_field_symbols() {
+        let expression = |index| ContentProjectionExpression::CountedQuantity {
+            magnitude: ContentScalarExpression::RuntimeScalarEmbedding(vec![ContentFieldSegment {
                 symbol: SymbolHandle::from_arena_index(index),
                 name: "remaining".to_owned(),
             }]),

@@ -16,7 +16,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::DomainDefinition;
-use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
+};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_typed_trees::trait_definition::TraitDefinition;
@@ -249,6 +251,7 @@ fn selected_content_algebra(
         return None;
     };
     let TypeReferenceNode::Generic {
+        base_symbol,
         base_name,
         arguments,
         ..
@@ -256,6 +259,9 @@ fn selected_content_algebra(
     else {
         return None;
     };
+    if !compiler_owned_symbol(program, *base_symbol) {
+        return None;
+    }
     let [identity] = program
         .type_reference_table
         .type_reference_handles(*arguments)
@@ -362,6 +368,14 @@ fn normalize_projection_scalar(
         }
         ExpressionNode::Member(_) => normalize_subject_field(program, subject, expression)
             .map(|(path, _)| ContentScalarExpression::SubjectField(path)),
+        ExpressionNode::Call(call) if is_content_scalar_embedding(program, call) => {
+            let [argument] = program.expression_table.expression_handles(call.arguments) else {
+                return None;
+            };
+            let (path, field_type) = normalize_subject_field(program, subject, *argument)?;
+            runtime_scalar_can_embed(program, field_type)
+                .then_some(ContentScalarExpression::RuntimeScalarEmbedding(path))
+        }
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -471,15 +485,52 @@ fn data_field<'program>(
 }
 
 fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition) -> bool {
-    candidate
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .is_some_and(|name| name == "Content")
+    compiler_owned_symbol(program, candidate.symbol)
+        && candidate
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .is_some_and(|name| name == "Content")
         && !candidate.is_boundary
         && program.trait_type_parameters(candidate).len() == 1
         && matches!(program.trait_machine_signatures(candidate), [requirement] if requirement.name.as_str() == "project")
+}
+
+fn is_content_scalar_embedding(program: &TypedTrees, call: &TableCallExpression) -> bool {
+    !call.receiver.is_valid()
+        && call.target.as_str().rsplit("::").next() == Some("embed")
+        && compiler_owned_symbol(program, call.target_symbol)
+}
+
+fn runtime_scalar_can_embed(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    let type_reference = unconstrained(program, type_reference);
+    matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Named { name, .. }
+            if matches!(name.as_str(), "u8" | "u16" | "u32" | "u64" | "addr")
+    )
+}
+
+fn compiler_owned_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    let owning_machine = program.machines().iter().find(|machine| {
+        machine.symbol == symbol
+            || program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == symbol)
+    });
+    let declaration = owning_machine.map_or(symbol, |machine| machine.symbol);
+    let authored = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == declaration)
+        .map_or(declaration, |specialization| specialization.template);
+    match program.symbols.symbol_source_origin(authored) {
+        Some(omega_core::source::SourceOrigin::Toolchain) => true,
+        Some(omega_core::source::SourceOrigin::User) => false,
+        None => !program.symbols.has_source_metadata(),
+    }
 }
 
 fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<ProjectionSubject> {

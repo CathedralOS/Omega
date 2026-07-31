@@ -79,6 +79,46 @@ fn checked_facts_retain_normalized_content_projection() {
 }
 
 #[test]
+fn checked_facts_retain_runtime_scalar_embedding() {
+    let source = r#"
+        data Nat {
+            case Zero;
+            case Succ(previous: Nat);
+        }
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: Nat; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        boundary machine embed<T>(value: T) -> Nat;
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: embed(region.length) }
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let [plan] = checked.facts.qualifications.content.plans.as_slice() else {
+        panic!("one normalized content projection should be retained");
+    };
+    let ContentProjectionExpression::CountedQuantity { magnitude } = &plan.expression else {
+        panic!("quantity projection shape");
+    };
+    assert!(matches!(
+        magnitude,
+        ContentScalarExpression::RuntimeScalarEmbedding(path)
+            if matches!(path.as_slice(), [field] if field.name == "length" && field.symbol.is_valid())
+    ));
+}
+
+#[test]
 fn retained_content_custody_rejects_borrow_only_source() {
     let diagnostics = rejected(
         r#"

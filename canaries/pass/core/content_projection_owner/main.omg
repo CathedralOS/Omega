@@ -2,14 +2,16 @@ use omega::language::core::content;
 
 data ByteUnit {}
 
-data Region [linear] {}
+data Region [linear] {
+    remaining: u64;
+}
 
 domain Region::Owned;
 
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
 satisfies Content<CountedQuantity<ByteUnit>>::project
 {
-    CountedQuantity { magnitude: Nat::Zero }
+    CountedQuantity { magnitude: embed(region.remaining) }
 }
 
 data Main {}
