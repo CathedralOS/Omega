@@ -87,6 +87,88 @@ pub use value::{Cell, Value};
 
 use omega_checked_trees::CheckedTrees;
 
+/// Identity of the deterministic evaluator-step schedule used before the
+/// canonical portable IR exists.
+///
+/// This is deliberately distinct from canonical-IR `FuelScheduleIdentity`.
+/// It versions the current TypedTrees interpreter's accounting precursor and
+/// must not be used as an IR-derived fixed-work certificate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvaluationStepScheduleIdentity(u32);
+
+impl EvaluationStepScheduleIdentity {
+    pub const fn schedule_version(self) -> u32 {
+        self.0
+    }
+}
+
+/// The current deterministic evaluator-step schedule. Version 1 charges one
+/// unit for each entered state, executed statement, and evaluated expression.
+pub const CURRENT_EVALUATION_STEP_SCHEDULE: EvaluationStepScheduleIdentity =
+    EvaluationStepScheduleIdentity(1);
+
+/// Deterministic work measured by the current evaluator-step schedule.
+///
+/// The fields are private so future attributed telemetry can extend this
+/// record without allowing callers to fabricate usage. The evaluated program
+/// cannot observe this record or its remaining sponsor allowance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EvaluationUsage {
+    schedule: EvaluationStepScheduleIdentity,
+    fuel_units: u64,
+}
+
+impl EvaluationUsage {
+    const fn empty() -> Self {
+        Self {
+            schedule: CURRENT_EVALUATION_STEP_SCHEDULE,
+            fuel_units: 0,
+        }
+    }
+
+    pub const fn schedule(self) -> EvaluationStepScheduleIdentity {
+        self.schedule
+    }
+
+    pub const fn fuel_units(self) -> u64 {
+        self.fuel_units
+    }
+
+    fn charge_step(&mut self) -> Option<()> {
+        self.fuel_units = self.fuel_units.checked_add(1)?;
+        Some(())
+    }
+}
+
+/// A successful semantic evaluation paired with deterministic usage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasuredEvaluation<T> {
+    value: T,
+    usage: EvaluationUsage,
+}
+
+impl<T> MeasuredEvaluation<T> {
+    fn new(value: T, usage: EvaluationUsage) -> Self {
+        Self { value, usage }
+    }
+
+    pub const fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub const fn usage(&self) -> EvaluationUsage {
+        self.usage
+    }
+
+    pub fn into_value(self) -> T {
+        self.value
+    }
+
+    pub fn into_parts(self) -> (T, EvaluationUsage) {
+        (self.value, self.usage)
+    }
+}
+
 /// The result of interpreting a program.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InterpretOutcome {
@@ -100,24 +182,34 @@ pub struct InterpretOutcome {
     /// `Some` when the interpreter hit an UNSUPPORTED construct (so a harness can skip),
     /// or a genuine trap. `None` on a clean run.
     pub error: Option<String>,
+    /// Deterministic work under the current evaluator-step schedule. This is a
+    /// precursor usage record, not canonical-IR fuel.
+    pub usage: EvaluationUsage,
 }
 
 impl InterpretOutcome {
-    fn exited(exit_code: i32, stdout: Vec<u8>, stderr: Vec<u8>) -> Self {
+    fn exited(exit_code: i32, stdout: Vec<u8>, stderr: Vec<u8>, usage: EvaluationUsage) -> Self {
         Self {
             exit_code,
             stdout,
             stderr,
             error: None,
+            usage,
         }
     }
 
-    fn error(message: impl Into<String>, stdout: Vec<u8>, stderr: Vec<u8>) -> Self {
+    fn error(
+        message: impl Into<String>,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+        usage: EvaluationUsage,
+    ) -> Self {
         Self {
             exit_code: 0,
             stdout,
             stderr,
             error: Some(message.into()),
+            usage,
         }
     }
 
@@ -197,8 +289,9 @@ pub fn interpret_with_options(
 /// surface must be empty and it must take no parameters -- frozen decision 12's
 /// purity predicate); this entry owns evaluation only. Termination rides the
 /// language's existing discipline (no general recursion, loops carry
-/// decreases); a small fuel cap (~100k steps) backstops checker gaps. Errors
-/// are human-readable reasons for the compile diagnostic at the const site.
+/// decreases); a small evaluator-step ceiling (~100k units) backstops checker
+/// gaps. Errors are human-readable reasons for the compile diagnostic at the
+/// const site.
 ///
 /// Works over `TypedTrees` (pre-checking) so the compiler pipeline can
 /// substitute results BEFORE range checking and layout consume the lengths.
@@ -206,6 +299,14 @@ pub fn evaluate_const_machine(
     program: &omega_typed_trees::TypedTrees,
     machine_name: &str,
 ) -> Result<i64, String> {
+    evaluate_const_machine_measured(program, machine_name).map(MeasuredEvaluation::into_value)
+}
+
+/// [`evaluate_const_machine`] with its deterministic evaluator usage.
+pub fn evaluate_const_machine_measured(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+) -> Result<MeasuredEvaluation<i64>, String> {
     evaluator::run_const_machine(program, machine_name)
 }
 
@@ -215,14 +316,24 @@ pub fn evaluate_const_machine(
 /// structured tree. As with [`evaluate_const_machine`], the CALLER owns the
 /// legality gate (decision 12's transitive effect surface must be empty and
 /// parameters must be by-value); this entry owns evaluation, positional
-/// argument binding (count-checked), and the fuel cap. No keyword marks
-/// build-time machines -- the position makes the evaluation build-time, and
-/// the effect system makes it legal.
+/// argument binding (count-checked), and the evaluator-step ceiling. No keyword
+/// marks build-time machines -- the position makes the evaluation build-time,
+/// and the effect system makes it legal.
 pub fn evaluate_build_time_machine(
     program: &omega_typed_trees::TypedTrees,
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
 ) -> Result<BuildTimeValue, String> {
+    evaluate_build_time_machine_measured(program, machine_name, arguments)
+        .map(MeasuredEvaluation::into_value)
+}
+
+/// [`evaluate_build_time_machine`] with its deterministic evaluator usage.
+pub fn evaluate_build_time_machine_measured(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
     evaluator::run_build_time_machine(program, machine_name, arguments)
 }
 
@@ -236,6 +347,17 @@ pub fn evaluate_build_time_machine_arguments(
     machine_name: &str,
     arguments: Vec<BuildTimeValue>,
 ) -> Result<Vec<BuildTimeValue>, String> {
+    evaluate_build_time_machine_arguments_measured(program, machine_name, arguments)
+        .map(MeasuredEvaluation::into_value)
+}
+
+/// [`evaluate_build_time_machine_arguments`] with deterministic evaluator
+/// usage.
+pub fn evaluate_build_time_machine_arguments_measured(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
     evaluator::run_build_time_machine_arguments(program, machine_name, arguments)
 }
 
@@ -254,5 +376,17 @@ pub fn evaluate_build_machine_with_filesystem(
     arguments: Vec<BuildTimeValue>,
     options: InterpretOptions,
 ) -> Result<Vec<BuildTimeValue>, String> {
+    evaluate_build_machine_with_filesystem_measured(program, machine_name, arguments, options)
+        .map(MeasuredEvaluation::into_value)
+}
+
+/// [`evaluate_build_machine_with_filesystem`] with deterministic evaluator
+/// usage.
+pub fn evaluate_build_machine_with_filesystem_measured(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+    options: InterpretOptions,
+) -> Result<MeasuredEvaluation<Vec<BuildTimeValue>>, String> {
     evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
 }

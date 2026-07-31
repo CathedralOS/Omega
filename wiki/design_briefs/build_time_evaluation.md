@@ -181,7 +181,12 @@ fuel schedule in
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
 The remaining counts are attributed telemetry rather than interchangeable work
 currencies. Until canonical portable IR lands, the evaluator's versioned step
-schedule is the implementation precursor.
+schedule is the implementation precursor. Evaluator step schedule v1 is now
+explicit: it charges one unit for each entered state, executed statement, and
+evaluated expression. Successful semantic-evaluation APIs can return the value
+with this usage, and ordinary interpreted outcomes retain it as well. Equal
+invocations reproduce equal usage. This record is not canonical-IR fuel and
+cannot support an IR fixed-work certificate.
 
 This meter supports three policies without becoming program semantics:
 
@@ -252,6 +257,10 @@ artifact.
 
 - Constant positions, const-generic leaves, machine-backed domain facts, and
   layout/wire/calling policy sites already use the reference interpreter.
+- The interpreter publishes deterministic measured outcomes under evaluator
+  step schedule v1 while preserving the old value-only entry points. Canonical
+  usage telemetry beyond the scalar, progress attribution, cache charging, and
+  root-selected warning/ceiling policy remain.
 - Canonical service reach plus recursive suspension/blocking summaries are
   checked. Authority, trust, termination, abnormal-outcome, resource, and
   escaping-mutation axes still need to complete the common admission floor.

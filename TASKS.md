@@ -600,7 +600,7 @@ improvements do not change public identity.
   independent plan schema, canonical crossings, activation-wide CPU/thread
   demands, and retirement of the generalized `TaskRuntimeContract` join are
   complete. Authority-value declarations follow P1a.
-- **IRFUEL:** implement the settled
+- **IRFUEL — PARTIALLY ARCHITECTURE BLOCKED:** implement the settled
   `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md` sequence:
   versioned canonical IR and fuel schedule, evaluator/interpreter metering,
   restricted fixed-work checking over entries and safe-point segments,
@@ -609,7 +609,12 @@ improvements do not change public identity.
   has schedule-keyed provider summaries and provisions, rejects mixed
   schedules, and reports logical fuel rather than structural work; continue
   from canonical IR and its interpreter meter rather than treating that
-  provider-authored precursor as an IR proof.
+  provider-authored precursor as an IR proof. The v1 canonical IR schema,
+  serialization, and verifier/lowering boundary are blocked on
+  `OWNER_QUESTIONS.md` #9. The current TypedTrees evaluator now publishes an
+  explicitly versioned deterministic step-usage record for interpreted and
+  build-time outcomes; it is telemetry precursor evidence, not canonical-IR
+  fuel.
 - **FFIGATE:** after owner question #1, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and
@@ -850,6 +855,7 @@ blocked work.
 | #6 float-conversion requirements | checked integer/float and cross-format conversion |
 | #7 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
 | #8 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
+| #9 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
 
 ## Vertical acceptance slices
 

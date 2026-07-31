@@ -3,7 +3,9 @@
 Status: architectural direction settled 2026-07-30. The hard-root accounting
 precursor is schedule-keyed and uses logical-fuel provisions; canonical portable
 IR, metering, and general fixed-work segment checking remain implementation
-work.
+work. The concrete v1 portable-IR contract is owner-blocked on
+`OWNER_QUESTIONS.md` #9; the current evaluator-step schedule is telemetry
+precursor evidence, not canonical-IR fuel.
 
 ## Context
 

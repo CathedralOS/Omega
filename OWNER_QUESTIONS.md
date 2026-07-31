@@ -325,3 +325,52 @@ as an explicit parameter and compare-exchange keeping separate success and
 failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
+
+## 9. What is the v1 canonical portable IR contract?
+
+The architecture requires one versioned, distributable, interpreter-defined IR
+whose semantics are independent from mutable optimizer representations and
+whose identity is independent from its fuel schedule. No current document
+chooses the v1 representation. The reference interpreter executes TypedTrees
+today, while later compiler stages already have state graph, control-flow,
+abstract-operation, and target-operation forms. Declaring any one of those
+canonical would freeze an artifact and proof boundary that it was not designed
+to carry.
+
+This is not merely a serializer choice. The canonical form determines what a
+consumer verifies, what portable execution means, where ownership/effect facts
+become executable obligations, which operations receive stable fuel charges,
+and which future compiler changes preserve semantic identity.
+
+Decide:
+
+- the abstraction level and complete v1 type, value, operation, call, block,
+  transition, and terminal vocabulary;
+- where checked ownership, multiplicity, reach, trust, suspension/blocking,
+  failure, and termination obligations appear in the executable artifact
+  versus separately verified evidence;
+- how target-semantic primitives, selected conformances/providers, layouts,
+  boundary calls, and opaque admitted operations are represented without
+  embedding a particular native ABI or optimizer choice;
+- the canonical ordering, numbering, normalization, serialization, and
+  fingerprint rules, including which debug/source/proof material is excluded
+  from semantic identity;
+- the verifier boundary and the lowering that proves a checked Omega program
+  produced this IR, rather than accepting a hand-authored lookalike as checked;
+- how the reference interpreter, restricted fixed-work checker, native block
+  meter, and proof-carrying-code verifier consume the same instruction/block
+  identities; and
+- semantic-version compatibility: which changes require a new version, whether
+  artifacts may carry several versions, and how old versions remain
+  executable or explicitly retire.
+
+Recommendation: introduce a new immutable normalized execution IR after
+checked language semantics and before target-specific lowering. Use explicit
+typed values, basic blocks, calls, transitions, and closed semantic operations;
+keep target provider identities as explicit admitted operands rather than
+native encodings. Define a deterministic binary serialization and fingerprint
+over semantic content only, with debug maps and private proof evidence in
+separate sections. Make the reference interpreter execute this form, then
+derive the separately versioned fuel schedule over its stable operation/block
+identities. Do not canonize TypedTrees or a mutable backend representation by
+accident.
