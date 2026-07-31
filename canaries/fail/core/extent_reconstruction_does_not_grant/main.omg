@@ -1,7 +1,7 @@
 use omega::language::core::extent;
 
 machine consume_granted(extent: Extent in Granted) -> Extent {
-    extent
+    extent as Extent
 }
 
 data Main {}

@@ -8,7 +8,7 @@ use omega::language::std::console;
 data Main { console: Console; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 10.5 as i32;
-    self.b = (0.0 - 3.7) as i32 in Saturating; // an EXPRESSION source needs the policy
+    self.b = ((0.0 - 3.7) as i32 in Saturating) as i32; // expression source needs policy, then explicit erasure
     transition self.a == 10 { true -> neg() _ -> bad() }
     state neg(&mut self) {
         transition self.b == (0 as i32 in Wrapping) - 3 { true -> good() _ -> bad2() }

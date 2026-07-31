@@ -246,3 +246,47 @@ separate sections. Make the reference interpreter execute this form, then
 derive the separately versioned fuel schedule over its stable operation/block
 identities. Do not canonize TypedTrees or a mutable backend representation by
 accident.
+
+## 7. What is the authored unit-theory surface?
+
+The normalized quantity model is settled as structural dimension, nominal
+kind, rational scale, and non-semantic presentation. Exact `as` must derive the
+same scale relation used by mixed-unit operators, prove divisibility and
+representability, and invoke no authored conversion machine. The source
+language does not yet define how a package authors any of those unit-theory
+records.
+
+Today a declared domain receives one opaque semantic identity, and the compiler
+temporarily treats the presence of a domain-owned operator as its
+denotation/dimension contribution. There is no source form for a dimension
+vector, nominal kind, rational scale, presentation alias, or canonical unit.
+Consequently `Km` and `Metres` can be distinct semantic domains, but the
+compiler has no authored fact from which it can derive their exact ratio or
+prove that they denote the same quantity kind. Inferring that relationship
+from operator bodies or names would make normalization depend on executable
+code or spelling.
+
+Decide:
+
+- the declarations that introduce base dimensions and structural dimension
+  products, including integer exponents and canonical ordering;
+- how a nominal kind cites one dimension while keeping equal-dimension kinds
+  such as Energy and Torque distinct;
+- how a domain contributes a kind and an exact rational scale, including the
+  numerator/denominator orientation and the canonical reference unit;
+- whether derived unit products and quotients need authored names or may remain
+  normalized anonymous theories until presentation requests an alias;
+- the source form and identity effect of non-semantic presentation aliases;
+- how mixed-scale operators and exact `as` share one derived conversion plan,
+  including integer divisibility and representability obligations; and
+- which normalized dimension, kind, scale, and presentation records survive
+  generics, separate compilation, interface fingerprints, and checked
+  artifacts.
+
+Recommendation: introduce explicit nominal base-dimension and kind
+declarations, then let a domain attach one kind plus a reduced rational scale
+relative to that kind's canonical unit. Keep presentation aliases in a separate
+non-semantic field. Normalize dimension vectors and rational products at
+declaration lowering, and make both operator resolution and exact `as` consume
+that record; neither may inspect an operator body or invoke a conversion
+machine to discover unit meaning.

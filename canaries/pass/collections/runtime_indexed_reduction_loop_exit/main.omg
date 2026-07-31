@@ -17,5 +17,5 @@ machine Main::main(&mut self) {
         self.i = self.i + 1;
         transition { _ -> loop() }
     }
-    state done(&mut self) { self.console.exit_process(self.sum); }
+    state done(&mut self) { self.console.exit_process(self.sum as i32); }
 }

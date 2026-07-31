@@ -29,7 +29,7 @@ machine Main::main(&mut self) {
 
     let c: u32 in Wrapping = 0;
     let d: u32 in Wrapping = c - 1;  // 0xFFFFFFFF (wrapping)
-    let z: i8 = narrow_u32_to_i8_wrapping(d); // -1
+    let z: i8 = narrow_u32_to_i8_wrapping(d as u32); // -1; named conversion consumes an explicitly erased payload
 
     transition { _ -> ck(x, y, z) }
 

@@ -128,8 +128,8 @@ machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
     let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000000000)
         + (widen_u32_to_u64(self.subsecond_nanoseconds) as u64 in Wrapping);
     transition seconds_small {
-        true -> total_ok(total)
-        false -> total_edge(seconds_edge, subsecond_fits, total)
+        true -> total_ok(total as u64)
+        false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
     state total_ok(&self, total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
@@ -156,8 +156,8 @@ machine Duration::checked_as_microseconds(&self) -> TotalResult {
     let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000000)
         + (widen_u32_to_u64(subsecond_part) as u64 in Wrapping);
     transition seconds_small {
-        true -> total_ok(total)
-        false -> total_edge(seconds_edge, subsecond_fits, total)
+        true -> total_ok(total as u64)
+        false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
     state total_ok(&self, total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
@@ -184,8 +184,8 @@ machine Duration::checked_as_milliseconds(&self) -> TotalResult {
     let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000)
         + (widen_u32_to_u64(subsecond_part) as u64 in Wrapping);
     transition seconds_small {
-        true -> total_ok(total)
-        false -> total_edge(seconds_edge, subsecond_fits, total)
+        true -> total_ok(total as u64)
+        false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
     state total_ok(&self, total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
@@ -214,8 +214,8 @@ machine Duration::checked_add(&self, other: Duration) -> DurationResult {
         (self.seconds as u64 in Wrapping) + (other.seconds as u64 in Wrapping);
     let seconds_wrapped: bool = seconds_sum < self.seconds;
     transition nanoseconds_total >= 1000000000 {
-        true -> add_carried(nanoseconds_total, seconds_sum, seconds_wrapped)
-        false -> add_flat(nanoseconds_total, seconds_sum, seconds_wrapped)
+        true -> add_carried(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
+        false -> add_flat(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
     }
 
     state add_carried(&self, nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
@@ -224,7 +224,7 @@ machine Duration::checked_add(&self, other: Duration) -> DurationResult {
         let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
         transition seconds_wrapped {
             true -> add_overflow()
-            false -> add_carry_gate(nanoseconds_reduced, seconds_carried, carry_wrapped)
+            false -> add_carry_gate(nanoseconds_reduced as u32, seconds_carried as u64, carry_wrapped)
         }
     }
     state add_carry_gate(&self, nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> DurationResult {
@@ -288,8 +288,8 @@ machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
         - (other.subsecond_nanoseconds as u32 in Wrapping))
         + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
-        true -> subtract_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
-        false -> subtract_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+        true -> subtract_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
+        false -> subtract_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
 
     state subtract_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
@@ -355,7 +355,7 @@ machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
         (seconds_product as u64 in Wrapping) + (extra_seconds as u64 in Wrapping);
     let final_wrapped: bool = final_seconds < seconds_product;
     transition high_fits {
-        true -> multiply_carry_gate(product_wrapped, final_wrapped, final_seconds, nano_remainder)
+        true -> multiply_carry_gate(product_wrapped, final_wrapped, final_seconds as u64, nano_remainder)
         false -> multiply_overflow()
     }
     state multiply_carry_gate(&self, product_wrapped: bool, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
@@ -529,8 +529,8 @@ machine Instant::checked_add(&self, duration: Duration) -> InstantResult {
         (self.seconds as u64 in Wrapping) + (duration.seconds as u64 in Wrapping);
     let seconds_wrapped: bool = seconds_sum < self.seconds;
     transition nanoseconds_total >= 1000000000 {
-        true -> instant_add_carried(nanoseconds_total, seconds_sum, seconds_wrapped)
-        false -> instant_add_flat(nanoseconds_total, seconds_sum, seconds_wrapped)
+        true -> instant_add_carried(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
+        false -> instant_add_flat(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
     }
     state instant_add_carried(&self, nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
         let seconds_carried: u64 in Wrapping = (seconds_sum as u64 in Wrapping) + 1;
@@ -538,7 +538,7 @@ machine Instant::checked_add(&self, duration: Duration) -> InstantResult {
         let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
         transition seconds_wrapped {
             true -> instant_add_overflow()
-            false -> instant_add_carry_gate(nanoseconds_reduced, seconds_carried, carry_wrapped)
+            false -> instant_add_carry_gate(nanoseconds_reduced as u32, seconds_carried as u64, carry_wrapped)
         }
     }
     state instant_add_carry_gate(&self, nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> InstantResult {
@@ -579,8 +579,8 @@ machine Instant::checked_subtract(&self, duration: Duration) -> InstantResult {
         - (duration.subsecond_nanoseconds as u32 in Wrapping))
         + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
-        true -> instant_sub_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
-        false -> instant_sub_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+        true -> instant_sub_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
+        false -> instant_sub_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
     state instant_sub_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> InstantResult {
         transition nanoseconds_fit {
@@ -622,8 +622,8 @@ machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResu
         - (earlier.subsecond_nanoseconds as u32 in Wrapping))
         + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
-        true -> since_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
-        false -> since_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+        true -> since_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
+        false -> since_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
     state since_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
         transition nanoseconds_fit {
@@ -753,8 +753,8 @@ machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDiff
         - (self.subsecond_nanoseconds as u32 in Wrapping))
         + (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
-        true -> wall_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
-        false -> wall_equal_or_less(seconds_equal, nanoseconds_fit, back_nanoseconds_fit, seconds_direct, nanoseconds_direct, back_seconds_direct, back_seconds_borrowed, back_nanoseconds_direct, back_nanoseconds_borrowed)
+        true -> wall_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
+        false -> wall_equal_or_less(seconds_equal, nanoseconds_fit, back_nanoseconds_fit, seconds_direct as u64, nanoseconds_direct, back_seconds_direct as u64, back_seconds_borrowed as u64, back_nanoseconds_direct, back_nanoseconds_borrowed)
     }
     state wall_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> SystemTimeDifference {
         transition nanoseconds_fit {
@@ -824,8 +824,8 @@ machine SystemTime::checked_add(&self, duration: Duration) -> SystemTimeResult {
         (self.seconds_since_unix_epoch as i64 in Wrapping)
         + (narrow_u64_to_i64_wrapping(duration.seconds) as i64 in Wrapping);
     transition nanoseconds_total >= 1000000000 {
-        true -> wall_add_carried(nanoseconds_total, seconds_sum, sum_biased, add_wrapped)
-        false -> wall_add_flat(nanoseconds_total, seconds_sum, add_wrapped)
+        true -> wall_add_carried(nanoseconds_total, seconds_sum as i64, sum_biased as u64, add_wrapped)
+        false -> wall_add_flat(nanoseconds_total, seconds_sum as i64, add_wrapped)
     }
     state wall_add_carried(&self, nanoseconds_total: u32, seconds_sum: i64, sum_biased: u64, add_wrapped: bool) -> SystemTimeResult {
         let seconds_carried: i64 in Wrapping = (seconds_sum as i64 in Wrapping) + 1;
@@ -834,7 +834,7 @@ machine SystemTime::checked_add(&self, duration: Duration) -> SystemTimeResult {
         let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
         transition add_wrapped {
             true -> wall_add_overflow()
-            false -> wall_add_carry_gate(nanoseconds_reduced, seconds_carried, carry_wrapped)
+            false -> wall_add_carry_gate(nanoseconds_reduced as u32, seconds_carried as i64, carry_wrapped)
         }
     }
     state wall_add_carry_gate(&self, nanoseconds_reduced: u32, seconds_carried: i64, carry_wrapped: bool) -> SystemTimeResult {
@@ -881,8 +881,8 @@ machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeRes
         - (duration.subsecond_nanoseconds as u32 in Wrapping))
         + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition nanoseconds_fit {
-        true -> wall_sub_flat(seconds_difference, subtract_wrapped, nanoseconds_direct)
-        false -> wall_sub_borrowed(seconds_difference, difference_biased, subtract_wrapped, nanoseconds_borrowed)
+        true -> wall_sub_flat(seconds_difference as i64, subtract_wrapped, nanoseconds_direct)
+        false -> wall_sub_borrowed(seconds_difference as i64, difference_biased as u64, subtract_wrapped, nanoseconds_borrowed)
     }
     state wall_sub_flat(&self, seconds_difference: i64, subtract_wrapped: bool, nanoseconds_direct: u32) -> SystemTimeResult {
         transition subtract_wrapped {
@@ -896,7 +896,7 @@ machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeRes
         let borrow_wrapped: bool = borrowed_biased > difference_biased;
         transition subtract_wrapped {
             true -> wall_sub_overflow()
-            false -> wall_sub_borrow_gate(seconds_borrowed, borrow_wrapped, nanoseconds_borrowed)
+            false -> wall_sub_borrow_gate(seconds_borrowed as i64, borrow_wrapped, nanoseconds_borrowed)
         }
     }
     state wall_sub_borrow_gate(&self, seconds_borrowed: i64, borrow_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
@@ -1053,8 +1053,8 @@ machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
         - (start.subsecond_nanoseconds as u32 in Wrapping))
         + (now_subsecond as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
-        true -> elapsed_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
-        false -> elapsed_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+        true -> elapsed_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
+        false -> elapsed_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
     state elapsed_bigger(&mut self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
         transition nanoseconds_fit {

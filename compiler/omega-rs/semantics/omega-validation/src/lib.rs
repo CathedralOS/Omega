@@ -5,6 +5,7 @@ mod contract_entailment;
 mod data;
 mod default_domains;
 mod destructure;
+mod domain_weakening;
 mod domains;
 mod effects;
 mod entry_point;
@@ -487,6 +488,19 @@ fn validate_state_statement_node(
                             assignment.target,
                         )
                     });
+            // Weakening is about the target's STATIC qualification, so retain
+            // the Constrained shell that the older representation/class checks
+            // intentionally unwrap above.
+            let assignment_target_type_raw =
+                places::declared_place_type_raw(program, machine, state, assignment.target)
+                    .or_else(|| {
+                        places::declared_indexed_projection_type_raw(
+                            program,
+                            machine,
+                            machine_symbols.state(state_name),
+                            assignment.target,
+                        )
+                    });
             let assignment_target_primitive =
                 assignment_target_type.and_then(|handle| program.primitive_type_reference(handle));
             // An array-literal RHS into a `[T; N]` target: check each element's
@@ -560,6 +574,17 @@ fn validate_state_statement_node(
                     target_type,
                     &owner,
                     "place",
+                    diagnostics,
+                );
+            }
+            if let Some(target_type) = assignment_target_type_raw {
+                domain_weakening::validate_implicit_domain_weakening(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
                     diagnostics,
                 );
             }
@@ -761,6 +786,15 @@ fn validate_state_statement_node(
                     "return value",
                     diagnostics,
                 );
+                domain_weakening::validate_implicit_domain_weakening(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    state.return_type,
+                    &slot_context,
+                    diagnostics,
+                );
             }
             let before = diagnostics.len();
             let (return_interval, source_primitive) = arithmetic_domains::validate_value_range(
@@ -907,6 +941,15 @@ fn validate_state_statement_node(
                     local_data.type_reference,
                     &owner,
                     "local",
+                    diagnostics,
+                );
+                domain_weakening::validate_implicit_domain_weakening(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
                     diagnostics,
                 );
             }
@@ -1115,6 +1158,15 @@ fn validate_state_statement_node(
                             state.return_type,
                             &format!("machine `{}` state `{state_name}`", machine.name),
                             "return value",
+                            diagnostics,
+                        );
+                        domain_weakening::validate_implicit_domain_weakening(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
                             diagnostics,
                         );
                         arithmetic_domains::validate_return_value_range(

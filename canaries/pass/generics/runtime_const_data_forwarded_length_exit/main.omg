@@ -19,5 +19,5 @@ data Main {
 machine Main::main(&mut self) {
     self.forwarded.buffer.items[3] = 70;
     let result: i32 in Wrapping = self.forwarded.buffer.items[3];
-    self.console.exit_process(result);
+    self.console.exit_process(result as i32);
 }

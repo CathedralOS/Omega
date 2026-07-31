@@ -12,7 +12,7 @@ satisfies ExtentRootProvider::grant
 }
 
 machine consume_granted(root: Extent in Granted) -> Extent {
-    root
+    root as Extent
 }
 
 data Harness {

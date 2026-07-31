@@ -26,7 +26,7 @@ machine Main::main(&mut self) {
         false -> bad()
     }
     state good(&mut self) { self.console.exit_process(42); }
-    state bad(&mut self) { self.console.exit_process(self.got); }
+    state bad(&mut self) { self.console.exit_process(self.got as i32); }
 }
 machine Main::read(&mut self, r: &Inner) {
     // assignment RHS through the ref param (both fields), then a guard on one

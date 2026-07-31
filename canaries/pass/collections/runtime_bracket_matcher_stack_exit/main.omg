@@ -57,7 +57,7 @@ machine Main::main(&mut self) {
         }
     }
     state do_push(&mut self) {
-        self.stack[self.top] = self.cur;
+        self.stack[self.top] = self.cur as i32;
         self.top = self.top + 1;
         self.i = self.i + 1;
         transition {

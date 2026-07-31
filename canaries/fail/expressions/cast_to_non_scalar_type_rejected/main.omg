@@ -1,8 +1,9 @@
-// `as` converts between scalar types only. A cast to a non-scalar target -- a data
-// type (`42 as Foo`) or an unknown/typo'd type (`42 as Bogus`) -- used to compile
+// Non-scalar `as` only erases qualifications from the same data carrier. A cast
+// from a scalar to a data target (`42 as Foo`) or an unknown/typo'd type
+// (`42 as Bogus`) used to compile
 // SILENTLY as identity (the target resolved to no primitive, so the conversion was a
 // no-op and the value passed through with the wrong type; `42 as Bogus` ran to exit 42).
-// The cast target is now validated to be a scalar primitive.
+// The cast target must now either be scalar or preserve the source data carrier.
 use omega::language::std::console;
 data Foo { a: i32; }
 data Main { console: Console; }

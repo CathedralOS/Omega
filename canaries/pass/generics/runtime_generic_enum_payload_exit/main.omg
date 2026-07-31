@@ -14,6 +14,6 @@ machine Main::main(&mut self) {
         Maybe::Some { value } -> take(value)
         Maybe::None -> bad()
     }
-    state take(&mut self, v: i32 in Wrapping) { self.console.exit_process(v); }
+    state take(&mut self, v: i32 in Wrapping) { self.console.exit_process(v as i32); }
     state bad(&mut self)  { self.console.exit_process(71); }
 }

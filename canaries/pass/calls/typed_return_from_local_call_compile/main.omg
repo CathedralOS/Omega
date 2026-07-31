@@ -8,5 +8,5 @@ machine add_i32(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 {
 
 machine Main::main(&mut self) -> i32 {
     let sum: i32 in Wrapping = add_i32(3, 4);
-    sum
+    sum as i32
 }

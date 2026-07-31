@@ -23,7 +23,7 @@ machine Main::main(&mut self) {
 
     // f32 field binary -> local, then cast to i32
     let c: f32 = self.a + self.b;  // 4.0 via struct fields
-    let n: i32 = c as i32 in Saturating; // Should be 4 (F4: proof-or-policy)
+    let n: i32 = (c as i32 in Saturating) as i32; // Should be 4 (F4: proof-or-policy)
 
     transition n == 4 {
         true -> good()

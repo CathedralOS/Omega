@@ -36,7 +36,7 @@ machine Main::main(
     ) {
         reward.kind = RewardKind::GoldAndItem;
         reward.gold = 1 + enemy.depth + self.range(random, 5);
-        reward.item = self.roll_item(enemy.depth, random);
+        reward.item = self.roll_item(enemy.depth as u32, random);
     }
 
     state enemy_gold(

@@ -1,0 +1,54 @@
+// Predicate-only qualifications may be forgotten implicitly. Semantic
+// meaning and arithmetic policy remain static until an explicit bare `as`
+// target removes them.
+
+domain i32::Positive
+requires
+    self >= 0;
+
+domain i32::Degrees;
+
+operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
+
+data Token {
+    value: u64;
+}
+
+domain Token::Issued {
+    TokenIssuer::issue;
+}
+
+trait TokenIssuer {
+    machine issue(value: u64) -> Token
+    ensures
+        result in Token::Issued;
+}
+
+machine Token::issue(value: u64) -> Token
+satisfies TokenIssuer::issue
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+machine consume(value: i32) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let positive: i32 in Positive = 5 as i32 in Positive;
+    let predicate_forgotten: i32 = positive;
+
+    let degrees: i32 in Degrees = 90 as i32 in Degrees;
+    let semantic_erased: i32 = degrees as i32;
+    consume(degrees as i32);
+
+    let wrapped: i32 in Wrapping = 1 as i32 in Wrapping;
+    let policy_erased: i32 = wrapped as i32;
+
+    let issued: Token in Issued = Token::issue(7);
+    let provenance_erased: Token = issued as Token;
+}

@@ -569,13 +569,23 @@ pub(crate) fn validate_cast_types(
         validate_quotient_mint(program, machine, state, cast, quotient_data, diagnostics);
         return;
     }
-    // Target must be a scalar primitive.
+    // A non-scalar `as` is legal only as a representation-preserving cast to
+    // the same data carrier. This is the explicit erasure surface for a
+    // non-owning semantic/provenance qualification (`issued as Token`): the
+    // runtime value is unchanged, while the cast's deliberately bare target
+    // controls which static domain atoms survive. Arbitrary struct-to-struct
+    // conversion remains rejected.
     if let Some(target) = target_name
         && PrimitiveType::from_name(target.as_str()).is_none()
     {
+        if base_data_symbol(program, cast.target_type).is_some_and(|target| {
+            expression_data_symbol(program, machine, state, cast.value) == Some(target)
+        }) {
+            return;
+        }
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not a scalar \
-             type; `as` converts between scalar types only",
+             type; non-scalar `as` only erases qualifications from the same data carrier",
             machine.name.as_str(),
             state.map(|state| state.name.as_str()).unwrap_or(""),
         )));
@@ -707,6 +717,10 @@ fn expression_data_symbol(
             .find(|definition| definition.name.as_str() == literal.type_name.as_str())
             .map(|definition| definition.symbol),
         ExpressionNode::Mutable(inner) => expression_data_symbol(program, machine, state, *inner),
+        ExpressionNode::Atomic(atomic) => {
+            expression_data_symbol(program, machine, state, atomic.value)
+        }
+        ExpressionNode::Cast(cast) => base_data_symbol(program, cast.target_type),
         _ => None,
     }
 }

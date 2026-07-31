@@ -5,7 +5,7 @@
 use omega::language::std::console;
 data Summer {}
 data Main { console: Console; arr: [i32; 3]; summer: Summer; }
-machine Summer::sum(&mut self, s: &[i32], acc: i32 in Saturating) -> i32
+machine Summer::sum(&mut self, s: &[i32], acc: i32 in Saturating) -> i32 in Saturating
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -17,5 +17,5 @@ machine Main::main(&mut self) {
     self.arr[0] = 30; self.arr[1] = 25; self.arr[2] = 15;
     let s: &[i32] = self.arr.as_slice();
     let total: i32 in Saturating = self.summer.sum(s, 0);
-    self.console.exit_process(total);
+    self.console.exit_process(total as i32);
 }

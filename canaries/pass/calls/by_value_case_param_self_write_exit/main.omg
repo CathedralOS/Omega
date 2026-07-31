@@ -38,7 +38,7 @@ machine Main::main(&mut self) {
         }
     }
     state report(&mut self, code: i32 in Wrapping) {
-        self.console.exit_process(code);
+        self.console.exit_process(code as i32);
     }
 }
 

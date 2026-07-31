@@ -1197,8 +1197,14 @@ Working interpretation:
 > declarations reject, and operator association grants no establishment
 > authority. Owner machines and boundary contract placement do not infer
 > establishment routes; every routed qualification names its exact checked or
-> boundary requirement in the domain declaration. Exact
-> representation/scale conversion and per-domain erasure are not yet
-> implemented. Arithmetic policies still have special lowering paths. General
+> boundary requirement in the domain declaration. Exact integer representation
+> conversion now uses proof-directed `as`; normalized unit-scale conversion is
+> blocked on the authored unit-theory surface in `OWNER_QUESTIONS.md` #7.
+> Per-atom weakening is enforced at ordinary value-flow boundaries:
+> predicate-only atoms may disappear implicitly, while semantic meaning,
+> non-owning routed provenance, and non-Exact arithmetic policy require an
+> explicit bare `as`; same-data-carrier erasure is a zero-work identity cast.
+> Owned obligations remain governed by multiplicity/custody. Arithmetic
+> policies still have special lowering paths. General
 > domain work must preserve every domain-theory axis independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

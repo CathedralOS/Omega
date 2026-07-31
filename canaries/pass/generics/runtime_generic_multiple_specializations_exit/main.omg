@@ -21,5 +21,5 @@ machine Main::main(&mut self) {
     let from_light: i32 in Wrapping = self.pick(&self.light);
     let from_number: i32 in Wrapping = self.pick(&self.number);
     let result: i32 in Wrapping = from_light + from_number;
-    self.console.exit_process(result);
+    self.console.exit_process(result as i32);
 }

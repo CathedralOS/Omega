@@ -14,5 +14,5 @@ machine Main::main(&mut self) {
     self.g = self.dbl(6);
     self.sum = self.f + self.g;
     transition { _ -> done() }
-    state done(&mut self) { self.console.exit_process(self.sum); }
+    state done(&mut self) { self.console.exit_process(self.sum as i32); }
 }

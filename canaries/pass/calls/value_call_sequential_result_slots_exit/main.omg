@@ -45,7 +45,7 @@ machine Main::main(&mut self) {
 
 // f has an internal let binding: rr = r * r.
 // NeedsBranchPrelude lowering: splices LocalStorage(rr) into the caller body.
-machine Main::f(&mut self, r: i32 in Wrapping) -> i32 {
+machine Main::f(&mut self, r: i32 in Wrapping) -> i32 in Wrapping {
     let rr: i32 in Wrapping = r * r;
     transition {
         _ -> rr

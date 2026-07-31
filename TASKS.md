@@ -150,8 +150,13 @@ all widening accepted by the source carrier range, while narrowing and
 signedness changes require a declared-range or dominating-guard proof.
 Unproved casts reject and direct authors to visible named policies; same-carrier
 policy erasure remains exact by bounding inferred facts with the source carrier.
-Denotation-preserving normalized unit representation/scale conversion, explicit
-semantic erasure, and per-domain weakening remain.
+Per-atom weakening is now enforced at assignments, initializers, arguments,
+returns, struct fields, and array elements: predicate-only atoms may disappear
+implicitly, while semantic meaning, routed provenance, and non-Exact arithmetic
+policy require an explicit bare `as`. Same-data-carrier `as` supplies the
+zero-runtime-work provenance-erasure surface. Normalized unit
+representation/scale conversion is language-design blocked on the missing
+authored unit-theory surface in `OWNER_QUESTIONS.md` #7.
 
 The source/IR route migration is complete: domain predicate `requires` and exact
 `Trait::requirement` body entries now parse into independent records; authored
@@ -610,8 +615,10 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Keep these summaries as inferred implementation metadata. Published
   `ensures` may state exact preservation when an interface needs it; prefer
   signatures exposing only the places a callee actually mutates.
-- **DOM1/DOM2/DOM3/DOM5:** finish operator ownership, predicate `requires`,
-  exact route bodies, denotation-preserving `as`, and per-domain weakening.
+- **DOM1/DOM2/DOM3/DOM5:** finish denotation-preserving unit `as`. Unit
+  conversion is language-design blocked on `OWNER_QUESTIONS.md` #7; exact
+  integer `as`, per-atom weakening/explicit erasure, operator ownership,
+  predicate `requires`, and exact route bodies are complete.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
@@ -937,6 +944,7 @@ blocked work.
 | #4 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
 | #5 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
 | #6 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
+| #7 authored unit theory | normalized unit identity, mixed-scale operators, and exact unit-scale `as` |
 
 ## Vertical acceptance slices
 

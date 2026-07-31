@@ -385,9 +385,11 @@ requirement routes; checked artifacts retain those identities, and neither
 owner placement nor boundary contract placement infers authority. The coercion
 resolver now enforces denotation-preserving integer `as`: widening follows the
 source carrier range and narrowing or signedness changes require a complete
-representability proof. Normalized unit-scale coercion, weakening/erasure, and
-the remaining domain-theory artifact fields still need to adopt the rest of
-this brief.
+representability proof. Normalized unit-scale coercion is blocked on the
+authored unit-theory surface in `OWNER_QUESTIONS.md` #7. Per-atom weakening and
+explicit erasure are enforced across ordinary value-flow boundaries, including
+same-data-carrier provenance erasure; the remaining domain-theory artifact
+fields still need to adopt the rest of this brief.
 
 Migration should:
 
@@ -401,9 +403,11 @@ Migration should:
    every domain predicate is proved;
 5. implement exact denotation-preserving `as` across numeric representation
    and normalized unit scales without invoking user code (integer
-   representation complete; normalized unit scales pending);
-6. implement per-atom implicit weakening, explicit semantic erasure, and
-   ownership-governed claim removal; and
+   representation complete; normalized unit scales blocked on
+   `OWNER_QUESTIONS.md` #7);
+6. preserve the implemented per-atom implicit weakening and explicit semantic,
+   provenance, and arithmetic-policy erasure while ownership continues to
+   govern claim removal; and
 7. preserve those facts through generics, contracts, artifacts, and separate
    compilation.
 

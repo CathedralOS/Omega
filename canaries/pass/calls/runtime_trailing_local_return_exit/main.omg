@@ -26,17 +26,17 @@ data Box1 {
 machine Box1::take(&mut self) -> i32 {
     let value: i32 in Wrapping = self.n;
     self.n = 1;
-    value
+    value as i32
 }
 
 machine Box1::offset(&self, amount: i32 in Wrapping) -> i32 {
     let total: i32 in Wrapping = self.n + amount;
-    total
+    total as i32
 }
 
 machine fixed() -> i32 {
     let answer: i32 in Wrapping = 25;
-    answer
+    answer as i32
 }
 
 data Main {

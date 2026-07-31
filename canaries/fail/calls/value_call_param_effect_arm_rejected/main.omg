@@ -19,6 +19,6 @@ machine Main::main(&mut self) {
     self.v = 5;
     let n: i32 = self.pick(self.v, &mut self.tally);
     transition n == 100 { true -> report() _ -> bad(99) }
-    state report(&mut self) { self.console.exit_process(self.tally.count); }
+    state report(&mut self) { self.console.exit_process(self.tally.count as i32); }
     state bad(&mut self, code: i32) { self.console.exit_process(code); }
 }
