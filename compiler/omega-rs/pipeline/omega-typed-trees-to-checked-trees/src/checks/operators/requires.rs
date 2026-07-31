@@ -394,7 +394,11 @@ fn context_proves_membership_label(
             _ => return false,
         };
         if !semantic.domain_implies(fact_domain, required_domain)
-            && !crate::field_domain::declared_domain_implies(program, fact_domain, required_domain)
+            && !crate::field_domain::domain_membership_implies(
+                program,
+                fact_domain,
+                required_domain,
+            )
         {
             return false;
         }

@@ -335,6 +335,91 @@ pub(crate) fn declared_domain_implies(
     omega_typed_trees::domain::declared_domain_implies(program, source_domain, target_domain)
 }
 
+/// Whether an established membership in `source_domain` proves membership in
+/// `target_domain`, including the one representation-changing projection that
+/// preserves a byte sequence exactly: an owned bounded `[u8; N]` carrier viewed
+/// as `[u8]`.
+///
+/// Declared domains remain storage-bound, so the fixed carrier and slice view
+/// intentionally have distinct semantic identities. The language nevertheless
+/// specifies that projecting bounded text to a view carries its domain. Admit
+/// that implication only when both declarations consist of the same single
+/// compiler-recognized byte predicate. This proves that the live bytes exposed
+/// by the view satisfy precisely the required theory without conflating the two
+/// carrier identities or blessing unrelated cross-carrier recasts.
+pub(crate) fn domain_membership_implies(
+    program: &omega_typed_trees::TypedTrees,
+    source_domain: SymbolHandle,
+    target_domain: SymbolHandle,
+) -> bool {
+    if declared_domain_implies(program, source_domain, target_domain) {
+        return true;
+    }
+
+    let Some(source) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == source_domain)
+    else {
+        return false;
+    };
+    let Some(target) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == target_domain)
+    else {
+        return false;
+    };
+    if !is_fixed_byte_carrier(program, source.target_type)
+        || !is_byte_slice_carrier(program, target.target_type)
+        || source.name.as_str().rsplit("::").next() != target.name.as_str().rsplit("::").next()
+    {
+        return false;
+    }
+
+    match (
+        domain_byte_predicate(program, source_domain),
+        domain_byte_predicate(program, target_domain),
+    ) {
+        (Some(source), Some(target)) => source == target,
+        _ => false,
+    }
+}
+
+fn is_fixed_byte_carrier(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } => is_fixed_byte_carrier(program, *base_type),
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            program.type_reference_table.primitive_type(*element_type)
+                == Some(omega_typed_trees::types::PrimitiveType::U8)
+        }
+        _ => false,
+    }
+}
+
+fn is_byte_slice_carrier(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } => is_byte_slice_carrier(program, *base_type),
+        TypeReferenceNode::Slice { element_type } => {
+            program.type_reference_table.primitive_type(*element_type)
+                == Some(omega_typed_trees::types::PrimitiveType::U8)
+        }
+        _ => false,
+    }
+}
+
 // --- comptime byte-predicate machinery (moved here from
 // `checks::contracts::grants` so the `semantic` fact-producer can reuse it) ---
 
