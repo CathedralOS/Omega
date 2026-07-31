@@ -1,0 +1,13 @@
+// An empty domain has no predicate or provenance obligations. Explicit `as`
+// qualifies directly without invoking or selecting user code.
+
+domain i64::Km;
+domain i64::Distance = Km;
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let first: i64 in Km = 5 as i64 in Km;
+    let second: i64 in Km = 6 as i64 in Km;
+    let aliased: i64 in Distance = 7 as i64 in Distance;
+}

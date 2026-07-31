@@ -8,7 +8,6 @@ use std::ops::{Deref, DerefMut};
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,
     pub is_boundary: bool,
-    pub semantic_role: omega_core::semantics::TraitSemanticRole,
     pub name: DiagnosticName,
     pub storage: TraitStorage,
 }

@@ -1401,7 +1401,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
 }
 
 #[test]
-fn bodyless_domain_mint_requires_canonical_authority_not_a_predicate_proof() {
+fn empty_domain_explicit_as_requires_neither_predicate_nor_user_satisfier() {
     let typed = typed_program_from_source(
         r#"
         domain i64::Km {}
@@ -1411,19 +1411,8 @@ fn bodyless_domain_mint_requires_canonical_authority_not_a_predicate_proof() {
         }
         "#,
     );
-    let diagnostics = validate_program(&typed)
-        .expect_err("a bodyless qualification without a canonical satisfier must fail closed");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("has no canonical representation qualification")
-    }));
-    assert!(
-        diagnostics
-            .iter()
-            .all(|diagnostic| !diagnostic.message.contains("predicate obligation")),
-        "bodyless qualification owes authority, not a body proof: {diagnostics:#?}"
-    );
+    validate_program(&typed)
+        .expect("an empty domain is explicitly and vacuously qualified by compiler-derived `as`");
 }
 
 #[test]

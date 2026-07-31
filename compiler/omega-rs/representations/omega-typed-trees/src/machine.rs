@@ -84,7 +84,6 @@ pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
-    pub semantic_role: omega_core::semantics::TraitConformanceSemanticRole,
     /// The single-requirement binding (`satisfies Trait::requirement`,
     /// rearrange settle 2026-07-18): `Some` conforms the machine to that one
     /// requirement instead of the whole trait; `alias` names the satisfier
@@ -101,7 +100,6 @@ impl Default for TraitConformance {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             arguments: HandleSpan::empty(),
-            semantic_role: omega_core::semantics::TraitConformanceSemanticRole::Ordinary,
             requirement: None,
             alias: None,
             via: None,

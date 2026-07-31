@@ -92,27 +92,6 @@ pub(crate) struct SynthesizedArmState {
 }
 
 impl Lowerer {
-    pub(crate) fn is_toolchain_core_qualification(
-        &self,
-        source_span: omega_core::source::SourceSpan,
-    ) -> bool {
-        let Some(file) = self
-            .sources
-            .as_deref()
-            .and_then(|sources| sources.file_at(source_span))
-        else {
-            return false;
-        };
-        file.origin == omega_core::source::SourceOrigin::Toolchain
-            && file.path.file_name().and_then(|name| name.to_str()) == Some("qualification.omg")
-            && file
-                .path
-                .parent()
-                .and_then(|parent| parent.file_name())
-                .and_then(|name| name.to_str())
-                == Some("core")
-    }
-
     fn new(sources: Option<Arc<SourceMap>>) -> Self {
         Self {
             symbol_resolved_trees: SymbolResolvedTrees::default(),

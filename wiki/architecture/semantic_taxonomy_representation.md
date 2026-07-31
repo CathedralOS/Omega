@@ -173,6 +173,16 @@ matching admitted facts, and checked artifacts publish
 identity. Exact owner-authorized admitted-subject matching is now live.
 Exact `as` uses retain the normalized domain and derivation before lowering.
 
+Implementation status (P1b vacuous qualification, 2026-07-30): an explicit
+`as` into an empty atomic domain is compiler-derived identity work and requires
+no user-authored satisfier. Transparent aliases qualify this way only when
+every expanded atom is empty. The former core
+`RepresentationQualification` trait and its privileged trait/conformance
+roles, satisfier selection, erased call lowering, and canonical-use artifact
+are gone. Checked artifacts retain the exact cast site and
+`vacuous_qualification` origin; predicate-bearing and routed atoms do not enter
+through this path.
+
 Implementation status (P1a establishment routes, 2026-07-28):
 `DomainEstablishmentRoute` records the exact trait-requirement identity
 authorized by a domain body. Syntax-to-resolved lowering normalizes those

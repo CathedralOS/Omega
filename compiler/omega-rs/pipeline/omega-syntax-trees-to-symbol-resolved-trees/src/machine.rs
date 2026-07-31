@@ -422,7 +422,6 @@ fn lower_machine_trait_conformances(
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(&clause.trait_name),
                     arguments,
-                    semantic_role: omega_core::semantics::TraitConformanceSemanticRole::Ordinary,
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),
                     via: clause

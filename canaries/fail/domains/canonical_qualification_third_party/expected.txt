@@ -1,1 +1,0 @@
-declared outside the domain-owning package

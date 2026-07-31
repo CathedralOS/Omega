@@ -216,7 +216,6 @@ impl ExpressionTable {
                     domain: cast.domain,
                     semantic_domain,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
-                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 }))
             }
@@ -615,7 +614,6 @@ impl ExpressionTable {
                     domain: cast.domain,
                     semantic_domain,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
-                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 }))
             }
@@ -955,9 +953,6 @@ pub struct TableCastExpression {
     /// Normalized declaration identity for `semantic_domain`. Populated in
     /// typed normalization after carrier-aware domain lookup.
     pub semantic_domain_symbol: SymbolHandle,
-    /// The one canonical home satisfier selected for an implicit bodyless
-    /// qualification. Invalid for bodyful, absent, and ambiguous routes.
-    pub qualification_satisfier: SymbolHandle,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
     pub form: omega_core::cast_form::CastForm,
 }

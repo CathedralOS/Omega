@@ -16,29 +16,20 @@ pub struct QualificationFacts {
     /// One entry per machine that COMMITS to at least one semantic domain
     /// (cast-free machines carry no entry), in machine order.
     pub machines: Vec<MachineQualifications>,
-    /// Every accepted use of the closed canonical bodyless-qualification
-    /// relationship, retained even though checked lowering erases the
-    /// satisfier invocation from the executable tree.
-    pub canonical_uses: Vec<CanonicalQualificationUse>,
+    /// Every explicit `as` that qualifies into a domain with no predicates or
+    /// establishment routes. The cast remains representation-identical, but
+    /// the checked artifact records where vacuous evidence originated.
+    pub vacuous_uses: Vec<VacuousQualificationUse>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CanonicalQualificationUseKind {
-    ImplicitCast,
-    NamedSatisfierCall,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CanonicalQualificationUse {
+pub struct VacuousQualificationUse {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub statement_index: u32,
-    /// The typed expression that carried the use before erasure. Statement
-    /// calls have no expression root and retain an invalid handle here.
+    /// The typed expression carrying the explicit qualification.
     pub expression: ExpressionHandle,
     pub domain: SymbolHandle,
-    pub satisfier: SymbolHandle,
-    pub kind: CanonicalQualificationUseKind,
 }
 
 impl QualificationFacts {

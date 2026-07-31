@@ -910,38 +910,6 @@ pub enum DomainEstablishmentRoute {
         boundary_trait: crate::symbols::SymbolHandle,
         requirement: crate::symbols::SymbolHandle,
     },
-    /// The core representation-qualification relationship (P1b).
-    CanonicalQualification {
-        satisfier: crate::symbols::SymbolHandle,
-    },
-}
-
-/// Compiler-owned meaning attached to a shipped core trait declaration.
-///
-/// Recognition happens once from trusted source provenance. Downstream
-/// consumers use this closed role instead of treating a user-spellable trait
-/// name as authority.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum TraitSemanticRole {
-    #[default]
-    Ordinary,
-    RepresentationQualification,
-}
-
-/// Normalized meaning of one machine-level `satisfies` clause.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum TraitConformanceSemanticRole {
-    #[default]
-    Ordinary,
-    RepresentationQualification {
-        /// The one bodyless domain added by the qualified type argument.
-        /// Invalid until/when the argument normalizes to that exact shape.
-        domain: crate::symbols::SymbolHandle,
-        /// Whether the satisfier is in the domain-owning package. Explicit
-        /// delegation will set this through its future owner-authorized
-        /// package record rather than weakening this bit.
-        home_authorized: bool,
-    },
 }
 
 impl DomainEstablishmentRoute {
@@ -950,7 +918,6 @@ impl DomainEstablishmentRoute {
             Self::OwnerCheckedMachine { .. } => "owner_checked_machine",
             Self::OwnerOperator { .. } => "owner_operator",
             Self::BoundaryRequirement { .. } => "boundary_requirement",
-            Self::CanonicalQualification { .. } => "canonical_qualification",
         }
     }
 
@@ -959,16 +926,15 @@ impl DomainEstablishmentRoute {
             Self::OwnerCheckedMachine { machine } => machine,
             Self::OwnerOperator { operator } => operator,
             Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
-            Self::CanonicalQualification { satisfier } => satisfier,
         }
     }
 
     pub const fn requirement_symbol(self) -> crate::symbols::SymbolHandle {
         match self {
             Self::BoundaryRequirement { requirement, .. } => requirement,
-            Self::OwnerCheckedMachine { .. }
-            | Self::OwnerOperator { .. }
-            | Self::CanonicalQualification { .. } => crate::symbols::SymbolHandle::invalid(),
+            Self::OwnerCheckedMachine { .. } | Self::OwnerOperator { .. } => {
+                crate::symbols::SymbolHandle::invalid()
+            }
         }
     }
 }
@@ -995,8 +961,8 @@ pub enum QualificationEvidenceOrigin {
     AdmittedReceipt,
     /// Existing evidence was carried without changing its subject.
     Propagated,
-    /// The core identity qualification conformance established a bodyless fact.
-    CanonicalQualification,
+    /// Explicit `as` introduced a domain with no predicates or routes.
+    VacuousQualification,
 }
 
 impl QualificationEvidenceOrigin {
@@ -1009,7 +975,7 @@ impl QualificationEvidenceOrigin {
             Self::CheckedTransformation => "checked_transformation",
             Self::AdmittedReceipt => "admitted_receipt",
             Self::Propagated => "propagated",
-            Self::CanonicalQualification => "canonical_qualification",
+            Self::VacuousQualification => "vacuous_qualification",
         }
     }
 }
@@ -1092,8 +1058,8 @@ mod tests {
         assert_eq!(Origin::AdmittedReceipt.as_str(), "admitted_receipt");
         assert_eq!(Origin::Propagated.as_str(), "propagated");
         assert_eq!(
-            Origin::CanonicalQualification.as_str(),
-            "canonical_qualification"
+            Origin::VacuousQualification.as_str(),
+            "vacuous_qualification"
         );
     }
 

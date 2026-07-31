@@ -117,7 +117,6 @@ fn lower_expression_node_into_table(
                     domain: cast.domain,
                     semantic_domain,
                     semantic_domain_symbol: SymbolHandle::invalid(),
-                    qualification_satisfier: SymbolHandle::invalid(),
                     form: cast.form,
                 })),
             )
