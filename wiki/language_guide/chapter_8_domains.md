@@ -206,34 +206,30 @@ state-local obligation.
 > **`as` never silently changes denotation: qualified targets preserve it;
 > an explicitly bare target erases non-owning semantic meaning.**
 
-It may change representation or the carrier's stored numeral when the compiler
-derives one unique exact transformation from normalized type and domain
-semantics. It never selects or invokes arbitrary user code.
+It may change representation when the compiler derives one unique exact
+transformation intrinsic to the carrier types. It never selects or invokes
+arbitrary user code or discovers a domain-specific conversion.
 
 | Axis | Requirement |
 |---|---|
 | denoted value or referent | unchanged |
-| proof | predicates, bounds, and divisibility discharged before lowering |
+| proof | predicates and representability discharged before lowering |
 | reach and control | no service reach, allocation, suspension, failure, or user code |
 | policy | no hidden loss, rounding, saturation, trapping, or ambiguous choice |
 
-This includes value-preserving width changes, proven exact narrowing, adding
-an obligation-free domain, and exact scale conversion between compatible unit
-domains. Unit conversion reuses the same normalized dimension, kind, and scale
-algebra as operator resolution; it is not a separately authored conversion
-registry.
+This includes value-preserving width changes, proven exact narrowing, and
+adding an obligation-free domain. Unit conversion is an ordinary named library
+machine or heterogeneous operator conformance, not an intrinsic `as` route.
 
 ```omega
 let distance: i32::Km = 5;
-let meters: i32::M = distance as i32::M;
 let widened: u16 = byte as u16;
 let narrowed: u8 = bounded_word as u8;
 ```
 
-The last conversion is accepted only when representability is proved.
-`meters as i32::Km` likewise requires exact divisibility and range proofs.
-Incompatible dimensions reject. Lossy, fallible, allocating, policy-bearing,
-or otherwise noncanonical transformations use named machines.
+The last conversion is accepted only when representability is proved. Lossy,
+fallible, allocating, policy-bearing, unit-scale, or otherwise domain-specific
+transformations use named machines.
 
 For a predicate-only domain, `value as T::D` succeeds only when the prover
 discharges every proposition in its `requires` clause. `as` never performs
@@ -286,7 +282,7 @@ of a route. A non-owning historical fact may be explicitly forgotten; a live
 
 | Operation | Denotation | Runtime behavior |
 |---|---|---|
-| exact coercion with `as` | preserved | compiler-derived intrinsic work only |
+| exact coercion with `as` | preserved | compiler-derived carrier work only |
 | explicit non-owning semantic erasure | discarded visibly | none |
 | predicate weakening | preserved, fact forgotten | none |
 | representation recast | same bits under its validated plan | none |
@@ -842,14 +838,13 @@ mathematical value lost by earlier wrapping. Selecting or removing a non-Exact
 policy is explicit because it changes future operator behavior.
 
 **Normalization is not entailment.** A small deterministic, confluent,
-terminating normalizer owns what a domain expression *is* (canonical
-dimension vectors, scale products, kind tags); type identity, semantic
-interface identity, and monomorphization keys depend only on it. The
+terminating normalizer owns what a domain expression *is*; type identity,
+semantic interface identity, and monomorphization keys depend only on it. The
 entailment engine proves propositions *about* expressions and can never
-redefine canonical identity. Physical ABI remains the **carrier's** ABI
-(representation erasure holds); semantic interface identity includes
-normalized domains. Units and the full quantity model (dimension x kind x
-scale x presentation) are specified in the design brief.
+redefine canonical identity. Future indexed domains extend the normalized form
+with canonical closed index values and licensed symbolic index expressions;
+proved compatibility remains subsumption rather than type-identity mutation.
+Physical ABI remains the **carrier's** ABI (representation erasure holds).
 
 For the currently authored conjunction form, normalization is concrete:
 declared terms resolve to their semantic-domain identity, arithmetic-policy
@@ -1198,8 +1193,9 @@ Working interpretation:
 > authority. Owner machines and boundary contract placement do not infer
 > establishment routes; every routed qualification names its exact checked or
 > boundary requirement in the domain declaration. Exact integer representation
-> conversion now uses proof-directed `as`; normalized unit-scale conversion is
-> blocked on the authored unit-theory surface in `OWNER_QUESTIONS.md` #7.
+> conversion now uses proof-directed `as`; unit conversion remains ordinary
+> library behavior. Structured proof-static indexed domains and computed result
+> indices are blocked on `OWNER_QUESTIONS.md` #7.
 > Per-atom weakening is enforced at ordinary value-flow boundaries:
 > predicate-only atoms may disappear implicitly, while semantic meaning,
 > non-owning routed provenance, and non-Exact arithmetic policy require an

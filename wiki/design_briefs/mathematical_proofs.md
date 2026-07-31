@@ -107,6 +107,22 @@ corresponding proof.
 Remaining engineering extends the normalized form to full distributive
 polynomials, identity bridging, and additional carriers such as `Int`/`Rat`.
 
+Proof-static indexed domains reuse this licensing discipline. A closed index is
+just a canonical value. An open symbolic index may normalize only under the
+exact selected algebraic conformance and its checked operation contract; a
+look-alike operation or unrelated conformance licenses nothing. The first unit
+customer needs additive commutative-group normalization for dimension vectors
+and multiplicative commutative-group normalization for positive rational
+scales. Linear integer arithmetic alone does not normalize symbolic scale
+products.
+
+Normalization determines index identity. Local hypotheses, deterministic
+entailment, and cited proofs establish compatibility without changing that
+identity. Initially, admitted algebraic laws may not license index
+normalization: all identity-bearing algebra evidence must be derived. Artifacts
+retain the selected algebra-instance identity, normalizer schema, canonical
+expression, and any cited compatibility evidence.
+
 ## Trust and accepted facts
 
 Omega has no `assume` or scattered `unsafe` block. Unproved claims enter through

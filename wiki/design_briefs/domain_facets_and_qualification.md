@@ -96,14 +96,14 @@ The governing rule is:
 > **`as` never silently changes denotation: qualified targets preserve it;
 > an explicitly bare target erases non-owning semantic meaning.**
 
-It may change representation or the carrier's stored numeral when one unique
-exact transformation is derived from normalized type and domain semantics. It
-never invokes arbitrary user code.
+It may change representation when one unique exact transformation is intrinsic
+to the carrier types. It never invokes arbitrary user code or discovers a
+domain-specific conversion.
 
 | Axis | Requirement |
 |---|---|
 | denoted value or referent | unchanged |
-| proof | predicates, bounds, and divisibility discharged before lowering |
+| proof | predicates and representability discharged before lowering |
 | reach and control | no service reach, allocation, suspension, failure, or user code |
 | policy | no hidden loss, rounding, saturation, trapping, or ambiguous choice |
 
@@ -113,17 +113,15 @@ Consequences:
 - `5 as i32::Km` is direct qualification into an obligation-free domain;
 - `byte as u16` is an exact integer coercion;
 - `bounded_word as u8` succeeds only when representability is proved;
-- `distance as i32::M` applies the compiler-derived exact scale relation
-  between compatible unit domains;
 - `reservation as Reservation::Issued` fails because `as` cannot fabricate
   route provenance; and
 - lossy, fallible, allocating, policy-bearing, or noncanonical transformation
   remains a named machine.
 
-Unit coercion and operator normalization consume the same normalized
-dimension, kind, and rational-scale algebra. No authored conversion machine is
-injected behind `as`, and no second conversion registry competes with operator
-resolution.
+Unit coercion is an ordinary named library machine or heterogeneous operator
+conformance. `as` may add an obligation-free unit domain or explicitly erase
+one, but it does not infer a scale relation or inject the library's conversion
+operation.
 
 ## Establishment, propagation, and conservation
 
@@ -279,7 +277,8 @@ exact mathematics. Selecting or removing Wrapping, Saturating, or Trapping is
 explicit because it changes future operation behavior.
 
 Core arithmetic-policy domains use the same empty or predicate-qualified
-establishment rules as an authored unit such as `Km`. Their primitive lowering
+establishment rules as an obligation-free semantic domain such as `Km`. Their
+primitive lowering
 is special; their establishment and `as` behavior is not a second
 qualification mechanism.
 
@@ -289,17 +288,16 @@ Denotation, carrier representation, and runtime work are independent:
 
 | Operation | Denotation | Runtime behavior |
 |---|---|---|
-| exact coercion with `as` | preserved | compiler-derived intrinsic work only |
+| exact coercion with `as` | preserved | compiler-derived carrier work only |
 | explicit non-owning semantic erasure | discarded visibly | none |
 | predicate weakening | preserved, fact forgotten | none |
 | representation recast | same bits under its validated plan | none |
 | validation | establishes a proposition | ordinary checked work |
 | noncanonical conversion | operation contract defines it | ordinary named machine |
 
-Numeric widening, proven exact narrowing, and exact unit-scale changes belong
-to `as` because they preserve denotation. Narrowing that wraps, saturates,
-traps, rounds, or returns a checked result selects that policy through a named
-machine or an explicit policy domain.
+Numeric widening and proven exact narrowing belong to `as`. Unit-scale change,
+and narrowing that wraps, saturates, traps, rounds, or returns a checked
+result, select an ordinary named machine or an explicit policy domain.
 
 ## Weakening and forgetting
 
@@ -338,9 +336,9 @@ closed vocabulary.
 ## Normalization is not entailment
 
 The deterministic normalizer owns what a domain expression *is*: sorted and
-deduplicated conjunctions, canonical dimension vectors, scale products, kind
-tags, semantic roles, and alias expansion. Type identity, semantic interface
-identity, and monomorphization keys depend on this normalized form.
+deduplicated conjunctions, canonical closed index values, licensed symbolic
+index forms, semantic roles, and alias expansion. Type identity, semantic
+interface identity, and monomorphization keys depend on this normalized form.
 
 The entailment engine proves propositions about that identity. Stronger future
 proof automation may accept more programs but may not change normalized
@@ -349,32 +347,28 @@ identity or operator meaning.
 Physical ABI remains the carrier's ABI. Semantic interface identity includes
 the normalized domain theory.
 
-## Units as the semantic stress test
+## Indexed domains as the generic stress test
 
-`Quantity = structural dimension × nominal kind × rational scale ×
-presentation`:
+Units are an ordinary library customer, not compiler vocabulary. The useful
+generalization is an erased domain family indexed by canonical proof-static
+data. A unit library may define canonical values for `KM`, `M`, and `SECOND`,
+then use one nominal `Quantity` family and ordinary operator conformances. A
+closed derived index such as `KM / SECOND` evaluates at build time; a generic
+result such as `A / B` remains a normalized constraint fact until its equality
+obligations discharge.
 
-- dimension composes structurally through multiplication and division;
-- kind distinguishes equal-dimension meanings such as Energy and Torque;
-- scale is a rational factor normalized by exact `as` coercion and operators;
-- presentation is a non-semantic display alias removed before identity.
+This does not add a wrapper: the physical ABI remains the carrier's. Semantic,
+policy, and predicate facets continue to compose independently, so a
+quantity-domain operator need not enumerate every `Positive` refinement and
+does not acquire a combined `Quantity × Saturating × Positive` conformance.
+The operation's `ensures` proves any predicate fact that survives. Erasure
+removes metadata cost, not arithmetic cost: scaling, range checks, and rounding
+remain visible work in the selected library operation.
 
-Mixed-scale addition derives the same exact normalization used by `as`, subject
-to representability. A quantity may combine its denotation role with an
-arithmetic policy such as `Wrapping`; the roles compose rather than competing
-for the `+` spelling.
-
-Required tests:
-
-1. `Km + Metre` normalizes through one exact declared scale relation.
-2. `Km / Metre` preserves the scale factor.
-3. Energy and Torque remain distinct despite equal dimensions.
-4. Generic identity preserves unit qualification.
-5. Passing a unit-qualified value to its carrier requires explicit `as`
-   erasure.
-6. `Km & Wrapping` composes while `Wrapping & Trapping` rejects.
-7. `(5 as i32::Km) as i32::M` succeeds exactly, while an unproved
-   metres-to-kilometres coercion rejects.
+The same capability serves coordinate frames, currencies, tensor shapes,
+fixed-point scales, and protocol encodings. Unit conversions remain ordinary
+named machines with explicit contracts. `as` neither recognizes units nor
+dispatches to their conversion machinery.
 
 ## Implementation staging
 
@@ -385,8 +379,8 @@ requirement routes; checked artifacts retain those identities, and neither
 owner placement nor boundary contract placement infers authority. The coercion
 resolver now enforces denotation-preserving integer `as`: widening follows the
 source carrier range and narrowing or signedness changes require a complete
-representability proof. Normalized unit-scale coercion is blocked on the
-authored unit-theory surface in `OWNER_QUESTIONS.md` #7. Per-atom weakening and
+representability proof. Proof-static indexed domains are blocked on
+`OWNER_QUESTIONS.md` #7. Per-atom weakening and
 explicit erasure are enforced across ordinary value-flow boundaries, including
 same-data-carrier provenance erasure; the remaining domain-theory artifact
 fields still need to adopt the rest of this brief.
@@ -401,19 +395,18 @@ Migration should:
    establishment;
 4. make an authorized route's return position establish provenance only after
    every domain predicate is proved;
-5. implement exact denotation-preserving `as` across numeric representation
-   and normalized unit scales without invoking user code (integer
-   representation complete; normalized unit scales blocked on
-   `OWNER_QUESTIONS.md` #7);
+5. keep exact `as` limited to compiler-derived carrier coercion, direct
+   qualification, and explicit erasure; domain-specific conversions remain
+   ordinary machines;
 6. preserve the implemented per-atom implicit weakening and explicit semantic,
    provenance, and arithmetic-policy erasure while ownership continues to
    govern claim removal; and
 7. preserve those facts through generics, contracts, artifacts, and separate
    compilation.
 
-General open operator-family linking, external unit-kind equations, and richer
-unit families remain separate customers. They do not change the qualification
-model.
+Structured canonical const values, closed indexed domains, and computed open
+result indices remain the staged work in `OWNER_QUESTIONS.md` #7. They extend
+the facts a domain may carry without changing this qualification model.
 
 ## Cross-references
 

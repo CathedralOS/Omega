@@ -131,9 +131,9 @@ bare carrier. Remove ambient package-owner minting and retire the legacy core
 qualification relationship from domain establishment.
 
 Implement `as` as one compiler-derived surface: qualified targets preserve
-denotation across numeric widening, proved exact narrowing, direct
-qualification, and normalized unit-scale conversion; explicitly bare targets
-erase non-owning semantic meaning. It invokes no arbitrary user code.
+denotation across numeric widening, proved exact narrowing, and direct
+qualification; explicitly bare targets erase non-owning semantic meaning. It
+invokes no arbitrary user code and never discovers or invokes a unit conversion.
 Predicate-only atoms may weaken implicitly; semantic and non-owning provenance
 atoms erase only through explicit `as`; owned claims require consumption or
 transfer.
@@ -154,9 +154,9 @@ Per-atom weakening is now enforced at assignments, initializers, arguments,
 returns, struct fields, and array elements: predicate-only atoms may disappear
 implicitly, while semantic meaning, routed provenance, and non-Exact arithmetic
 policy require an explicit bare `as`. Same-data-carrier `as` supplies the
-zero-runtime-work provenance-erasure surface. Normalized unit
-representation/scale conversion is language-design blocked on the missing
-authored unit-theory surface in `OWNER_QUESTIONS.md` #7.
+zero-runtime-work provenance-erasure surface. Unit conversion remains an
+ordinary named library operation. Generic proof-static indexed domains are
+language-design blocked on `OWNER_QUESTIONS.md` #7.
 
 The source/IR route migration is complete: domain predicate `requires` and exact
 `Trait::requirement` body entries now parse into independent records; authored
@@ -658,10 +658,13 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Keep these summaries as inferred implementation metadata. Published
   `ensures` may state exact preservation when an interface needs it; prefer
   signatures exposing only the places a callee actually mutates.
-- **DOM1/DOM2/DOM3/DOM5:** finish denotation-preserving unit `as`. Unit
-  conversion is language-design blocked on `OWNER_QUESTIONS.md` #7; exact
-  integer `as`, per-atom weakening/explicit erasure, operator ownership,
-  predicate `requires`, and exact route bodies are complete.
+- **DOM1/DOM2/DOM3/DOM5:** exact integer `as`, per-atom
+  weakening/explicit erasure, operator ownership, predicate `requires`, and
+  exact route bodies are complete. Keep unit conversion in ordinary library
+  machines and operators.
+- **PDI1/PDI2/PDI3:** stage proof-static indexed domains under
+  `OWNER_QUESTIONS.md` #7: structured canonical const values, closed indexed
+  domains, then computed result indices with retained equality evidence.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
@@ -988,7 +991,10 @@ blocked work.
 | #4 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
 | #5 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
 | #6 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
-| #7 authored unit theory | normalized unit identity, mixed-scale operators, and exact unit-scale `as` |
+| #7 proof-static indexed domains | structured canonical const values, closed indexed domains, computed result indices, and equality evidence |
+| #8 bounded Arena capability | runtime Arena/Allocation surface and conserved residual capacity |
+| #9 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
+| #10 content-conservation contracts | normalized n-to-m content equations, correspondence, inference, and retained proof evidence |
 
 ## Vertical acceptance slices
 
@@ -998,9 +1004,11 @@ blocked work.
   termination, mutation, and trust normalize independently. Candidate resource
   demand and installed provision admit separately; a fixed resource ceiling is
   contract identity only when policy deliberately publishes one.
-- **Units:** implement two obligation-free units in one dimension with exact
-  `as` scale coercion, arithmetic-policy composition, fact preservation, and
-  operator coherence.
+- **Indexed domains:** implement one erased domain family over two closed
+  canonical indices, then a generic operator whose result carries a computed
+  index. Prove carrier layout and SIMD shape unchanged, arithmetic-policy
+  composition independent, predicate facts derived through `ensures`, and an
+  unresolved generic equality exposed as a named verification condition.
 - **OS gauntlet:** UART/MMIO, Cathedral-owned address translation, DMA,
   hostile/trusted shared-page IPC, Cathedral-owned exception/timer entry, and
   SMP AP bringup. A new customer-shaped compiler concept fails the slice.

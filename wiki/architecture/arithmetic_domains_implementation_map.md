@@ -37,8 +37,8 @@
 > **Exact-coercion follow-up (2026-07-30).** The language model gives `as` one
 > semantic invariant: qualified targets preserve denotation through a unique
 > compiler-derived coercion, while an explicitly bare target erases non-owning
-> semantic meaning. Exact coercion includes numeric widening, proved narrowing, direct
-> qualification, and exact unit-scale conversion. Wrapping, saturation,
+> semantic meaning. Exact coercion includes numeric widening, proved narrowing,
+> and direct qualification. Unit-scale conversion, wrapping, saturation,
 > trapping, rounding, failure, or another policy remains a named operation or
 > explicit policy-domain selection. `as` never invokes arbitrary user code.
 > The target type-use spelling is `u32::Wrapping`; the `T in D` spellings in

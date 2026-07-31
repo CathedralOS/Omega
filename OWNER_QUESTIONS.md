@@ -247,49 +247,63 @@ derive the separately versioned fuel schedule over its stable operation/block
 identities. Do not canonize TypedTrees or a mutable backend representation by
 accident.
 
-## 7. What is the authored unit-theory surface?
+## 7. How do proof-static values index erased domains?
 
-The normalized quantity model is settled as structural dimension, nominal
-kind, rational scale, and non-semantic presentation. Exact `as` must derive the
-same scale relation used by mixed-unit operators, prove divisibility and
-representability, and invoke no authored conversion machine. The source
-language does not yet define how a package authors any of those unit-theory
-records.
+Units do not justify a compiler-owned unit theory. A package can already model
+`Km`, `M`, and `KmPerS` as domains, ordinary conversion machines, and
+heterogeneous operator conformances. `as` does not discover or invoke those
+conversions. That baseline is complete but repetitive: a generic unit library
+cannot yet express one erased domain family indexed by a canonical unit value,
+or compute a result index such as `A / B` from operand indices.
 
-Today a declared domain receives one opaque semantic identity, and the compiler
-temporarily treats the presence of a domain-owned operator as its
-denotation/dimension contribution. There is no source form for a dimension
-vector, nominal kind, rational scale, presentation alias, or canonical unit.
-Consequently `Km` and `Metres` can be distinct semantic domains, but the
-compiler has no authored fact from which it can derive their exact ratio or
-prove that they denote the same quantity kind. Inferring that relationship
-from operator bodies or names would make normalization depend on executable
-code or spelling.
+The broader customer is therefore proof-static indexing, not units. Coordinate
+frames, currencies, tensor shapes, fixed-point scales, and protocol encodings
+need the same capability: an erased domain may be parameterized by canonical
+first-order data, and a generic result may constrain its index using a
+proof-static expression. An index is a value such as a reduced rational or a
+record of canonical fields, not a unique identifier, predicate, runtime field,
+or type-universe inhabitant.
 
-Decide:
+The semantic direction is settled:
 
-- the declarations that introduce base dimensions and structural dimension
-  products, including integer exponents and canonical ordering;
-- how a nominal kind cites one dimension while keeping equal-dimension kinds
-  such as Energy and Torque distinct;
-- how a domain contributes a kind and an exact rational scale, including the
-  numerator/denominator orientation and the canonical reference unit;
-- whether derived unit products and quotients need authored names or may remain
-  normalized anonymous theories until presentation requests an alias;
-- the source form and identity effect of non-semantic presentation aliases;
-- how mixed-scale operators and exact `as` share one derived conversion plan,
-  including integer divisibility and representability obligations; and
-- which normalized dimension, kind, scale, and presentation records survive
-  generics, separate compilation, interface fingerprints, and checked
-  artifacts.
+- the domain family remains nominal and its index is an erased constraint fact;
+- index eligibility is structural: decidable equality and one unique canonical
+  form, with no trait able to assert eligibility falsely;
+- closed indices evaluate to canonical values; open result indices normalize
+  only under the exact selected, proved algebraic conformance;
+- canonicalization determines interface identity, while local hypotheses,
+  deterministic entailment, or an explicitly cited proof discharge
+  compatibility obligations without redefining identity;
+- type checking performs no ambient theorem search and invents no public
+  precondition; generic code publishes unresolved equalities in `requires`;
+- accepting proved-compatible indices is ordinary zero-work constraint
+  subsumption because the carrier representation is unchanged; and
+- unit conversion remains an ordinary named library operation with ordinary
+  `requires`/`ensures`; neither `as` nor the compiler recognizes unit names.
 
-Recommendation: introduce explicit nominal base-dimension and kind
-declarations, then let a domain attach one kind plus a reduced rational scale
-relative to that kind's canonical unit. Keep presentation aliases in a separate
-non-semantic field. Normalize dimension vectors and rational products at
-declaration lowering, and make both operator resolution and exact `as` consume
-that record; neither may inspect an operator body or invoke a conversion
-machine to discover unit meaning.
+Decide the remaining source and artifact surfaces:
+
+- how a generic carrier and structured proof-static parameters are bound on a
+  domain declaration without inventing a second carrier syntax;
+- how computed index expressions and any explicit proof citation are spelled;
+- the initial structurally eligible data forms and canonical encodings;
+- the closed set of compiler-supported algebraic normal forms for open indices;
+- the fingerprint record for open expressions, including domain-family,
+  selected algebra-instance, normalized public operation-contract,
+  normalizer-version, and canonical-expression identity;
+- the non-semantic presentation hints used to render named or readable derived
+  indices without affecting fingerprints; and
+- the diagnostic record for each generated equality obligation, including its
+  source, normalized sides, hypotheses, originating generic requirement, and
+  retained evidence.
+
+Recommendation: stage the feature. First generalize const parameters to
+structured canonical values. Then permit parameterized erased domains with
+closed indices; this already supports one `Quantity` family with named unit
+values, generic operations whose destination is an index parameter, and no
+representation cost. Only then add computed open result indices, licensed
+symbolic normalization, local entailment, and cited-proof escape hatches.
+Initially forbid admitted algebraic laws from licensing identity.
 
 ## 8. What is the source-visible bounded Arena capability?
 

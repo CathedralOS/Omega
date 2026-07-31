@@ -127,6 +127,8 @@ layers:
 ```text
 DomainTheory {
     carrier,
+    static_index_parameters: CanonicalIndexSchema,
+    index_constraint: Option<NormalizedIndexExpression>,
     predicate_body: Option<PredicateBody>,
     semantic_roles: NormalizedRoleMap,
     establishment_routes: NormalizedEstablishmentSet,
@@ -139,6 +141,14 @@ hybrids are first-class. Checked types/bindings carry normalized static
 qualification; flow facts carry proven membership. The deterministic
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
+
+The index fields are staged work under `OWNER_QUESTIONS.md` #7, not current
+syntax. A closed index stores its canonical value. An open generic expression
+also records the exact selected algebra-instance identity and normalizer schema;
+compatibility evidence is retained separately and never rewrites semantic
+identity. Index eligibility is structural and cannot be supplied by an
+ordinary conformance. Because indices and domains erase, neither field changes
+carrier layout or SIMD shape.
 
 Implementation status (DOM1/STR2 semantic roles, 2026-07-31): core,
 symbol-resolved, and typed layers carry `DomainPredicateBody` and the closed
@@ -782,6 +792,8 @@ service reach.
 3. **Tree propagation.** Carry the representations through symbol-resolved and
    typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
    re-derivation from body shape/keyword presence.
+   Stage structured canonical const values and closed indexed domains before
+   carrying open computed index expressions or their equality evidence.
 4. **Checked plans.** Split predicate facts, static semantic roles, and
   establishment evidence; add
   the place-keyed permission plan, service-reach plan, suspension plan,
@@ -823,6 +835,10 @@ service reach.
   presence.
 - A domain carrying both predicate requirements and semantic roles is representable
   without duplication.
+- A closed indexed domain fingerprints one canonical value and preserves the
+  carrier ABI. An open index fingerprints its exact algebra instance,
+  normalizer schema, and canonical expression; a compatibility proof cannot
+  silently change that identity.
 - Static qualification survives generics and containers while proven
   predicates remain flow facts.
 - A qualified `as` coercion preserves denotation, an explicitly bare target

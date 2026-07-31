@@ -412,6 +412,26 @@ explicit, both already in the language:
 
 ## Scope
 
+### Proof-static domain indices
+
+A staged extension may let an erased domain family take canonical static values
+as indices and let a generic result constrain its index using expressions over
+input indices. These indices are ordinary first-order proof/static data, not
+unique type IDs, predicates, runtime fields, or inhabitants of a type universe.
+The exact declaration spelling remains owner question #7.
+
+Closed indices evaluate and compare canonically. An open generic index remains
+a constraint fact: use at an expected index produces an equality obligation,
+discharged by canonical normalization, explicit local hypotheses, deterministic
+entailment, or an explicitly cited proof. The successful judgment performs no
+runtime transport because the domain is erased and the carrier is unchanged.
+Normalization determines interface identity; proof strength may accept more
+compatible uses but may not rewrite that identity.
+
+This is enough for libraries to build zero-representation-cost units,
+coordinate frames, currencies, tensor shapes, fixed-point scales, and protocol
+indices. The compiler does not know their meanings or conversions.
+
 The implemented systems fragment in this chapter is intentionally narrow:
 
 - **No type-level computation.** A type never runs a machine. Layouts and
@@ -447,7 +467,8 @@ layers under both surfaces.
   this chapter does not generalize that extension into runtime dependent
   types.
 - Chapter 13 owns the static lowering; const parameters are witnesses the
-  compiler evaluates away.
+  compiler evaluates away. It also owns the staged structured-static-parameter
+  and indexed-domain generic surface.
 - Chapter 20 owns layout and the recast borrow; dynamic strides are its
   runtime face.
 - The index/count model brief (§8, shape-typed views) is the planned home
