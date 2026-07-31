@@ -256,14 +256,21 @@ homes, alias homes, and a second projection for the same exact qualification
 reject. Projection machines are compiler-erased proof material, so their
 proof-only algebra result does not acquire a runtime layout. Generic-data
 instance rewriting also keeps conformance arguments aligned with rewritten
-machine signatures. The remaining P1c work starts at closed-fragment
-normalization:
+machine signatures. The next P1c checkpoint was closed-fragment normalization.
 
-- accept only the closed content-projection fragment: subject field reads,
-  runtime-scalar embeddings, proof-defined closed arithmetic, and selected
-  algebra constructors; normalize and fingerprint the resulting symbolic
-  expression, and reject branches, loops, arbitrary calls, allocation,
-  effects, or hidden state;
+Implementation checkpoint (2026-07-31): accepted projection bodies now lower
+to a compiler-owned symbolic expression over exact subject-field paths,
+proof-natural literals/constructors, closed `+`/`-`/`*`, and the selected
+`Interval` or `CountedQuantity` constructor. Checked facts retain that plan,
+the normalized coordinate-space or unit identity, carrier/domain/machine
+identity, and a stable fingerprint that deliberately excludes arena-local
+symbols. Core algebra definitions remain structurally generic through checked
+lowering. Runtime-scalar embedding is the next closed-fragment rung; the
+backing and conservation consumers are still outstanding.
+
+- complete the remaining closed content-projection fragment by adding explicit
+  runtime-scalar embeddings into proof naturals; continue rejecting branches,
+  loops, arbitrary calls, allocation, effects, and hidden state;
 - implement interval content with proof-level natural bounds plus normalized
   coordinate-space identity; require every `Extent::Granted` establishment
   route to prove `no_wrap(base, length)` against the target address-space

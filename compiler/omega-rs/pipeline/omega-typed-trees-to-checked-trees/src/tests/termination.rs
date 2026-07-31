@@ -1912,13 +1912,13 @@ fn qualification_facts_record_policy_commitments() {
         self >= 0;
 
     machine Main::clamped(&mut self, value: u64) -> u8 {
-        let squeezed: u8 = value as u8 in Saturating;
-        squeezed
+        let squeezed: u8 in Saturating = value as u8 in Saturating;
+        squeezed as u8
     }
 
     machine Main::minted(&mut self) -> i64 {
-        let distance: i64 = 5 as i64 in Km;
-        distance
+        let distance: i64 in Km = 5 as i64 in Km;
+        distance as i64
     }
 
     machine Main::main(&mut self) -> u64 {

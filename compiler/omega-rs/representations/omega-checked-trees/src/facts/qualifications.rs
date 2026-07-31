@@ -20,6 +20,10 @@ pub struct QualificationFacts {
     /// establishment routes. The cast remains representation-identical, but
     /// the checked artifact records where vacuous evidence originated.
     pub vacuous_uses: Vec<VacuousQualificationUse>,
+    /// P1c: owner-selected, closed, normalized content projections. These are
+    /// supplementary to whole-claim identity and never inferred from
+    /// multiplicity or names of resource operations.
+    pub content: crate::ContentProjectionFacts,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

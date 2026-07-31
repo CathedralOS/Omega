@@ -787,6 +787,9 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
     omega_checked_trees::QualificationFacts {
         machines,
         vacuous_uses,
+        content: omega_checked_trees::ContentProjectionFacts {
+            plans: omega_validation::build_content_projection_plans(program),
+        },
     }
 }
 

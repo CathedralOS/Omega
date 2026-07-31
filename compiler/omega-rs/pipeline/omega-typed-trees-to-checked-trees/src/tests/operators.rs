@@ -109,8 +109,8 @@ fn explicit_mint_initializer_selects_domain_operator() {
         data Main {}
 
         machine Main::rotate(&self) {
-            let value: i32 in Wrapping = 1 as i32 in Degrees;
-            let sum: i32 in Wrapping = value + 1;
+            let value: i32 in Degrees & Wrapping = 1 as i32 in Degrees;
+            let sum: i32 in Degrees & Wrapping = value + 1;
         }
 
         machine Main::main(&mut self) {}
@@ -437,11 +437,11 @@ fn records_checked_named_float_policy_adapters() {
         data F64 {}
 
         boundary operator F32::multiply_then_add(
-            left: f32,
-            right: f32,
-            addend: f32
+            left: f32 in Saturating,
+            right: f32 in Saturating,
+            addend: f32 in Saturating
         ) -> f32;
-        boundary operator F64::negate(value: f64) -> f64;
+        boundary operator F64::negate(value: f64 in Trapping) -> f64;
         boundary operator F32::is_finite(value: f32) -> bool;
 
         data Main {}

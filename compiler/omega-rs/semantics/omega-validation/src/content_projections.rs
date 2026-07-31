@@ -2,10 +2,16 @@
 //!
 //! A projection is selected by an exact domain owner, not by linearity, field
 //! names, or operation names. This module establishes the ownership/uniqueness
-//! firewall and the first closed-fragment gate; canonical expression retention
-//! and algebra fingerprinting are later P1c rungs.
+//! firewall, the first closed-fragment gate, and canonical checked plans whose
+//! fingerprints exclude arena-local symbols. Runtime-scalar embedding and the
+//! conservation/backing consumers remain later P1c rungs.
 
 use crate::type_references::type_references_match;
+use omega_core::content::{
+    ContentAlgebraIdentity, ContentArithmeticOperator, ContentFieldSegment,
+    ContentProjectionExpression, ContentProjectionPlan, ContentScalarExpression,
+    projection_fingerprint,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
@@ -16,10 +22,10 @@ use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, Transitio
 use omega_typed_trees::trait_definition::TraitDefinition;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ContentAlgebraKind {
-    Interval,
-    CountedQuantity,
+#[derive(Debug, Clone, Copy)]
+struct ProjectionSubject {
+    symbol: SymbolHandle,
+    carrier: TypeReferenceHandle,
 }
 
 pub(crate) fn validate_content_projection_conformances(
@@ -58,7 +64,7 @@ pub(crate) fn validate_content_projection_conformances(
                 )));
                 continue;
             };
-            let candidates = projection_domain_candidates(program, machine, subject);
+            let candidates = projection_domain_candidates(program, machine, subject.carrier);
             let domain = match candidates.as_slice() {
                 [domain] => *domain,
                 [] => {
@@ -72,7 +78,7 @@ pub(crate) fn validate_content_projection_conformances(
                     diagnostics.push(Diagnostic::error(format!(
                         "content projection machine `{}` ambiguously names more than one exact qualification for subject `{}`",
                         machine.name,
-                        program.display_type_reference(subject)
+                        program.display_type_reference(subject.carrier)
                     )));
                     continue;
                 }
@@ -115,7 +121,7 @@ pub(crate) fn validate_content_projection_conformances(
                 continue;
             };
             if projection_result_expression(program, machine).is_none_or(|expression| {
-                !projection_expression_is_closed(program, subject, algebra, expression)
+                normalize_projection_expression(program, subject, &algebra, expression).is_none()
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "content projection `{}` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only",
@@ -139,6 +145,61 @@ pub(crate) fn validate_content_projection_conformances(
     }
 }
 
+/// Materialize the validated, compiler-owned content projection plans. The
+/// checked-tree builder calls this only after program validation succeeds;
+/// invalid or incomplete candidates are therefore omitted rather than
+/// represented as partial facts.
+pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjectionPlan> {
+    program
+        .machines()
+        .iter()
+        .flat_map(|machine| {
+            program
+                .machine_trait_conformances(machine)
+                .iter()
+                .filter_map(move |conformance| {
+                    let content = program
+                        .traits()
+                        .iter()
+                        .find(|candidate| candidate.symbol == conformance.symbol)
+                        .filter(|candidate| is_content_projection_trait(program, candidate))?;
+                    if conformance.requirement.as_ref().map(|name| name.as_str()) != Some("project")
+                    {
+                        return None;
+                    }
+                    let subject = projection_subject(program, machine)?;
+                    let candidates =
+                        projection_domain_candidates(program, machine, subject.carrier);
+                    let [domain] = candidates.as_slice() else {
+                        return None;
+                    };
+                    if domain.alias.is_some() || content.is_boundary {
+                        return None;
+                    }
+                    let algebra = selected_content_algebra(program, conformance)?;
+                    let expression = normalize_projection_expression(
+                        program,
+                        subject,
+                        &algebra,
+                        projection_result_expression(program, machine)?,
+                    )?;
+                    let fingerprint = projection_fingerprint(&algebra, &expression);
+                    Some(ContentProjectionPlan {
+                        domain: domain.symbol,
+                        semantic_domain: domain.semantic_id,
+                        carrier_identity: program
+                            .normalized_type_identity(subject.carrier)
+                            .into_string(),
+                        machine: machine.symbol,
+                        algebra,
+                        expression,
+                        fingerprint,
+                    })
+                })
+        })
+        .collect()
+}
+
 pub(crate) fn is_content_projection_machine(program: &TypedTrees, machine: &Machine) -> bool {
     program
         .machine_trait_conformances(machine)
@@ -160,7 +221,7 @@ pub(crate) fn is_content_projection_machine(program: &TypedTrees, machine: &Mach
                 return false;
             };
             projection_result_expression(program, machine).is_some_and(|expression| {
-                projection_expression_is_closed(program, subject, algebra, expression)
+                normalize_projection_expression(program, subject, &algebra, expression).is_some()
             })
         })
 }
@@ -168,25 +229,34 @@ pub(crate) fn is_content_projection_machine(program: &TypedTrees, machine: &Mach
 fn selected_content_algebra(
     program: &TypedTrees,
     conformance: &omega_typed_trees::machine::TraitConformance,
-) -> Option<ContentAlgebraKind> {
+) -> Option<ContentAlgebraIdentity> {
     let [argument] = program
         .type_reference_table
         .type_reference_handles(conformance.arguments)
     else {
         return None;
     };
-    let label = match program.type_reference_table.type_reference(*argument) {
-        TypeReferenceNode::Generic { base_name, .. } => base_name.as_str(),
-        TypeReferenceNode::Named { name, .. } => name.as_str(),
-        _ => return None,
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(*argument)
+    else {
+        return None;
     };
-    let leaf = label.rsplit("::").next().unwrap_or(label);
-    if leaf.starts_with("Interval<") || leaf == "Interval" {
-        Some(ContentAlgebraKind::Interval)
-    } else if leaf.starts_with("CountedQuantity<") || leaf == "CountedQuantity" {
-        Some(ContentAlgebraKind::CountedQuantity)
-    } else {
-        None
+    let [identity] = program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        return None;
+    };
+    let identity = program.normalized_type_identity(*identity).into_string();
+    match base_name.as_str().rsplit("::").next() {
+        Some("Interval") => Some(ContentAlgebraIdentity::Interval {
+            coordinate_space: identity,
+        }),
+        Some("CountedQuantity") => Some(ContentAlgebraIdentity::CountedQuantity { unit: identity }),
+        _ => None,
     }
 }
 
@@ -215,19 +285,19 @@ fn projection_result_expression(
     }
 }
 
-fn projection_expression_is_closed(
+fn normalize_projection_expression(
     program: &TypedTrees,
-    subject: TypeReferenceHandle,
-    algebra: ContentAlgebraKind,
+    subject: ProjectionSubject,
+    algebra: &ContentAlgebraIdentity,
     expression: ExpressionHandle,
-) -> bool {
+) -> Option<ContentProjectionExpression> {
     let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
     else {
-        return false;
+        return None;
     };
     let expected_name = match algebra {
-        ContentAlgebraKind::Interval => "Interval",
-        ContentAlgebraKind::CountedQuantity => "CountedQuantity",
+        ContentAlgebraIdentity::Interval { .. } => "Interval",
+        ContentAlgebraIdentity::CountedQuantity { .. } => "CountedQuantity",
     };
     let literal_leaf = literal
         .type_name
@@ -236,100 +306,156 @@ fn projection_expression_is_closed(
         .next()
         .unwrap_or(literal.type_name.as_str());
     if literal_leaf != expected_name || literal.case_name.is_some() {
-        return false;
+        return None;
     }
     let fields = program.expression_table.struct_fields(literal.fields);
-    let expected_fields: &[&str] = match algebra {
-        ContentAlgebraKind::Interval => &["start", "end"],
-        ContentAlgebraKind::CountedQuantity => &["magnitude"],
-    };
-    fields.len() == expected_fields.len()
-        && expected_fields.iter().all(|expected| {
-            fields.iter().any(|field| {
-                field.name.as_str() == *expected
-                    && projection_scalar_is_closed(program, subject, field.value)
+    match algebra {
+        ContentAlgebraIdentity::Interval { .. } => {
+            let [start, end] = ["start", "end"].map(|name| {
+                fields
+                    .iter()
+                    .find(|field| field.name.as_str() == name)
+                    .and_then(|field| normalize_projection_scalar(program, subject, field.value))
+            });
+            (fields.len() == 2).then_some(ContentProjectionExpression::Interval {
+                start: start?,
+                end: end?,
             })
-        })
+        }
+        ContentAlgebraIdentity::CountedQuantity { .. } => {
+            let magnitude = fields
+                .iter()
+                .find(|field| field.name.as_str() == "magnitude")
+                .and_then(|field| normalize_projection_scalar(program, subject, field.value))?;
+            (fields.len() == 1)
+                .then_some(ContentProjectionExpression::CountedQuantity { magnitude })
+        }
+    }
 }
 
-fn projection_scalar_is_closed(
+fn normalize_projection_scalar(
     program: &TypedTrees,
-    subject: TypeReferenceHandle,
+    subject: ProjectionSubject,
     expression: ExpressionHandle,
-) -> bool {
+) -> Option<ContentScalarExpression> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) => true,
+        ExpressionNode::Integer(value) => {
+            let value = value.value_bignum()?;
+            (!value.is_negative()).then(|| ContentScalarExpression::Natural(value.to_string()))
+        }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             matches!(members, [first, second] if first.as_str() == "Nat" && second.as_str() == "Zero")
+                .then(|| ContentScalarExpression::Natural("0".to_owned()))
         }
-        ExpressionNode::Member(member) => {
-            projection_subject_field_root(program, member.receiver, subject)
-        }
+        ExpressionNode::Member(_) => normalize_subject_field(program, subject, expression)
+            .map(|(path, _)| ContentScalarExpression::SubjectField(path)),
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
                 BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
             ) =>
         {
-            projection_scalar_is_closed(program, subject, binary.left)
-                && projection_scalar_is_closed(program, subject, binary.right)
+            Some(ContentScalarExpression::Arithmetic {
+                operator: match binary.operator {
+                    BinaryOperator::Add => ContentArithmeticOperator::Add,
+                    BinaryOperator::Subtract => ContentArithmeticOperator::Subtract,
+                    BinaryOperator::Multiply => ContentArithmeticOperator::Multiply,
+                    _ => unreachable!("guarded closed arithmetic operator"),
+                },
+                left: Box::new(normalize_projection_scalar(program, subject, binary.left)?),
+                right: Box::new(normalize_projection_scalar(program, subject, binary.right)?),
+            })
         }
         ExpressionNode::StructLiteral(literal)
             if literal.type_name.as_str().rsplit("::").next() == Some("Nat") =>
         {
             match literal.case_name.as_ref().map(|name| name.as_str()) {
-                Some("Zero") => program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .is_empty(),
+                Some("Zero")
+                    if program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .is_empty() =>
+                {
+                    Some(ContentScalarExpression::Natural("0".to_owned()))
+                }
                 Some("Succ") => {
                     let fields = program.expression_table.struct_fields(literal.fields);
-                    matches!(fields, [field] if field.name.as_str() == "prev" && projection_scalar_is_closed(program, subject, field.value))
+                    let [field] = fields else {
+                        return None;
+                    };
+                    if field.name.as_str() != "prev" {
+                        return None;
+                    }
+                    Some(ContentScalarExpression::Successor(Box::new(
+                        normalize_projection_scalar(program, subject, field.value)?,
+                    )))
                 }
-                _ => false,
+                _ => None,
             }
         }
-        _ => false,
+        _ => None,
     }
 }
 
-fn projection_subject_field_root(
+fn normalize_subject_field(
     program: &TypedTrees,
+    subject: ProjectionSubject,
     expression: ExpressionHandle,
-    subject: TypeReferenceHandle,
-) -> bool {
+) -> Option<(Vec<ContentFieldSegment>, TypeReferenceHandle)> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => program.machines().iter().any(|machine| {
-            program.machine_states(machine).iter().any(|state| {
-                program.state_parameters(state).iter().any(|parameter| {
-                    parameter.symbol == path.symbol
-                        && projection_subject_type_matches(
-                            program,
-                            parameter.type_reference,
-                            subject,
-                        )
-                })
-            })
-        }),
-        ExpressionNode::Member(member) => {
-            projection_subject_field_root(program, member.receiver, subject)
+        ExpressionNode::Name(path) if path.symbol == subject.symbol => {
+            Some((Vec::new(), subject.carrier))
         }
-        _ => false,
+        ExpressionNode::Member(member) => {
+            let (mut path, receiver_type) =
+                normalize_subject_field(program, subject, member.receiver)?;
+            let field = data_field(program, receiver_type, member.member.as_str())?;
+            path.push(ContentFieldSegment {
+                symbol: field.symbol,
+                name: member.member.as_str().to_owned(),
+            });
+            Some((path, field.type_reference))
+        }
+        _ => None,
     }
 }
 
-fn projection_subject_type_matches(
-    program: &TypedTrees,
-    parameter: TypeReferenceHandle,
-    subject: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(parameter) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_references_match(program, unconstrained(program, *referee), subject)
-        }
-        _ => false,
+fn data_field<'program>(
+    program: &'program TypedTrees,
+    mut receiver_type: TypeReferenceHandle,
+    name: &str,
+) -> Option<&'program omega_typed_trees::data::DataField> {
+    loop {
+        receiver_type = match program.type_reference_table.type_reference(receiver_type) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => *referee,
+            _ => break,
+        };
     }
+    let (symbol, fallback) = match program.type_reference_table.type_reference(receiver_type) {
+        TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => (*base_symbol, base_name.as_str()),
+        _ => return None,
+    };
+    let definition = program.data_definitions().iter().find(|definition| {
+        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == fallback
+    })?;
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                Some(field)
+            }
+            _ => None,
+        })
 }
 
 fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition) -> bool {
@@ -344,7 +470,7 @@ fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition
         && matches!(program.trait_machine_signatures(candidate), [requirement] if requirement.name.as_str() == "project")
 }
 
-fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<TypeReferenceHandle> {
+fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<ProjectionSubject> {
     let state = program.machine_states(machine).first()?;
     let [parameter] = program.state_parameters(state) else {
         return None;
@@ -360,7 +486,10 @@ fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<TypeRef
             referee,
             is_mutable: false,
             ..
-        } => Some(unconstrained(program, *referee)),
+        } => Some(ProjectionSubject {
+            symbol: parameter.symbol,
+            carrier: unconstrained(program, *referee),
+        }),
         _ => None,
     }
 }

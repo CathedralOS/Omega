@@ -368,7 +368,7 @@ fn state_parameter_claim_retains_its_strict_origin_without_a_permission() {
 
             state hold(token: Token in Token::Issued) -> Token {
                 suspend self.scheduler.park();
-                transition { _ -> token }
+                transition { _ -> (token as Token) }
             }
         }
         "#,
@@ -408,7 +408,7 @@ fn state_parameter_claim_retains_its_exact_carry_permission() {
 
             state hold(token: Token in Token::Issued & Carry::AcrossSuspend) -> Token {
                 suspend self.scheduler.park();
-                transition { _ -> token }
+                transition { _ -> (token as Token) }
             }
         }
         "#,

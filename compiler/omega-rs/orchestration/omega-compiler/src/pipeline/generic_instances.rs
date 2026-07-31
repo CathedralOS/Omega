@@ -111,6 +111,13 @@ pub(crate) fn desugar_generic_data_instances(
         if definition.type_parameters.is_empty() {
             continue;
         }
+        // These compiler-owned proof algebras never acquire runtime layout.
+        // Keep their generic argument structurally visible so checked content
+        // plans retain a normalized coordinate-space/unit identity instead of
+        // collapsing it into a synthesized diagnostic spelling.
+        if matches!(definition.name.as_str(), "Interval" | "CountedQuantity") {
+            continue;
+        }
         let definition_parameters = syntax
             .tables
             .items
