@@ -69,7 +69,11 @@ data Extent [linear] {
     length: u64;
 }
 
-pub domain Extent::Granted;
+pub domain Extent::Granted
+    requires no_wrap(self.base, self.length)
+{
+    ExtentRootProvider::grant;
+}
 
 pub boundary trait ExtentRootProvider {
     machine grant(root: Extent) -> Extent
@@ -82,7 +86,9 @@ The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same
 fields creates an unqualified linear value. Operations that consume range
 authority require `Granted`, so a fabricated or dequalified Extent has no legal
-resource consumer.
+resource consumer. `no_wrap` proves in proof-level natural arithmetic that the
+embedded base plus length does not exceed the target address-space bound; it
+does not perform wrapping `addr` addition.
 
 An admitted platform provider originates a root only by satisfying the
 owner-authored `ExtentRootProvider::grant` requirement. The caller supplies the
@@ -135,14 +141,17 @@ parent claim's content and root lineage.
 
 Splitting consumes one owned qualified extent and returns disjoint owned
 children whose ranges exactly cover it. `Extent::Granted` projects its subject
-to a normalized address-space interval. The checker proves the parent content
-equals the partial separated composition of all child content; per-child
-containment or a scalar length sum is insufficient. Merge proves the same
-equation in reverse over compatible common root lineage. Literal siblinghood is
-not required, while numeric adjacency alone is insufficient because adjacent
-ranges may have different grants, permissions, provenance, or eras. Combining
-unrelated adjacent grants, if needed, is an explicit provider operation that
-establishes new combined authority.
+through its owner-unique `Content` conformance to a normalized address-space
+interval with proof-level `Nat` bounds. The half-open end may equal the
+address-space bound even when that one-past value is not representable as an
+`addr`. The checker proves the parent content equals the partial separated
+composition of all child content; per-child containment or a scalar length sum
+is insufficient. Merge proves the same equation in reverse over compatible
+common root lineage. Literal siblinghood is not required, while numeric
+adjacency alone is insufficient because adjacent ranges may have different
+grants, permissions, provenance, or eras. Combining unrelated adjacent grants,
+if needed, is an explicit provider operation that establishes new combined
+authority.
 
 Permission attenuation is orthogonal to interval content. Weakening read-write
 to read-only preserves the range and permanently discards write; merge cannot
@@ -179,8 +188,8 @@ Virtual and physical quantities cannot be decomposed as independent conserved
 projections when their correspondence matters. That requires a future compact,
 canonical symbolic mapping algebra whose containment, restriction, equality,
 and separated composition remain decidable. Until it exists, owned
-virtual-to-physical decomposition rejects; the initial content vocabulary is
-`Indivisible | Interval<Scalar>`.
+virtual-to-physical decomposition rejects; the initial interval and counted-
+quantity algebras do not represent that correspondence.
 
 The source migration depends on routed establishment, admitted
 boundary-machine receipts, and generic resource-frontier outcome mappings. See
@@ -655,8 +664,8 @@ that subset; atomic mutation follows the atomic rule through a shared view
 borrow, and a bare accessor cannot become an ordinary scalar. Binding-private
 access is now restricted to machines authored in the nominal placement
 policy's canonical package for both value- and statement-position calls.
-Generic atomic-family helper contracts are blocked on `OWNER_QUESTIONS.md` #7,
-and the source-visible loan/profile admission surface is blocked on #6.
+Generic atomic-family helper contracts are blocked on `OWNER_QUESTIONS.md` #6,
+and the source-visible loan/profile admission surface is blocked on #5.
 Target-specific external/atomic emission remains implementation work.
 
 ## IPC and DMA

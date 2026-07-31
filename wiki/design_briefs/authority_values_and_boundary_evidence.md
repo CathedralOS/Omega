@@ -34,11 +34,13 @@ map, or otherwise consume authority require the relevant domain membership.
 ## Qualification evidence
 
 A domain declares predicate obligations in `requires` and exact authorized
-establishment requirements in its body. `Extent::Granted` names its boundary
-root directly:
+establishment requirements in its body. `Extent::Granted` requires geometry
+that fits the target address space and names its boundary root directly:
 
 ```omega
-pub domain Extent::Granted {
+pub domain Extent::Granted
+    requires no_wrap(self.base, self.length)
+{
     ExtentRootProvider::grant;
 }
 ```
@@ -148,39 +150,78 @@ reject rather than guessing.
 
 ### Content-bearing claims
 
-A content-bearing qualified claim kind publishes one normalized projection from
-its subject into a compiler-owned partial composition algebra. The projection
-states what authority the claim covers; it does not add runtime metadata.
-Unqualified carrier data has no claim and therefore no projected authority.
+A content-bearing exact qualification publishes one owner-unique conformance
+to the core `Content<A>` projection requirement. Having that conformance marks
+the qualification as content-bearing, `A` selects one compiler-owned partial
+composition algebra, and the conforming machine projects the qualified subject
+into it. Only the qualification owner may publish the conformance, and one
+qualification has at most one projection identity. A second package cannot
+reinterpret the same authority through conformance selection.
 
-The closed algebra vocabulary begins with:
+Schematically, the `Granted` projection has this shape:
 
-- `Indivisible`: the claim has one atomic unit and supports no owned
-  decomposition; and
-- `Interval<Scalar>`, for one-dimensional ordered ranges.
+```omega
+machine Granted::content(e: &Extent) -> Interval<Nat>
+    satisfies Content<Interval<Nat>>::project
+{
+    Interval::new(embed(e.base), embed(e.base) + embed(e.length))
+}
+```
 
-`CountedQuantity<Scalar>` is the first customer-driven extension. A bounded
-bump/arena region projects residual capacity; allocation consumes normalized
-payload size, alignment padding, and allocator metadata, while split and
-return conserve the scalar quantity. Count alone does not prove placement in a
-fragmented heap, which remains fallible or requires an exact free-extent or
-reservation theorem.
+The projection body belongs to the closed **content-projection fragment**. It
+may read fields of the subject, embed runtime scalars into proof-level
+mathematics, perform proof-defined closed arithmetic, and apply constructors
+of the selected algebra. Branches, loops, allocation, effects, hidden state,
+and arbitrary helper calls reject at the conformance. The compiler must reduce
+the body to one canonical symbolic expression; that normalized expression and
+its coordinate-space or quantity identity are fingerprinted as semantic
+interface identity.
 
-Packages may author projections into that vocabulary. The compiler owns
-normalization, containment, equality, and partial separated composition. New
-algebra kinds require a compiler release and a concrete customer; arbitrary
-owner-defined composition is not authority evidence.
+The initial closed algebras are:
 
-Owner question #1 governs how a source declaration marks a claim as
-content-bearing and selects this algebra, including whether an explicit content
-clause may omit `Indivisible`. Ordinary linear claims never default into the
-content algebra merely because they are linear.
+- one-dimensional intervals with proof-level `Nat` bounds and one normalized
+  coordinate-space identity; and
+- `CountedQuantity` with a proof-level `Nat` magnitude and one normalized unit
+  identity.
 
-An interval normalizes a coordinate-space identity plus half-open ordered bounds
-`[start, end)`. Separated composition requires the same coordinate space and
-nonoverlap. Its exact equality with a parent rejects omitted gaps; equal numbers
-in different spaces never compose. Root lineage remains an additional
-authority-family check rather than part of numeric geometry.
+An address interval uses embedded arithmetic rather than wrapping runtime
+`addr` arithmetic. Its half-open end may equal the address-space bound even
+when that one-past value is not representable as `addr`.
+`no_wrap(base, length)` therefore means that the embedded sum does not exceed
+the target address-space bound, and every route establishing `Granted` proves
+that predicate. Separated interval composition requires the same coordinate
+space and nonoverlap. Exact equality with a parent rejects omitted gaps; equal
+numbers in different spaces never compose.
+
+`CountedQuantity` has its first concrete customer in bounded bump/arena
+residual capacity. Allocation consumes normalized payload size, alignment
+padding, and allocator metadata, while split and return conserve the quantity.
+It models a divisible pool of units, not an obligation to deliver one value to
+exactly `n` destinations. Count alone does not prove placement in a fragmented
+heap, which remains fallible or requires an exact free-extent or reservation
+theorem.
+
+Ordinary claims publish no content projection. Whole-claim identity, custody,
+transfer, and cleanup remain in the frontier, so file handles and other
+nondecomposable linear claims are already fully accounted for. Content is
+supplementary fine-grained accounting, not another spelling of linearity.
+
+The compiler owns algebra normalization, containment, equality, and partial
+separated composition. New algebra kinds require a compiler release and a
+concrete customer; arbitrary owner-defined composition is not authority
+evidence. Fractional permissions are deliberately absent: ordinary `&` and
+`&mut` already express shared-read and exclusive-write access, and no current
+customer requires a third permission algebra. Root lineage remains an
+additional authority-family check rather than part of numeric geometry.
+
+Backing and transformation correspondence use ordinary machine postconditions
+over the projection. For example, an establishment postcondition proves
+`content(result) ⊆ content(receipt)`, while a retained-buffer transformation
+may prove
+`content(result) == content(old(buffer))`. Those postconditions relate
+already-established evidence; they cannot make an ordinary record
+authoritative. Clear one-to-one and one-to-many claim mappings infer from the
+frontier. An ambiguous mapping requires an explicit postcondition or rejects.
 
 One projection is load-bearing in four places:
 
@@ -192,10 +233,11 @@ One projection is load-bearing in four places:
 4. retirement accounts for every remainder through an authorized route.
 
 Only an authorized establishment route introduces new content, and only an
-authorized retirement route removes it. An owner-originated resource may expose
-machines that establish fresh claims under the owner's policy. An externally
-rooted conduit may establish roots only from algebra-denominated admitted
-backing; its ordinary checked machines must conserve existing content.
+ordinary terminal claim consumer authorized by its contract retires content.
+An owner-originated resource may expose machines that establish fresh claims
+under the owner's policy. An externally rooted conduit may establish roots
+only from algebra-denominated admitted backing; its ordinary checked machines
+must conserve existing content.
 
 An underapproximating projection is safe but restricts access. An
 overapproximating projection rejects at checked establishment when the supplied
@@ -206,8 +248,8 @@ backing, and the receipt records that accepted claim.
 
 Conservation is irreducibly n-ary. Per-output containment and scalar measures
 are insufficient: two children may each lie inside a parent and have lengths
-that sum to the parent while overlapping completely. A qualified result or an
-owner-written `partitions` postcondition therefore does not license authority
+that sum to the parent while overlapping completely. Qualification and
+independent per-output postconditions therefore do not license authority
 duplication.
 
 For every content-bearing claim kind, checked transformation proves:
@@ -380,9 +422,10 @@ The implementation requires:
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.
-3. Qualified claim metadata must select and normalize
-   `Indivisible | Interval<Scalar> | CountedQuantity<Scalar>`, and admitted
-   receipts must carry backing in the same algebra.
+3. Qualified claim metadata must retain the owner-unique `Content<A>`
+   conformance, its canonical content-projection expression, and its interval
+   or counted-quantity identity; admitted receipts must carry backing in the
+   same algebra.
 4. The prover and resource checker must connect subject arithmetic and access
    footprints to compiler-owned containment and separated composition without
    teaching either system names such as `Extent`, `base`, `split`, or `merge`.

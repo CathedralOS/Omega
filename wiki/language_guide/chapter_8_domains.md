@@ -1163,9 +1163,10 @@ Working interpretation:
   coercion; explicitly bare targets erase non-owning semantic meaning. `as`
   never invokes arbitrary user code or fabricates routed provenance.
 - Multiplicity governs copy/discard and must-discharge behavior. A
-  content-bearing qualified claim may separately select a compiler-owned
-  decomposition algebra; permissions govern operations, and carry governs
-  mobility. None is inferred merely from the domain's spelling.
+  content-bearing exact qualification may separately publish one owner-unique
+  core `Content<A>` conformance selecting a compiler-owned decomposition
+  algebra; permissions govern operations, and carry governs mobility. None is
+  inferred merely from the domain's spelling or multiplicity.
 - Qualification and proof evidence erase from runtime code. Static semantic
   roles may affect later operator lowering without adding runtime metadata.
 - Qualification, explicit erasure, recast, validation, and noncanonical

@@ -4,7 +4,7 @@ Status: architectural direction settled 2026-07-30. The hard-root accounting
 precursor is schedule-keyed and uses logical-fuel provisions; canonical portable
 IR, metering, and general fixed-work segment checking remain implementation
 work. The concrete v1 portable-IR contract is owner-blocked on
-`OWNER_QUESTIONS.md` #8; the current evaluator-step schedule is telemetry
+`OWNER_QUESTIONS.md` #7; the current evaluator-step schedule is telemetry
 precursor evidence, not canonical-IR fuel.
 
 ## Context
@@ -160,7 +160,8 @@ External retained storage remains ordinary claim and custody accounting.
 
 Infallible allocation from a bounded bump/arena region is the first concrete
 customer for a `CountedQuantity<Bytes>` content algebra. Allocation consumes
-normalized size, alignment padding, and metadata from residual capacity;
+normalized size, alignment padding, and metadata from a proof-level natural
+residual magnitude keyed by the `Bytes` unit identity;
 split and return conserve that quantity. A scalar free-byte count does not
 prove placement in a fragmented general heap. Such allocators remain fallible
 or require an exact free-extent/reservation theorem.

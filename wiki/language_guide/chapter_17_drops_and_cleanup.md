@@ -201,7 +201,7 @@ transparent records. A record that is not itself declared `[linear]` derives
 its contained linear field claims without adding an aggregate claim; local
 construction, whole-record transfer, and field extraction retain those paths.
 Moving one field therefore leaves its siblings live, and moving the same field
-twice rejects. An explicit `[linear]` record remains one indivisible nominal
+twice rejects. An explicit `[linear]` record remains one nominal
 root. Literal-length fixed arrays likewise expose one canonical path per
 contained element: literal-index extraction leaves sibling obligations live,
 while runtime-indexed owned extraction remains conservative because it cannot

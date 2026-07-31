@@ -166,11 +166,31 @@ Multiplicity does not imply divisibility. A content-bearing qualified claim
 separately publishes one normalized projection into a compiler-owned partial
 composition algebra. That projection governs establishment backing, authorized
 access, n-ary decomposition/recomposition, and retirement accounting. The
-initial resource vocabulary is `Indivisible | Interval<Scalar>`; a tracked
-resource claim with no decomposable projection is indivisible. Ordinary
-qualifications that carry no resource content acquire no content entry at all.
-Domain facets retain their predicate/semantic meaning, while permission
-attenuation, content, lineage, and carry remain independent claim axes.
+initial resource vocabulary is an interval over proof-level natural bounds and
+a counted quantity over proof-level naturals. The qualification owner publishes
+at most one conformance to the core `Content<A>` projection requirement; the
+conformance's selected algebra and normalized projection become semantic
+identity. Ordinary claims and qualifications that carry no decomposable
+resource content acquire no content entry at all: whole-claim conservation
+already accounts for their transfer and cleanup. Domain facets retain their
+predicate/semantic meaning, while permission attenuation, content, lineage,
+and carry remain independent claim axes.
+
+Content projection confirms that predicate and provenance obligations compose.
+For example, an address-range authority combines one checked geometry predicate
+with one routed origin:
+
+```omega
+domain Extent::Granted
+    requires no_wrap(self.base, self.length)
+{
+    ExtentRootProvider::grant;
+}
+```
+
+Every authorized route proves the predicate at its return. The content
+projection then embeds `base` and `length` into proof-level natural arithmetic;
+it never relies on wrapping runtime address addition.
 
 Carry is independent. Mobility demands attach to the established value or
 resource provenance and survive qualification forgetting until the underlying

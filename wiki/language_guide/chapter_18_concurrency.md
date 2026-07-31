@@ -606,7 +606,7 @@ Finite exploration retains its activation bound and counterexample trace. It
 does not become an unbounded theorem without an authored cutoff, inductive
 invariant, ranking argument, or equivalent proof. Separately compiled packages
 also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #4.
+source and composition rules for those premises remain owner question #3.
 
 ## Minimal Deadlock Shapes
 
