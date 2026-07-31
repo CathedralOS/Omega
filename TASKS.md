@@ -697,8 +697,12 @@ improvements do not change public identity.
   fuel.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
-  through content-algebra facts; next add the incompatible affinity/executor
-  selection rejection canary. Then
+  through content-algebra facts. The provider-independent executor-selection
+  gate now consumes exact per-axis checked/admitted evidence identities,
+  rejects a CPU- or host-thread-affine activation when the selected executor
+  lacks the matching axis, and retains the validated selection in task
+  lifecycle custody; source selected-provider evidence wiring remains under
+  TR3–TR8. Then
   implement a narrow Windows `user32` slice:
   `RegisterClassEx`, `CreateWindowEx`/`WM_NCCREATE`, `GetMessage`,
   `DispatchMessage`, `DefWindowProc`, `DestroyWindow`, and
