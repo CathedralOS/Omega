@@ -222,25 +222,39 @@ fn expected_float_intrinsic(
     operator: &omega_typed_trees::operator::OperatorDefinition,
 ) -> Option<String> {
     let path = typed.operator_path_members(operator.name);
-    if !matches!(path, [namespace, requirement]
-        if namespace.as_str() == "Float" && requirement.as_str() == "add")
-    {
+    let [namespace, requirement] = path else {
+        return None;
+    };
+    if namespace.as_str() != "Float" {
         return None;
     }
+    let operation = match requirement.as_str() {
+        "add" | "subtract" | "multiply" | "divide" | "equal" | "not_equal" | "less"
+        | "less_or_equal" | "greater" | "greater_or_equal" => requirement.as_str(),
+        _ => return None,
+    };
     let [left, right] = typed.operator_parameters(operator) else {
         return None;
     };
     let primitive = typed.primitive_type_reference(left.type_reference)?;
-    if typed.primitive_type_reference(right.type_reference) != Some(primitive)
-        || typed.primitive_type_reference(operator.return_type) != Some(primitive)
-    {
+    if typed.primitive_type_reference(right.type_reference) != Some(primitive) {
         return None;
     }
-    match primitive {
-        omega_typed_trees::types::PrimitiveType::F32 => Some("Float::add.f32".to_owned()),
-        omega_typed_trees::types::PrimitiveType::F64 => Some("Float::add.f64".to_owned()),
-        _ => None,
+    let arithmetic = matches!(operation, "add" | "subtract" | "multiply" | "divide");
+    let expected_result = if arithmetic {
+        primitive
+    } else {
+        omega_typed_trees::types::PrimitiveType::Bool
+    };
+    if typed.primitive_type_reference(operator.return_type) != Some(expected_result) {
+        return None;
     }
+    let format = match primitive {
+        omega_typed_trees::types::PrimitiveType::F32 => "f32",
+        omega_typed_trees::types::PrimitiveType::F64 => "f64",
+        _ => return None,
+    };
+    Some(format!("Float::{operation}.{format}"))
 }
 
 fn evidence_source_names_boundary(

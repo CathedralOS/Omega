@@ -18,10 +18,17 @@ machine Main::main(&mut self) {
     self.left32 = 1.5;
     self.right32 = 2.0;
     self.sum32 = self.left32 + self.right32;
+    self.sum32 = self.sum32 * self.right32;
+    self.sum32 = self.sum32 - self.left32;
     self.left64 = 9.0;
     self.right64 = 3.0;
     self.quotient64 = self.left64 / self.right64;
-    transition self.sum32 > self.right32 && self.quotient64 == self.right64 {
+    transition self.sum32 > self.right32
+        && self.sum32 >= self.right32
+        && self.right32 < self.sum32
+        && self.right32 <= self.sum32
+        && self.sum32 != self.left32
+        && self.quotient64 == self.right64 {
         true -> good()
         _ -> bad()
     }

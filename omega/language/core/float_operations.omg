@@ -1,8 +1,8 @@
 // Source-visible floating-point operation identities.
 //
-// Primitive spellings resolve to the root Float operators below. Their
-// Float::add's f32/f64 overloads now have the first target satisfier and
-// selected-ProviderPlan realization slice. The remaining requirements retain
+// Primitive spellings resolve to the root Float operators below. All f32/f64
+// arithmetic and comparison overloads now have explicit native-target
+// satisfiers and selected-ProviderPlan realizations. Named requirements retain
 // bootstrap compiler lowering while their semantic identities and contracts
 // no longer live only in Rust match arms.
 //
