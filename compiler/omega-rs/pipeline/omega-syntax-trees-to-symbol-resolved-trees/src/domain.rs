@@ -19,6 +19,11 @@ pub(crate) fn lower_domain_definition(
         .alias
         .as_ref()
         .map(|alias| lower_domain_alias(lowerer, syntax_trees, alias));
+    let authored_routes = domain
+        .authored_routes
+        .iter()
+        .map(|route| route.iter().map(lower_name).collect())
+        .collect();
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
     let operators = lower_domain_operators(lowerer, syntax_trees, domain.operators)?;
 
@@ -43,6 +48,7 @@ pub(crate) fn lower_domain_definition(
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
         is_public: domain.is_public,
         alias,
+        authored_routes,
         predicate_body: domain.predicate_body,
         facts,
         operators,

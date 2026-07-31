@@ -18,7 +18,9 @@ data Extent [linear] {
 // the geometry above does not establish it; checked transformations must
 // conserve an existing claim and admitted roots must inherit the exact
 // owner-authored boundary requirement.
-pub domain Extent::Granted;
+pub domain Extent::Granted {
+    ExtentRootProvider::grant;
+}
 
 // The domain owner authorizes exactly this admitted root crossing. The caller
 // supplies ordinary geometry; the selected provider plan and its admission

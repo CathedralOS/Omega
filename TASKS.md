@@ -149,6 +149,17 @@ fail-closed on this path. Predicate `requires`, authored route bodies,
 denotation-preserving representation/scale conversion, and per-domain
 weakening remain.
 
+The source/IR route migration has begun: domain predicate `requires` and exact
+`Trait::requirement` body entries now parse into independent records; authored
+routes resolve once to ordinary checked or boundary requirement symbols and
+reject unresolved or result-mismatched citations. Checked conformers originate
+`authorized_route_establishment` evidence only through the exact cited slot,
+and a routed domain carrying predicates still requires those propositions to
+be proved. Core `Extent::Granted` now authors its `ExtentRootProvider::grant`
+route directly. Legacy predicate-in-body parsing and inferred owner
+machine/operator/boundary routes remain only for corpus migration; retire them
+after declarations and operator homes move to the settled surface.
+
 Acceptance: a look-alike trait cannot establish another domain; owner code has
 no establishment privilege outside named routes; checked and admitted
 conformances retain exact route identity and receipts; `i32::Km` qualifies

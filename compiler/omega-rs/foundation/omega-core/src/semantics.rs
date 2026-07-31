@@ -897,6 +897,11 @@ impl DomainSemanticRoles {
 /// relationship was allowed to introduce it in the first place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DomainEstablishmentRoute {
+    /// An exact ordinary trait requirement authored in the domain body.
+    CheckedRequirement {
+        trait_definition: crate::symbols::SymbolHandle,
+        requirement: crate::symbols::SymbolHandle,
+    },
     /// A checked machine owned by the domain carrier.
     OwnerCheckedMachine {
         machine: crate::symbols::SymbolHandle,
@@ -915,6 +920,7 @@ pub enum DomainEstablishmentRoute {
 impl DomainEstablishmentRoute {
     pub const fn kind_name(self) -> &'static str {
         match self {
+            Self::CheckedRequirement { .. } => "checked_requirement",
             Self::OwnerCheckedMachine { .. } => "owner_checked_machine",
             Self::OwnerOperator { .. } => "owner_operator",
             Self::BoundaryRequirement { .. } => "boundary_requirement",
@@ -923,6 +929,9 @@ impl DomainEstablishmentRoute {
 
     pub const fn source_symbol(self) -> crate::symbols::SymbolHandle {
         match self {
+            Self::CheckedRequirement {
+                trait_definition, ..
+            } => trait_definition,
             Self::OwnerCheckedMachine { machine } => machine,
             Self::OwnerOperator { operator } => operator,
             Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
@@ -931,7 +940,8 @@ impl DomainEstablishmentRoute {
 
     pub const fn requirement_symbol(self) -> crate::symbols::SymbolHandle {
         match self {
-            Self::BoundaryRequirement { requirement, .. } => requirement,
+            Self::CheckedRequirement { requirement, .. }
+            | Self::BoundaryRequirement { requirement, .. } => requirement,
             Self::OwnerCheckedMachine { .. } | Self::OwnerOperator { .. } => {
                 crate::symbols::SymbolHandle::invalid()
             }
@@ -953,7 +963,11 @@ pub enum QualificationEvidenceOrigin {
     Prover,
     /// A checked runtime validator established a predicate body.
     CheckedValidation,
-    /// The domain owner deliberately established a bodyless qualification.
+    /// A checked conformance returned through an exact requirement route
+    /// authored by the domain declaration.
+    AuthorizedRouteEstablishment,
+    /// Transitional evidence from a legacy inferred owner machine/operator
+    /// route. Retained only while declarations migrate to authored routes.
     OwnerEstablishment,
     /// Existing evidence was conserved through a checked transformation.
     CheckedTransformation,
@@ -971,6 +985,7 @@ impl QualificationEvidenceOrigin {
             Self::None => "none",
             Self::Prover => "prover",
             Self::CheckedValidation => "checked_validation",
+            Self::AuthorizedRouteEstablishment => "authorized_route_establishment",
             Self::OwnerEstablishment => "owner_establishment",
             Self::CheckedTransformation => "checked_transformation",
             Self::AdmittedReceipt => "admitted_receipt",
@@ -1014,6 +1029,16 @@ mod tests {
 
     #[test]
     fn establishment_routes_keep_source_and_requirement_identity_independent() {
+        let checked_trait = crate::symbols::SymbolHandle::from_arena_index(9);
+        let checked_requirement = crate::symbols::SymbolHandle::from_arena_index(10);
+        let checked = DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition: checked_trait,
+            requirement: checked_requirement,
+        };
+        assert_eq!(checked.kind_name(), "checked_requirement");
+        assert_eq!(checked.source_symbol(), checked_trait);
+        assert_eq!(checked.requirement_symbol(), checked_requirement);
+
         let boundary_trait = crate::symbols::SymbolHandle::from_arena_index(11);
         let requirement = crate::symbols::SymbolHandle::from_arena_index(12);
         let route = DomainEstablishmentRoute::BoundaryRequirement {
@@ -1050,6 +1075,10 @@ mod tests {
         assert_eq!(Origin::default(), Origin::None);
         assert_eq!(Origin::Prover.as_str(), "prover");
         assert_eq!(Origin::CheckedValidation.as_str(), "checked_validation");
+        assert_eq!(
+            Origin::AuthorizedRouteEstablishment.as_str(),
+            "authorized_route_establishment"
+        );
         assert_eq!(Origin::OwnerEstablishment.as_str(), "owner_establishment");
         assert_eq!(
             Origin::CheckedTransformation.as_str(),

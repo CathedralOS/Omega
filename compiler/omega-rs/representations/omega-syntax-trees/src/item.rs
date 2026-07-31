@@ -615,6 +615,9 @@ pub struct DomainDefinition {
     /// predicate facts so an alias can never be mistaken for a bodyless
     /// establishment route.
     pub alias: Option<DomainAliasDefinition>,
+    /// Exact trait-requirement paths authored in the declaration body. These
+    /// are establishment alternatives, independent from predicate facts.
+    pub authored_routes: Vec<Vec<Identifier>>,
     pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
@@ -634,6 +637,7 @@ impl Default for DomainDefinition {
             target_type: crate::types::TypeReferenceHandle::invalid(),
             is_public: false,
             alias: None,
+            authored_routes: Vec::new(),
             predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),

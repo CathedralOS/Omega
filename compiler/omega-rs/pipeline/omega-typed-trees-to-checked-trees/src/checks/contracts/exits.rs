@@ -25,13 +25,19 @@ pub(super) fn check_exit_ensures(
     {
         let context = facts.semantic.contexts.get(ensures_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let owner_establishment = match fact.payload {
+            let proved = semantic_contexts_prove_contract_fact(
+                program,
+                &facts.semantic,
+                &entry_contexts,
+                fact,
+            );
+            let authorized_route = match fact.payload {
                 omega_facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
                     .machines()
                     .iter()
                     .find(|machine| machine.symbol == state_flow.machine_symbol)
                     .is_some_and(|machine| {
-                        crate::qualification_evidence::machine_owns_bodyless_domain(
+                        crate::qualification_evidence::machine_has_checked_domain_establishment(
                             program,
                             machine,
                             domain_symbol,
@@ -39,13 +45,15 @@ pub(super) fn check_exit_ensures(
                     }),
                 _ => false,
             };
-            let satisfied = owner_establishment
-                || semantic_contexts_prove_contract_fact(
-                    program,
-                    &facts.semantic,
-                    &entry_contexts,
-                    fact,
-                );
+            let route_predicates_satisfied = match fact.payload {
+                omega_facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == domain_symbol)
+                    .is_none_or(|domain| !domain.predicate_body.is_present() || proved),
+                _ => true,
+            };
+            let satisfied = proved || (authorized_route && route_predicates_satisfied);
 
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(

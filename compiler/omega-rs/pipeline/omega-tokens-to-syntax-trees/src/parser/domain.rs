@@ -8,7 +8,7 @@ use omega_syntax_trees::item::{
     DomainAliasDefinition, DomainDefinition, OperatorDefinition, ProofFact,
 };
 use omega_syntax_trees::types::TypeReferenceNode;
-use omega_tokens::PunctuationKind;
+use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_domain_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -34,11 +34,12 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (domain_name, input) = input.take_identifier()?;
     let name = Identifier::generated(format!("{target_label}::{domain_name}"));
-    let (alias, predicate_body, facts, operators, body_token_count, input) =
+    let (alias, authored_routes, predicate_body, facts, operators, body_token_count, input) =
         if input.at_punctuation(PunctuationKind::Equal) {
             let (alias, input) = parse_domain_alias(syntax_trees, input)?;
             (
                 Some(alias),
+                Vec::new(),
                 omega_core::semantics::DomainPredicateBody::Bodyless,
                 HandleSpan::empty(),
                 HandleSpan::empty(),
@@ -46,14 +47,23 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
                 input,
             )
         } else {
-            let ((predicate_body, facts, operators, body_token_count), input) =
-                parse_domain_body(syntax_trees, input)?;
+            let ((predicate_body, facts, requires_token_count), input) =
+                parse_domain_requires(syntax_trees, input)?;
+            let ((legacy_facts, operators, authored_routes, body_token_count), input) =
+                parse_domain_body(syntax_trees, input, predicate_body.is_present())?;
+            let facts = merge_contiguous_fact_spans(facts, legacy_facts);
+            let predicate_body = if facts.is_empty() {
+                predicate_body
+            } else {
+                omega_core::semantics::DomainPredicateBody::Present
+            };
             (
                 None,
+                authored_routes,
                 predicate_body,
                 facts,
                 operators,
-                body_token_count,
+                requires_token_count.saturating_add(body_token_count),
                 input,
             )
         };
@@ -64,6 +74,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             target_type,
             is_public: false,
             alias,
+            authored_routes,
             predicate_body,
             facts,
             operators,
@@ -71,6 +82,62 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         },
         input,
     ))
+}
+
+fn parse_domain_requires<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<
+    'tokens,
+    'source,
+    (
+        omega_core::semantics::DomainPredicateBody,
+        HandleSpan<ProofFact>,
+        usize,
+    ),
+> {
+    if !input.at_contextual("requires") {
+        return Ok((
+            (
+                omega_core::semantics::DomainPredicateBody::Bodyless,
+                HandleSpan::empty(),
+                0,
+            ),
+            input,
+        ));
+    }
+
+    let input = input.take_contextual("requires")?;
+    let ((facts, token_count), input) =
+        parse_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
+    if facts.is_empty() {
+        return Err(input.error_here("domain `requires` must contain at least one proposition"));
+    }
+    Ok((
+        (
+            omega_core::semantics::DomainPredicateBody::Present,
+            facts,
+            token_count,
+        ),
+        input,
+    ))
+}
+
+fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::LeftBrace)
+        || input.tokens.is_empty()
+        || input.at_keyword(KeywordKind::Pub)
+        || input.at_keyword(KeywordKind::Data)
+        || input.at_keyword(KeywordKind::Machine)
+        || input.at_keyword(KeywordKind::Use)
+        || input.at_contextual("domain")
+        || input.at_contextual("operator")
+        || input.at_contextual("boundary")
+        || input.at_contextual("trait")
+        || input.at_contextual("const")
+        || input.at_contextual("export")
+        || input.at_contextual("module")
+        || input.at_contextual("package")
 }
 
 fn parse_domain_alias<'tokens, 'source>(
@@ -124,25 +191,34 @@ fn type_reference_target_label(
 fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    requires_consumed: bool,
 ) -> ParseResult<
     'tokens,
     'source,
     (
-        omega_core::semantics::DomainPredicateBody,
         HandleSpan<ProofFact>,
         HandleSpan<OperatorDefinition>,
+        Vec<Vec<Identifier>>,
         usize,
     ),
 > {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
-            (
-                omega_core::semantics::DomainPredicateBody::Bodyless,
-                HandleSpan::empty(),
-                HandleSpan::empty(),
-                0,
-            ),
+            (HandleSpan::empty(), HandleSpan::empty(), Vec::new(), 0),
+            input,
+        ));
+    }
+
+    // A `requires` clause may own the declaration's final semicolon. When its
+    // proof-fact parser has already consumed that token, the next root item is
+    // the caller's input and this domain has no route body.
+    if requires_consumed
+        && !input.at_punctuation(PunctuationKind::LeftBrace)
+        && domain_requires_terminator(input)
+    {
+        return Ok((
+            (HandleSpan::empty(), HandleSpan::empty(), Vec::new(), 0),
             input,
         ));
     }
@@ -151,8 +227,16 @@ fn parse_domain_body<'tokens, 'source>(
     let body_start_tokens = input.tokens.len();
     let mut facts = HandleSpan::empty();
     let mut operators = HandleSpan::empty();
+    let mut authored_routes = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
+        if at_authored_route(input) {
+            let (route, rest) = parse_authored_route(input)?;
+            authored_routes.push(route);
+            input = rest;
+            continue;
+        }
+
         if input.at_contextual("operator") {
             input = input.take_contextual("operator")?;
             let (operator, rest) = parse_operator_definition(syntax_trees, input, false)?;
@@ -176,6 +260,7 @@ fn parse_domain_body<'tokens, 'source>(
             input.at_punctuation(PunctuationKind::RightBrace)
                 || input.at_contextual("operator")
                 || input.at_contextual("boundary")
+                || at_authored_route(input)
         })?;
         facts = merge_contiguous_fact_spans(facts, parsed_facts);
         input = rest;
@@ -183,13 +268,48 @@ fn parse_domain_body<'tokens, 'source>(
 
     let body_token_count = body_start_tokens.saturating_sub(input.tokens.len());
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let predicate_body = if facts.is_empty() {
-        omega_core::semantics::DomainPredicateBody::Bodyless
-    } else {
-        omega_core::semantics::DomainPredicateBody::Present
-    };
+    Ok(((facts, operators, authored_routes, body_token_count), input))
+}
 
-    Ok(((predicate_body, facts, operators, body_token_count), input))
+fn at_authored_route(mut input: Input<'_, '_>) -> bool {
+    let Ok((_, rest)) = input.take_identifier() else {
+        return false;
+    };
+    input = rest;
+    let mut members = 1usize;
+    while input.at_punctuation(PunctuationKind::ColonColon) {
+        let Ok(rest) = input.take_punctuation(PunctuationKind::ColonColon, "::") else {
+            return false;
+        };
+        let Ok((_, rest)) = rest.take_identifier() else {
+            return false;
+        };
+        input = rest;
+        members += 1;
+    }
+    members >= 2 && input.at_punctuation(PunctuationKind::Semicolon)
+}
+
+fn parse_authored_route<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<Identifier>> {
+    let mut route = Vec::new();
+    loop {
+        let (member, rest) = input.take_identifier()?;
+        route.push(member);
+        input = rest;
+        if !input.at_punctuation(PunctuationKind::ColonColon) {
+            break;
+        }
+        input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+    }
+    if route.len() < 2 {
+        return Err(
+            input.error_here("domain establishment routes must name an exact `Trait::requirement`")
+        );
+    }
+    input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    Ok((route, input))
 }
 
 fn merge_contiguous_fact_spans(

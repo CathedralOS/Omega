@@ -183,6 +183,17 @@ are gone. Checked artifacts retain the exact cast site and
 `vacuous_qualification` origin; predicate-bearing and routed atoms do not enter
 through this path.
 
+Implementation status (P1b authored route surface, 2026-07-30): syntax trees
+now retain predicate `requires` separately from exact requirement paths in the
+domain body. Resolved trees preserve the authored paths and normalize them
+once, after symbol assignment, to checked- or boundary-requirement identities;
+unknown, ambiguous, and exact-result-mismatched routes reject. Checked
+conformance exits consult those identities, prove every predicate on a mixed
+domain, and publish `authorized_route_establishment` rather than ambient owner
+evidence. `Extent::Granted` uses the authored route surface. Legacy body
+predicates and inferred owner routes remain temporarily for source-corpus
+migration and are not the target representation.
+
 Implementation status (P1a establishment routes, 2026-07-28):
 `DomainEstablishmentRoute` records the exact trait-requirement identity
 authorized by a domain body. Syntax-to-resolved lowering normalizes those

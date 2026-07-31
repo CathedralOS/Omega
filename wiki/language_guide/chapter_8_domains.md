@@ -1178,8 +1178,12 @@ Working interpretation:
 > establishment routes. Explicit `as` into an empty domain (or an alias whose
 > expanded atoms are all empty) is now compiler-derived and records vacuous
 > qualification evidence; the former core qualification-satisfier trait has
-> been retired. The source migration to predicate `requires` and route bodies,
-> exact representation/scale conversion, and per-domain erasure is not yet
-> implemented. Arithmetic policies still have special lowering paths. General
+> been retired. Predicate `requires` and exact `Trait::requirement` body routes
+> now have independent syntax/IR records; authored routes resolve to checked or
+> boundary requirement identities, and mixed routed/predicate results must
+> prove the predicates. The legacy body-predicate and inferred-owner surfaces
+> remain during corpus migration. Exact representation/scale conversion and
+> per-domain erasure are not yet implemented. Arithmetic policies still have
+> special lowering paths. General
 > domain work must preserve every domain-theory axis independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

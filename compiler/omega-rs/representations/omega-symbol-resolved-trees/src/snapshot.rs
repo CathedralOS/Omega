@@ -268,6 +268,8 @@ pub struct DomainDefinitionSnapshot {
     pub is_public: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub alias: Vec<DomainAliasConstituentSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub authored_routes: Vec<Vec<String>>,
     pub predicate_body: &'static str,
     pub semantic_id: u32,
     pub semantic_roles: DomainSemanticRolesSnapshot,
@@ -691,6 +693,11 @@ fn domain_definition_snapshot(
                     .collect()
             })
             .unwrap_or_default(),
+        authored_routes: domain
+            .authored_routes
+            .iter()
+            .map(|route| route.iter().map(ToString::to_string).collect())
+            .collect(),
         predicate_body: domain.predicate_body.as_str(),
         semantic_id: domain.semantic_id.0,
         semantic_roles: DomainSemanticRolesSnapshot {

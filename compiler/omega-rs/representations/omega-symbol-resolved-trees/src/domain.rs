@@ -11,6 +11,9 @@ pub struct DomainDefinition {
     pub is_public: bool,
     /// Authored transparent alias theory, independent from predicate facts.
     pub alias: Option<DomainAliasDefinition>,
+    /// Authored exact trait-requirement paths. Normalization resolves these
+    /// once into `establishment_routes` after top-level symbols exist.
+    pub authored_routes: Vec<Vec<DiagnosticName>>,
     /// Explicit predicate-body presence from the source declaration.
     pub predicate_body: omega_core::semantics::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
