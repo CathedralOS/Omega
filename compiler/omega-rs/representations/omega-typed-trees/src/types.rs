@@ -823,6 +823,9 @@ impl PrimitiveType {
             "AtomicBool" => Some(Self::Bool),
             "AtomicU32" => Some(Self::U32),
             "AtomicU64" => Some(Self::U64),
+            name if name.starts_with("AtomicBool#PlacedField<") => Some(Self::Bool),
+            name if name.starts_with("AtomicU32#PlacedField<") => Some(Self::U32),
+            name if name.starts_with("AtomicU64#PlacedField<") => Some(Self::U64),
             _ => None,
         }
     }

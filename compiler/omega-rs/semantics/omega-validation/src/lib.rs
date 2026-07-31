@@ -15,6 +15,7 @@ mod locals;
 mod machine_data;
 mod machine_parameters;
 mod operators;
+mod placed_views;
 mod places;
 mod proof_facts;
 mod proof_only_faces;
@@ -435,6 +436,9 @@ fn validate_state_statement_node(
     value_env: &mut arithmetic_domains::ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if let Some(state) = machine_symbols.state(state_name) {
+        placed_views::validate_statement(program, machine, state, statement, diagnostics);
+    }
     match statement {
         StatementNode::AssemblyFact(fact) => {
             let state = machine_symbols.state(state_name);
@@ -456,39 +460,36 @@ fn validate_state_statement_node(
             }
         }
         StatementNode::Assignment(assignment) => {
-            validate_assignment_target_handle(
-                program,
-                assignment.target,
-                writable_roots,
-                diagnostics,
-                machine,
-                machine_symbols.state(state_name),
-                state_name,
-            );
-            calls::validate_asm_value_destination(
-                program,
-                machine,
-                machine_symbols.state(state_name),
-                assignment,
-                diagnostics,
-            );
-            let assignment_target_type = places::declared_place_type(
-                program,
-                machine,
-                machine_symbols.state(state_name),
-                assignment.target,
-            )
-            // An indexed target (`self.xs[i] = ..`) has no member path, so
-            // `declared_place_type` returns None -- fall back to the array/slice
-            // ELEMENT type so the store checks below see the real slot type.
-            .or_else(|| {
-                places::declared_indexed_projection_type(
-                    program,
-                    machine,
-                    machine_symbols.state(state_name),
-                    assignment.target,
+            let state = machine_symbols.state(state_name);
+            if !state.is_some_and(|state| {
+                placed_views::assignment_is_placed_atomic_operation(
+                    program, machine, state, assignment,
                 )
-            });
+            }) {
+                validate_assignment_target_handle(
+                    program,
+                    assignment.target,
+                    writable_roots,
+                    diagnostics,
+                    machine,
+                    state,
+                    state_name,
+                );
+            }
+            calls::validate_asm_value_destination(program, machine, state, assignment, diagnostics);
+            let assignment_target_type =
+                places::declared_place_type(program, machine, state, assignment.target)
+                    // An indexed target (`self.xs[i] = ..`) has no member path, so
+                    // `declared_place_type` returns None -- fall back to the array/slice
+                    // ELEMENT type so the store checks below see the real slot type.
+                    .or_else(|| {
+                        places::declared_indexed_projection_type(
+                            program,
+                            machine,
+                            machine_symbols.state(state_name),
+                            assignment.target,
+                        )
+                    });
             let assignment_target_primitive =
                 assignment_target_type.and_then(|handle| program.primitive_type_reference(handle));
             // An array-literal RHS into a `[T; N]` target: check each element's

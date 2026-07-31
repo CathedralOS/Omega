@@ -277,6 +277,13 @@ establishment from raw bytes reject.
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
   exclusive current borrow, and exclusive source loan.
+- Source derivation now retains the authoritative placement identity and exact
+  per-field permissions in typed trees. Stable/external accessors expose only
+  admitted trait methods; direct atomic syntax over `bool`, `u32`, and `u64`
+  is checked per operation family, works through a shared view borrow, and
+  cannot materialize an accessor as an ordinary scalar. Binding-private
+  package enforcement, generic atomic-family helper contracts, and admitted
+  source-loan construction remain open.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.

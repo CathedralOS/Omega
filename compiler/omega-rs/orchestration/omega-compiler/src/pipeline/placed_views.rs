@@ -10,17 +10,16 @@
 //!    permissive `PlacedField<FieldType>` template;
 //! 3. type the probe and evaluate `P::plan(T)` through the canonical placement
 //!    evaluator;
-//! 4. synthesize the authoritative placed record with only accepted
-//!    non-atomic fields and clone only the named accessor operations admitted
-//!    for each field.
+//! 4. synthesize the authoritative placed record with only accepted fields and
+//!    clone only the named accessor operations admitted for each field.
 //!
-//! The stable/external field types are unique to `(policy, schema, field)`. A
-//! helper may therefore accept an accessor without receiving the whole view,
-//! while a field omitted by the normalized plan has no member to project.
-//! Atomic fields remain omitted until their exact operation-family carrier is
-//! available; mapping them to the ordinary built-in atomic type would silently
-//! widen the policy. Provider admission remains the only construction route;
-//! the synthesized placed record contains opaque accessor fields and is
+//! Every field type is unique to `(policy, schema, field)`. Atomic accessor
+//! names retain their underlying primitive class for existing atomic
+//! instruction typing, while the installed typed-tree plan -- not that name --
+//! owns the exact operation subset. A helper may accept an accessor without
+//! receiving the whole view, while a field omitted by the normalized plan has
+//! no member to project. Provider admission remains the only construction
+//! route; the synthesized placed record contains opaque accessor fields and is
 //! linear.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -123,7 +122,7 @@ pub(crate) fn desugar_placed_views(
 }
 
 pub(crate) fn validate_placed_view_plans(
-    typed: &TypedTrees,
+    typed: &mut TypedTrees,
     records: &[PlacedViewRecord],
 ) -> Result<(), Vec<Diagnostic>> {
     for record in records {
@@ -144,7 +143,95 @@ pub(crate) fn validate_placed_view_plans(
                 record.synthetic_name
             ))]);
         }
+        install_placed_view_plan(typed, record, &plan)?;
     }
+    Ok(())
+}
+
+fn install_placed_view_plan(
+    typed: &mut TypedTrees,
+    record: &PlacedViewRecord,
+    placement: &ValidatedPlacementPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    let schema = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == record.schema_data)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}` lost schema `{}` after typing",
+                record.synthetic_name, record.schema_data
+            ))]
+        })?;
+    let schema_fields = typed
+        .data_members(schema)
+        .iter()
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => Some(field),
+            omega_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .map(|field| (field.name.as_str().to_owned(), field.type_reference))
+        .collect::<BTreeMap<_, _>>();
+    let view = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == record.synthetic_name)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}` lost its derived data definition after typing",
+                record.synthetic_name
+            ))]
+        })?;
+    let view_fields = typed
+        .data_members(view)
+        .iter()
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field) => typed
+                .named_type_reference(field.type_reference)
+                .map(|name| (field.name.as_str().to_owned(), name.as_str().to_owned())),
+            omega_typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut fields = Vec::new();
+    for entry in placement.access().plan().entries() {
+        if matches!(entry.access(), FieldAccess::Inaccessible) {
+            continue;
+        }
+        let value_type = schema_fields.get(entry.field()).copied().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}` lost schema field `{}` after typing",
+                record.synthetic_name,
+                entry.field()
+            ))]
+        })?;
+        let accessor_name = view_fields.get(entry.field()).cloned().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}` lost admitted field `{}` after typing",
+                record.synthetic_name,
+                entry.field()
+            ))]
+        })?;
+        fields.push(omega_typed_trees::typed_trees::PlacedFieldPlan {
+            field_name: entry.field().to_owned(),
+            accessor_name,
+            value_type,
+            access: entry.access().clone(),
+        });
+    }
+    typed
+        .placed_view_plans
+        .push(omega_typed_trees::typed_trees::PlacedViewPlan {
+            data_name: record.synthetic_name.clone(),
+            policy_name: record
+                .policy_machine
+                .strip_suffix("::plan")
+                .unwrap_or(&record.policy_machine)
+                .to_owned(),
+            schema_name: record.schema_data.clone(),
+            placement: placement.clone(),
+            fields,
+        });
     Ok(())
 }
 
@@ -370,15 +457,7 @@ fn synthesize_exact_records(
                 continue;
             }
 
-            if matches!(entry.access(), FieldAccess::Atomic { .. }) {
-                continue;
-            }
-            let accessor_name = format!(
-                "PlacedField<{},{},{}>",
-                application.policy,
-                application.schema,
-                field.name.as_str()
-            );
+            let accessor_name = accessor_name(syntax, application, field, entry.access())?;
             syntax.push_root_item(Item::Data(DataDefinition {
                 name: Identifier::generated(accessor_name.clone()),
                 supply_mode: DataSupplyMode::BoundaryOpaque,
@@ -425,6 +504,49 @@ fn synthesize_exact_records(
     rewrite_applications(syntax, rewrites);
     retire_accessor_templates(syntax);
     Ok(())
+}
+
+fn accessor_name(
+    syntax: &SyntaxTrees,
+    application: &Application,
+    field: &DataField,
+    access: &FieldAccess,
+) -> Result<String, Vec<Diagnostic>> {
+    let base = if matches!(access, FieldAccess::Atomic { .. }) {
+        match syntax
+            .tables
+            .type_references
+            .type_reference(field.type_reference)
+        {
+            TypeReferenceNode::Named(name) => match name.as_str() {
+                "bool" => "AtomicBool#PlacedField",
+                "u32" => "AtomicU32#PlacedField",
+                "u64" => "AtomicU64#PlacedField",
+                _ => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "placed atomic field `{}` in `{}` requires schema type `bool`, `u32`, or `u64`",
+                        field.name.as_str(),
+                        application.synthetic_name
+                    ))]);
+                }
+            },
+            _ => {
+                return Err(vec![Diagnostic::error(format!(
+                    "placed atomic field `{}` in `{}` requires a plain schema type `bool`, `u32`, or `u64`",
+                    field.name.as_str(),
+                    application.synthetic_name
+                ))]);
+            }
+        }
+    } else {
+        "PlacedField"
+    };
+    Ok(format!(
+        "{base}<{},{},{}>",
+        application.policy,
+        application.schema,
+        field.name.as_str()
+    ))
 }
 
 fn retire_accessor_templates(syntax: &mut SyntaxTrees) {

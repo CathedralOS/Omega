@@ -26,6 +26,11 @@ pub struct TypedTrees {
     /// instead of running its own packing. Empty for programs with no
     /// plan-laid fields.
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
+    /// Canonical source `Placed<P, T>` derivations. Each record binds the
+    /// synthetic view/accessor types to the validated placement plan that
+    /// selected them, so checking and lowering never reconstruct permissions
+    /// from generated names.
+    pub placed_view_plans: Vec<PlacedViewPlan>,
     /// Derived wire placements (mint arc rung 2a): one arena for every
     /// schema's placements, referenced by span from `wire_schema_plans` --
     /// arena-backed storage, HandleSpan ownership.
@@ -58,6 +63,39 @@ pub struct BoundaryCallingPlanIdentity {
     /// Keeping the pair together also prevents a public fingerprint from
     /// naming state obligations that the backend can no longer recover.
     pub boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedViewPlan {
+    pub data_name: String,
+    pub policy_name: String,
+    pub schema_name: String,
+    pub placement: omega_access_plans::ValidatedPlacementPlan,
+    pub fields: Vec<PlacedFieldPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlacedFieldPlan {
+    pub field_name: String,
+    pub accessor_name: String,
+    pub value_type: crate::types::TypeReferenceHandle,
+    pub access: omega_access_plans::FieldAccess,
+}
+
+fn named_type_name_through_shells(
+    table: &crate::types::TypeReferenceTable,
+    handle: crate::types::TypeReferenceHandle,
+) -> Option<&str> {
+    match table.type_reference(handle) {
+        crate::types::TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
+        crate::types::TypeReferenceNode::Reference { referee, .. } => {
+            named_type_name_through_shells(table, *referee)
+        }
+        crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            named_type_name_through_shells(table, *base_type)
+        }
+        _ => None,
+    }
 }
 
 /// One compile-time machine specialization. Static machine arguments are
@@ -205,6 +243,7 @@ impl TypedTrees {
             service_reach_rows: omega_core::semantics::ServiceReachRowTable::default(),
             semantic_domains: omega_core::semantics::SemanticDomainTable::default(),
             plan_laid_layouts: Vec::new(),
+            placed_view_plans: Vec::new(),
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),
@@ -1247,6 +1286,18 @@ impl TypedTrees {
         type_reference: types::TypeReferenceHandle,
     ) -> Option<types::PrimitiveType> {
         self.type_reference_table.primitive_type(type_reference)
+    }
+
+    pub fn placed_field_plan_for_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<&PlacedFieldPlan> {
+        let accessor_name =
+            named_type_name_through_shells(&self.type_reference_table, type_reference)?;
+        self.placed_view_plans
+            .iter()
+            .flat_map(|view| view.fields.iter())
+            .find(|field| field.accessor_name == accessor_name)
     }
 
     pub fn named_type_reference(

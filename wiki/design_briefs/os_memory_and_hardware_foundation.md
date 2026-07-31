@@ -648,9 +648,13 @@ revalidates the normalized identity in the authoritative typed program, and
 synthesizes unique opaque stable/external field accessors implementing only
 the admitted `Readable`, `DestructiveRead`, and `Writable` requirements.
 Inaccessible and unauthorized operations have no projection/method. Atomic
-fields remain absent rather than being widened to ordinary built-in atomics.
-Binding-private package enforcement, exact atomic-family accessors, connection
-to admitted source loans, and target-specific external/atomic emission remain
+fields now derive unique opaque `bool`/`u32`/`u64` accessors whose exact
+operation subset remains attached to the authoritative typed placement plan.
+Direct load, store, fetch, swap, and compare-exchange syntax is checked against
+that subset; atomic mutation follows the atomic rule through a shared view
+borrow, and a bare accessor cannot become an ordinary scalar. Binding-private
+package enforcement, generic atomic-family helper contracts, connection to
+admitted source loans, and target-specific external/atomic emission remain
 open.
 
 ## IPC and DMA

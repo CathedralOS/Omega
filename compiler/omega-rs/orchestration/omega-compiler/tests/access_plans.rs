@@ -490,27 +490,160 @@ data Main {}
 }
 
 #[test]
-fn placed_view_keeps_atomic_projection_closed_until_exact_accessors_land() {
+fn placed_view_exposes_admitted_atomic_operations() {
     let source = POLICY_SOURCE.replace(
         "data Main {}",
         r#"
 machine inspect(view: &Placed<UartPlacement, Registers>) {
-    let value: u64 = view.counter.load(Relaxed);
+    let observed: u64 = view.counter.load(Relaxed);
+    let prior: u64 = view.counter.fetch_add(1, Relaxed);
 }
 
 data Main {}
 "#,
     );
-    let main = write_program("placed-view-atomic-closed", &source);
+    let main = write_program("placed-view-atomic", &source);
+    let checked = compile_to_checked(&main, None)
+        .expect("the admitted atomic operation subset should compile");
+    let field = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .flat_map(|view| view.fields.iter())
+        .find(|field| field.field_name == "counter")
+        .expect("retained atomic field plan");
+    assert!(field.accessor_name.starts_with("AtomicU64#PlacedField<"));
+    assert!(matches!(
+        &field.access,
+        FieldAccess::Atomic { operations, .. }
+            if operations.load && operations.fetch_add && !operations.store
+    ));
+}
+
+#[test]
+fn placed_view_exposes_each_individually_admitted_atomic_family() {
+    let source = POLICY_SOURCE
+        .replace("store: false", "store: true")
+        .replace("fetch_sub: false", "fetch_sub: true")
+        .replace("fetch_xor: false", "fetch_xor: true")
+        .replace("fetch_or: false", "fetch_or: true")
+        .replace("fetch_and: false", "fetch_and: true")
+        .replace("swap: false", "swap: true")
+        .replace("compare_exchange: false", "compare_exchange: true")
+        .replace(
+            "data Main {}",
+            r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {
+    let observed: u64 = view.counter.load(Relaxed);
+    view.counter.store(observed, Relaxed);
+    let added: u64 = view.counter.fetch_add(1, Relaxed);
+    let subtracted: u64 = view.counter.fetch_sub(1, Relaxed);
+    let xored: u64 = view.counter.fetch_xor(1, Relaxed);
+    let ored: u64 = view.counter.fetch_or(1, Relaxed);
+    let anded: u64 = view.counter.fetch_and(1, Relaxed);
+    let swapped: u64 = view.counter.swap(1, Relaxed);
+    let exchanged: u64 = view.counter.compare_exchange(1, 2, Relaxed, Relaxed);
+}
+
+data Main {}
+"#,
+        );
+    let main = write_program("placed-view-atomic-families", &source);
+    compile_to_checked(&main, None)
+        .expect("each individually admitted atomic operation family should compile");
+}
+
+#[test]
+fn placed_view_atomic_accessor_cannot_materialize_as_an_ordinary_value() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {
+    let leaked: u64 = view.counter;
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-atomic-leak", &source);
     let diagnostics = compile_to_checked(&main, None)
-        .expect_err("a built-in atomic carrier would widen the admitted operation subset");
+        .expect_err("an atomic accessor must not coerce into its carried primitive");
     let rendered = diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        rendered.contains("counter"),
+        rendered.contains("counter") && rendered.contains("accessor, not an ordinary value"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn placed_view_rejects_atomic_operations_outside_the_plan() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    view.counter.store(1, Relaxed);
+    let subtracted: u64 = view.counter.fetch_sub(1, Relaxed);
+    let xored: u64 = view.counter.fetch_xor(1, Relaxed);
+    let ored: u64 = view.counter.fetch_or(1, Relaxed);
+    let anded: u64 = view.counter.fetch_and(1, Relaxed);
+    let swapped: u64 = view.counter.swap(1, Relaxed);
+    let exchanged: u64 = view.counter.compare_exchange(1, 2, Relaxed, Relaxed);
+}
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-atomic-denied", &source);
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("the placement does not admit atomic store");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    for operation in [
+        "store",
+        "fetch_sub",
+        "fetch_xor",
+        "fetch_or",
+        "fetch_and",
+        "swap",
+        "compare_exchange",
+    ] {
+        assert!(
+            rendered.contains(&format!("does not admit `{operation}`")),
+            "missing `{operation}` diagnostic: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn placed_view_rejects_atomic_access_for_an_unsupported_schema_primitive() {
+    let source = POLICY_SOURCE
+        .replace("counter: u64;", "counter: u16;")
+        .replace(
+            "data Main {}",
+            r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {}
+
+data Main {}
+"#,
+        );
+    let main = write_program("placed-view-atomic-width", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("placed atomics are currently limited to supported atomic primitives");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("counter")
+            && rendered.contains("requires schema type `bool`, `u32`, or `u64`"),
         "unexpected diagnostic: {rendered}"
     );
 }
