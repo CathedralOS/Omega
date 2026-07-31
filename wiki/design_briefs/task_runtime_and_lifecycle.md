@@ -112,6 +112,14 @@ the fixed-stack lowering rung below. `05_carry_manifest.json` remains useful
 because it names each suspension crossing and its typed live-value/storage
 frontier; tools consume that checked artifact rather than reinterpret source.
 
+The provider-independent selection gate is also live in `omega-task-plans`.
+It consumes one exact checked-conformance or admission-receipt identity for
+each demanded CPU/host-thread preservation axis, rejects missing or mismatched
+evidence, and folds the validated executor selection into the task lifecycle
+claim and dependency record. This is deliberately not a generalized runtime
+behavior/supply record. Connecting those identities to the ordinary selected
+`TaskRuntime` provider and source invocation receipt remains TR3–TR8 work.
+
 Architectural preemption does not itself create a semantic crossing. A runtime
 may stop and restore opaque register/stack state without changing the
 activation's semantic circumstances. Cancellation delivery, migration,

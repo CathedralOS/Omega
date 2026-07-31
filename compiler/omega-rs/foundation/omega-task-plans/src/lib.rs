@@ -2,8 +2,9 @@
 //!
 //! An activation plan describes one fixed, nonmoving stack, the canonical
 //! semantic suspension crossings, and only the CPU/thread preservation those
-//! crossings demand. Provider selection and conformance are later phases; this
-//! crate deliberately does not publish a generalized runtime behavior record.
+//! crossings demand. Executor selection consumes exact per-axis checked or
+//! admitted evidence; this crate deliberately does not publish a generalized
+//! runtime behavior record.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -39,6 +40,11 @@ normalized_id!(SuspensionCrossingId, "suspension-crossing");
 normalized_id!(TaskRuntimeId, "task-runtime");
 normalized_id!(TaskRuntimeInstanceId, "task-runtime-instance");
 normalized_id!(ActivationPlanId, "activation-plan");
+normalized_id!(
+    ExecutorPreservationEvidenceId,
+    "executor-preservation-evidence"
+);
+normalized_id!(ExecutorSelectionId, "executor-selection");
 normalized_id!(ActivationInstanceId, "activation-instance");
 normalized_id!(TaskStorageOwnerId, "task-storage-owner");
 normalized_id!(TaskStorageLeaseId, "task-storage-lease");
@@ -169,6 +175,129 @@ pub fn validate_activation_plan(
     Ok(ValidatedActivationPlan(candidate))
 }
 
+/// One independent affinity axis an executor can prove it preserves.
+///
+/// Suspension and address stability are deliberately absent. Suspension is a
+/// local liveness judgment, while address stability follows from the selected
+/// fixed nonmoving stack lease.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ExecutorPreservationAxis {
+    Cpu,
+    HostThread,
+}
+
+/// Exact checked-conformance or admission-receipt evidence for one axis.
+///
+/// The normalized identity is produced by provider selection from the
+/// conformance/receipt it validated. This is evidence identity, not a freely
+/// authored runtime behavior bit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutorPreservationEvidence {
+    axis: ExecutorPreservationAxis,
+    identity: ExecutorPreservationEvidenceId,
+}
+
+impl ExecutorPreservationEvidence {
+    pub const fn new(
+        axis: ExecutorPreservationAxis,
+        identity: ExecutorPreservationEvidenceId,
+    ) -> Self {
+        Self { axis, identity }
+    }
+
+    pub const fn axis(self) -> ExecutorPreservationAxis {
+        self.axis
+    }
+
+    pub const fn identity(self) -> ExecutorPreservationEvidenceId {
+        self.identity
+    }
+}
+
+/// Exact runtime instance and preservation evidence selected for one
+/// provider-independent activation plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutorSelectionCandidate {
+    pub runtime: TaskRuntimeId,
+    pub runtime_instance: TaskRuntimeInstanceId,
+    pub preservation: Vec<ExecutorPreservationEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedExecutorSelection {
+    identity: ExecutorSelectionId,
+    candidate: ExecutorSelectionCandidate,
+    plan: ValidatedActivationPlan,
+}
+
+impl ValidatedExecutorSelection {
+    pub const fn identity(&self) -> ExecutorSelectionId {
+        self.identity
+    }
+
+    pub const fn candidate(&self) -> &ExecutorSelectionCandidate {
+        &self.candidate
+    }
+
+    pub const fn plan(&self) -> &ValidatedActivationPlan {
+        &self.plan
+    }
+}
+
+/// Validate one already resolved executor selection against the activation's
+/// demanded CPU/thread preservation. Checked providers and opaque admitted
+/// providers both arrive as exact per-axis evidence identities; absence fails
+/// closed, and multiple identities for one axis reject rather than guessing.
+pub fn validate_executor_selection(
+    plan: &ValidatedActivationPlan,
+    mut candidate: ExecutorSelectionCandidate,
+) -> Result<ValidatedExecutorSelection, TaskPlanDiagnostic> {
+    candidate
+        .preservation
+        .sort_by_key(|evidence| evidence.axis());
+    for duplicate in candidate.preservation.windows(2) {
+        if duplicate[0].axis() == duplicate[1].axis() {
+            return Err(TaskPlanDiagnostic(format!(
+                "selected executor supplies more than one {} preservation identity; selection must retain one exact checked conformance or admission receipt",
+                axis_label(duplicate[0].axis()),
+            )));
+        }
+    }
+
+    let establishes = |axis| {
+        candidate
+            .preservation
+            .iter()
+            .any(|evidence| evidence.axis() == axis)
+    };
+    let obligations = plan.candidate().carry_obligations;
+    if obligations.preserve_cpu && !establishes(ExecutorPreservationAxis::Cpu) {
+        return Err(TaskPlanDiagnostic(
+            "selected executor does not establish CPU preservation required by the activation"
+                .into(),
+        ));
+    }
+    if obligations.preserve_host_thread && !establishes(ExecutorPreservationAxis::HostThread) {
+        return Err(TaskPlanDiagnostic(
+            "selected executor does not establish host-thread preservation required by the activation"
+                .into(),
+        ));
+    }
+
+    Ok(ValidatedExecutorSelection {
+        identity: ExecutorSelectionId(fingerprint_executor_selection(plan, &candidate)),
+        candidate,
+        plan: plan.clone(),
+    })
+}
+
+const fn axis_label(axis: ExecutorPreservationAxis) -> &'static str {
+    match axis {
+        ExecutorPreservationAxis::Cpu => "CPU",
+        ExecutorPreservationAxis::HostThread => "host-thread",
+    }
+}
+
 /// Provider-normalized identity of one persistent activation-storage lease.
 ///
 /// This record is provenance, not the source-visible lease authority. The
@@ -197,6 +326,7 @@ pub struct TaskDependencyRecord {
     pub runtime: TaskRuntimeId,
     pub runtime_instance: TaskRuntimeInstanceId,
     pub activation_plan: ActivationPlanId,
+    pub executor_selection: ExecutorSelectionId,
     pub activation: ActivationInstanceId,
     pub storage: TaskStorageBinding,
 }
@@ -226,7 +356,8 @@ impl TaskLifecycleClaim {
     }
 }
 
-/// Exact activation plan retained behind one live lifecycle claim.
+/// Exact executor selection and activation plan retained behind one live
+/// lifecycle claim.
 ///
 /// `TaskDependencyRecord` remains the compact report form. Custody and
 /// settlement compare this carrier so compact identity collisions cannot move
@@ -234,7 +365,7 @@ impl TaskLifecycleClaim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LiveTaskDependency {
     record: TaskDependencyRecord,
-    plan: ValidatedActivationPlan,
+    selection: Box<ValidatedExecutorSelection>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -320,10 +451,8 @@ pub struct TaskLifecycleLedger {
 }
 
 impl TaskLifecycleLedger {
-    /// Create accounting for an already selected runtime instance.
-    ///
-    /// Selection and provider conformance are intentionally outside this
-    /// ledger. They must complete before an activation is recorded here.
+    /// Create empty accounting for one runtime instance. Each accepted
+    /// activation must still supply its exact validated executor selection.
     pub fn new(runtime: TaskRuntimeId, instance: TaskRuntimeInstanceId) -> Self {
         Self {
             runtime,
@@ -340,10 +469,17 @@ impl TaskLifecycleLedger {
 
     pub fn accept_activation(
         &mut self,
-        plan: &ValidatedActivationPlan,
+        selection: &ValidatedExecutorSelection,
         activation: ActivationInstanceId,
         storage: TaskStorageBinding,
     ) -> Result<TaskLifecycleClaim, TaskPlanDiagnostic> {
+        if selection.candidate().runtime != self.runtime
+            || selection.candidate().runtime_instance != self.instance
+        {
+            return Err(TaskPlanDiagnostic(
+                "task activation selection belongs to a different runtime instance".into(),
+            ));
+        }
         if self.used_activations.contains(&activation) {
             return Err(TaskPlanDiagnostic(
                 "task activation identity has already been accepted by this runtime instance"
@@ -362,13 +498,7 @@ impl TaskLifecycleLedger {
             TaskStorageBinding::InlineCompletion => {}
         }
 
-        let claim = TaskLifecycleClaimId(fingerprint_task_claim(
-            plan,
-            self.runtime,
-            self.instance,
-            activation,
-            storage,
-        ));
+        let claim = TaskLifecycleClaimId(fingerprint_task_claim(selection, activation, storage));
         if self.live.contains_key(&claim) {
             return Err(TaskPlanDiagnostic(
                 "normalized task lifecycle claim identity collides with a live claim".into(),
@@ -378,7 +508,8 @@ impl TaskLifecycleLedger {
             claim,
             runtime: self.runtime,
             runtime_instance: self.instance,
-            activation_plan: plan.normalized_identity(),
+            activation_plan: selection.plan().normalized_identity(),
+            executor_selection: selection.identity(),
             activation,
             storage,
         };
@@ -388,7 +519,7 @@ impl TaskLifecycleLedger {
         }
         let dependency = LiveTaskDependency {
             record,
-            plan: plan.clone(),
+            selection: Box::new(selection.clone()),
         };
         self.live.insert(claim, dependency.clone());
         Ok(TaskLifecycleClaim { dependency })
@@ -491,17 +622,32 @@ fn fingerprint_activation_plan(plan: &ActivationPlanCandidate) -> u64 {
     fingerprint.finish()
 }
 
-fn fingerprint_task_claim(
+fn fingerprint_executor_selection(
     plan: &ValidatedActivationPlan,
-    runtime: TaskRuntimeId,
-    runtime_instance: TaskRuntimeInstanceId,
+    candidate: &ExecutorSelectionCandidate,
+) -> u64 {
+    let mut fingerprint = Fingerprint::new();
+    fingerprint.word(plan.normalized_identity().normalized_identity());
+    fingerprint.word(candidate.runtime.normalized_identity());
+    fingerprint.word(candidate.runtime_instance.normalized_identity());
+    fingerprint.word(candidate.preservation.len() as u64);
+    for evidence in &candidate.preservation {
+        fingerprint.byte(match evidence.axis() {
+            ExecutorPreservationAxis::Cpu => 1,
+            ExecutorPreservationAxis::HostThread => 2,
+        });
+        fingerprint.word(evidence.identity().normalized_identity());
+    }
+    fingerprint.finish()
+}
+
+fn fingerprint_task_claim(
+    selection: &ValidatedExecutorSelection,
     activation: ActivationInstanceId,
     storage: TaskStorageBinding,
 ) -> u64 {
     let mut fingerprint = Fingerprint::new();
-    fingerprint.word(plan.normalized_identity().normalized_identity());
-    fingerprint.word(runtime.normalized_identity());
-    fingerprint.word(runtime_instance.normalized_identity());
+    fingerprint.word(selection.identity().normalized_identity());
     fingerprint.word(activation.normalized_identity());
     match storage {
         TaskStorageBinding::Persistent(provenance) => {
@@ -598,6 +744,24 @@ mod tests {
         id(80, TaskRuntimeId::from_normalized_identity)
     }
 
+    fn executor_selection(
+        plan: &ValidatedActivationPlan,
+        instance: TaskRuntimeInstanceId,
+    ) -> ValidatedExecutorSelection {
+        validate_executor_selection(
+            plan,
+            ExecutorSelectionCandidate {
+                runtime: runtime(),
+                runtime_instance: instance,
+                preservation: vec![ExecutorPreservationEvidence::new(
+                    ExecutorPreservationAxis::Cpu,
+                    id(81, ExecutorPreservationEvidenceId::from_normalized_identity),
+                )],
+            },
+        )
+        .expect("matching executor selection")
+    }
+
     #[test]
     fn fixed_stack_and_canonical_crossings_form_a_valid_plan() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
@@ -671,6 +835,51 @@ mod tests {
     }
 
     #[test]
+    fn incompatible_affinity_executor_selection_rejects() {
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let diagnostic = validate_executor_selection(
+            &plan,
+            ExecutorSelectionCandidate {
+                runtime: runtime(),
+                runtime_instance: id(90, TaskRuntimeInstanceId::from_normalized_identity),
+                preservation: vec![ExecutorPreservationEvidence::new(
+                    ExecutorPreservationAxis::HostThread,
+                    id(91, ExecutorPreservationEvidenceId::from_normalized_identity),
+                )],
+            },
+        )
+        .expect_err("host-thread evidence cannot satisfy a CPU-pinned activation");
+
+        assert!(
+            diagnostic
+                .0
+                .contains("selected executor does not establish CPU preservation")
+        );
+    }
+
+    #[test]
+    fn executor_selection_requires_only_the_activation_affinity_axes() {
+        let mut portable = candidate();
+        portable.canonical_suspension_crossings[0].preserve_cpu = false;
+        portable.carry_obligations = ActivationCarryObligations::none();
+        let plan = validate_activation_plan(portable).expect("portable activation plan");
+        let instance = id(92, TaskRuntimeInstanceId::from_normalized_identity);
+        let selection = validate_executor_selection(
+            &plan,
+            ExecutorSelectionCandidate {
+                runtime: runtime(),
+                runtime_instance: instance,
+                preservation: Vec::new(),
+            },
+        )
+        .expect("portable activation needs no affinity evidence");
+
+        assert_eq!(selection.candidate().runtime_instance, instance);
+        assert_eq!(selection.plan(), &plan);
+        assert_ne!(selection.identity().normalized_identity(), 0);
+    }
+
+    #[test]
     fn lifecycle_claim_pins_runtime_plan_and_storage_until_settlement() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
         let instance = id(100, TaskRuntimeInstanceId::from_normalized_identity);
@@ -679,12 +888,18 @@ mod tests {
             owner: id(102, TaskStorageOwnerId::from_normalized_identity),
             lease: id(103, TaskStorageLeaseId::from_normalized_identity),
         };
+        let selection = executor_selection(&plan, instance);
         let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
         let claim = ledger
-            .accept_activation(&plan, activation, TaskStorageBinding::Persistent(storage))
+            .accept_activation(
+                &selection,
+                activation,
+                TaskStorageBinding::Persistent(storage),
+            )
             .expect("accepted activation");
 
-        assert_eq!(ledger.records().count(), 1);
+        let record = ledger.records().next().expect("one live dependency");
+        assert_eq!(record.executor_selection, selection.identity());
         ledger
             .validate_cancellation_request(&claim)
             .expect("cancellation preserves the claim");
@@ -716,10 +931,11 @@ mod tests {
             owner: storage.owner,
             lease: id(115, TaskStorageLeaseId::from_normalized_identity),
         };
+        let selection = executor_selection(&plan, instance);
         let mut ledger = TaskLifecycleLedger::new(runtime(), instance);
         let claim = ledger
             .accept_activation(
-                &plan,
+                &selection,
                 first_activation,
                 TaskStorageBinding::Persistent(storage),
             )
@@ -728,7 +944,7 @@ mod tests {
         assert!(
             ledger
                 .accept_activation(
-                    &plan,
+                    &selection,
                     first_activation,
                     TaskStorageBinding::Persistent(alternate_storage),
                 )
@@ -739,7 +955,7 @@ mod tests {
         assert!(
             ledger
                 .accept_activation(
-                    &plan,
+                    &selection,
                     second_activation,
                     TaskStorageBinding::Persistent(storage),
                 )
@@ -751,7 +967,7 @@ mod tests {
         assert!(
             ledger
                 .accept_activation(
-                    &plan,
+                    &selection,
                     second_activation,
                     TaskStorageBinding::Persistent(storage),
                 )
@@ -762,17 +978,16 @@ mod tests {
     #[test]
     fn failed_cross_runtime_settlement_returns_the_linear_claim() {
         let plan = validate_activation_plan(candidate()).expect("activation plan");
-        let mut owner = TaskLifecycleLedger::new(
-            runtime(),
-            id(120, TaskRuntimeInstanceId::from_normalized_identity),
-        );
+        let owner_instance = id(120, TaskRuntimeInstanceId::from_normalized_identity);
+        let mut owner = TaskLifecycleLedger::new(runtime(), owner_instance);
         let mut wrong_instance = TaskLifecycleLedger::new(
             runtime(),
             id(121, TaskRuntimeInstanceId::from_normalized_identity),
         );
+        let selection = executor_selection(&plan, owner_instance);
         let claim = owner
             .accept_activation(
-                &plan,
+                &selection,
                 id(122, ActivationInstanceId::from_normalized_identity),
                 TaskStorageBinding::InlineCompletion,
             )
