@@ -14,12 +14,12 @@
 use omega::language::std::console;
 use omega::language::core::numeric_conversion;
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 4]::Utf8 {
+domain [u8; 4]::Utf8
+requires
     valid_utf8(self);
-}
 data Main {
     console: Console;
     // Wrapping DECLARED (nums/elem/sum/digit): the sum flows from array elements,

@@ -3,9 +3,13 @@ use super::*;
 #[test]
 fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_domains() {
     let source = r#"
-        domain [u8]::Meaning {}
-        domain [u8]::Utf8 { valid_utf8(self); }
-        domain [u8]::NoNul { no_nul(self); }
+        domain [u8]::Meaning;
+        domain [u8]::Utf8
+        requires
+            valid_utf8(self);
+        domain [u8]::NoNul
+        requires
+            no_nul(self);
 
         data Packet {
             bytes: &[u8] in Meaning & Utf8 & NoNul;
@@ -53,8 +57,12 @@ fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_dom
 #[test]
 fn domain_conjunction_write_checks_every_predicate_facet() {
     let source = r#"
-        domain [u8]::Utf8 { valid_utf8(self); }
-        domain [u8]::AsciiOnly { ascii_only(self); }
+        domain [u8]::Utf8
+        requires
+            valid_utf8(self);
+        domain [u8]::AsciiOnly
+        requires
+            ascii_only(self);
 
         data Main {
             text: &[u8] in Utf8 & AsciiOnly;
@@ -92,13 +100,13 @@ fn semantic_domain_ids_mint_and_propagate() {
             mana: i32;
         }
 
-        domain Player::Valid {
+        domain Player::Valid
+        requires
             self.health >= 0;
-        }
 
-        domain Player::Ready {
+        domain Player::Ready
+        requires
             self.mana >= 0;
-        }
     "#;
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -133,15 +141,15 @@ fn materializes_domain_dependency_facts() {
             mana: i32;
         }
 
-        domain Player::Valid {
+        domain Player::Valid
+        requires
             self.health >= 0;
             self.health <= 100;
-        }
 
-        domain Player::Ready {
+        domain Player::Ready
+        requires
             self in Player::Valid;
             self.mana >= 0;
-        }
     "#;
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");

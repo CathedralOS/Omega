@@ -167,14 +167,14 @@ fn keeps_attached_machines_as_distinct_callables() {
 #[test]
 fn lowers_domain_definitions() {
     let source = r#"
-    domain Player::Valid {
+    domain Player::Valid
+    requires
         self.health >= 0
-    }
 
-    domain Player::Alive {
+    domain Player::Alive
+    requires
         self in Player::Valid;
         self.health > 0
-    }
 
     domain Player::Tagged;
 
@@ -244,13 +244,13 @@ fn lowers_domain_definitions() {
 #[test]
 fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
     let source = r#"
-    domain [u8; 8]::Utf8 {
+    domain [u8; 8]::Utf8
+    requires
         valid_utf8(self);
-    }
 
-    domain [u8; 16]::Utf8 {
+    domain [u8; 16]::Utf8
+    requires
         valid_utf8(self);
-    }
 
     data Holder {
         label: [u8; 8] in Utf8;
@@ -331,9 +331,10 @@ fn preserves_domain_operator_declarations() {
         value: i32;
     }
 
-    domain Quantity::Additive {
+    domain Quantity::Additive
+    requires
         self.value >= 0;
-
+    {
         operator add(left: Quantity, right: Quantity) -> Quantity;
     }
     "#;

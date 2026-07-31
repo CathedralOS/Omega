@@ -1,14 +1,14 @@
 // FAIL CANARY: Wide does not imply Narrow. A shared recast may forget an
 // established domain fact, but it may not manufacture a stronger one merely
 // because both domains use the same carrier and storage layout.
-domain u32::Wide {
+domain u32::Wide
+requires
     self <= 100;
-}
 
-domain u32::Narrow {
+domain u32::Narrow
+requires
     self in u32::Wide;
     self <= 10;
-}
 
 data Main {
     value: u32 in Wide;

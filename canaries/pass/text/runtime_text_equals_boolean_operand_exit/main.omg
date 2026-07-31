@@ -9,12 +9,12 @@
 // DRAWN FROM THE POOL as a fourth pick, making collision impossible by
 // construction. `shift` keeps the String off machine offset 0.
 // exits: 71 = field/left; 72 = let/right; 73 = field/right; 74 = let/left.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 data Main { console: Console; shift: u64; name: [u8; 8] in Utf8; flag: bool; okf: bool; }
 machine Main::main(&mut self) {

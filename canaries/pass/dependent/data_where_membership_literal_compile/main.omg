@@ -1,9 +1,9 @@
 // COMPILE CANARY. A byte-predicate membership fact participates in a data
 // default domain: the literal's bytes establish the otherwise zero-invalid
 // NonEmpty gate at construction.
-domain [u8]::NonEmpty {
+domain [u8]::NonEmpty
+requires
     non_empty(self);
-}
 data Message
 where
     text in NonEmpty,

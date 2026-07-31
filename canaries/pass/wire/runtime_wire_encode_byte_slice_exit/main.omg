@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // Wire stage 2 (#43), borrowed `&[u8]` fields: the honest zero-copy bytes/text
 // field (a fat `{ptr, len}` slice), encoded as RAW bytes -- a length varint
 // then the bytes -- distinct from a `[u8; N]` repeated field (packed

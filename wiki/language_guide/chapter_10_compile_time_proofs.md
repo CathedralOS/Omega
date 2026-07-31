@@ -88,9 +88,9 @@ Working rules:
   recursive (directly or mutually) or any field's type is proof-only. There
   is no marker; writing recursive data is the opt-in, and diagnostics name
   the classification ("`Nat` is proof-only: recursive data has no layout").
-- A proof-only value may appear **only in fact positions** — `requires`,
-  `ensures`, `where` clauses, domain bodies — and in proof-stratum machine
-  bodies. It never has a size, an address, or a zero value.
+- A proof-only value may appear **only in fact positions** — machine or domain
+  `requires`, `ensures`, `where` clauses — and in proof-stratum machine bodies.
+  It never has a size, an address, or a zero value.
 - A machine whose signature mentions a proof-only type is itself proof-only:
   it is evaluated by the checker, never lowered.
 - **The checker computes where values exist and rearranges where they do

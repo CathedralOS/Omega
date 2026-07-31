@@ -2,9 +2,9 @@
 // carried as a fact across a call: `main` requires it on `self.text`, and that
 // membership satisfies `consume` without a builtin String type.
 
-domain [u8]::NonEmpty {
+domain [u8]::NonEmpty
+requires
     non_empty(self);
-}
 
 data Main {
     text: &[u8];

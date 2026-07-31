@@ -1,13 +1,13 @@
 data Socket {}
 data Session {}
 
-pub domain Socket::Connected {
+pub domain Socket::Connected
+requires
     true;
-}
 
-pub domain Session::Authenticated {
+pub domain Session::Authenticated
+requires
     true;
-}
 
 pub domain Socket::Usable =
     Socket::Connected & Session::Authenticated;

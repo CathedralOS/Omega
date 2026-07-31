@@ -17,9 +17,9 @@
 // Expected exit: 0.
 // Expected output contains: ~
 use omega::language::std::console;
-domain [u8; 6]::Utf8 {
+domain [u8; 6]::Utf8
+requires
     valid_utf8(self);
-}
 data Cell {
     case Wall;
     case Floor;

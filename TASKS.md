@@ -156,9 +156,11 @@ reject unresolved or result-mismatched citations. Checked conformers originate
 `authorized_route_establishment` evidence only through the exact cited slot,
 and a routed domain carrying predicates still requires those propositions to
 be proved. Core `Extent::Granted` now authors its `ExtentRootProvider::grant`
-route directly. Legacy predicate-in-body parsing and inferred owner
-machine/operator/boundary routes remain only for corpus migration; retire them
-after declarations and operator homes move to the settled surface.
+route directly. Domain predicates across the core, canary, sample, lattice,
+and embedded-test corpora now use ordinary `requires`; predicate-in-body syntax
+rejects with directed migration guidance. Legacy nested domain operators and
+inferred owner machine/operator/boundary routes remain only for their corpus
+migration; retire them after operator homes move to the settled surface.
 
 Acceptance: a look-alike trait cannot establish another domain; owner code has
 no establishment privilege outside named routes; checked and admitted

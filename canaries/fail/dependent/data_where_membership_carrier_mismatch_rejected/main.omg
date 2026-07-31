@@ -1,8 +1,8 @@
 // FAIL CANARY. Default-domain membership is storage-bound: a domain declared
 // over a fixed carrier cannot certify a field whose carrier is &[u8].
-domain [u8; 16]::NonEmpty {
+domain [u8; 16]::NonEmpty
+requires
     non_empty(self);
-}
 data Text
 where
     value in NonEmpty,

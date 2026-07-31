@@ -1,9 +1,9 @@
 // A const parameter's membership in a fact-defined integer domain is checked
 // once for each concrete generic instance.
-domain u64::BufferSize {
+domain u64::BufferSize
+requires
     self > 0;
     self <= 8;
-}
 
 data FixedBuffer<const N: u64>
 where

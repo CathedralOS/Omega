@@ -3,13 +3,13 @@
 // This keeps interop encoding requirements inside Omega's ordinary domain
 // system without a builtin String carrier.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 
-domain [u8]::NoNul {
+domain [u8]::NoNul
+requires
     no_nul(self);
-}
 
 boundary trait CConsole {
     machine write(text: &[u8])

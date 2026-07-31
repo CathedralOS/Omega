@@ -10,12 +10,12 @@
 // flavor); only the equal-strings `!=` leg distinguishes them.
 // exits: 71 = store !=/unequal wrong; 72 = let !=/unequal (place) wrong;
 // 73 = equal-strings != read TRUE (the regression face); 74 = guard != wrong.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 data Main { console: Console; shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
 machine Main::main(&mut self) {

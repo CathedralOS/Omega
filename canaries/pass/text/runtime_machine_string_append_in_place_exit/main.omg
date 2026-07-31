@@ -4,9 +4,9 @@
 // the reaching-length proof establishes 7 + 5 <= 16, it appends directly to
 // the inline bytes and updates the stored length.
 
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

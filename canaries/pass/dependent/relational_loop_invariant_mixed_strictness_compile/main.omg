@@ -1,12 +1,12 @@
 // R5/Houdini strictness-aware composition. Either link may supply the strict
 // inequality needed for indexing: `i < limit <= len` and `i <= limit < len`.
 // The disjoint sibling call also pins the existing machine-wide stability law.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     items: [u8; 8] in Utf8;

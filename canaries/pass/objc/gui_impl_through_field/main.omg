@@ -10,9 +10,9 @@
 // workaround. Remaining gap after this: substituting the sample's `boundary trait
 // Gui` field with this `GuiImpl` provider on darwin.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

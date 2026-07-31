@@ -5,9 +5,9 @@
 // beyond the 16-byte inline storage. This is the no-overflow theorem for bounded
 // text carriers: the checker follows the straight-line running length, admits a
 // chain that still fits, and rejects the first write that provably cannot fit.
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

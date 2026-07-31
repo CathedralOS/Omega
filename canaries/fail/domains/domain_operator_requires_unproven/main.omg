@@ -13,9 +13,10 @@ data Quantity {
     value: i32;
 }
 
-domain Quantity::Additive {
+domain Quantity::Additive
+requires
     self.value >= 0;
-
+{
     operator add(left: Quantity, right: Quantity) -> Quantity
     spelling +
     requires

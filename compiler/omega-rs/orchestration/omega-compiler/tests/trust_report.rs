@@ -12,7 +12,7 @@ fn trust_report_rows_dev_active_domain_introductions() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Meters {}
+        r#"domain u32::Meters;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {
@@ -194,7 +194,7 @@ machine build(b: &mut Build) {
     .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Meters {}
+        r#"domain u32::Meters;
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {
@@ -257,8 +257,13 @@ machine build(b: &mut Build) {
     )
     .expect("write build.omg");
     let main_with = |facts: &str| {
+        let domain = if facts.trim().is_empty() {
+            "domain u32::Meters;".to_owned()
+        } else {
+            format!("domain u32::Meters\nrequires\n    {}", facts.trim())
+        };
         format!(
-            r#"domain u32::Meters {{{facts}}}
+            r#"{domain}
 boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Console; }}
 machine Main::main(&mut self) {{

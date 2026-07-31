@@ -1,8 +1,8 @@
 // FAIL CANARY: fact-free array tiling is structural. A constrained element
 // inside a mutable record view still owes implication in both directions.
-domain u16::Small {
+domain u16::Small
+requires
     self <= 10;
-}
 
 data FactedArray {
     values: [u16 in Small; 2];

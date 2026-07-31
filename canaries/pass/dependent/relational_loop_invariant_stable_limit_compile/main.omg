@@ -3,12 +3,12 @@
 // `self.limit < self.items.len`. With counter, limit, and collection stable
 // across the disjoint sibling call, the loop head may compose those relations
 // and prove the indexed read.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     items: [u8; 8] in Utf8;

@@ -5,9 +5,9 @@
 // Persistent room/line text uses bounded ownership; a borrowed view would need
 // an explicit outlives relation and retained loan, which this canary does not
 // exercise.
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 data CellId {
     case Empty;
     case A1;

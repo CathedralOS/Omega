@@ -7,10 +7,10 @@ fn invalidates_proved_domain_membership_after_mutating_call() {
             health: i32;
         }
 
-        domain Player::Valid {
+        domain Player::Valid
+        requires
             self.health >= 0;
             self.health <= 100;
-        }
 
         data Main {
             player: Player;
@@ -175,15 +175,15 @@ fn invalidates_imported_domain_requires_after_mutating_call() {
             health: i32;
         }
 
-        domain Player::Valid {
+        domain Player::Valid
+        requires
             self.health >= 0;
             self.health <= 100;
-        }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self in Player::Valid;
             self.health > 0;
-        }
 
         data Main {
             player: Player;
@@ -323,15 +323,15 @@ fn preserves_imported_domain_requires_across_disjoint_mutating_call() {
             stamina: i32;
         }
 
-        domain Player::Valid {
+        domain Player::Valid
+        requires
             self.health >= 0;
             self.health <= 100;
-        }
 
-        domain Player::Ready {
+        domain Player::Ready
+        requires
             self in Player::Valid;
             self.mana >= 0;
-        }
 
         data Main {
             player: Player;
@@ -454,13 +454,13 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
             salt: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;

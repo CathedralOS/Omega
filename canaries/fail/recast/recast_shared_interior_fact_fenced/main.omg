@@ -1,8 +1,8 @@
 // FAIL CANARY: a shared view may forget established facts but cannot mint a
 // domain fact from arbitrary bytes in an interior region.
-domain u32::Small {
+domain u32::Small
+requires
     self <= 10;
-}
 
 data Main {
     bytes: [u8; 4];

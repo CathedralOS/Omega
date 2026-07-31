@@ -8,13 +8,13 @@ machine is_at_most_eight(value: u64) -> bool {
     value <= 8
 }
 
-domain u64::AtMostEight {
+domain u64::AtMostEight
+requires
     is_at_most_eight(self);
-}
-domain u64::BufferSize {
+domain u64::BufferSize
+requires
     is_positive(self);
     self in AtMostEight
-}
 
 data FixedBuffer<const N: u64>
 where

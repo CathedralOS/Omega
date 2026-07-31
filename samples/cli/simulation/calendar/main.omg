@@ -10,12 +10,12 @@
 use omega::language::std::console;
 use omega::language::core::numeric_conversion;
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 21]::Utf8 {
+domain [u8; 21]::Utf8
+requires
     valid_utf8(self);
-}
 data Main {
     console: Console;
     header: [u8; 21] in Utf8;

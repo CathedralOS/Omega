@@ -10,9 +10,9 @@
 // `text == "x"` (content equality over the carried view) and exits 73.
 // (Counter-checked: storing "y" makes the `== "x"` guard false -> exit 74.)
 
-domain [u8]::NonEmpty {
+domain [u8]::NonEmpty
+requires
     non_empty(self);
-}
 use omega::language::std::console;
 
 data Main {

@@ -4,9 +4,9 @@
 // honest borrowed byte-view path and measured byte walk.
 use omega::language::std::console;
 
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     console: Console;

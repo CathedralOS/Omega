@@ -1,9 +1,9 @@
 // A write through a mutable state-parameter member must preserve the member's
 // declared domain exactly like `self.inner.label = value`. The raw fixed array
 // carries no Ascii establishment, so assigning it through `out.label` rejects.
-domain [u8; 8]::Ascii {
+domain [u8; 8]::Ascii
+requires
     ascii_only(self);
-}
 
 data Inner {
     label: [u8; 8] in Ascii;

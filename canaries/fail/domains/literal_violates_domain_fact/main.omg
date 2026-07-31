@@ -7,9 +7,9 @@
 
 use omega::language::std::console;
 
-domain [u8]::NoNul {
+domain [u8]::NoNul
+requires
     no_nul(self);
-}
 data Main {
     console: Console;
 }

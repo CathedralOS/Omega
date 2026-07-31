@@ -10,12 +10,12 @@
 // wrapping multiply. Hashing "omega", the low byte of the digest is 40.
 // Expected exit: 40.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 use omega::language::core::numeric_conversion;
 

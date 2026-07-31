@@ -3,9 +3,9 @@ data Entry {
     other: i32;
 }
 
-domain Entry::Positive {
+domain Entry::Positive
+requires
     self.value > 0;
-}
 
 data Main {
     entries: [Entry; 2];

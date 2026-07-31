@@ -8,9 +8,9 @@
 
 // An Objective-C class name: NUL-free bytes (a C string, like a path but its own
 // domain — `objc_getClass` takes `const char *`). `no_nul` is compiler-recognized.
-domain [u8]::ClassName {
+domain [u8]::ClassName
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

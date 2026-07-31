@@ -29,9 +29,9 @@
 
 use omega::language::core::numeric_conversion;
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
 // symbols live only in the darwin binding table.
 boundary trait ObjectiveC {

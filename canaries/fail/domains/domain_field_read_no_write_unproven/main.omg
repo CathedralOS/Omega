@@ -9,9 +9,9 @@
 
 use omega::language::std::console;
 
-domain [u8]::NonEmpty {
+domain [u8]::NonEmpty
+requires
     non_empty(self);
-}
 data Main {
     console: Console;
     f: &[u8] in NonEmpty;

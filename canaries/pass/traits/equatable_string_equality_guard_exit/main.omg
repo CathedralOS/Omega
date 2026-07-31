@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // Structural `==` over an Equatable record with a &[u8] in Utf8 field DIRECTLY in
 // GUARD position (`transition self.left == self.right { ... }`). The &[u8] in Utf8
 // clause of the conjunction lowers through the same `TextEquals` content

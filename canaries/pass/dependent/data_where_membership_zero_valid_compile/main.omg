@@ -1,8 +1,8 @@
 // COMPILE CANARY. The empty ZII byte sequence satisfies Ascii, so an omitted
 // field remains legal and the data is not construction-gated.
-domain [u8]::Ascii {
+domain [u8]::Ascii
+requires
     ascii_only(self);
-}
 data Label
 where
     text in Ascii,

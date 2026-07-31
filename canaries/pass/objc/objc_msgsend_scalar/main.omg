@@ -9,9 +9,9 @@
 // register gives something else -> exit 1. Uses only NSObject (defined in
 // libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

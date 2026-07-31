@@ -1,9 +1,9 @@
 // Companion to the UTF-8 boundary canary for the second byte-shape domain,
 // established directly on the ordinary byte-view carrier.
 
-domain [u8]::NoNul {
+domain [u8]::NoNul
+requires
     no_nul(self);
-}
 
 boundary operator Text::validate_no_nul(text: &mut [u8]) -> ()
 ensures

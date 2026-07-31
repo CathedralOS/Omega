@@ -49,14 +49,8 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         } else {
             let ((predicate_body, facts, requires_token_count), input) =
                 parse_domain_requires(syntax_trees, input)?;
-            let ((legacy_facts, operators, authored_routes, body_token_count), input) =
+            let ((operators, authored_routes, body_token_count), input) =
                 parse_domain_body(syntax_trees, input, predicate_body.is_present())?;
-            let facts = merge_contiguous_fact_spans(facts, legacy_facts);
-            let predicate_body = if facts.is_empty() {
-                predicate_body
-            } else {
-                omega_core::semantics::DomainPredicateBody::Present
-            };
             (
                 None,
                 authored_routes,
@@ -192,22 +186,10 @@ fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     requires_consumed: bool,
-) -> ParseResult<
-    'tokens,
-    'source,
-    (
-        HandleSpan<ProofFact>,
-        HandleSpan<OperatorDefinition>,
-        Vec<Vec<Identifier>>,
-        usize,
-    ),
-> {
+) -> ParseResult<'tokens, 'source, (HandleSpan<OperatorDefinition>, Vec<Vec<Identifier>>, usize)> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((
-            (HandleSpan::empty(), HandleSpan::empty(), Vec::new(), 0),
-            input,
-        ));
+        return Ok(((HandleSpan::empty(), Vec::new(), 0), input));
     }
 
     // A `requires` clause may own the declaration's final semicolon. When its
@@ -217,15 +199,11 @@ fn parse_domain_body<'tokens, 'source>(
         && !input.at_punctuation(PunctuationKind::LeftBrace)
         && domain_requires_terminator(input)
     {
-        return Ok((
-            (HandleSpan::empty(), HandleSpan::empty(), Vec::new(), 0),
-            input,
-        ));
+        return Ok(((HandleSpan::empty(), Vec::new(), 0), input));
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
-    let mut facts = HandleSpan::empty();
     let mut operators = HandleSpan::empty();
     let mut authored_routes = Vec::new();
 
@@ -256,19 +234,15 @@ fn parse_domain_body<'tokens, 'source>(
             continue;
         }
 
-        let ((parsed_facts, _), rest) = parse_proof_facts_until(syntax_trees, input, |input| {
-            input.at_punctuation(PunctuationKind::RightBrace)
-                || input.at_contextual("operator")
-                || input.at_contextual("boundary")
-                || at_authored_route(input)
-        })?;
-        facts = merge_contiguous_fact_spans(facts, parsed_facts);
-        input = rest;
+        return Err(input.error_here(
+            "domain predicates must be written in `requires`; domain bodies enumerate exact \
+             `Trait::requirement` establishment routes",
+        ));
     }
 
     let body_token_count = body_start_tokens.saturating_sub(input.tokens.len());
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok(((facts, operators, authored_routes, body_token_count), input))
+    Ok(((operators, authored_routes, body_token_count), input))
 }
 
 fn at_authored_route(mut input: Input<'_, '_>) -> bool {
@@ -310,33 +284,4 @@ fn parse_authored_route<'tokens, 'source>(
     }
     input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     Ok((route, input))
-}
-
-fn merge_contiguous_fact_spans(
-    left: HandleSpan<ProofFact>,
-    right: HandleSpan<ProofFact>,
-) -> HandleSpan<ProofFact> {
-    if left.is_empty() {
-        return right;
-    }
-    if right.is_empty() {
-        return left;
-    }
-
-    let expected_index = left
-        .start()
-        .arena_index()
-        .checked_add(left.count())
-        .expect("proof fact span index overflow");
-    assert_eq!(
-        right.start().arena_index(),
-        expected_index,
-        "domain fact spans should remain contiguous across operator declarations"
-    );
-    HandleSpan::from_parts(
-        left.start(),
-        left.count()
-            .checked_add(right.count())
-            .expect("proof fact span count overflow"),
-    )
 }

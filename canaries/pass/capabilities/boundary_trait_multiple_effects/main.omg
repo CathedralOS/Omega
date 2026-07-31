@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // A single boundary machine may declare more than one service identity; the
 // declared set is the ceiling for that surface. This fetch reaches both `Net`
 // and `Allocator`, exercising a multi-service boundary declaration.

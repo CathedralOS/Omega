@@ -4,18 +4,18 @@ data Player {
     health: i32;
 }
 
-domain Player::Valid {
+domain Player::Valid
+requires
     self.health >= 0;
-}
 
-domain Player::Alive {
+domain Player::Alive
+requires
     self in Player::Valid;
     self.health > 0;
-}
 
-domain Player::Critical {
+domain Player::Critical
+requires
     self.health <= 5;
-}
 
 data Main {
     console: Console;

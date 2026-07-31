@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 data NavigationChoice { case Invalid; case Move; }
 data CellId { case Empty; }
 data Navigation { choice: NavigationChoice; destination: CellId; }

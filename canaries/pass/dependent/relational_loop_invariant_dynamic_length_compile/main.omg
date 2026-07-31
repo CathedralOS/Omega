@@ -4,12 +4,12 @@
 // The relational loop pass recognizes their shared symbolic collection and
 // admits the indexed read without collapsing the carrier's dynamic logical
 // length to its fixed storage capacity.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     items: [u8; 8] in Utf8;

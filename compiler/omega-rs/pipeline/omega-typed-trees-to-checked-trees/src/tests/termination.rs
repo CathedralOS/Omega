@@ -1907,9 +1907,9 @@ fn qualification_facts_record_policy_commitments() {
     let source = r#"
     data Main {}
 
-    domain i64::Km {
+    domain i64::Km
+    requires
         self >= 0;
-    }
 
     machine Main::clamped(&mut self, value: u64) -> u8 {
         let squeezed: u8 = value as u8 in Saturating;

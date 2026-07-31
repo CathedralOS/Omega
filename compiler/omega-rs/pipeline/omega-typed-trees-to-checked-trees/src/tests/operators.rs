@@ -12,8 +12,10 @@ fn signature_requires_selects_domain_operator_without_flow_lookup() {
     let source = r#"
         data Quantity { value: i32; }
 
-        domain Quantity::Additive {
+        domain Quantity::Additive
+        requires
             self.value >= 0;
+        {
             operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
         }
 
@@ -99,8 +101,10 @@ fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
 #[test]
 fn explicit_mint_initializer_selects_domain_operator() {
     let source = r#"
-        domain i32::Degrees {
+        domain i32::Degrees
+        requires
             self >= 0;
+        {
             operator add(left: i32, right: i32) -> i32 spelling +;
         }
 
@@ -121,8 +125,10 @@ fn explicit_mint_initializer_selects_domain_operator() {
 #[test]
 fn flow_established_membership_does_not_select_domain_operator() {
     let source = r#"
-        domain i32::Degrees {
+        domain i32::Degrees
+        requires
             self >= 0;
+        {
             operator add(left: i32, right: i32) -> i32 spelling +;
         }
 

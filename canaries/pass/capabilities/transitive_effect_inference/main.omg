@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // Service reach propagates through the call graph. A private helper omits its
 // `reaches` row (the compiler infers its reached services), and the caller
 // declares the inferred `Console` as its ceiling. The

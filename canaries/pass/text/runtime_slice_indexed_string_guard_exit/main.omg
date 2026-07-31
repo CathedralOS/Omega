@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // A &[u8] in Utf8 field of a slice element compared against a literal in GUARD
 // position must compare CONTENT, in all three regimes:
 //   1. an EMPTY (default-zeroed) field never equals a non-empty literal,

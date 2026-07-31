@@ -29,12 +29,12 @@
 //
 // Expected exit: 70.
 
-domain [u8; 5]::Utf8 {
+domain [u8; 5]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Entry {

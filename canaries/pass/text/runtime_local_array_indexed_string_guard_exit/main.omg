@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // A &[u8] in Utf8 field of a LOCAL inline fixed array element (frame base + scaled
 // runtime index -- the frame-BASE-indexed place, not the slice-descriptor
 // place) compared against a literal in GUARD position must compare CONTENT,

@@ -16,9 +16,9 @@
 // exit 5. Headless-safe: the asserted check is the object graph ([iv image]), not
 // on-screen visibility, so it holds with or without a window-server session.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

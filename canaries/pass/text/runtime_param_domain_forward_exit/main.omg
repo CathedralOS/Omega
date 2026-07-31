@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // #66 param entry-assumption: a state parameter declared with an encoding
 // domain (`text: &[u8] in Utf8`) carries that domain through the state body,
 // because its implicit `requires param in Domain` makes every caller prove

@@ -1,6 +1,6 @@
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 
 boundary trait NativeText {
     machine send(value: [u8; 16] in Utf8);

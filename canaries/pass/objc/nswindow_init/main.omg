@@ -15,9 +15,9 @@
 // created + queried but never ordered on-screen and no event loop runs. Both
 // checks pass -> exit 3; any failure -> exit 1.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

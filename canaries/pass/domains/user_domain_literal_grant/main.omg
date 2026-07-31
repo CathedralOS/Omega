@@ -9,9 +9,9 @@
 
 use omega::language::std::console;
 
-domain [u8]::Ascii {
+domain [u8]::Ascii
+requires
     ascii_only(self);
-}
 data Main {
     console: Console;
 }

@@ -1,11 +1,11 @@
 // FALSE TWIN: `i <= limit <= len` permits `i == len`, so neither non-strict
 // premise can supply the strict final bound required by indexing.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     items: [u8; 8] in Utf8;

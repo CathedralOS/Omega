@@ -1,9 +1,9 @@
 // A named boundary/operator call with a mutable operand must invalidate facts
 // about that operand unless its own contract re-establishes them. Otherwise an
 // arbitrary host mutation could preserve a stale NoNul claim.
-domain [u8]::NoNul {
+domain [u8]::NoNul
+requires
     no_nul(self);
-}
 
 boundary operator Text::overwrite(text: &mut [u8]) -> ();
 

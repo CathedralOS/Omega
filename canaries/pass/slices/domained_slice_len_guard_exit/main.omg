@@ -6,9 +6,9 @@
 // resolved to storage and the guard was refused (silently-dropped-guard backstop) --
 // even though a plain `&[T]` param's `.len` guard resolved fine. Exits 70 (5 < 7).
 
-domain [u8]::Path {
+domain [u8]::Path
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 data Main {

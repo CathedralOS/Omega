@@ -6,9 +6,9 @@
 // once the slice-descriptor place is recognized as text-comparable.
 // (Counter-variant: passing "look" takes the `_` arm and exits 71 -- proving the
 // compare reads genuine content, not an always-true descriptor-word match.)
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

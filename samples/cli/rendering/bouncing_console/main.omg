@@ -8,15 +8,15 @@
 // Expected output contains: O
 use omega::language::std::console;
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 40]::Utf8 {
+domain [u8; 40]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 1]::Utf8 {
+domain [u8; 1]::Utf8
+requires
     valid_utf8(self);
-}
 boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {

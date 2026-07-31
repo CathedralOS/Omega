@@ -7,15 +7,15 @@
 //   * the concat reads `room.label` (a runtime value, not folded) off the frame
 //     base via the source-append's `source_in_frame` path.
 // Renders "== Gate ==" into the borrowed carrier, exits 70 (the interpreter agrees).
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Room {
