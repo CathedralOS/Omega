@@ -54,6 +54,15 @@ impl SymbolName {
             SymbolNameStorage::Owned(_) => SymbolNameStorageKind::Owned,
         }
     }
+
+    pub fn source_span(&self) -> Option<SourceSpan> {
+        match self.storage {
+            SymbolNameStorage::Source(source_span) => Some(source_span),
+            SymbolNameStorage::Missing
+            | SymbolNameStorage::Static(_)
+            | SymbolNameStorage::Owned(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

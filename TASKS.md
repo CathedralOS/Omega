@@ -286,8 +286,10 @@ establishment from raw bytes reject.
   admitted trait methods; direct atomic syntax over `bool`, `u32`, and `u64`
   is checked per operation family, works through a shared view borrow, and
   cannot materialize an accessor as an ordinary scalar. Binding-private
-  package enforcement, generic atomic-family helper contracts, and admitted
-  source-loan construction remain open.
+  accessors are restricted to machines authored in the nominal placement
+  policy's canonical package, including statement-position calls whose
+  generated target symbol is absent. Generic atomic-family helper contracts
+  and admitted source-loan construction remain open.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.

@@ -69,6 +69,7 @@ pub struct BoundaryCallingPlanIdentity {
 pub struct PlacedViewPlan {
     pub data_name: String,
     pub policy_name: String,
+    pub policy_symbol: omega_core::symbols::SymbolHandle,
     pub schema_name: String,
     pub placement: omega_access_plans::ValidatedPlacementPlan,
     pub fields: Vec<PlacedFieldPlan>,
@@ -1292,12 +1293,22 @@ impl TypedTrees {
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> Option<&PlacedFieldPlan> {
+        self.placed_view_field_plan_for_type_reference(type_reference)
+            .map(|(_, field)| field)
+    }
+
+    pub fn placed_view_field_plan_for_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<(&PlacedViewPlan, &PlacedFieldPlan)> {
         let accessor_name =
             named_type_name_through_shells(&self.type_reference_table, type_reference)?;
-        self.placed_view_plans
-            .iter()
-            .flat_map(|view| view.fields.iter())
-            .find(|field| field.accessor_name == accessor_name)
+        self.placed_view_plans.iter().find_map(|view| {
+            view.fields
+                .iter()
+                .find(|field| field.accessor_name == accessor_name)
+                .map(|field| (view, field))
+        })
     }
 
     pub fn named_type_reference(

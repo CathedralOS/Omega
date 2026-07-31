@@ -196,8 +196,19 @@ pub fn declared_place_type_raw(
     }
 
     let members: Vec<String> = collect_member_path(program, handle)?;
+    declared_member_path_type(program, current_machine, current_state, &members)
+}
 
-    match members.as_slice() {
+/// Resolve the declared type of an already-retained statement receiver path.
+/// Statement-position calls preserve name members even when their synthesized
+/// accessor target symbols are intentionally absent from authored provenance.
+pub(crate) fn declared_member_path_type(
+    program: &TypedTrees,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    members: &[String],
+) -> Option<TypeReferenceHandle> {
+    match members {
         [name] => {
             if let Some(state) = current_state {
                 for statement in program.statement_table.statements(state.statement_nodes) {
