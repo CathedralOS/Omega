@@ -290,3 +290,45 @@ non-semantic field. Normalize dimension vectors and rational products at
 declaration lowering, and make both operator resolution and exact `as` consume
 that record; neither may inspect an operator body or invoke a conversion
 machine to discover unit meaning.
+
+## 8. What is the source-visible bounded Arena capability?
+
+The accounting law is settled: a bounded Arena conserves one
+`CountedQuantity<Bytes>` residual-capacity claim; allocation consumes payload,
+alignment padding, and allocator metadata; reset is legal only after every
+dependent Allocation ends. The live core surface, however, is only a boundary
+trait named `Arena`. There is no runtime Arena handle, exact qualification that
+owns the projection, lifetime-bearing `Allocation<T>`, or operation that
+threads the residual claim. Adding a `remaining` field or compiler-sealed token
+now would choose this public capability model by accident.
+
+Decide:
+
+- whether the current `Arena` boundary trait becomes `ArenaProvider`, remains
+  the service behind a distinct handle type, or is replaced by operations on
+  the handle itself;
+- the runtime fields and multiplicity of a borrow-backed Arena handle versus a
+  distinct owned-backing lease, including whether residual capacity is an
+  ordinary `u64` field or sealed provider state;
+- the exact qualification that owns the
+  `Content<CountedQuantity<Bytes>>` projection and how its `Bytes` unit identity
+  is declared without conflating allocation permission with Extent authority;
+- whether proven allocation uses an `inout` capability, explicit
+  consume-and-return versioning, or another source-visible threading form, and
+  how more than one Arena is disambiguated;
+- the fallible outcome for dynamic requests and whether it returns the exact
+  unchanged Arena claim on rejection;
+- the source representation, lifetime parameters, establishment states, and
+  structural multiplicity of `Allocation<T>`; and
+- how reset/bulk reclamation proves every Allocation has ended while preserving
+  element cleanup and non-disclosure obligations.
+
+Recommendation: rename the service seam to `ArenaProvider` and publish a
+distinct affine borrow-backed Arena handle with an ordinary runtime remaining
+byte count. Let one exact handle qualification own the compiler-normalized
+`CountedQuantity<Bytes>` projection. Use `inout` consume-and-rebind for proved
+allocation, an explicit rejection outcome that returns the unchanged claim for
+dynamic allocation, and a lifetime-bound opaque `Allocation<T>` whose
+multiplicity derives structurally from `T` and its custody fields. Keep the
+owned-Extent lease a distinct linear wrapper rather than overloading the
+borrow-backed handle.
