@@ -1,0 +1,8 @@
+// Linux/x86-64 native realizations for the first F7 provider-plan slice.
+linux_x64 machine FloatNativeProvider::add32(left: f32, right: f32) -> f32
+    satisfies Float::add
+    via Binding::CompilerIntrinsic("Float::add.f32");
+
+linux_x64 machine FloatNativeProvider::add64(left: f64, right: f64) -> f64
+    satisfies Float::add
+    via Binding::CompilerIntrinsic("Float::add.f64");

@@ -232,6 +232,14 @@ pub(crate) fn validate_machine_trait_conformances(
 ) {
     for conformance in program.machine_trait_conformances(machine) {
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
+            if validate_machine_boundary_operator_conformance(
+                program,
+                machine,
+                conformance,
+                diagnostics,
+            ) {
+                continue;
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies unknown trait `{}`",
                 machine.name, conformance.name
@@ -290,6 +298,69 @@ pub(crate) fn validate_machine_trait_conformances(
             &mut visited_traits,
         );
     }
+}
+
+/// Boundary-operator requirements share the ordinary machine `satisfies`
+/// spelling with trait requirements, but resolve by exact overloaded
+/// signature rather than a trait symbol. External target leaves inherit the
+/// operator's contract through their admitted binding. Checked software
+/// satisfiers remain fail-closed until operator-law entailment consumes their
+/// bodies as well.
+fn validate_machine_boundary_operator_conformance(
+    program: &TypedTrees,
+    machine: &Machine,
+    conformance: &omega_typed_trees::machine::TraitConformance,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(requirement) = conformance.requirement.as_ref() else {
+        return false;
+    };
+    let namespace = conformance.name.as_str();
+    let requirement_name = requirement.as_str();
+    let names_operator = program.operators().iter().any(|operator| {
+        let path = program.operator_path_members(operator.name);
+        matches!(path, [owner, member]
+            if operator.is_boundary
+                && owner.as_str() == namespace
+                && member.as_str() == requirement_name)
+    });
+    if !names_operator {
+        return false;
+    }
+
+    if !program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+        .is_empty()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` supplies type arguments to boundary-operator requirement `{}::{}`; the exact overloaded operator is selected from the machine signature",
+            machine.name, namespace, requirement_name,
+        )));
+        return true;
+    }
+
+    let Some(operator) = omega_typed_trees::operator::resolve_satisfied_boundary_operator(
+        program,
+        machine,
+        namespace,
+        requirement_name,
+    ) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` does not match one exact overload of boundary-operator requirement `{}::{}`; its entry parameter and result types must equal one declared requirement signature",
+            machine.name, namespace, requirement_name,
+        )));
+        return true;
+    };
+
+    if conformance.via.is_none() {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked machine `{}` satisfies boundary operator `{}`, but checked operator-law entailment is not implemented yet; use an admitted target leaf with `via Binding::...` until the checked-software provider rung lands",
+            machine.name,
+            omega_typed_trees::operator::boundary_operator_requirement_identity(program, operator),
+        )));
+    }
+    true
 }
 
 /// Conform THIS machine to ONE trait requirement (the machine-by-machine

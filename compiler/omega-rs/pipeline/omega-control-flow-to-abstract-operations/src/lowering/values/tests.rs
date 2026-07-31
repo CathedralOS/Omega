@@ -35,6 +35,7 @@ fn copies_control_flow_values_into_abstract_summary() {
                     format: omega_core::float_semantics::FloatFormat::BINARY32,
                 },
             ),
+            operator_provider_plan_identity: Some(0x1234_5678_9abc_def0),
         },
     );
     control_flow.states.insert(state);
@@ -64,5 +65,9 @@ fn copies_control_flow_values_into_abstract_summary() {
                 format: omega_core::float_semantics::FloatFormat::BINARY32,
             }
         )
+    );
+    assert_eq!(
+        copied.operator_provider_plan_identity,
+        Some(0x1234_5678_9abc_def0)
     );
 }

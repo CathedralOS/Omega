@@ -57,6 +57,9 @@ pub struct StateValueFact {
     /// was checked and selected no result adapter; `None` means this is an
     /// ordinary value fact rather than operator-adapter evidence.
     pub arithmetic_policy_adapter: Option<ArithmeticPolicyAdapter>,
+    /// Selected boundary-operator ProviderPlan identity, when this operation
+    /// has left the bootstrap lowering path.
+    pub operator_provider_plan_identity: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

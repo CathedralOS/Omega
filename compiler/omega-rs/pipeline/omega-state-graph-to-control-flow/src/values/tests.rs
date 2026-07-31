@@ -17,6 +17,7 @@ fn remap_value_summary_preserves_statement_value_handles() {
                 format: omega_core::float_semantics::FloatFormat::BINARY64,
             },
         ),
+        operator_provider_plan_identity: Some(0x1234_5678_9abc_def0),
     };
     let mut values = Arena::new();
     let mut span = omega_core::arena::HandleSpan::empty();
@@ -43,5 +44,9 @@ fn remap_value_summary_preserves_statement_value_handles() {
                 format: omega_core::float_semantics::FloatFormat::BINARY64,
             }
         )
+    );
+    assert_eq!(
+        copied.operator_provider_plan_identity,
+        Some(0x1234_5678_9abc_def0)
     );
 }

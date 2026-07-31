@@ -530,8 +530,10 @@ The current core declarations live in
 `FloatSemantics` identities and contracted f32/f64 boundary requirements for
 the arithmetic/comparison spellings, multiply-then-add versus FMA,
 classification, and directed rounding. Checked operator evidence records the
-primitive identity selected at each use; hardcoded target lowering remains only
-the bootstrap realization until explicit target satisfiers replace it.
+primitive identity selected at each use. The f32/f64 `Float::add` overloads now
+select explicit x86-64/AArch64 target satisfiers and retain their exact
+`ProviderPlan` identities through lowering; the other operation families remain
+on bootstrap target lowering until their own satisfiers replace it.
 
 ### Value domains — wellness facts
 

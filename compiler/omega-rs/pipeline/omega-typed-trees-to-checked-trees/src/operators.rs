@@ -277,6 +277,7 @@ fn named_float_operator_use_fact(
         origin,
         selected_operator_symbol: operator.symbol,
         policy_adapter,
+        provider_plan_identity: 0,
     })
 }
 
@@ -386,6 +387,7 @@ fn binary_operator_use_fact(
         origin,
         spelling,
         policy_adapter: arithmetic_policy_adapter(program, spelling, receiver_type),
+        provider_plan_identity: 0,
         selected_operator_symbol,
         candidates: candidate_span,
         candidate_count,
@@ -484,6 +486,7 @@ fn operator_use_fact(
         origin,
         spelling,
         policy_adapter: CheckedArithmeticPolicyAdapter::None,
+        provider_plan_identity: 0,
         selected_operator_symbol,
         candidates: candidate_span,
         candidate_count,

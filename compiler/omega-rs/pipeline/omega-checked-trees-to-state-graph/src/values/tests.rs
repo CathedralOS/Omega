@@ -56,6 +56,7 @@ fn state_value_summary_keeps_values_for_matching_state() {
         }
     );
     assert_eq!(values[0].arithmetic_policy_adapter, None);
+    assert_eq!(values[0].operator_provider_plan_identity, None);
 }
 
 #[test]
@@ -83,6 +84,7 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
         .insert(omega_checked_trees::CheckedOperatorUseFact {
             expression: nested_expression,
             origin,
+            provider_plan_identity: 0x1234_5678_9abc_def0,
             policy_adapter:
                 omega_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                     format: omega_core::float_semantics::FloatFormat::BINARY64,
@@ -117,5 +119,9 @@ fn state_value_summary_carries_nested_checked_policy_adapter_evidence() {
                 format: omega_core::float_semantics::FloatFormat::BINARY64,
             }
         )
+    );
+    assert_eq!(
+        nested.operator_provider_plan_identity,
+        Some(0x1234_5678_9abc_def0)
     );
 }

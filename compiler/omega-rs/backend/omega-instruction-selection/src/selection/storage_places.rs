@@ -1245,6 +1245,27 @@ pub(in crate::selection) fn resolve_binary_operation_arithmetic_domain_in_table(
     byte_width: usize,
 ) -> Option<omega_core::arithmetic::ArithmeticDomain> {
     if is_float {
+        match crate::selection::lookups::carried_float_provider_plan(
+            input,
+            source_key,
+            statement_index,
+            expression,
+        ) {
+            crate::selection::lookups::CarriedFloatProviderPlan::Invalid => return None,
+            crate::selection::lookups::CarriedFloatProviderPlan::Resolved(identity) => {
+                let Some(plan) = input
+                    .program
+                    .selected_provider_plans()
+                    .plan_by_identity(identity)
+                else {
+                    return None;
+                };
+                if plan.rows.len() != 1 {
+                    return None;
+                }
+            }
+            crate::selection::lookups::CarriedFloatProviderPlan::Missing => {}
+        }
         return match crate::selection::lookups::carried_float_policy_domain(
             input,
             source_key,
