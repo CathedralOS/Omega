@@ -377,11 +377,12 @@ next structured response remain unbounded through that call. Reports preserve
 the responsible call/path and the bounded computation around it rather than
 collapsing the result to an unattributed infinity.
 
-Maximum abstract work between safe points requires the normalized `WorkPlan`
-and repeated-path algebra in `OWNER_QUESTIONS.md` #1. WCSU proves space, not
-work or wall-clock latency. A target may convert checked work to time only
-through a separately derived or admitted timing model whose trust provenance
-remains visible.
+The restricted canonical-IR fixed-work checker may close a segment ending at
+the next safe point. Otherwise it reports `Unknown` or retains the exact
+blocking/foreign edge with no finite guarantee. WCSU proves space, not work or
+wall-clock latency. A target may convert checked work to time only through a
+separately derived or admitted timing model whose trust provenance remains
+visible.
 
 ## Foreign calls and stacks
 
@@ -508,8 +509,9 @@ arguments remain TR3–TR8 work.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.
-9. Implement the normalized bounded-work plan after owner question #1; keep
-   work, wait, and timing conversion distinct.
+9. Implement canonical-IR metering plus restricted fixed-work entry and
+   safe-point segment checking; keep logical work, response wait, and target
+   timing conversion distinct.
 10. Implement registered callback lowering under the calling-plan/boundary
-    lane and keep hosted FFI gateway policy under owner question #2 rather
+    lane and keep hosted FFI gateway policy under owner question #1 rather
     than adding either to `TaskRuntime`.

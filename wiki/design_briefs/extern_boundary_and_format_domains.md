@@ -156,7 +156,7 @@ containment do not prevent that binary from modifying arbitrary process memory.
 The selected-provider manifest retains its exact identity and trust receipt.
 Process- or hardware-isolated providers instead remain external endpoints.
 The root declaration and build-profile rejection surface for these transitive
-trust dependencies remains owner question #4.
+trust dependencies remains owner question #3.
 
 ## Calling plans
 
@@ -443,9 +443,9 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 - dynamic-library loading/unloading under component versioning;
 - transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #4);
+  executable providers (`OWNER_QUESTIONS.md` #3);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #5); and
+  (`OWNER_QUESTIONS.md` #4); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

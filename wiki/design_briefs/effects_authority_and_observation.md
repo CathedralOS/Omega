@@ -418,8 +418,10 @@ identifiers resolve normally; there is no global hard-coded service table.
 
 - General trace propositions, deadline/starvation contracts, and entailment
   between decision 23's opaque progress profiles.
-- The normalized abstract-work plan and sequential/branch/SCC composition
-  algebra in `OWNER_QUESTIONS.md` #1.
+- General parametric work functions and target WCET. Canonical-IR fuel,
+  restricted fixed-work entry/segment checking, and attributed response
+  outcomes follow
+  [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
 - Additional operational-clause declarations.
 - Named service-row variables beyond the concrete envelope substitution used
   by `invokes`.
