@@ -5,10 +5,9 @@ data Quantity {
 domain Quantity::Additive
 requires
     self.value >= 0;
-{
-    operator combine<T, U>(left: T, right: U) -> T;
-    operator combine<A, B>(left: B, right: A) -> B;
-}
+
+operator Quantity::Additive::combine<T, U>(left: T, right: U) -> T;
+operator Quantity::Additive::combine<A, B>(left: B, right: A) -> B;
 
 data Main {
 }

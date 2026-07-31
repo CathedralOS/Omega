@@ -140,18 +140,21 @@ qualification; flow facts carry proven membership. The deterministic
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
 
-Implementation status (DOM1/STR2 semantic roles, 2026-07-28): core,
+Implementation status (DOM1/STR2 semantic roles, 2026-07-31): core,
 symbol-resolved, and typed layers carry `DomainPredicateBody` and the closed
-`DomainSemanticRoles` record independently. Syntax lowering is the sole
-temporary projection from a domain-owned operator to
-`DenotationDimension`; downstream propagation and resolved/typed snapshots
-copy and publish the explicit role record. Qualification and trust publication
-consume the declaration's stable semantic identity, qualification consults
-predicate-body presence for proof, and operator selection consumes semantic
-roles. Domain conjunction validation permits contributions in different roles
-(`Degrees & Wrapping`) and rejects multiple distinct contributors to one role.
-Exact coercion consumes normalized semantic roles and proof obligations rather
-than a privileged qualification trait or name convention.
+`DomainSemanticRoles` record independently. An ordinary top-level operator's
+exact `Type::Domain::operation` name, or one unique declared-domain constraint
+across its operand tuple, supplies its domain operator home before symbol
+assignment. Nested operator declarations reject, and the association does not
+grant establishment authority. Downstream propagation and resolved/typed
+snapshots copy and publish the explicit role record. Qualification and trust
+publication consume the declaration's stable semantic identity, qualification
+consults predicate-body presence for proof, and operator selection consumes
+semantic roles. Domain conjunction validation permits contributions in
+different roles (`Degrees & Wrapping`) and rejects multiple distinct
+contributors to one role. Exact coercion consumes normalized semantic roles
+and proof obligations rather than a privileged qualification trait or name
+convention.
 
 Target representation (DOM1 establishment surface, 2026-07-30): domain
 propositions normalize from `requires`; exact requirement identities in the
@@ -193,9 +196,11 @@ domain, and publish `authorized_route_establishment` rather than ambient owner
 evidence. `Extent::Granted` uses the authored route surface. Predicate-in-body
 syntax is now rejected with directed `requires` migration guidance, and the
 source, sample, canary, and embedded-test corpora use the independent predicate
-record. Legacy nested domain operators and inferred owner routes remain
-temporarily for their separate migration and are not the target
-representation.
+record. Domain operators have moved to ordinary top-level declarations with an
+exact or uniquely inferred semantic home; nested declarations reject, and
+operators no longer create establishment routes. Inferred owner-machine and
+boundary-requirement routes remain temporarily for corpus migration and are not
+the target representation.
 
 Implementation status (P1a establishment routes, 2026-07-28):
 `DomainEstablishmentRoute` records the exact trait-requirement identity

@@ -11,16 +11,14 @@ data Quantity {
 domain Quantity::Linear
 requires
     self.value >= 0;
-{
-    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
-}
+
+operator Quantity::Linear::add(left: Quantity, right: Quantity) -> Quantity spelling +;
 
 domain Quantity::Cyclic
 requires
     self.value >= 0;
-{
-    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
-}
+
+operator Quantity::Cyclic::add(left: Quantity, right: Quantity) -> Quantity spelling +;
 
 data Main {}
 

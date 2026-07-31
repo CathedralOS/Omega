@@ -1429,9 +1429,9 @@ fn empty_domain_explicit_as_requires_neither_predicate_nor_user_satisfier() {
 fn distinct_semantic_roles_compose_in_one_domain_chain() {
     let typed = typed_program_from_source(
         r#"
-        domain i32::Degrees {
-            operator add(left: i32, right: i32) -> i32 spelling +;
-        }
+        domain i32::Degrees;
+
+        operator i32::Degrees::add(left: i32, right: i32) -> i32 spelling +;
 
         data Holder {
             value: i32 in Degrees & Wrapping;
@@ -1446,13 +1446,13 @@ fn distinct_semantic_roles_compose_in_one_domain_chain() {
 fn duplicate_denotation_role_contributions_are_rejected() {
     let typed = typed_program_from_source(
         r#"
-        domain i32::Degrees {
-            operator add(left: i32, right: i32) -> i32;
-        }
+        domain i32::Degrees;
 
-        domain i32::Radians {
-            operator combine(left: i32, right: i32) -> i32;
-        }
+        operator i32::Degrees::add(left: i32, right: i32) -> i32;
+
+        domain i32::Radians;
+
+        operator i32::Radians::combine(left: i32, right: i32) -> i32;
 
         data Holder {
             value: i32 in Degrees & Radians;

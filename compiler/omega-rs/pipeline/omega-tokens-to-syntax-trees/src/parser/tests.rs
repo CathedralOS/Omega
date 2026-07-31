@@ -2512,6 +2512,32 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
 }
 
 #[test]
+fn rejects_nested_domain_operators_with_top_level_home_guidance() {
+    let source = r#"
+        domain i32::Degrees {
+            operator add(left: i32, right: i32) -> i32 spelling +;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("nested operators must be retired");
+    assert!(
+        error
+            .message
+            .contains("domain operators must be ordinary top-level declarations"),
+        "got: {}",
+        error.message
+    );
+    assert!(
+        error
+            .message
+            .contains("`operator Type::Domain::operation ...`")
+    );
+}
+
+#[test]
 fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
     let source = r#"
         domain Reservation::Issued;

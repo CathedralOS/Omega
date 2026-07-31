@@ -19,7 +19,6 @@ pub(crate) fn normalize_domain_establishment_routes(
     let mut additions = Vec::new();
     collect_authored_requirement_routes(program, &mut additions)?;
     collect_owner_machine_routes(program, &mut additions);
-    collect_owner_operator_routes(program, &mut additions);
     collect_boundary_requirement_routes(program, &mut additions);
 
     program.domain_definitions.for_each_mut(|domain| {
@@ -229,31 +228,6 @@ fn collect_owner_contract_routes(
             .is_some_and(|carrier| same_semantic_name(attached, carrier))
         {
             additions.push((domain_symbol, route));
-        }
-    }
-}
-
-fn collect_owner_operator_routes(
-    program: &SymbolResolvedTrees,
-    additions: &mut Vec<(SymbolHandle, DomainEstablishmentRoute)>,
-) {
-    for domain in &program.domain_definitions {
-        if domain.predicate_body != DomainPredicateBody::Bodyless {
-            continue;
-        }
-        for operator in program.operator_definitions(domain.operators) {
-            let route = DomainEstablishmentRoute::OwnerOperator {
-                operator: operator.symbol,
-            };
-            if ensured_domain_symbols(
-                program,
-                program.signature_contracts(operator.contracts),
-                false,
-            )
-            .contains(&domain.symbol)
-            {
-                additions.push((domain.symbol, route));
-            }
         }
     }
 }

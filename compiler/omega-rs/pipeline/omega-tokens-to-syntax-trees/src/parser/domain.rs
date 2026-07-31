@@ -1,12 +1,9 @@
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
-use crate::parser::operator::parse_operator_definition;
 use crate::parser::proof_fact::parse_proof_facts_until;
 use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{
-    DomainAliasDefinition, DomainDefinition, OperatorDefinition, ProofFact,
-};
+use omega_syntax_trees::item::{DomainAliasDefinition, DomainDefinition, ProofFact};
 use omega_syntax_trees::types::TypeReferenceNode;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -49,14 +46,14 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         } else {
             let ((predicate_body, facts, requires_token_count), input) =
                 parse_domain_requires(syntax_trees, input)?;
-            let ((operators, authored_routes, body_token_count), input) =
-                parse_domain_body(syntax_trees, input, predicate_body.is_present())?;
+            let ((authored_routes, body_token_count), input) =
+                parse_domain_body(input, predicate_body.is_present())?;
             (
                 None,
                 authored_routes,
                 predicate_body,
                 facts,
-                operators,
+                HandleSpan::empty(),
                 requires_token_count.saturating_add(body_token_count),
                 input,
             )
@@ -183,13 +180,12 @@ fn type_reference_target_label(
 }
 
 fn parse_domain_body<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     requires_consumed: bool,
-) -> ParseResult<'tokens, 'source, (HandleSpan<OperatorDefinition>, Vec<Vec<Identifier>>, usize)> {
+) -> ParseResult<'tokens, 'source, (Vec<Vec<Identifier>>, usize)> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok(((HandleSpan::empty(), Vec::new(), 0), input));
+        return Ok(((Vec::new(), 0), input));
     }
 
     // A `requires` clause may own the declaration's final semicolon. When its
@@ -199,12 +195,11 @@ fn parse_domain_body<'tokens, 'source>(
         && !input.at_punctuation(PunctuationKind::LeftBrace)
         && domain_requires_terminator(input)
     {
-        return Ok(((HandleSpan::empty(), Vec::new(), 0), input));
+        return Ok(((Vec::new(), 0), input));
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
-    let mut operators = HandleSpan::empty();
     let mut authored_routes = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
@@ -215,23 +210,11 @@ fn parse_domain_body<'tokens, 'source>(
             continue;
         }
 
-        if input.at_contextual("operator") {
-            input = input.take_contextual("operator")?;
-            let (operator, rest) = parse_operator_definition(syntax_trees, input, false)?;
-            let handle = syntax_trees.items.append_operator(operator);
-            operators.push_contiguous(handle);
-            input = rest;
-            continue;
-        }
-
-        if input.at_contextual("boundary") {
-            input = input.take_contextual("boundary")?;
-            input = input.take_contextual("operator")?;
-            let (operator, rest) = parse_operator_definition(syntax_trees, input, true)?;
-            let handle = syntax_trees.items.append_operator(operator);
-            operators.push_contiguous(handle);
-            input = rest;
-            continue;
+        if input.at_contextual("operator") || input.at_contextual("boundary") {
+            return Err(input.error_here(
+                "domain operators must be ordinary top-level declarations; write \
+                 `operator Type::Domain::operation ...` outside the domain body",
+            ));
         }
 
         return Err(input.error_here(
@@ -242,7 +225,7 @@ fn parse_domain_body<'tokens, 'source>(
 
     let body_token_count = body_start_tokens.saturating_sub(input.tokens.len());
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok(((operators, authored_routes, body_token_count), input))
+    Ok(((authored_routes, body_token_count), input))
 }
 
 fn at_authored_route(mut input: Input<'_, '_>) -> bool {
