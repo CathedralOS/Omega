@@ -5,6 +5,7 @@ pub mod atomic;
 pub mod bignum;
 pub mod byte_predicates;
 pub mod cast_form;
+pub mod content;
 pub mod diagnostics;
 pub mod float_semantics;
 pub mod inline_assembly;

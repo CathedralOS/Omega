@@ -41,6 +41,7 @@ use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
     validate_value_position_calls,
 };
+pub use crate::content_projections::build_content_projection_plans;
 use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
