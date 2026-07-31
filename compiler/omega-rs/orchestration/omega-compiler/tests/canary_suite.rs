@@ -40185,6 +40185,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/value_call_param_effect_arm_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
+    "capabilities/blocking_beneath_no_block_root",
     "capabilities/duplicate_provider_declaration",
     "capabilities/effect_ceiling_exceeded",
     "capabilities/effect_outside_trait_requirement",

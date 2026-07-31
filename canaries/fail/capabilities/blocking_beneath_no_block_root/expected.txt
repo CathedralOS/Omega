@@ -1,0 +1,1 @@
+omits `blocks;` from its published contract, but its body may block
