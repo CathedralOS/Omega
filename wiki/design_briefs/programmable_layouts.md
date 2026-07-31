@@ -444,9 +444,11 @@ code rather than compiler types.
   slice uses compiler-issued field keys and `FieldEntry`);
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
-- finish `Placed<P, T>` projection (exact atomic families, binding-private
-  ownership, and admitted-loan construction) and target-specific accessor
-  lowering over the live normalized access/resource validator;
+- finish `Placed<P, T>` projection (generic atomic-family helper contracts,
+  binding-private ownership, and admitted-loan construction) and
+  target-specific accessor lowering over the live normalized access/resource
+  validator; direct atomic operation-family gating is live for exact
+  `bool`/`u32`/`u64` placed accessors;
 - recast syntax and diagnostics;
 - independent generated-codec verification against public requirements and
   preserving-codec realizations for unknown members (artifacts already keep

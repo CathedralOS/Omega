@@ -1033,6 +1033,7 @@ dependencies = [
 name = "omega-typed-trees"
 version = "0.1.0"
 dependencies = [
+ "omega-access-plans",
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
@@ -1070,6 +1071,7 @@ dependencies = [
 name = "omega-validation"
 version = "0.1.0"
 dependencies = [
+ "omega-access-plans",
  "omega-core",
  "omega-effects",
  "omega-facts",

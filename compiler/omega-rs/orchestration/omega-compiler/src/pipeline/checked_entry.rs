@@ -60,7 +60,7 @@ pub fn compile_to_checked(
     crate::pipeline::const_domain_facts::evaluate_const_domain_facts(&mut typed)?;
     // PLAN-LAID VALUE TYPES, plan half: evaluate + validate + record.
     crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
-    crate::pipeline::placed_views::validate_placed_view_plans(&typed, &placed_view_records)?;
+    crate::pipeline::placed_views::validate_placed_view_plans(&mut typed, &placed_view_records)?;
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
     crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;

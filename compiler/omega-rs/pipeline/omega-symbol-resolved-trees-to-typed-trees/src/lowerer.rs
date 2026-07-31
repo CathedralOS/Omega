@@ -134,6 +134,7 @@ impl Lowerer<'_> {
             service_reach_rows,
             semantic_domains,
             plan_laid_layouts: _,
+            placed_view_plans: _,
             wire_placements: _,
             wire_encode_obligations: _,
             wire_schema_plans: _,
