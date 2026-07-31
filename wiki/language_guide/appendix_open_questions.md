@@ -43,7 +43,7 @@ Last pruned: 2026-07-30.
   checker. Complete contention tests, migrate the source ordering vocabulary,
   and keep checked ISA plus device/DMA barriers distinct.
 - Settle modular package environment premises and their composition in owner
-  question #5.
+  question #4.
 - Migrate the task-plan prototype away from generalized runtime supply.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
@@ -51,12 +51,12 @@ Last pruned: 2026-07-30.
 - Implement settled registered callback entry: a named static machine satisfies
   the callback requirement, the binding emits its plan-driven thunk, and a
   durable protocol returns a linear registration value. Retained foreign
-  storage uses call-scoped borrows or linear in-flight claims; the reusable
-  hosted-FFI gateway resource and cancellation contract remains owner question
-  #1.
+  storage uses call-scoped borrows or ownership-conserving linear protocol
+  claims. Add the boundary-coherence canaries and narrow Windows `user32`
+  acceptance slice; any blocking executor remains an ordinary package.
 - Settle root-level visibility/profile rejection for opaque in-process native
-  providers in owner question #3, and contained execution failure with
-  outstanding obligations in #4.
+  providers in owner question #2, and contained execution failure with
+  outstanding obligations in #3.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
@@ -76,7 +76,7 @@ Last pruned: 2026-07-30.
 - Finish the remaining domain spaces: external quantity-kind equations,
   general open-family linking, `weakens_to` certificate syntax, affine
   quantities, and the named float-conversion requirement surface (owner
-  question #6).
+  question #5).
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

@@ -136,6 +136,22 @@ reach, suspension, and blocking ceilings. The external realization's behavior
 is derived from the binding/provider contract and must refine every ceiling at
 validation/admission. A `via` machine does not repeat those clauses.
 
+This is one boundary-contract shape, not FFI-only ceremony. A checked Omega
+provider derives facts from its body. An opaque provider supplies admitted
+facts through its binding. Trust is classified per fact, and a composite
+guarantee reports the weakest input together with the exact provider premise
+that made it so.
+
+```text
+StackPlan
+  class: admitted
+  input: Firmware.foreign_stack_ceiling
+
+callback_acyclic
+  class: derived
+  input: checked invokes graph
+```
+
 ## Reach, authority, and trust
 
 Decision 22 applies without an extern exception:
@@ -156,7 +172,34 @@ containment do not prevent that binary from modifying arbitrary process memory.
 The selected-provider manifest retains its exact identity and trust receipt.
 Process- or hardware-isolated providers instead remain external endpoints.
 The root declaration and build-profile rejection surface for these transitive
-trust dependencies remains owner question #3.
+trust dependencies remain owner question #2.
+
+Binding authors publish the widest contract they can honestly support.
+Over-approximation may cost usability: an unconstrained synchronous invocation
+ceiling rejects from an acyclic context, and a blocking edge without finite
+wait evidence yields `NoFiniteGuarantee(edge)`. Under-approximating an opaque
+provider is an unsound admitted claim. The compiler checks the consequences and
+internal coherence of a declaration; it cannot establish its truth from a DLL.
+
+## Boundary declaration coherence
+
+The checker reads existing contract axes rather than a separate foreign-use
+plan:
+
+- bodyful checked providers infer operational facts; bodyless surfaces author
+  their ceilings;
+- `blocks` must fit the caller's blocking ceiling and carry the source
+  acknowledgement at the call site; without selected finite wait evidence the
+  response report is `NoFiniteGuarantee(edge)`;
+- `invokes` contributes direct synchronous edges and rejects a realized
+  component-boundary cycle;
+- a reference grants use only before return; a result claim retaining storage
+  after return must receive that authority from a consumed input through the
+  ordinary conservation mapping;
+- the selected executor must satisfy the operation's thread or apartment
+  affinity; and
+- `addr` and `Ptr<T>` remain inert ABI data and cannot substitute for an
+  established storage claim.
 
 ## Calling plans
 
@@ -192,23 +235,22 @@ Directed-rounding operations do not alter ambient control state, and
 silently enables FTZ/DAZ cannot leave behind a valid Omega hardware-float
 realization.
 
-## Foreign execution placement and stack accounting
+## Foreign execution and stack accounting
 
-The binding package selects where an opaque call executes; the compiler does
-not guess from a DLL name or signature.
+Execution placement is selected through ordinary providers and runtime
+executors. It is not a language-level foreign-call disposition. A bodyless
+binding declares blocking and affinity; a checked provider derives them. The
+selected execution context must permit blocking and satisfy the required
+thread or apartment affinity. Thus a Windows message loop may call a blocking
+`GetMessage` directly on its dedicated pinned UI executor, while a codec-style
+opaque call may be wrapped by an ordinary blocking-executor package.
 
-```text
-direct
-    foreign frames continue the current activation's stack chain
-    an admitted foreign ceiling enters that StackPlan
-
-gateway/component
-    the caller accounts for its checked local stub
-    the provider owns a separately provisioned native stack
-
-isolated
-    the call crosses a process or hardware protection boundary
-```
+Hosted direct calls use the host-managed stack and its guard according to the
+selected calling plan. Callback entry preflights the exact Omega WCSU when the
+host profile requires it. A fixed-stack or freestanding provider instead needs
+an admitted foreign contribution or a separately provisioned provider stack.
+An isolated provider crosses the existing process/component boundary and
+exposes an endpoint rather than a special FFI call kind.
 
 A boundary requirement's resource ceiling is not evidence that an opaque
 implementation fits it. Checked Omega realizations derive WCSU. A native
@@ -217,11 +259,12 @@ overflow remains an abnormal-exit route rather than proof of successful
 completion. Trust composes by the weakest input and reports the exact foreign
 premise.
 
-A hosted gateway is an ordinary boundary provider backed by a bounded native
-worker resource. Reaching its submission safe point does not bound native
-completion, cancellation finalization, retained-loan release, or later gateway
-admission. Pool/queue/backpressure and failure-domain semantics remain owner
-question #2.
+A hosted blocking executor is an ordinary package assembled from activations,
+bounded queues, moved custody, linear completion claims, suspension, and
+provider selection. It keeps a blocking call off a no-block scheduler worker
+but does not change the foreign contract. An in-process worker cannot be killed
+safely; a detached call pins its worker, storage, and provider era until native
+return. Bounded recovery from a genuine hang requires process isolation.
 
 ## Registered callbacks
 
@@ -333,16 +376,18 @@ materializes a `Ptr<T>` only from an established storage claim after validating
 the selected marshaling and calling policies; inbound carriers become checked
 views only through an authorized establishment route.
 
-Foreign storage use has three outbound lifetime shapes:
+Foreign storage use has three outbound ownership shapes:
 
 1. **Call-scoped:** an ordinary `&T`, `&[T]`, `&mut T`, or `&mut [T]` permits
    only access before the call returns.
-2. **In flight:** storage authority moves into an ordinary linear protocol
-   value such as `PendingRead`; a terminal completion redeems it.
-3. **Permanent:** the authority moves to a stable custodian for the remainder
-   of that custodian's lifetime.
+2. **Retained after return:** storage authority moves into an ordinary linear
+   protocol value such as `PendingRead`; a terminal completion redeems it.
+3. **Process-lifetime:** the authority moves into an already-established static
+   or process-lifetime root. Omega has no general permanent-custodian spelling;
+   other permanent retention remains unsupported until a concrete customer
+   justifies one.
 
-In-flight retention is not a long borrow. The linear claim owns the keepalive
+Post-return retention is not a long borrow. The linear claim owns the keepalive
 and reclamation authority for its backing place, not necessarily the bytes
 inline. It may lend ordinary lexical views over rights the foreign side does
 not hold. A read-only foreign operation can therefore preserve semantic facts
@@ -351,6 +396,14 @@ the writable extent and re-establishes them from terminal completion evidence.
 Separated partial release is an ordinary split in the claim-content algebra:
 the returned subextent leaves flight while the disjoint remainder stays under
 the same protocol claim.
+
+The compiler learns that use survives return from ownership conservation. A
+consumed `Buffer` may map into the content retained by `PendingWrite`;
+`submit(&buffer) -> PendingWrite` rejects because a borrow supplies no owned
+claim that can establish the result.
+Unambiguous consumed-input-to-produced-claim mappings are inferred; ambiguous
+or unsupported mappings reject. The source surface for authoring opaque
+claim-content projections remains governed by owner question #1.
 
 The reverse direction uses the same types. A provider-owned view whose
 invalidators require exclusive access to one receiver is an ordinary borrow
@@ -436,16 +489,20 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 4. Lower imported calls and inbound stubs from checked plans only.
 5. Integrate programmable layout validation/materialization.
 6. Add final-artifact state-footprint validation and external-root reporting.
-7. Add callback, foreign-retention, and provider-view canaries.
-8. Delete host-string special cases and legacy target blocks.
+7. Add boundary-coherence rejection canaries: retained-after-return custody
+   sourced only from a borrow, blocking under a no-block root, incompatible
+   affinity, and undeclared or cyclic synchronous invocation.
+8. Implement the narrow Windows `user32` acceptance slice in `TASKS.md`.
+9. Add foreign-retention and provider-view canaries.
+10. Delete host-string special cases and legacy target blocks.
 
 ## Still open
 
 - dynamic-library loading/unloading under component versioning;
 - transitive root visibility and profile rejection for opaque in-process
-  executable providers (`OWNER_QUESTIONS.md` #3);
+  executable providers (`OWNER_QUESTIONS.md` #2);
 - contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #4); and
+  (`OWNER_QUESTIONS.md` #3); and
 - target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain

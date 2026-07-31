@@ -342,21 +342,19 @@ is part of the permission/resource-algebra implementation.
 
 A direct opaque foreign call runs on the current activation stack and therefore
 contributes an admitted same-stack demand to that activation's `StackPlan`.
-Wrapping native code behind an Omega boundary may instead give it a separate
-provider stack. That confines the foreign contribution but does not prove that
-the native operation returns.
-
-A hosted FFI gateway commonly suspends the Omega caller and runs native code on
-a bounded pool of guarded OS-worker stacks. The safe point is reached when the
-caller parks; native completion, cancellation finalization, retained-loan
-release, and later pool admission remain independent and may be unbounded.
-These are reported separately. The reusable gateway contract remains owner
-question #2. Retained native pointers use the settled call-scoped-borrow or
-linear-in-flight-claim model. Registered callback
-entry is settled: a named static machine satisfies the callback requirement,
-the binding emits its plan-driven thunk, and a durable protocol returns a
-linear registration value. Platform adapters normalize native re-entry into
-locally checked handler surfaces.
+An ordinary blocking-executor package may suspend an Omega caller and run
+native code on a bounded pool of guarded OS-worker stacks. This is assembled
+from activations, queues, moved custody, linear completion claims, suspension,
+and provider selection; it is not a language call kind. The safe point is
+reached when the caller parks, while native completion and later admission may
+remain unbounded. A detached in-process call pins its worker, storage, and
+provider era until return; bounded recovery from a hang requires isolation.
+Retained native pointers use call-scoped borrows when use ends before return,
+or ordinary ownership-conserving protocol claims when it does not. Registered
+callback entry is settled: a named static machine satisfies the callback
+requirement, the binding emits its plan-driven thunk, and a durable protocol
+returns a linear registration value. Platform adapters normalize native
+re-entry into locally checked handler surfaces.
 
 ## Cancellation Is A Value At The Wait
 
@@ -608,7 +606,7 @@ Finite exploration retains its activation bound and counterexample trace. It
 does not become an unbounded theorem without an authored cutoff, inductive
 invariant, ranking argument, or equivalent proof. Separately compiled packages
 also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #5.
+source and composition rules for those premises remain owner question #4.
 
 ## Minimal Deadlock Shapes
 

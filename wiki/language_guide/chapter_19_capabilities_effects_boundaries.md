@@ -1040,13 +1040,17 @@ foreign choices unstated. Their private `{pointer, length}` or
 descriptor. A native leaf declares the counterparty's actual shape: separate
 pointer and length parameters, a null-terminated pointer, or a declared record
 only when the foreign API genuinely takes that record. A checked adapter scopes
-a borrowed-out pointer for a synchronous call. A retaining API instead moves
-the backing keepalive/authority into a linear in-flight claim and returns it
-only at a protocol-correlated completion; it is not a long borrow. Permanent
-retention transfers that authority to a stable custodian. Foreign-owned views
-use ordinary borrows when exclusive receiver access dominates every
-invalidator, and explicit linear view claims otherwise. Text crosses as bytes,
-with `Utf8` forgotten outbound or validated and established inbound.
+a borrowed-out pointer for a synchronous call. An API whose foreign use
+survives return instead consumes the backing keepalive/authority into an
+ordinary linear protocol claim and returns it only at a protocol-correlated
+completion; it is not a long borrow. Conservation maps the consumed input into
+the produced claim, so a bare borrow cannot establish such a result.
+Process-lifetime retention requires an already-established static or
+process-lifetime root; Omega currently has no general permanent-custodian
+surface. Foreign-owned views use ordinary borrows when exclusive receiver
+access dominates every invalidator, and explicit linear view claims otherwise.
+Text crosses as bytes, with `Utf8` forgotten outbound or validated and
+established inbound.
 
 `addr` and `Ptr<T>` are inert representation carriers, never memory authority.
 Calling and marshaling policies may explain how parameters encode an extent,
@@ -1289,17 +1293,28 @@ handlers; ordinary notifications may be queued until native dispatch returns.
 Applications therefore consume a normal event/handler surface instead of
 participating directly in the platform's recursive callback graph.
 
+Blocking and affinity compose through the same contracts. A Windows
+`GetMessage` binding is legal directly on a dedicated pinned UI executor whose
+contract permits blocking. Codec-style calls that should not occupy a no-block
+scheduler worker may instead use an ordinary blocking-executor package.
+That package is built from activations, queues, moved custody, suspension, and
+provider selection.
+
 The selected entry plan states whether callback execution continues on the
 provider stack, preflights that stack against the Omega WCSU and target reserve,
 or enters a target-supported owned stack. Preflight proves that the predicted
 Omega segment fits. A hard-limited owned stack also detects an underestimated
 WCSU at its own boundary.
 
-An opaque third-party binary loaded in-process remains part of the trusted
-computing base even when a checked adapter wraps it. The boundary manifest names
-that provider and its receipt; an isolated process exposes an endpoint instead.
+Checked and opaque providers satisfy the same boundary requirements. Checked
+facts are derived from bodies; opaque facts are admitted by bindings. Each fact
+retains its own trust class and exact provenance, and composite guarantees
+report their weakest input. An opaque third-party binary loaded in-process
+remains part of the trusted computing base even when a checked adapter wraps it.
+The boundary manifest names that provider and its receipts; an isolated process
+exposes an endpoint instead.
 The exact root declaration and safety-profile rejection surface remains owner
-question #3.
+question #2.
 
 ## Build Artifacts
 

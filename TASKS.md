@@ -163,7 +163,7 @@ multi-output claim transformations. Per-claim carry inheritance has settled
 semantics. The source surface that marks a qualification as content-bearing and
 authors its projection, admitted backing, retirement, and conservation contract
 is **DESIGN BLOCKED —
-`OWNER_QUESTIONS.md` #2**; do not infer content from multiplicity or invent a
+`OWNER_QUESTIONS.md` #1**; do not infer content from multiplicity or invent a
 declaration spelling.
 
 Implementation checkpoint (2026-07-28): transparent records now derive one
@@ -221,12 +221,12 @@ proof/debug artifacts retain the case identity structurally.
 This is not full P1c: content projections/backing and conservation witnesses
 remain. Symbol-keyed substitutions already retain contained claims through
 nested generic transparent records. Content authoring remains blocked on owner
-question #2.
+question #1.
 
 - make content-bearing qualified claim kinds publish one normalized projection
   into a compiler-owned partial composition algebra;
 - implement the initial closed normalized vocabulary
-  `Indivisible | Interval<Scalar>` once owner question #2 settles how an
+  `Indivisible | Interval<Scalar>` once owner question #1 settles how an
   authored content clause selects it; never default ordinary linear claims into
   that vocabulary;
 - add `CountedQuantity<Scalar>` as the first customer-driven extension for
@@ -290,8 +290,8 @@ establishment from raw bytes reject.
 **PARTIALLY DESIGN BLOCKED.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the normalized
 model. The source-visible loan/profile admission surface is blocked on
-`OWNER_QUESTIONS.md` #7, and public generic atomic accessor requirements are
-blocked on #8. Target-specific lowering remains implementation work.
+`OWNER_QUESTIONS.md` #6, and public generic atomic accessor requirements are
+blocked on #7. Target-specific lowering remains implementation work.
 
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
@@ -304,8 +304,8 @@ blocked on #8. Target-specific lowering remains implementation work.
   accessors are restricted to machines authored in the nominal placement
   policy's canonical package, including statement-position calls whose
   generated target symbol is absent. Generic atomic-family helper contracts
-  are blocked on owner question #8. Admitted source-loan construction is
-  blocked on owner question #7.
+  are blocked on owner question #7. Admitted source-loan construction is
+  blocked on owner question #6.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.
@@ -501,14 +501,18 @@ Remaining:
 
 - remove residual hardcoded placement decisions;
 - implement the settled foreign-storage lifetime model: derive ordinary
-  call-scoped borrows from reference-shaped ABI parameters; represent retained
-  storage with linear in-flight claims and protocol-correlated redemption; and
+  call-scoped borrows from reference-shaped ABI parameters; require storage
+  used after return to move into an ordinary linear protocol claim; infer the
+  consumed-input-to-produced-claim mapping through resource conservation; and
   preserve exact provider-era dependencies as compiler-owned claim metadata;
 - add the provider-view dual for foreign-owned storage, using ordinary borrows
   where all invalidators require exclusive access and explicit claims where
   runtime protocol events end validity;
 - keep raw `addr` and `Ptr<T>` inert and non-dereferenceable; a calling plan may
   describe their ABI representation but cannot manufacture authority;
+- reject permanent foreign retention unless the consumed authority is
+  transferred into an established static or process-lifetime root; do not
+  invent a general permanent-custodian spelling without a concrete customer;
 - record write-only views as a focused core-type follow-up rather than hiding
   write-only foreign access in a plan;
 - add differential checks where a compatibility encoder remains; and
@@ -622,15 +626,26 @@ improvements do not change public identity.
   from canonical IR and its interpreter meter rather than treating that
   provider-authored precursor as an IR proof. The v1 canonical IR schema,
   serialization, and verifier/lowering boundary are blocked on
-  `OWNER_QUESTIONS.md` #9. The current TypedTrees evaluator now publishes an
+  `OWNER_QUESTIONS.md` #8. The current TypedTrees evaluator now publishes an
   explicitly versioned deterministic step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not canonical-IR
   fuel.
-- **FFIGATE:** after owner question #1, implement the hosted-FFI gateway as an
-  ordinary bounded native-worker provider with explicit queue admission,
-  stack provision, cancellation disposition, retained-loan custody, and
-  shutdown/quiescence. Registered callback lowering is ENT4; retained storage
-  follows the settled call-scoped/in-flight/permanent model in ENT2c.
+- **FFIVAL:** validate the settled boundary model before adding any new
+  construct. First add rejection canaries for a returned custody claim sourced
+  only from a borrow, blocking beneath a no-block root, incompatible
+  affinity/executor selection, and undeclared or cyclic synchronous
+  `invokes`. Then implement a narrow Windows `user32` slice:
+  `RegisterClassEx`, `CreateWindowEx`/`WM_NCCREATE`, `GetMessage`,
+  `DispatchMessage`, `DefWindowProc`, `DestroyWindow`, and
+  `UnregisterClass`. It must express bootstrap-to-steady callback recovery,
+  pinned-thread blocking, registration custody, thunk calling/state plans, and
+  cycle breaking with existing machinery.
+- **BLOCKEXEC:** provide an ordinary package-level blocking executor for
+  codec-style native calls using activations, bounded queues, moved custody,
+  linear completion claims, suspension, and provider selection. It is not a
+  language call kind or plan axis. Document that an in-process worker cannot be
+  killed safely, an orphan pins its worker/storage/provider era, and bounded
+  recovery from a hung call requires process isolation.
 - Replace ambient allocation with `Arena`/`Allocation`; connect Arena backing
   to qualified `Extent` after P1.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
@@ -741,7 +756,7 @@ and allocation handles expose no compiler-owned stack/control storage.
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the
   denotation-preserving subset; policy-bearing conversion remains
-  `OWNER_QUESTIONS.md` #6.
+  `OWNER_QUESTIONS.md` #5.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -858,15 +873,14 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 hosted-FFI gateway | reusable native-worker execution and backpressure |
-| #2 claim-content projection and backing | P1c content algebra and conservation |
-| #3 opaque in-process executable trust | root TCB declaration and profile rejection |
-| #4 contained execution failure | obligation poison, recovery, and reclamation |
-| #5 modular concurrency premises | separately compiled protocol verification |
-| #6 float-conversion requirements | checked integer/float and cross-format conversion |
-| #7 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
-| #8 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
-| #9 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
+| #1 claim-content projection and backing | P1c content algebra and conservation |
+| #2 opaque in-process executable trust | root TCB declaration and profile rejection |
+| #3 contained execution failure | obligation poison, recovery, and reclamation |
+| #4 modular concurrency premises | separately compiled protocol verification |
+| #5 float-conversion requirements | checked integer/float and cross-format conversion |
+| #6 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
+| #7 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
+| #8 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
 
 ## Vertical acceptance slices
 
