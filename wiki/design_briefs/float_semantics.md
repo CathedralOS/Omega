@@ -211,10 +211,17 @@ identity survives state graph, control flow, and abstract-operation lowering;
 instruction selection resolves it back through the retained selected-plan set
 and rejects zero, missing, or contradictory evidence. Cross-target canaries pin
 all twenty exact slots per target, every used primitive operation family, and a
-native pipeline compile. This completes target-plan migration for the primitive
-spelling surface, not rung 3: named operation families, checked software
-fallbacks, canonical floating-control-state proof/restoration, and differential
-evidence for admitted hardware realizations remain.
+native pipeline compile. The first named-operation cohort adds exact F32/F64
+`minimum`, `maximum`, and `square_root` slots on every native target. Their
+checked named-use plan identity authorizes an execution-only rewrite to the
+existing min/max/sqrt builtins in both engine pipelines; proof evidence still
+names the source boundary requirement. NaN operand order, equal signed-zero
+selection, both formats, and exact-square roots run in interpreter/native
+canaries. Primitive spellings and this six-slot named cohort are migrated, not
+all of rung 3: negate, multiply-then-add/FMA, classification/predicates,
+directed-rounding families, checked software fallbacks, canonical
+floating-control-state proof/restoration, and admitted-hardware differential
+evidence remain.
 
 ## 2. Domains: the value/policy split
 

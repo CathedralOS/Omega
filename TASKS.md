@@ -887,10 +887,17 @@ and allocation handles expose no compiler-owned stack/control storage.
   zero, missing-plan, or contradictory evidence. Cross-target selection for
   all twenty exact slots per target, used-operation identity, stage-copy,
   backend fail-closed, malformed-binding, and native pipeline canaries pin the
-  slice. Primitive spellings have completed target-plan migration; remaining
-  rung-3 work includes named operation families, checked software fallbacks,
-  canonical floating-control-state preconditions/restoration, and rung-4
-  differential evidence.
+  slice. Primitive spellings have completed target-plan migration. The first
+  named-operation cohort now adds exact F32/F64 `minimum`, `maximum`, and
+  `square_root` satisfiers on all four native targets. Checked named-use
+  evidence authorizes an execution-only rewrite to the existing min/max/sqrt
+  builtins in both engine pipelines; source proof identity remains attached to
+  the boundary requirement, and native/interpreter canaries cover NaN operand
+  order, equal signed-zero choice, both widths, and exact-square roots.
+  Remaining rung-3 work includes negate, multiply-then-add/FMA,
+  classification/predicates, directed-rounding families, checked software
+  fallbacks, canonical floating-control-state preconditions/restoration, and
+  rung-4 differential evidence.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the

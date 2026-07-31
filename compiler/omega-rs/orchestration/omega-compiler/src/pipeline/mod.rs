@@ -12,6 +12,7 @@ pub mod compiler;
 mod const_domain_facts;
 mod const_generic_calls;
 mod const_lengths;
+mod float_intrinsic_dispatch;
 pub mod frontend;
 mod generic_instances;
 mod layout_plans;

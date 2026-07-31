@@ -532,9 +532,12 @@ the arithmetic/comparison spellings, multiply-then-add versus FMA,
 classification, and directed rounding. Checked operator evidence records the
 primitive identity selected at each use. All f32/f64 primitive arithmetic and
 comparison overloads now select explicit x86-64/AArch64 target satisfiers and
-retain their exact `ProviderPlan` identities through lowering; the named
-operation families remain on bootstrap target lowering until their own
-satisfiers replace it.
+retain their exact `ProviderPlan` identities through lowering. The named
+F32/F64 `minimum`, `maximum`, and `square_root` requirements likewise select
+explicit target satisfiers. Their checked plan identity authorizes dispatch to
+the existing compiler-known lowering without replacing the source requirement
+in proof evidence. Other named operation families remain on bootstrap target
+lowering until their own satisfiers and execution paths replace it.
 
 ### Value domains — wellness facts
 

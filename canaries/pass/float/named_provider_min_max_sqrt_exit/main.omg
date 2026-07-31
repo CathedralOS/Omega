@@ -1,0 +1,104 @@
+// F7 named-operation ProviderPlan execution bridge.  Each call checks as an
+// F32/F64 boundary requirement, retains the exact selected target plan, and
+// only then redirects to the compiler's min/max/sqrt lowering.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    min_nan_first32: f32;
+    min_nan_second32: f32;
+    max_nan_first32: f32;
+    min_equal_reciprocal32: f32;
+    sqrt32: f32;
+    min_nan_first64: f64;
+    min_nan_second64: f64;
+    max_nan_first64: f64;
+    max_equal_reciprocal64: f64;
+    sqrt64: f64;
+}
+
+machine Main::main(&mut self) {
+    let one32: f32 = 1.0f32;
+    let nan32: f32 = 0.0f32 / 0.0f32;
+    let negative_zero32: f32 = 0.0f32 / (0.0f32 - 1.0f32);
+    self.min_nan_first32 = F32::minimum(nan32, one32);
+    self.min_nan_second32 = F32::minimum(one32, nan32);
+    self.max_nan_first32 = F32::maximum(nan32, one32);
+    let min_equal32: f32 = F32::minimum(0.0f32, negative_zero32);
+    self.min_equal_reciprocal32 = 1.0f32 / min_equal32;
+    self.sqrt32 = F32::square_root(9.0f32);
+
+    let one64: f64 = 1.0;
+    let nan64: f64 = 0.0 / 0.0;
+    let negative_zero64: f64 = 0.0 / (0.0 - 1.0);
+    self.min_nan_first64 = F64::minimum(nan64, one64);
+    self.min_nan_second64 = F64::minimum(one64, nan64);
+    self.max_nan_first64 = F64::maximum(nan64, one64);
+    let max_equal64: f64 = F64::maximum(0.0, negative_zero64);
+    self.max_equal_reciprocal64 = 1.0 / max_equal64;
+    self.sqrt64 = F64::square_root(16.0);
+
+    transition self.min_nan_first32 == one32 {
+        true -> check_min_nan_second32()
+        _ -> fail(71)
+    }
+
+    state check_min_nan_second32(&mut self) {
+        transition self.min_nan_second32 != self.min_nan_second32 {
+            true -> check_max_nan_first32()
+            _ -> fail(72)
+        }
+    }
+    state check_max_nan_first32(&mut self) {
+        transition self.max_nan_first32 == 1.0f32 {
+            true -> check_equal32()
+            _ -> fail(73)
+        }
+    }
+    state check_equal32(&mut self) {
+        transition self.min_equal_reciprocal32 < 0.0f32 {
+            true -> check_sqrt32()
+            _ -> fail(74)
+        }
+    }
+    state check_sqrt32(&mut self) {
+        transition self.sqrt32 == 3.0f32 {
+            true -> check_min_nan_first64()
+            _ -> fail(75)
+        }
+    }
+    state check_min_nan_first64(&mut self) {
+        transition self.min_nan_first64 == 1.0 {
+            true -> check_min_nan_second64()
+            _ -> fail(76)
+        }
+    }
+    state check_min_nan_second64(&mut self) {
+        transition self.min_nan_second64 != self.min_nan_second64 {
+            true -> check_max_nan_first64()
+            _ -> fail(77)
+        }
+    }
+    state check_max_nan_first64(&mut self) {
+        transition self.max_nan_first64 == 1.0 {
+            true -> check_equal64()
+            _ -> fail(78)
+        }
+    }
+    state check_equal64(&mut self) {
+        transition self.max_equal_reciprocal64 < 0.0 {
+            true -> check_sqrt64()
+            _ -> fail(79)
+        }
+    }
+    state check_sqrt64(&mut self) {
+        transition self.sqrt64 == 4.0 {
+            true -> good()
+            _ -> fail(80)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+}

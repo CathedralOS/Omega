@@ -78,3 +78,27 @@ linux_x64 machine FloatNativeProvider::greater_or_equal32(left: f32, right: f32)
 linux_x64 machine FloatNativeProvider::greater_or_equal64(left: f64, right: f64) -> bool
     satisfies Float::greater_or_equal
     via Binding::CompilerIntrinsic("Float::greater_or_equal.f64");
+
+linux_x64 machine FloatNativeProvider::minimum32(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    via Binding::CompilerIntrinsic("F32::minimum.f32");
+
+linux_x64 machine FloatNativeProvider::minimum64(left: f64, right: f64) -> f64
+    satisfies F64::minimum
+    via Binding::CompilerIntrinsic("F64::minimum.f64");
+
+linux_x64 machine FloatNativeProvider::maximum32(left: f32, right: f32) -> f32
+    satisfies F32::maximum
+    via Binding::CompilerIntrinsic("F32::maximum.f32");
+
+linux_x64 machine FloatNativeProvider::maximum64(left: f64, right: f64) -> f64
+    satisfies F64::maximum
+    via Binding::CompilerIntrinsic("F64::maximum.f64");
+
+linux_x64 machine FloatNativeProvider::square_root32(value: f32) -> f32
+    satisfies F32::square_root
+    via Binding::CompilerIntrinsic("F32::square_root.f32");
+
+linux_x64 machine FloatNativeProvider::square_root64(value: f64) -> f64
+    satisfies F64::square_root
+    via Binding::CompilerIntrinsic("F64::square_root.f64");

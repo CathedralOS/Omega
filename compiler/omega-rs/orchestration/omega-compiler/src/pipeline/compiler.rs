@@ -434,6 +434,10 @@ impl Compiler {
             &selected_provider_plans,
             &build_config.grants,
         )?;
+        crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
+            Arc::get_mut(&mut checked.program)
+                .expect("checked program must be uniquely owned before backend fan-out"),
+        )?;
         let selected_provider_plan_facts = checked.program.selected_provider_plans().clone();
         // PRV4 adapter dispatch (both engines, after checking): semantic facts
         // stay attached to the admitted boundary requirement, while execution
