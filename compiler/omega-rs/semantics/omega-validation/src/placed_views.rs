@@ -7,7 +7,7 @@
 //! atomic carrier for an operation admitted by its placement plan. Ordinary
 //! assignment never becomes an atomic store implicitly.
 
-use omega_access_plans::{AtomicPermissions, FieldAccess};
+use omega_access_plans::{AccessExposure, AtomicPermissions, FieldAccess};
 use omega_core::atomic::AtomicOrderingPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
@@ -27,6 +27,12 @@ pub(crate) fn validate_statement(
 ) {
     if let StatementNode::Assignment(assignment) = statement {
         validate_assignment(program, machine, state, assignment, diagnostics);
+    }
+    if let StatementNode::Call(call) = statement
+        && let Some((view, field)) =
+            placed_view_field_for_statement_call(program, machine, state, call)
+    {
+        validate_binding_private_use(program, machine, view, field, diagnostics);
     }
     for expression in statement_expression_roots(program, statement) {
         validate_expression(program, machine, state, expression, false, diagnostics);
@@ -60,10 +66,15 @@ fn validate_assignment(
     assignment: &TableAssignment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(field) = placed_atomic_field_for_place(program, machine, state, assignment.target)
+    let Some((view, field)) =
+        placed_view_field_for_place(program, machine, state, assignment.target)
     else {
         return;
     };
+    validate_binding_private_use(program, machine, view, field, diagnostics);
+    if !matches!(&field.access, FieldAccess::Atomic { .. }) {
+        return;
+    }
     let ExpressionNode::Atomic(atomic) = program.expression_table.expression(assignment.value)
     else {
         diagnostics.push(Diagnostic::error(format!(
@@ -107,6 +118,9 @@ fn validate_expression(
 ) {
     if !expression.is_valid() {
         return;
+    }
+    if let Some((view, field)) = placed_view_field_for_place(program, machine, state, expression) {
+        validate_binding_private_use(program, machine, view, field, diagnostics);
     }
     if !atomic_place_allowed
         && let Some(field) = placed_atomic_field_for_place(program, machine, state, expression)
@@ -198,9 +212,102 @@ fn placed_atomic_field_for_place<'program>(
     state: &State,
     place: ExpressionHandle,
 ) -> Option<&'program omega_typed_trees::typed_trees::PlacedFieldPlan> {
-    let type_reference = crate::places::declared_place_type(program, machine, Some(state), place)?;
-    let field = program.placed_field_plan_for_type_reference(type_reference)?;
+    let (_, field) = placed_view_field_for_place(program, machine, state, place)?;
     matches!(&field.access, FieldAccess::Atomic { .. }).then_some(field)
+}
+
+fn placed_view_field_for_place<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: &State,
+    place: ExpressionHandle,
+) -> Option<(
+    &'program omega_typed_trees::typed_trees::PlacedViewPlan,
+    &'program omega_typed_trees::typed_trees::PlacedFieldPlan,
+)> {
+    let type_reference = crate::places::declared_place_type(program, machine, Some(state), place)?;
+    program.placed_view_field_plan_for_type_reference(type_reference)
+}
+
+fn placed_view_field_for_call_target(
+    program: &TypedTrees,
+    target: omega_core::symbols::SymbolHandle,
+) -> Option<(
+    &omega_typed_trees::typed_trees::PlacedViewPlan,
+    &omega_typed_trees::typed_trees::PlacedFieldPlan,
+)> {
+    if !target.is_valid() {
+        return None;
+    }
+    let accessor_name = program
+        .machines()
+        .iter()
+        .find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target)
+        })?
+        .attached_data
+        .as_ref()?
+        .as_str();
+    program.placed_view_plans.iter().find_map(|view| {
+        view.fields
+            .iter()
+            .find(|field| field.accessor_name == accessor_name)
+            .map(|field| (view, field))
+    })
+}
+
+fn placed_view_field_for_statement_call<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &omega_typed_trees::statement::TableCall,
+) -> Option<(
+    &'program omega_typed_trees::typed_trees::PlacedViewPlan,
+    &'program omega_typed_trees::typed_trees::PlacedFieldPlan,
+)> {
+    placed_view_field_for_call_target(program, call.target_symbol).or_else(|| {
+        let receiver = program
+            .statement_table
+            .name_path_members(call.receiver)
+            .iter()
+            .map(|member| member.as_str().to_owned())
+            .collect::<Vec<_>>();
+        let type_reference =
+            crate::places::declared_member_path_type(program, machine, Some(state), &receiver)?;
+        program.placed_view_field_plan_for_type_reference(type_reference)
+    })
+}
+
+fn validate_binding_private_use(
+    program: &TypedTrees,
+    machine: &Machine,
+    view: &omega_typed_trees::typed_trees::PlacedViewPlan,
+    field: &omega_typed_trees::typed_trees::PlacedFieldPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if access_exposure(&field.access) != Some(AccessExposure::BindingPrivate)
+        || program
+            .symbols
+            .same_symbol_source_package(machine.symbol, view.policy_symbol)
+    {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "binding-private placed accessor `{}` belongs to placement policy `{}`'s package",
+        field.field_name, view.policy_name
+    )));
+}
+
+fn access_exposure(access: &FieldAccess) -> Option<AccessExposure> {
+    match access {
+        FieldAccess::Inaccessible => None,
+        FieldAccess::Stable { exposure, .. }
+        | FieldAccess::External { exposure, .. }
+        | FieldAccess::Atomic { exposure, .. } => Some(*exposure),
+    }
 }
 
 fn permissions(field: &omega_typed_trees::typed_trees::PlacedFieldPlan) -> AtomicPermissions {

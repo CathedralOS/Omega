@@ -20,6 +20,47 @@ fn write_program(name: &str, source: &str) -> PathBuf {
     main
 }
 
+fn write_cross_package_program(name: &str, consumer: &str) -> PathBuf {
+    let directory =
+        std::env::temp_dir().join(format!("omega-access-{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&directory);
+    let policy_directory = directory.join("policy");
+    fs::create_dir_all(&policy_directory).expect("create policy package directory");
+    let policy_end = POLICY_SOURCE
+        .find("data Main {}")
+        .expect("policy fixture main marker");
+    fs::write(
+        policy_directory.join("policy.omg"),
+        &POLICY_SOURCE[..policy_end],
+    )
+    .expect("write policy package");
+    fs::write(
+        directory.join("build.omg"),
+        r#"
+machine build(b: &mut Build) {
+    b.depend("policy", path("policy"));
+}
+"#,
+    )
+    .expect("write root build manifest");
+    let main = directory.join("main.omg");
+    fs::write(
+        &main,
+        format!(
+            r#"
+use policy::policy;
+
+{consumer}
+
+data Main {{}}
+machine Main::main(&mut self) {{}}
+"#
+        ),
+    )
+    .expect("write root consumer");
+    main
+}
+
 const POLICY_SOURCE: &str = r#"
 use omega::language::core::layout;
 
@@ -409,6 +450,69 @@ data Main {}
             .expect("single readable requirement")
             .as_str(),
         "read"
+    );
+}
+
+#[test]
+fn placed_view_allows_exported_accessors_across_package_boundary() {
+    let main = write_cross_package_program(
+        "placed-view-exported-package",
+        r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    let status: u32 = view.status.read();
+    view.transmit.write(1);
+}
+"#,
+    );
+    compile_to_checked(&main, None)
+        .expect("exported placed accessors should remain callable from a dependent package");
+}
+
+#[test]
+fn placed_view_rejects_binding_private_accessors_outside_the_policy_package() {
+    let main = write_cross_package_program(
+        "placed-view-private-package",
+        r#"
+machine inspect(view: &Placed<UartPlacement, Registers>) {
+    let snapshot: u16 = view.snapshot.read();
+}
+"#,
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("binding-private access must remain in the nominal policy package");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("binding-private placed accessor `snapshot`")
+            && rendered.contains("placement policy `UartPlacement`'s package"),
+        "unexpected diagnostic: {rendered}"
+    );
+}
+
+#[test]
+fn placed_view_rejects_binding_private_statement_calls_outside_the_policy_package() {
+    let main = write_cross_package_program(
+        "placed-view-private-statement-package",
+        r#"
+machine inspect(view: &mut Placed<UartPlacement, Registers>) {
+    view.snapshot.write(1);
+}
+"#,
+    );
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a binding-private statement call must remain in the policy package");
+    let rendered = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("binding-private placed accessor `snapshot`")
+            && rendered.contains("placement policy `UartPlacement`'s package"),
+        "unexpected diagnostic: {rendered}"
     );
 }
 

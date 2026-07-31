@@ -153,6 +153,23 @@ fn install_placed_view_plan(
     record: &PlacedViewRecord,
     placement: &ValidatedPlacementPlan,
 ) -> Result<(), Vec<Diagnostic>> {
+    let policy_symbol = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| {
+            definition.name.as_str()
+                == record
+                    .policy_machine
+                    .strip_suffix("::plan")
+                    .unwrap_or(&record.policy_machine)
+        })
+        .map(|definition| definition.symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "placed view `{}` lost nominal policy `{}` after typing",
+                record.synthetic_name, record.policy_machine
+            ))]
+        })?;
     let schema = typed
         .data_definitions()
         .iter()
@@ -228,6 +245,7 @@ fn install_placed_view_plan(
                 .strip_suffix("::plan")
                 .unwrap_or(&record.policy_machine)
                 .to_owned(),
+            policy_symbol,
             schema_name: record.schema_data.clone(),
             placement: placement.clone(),
             fields,

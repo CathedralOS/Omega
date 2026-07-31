@@ -179,6 +179,23 @@ impl SymbolTable {
             .is_none_or(|sources| sources.same_package(left, right))
     }
 
+    /// Compare the declaration packages of two authored symbols. Generated
+    /// symbols carry no source span and therefore cannot accidentally inherit
+    /// the first source file's package through `SourceSpan::default()`.
+    /// Source-free focused trees continue to model one package.
+    pub fn same_symbol_source_package(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
+        let Some(sources) = self.sources.as_deref() else {
+            return true;
+        };
+        let Some(left) = self.names.get(self.get(left).name).source_span() else {
+            return false;
+        };
+        let Some(right) = self.names.get(self.get(right).name).source_span() else {
+            return false;
+        };
+        sources.same_package(left, right)
+    }
+
     pub fn root(&self) -> SymbolHandle {
         self.root
     }

@@ -428,7 +428,9 @@ A destructive read derives `DestructiveRead<T>::take(&mut self)`, never
 `Readable<T>`. Whether that operation is exported or binding-private remains a
 separate policy choice: a FIFO pop may be public, while a read-to-clear status
 container may be wrapped by one package machine that reads once and returns an
-owned snapshot.
+owned snapshot. A binding-private accessor is usable only from a machine
+authored in the nominal placement policy's package; importing or aliasing the
+policy from another package does not widen that surface.
 
 Device protocol meaning does not become an access-plan case. W1C,
 read-back-to-flush, FIFO, doorbell, lock, and coherent-snapshot behavior belong

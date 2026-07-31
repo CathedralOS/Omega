@@ -653,9 +653,10 @@ operation subset remains attached to the authoritative typed placement plan.
 Direct load, store, fetch, swap, and compare-exchange syntax is checked against
 that subset; atomic mutation follows the atomic rule through a shared view
 borrow, and a bare accessor cannot become an ordinary scalar. Binding-private
-package enforcement, generic atomic-family helper contracts, connection to
-admitted source loans, and target-specific external/atomic emission remain
-open.
+access is now restricted to machines authored in the nominal placement
+policy's canonical package for both value- and statement-position calls.
+Generic atomic-family helper contracts, connection to admitted source loans,
+and target-specific external/atomic emission remain open.
 
 ## IPC and DMA
 
