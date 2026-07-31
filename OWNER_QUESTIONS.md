@@ -332,3 +332,40 @@ dynamic allocation, and a lifetime-bound opaque `Allocation<T>` whose
 multiplicity derives structurally from `T` and its custody fields. Keep the
 owned-Extent lease a distinct linear wrapper rather than overloading the
 borrow-backed handle.
+
+## 9. How does a boundary requirement author algebra-denominated backing?
+
+The semantic rule is settled: an admitted content-bearing root must receive a
+per-invocation backing receipt in the same compiler-owned algebra as its
+owner-selected `Content<A>` projection, and establishment proves projected
+content is contained in that backing. Current provider plans retain the
+requirement schema, selected realization, and receipt identity, but no source
+or typed-tree value denotes the receipt's backing. The design briefs use
+`content(receipt)` schematically; `receipt` is not a bindable contract subject,
+and provider-plan rows contain no dynamic algebra value.
+
+Decide:
+
+- the source form by which a boundary requirement declares backing and relates
+  it to parameters/result through an ordinary postcondition;
+- whether the contract receives a compiler-provided erased receipt binder, a
+  sealed algebra-valued expression, or another non-forgeable subject;
+- how runtime-dependent geometry is captured per invocation while the static
+  provider-plan fingerprint commits to the declaration rather than one value;
+- how checked adapters prove the same relation and admitted leaves accept it
+  without letting an ordinary record literal become backing evidence;
+- how the compiler selects and validates the exact `Interval` or
+  `CountedQuantity` identity, rejects algebra mismatch, and retains normalized
+  containment in checked/debug artifacts; and
+- whether a provider whose returned projection exceeds its backing rejects the
+  invocation, returns a source-visible failure value, or constitutes an
+  admitted contract violation at the boundary.
+
+Recommendation: introduce a compiler-issued, proof-only receipt binder on the
+boundary requirement. Let the requirement give that binder one closed
+compiler-owned algebra expression over its parameters/result and state the
+ordinary containment postcondition against it. Checked adapters prove the
+relation; admitted leaves accept it under the selected provider receipt. The
+binder erases at runtime, cannot be constructed in ordinary source, and the
+normalized algebra expression plus containment theorem survive beside the
+receipt identity.

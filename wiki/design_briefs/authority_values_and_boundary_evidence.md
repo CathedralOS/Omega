@@ -223,6 +223,11 @@ already-established evidence; they cannot make an ordinary record
 authoritative. Clear one-to-one and one-to-many claim mappings infer from the
 frontier. An ambiguous mapping requires an explicit postcondition or rejects.
 
+The semantics above are settled, but the source-visible proof-only binder for
+an admitted receipt's per-invocation backing is not. `content(receipt)` remains
+schematic until `OWNER_QUESTIONS.md` #9 chooses that binder and its failure
+surface; implementations must not infer backing equal to the returned claim.
+
 One projection is load-bearing in four places:
 
 1. establishment proves `content(value)` is within checked or admitted backing;
