@@ -77,6 +77,19 @@ state; WCSU proves sufficient stack capacity. Forward-edge indirect targeting
 instead depends on sealed entry references and descriptors retaining
 requirement/satisfier identity.
 
+Canonical portable IR provides the future non-source distribution baseline.
+Its proof-carrying artifact has versioned interpreter-defined semantics and may
+carry checked memory-safety, ownership, reach, termination, and fixed-fuel
+evidence. This PCC is about the IR, not native lowering. The IR verifier need
+not trust the producing compiler. Interpreting it or lowering it locally does
+not authorize arbitrary supplied host bytes; trusted provenance from the
+verified IR to installed native bytes remains necessary. A separate certificate
+that native bytes refine IR is a different future PCC chain.
+
+Logical IR fuel, restricted fixed-work certificates, and spatial resource
+provisioning are specified in
+[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+
 The boundary of that derivation is explicit. Checked assembly cannot omit the
 instruction catalog's stack/control effects. An opaque provider must supply an
 admitted `CallPlan + StatePlan` covering its exits or remain hardware-isolated;
@@ -153,5 +166,6 @@ consumer's lifecycle types.
 - admission policy for prebuilt third-party binaries without checkable PCC;
 - optional independent final-byte control-transfer certificates and
   target-hardware CFI hardening;
-- diverse compilation/trusting-trust defenses; and
-- proof-carrying code for checking an untrusted binary without rebuilding it.
+- diverse compilation/trusting-trust defenses;
+- implementation of canonical portable-IR verification and distribution; and
+- any separate future proof-carrying chain from IR to supplied native bytes.

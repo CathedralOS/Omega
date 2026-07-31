@@ -168,13 +168,20 @@ scalar:
 
 ```text
 EvaluationUsage {
-    evaluation_steps;
+    fuel_units;
     logical_words_processed;
     aggregate_elements_constructed;
     peak_live_cells;
     result_cells;
 }
 ```
+
+`fuel_units` is ultimately charged by the separately versioned canonical-IR
+fuel schedule in
+[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+The remaining counts are attributed telemetry rather than interchangeable work
+currencies. Until canonical portable IR lands, the evaluator's versioned step
+schedule is the implementation precursor.
 
 This meter supports three policies without becoming program semantics:
 
@@ -194,6 +201,8 @@ but never affects admission or accounting. Parallel scheduling changes neither
 the canonical counts nor aggregate verdict.
 
 Runtime WCET and target instruction cost remain a different resource theory.
+A fixed-IR certificate may remove runtime fuel metering, but its scalar does
+not predict the target's worst-cycle path.
 
 ## Result caching and usage accounting
 

@@ -18,6 +18,9 @@ lowers?"
 - [Authority Values And Boundary Evidence](../design_briefs/authority_values_and_boundary_evidence.md):
   transparent runtime authority carriers, routed qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
+- [Canonical IR Fuel And Resource Provisioning](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md):
+  stable portable-IR identity, deterministic sponsor-owned fuel, restricted
+  fixed-work certificates, and capability-provisioned spatial resources.
 
 ## Architecture Rule
 

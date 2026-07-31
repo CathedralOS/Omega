@@ -8,60 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-30.
 
-## 1. What is the normalized bounded-work plan and composition algebra?
-
-WCSU gives Omega a static space bound: a closed activation can reserve one
-fixed, nonmoving stack and retain it across suspension. It says nothing about
-execution work. Three independent customers now need that time-dual:
-resource-bounded interrupt roots, maximum work between semantic safe points,
-and the deterministic cost vocabulary used by build-time evaluation. Reusing
-the phrase "bounded work" without one normalized plan would let those lanes
-quietly charge different units and compose loops differently.
-
-The required distinction is already clear. Abstract work is deterministic and
-target-parameterized; it is not wall-clock time. Sequential work adds, branch
-work takes the maximum reachable arm, and an SCC requires the same authored
-ranking/measure discipline used for termination. A blocking edge without a
-finite wait contract does not become a large work number: semantic response is
-unbounded for a named reason. A target may convert work to time only through a
-derived or admitted timing model whose trust provenance remains visible.
-
-`omega-external-roots` already contains a provider-local `FixedWork` composer
-and a `StructuralWorkResourceColumn`. That is useful implementation evidence,
-not a second work semantics: this question decides how it migrates into the
-general machine/control-flow plan, gains measured SCC and selected-point
-queries, and shares one cost vocabulary with the other customers.
-
-Decide:
-
-- the canonical abstract primitive-cost vocabulary and which target facts may
-  parameterize it without making acceptance depend on host load or elapsed
-  time;
-- the exact normalized `WorkPlan` shape, including ceiling, realized work,
-  evidence, and the path/cycle witness retained for a maximum or unbounded
-  result;
-- composition across calls, branches, loops, mutually recursive SCCs, indirect
-  dispatch envelopes, cleanup edges, interrupts, and component boundaries;
-- how to query maximum work between selected semantic points without making
-  every loop backedge or state transition an implicit scheduling safe point;
-- how external waits and foreign calls contribute a finite ceiling, a named
-  unbounded edge, or a separately retained completion obligation;
-- how target timing conversion records cache/frequency/platform premises and
-  composes trust by the weakest input; and
-- which common cost algebra is shared with build-time metering while still
-  allowing build evaluation to report realized work without requiring a static
-  hard ceiling.
-
-Recommendation: add one compiler-normalized `WorkPlan` over deterministic
-abstract steps. Sum along an edge/path, take maxima at alternatives, and use an
-authored measure for repeated SCC composition. Preserve attribution instead of
-collapsing an unbounded result to bare infinity. Keep work, external wait, and
-wall-clock conversion as distinct report columns; a timing number is only as
-trusted as its weakest timing premise. Do not use elapsed compiler time, infer
-safe points from optimizer placement, or make build evaluation's optional
-budget policy the language's work semantics.
-
-## 2. What is the reusable hosted-FFI execution and gateway contract?
+## 1. What is the reusable hosted-FFI execution and gateway contract?
 
 An opaque native function supplies neither checked WCSU nor Omega's blocking,
 cancellation, retention, callback, and failure guarantees. A direct adapter can
@@ -112,14 +59,16 @@ abnormal exit; it does not prove the foreign call's WCSU or permit resuming
 possibly corrupted in-process state. Keep direct FFI available for audited
 leaf calls and require process isolation for hostile native code.
 
-## 3. How are claim-content projections and backing authored?
+## 2. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
-each content-bearing qualification publishes one normalized projection into
-the compiler-owned `Indivisible | Interval<Scalar>` vocabulary, admission
-supplies backing in the same algebra, and checked transformations prove n-ary
-conservation plus authorized retirement. The current source language does not
-say how any of those facts are declared. Defaulting every linear claim to
+each content-bearing qualification publishes one normalized projection into a
+closed compiler-owned algebra, admission supplies backing in the same algebra,
+and checked transformations prove n-ary conservation plus authorized
+retirement. The initial kinds are `Indivisible | Interval<Scalar>`;
+`CountedQuantity<Scalar>` now has its first concrete customer in residual
+capacity for bounded bump/arena allocation. The current source language does
+not say how any of those facts are declared. Defaulting every linear claim to
 `Indivisible` would incorrectly turn ordinary ownership debt into resource
 content, while recognizing particular domain or field names would make
 authority depend on convention.
@@ -129,9 +78,9 @@ Decide:
 - how a domain owner marks one exact qualification as content-bearing, and
   whether an omitted algebra means ordinary non-content qualification or an
   `Indivisible` content claim;
-- the source grammar for selecting `Indivisible` or `Interval<Scalar>`, naming
-  the scalar type and coordinate-space identity, and expressing subject-relative
-  half-open bounds;
+- the source grammar for selecting `Indivisible`, `Interval<Scalar>`, or
+  `CountedQuantity<Scalar>`, naming the scalar type and coordinate-space or
+  quantity identity, and expressing subject-relative bounds;
 - how a bodyless requirement or provider result authors algebra-denominated
   backing, including which result claim and admission identity it establishes;
 - how checked machines declare or derive authorized retirement and an explicit
@@ -149,10 +98,10 @@ over the qualified subject; make `Indivisible` an explicit or clause-local
 default, never a default for linearity in general. Use separate requirement
 postconditions for admitted backing and authorized retirement, normalize all
 references by semantic identity, and keep the authored surface small enough
-that the compiler can decide equality, containment, restriction, and separated
-composition without executing owner-defined code.
+that the compiler can decide equality, containment, restriction, subtraction,
+and separated composition without executing owner-defined code.
 
-## 4. How are opaque in-process executable dependencies surfaced and refused?
+## 3. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -187,7 +136,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 5. What does contained execution failure do to outstanding obligations?
+## 4. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -219,7 +168,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 6. How are modular concurrency environment premises authored and discharged?
+## 5. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -263,7 +212,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 7. What is the public float-conversion requirement family?
+## 6. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not the public names or
 signatures for policy-bearing conversions. `FloatSemantics` already defines

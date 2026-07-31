@@ -10,9 +10,11 @@
 
 The durable model is an explicit bounded `Arena` capability with dependent
 resource contracts; reaching an allocation boundary contributes its
-boundary-trait service identity. Quantitative `Alloc<Peak, Retained>` rows
-remain deferred to the quantitative operational resource algebra; this is
-separate from the settled content algebra for decomposing owned claims.
+boundary-trait service identity. Residual arena capacity is a conserved
+`CountedQuantity<Bytes>` content projection, not a generic process-wide memory
+meter. Multiple heaps are separately provisioned allocator or `Region`
+capabilities. Quantitative operational rows such as peak concurrent retention
+remain separate from claim-content conservation.
 
 **Where Omega is today.** No heap, no allocator. Storage is inline (`[T;N]`,
 struct fields), bounded (`FixedVec<T,N>` — `push` is a *compile-time* proof
@@ -89,10 +91,12 @@ lifetimes (decision 15), and the `{ptr,len}` descriptor ABI.
   instantiation (FixedVec's real bodies are pinned concrete to i32/N=4; generic
   `data` whose layout depends on `T` fails layout).
 - **B — `Arena<'a>` with a *proven capacity refinement* (the
-  differentiator).** Arena construction establishes a `remaining` fact;
-  `allocate(a,n)` carries obligation `n <= remaining`, postcondition
-  `remaining' = remaining - n`; the Arena handle is threaded **affinely** so
-  the budget can't be double-spent. `alloc` is **infallible after proof**
+  differentiator).** Arena construction establishes a
+  `CountedQuantity<Bytes>` residual-capacity claim; `allocate(a,n)` carries
+  obligation `normalized_footprint(n) <= remaining`, postcondition
+  `remaining' = remaining - normalized_footprint(n)`; the Arena handle is
+  threaded **affinely** so the capacity cannot be double-spent. `alloc` is
+  **infallible after proof**
   (returns a bare handle, no Result) — SPARK's `Storage_Error` residual turned
   into a discharged theorem. *Cost:* data-dependent sizes need worst-case
   *input* refinements (`input: &[u8] [len <= N]`); unboundable sites degrade

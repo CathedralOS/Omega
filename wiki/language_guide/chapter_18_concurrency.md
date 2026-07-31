@@ -218,10 +218,14 @@ suspending poll as an ordinary optimization. A blocking call creates no safe
 point; without a finite wait contract, semantic response through that call is
 unbounded and tooling reports the responsible path.
 
-WCSU bounds stack space, not work. A maximum-work-to-next-safe-point report
-depends on the normalized bounded-work plan tracked in
-`OWNER_QUESTIONS.md` #1. Wall-clock conversion additionally requires a
-target timing model and retains that model's trust provenance.
+WCSU bounds stack space, not work. The restricted canonical-IR fixed-work
+checker may analyze the segment to the next semantic safe point. Its report is
+`Bounded(K, evidence)`, `Unknown(reason)`, or
+`NoFiniteGuarantee(edge)` when a reachable wait or foreign edge supplies no
+finite response contract. A wall-clock observation is not a theorem; converting
+a ceiling to time requires a separate target timing model and retains that
+model's trust provenance. See
+[`canonical_ir_fuel_and_resource_provisioning.md`](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
 ## Carry Policy Is A Product
 
@@ -604,7 +608,7 @@ Finite exploration retains its activation bound and counterexample trace. It
 does not become an unbounded theorem without an authored cutoff, inductive
 invariant, ranking argument, or equivalent proof. Separately compiled packages
 also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #6.
+source and composition rules for those premises remain owner question #5.
 
 ## Minimal Deadlock Shapes
 

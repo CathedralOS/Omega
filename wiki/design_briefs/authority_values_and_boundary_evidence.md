@@ -153,18 +153,25 @@ its subject into a compiler-owned partial composition algebra. The projection
 states what authority the claim covers; it does not add runtime metadata.
 Unqualified carrier data has no claim and therefore no projected authority.
 
-The initial closed algebra vocabulary is:
+The closed algebra vocabulary begins with:
 
 - `Indivisible`: the claim has one atomic unit and supports no owned
   decomposition; and
 - `Interval<Scalar>`, for one-dimensional ordered ranges.
+
+`CountedQuantity<Scalar>` is the first customer-driven extension. A bounded
+bump/arena region projects residual capacity; allocation consumes normalized
+payload size, alignment padding, and allocator metadata, while split and
+return conserve the scalar quantity. Count alone does not prove placement in a
+fragmented heap, which remains fallible or requires an exact free-extent or
+reservation theorem.
 
 Packages may author projections into that vocabulary. The compiler owns
 normalization, containment, equality, and partial separated composition. New
 algebra kinds require a compiler release and a concrete customer; arbitrary
 owner-defined composition is not authority evidence.
 
-Owner question #3 governs how a source declaration marks a claim as
+Owner question #2 governs how a source declaration marks a claim as
 content-bearing and selects this algebra, including whether an explicit content
 clause may omit `Indivisible`. Ordinary linear claims never default into the
 content algebra merely because they are linear.
@@ -373,9 +380,9 @@ The implementation requires:
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.
-3. Qualified claim metadata must select and normalize the initial
-   `Indivisible | Interval<Scalar>` content vocabulary, and admitted receipts
-   must carry backing in the same algebra.
+3. Qualified claim metadata must select and normalize
+   `Indivisible | Interval<Scalar> | CountedQuantity<Scalar>`, and admitted
+   receipts must carry backing in the same algebra.
 4. The prover and resource checker must connect subject arithmetic and access
    footprints to compiler-owned containment and separated composition without
    teaching either system names such as `Extent`, `base`, `split`, or `merge`.

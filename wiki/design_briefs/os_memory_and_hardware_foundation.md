@@ -1266,7 +1266,7 @@ policy-or-provision/realization/evidence triples:
 | column | policy or installed provision | realized artifact fact | private evidence |
 | --- | --- | --- | --- |
 | stack | selected stack domain and provision; optional fixed policy ceiling | WCSU bytes/alignment plus composed nesting demand | frame/place liveness and WCSU derivation |
-| structural work | installed execution budget; optional fixed policy ceiling | composed fixed-work demand | acyclic CFG, ranking bounds, callee summaries, and codegen certificate |
+| logical work | installed canonical-IR fuel provision; optional fixed policy ceiling | composed fixed-IR demand | IR control flow, ranking bounds, callee summaries, and fixed-work proof |
 | machine state | `StatePlan` permitted state and save/restore commitment | emitted transitive footprint and clobbers | instruction selection, allocation, and footprint derivation |
 
 The ledger and its report retain each applicable policy ceiling, installed
@@ -1274,20 +1274,22 @@ provision, realized fact, and validation receipt. They never retain private
 ranking witnesses or codegen proof internals.
 Sharing this record shape does not fuse the three algebras or their identity
 rules: the evaluated `StatePlan` is published boundary identity, while stack and
-work figures normally belong to candidate admission and current provisioning.
-A fixed stack/work ceiling enters requirement identity only when policy
+fuel figures normally belong to candidate admission and current provisioning.
+A fixed stack/fuel ceiling enters requirement identity only when policy
 deliberately promises replacement without reprovisioning. Otherwise a changed
 realized demand changes the candidate artifact/report and requires fresh
 provisioning; it does not change the semantic requirement.
 
-Structural work is not WCET. V1 proves that a hard root has no
-workload-dependent unbounded path under its admitted provider summaries. Exact
-cycles, deadlines, cache behavior, and MMIO latency require target/provider
-timing models and remain in the quantitative resource/WCET work. The first
-timer uses the trivial evidence tier: acyclic final control flow, no dynamic or
-recursive path, and fixed-work acknowledgement, clock-capture, wake, and return
-leaves. Provider work summaries compose transitively just as reach summaries do;
-an acyclic caller cannot launder an unbounded leaf.
+Fixed IR work is not WCET. V1 proves that a hard root has no
+workload-dependent unbounded path under its admitted provider summaries and
+fits its logical fuel provision. Exact cycles, deadlines, cache behavior, and
+MMIO latency require a target analysis that re-searches native paths under its
+own cost model. The first timer uses the trivial evidence tier: acyclic IR
+control flow, no dynamic or recursive path, and fixed-work acknowledgement,
+clock-capture, wake, and return leaves. Provider work summaries compose
+transitively just as reach summaries do; an acyclic caller cannot launder an
+unbounded leaf. Trusted lowering/install provenance is required before a
+fixed-IR certificate removes native runtime metering.
 
 The IDT is consequently a first serious customer, not a special construct:
 

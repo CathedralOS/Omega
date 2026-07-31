@@ -240,7 +240,7 @@ Still required:
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
-- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #6.
+- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #5.
 
 ## Proof model
 
@@ -279,7 +279,7 @@ evidence. It becomes an unbounded theorem only through an authored cutoff,
 inductive invariant, ranking argument, or equivalent proof. A separately
 compiled protocol publishes its guarantee under a normalized environment
 premise; consumers discharge that premise during composition. The source and
-composition rules for those premises remain owner question #6.
+composition rules for those premises remain owner question #5.
 
 ## Device and interrupt direction
 
@@ -309,10 +309,10 @@ there is no generic `SafePoints | Asynchronous` runtime mode.
 
 The compiler never inserts a semantic safe point as an ordinary optimization.
 A hot non-suspending kernel may be architecturally preempted while an outer
-machine places explicit polls between bounded chunks. Maximum abstract work
-between such points depends on the normalized bounded-work plan in
-`OWNER_QUESTIONS.md` #1. Blocking creates no safe point; absent a finite wait
-ceiling, semantic response is unbounded through the named blocking edge.
+machine places explicit polls between bounded chunks. Restricted canonical-IR
+fixed-work checking may close the segment between those points. Otherwise the
+report is `Unknown` or retains the exact blocking/foreign edge with no finite
+guarantee. Blocking creates no safe point.
 
 ## Acceptance cases
 
@@ -351,7 +351,7 @@ ceiling, semantic response is unbounded through the named blocking edge.
   suspension-safe loans.
 - `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
   start outcome, task/provider provenance, and child-lease accounting.
-- Normalized bounded-work plan after owner question #1.
+- Canonical-IR fuel metering and restricted fixed-work safe-point segments.
 - Core `Task<T>` lifecycle outcome and terminal-consumer implementation.
 - `ArenaTaskPool`, bounded mailbox, and supervisor reference packages.
 - Scheduler contracts using decision 23's sealed progress profiles; general

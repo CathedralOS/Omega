@@ -59,6 +59,12 @@ An interpreter similarly returns `OutOfFuel`; a bounded search returns
 `Exhausted`. The bound makes that invocation total without pretending the
 unbounded mathematical process is known to terminate.
 
+This algorithm-visible budget is distinct from canonical-IR sponsor fuel.
+Sponsor fuel meters already-admitted execution, is not observable or catchable
+by the program, and may pause, cancel, or terminate the execution externally.
+See
+[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+
 ## Failure and non-return
 
 Logic failures such as unchecked overflow, invalid indexing, and impossible
@@ -81,13 +87,15 @@ likewise belong to the resource algebra rather than a single `budget` clause
 or qualitative reach-row member.
 
 Hard external roots expose the intermediate structural tier explicitly.
-Admission may require a public maximum-work profile and compare it with the
-realized final artifact, while `terminates by` rankings, acyclic control flow,
-callee summaries, and codegen certificates remain private evidence. A
-compile-time ranking range can bound cyclic edges; it does not by itself bound
-transitive work or latency. Cathedral's first timer uses the trivial profile:
-acyclic final control flow and fixed-work admitted leaves. This proves finite
-structural work under provider contracts, not a portable deadline or WCET.
+Admission may require a fixed-work certificate denominated in canonical-IR
+fuel and compare it with the sponsor provision, while `terminates by` rankings,
+acyclic control flow, callee summaries, and proof internals remain private
+evidence. The same restricted checker can analyze a segment ending at the next
+semantic safe point. A compile-time ranking range can bound cyclic edges; it
+does not by itself bound transitive work or latency. Cathedral's first timer
+uses the trivial profile: acyclic final control flow and fixed-work admitted
+leaves. This proves finite logical work under provider contracts, not a
+portable deadline or WCET.
 
 ## Acceptance register
 
@@ -108,9 +116,8 @@ structural work under provider contracts, not a portable deadline or WCET.
 - general trace propositions, deadline/starvation contracts, and entailment
   between opaque progress profiles;
 - the exact complete-contract spelling for deliberate non-return;
-- WCET proof scope and target timing models;
-- the quantitative resource algebra and its loop/branch/parallel composition;
-  and
+- target WCET proof scope and timing-model composition for profiles that require
+  physical deadlines; and
 - richer productivity theorems for reactive systems.
 
 ## Cross-references
