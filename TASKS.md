@@ -155,8 +155,8 @@ returns, struct fields, and array elements: predicate-only atoms may disappear
 implicitly, while semantic meaning, routed provenance, and non-Exact arithmetic
 policy require an explicit bare `as`. Same-data-carrier `as` supplies the
 zero-runtime-work provenance-erasure surface. Unit conversion remains an
-ordinary named library operation. Generic proof-static indexed domains are
-language-design blocked on `OWNER_QUESTIONS.md` #7.
+ordinary named library operation. Proof-static indexed domains follow the
+staged implementation below.
 
 The source/IR route migration is complete: domain predicate `requires` and exact
 `Trait::requirement` body entries now parse into independent records; authored
@@ -292,20 +292,20 @@ embeddings and arithmetic), semantic-domain identity, and the stable projection
 fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
-- **ARENA-CONTENT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #8:**
+- **ARENA-CONTENT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #7:**
   attach the retained `CountedQuantity<Bytes>` algebra to the settled bounded
   Arena handle and conserve residual capacity across allocation/reset. The
   accounting theorem is settled, but the exact handle, qualification,
   threading operation, rejection shape, and `Allocation<T>` lifetime carrier
   are not. General fragmented heaps remain fallible or require exact
   placement/reservation evidence;
-- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #9:**
+- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #8:**
   require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
   postconditions. Provider selection and receipt identity are live, but no
   source/IR binder yet supplies the receipt's per-invocation algebra value;
 - **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #10:** prove all consumed content equals the separated
+  `OWNER_QUESTIONS.md` #9:** prove all consumed content equals the separated
   composition of produced content plus any remainder retired through an
   authorized route. The equation and closed algebras are settled, but the
   documented `content(...)`/`old(...)` forms remain schematic: no source or IR
@@ -662,9 +662,19 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   weakening/explicit erasure, operator ownership, predicate `requires`, and
   exact route bodies are complete. Keep unit conversion in ordinary library
   machines and operators.
-- **PDI1/PDI2/PDI3:** stage proof-static indexed domains under
-  `OWNER_QUESTIONS.md` #7: structured canonical const values, closed indexed
-  domains, then computed result indices with retained equality evidence.
+- **PDI1:** generalize `const` parameters to structured values with decidable
+  structural equality and one canonical form. Reject noncanonical index values
+  at the index site; current `Rat` values must have a positive denominator,
+  cancelled signed coordinates, and gcd-reduced numerator magnitude and
+  denominator.
+- **PDI2:** implement closed indexed erased domains using
+  `domain<T, const U: Unit> T::Quantity<U>;`. The first units package uses named
+  combinations, spans carriers from one declaration, supports a destination
+  index parameter in generic conversion, and uses ordinary per-pair operators.
+- **PDI3:** only after PDI2, add computed open result indices, exact selected
+  algebra-instance normalization, established-local-fact compatibility, and
+  retained verification-condition evidence. Do not add a special citation
+  surface; unresolved equality rejects.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
@@ -758,7 +768,7 @@ improvements do not change public identity.
   recovery from a hung call requires process isolation.
 - Replace ambient allocation with `Arena`/`Allocation`; the source-visible
   handle and allocation surface are language-design blocked on
-  `OWNER_QUESTIONS.md` #8. Connect Arena backing to qualified `Extent` after
+  `OWNER_QUESTIONS.md` #7. Connect Arena backing to qualified `Extent` after
   that decision and P1.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
   domain qualification.
@@ -991,10 +1001,9 @@ blocked work.
 | #4 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
 | #5 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
 | #6 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
-| #7 proof-static indexed domains | structured canonical const values, closed indexed domains, computed result indices, and equality evidence |
-| #8 bounded Arena capability | runtime Arena/Allocation surface and conserved residual capacity |
-| #9 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
-| #10 content-conservation contracts | normalized n-to-m content equations, correspondence, inference, and retained proof evidence |
+| #7 bounded Arena capability | runtime Arena/Allocation surface and conserved residual capacity |
+| #8 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
+| #9 content-conservation contracts | normalized n-to-m content equations, correspondence, inference, and retained proof evidence |
 
 ## Vertical acceptance slices
 
@@ -1004,11 +1013,11 @@ blocked work.
   termination, mutation, and trust normalize independently. Candidate resource
   demand and installed provision admit separately; a fixed resource ceiling is
   contract identity only when policy deliberately publishes one.
-- **Indexed domains:** implement one erased domain family over two closed
-  canonical indices, then a generic operator whose result carries a computed
-  index. Prove carrier layout and SIMD shape unchanged, arithmetic-policy
-  composition independent, predicate facts derived through `ensures`, and an
-  unresolved generic equality exposed as a named verification condition.
+- **Indexed domains, rung 2:** implement structured const parameters plus one
+  erased domain family over closed named unit indices. Prove one declaration
+  spans `f64` and `i64` carriers, carrier layout and SIMD shape remain unchanged,
+  arithmetic-policy composition stays independent, and predicate facts derive
+  through `ensures`. Computed `A / B` result indices belong to rung 3.
 - **OS gauntlet:** UART/MMIO, Cathedral-owned address translation, DMA,
   hostile/trusted shared-page IPC, Cathedral-owned exception/timer entry, and
   SMP AP bringup. A new customer-shaped compiler concept fails the slice.

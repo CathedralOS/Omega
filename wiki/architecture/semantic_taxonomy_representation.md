@@ -142,13 +142,17 @@ qualification; flow facts carry proven membership. The deterministic
 normalizer owns semantic interface identity. Layout continues to use the
 carrier ABI.
 
-The index fields are staged work under `OWNER_QUESTIONS.md` #7, not current
-syntax. A closed index stores its canonical value. An open generic expression
-also records the exact selected algebra-instance identity and normalizer schema;
+The index fields land in three ordered stages: structured canonical const
+values, closed indexed domains, then computed open result indices. The source
+header binds and reuses the carrier explicitly:
+`domain<T, const U: Unit> T::Quantity<U>;`. A closed index stores its canonical
+value. An open generic expression also records the exact selected
+algebra-instance and normalized public operation-contract identity;
 compatibility evidence is retained separately and never rewrites semantic
-identity. Index eligibility is structural and cannot be supplied by an
-ordinary conformance. Because indices and domains erase, neither field changes
-carrier layout or SIMD shape.
+identity. The normalizer implementation version is artifact provenance, not a
+fingerprint input. Index eligibility is structural and cannot be supplied by
+an ordinary conformance. Because indices and domains erase, neither field
+changes carrier layout or SIMD shape.
 
 Implementation status (DOM1/STR2 semantic roles, 2026-07-31): core,
 symbol-resolved, and typed layers carry `DomainPredicateBody` and the closed
@@ -837,8 +841,9 @@ service reach.
   without duplication.
 - A closed indexed domain fingerprints one canonical value and preserves the
   carrier ABI. An open index fingerprints its exact algebra instance,
-  normalizer schema, and canonical expression; a compatibility proof cannot
-  silently change that identity.
+  normalized public operation contract, and canonical expression; normalizer
+  implementation version remains provenance metadata, and a compatibility
+  proof cannot silently change identity.
 - Static qualification survives generics and containers while proven
   predicates remain flow facts.
 - A qualified `as` coercion preserves denotation, an explicitly bare target

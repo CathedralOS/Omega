@@ -10,6 +10,11 @@
 //
 // Proof-only: Rat rides Nat, so the runtime-consumption fence and the
 // layout skip apply exactly as they do for Nat and IntPair.
+//
+// The constructors establish canonical representatives, but the carrier does
+// not yet enforce that discipline structurally. Until quotient-backed Rat
+// lands, proof-static index admission rechecks a positive denominator,
+// cancelled signed coordinates, and gcd-reduced magnitude/denominator.
 
 use omega::language::core::nat;
 use omega::language::core::nat_metric;

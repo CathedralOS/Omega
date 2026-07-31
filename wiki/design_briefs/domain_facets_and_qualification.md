@@ -351,8 +351,16 @@ the normalized domain theory.
 
 Units are an ordinary library customer, not compiler vocabulary. The useful
 generalization is an erased domain family indexed by canonical proof-static
-data. A unit library may define canonical values for `KM`, `M`, and `SECOND`,
-then use one nominal `Quantity` family and ordinary operator conformances. A
+data. The generic declaration binds its carrier explicitly:
+
+```omega
+domain<T, const U: Unit> T::Quantity<U>;
+```
+
+It imposes no carrier-wide arithmetic requirement. A unit library may define
+canonical values for `KM`, `M`, and `SECOND`, then use this one nominal
+`Quantity` family across `f64`, `i64`, proof-only, or vector carriers. Ordinary
+operator conformances state only the carrier operations they need. A
 closed derived index such as `KM / SECOND` evaluates at build time; a generic
 result such as `A / B` remains a normalized constraint fact until its equality
 obligations discharge.
@@ -379,8 +387,8 @@ requirement routes; checked artifacts retain those identities, and neither
 owner placement nor boundary contract placement infers authority. The coercion
 resolver now enforces denotation-preserving integer `as`: widening follows the
 source carrier range and narrowing or signedness changes require a complete
-representability proof. Proof-static indexed domains are blocked on
-`OWNER_QUESTIONS.md` #7. Per-atom weakening and
+representability proof. Proof-static indexed domains follow three ordered
+implementation rungs. Per-atom weakening and
 explicit erasure are enforced across ordinary value-flow boundaries, including
 same-data-carrier provenance erasure; the remaining domain-theory artifact
 fields still need to adopt the rest of this brief.
@@ -404,9 +412,12 @@ Migration should:
 7. preserve those facts through generics, contracts, artifacts, and separate
    compilation.
 
-Structured canonical const values, closed indexed domains, and computed open
-result indices remain the staged work in `OWNER_QUESTIONS.md` #7. They extend
-the facts a domain may carry without changing this qualification model.
+First add structured canonical const values. Then add closed indexed domains
+and a units package with named combinations; this already spans carriers and
+supports destination-parameterized conversion. Only afterward add computed
+open result indices, licensed normalization, and retained compatibility
+evidence. They extend the facts a domain may carry without changing this
+qualification model.
 
 ## Cross-references
 

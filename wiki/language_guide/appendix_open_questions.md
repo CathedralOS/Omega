@@ -72,10 +72,6 @@ Last pruned: 2026-07-31.
   already fixed.
 - Decide how much predicate/domain inference to attempt beyond executable
   predicate bodies, explicit evidence, and flow narrowing.
-- Stage proof-static indexed domains: structured canonical const values, closed
-  indexed families, then computed result indices with retained equality
-  evidence (owner question #7). Units remain a library customer rather than a
-  compiler-owned quantity theory.
 - Finish the remaining domain spaces: general open-family linking,
   `weakens_to` certificate syntax, and the named float-conversion requirement
   surface (owner question #3).

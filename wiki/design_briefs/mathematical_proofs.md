@@ -116,12 +116,16 @@ and multiplicative commutative-group normalization for positive rational
 scales. Linear integer arithmetic alone does not normalize symbolic scale
 products.
 
-Normalization determines index identity. Local hypotheses, deterministic
-entailment, and cited proofs establish compatibility without changing that
-identity. Initially, admitted algebraic laws may not license index
+Normalization determines index identity. Established local facts—including a
+proof-machine call's checked `ensures`—establish any remaining compatibility
+without changing that identity. Indexed domains add no separate proof-citation
+surface. Initially, admitted algebraic laws may not license index
 normalization: all identity-bearing algebra evidence must be derived. Artifacts
-retain the selected algebra-instance identity, normalizer schema, canonical
-expression, and any cited compatibility evidence.
+retain the selected algebra-instance and normalized public operation-contract
+identity, canonical expression, compatibility evidence, and normalizer
+implementation version. The implementation version is provenance metadata, not
+part of semantic identity; a canonical-form change is an explicit language
+compatibility event.
 
 ## Trust and accepted facts
 

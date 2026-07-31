@@ -76,6 +76,10 @@ each index value must have decidable structural equality and one unique
 canonical encoding. The resulting canonical value, not the evaluation trace,
 enters a closed domain's semantic identity. Open symbolic index expressions
 remain normalized artifact data rather than arbitrary evaluator programs.
+Until quotient-backed canonical rationals land, a `Rat` used in an index must
+also prove at that site that its denominator is positive, its signed
+coordinates are cancelled, and its numerator magnitude and denominator are
+gcd-reduced.
 
 Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
 arithmetic evaluates the same executable `FloatSemantics` functions that define

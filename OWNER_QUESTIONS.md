@@ -247,65 +247,7 @@ derive the separately versioned fuel schedule over its stable operation/block
 identities. Do not canonize TypedTrees or a mutable backend representation by
 accident.
 
-## 7. How do proof-static values index erased domains?
-
-Units do not justify a compiler-owned unit theory. A package can already model
-`Km`, `M`, and `KmPerS` as domains, ordinary conversion machines, and
-heterogeneous operator conformances. `as` does not discover or invoke those
-conversions. That baseline is complete but repetitive: a generic unit library
-cannot yet express one erased domain family indexed by a canonical unit value,
-or compute a result index such as `A / B` from operand indices.
-
-The broader customer is therefore proof-static indexing, not units. Coordinate
-frames, currencies, tensor shapes, fixed-point scales, and protocol encodings
-need the same capability: an erased domain may be parameterized by canonical
-first-order data, and a generic result may constrain its index using a
-proof-static expression. An index is a value such as a reduced rational or a
-record of canonical fields, not a unique identifier, predicate, runtime field,
-or type-universe inhabitant.
-
-The semantic direction is settled:
-
-- the domain family remains nominal and its index is an erased constraint fact;
-- index eligibility is structural: decidable equality and one unique canonical
-  form, with no trait able to assert eligibility falsely;
-- closed indices evaluate to canonical values; open result indices normalize
-  only under the exact selected, proved algebraic conformance;
-- canonicalization determines interface identity, while local hypotheses,
-  deterministic entailment, or an explicitly cited proof discharge
-  compatibility obligations without redefining identity;
-- type checking performs no ambient theorem search and invents no public
-  precondition; generic code publishes unresolved equalities in `requires`;
-- accepting proved-compatible indices is ordinary zero-work constraint
-  subsumption because the carrier representation is unchanged; and
-- unit conversion remains an ordinary named library operation with ordinary
-  `requires`/`ensures`; neither `as` nor the compiler recognizes unit names.
-
-Decide the remaining source and artifact surfaces:
-
-- how a generic carrier and structured proof-static parameters are bound on a
-  domain declaration without inventing a second carrier syntax;
-- how computed index expressions and any explicit proof citation are spelled;
-- the initial structurally eligible data forms and canonical encodings;
-- the closed set of compiler-supported algebraic normal forms for open indices;
-- the fingerprint record for open expressions, including domain-family,
-  selected algebra-instance, normalized public operation-contract,
-  normalizer-version, and canonical-expression identity;
-- the non-semantic presentation hints used to render named or readable derived
-  indices without affecting fingerprints; and
-- the diagnostic record for each generated equality obligation, including its
-  source, normalized sides, hypotheses, originating generic requirement, and
-  retained evidence.
-
-Recommendation: stage the feature. First generalize const parameters to
-structured canonical values. Then permit parameterized erased domains with
-closed indices; this already supports one `Quantity` family with named unit
-values, generic operations whose destination is an index parameter, and no
-representation cost. Only then add computed open result indices, licensed
-symbolic normalization, local entailment, and cited-proof escape hatches.
-Initially forbid admitted algebraic laws from licensing identity.
-
-## 8. What is the source-visible bounded Arena capability?
+## 7. What is the source-visible bounded Arena capability?
 
 The accounting law is settled: a bounded Arena conserves one
 `CountedQuantity<Bytes>` residual-capacity claim; allocation consumes payload,
@@ -347,7 +289,7 @@ multiplicity derives structurally from `T` and its custody fields. Keep the
 owned-Extent lease a distinct linear wrapper rather than overloading the
 borrow-backed handle.
 
-## 9. How does a boundary requirement author algebra-denominated backing?
+## 8. How does a boundary requirement author algebra-denominated backing?
 
 The semantic rule is settled: an admitted content-bearing root must receive a
 per-invocation backing receipt in the same compiler-owned algebra as its
@@ -384,7 +326,7 @@ binder erases at runtime, cannot be constructed in ordinary source, and the
 normalized algebra expression plus containment theorem survive beside the
 receipt identity.
 
-## 10. How are content-conservation theorems authored in contracts?
+## 9. How are content-conservation theorems authored in contracts?
 
 The n-ary law and its closed algebras are settled, and checked claim outcome
 maps already identify which input claim feeds each result path. The design

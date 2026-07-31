@@ -93,15 +93,19 @@ This does not introduce types-as-values, predicate indices, runtime-dependent
 layout, or arbitrary machine evaluation in type equality. The nominal domain
 family remains fixed and the index is a normalized constraint fact.
 Compatibility between an actual index expression and an expected one creates
-a verification condition. Canonical normalization decides identity; explicit
-local hypotheses, deterministic entailment, or a cited proof discharge the
-condition without redefining identity. The compiler performs no ambient lemma
-search and never invents a public generic precondition.
+a verification condition. Closed evaluation or canonical normalization decides
+identity; established local facts discharge remaining compatibility obligations
+without redefining it. Proof-machine `ensures` enter that same local context,
+so no indexed-domain-specific citation syntax exists. The compiler performs no
+ambient lemma search and never invents a public generic precondition.
 
 Index eligibility is a structural compiler judgment: the value kind must have
-decidable equality and one unique canonical form. Reduced rationals and records
-of eligible fields may qualify; runtime floats, pointers, references,
-capabilities, and allocation identities do not. A conformance cannot assert
+decidable equality and one unique canonical form. Records of eligible fields
+may qualify; current `Rat` additionally requires an index-site proof that its
+denominator is positive, its signed coordinates are cancelled, and its
+numerator magnitude and denominator are gcd-reduced. Runtime floats, pointers,
+references, capabilities, and allocation identities do not. A conformance
+cannot assert
 eligibility. Open symbolic expressions normalize only under an exact selected
 algebraic conformance whose laws were checked, not admitted.
 

@@ -1194,8 +1194,8 @@ Working interpretation:
 > establishment routes; every routed qualification names its exact checked or
 > boundary requirement in the domain declaration. Exact integer representation
 > conversion now uses proof-directed `as`; unit conversion remains ordinary
-> library behavior. Structured proof-static indexed domains and computed result
-> indices are blocked on `OWNER_QUESTIONS.md` #7.
+> library behavior. Proof-static indexed domains are staged as structured const
+> values, closed indexed families, then computed open result indices.
 > Per-atom weakening is enforced at ordinary value-flow boundaries:
 > predicate-only atoms may disappear implicitly, while semantic meaning,
 > non-owning routed provenance, and non-Exact arithmetic policy require an
