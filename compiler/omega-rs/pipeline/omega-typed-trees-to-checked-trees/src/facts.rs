@@ -349,50 +349,40 @@ fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut V
 /// SemanticDomainTable identity. Sorted + deduped; cast-free machines carry
 /// no entry.
 fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::QualificationFacts {
-    use omega_checked_trees::{CanonicalQualificationUse, CanonicalQualificationUseKind};
-    use omega_core::semantics::DomainEstablishmentRoute;
+    use omega_checked_trees::VacuousQualificationUse;
     use omega_core::semantics::SemanticDomainTable;
     use omega_core::symbols::SymbolHandle;
     use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use std::collections::HashSet;
 
-    fn canonical_call(
+    fn domain_is_vacuous(
         program: &TypedTrees,
-        target: SymbolHandle,
-    ) -> Option<(SymbolHandle, SymbolHandle)> {
-        let satisfier = program
-            .machines()
-            .iter()
-            .find(|machine| {
-                machine.symbol == target
-                    || program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == target)
-            })?
-            .symbol;
-        let domains = program
+        domain_symbol: SymbolHandle,
+        stack: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
+            return false;
+        }
+        let Some(domain) = program
             .domain_definitions()
             .iter()
-            .filter_map(|domain| {
-                domain
-                    .establishment_routes
-                    .iter()
-                    .any(|route| {
-                        matches!(
-                            route,
-                            DomainEstablishmentRoute::CanonicalQualification {
-                                satisfier: candidate
-                            } if *candidate == satisfier
-                        )
-                    })
-                    .then_some(domain.symbol)
-            })
-            .collect::<Vec<_>>();
-        let [domain] = domains.as_slice() else {
-            return None;
+            .find(|candidate| candidate.symbol == domain_symbol)
+        else {
+            return false;
         };
-        Some((*domain, satisfier))
+        if let Some(alias) = domain.alias.as_ref() {
+            if alias.constituents.is_empty() {
+                return false;
+            }
+            stack.push(domain_symbol);
+            let vacuous = alias
+                .constituents
+                .iter()
+                .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
+            stack.pop();
+            return vacuous;
+        }
+        !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
     }
 
     fn collect_casts(
@@ -402,7 +392,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
         statement_index: u32,
         expression: ExpressionHandle,
         committed: &mut Vec<omega_core::semantics::SemanticDomainId>,
-        canonical_uses: &mut Vec<CanonicalQualificationUse>,
+        vacuous_uses: &mut Vec<VacuousQualificationUse>,
         visited: &mut HashSet<u32>,
     ) {
         if !expression.is_valid() || !visited.insert(expression.arena_index()) {
@@ -437,20 +427,15 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     if domain.semantic_id.is_valid() {
                         committed.push(domain.semantic_id);
                     }
-                }
-                if cast.qualification_satisfier.is_valid()
-                    && let Some((domain, satisfier)) =
-                        canonical_call(program, cast.qualification_satisfier)
-                {
-                    canonical_uses.push(CanonicalQualificationUse {
-                        machine,
-                        state,
-                        statement_index,
-                        expression,
-                        domain,
-                        satisfier,
-                        kind: CanonicalQualificationUseKind::ImplicitCast,
-                    });
+                    if domain_is_vacuous(program, domain.symbol, &mut Vec::new()) {
+                        vacuous_uses.push(VacuousQualificationUse {
+                            machine,
+                            state,
+                            statement_index,
+                            expression,
+                            domain: domain.symbol,
+                        });
+                    }
                 }
                 collect_casts(
                     program,
@@ -459,7 +444,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     cast.value,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
             }
@@ -471,7 +456,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     binary.left,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
                 collect_casts(
@@ -481,7 +466,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     binary.right,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
             }
@@ -492,7 +477,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                 statement_index,
                 unary.operand,
                 committed,
-                canonical_uses,
+                vacuous_uses,
                 visited,
             ),
             ExpressionNode::Member(member) => collect_casts(
@@ -502,7 +487,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                 statement_index,
                 member.receiver,
                 committed,
-                canonical_uses,
+                vacuous_uses,
                 visited,
             ),
             ExpressionNode::Mutable(inner) => collect_casts(
@@ -512,7 +497,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                 statement_index,
                 *inner,
                 committed,
-                canonical_uses,
+                vacuous_uses,
                 visited,
             ),
             ExpressionNode::Indexed(indexed) => {
@@ -523,7 +508,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     indexed.collection,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
                 collect_casts(
@@ -533,7 +518,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     indexed.index,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
             }
@@ -545,7 +530,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     range.start,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
                 collect_casts(
@@ -555,22 +540,11 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     range.end,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
             }
             ExpressionNode::Call(call) => {
-                if let Some((domain, satisfier)) = canonical_call(program, call.target_symbol) {
-                    canonical_uses.push(CanonicalQualificationUse {
-                        machine,
-                        state,
-                        statement_index,
-                        expression,
-                        domain,
-                        satisfier,
-                        kind: CanonicalQualificationUseKind::NamedSatisfierCall,
-                    });
-                }
                 collect_casts(
                     program,
                     machine,
@@ -578,7 +552,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                     statement_index,
                     call.receiver,
                     committed,
-                    canonical_uses,
+                    vacuous_uses,
                     visited,
                 );
                 for argument in program.expression_table.expression_handles(call.arguments) {
@@ -589,7 +563,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                         statement_index,
                         *argument,
                         committed,
-                        canonical_uses,
+                        vacuous_uses,
                         visited,
                     );
                 }
@@ -603,7 +577,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                         statement_index,
                         field.value,
                         committed,
-                        canonical_uses,
+                        vacuous_uses,
                         visited,
                     );
                 }
@@ -617,7 +591,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                         statement_index,
                         *item,
                         committed,
-                        canonical_uses,
+                        vacuous_uses,
                         visited,
                     );
                 }
@@ -627,7 +601,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
     }
 
     let mut machines = Vec::new();
-    let mut canonical_uses = Vec::new();
+    let mut vacuous_uses = Vec::new();
     for machine in program.machines() {
         let mut committed = Vec::new();
         for state in program.machine_states(machine) {
@@ -651,7 +625,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                             statement_index,
                             assignment.target,
                             &mut committed,
-                            &mut canonical_uses,
+                            &mut vacuous_uses,
                             &mut visited,
                         );
                         collect_casts(
@@ -661,7 +635,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                             statement_index,
                             assignment.value,
                             &mut committed,
-                            &mut canonical_uses,
+                            &mut vacuous_uses,
                             &mut visited,
                         );
                     }
@@ -673,7 +647,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                             statement_index,
                             *expression,
                             &mut committed,
-                            &mut canonical_uses,
+                            &mut vacuous_uses,
                             &mut visited,
                         );
                     }
@@ -685,24 +659,11 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                             statement_index,
                             local.initial_value,
                             &mut committed,
-                            &mut canonical_uses,
+                            &mut vacuous_uses,
                             &mut visited,
                         );
                     }
                     StatementNode::Call(call) => {
-                        if let Some((domain, satisfier)) =
-                            canonical_call(program, call.target_symbol)
-                        {
-                            canonical_uses.push(CanonicalQualificationUse {
-                                machine: machine.symbol,
-                                state: state.symbol,
-                                statement_index,
-                                expression: ExpressionHandle::invalid(),
-                                domain,
-                                satisfier,
-                                kind: CanonicalQualificationUseKind::NamedSatisfierCall,
-                            });
-                        }
                         for argument in program.statement_table.expression_handles(call.arguments) {
                             collect_casts(
                                 program,
@@ -711,7 +672,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                 statement_index,
                                 *argument,
                                 &mut committed,
-                                &mut canonical_uses,
+                                &mut vacuous_uses,
                                 &mut visited,
                             );
                         }
@@ -727,7 +688,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                 statement_index,
                                 *guard,
                                 &mut committed,
-                                &mut canonical_uses,
+                                &mut vacuous_uses,
                                 &mut visited,
                             );
                         }
@@ -745,7 +706,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                     statement_index,
                                     *value,
                                     &mut committed,
-                                    &mut canonical_uses,
+                                    &mut vacuous_uses,
                                     &mut visited,
                                 ),
                                 omega_typed_trees::statement::TransitionTargetNode::Named {
@@ -762,7 +723,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                                             statement_index,
                                             *argument,
                                             &mut committed,
-                                            &mut canonical_uses,
+                                            &mut vacuous_uses,
                                             &mut visited,
                                         );
                                     }
@@ -785,7 +746,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
     }
     omega_checked_trees::QualificationFacts {
         machines,
-        canonical_uses,
+        vacuous_uses,
     }
 }
 

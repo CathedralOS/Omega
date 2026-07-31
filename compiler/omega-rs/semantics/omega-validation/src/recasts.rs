@@ -153,33 +153,10 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
     }
 }
 
-/// GR2 (the MintAuthority half, chapter-10 carrier): the grant table an
-/// in-program validation run consults. Every domain DECLARED in this
-/// compilation unit is own-package and therefore DEV-ACTIVE (grant
-/// locality: own-package claims carry standing authority until packages
-/// exist; a package's domains will arrive INERT and only the root grant --
-/// GR3's `accept_boundary` -- activates them). Built once per run; the
-/// consult point below is where package-inert refusal and root grants
-/// land without touching the predicate machinery.
-fn in_program_trust_table(program: &TypedTrees) -> omega_core::trust::TrustGrantTable {
-    let mut table = omega_core::trust::TrustGrantTable::default();
-    for domain in program.domain_definitions() {
-        if domain.semantic_id.is_valid() {
-            table.grant(omega_core::trust::TrustGrant {
-                commitment: omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
-                    domain.semantic_id,
-                ),
-                provenance: omega_core::trust::TrustProvenance::OwnPackageDev,
-            });
-        }
-    }
-    table
-}
-
 /// Judge one qualification cast (`x as T in <DeclaredDomain>`, decision 19).
-/// Bodyful domains always discharge their predicate at this exact site.
-/// Bodyless domains instead require one normalized canonical home satisfier;
-/// that declaration relationship is compile-time evidence and never executes.
+/// Predicate domains discharge their propositions at this exact site. An
+/// empty domain qualifies vacuously. A routed domain cannot be fabricated by
+/// `as`, even when it has no predicate propositions.
 fn judge_qualification_cast(
     program: &TypedTrees,
     context: Option<(
@@ -203,48 +180,13 @@ fn judge_qualification_cast(
     match declared {
         Some(domain) => {
             if !domain.predicate_body.is_present() {
-                let candidates = canonical_qualification_satisfiers(program, domain.symbol);
-                match candidates.as_slice() {
-                    [] => diagnostics.push(Diagnostic::error(format!(
-                        "`as ... in {name}` has no canonical representation qualification: \
-                         the domain-owning package must publish a valid \
-                         `RepresentationQualification<...>` satisfier"
-                    ))),
-                    [only] if cast.qualification_satisfier == *only => {}
-                    [only] => diagnostics.push(Diagnostic::error(format!(
-                        "internal: `as ... in {name}` did not retain its unique canonical \
-                         qualification satisfier `{}`",
-                        machine_name_for_symbol(program, *only)
-                    ))),
-                    many => diagnostics.push(Diagnostic::error(format!(
-                        "`as ... in {name}` is ambiguous: visible canonical satisfiers are {}; \
-                         call the intended satisfier machine by name",
-                        many.iter()
-                            .map(|symbol| format!(
-                                "`{}`",
-                                machine_name_for_symbol(program, *symbol)
-                            ))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ))),
+                if !domain_is_vacuous(program, domain.symbol, &mut Vec::new()) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`as ... in {name}` cannot establish a non-vacuous domain; every \
+                         predicate must be proved and routed provenance must come from an exact \
+                         requirement authorized by the domain"
+                    )));
                 }
-                return;
-            }
-            let trust = in_program_trust_table(program);
-            if trust
-                .authority(
-                    &omega_core::trust::TrustCommitment::SemanticDomainIntroduction(
-                        domain.semantic_id,
-                    ),
-                )
-                .is_none()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "sealed domain `{name}` has no introduction authority here: \
-                     own-package declarations are dev-active; a package's domain \
-                     is inert until the final build grants it \
-                     (`b.accept_boundary<..>();`)",
-                )));
                 return;
             }
             let mut judgment = literal_mint_discharges(program, domain, cast.value);
@@ -308,60 +250,34 @@ fn judge_qualification_cast(
     }
 }
 
-fn canonical_qualification_satisfiers(
+fn domain_is_vacuous(
     program: &TypedTrees,
-    domain_symbol: omega_core::symbols::SymbolHandle,
-) -> Vec<omega_core::symbols::SymbolHandle> {
-    fn expand(
-        program: &TypedTrees,
-        domain_symbol: omega_core::symbols::SymbolHandle,
-        stack: &mut Vec<omega_core::symbols::SymbolHandle>,
-        output: &mut Vec<omega_core::symbols::SymbolHandle>,
-    ) {
-        if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
-            return;
-        }
-        let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|candidate| candidate.symbol == domain_symbol)
-        else {
-            return;
-        };
-        if let Some(alias) = domain.alias.as_ref() {
-            stack.push(domain_symbol);
-            for constituent in &alias.constituents {
-                expand(program, constituent.domain_symbol, stack, output);
-            }
-            stack.pop();
-            return;
-        }
-        for route in &domain.establishment_routes {
-            if let omega_core::semantics::DomainEstablishmentRoute::CanonicalQualification {
-                satisfier,
-            } = route
-                && !output.contains(satisfier)
-            {
-                output.push(*satisfier);
-            }
-        }
+    domain_symbol: SymbolHandle,
+    stack: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !domain_symbol.is_valid() || stack.contains(&domain_symbol) {
+        return false;
     }
-
-    let mut output = Vec::new();
-    expand(program, domain_symbol, &mut Vec::new(), &mut output);
-    output
-}
-
-fn machine_name_for_symbol(
-    program: &TypedTrees,
-    symbol: omega_core::symbols::SymbolHandle,
-) -> String {
-    program
-        .machines()
+    let Some(domain) = program
+        .domain_definitions()
         .iter()
-        .find(|machine| machine.symbol == symbol)
-        .map(|machine| machine.name.to_string())
-        .unwrap_or_else(|| program.symbols.display_path(symbol, "::"))
+        .find(|candidate| candidate.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    if let Some(alias) = domain.alias.as_ref() {
+        if alias.constituents.is_empty() {
+            return false;
+        }
+        stack.push(domain_symbol);
+        let vacuous = alias
+            .constituents
+            .iter()
+            .all(|constituent| domain_is_vacuous(program, constituent.domain_symbol, stack));
+        stack.pop();
+        return vacuous;
+    }
+    !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
 }
 
 /// Flow-integration v1: when the cast VALUE is a Name whose declared type

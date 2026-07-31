@@ -1174,9 +1174,11 @@ Working interpretation:
 
 > **Implementation gate:** the current Rust trees carry independent predicate
 > bodies, closed semantic-role records, transparent aliases, and normalized
-> establishment routes. The source migration to predicate `requires`, route
-> bodies, open empty declarations, exact denotation-preserving `as`, and
-> per-domain erasure is not yet implemented. Arithmetic policies still have
-> special lowering paths. General domain work must preserve every domain-theory
-> axis independently in the IR; see
+> establishment routes. Explicit `as` into an empty domain (or an alias whose
+> expanded atoms are all empty) is now compiler-derived and records vacuous
+> qualification evidence; the former core qualification-satisfier trait has
+> been retired. The source migration to predicate `requires` and route bodies,
+> exact representation/scale conversion, and per-domain erasure is not yet
+> implemented. Arithmetic policies still have special lowering paths. General
+> domain work must preserve every domain-theory axis independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

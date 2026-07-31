@@ -1,0 +1,19 @@
+data Token {
+    value: u64;
+}
+
+domain Token::Issued;
+
+machine Token::issue(value: u64) -> Token
+ensures
+    result in Token::Issued
+{
+    Token { value: value }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let raw: Token = Token { value: 7 };
+    let forged: Token in Issued = raw as Token in Issued;
+}

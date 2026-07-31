@@ -250,14 +250,8 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         json.push_str("\n    }");
     }
 
-    json.push_str("\n  ],\n  \"canonical_qualification_uses\": [");
-    for (index, use_fact) in program
-        .facts
-        .qualifications
-        .canonical_uses
-        .iter()
-        .enumerate()
-    {
+    json.push_str("\n  ],\n  \"vacuous_qualification_uses\": [");
+    for (index, use_fact) in program.facts.qualifications.vacuous_uses.iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
@@ -273,25 +267,11 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         );
         json.push_str(",\n      \"statement_index\": ");
         json.push_str(&use_fact.statement_index.to_string());
-        json.push_str(",\n      \"kind\": ");
-        push_json_string(
-            &mut json,
-            match use_fact.kind {
-                omega_checked_trees::CanonicalQualificationUseKind::ImplicitCast => "implicit_cast",
-                omega_checked_trees::CanonicalQualificationUseKind::NamedSatisfierCall => {
-                    "named_satisfier_call"
-                }
-            },
-        );
+        json.push_str(",\n      \"origin\": \"vacuous_qualification\"");
         json.push_str(",\n      \"domain\": ");
         push_json_string(
             &mut json,
             &qualification_symbol_label(program, use_fact.domain),
-        );
-        json.push_str(",\n      \"satisfier\": ");
-        push_json_string(
-            &mut json,
-            &qualification_symbol_label(program, use_fact.satisfier),
         );
         json.push_str("\n    }");
     }

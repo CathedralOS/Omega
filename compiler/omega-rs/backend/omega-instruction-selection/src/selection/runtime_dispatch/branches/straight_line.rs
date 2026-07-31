@@ -950,7 +950,6 @@ fn fold_straight_line_prior_local_names(
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
-                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 },
             ))
@@ -2092,7 +2091,6 @@ fn resolve_leaf_call_expression_handle(
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
-                    qualification_satisfier: cast.qualification_satisfier,
                     form: cast.form,
                 },
             ))

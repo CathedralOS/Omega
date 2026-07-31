@@ -138,6 +138,17 @@ Predicate-only atoms may weaken implicitly; semantic and non-owning provenance
 atoms erase only through explicit `as`; owned claims require consumption or
 transfer.
 
+Implementation checkpoint (2026-07-30): explicit `as` now qualifies directly
+into an empty domain, including a transparent alias only when every expanded
+atom has neither predicates nor establishment routes. The legacy core
+`RepresentationQualification` trait, its privileged semantic roles, selected
+satisfier field, erased named-call lowering, and canonical-use artifact are
+retired. `05_qualification_evidence.json` instead reports each exact
+`vacuous_qualification` origin. Predicate-bearing and routed atoms remain
+fail-closed on this path. Predicate `requires`, authored route bodies,
+denotation-preserving representation/scale conversion, and per-domain
+weakening remain.
+
 Acceptance: a look-alike trait cannot establish another domain; owner code has
 no establishment privilege outside named routes; checked and admitted
 conformances retain exact route identity and receipts; `i32::Km` qualifies

@@ -13,7 +13,6 @@ pub(crate) fn lower_trait_definition(
     let mut typed_trait = typed::trait_definition::TraitDefinition {
         symbol: trait_definition.symbol,
         is_boundary: trait_definition.is_boundary,
-        semantic_role: trait_definition.semantic_role,
         name: crate::name::lower_name(&trait_definition.name),
         lifetime_parameters: trait_definition
             .lifetime_parameters

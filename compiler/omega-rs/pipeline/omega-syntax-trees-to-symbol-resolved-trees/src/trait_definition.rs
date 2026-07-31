@@ -18,13 +18,6 @@ pub(crate) fn lower_trait_definition(
     trait_definition: &syntax::item::TraitDefinition,
 ) -> Result<TraitDefinition, Diagnostic> {
     let name = crate::name::lower_name(&trait_definition.name);
-    let semantic_role = if name.as_str() == "RepresentationQualification"
-        && lowerer.is_toolchain_core_qualification(name.source_span())
-    {
-        omega_core::semantics::TraitSemanticRole::RepresentationQualification
-    } else {
-        omega_core::semantics::TraitSemanticRole::Ordinary
-    };
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters)?;
     let invariants = lower_proof_facts(lowerer, syntax_trees, trait_definition.invariants)?;
@@ -40,7 +33,6 @@ pub(crate) fn lower_trait_definition(
     Ok(TraitDefinition {
         symbol: SymbolHandle::invalid(),
         is_boundary: trait_definition.is_boundary,
-        semantic_role,
         name,
         storage: TraitStorage {
             lifetime_parameters: trait_definition

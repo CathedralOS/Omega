@@ -1702,7 +1702,6 @@ fn resolve_prior_local_initializers_in_table(
                         domain: cast.domain,
                         semantic_domain: cast.semantic_domain,
                         semantic_domain_symbol: cast.semantic_domain_symbol,
-                        qualification_satisfier: cast.qualification_satisfier,
                         form: cast.form,
                     },
                 ))

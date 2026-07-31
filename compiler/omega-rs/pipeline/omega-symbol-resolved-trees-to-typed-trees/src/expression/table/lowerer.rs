@@ -136,7 +136,6 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             domain: cast.domain,
                             semantic_domain,
                             semantic_domain_symbol: cast.semantic_domain_symbol,
-                            qualification_satisfier: cast.qualification_satisfier,
                             form: cast.form,
                         },
                     )))

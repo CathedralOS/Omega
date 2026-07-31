@@ -93,7 +93,6 @@ pub(crate) fn lower_machine(
                 symbol: conformance.symbol,
                 name: crate::name::lower_name(&conformance.name),
                 arguments,
-                semantic_role: conformance.semantic_role,
                 requirement: conformance
                     .requirement
                     .as_ref()

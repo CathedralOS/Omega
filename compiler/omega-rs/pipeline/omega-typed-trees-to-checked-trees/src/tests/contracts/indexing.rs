@@ -159,7 +159,6 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
     let mut trait_definition = TraitDefinition {
         symbol: trait_symbol,
         is_boundary: true,
-        semantic_role: omega_core::semantics::TraitSemanticRole::Ordinary,
         name: Identifier::generated("Console"),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
@@ -367,7 +366,6 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     let mut trait_definition = TraitDefinition {
         symbol: trait_symbol,
         is_boundary: true,
-        semantic_role: omega_core::semantics::TraitSemanticRole::Ordinary,
         name: Identifier::generated("Drawable"),
         lifetime_parameters: Vec::new(),
         type_parameters: Default::default(),
