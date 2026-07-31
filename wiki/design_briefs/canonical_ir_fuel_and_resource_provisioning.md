@@ -1,7 +1,9 @@
 # Design Brief: Canonical IR Fuel And Resource Provisioning
 
-Status: architectural direction settled 2026-07-30; canonical portable IR,
-metering, and general fixed-work segment checking remain implementation work.
+Status: architectural direction settled 2026-07-30. The hard-root accounting
+precursor is schedule-keyed and uses logical-fuel provisions; canonical portable
+IR, metering, and general fixed-work segment checking remain implementation
+work.
 
 ## Context
 
@@ -96,10 +98,14 @@ such a theorem remains safely executable under interpreter metering or trusted
 inserted native metering. A certificate that arbitrary native bytes refine the
 IR is a separate future proof-carrying-code chain.
 
-Provider-local `FixedWorkProviderSummary` and
-`StructuralWorkResourceColumn` are the current implementation precursor for
-hard roots. They migrate to the canonical fuel denomination and segment scope;
-they do not grow into general symbolic complexity analysis.
+Provider-local `FixedFuelProviderSummary` and `LogicalFuelResourceColumn` are
+the current implementation precursor for hard roots. Each summary and
+provision names a nonzero `FuelScheduleIdentity`; composition rejects mixed
+schedules, and the external-root artifact publishes the schedule version,
+provision, ceiling, and composed units. These units are provider-authored
+logical-fuel summaries, not a derivation from canonical IR. The precursor still
+must migrate to IR-derived entry/segment certificates and does not grow into
+general symbolic complexity analysis.
 
 ## Response and physical time
 

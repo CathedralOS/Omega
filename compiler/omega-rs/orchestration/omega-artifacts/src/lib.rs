@@ -977,31 +977,29 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output,
         record.stack.validation_receipt.normalized_identity(),
     );
-    output.push_str("}, \"structural_work\": {\"profile\": ");
-    push_hex_identity(output, record.structural_work.profile.normalized_identity());
+    output.push_str("}, \"logical_fuel\": {\"schedule_version\": ");
+    output.push_str(&record.logical_fuel.schedule.schedule_version().to_string());
+    output.push_str(", \"provision\": ");
+    push_hex_identity(output, record.logical_fuel.provision.normalized_identity());
     output.push_str(", \"ceiling_units\": ");
-    output.push_str(&record.structural_work.ceiling_units.to_string());
+    output.push_str(&record.logical_fuel.ceiling_units.to_string());
     output.push_str(", \"composed_units\": ");
-    output.push_str(&record.structural_work.realization.units().to_string());
+    output.push_str(&record.logical_fuel.realization.units().to_string());
     output.push_str(", \"root_summary\": ");
     push_hex_identity(
         output,
-        record
-            .structural_work
-            .realization
-            .root()
-            .normalized_identity(),
+        record.logical_fuel.realization.root().normalized_identity(),
     );
     output.push_str(", \"composition_fingerprint\": ");
     push_hex_identity(
         output,
-        record.structural_work.realization.composition_fingerprint(),
+        record.logical_fuel.realization.composition_fingerprint(),
     );
     output.push_str(", \"provider_summaries\": [");
     push_identity_set(
         output,
         record
-            .structural_work
+            .logical_fuel
             .realization
             .summaries()
             .iter()
@@ -1011,7 +1009,7 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     push_identity_set(
         output,
         record
-            .structural_work
+            .logical_fuel
             .realization
             .provider_receipts()
             .iter()
@@ -1020,10 +1018,7 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     output.push_str("], \"validation_receipt\": ");
     push_hex_identity(
         output,
-        record
-            .structural_work
-            .validation_receipt
-            .normalized_identity(),
+        record.logical_fuel.validation_receipt.normalized_identity(),
     );
     output.push_str("}, \"machine_state\": {\"ceiling\": {\"interrupted_state_bits\": ");
     push_hex_u16(output, record.boundary.state.interrupted_state.bits());
@@ -2041,14 +2036,14 @@ mod tests {
     use omega_external_roots::{
         AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
         ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
-        FixedWorkCall, FixedWorkProviderSummary, InstalledRootRecord, MachineStateResourceColumn,
-        NestingRelationId, OpaqueProviderExitAssurance, ProviderExecutionId, ProviderPlanId,
-        ProviderStackSummary, ProviderWorkSummaryId, ProviderWorkValidationReceiptId,
-        RootAdmissionId, RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId,
-        StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
-        StateValidationReceiptId, StructuralWorkProfileId, StructuralWorkResourceColumn,
-        StructuralWorkValidationReceiptId, TrustReceiptId, compose_artifact_stacks,
-        compose_fixed_work,
+        FixedFuelCall, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
+        FuelValidationReceiptId, InstalledRootRecord, LogicalFuelResourceColumn,
+        MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance,
+        ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
+        ProviderPlanId, ProviderStackSummary, RootAdmissionId, RootEffectId, RootProviderId,
+        RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
+        StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
+        compose_artifact_stacks, compose_fixed_fuel,
     };
     use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
     use omega_target::Architecture;
@@ -2059,6 +2054,10 @@ mod tests {
 
     fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         constructor(identity).expect("normalized root identity")
+    }
+
+    fn fuel_schedule() -> FuelScheduleIdentity {
+        FuelScheduleIdentity::from_schedule_version(1).expect("canonical test fuel schedule")
     }
 
     fn install_id<T>(
@@ -2281,31 +2280,33 @@ mod tests {
             },
         )
         .expect("boundary plan");
-        let leaf = FixedWorkProviderSummary {
-            identity: root_id(21, ProviderWorkSummaryId::from_normalized_identity),
+        let leaf = FixedFuelProviderSummary {
+            identity: root_id(21, ProviderFuelSummaryId::from_normalized_identity),
             provider: root_id(22, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 4,
             calls: BTreeSet::new(),
             validation_receipt: root_id(
                 23,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        let work_root = FixedWorkProviderSummary {
-            identity: root_id(20, ProviderWorkSummaryId::from_normalized_identity),
+        let work_root = FixedFuelProviderSummary {
+            identity: root_id(20, ProviderFuelSummaryId::from_normalized_identity),
             provider: root_id(8, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 3,
-            calls: BTreeSet::from([FixedWorkCall {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: leaf.identity,
                 maximum_invocations: 2,
             }]),
             validation_receipt: root_id(
                 24,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        let composed_work =
-            compose_fixed_work(work_root.identity, [&work_root, &leaf]).expect("fixed work");
+        let composed_fuel =
+            compose_fixed_fuel(work_root.identity, [&work_root, &leaf]).expect("fixed fuel");
         let root_identity = root_id(1, ExternalRootId::from_normalized_identity);
         let nesting_identity = root_id(11, NestingRelationId::from_normalized_identity);
         let stack_summary = ProviderStackSummary {
@@ -2362,14 +2363,12 @@ mod tests {
                 realization: composed_stack,
                 validation_receipt: root_id(25, StackValidationReceiptId::from_normalized_identity),
             },
-            structural_work: StructuralWorkResourceColumn {
-                profile: root_id(28, StructuralWorkProfileId::from_normalized_identity),
+            logical_fuel: LogicalFuelResourceColumn {
+                schedule: fuel_schedule(),
+                provision: root_id(28, FuelProvisionId::from_normalized_identity),
                 ceiling_units: 64,
-                realization: composed_work,
-                validation_receipt: root_id(
-                    26,
-                    StructuralWorkValidationReceiptId::from_normalized_identity,
-                ),
+                realization: composed_fuel,
+                validation_receipt: root_id(26, FuelValidationReceiptId::from_normalized_identity),
             },
             machine_state: MachineStateResourceColumn {
                 realization: StateFootprintEvidence::new(
@@ -2415,8 +2414,21 @@ mod tests {
             2048
         );
         assert_eq!(
-            parsed["roots"][0]["resources"]["structural_work"]["composed_units"],
+            parsed["roots"][0]["resources"]["logical_fuel"]["composed_units"],
             11
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["logical_fuel"]["schedule_version"],
+            1
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["logical_fuel"]["provision"],
+            "0x000000000000001c"
+        );
+        assert!(
+            parsed["roots"][0]["resources"]
+                .get("structural_work")
+                .is_none()
         );
         assert_eq!(
             parsed["roots"][0]["resources"]["machine_state"]["realized_registers"][0],

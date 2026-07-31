@@ -38,11 +38,12 @@ Designs may depend on an analysis listed here only by naming the dependency.
 They must not describe its result as something the checker already derives.
 
 - **Canonical IR fuel and restricted fixed-work checking:** define the
-  versioned portable IR and separate fuel schedule; meter realized evaluation;
-  migrate provider-local fixed-work summaries to IR fuel; and analyze whole
-  hard-root or selected safe-point segments as `Bounded`, `Unknown`, or an
-  attributed no-finite-guarantee result. This is not general parametric work or
-  WCET analysis.
+  versioned portable IR; meter realized evaluation; and analyze whole hard-root
+  or selected safe-point segments as `Bounded`, `Unknown`, or an attributed
+  no-finite-guarantee result. The hard-root precursor is now denominated by an
+  explicit, separately versioned fuel schedule: mixed schedules fail closed
+  and the installed-root artifact publishes the schedule and provision. It is
+  not yet canonical-IR derivation, general parametric work, or WCET analysis.
 - **Formal atomic-event model and target refinement:** define
   `sequenced_before`, `reads_from`, `modification_order`, `synchronizes_with`,
   `happens_before`, and `global_sequential_order`; mechanize the portable
@@ -604,7 +605,11 @@ improvements do not change public identity.
   versioned canonical IR and fuel schedule, evaluator/interpreter metering,
   restricted fixed-work checking over entries and safe-point segments,
   attributed response outcomes, and trusted native block metering. Keep target
-  WCET and wall-clock conversion separate.
+  WCET and wall-clock conversion separate. The external-root precursor already
+  has schedule-keyed provider summaries and provisions, rejects mixed
+  schedules, and reports logical fuel rather than structural work; continue
+  from canonical IR and its interpreter meter rather than treating that
+  provider-authored precursor as an IR proof.
 - **FFIGATE:** after owner question #1, implement the hosted-FFI gateway as an
   ordinary bounded native-worker provider with explicit queue admission,
   stack provision, cancellation disposition, retained-loan custody, and

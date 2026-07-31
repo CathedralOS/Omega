@@ -61,16 +61,13 @@ normalized_id!(ComponentVersionPinId, "component version pin");
 normalized_id!(RootAdmissionId, "external-root admission");
 normalized_id!(RootRemovalReceiptId, "external-root removal receipt");
 normalized_id!(StackValidationReceiptId, "stack validation receipt");
-normalized_id!(ProviderWorkSummaryId, "fixed-work provider summary");
-normalized_id!(StructuralWorkProfileId, "structural-work profile");
+normalized_id!(ProviderFuelSummaryId, "fixed-fuel provider summary");
+normalized_id!(FuelProvisionId, "logical-fuel provision");
 normalized_id!(
-    ProviderWorkValidationReceiptId,
-    "fixed-work provider validation receipt"
+    ProviderFuelValidationReceiptId,
+    "fixed-fuel provider validation receipt"
 );
-normalized_id!(
-    StructuralWorkValidationReceiptId,
-    "structural-work validation receipt"
-);
+normalized_id!(FuelValidationReceiptId, "logical-fuel validation receipt");
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(InterruptInvocationId, "interrupt invocation");
 normalized_id!(InterruptEntryReceiptId, "interrupt entry receipt");
@@ -86,6 +83,27 @@ normalized_id!(
     InterruptAcknowledgementReceiptId,
     "interrupt acknowledgement receipt"
 );
+
+/// Identity of the deterministic logical-cost schedule used to denominate a
+/// fuel summary or provision. Schedule versioning is independent from portable
+/// IR semantics: changing this value changes accounting, not program meaning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FuelScheduleIdentity(u32);
+
+impl FuelScheduleIdentity {
+    pub fn from_schedule_version(version: u32) -> Result<Self, ExternalRootDiagnostic> {
+        if version == 0 {
+            return Err(ExternalRootDiagnostic(
+                "logical-fuel schedule version cannot be zero".into(),
+            ));
+        }
+        Ok(Self(version))
+    }
+
+    pub const fn schedule_version(self) -> u32 {
+        self.0
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentVersionPin {
@@ -543,56 +561,63 @@ fn fingerprint_entry_stack(hash: &mut Fnv1a, stack: EntryStack) {
     }
 }
 
-/// One bounded call edge in a fixed-work provider summary. Multiplicity is
+/// One bounded call edge in a fixed-fuel provider summary. Multiplicity is
 /// explicit: a set of callees alone cannot distinguish one invocation from a
 /// bounded repeated use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct FixedWorkCall {
-    pub callee: ProviderWorkSummaryId,
+pub struct FixedFuelCall {
+    pub callee: ProviderFuelSummaryId,
     pub maximum_invocations: u64,
 }
 
-/// Public fixed-work summary supplied by a selected provider. This is a finite
-/// structural demand, not cycles or WCET. Absence of a summary fails closed;
-/// recursive summary graphs are rejected by composition.
+/// Public fixed-fuel summary supplied by a selected provider. Units are
+/// deterministic logical cost under the named schedule, not native
+/// instructions, cycles, elapsed time, or WCET. Absence of a summary fails
+/// closed; recursive summary graphs are rejected by composition.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FixedWorkProviderSummary {
-    pub identity: ProviderWorkSummaryId,
+pub struct FixedFuelProviderSummary {
+    pub identity: ProviderFuelSummaryId,
     pub provider: RootProviderId,
+    pub schedule: FuelScheduleIdentity,
     pub local_units: u64,
-    pub calls: BTreeSet<FixedWorkCall>,
-    pub validation_receipt: ProviderWorkValidationReceiptId,
+    pub calls: BTreeSet<FixedFuelCall>,
+    pub validation_receipt: ProviderFuelValidationReceiptId,
 }
 
-/// Exact canonical provider graph retained by a composed work demand.
+/// Exact canonical provider graph retained by a composed fuel demand.
 ///
 /// The compact composition fingerprint is presentation identity only; root
 /// admission compares this graph through the sealed demand value itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct FixedWorkCompositionEvidence {
-    summaries: BTreeMap<ProviderWorkSummaryId, FixedWorkProviderSummary>,
+struct FixedFuelCompositionEvidence {
+    summaries: BTreeMap<ProviderFuelSummaryId, FixedFuelProviderSummary>,
 }
 
-/// Canonical transitive result of a fixed-work provider graph. The private
+/// Canonical transitive result of a fixed-fuel provider graph. The private
 /// fields ensure callers cannot hand-author a demand that skipped a callee.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComposedFixedWorkDemand {
-    root: ProviderWorkSummaryId,
+pub struct ComposedFuelDemand {
+    root: ProviderFuelSummaryId,
     root_provider: RootProviderId,
+    schedule: FuelScheduleIdentity,
     units: u64,
-    summaries: BTreeSet<ProviderWorkSummaryId>,
-    provider_receipts: BTreeSet<ProviderWorkValidationReceiptId>,
-    composition_evidence: FixedWorkCompositionEvidence,
+    summaries: BTreeSet<ProviderFuelSummaryId>,
+    provider_receipts: BTreeSet<ProviderFuelValidationReceiptId>,
+    composition_evidence: FixedFuelCompositionEvidence,
     composition_fingerprint: u64,
 }
 
-impl ComposedFixedWorkDemand {
-    pub const fn root(&self) -> ProviderWorkSummaryId {
+impl ComposedFuelDemand {
+    pub const fn root(&self) -> ProviderFuelSummaryId {
         self.root
     }
 
     pub const fn root_provider(&self) -> RootProviderId {
         self.root_provider
+    }
+
+    pub const fn schedule(&self) -> FuelScheduleIdentity {
+        self.schedule
     }
 
     pub const fn units(&self) -> u64 {
@@ -603,54 +628,61 @@ impl ComposedFixedWorkDemand {
         self.composition_fingerprint
     }
 
-    pub const fn summaries(&self) -> &BTreeSet<ProviderWorkSummaryId> {
+    pub const fn summaries(&self) -> &BTreeSet<ProviderFuelSummaryId> {
         &self.summaries
     }
 
-    pub const fn provider_receipts(&self) -> &BTreeSet<ProviderWorkValidationReceiptId> {
+    pub const fn provider_receipts(&self) -> &BTreeSet<ProviderFuelValidationReceiptId> {
         &self.provider_receipts
     }
 }
 
-/// Compose an acyclic graph of admitted fixed-work summaries. Each edge's
+/// Compose an acyclic graph of admitted fixed-fuel summaries. Each edge's
 /// maximum invocation count multiplies the callee's complete demand; missing
 /// summaries, zero-count edges, cycles, duplicates, and arithmetic overflow
 /// all fail closed.
-pub fn compose_fixed_work<'a>(
-    root: ProviderWorkSummaryId,
-    summaries: impl IntoIterator<Item = &'a FixedWorkProviderSummary>,
-) -> Result<ComposedFixedWorkDemand, ExternalRootDiagnostic> {
+pub fn compose_fixed_fuel<'a>(
+    root: ProviderFuelSummaryId,
+    summaries: impl IntoIterator<Item = &'a FixedFuelProviderSummary>,
+) -> Result<ComposedFuelDemand, ExternalRootDiagnostic> {
     let mut by_identity = BTreeMap::new();
     for summary in summaries {
         if by_identity.insert(summary.identity, summary).is_some() {
             return Err(ExternalRootDiagnostic(format!(
-                "fixed-work summary identity 0x{:016x} is duplicated",
+                "fixed-fuel summary identity 0x{:016x} is duplicated",
                 summary.identity.normalized_identity()
             )));
         }
     }
     let root_summary = by_identity.get(&root).ok_or_else(|| {
         ExternalRootDiagnostic(format!(
-            "fixed-work root summary 0x{:016x} is missing",
+            "fixed-fuel root summary 0x{:016x} is missing",
             root.normalized_identity()
         ))
     })?;
     let mut visiting = BTreeSet::new();
     let mut memo = BTreeMap::new();
     let mut used = BTreeSet::new();
-    let units =
-        compose_fixed_work_summary(root, &by_identity, &mut visiting, &mut memo, &mut used)?;
+    let schedule = root_summary.schedule;
+    let units = compose_fixed_fuel_summary(
+        root,
+        schedule,
+        &by_identity,
+        &mut visiting,
+        &mut memo,
+        &mut used,
+    )?;
     let provider_receipts = used
         .iter()
         .map(|identity| {
             by_identity
                 .get(identity)
-                .expect("used fixed-work summary exists")
+                .expect("used fixed-fuel summary exists")
                 .validation_receipt
         })
         .collect();
-    let composition_fingerprint = fingerprint_fixed_work_composition(&used, &by_identity);
-    let composition_evidence = FixedWorkCompositionEvidence {
+    let composition_fingerprint = fingerprint_fixed_fuel_composition(schedule, &used, &by_identity);
+    let composition_evidence = FixedFuelCompositionEvidence {
         summaries: used
             .iter()
             .map(|identity| {
@@ -658,15 +690,16 @@ pub fn compose_fixed_work<'a>(
                     *identity,
                     (*by_identity
                         .get(identity)
-                        .expect("used fixed-work summary exists"))
+                        .expect("used fixed-fuel summary exists"))
                     .clone(),
                 )
             })
             .collect(),
     };
-    Ok(ComposedFixedWorkDemand {
+    Ok(ComposedFuelDemand {
         root,
         root_provider: root_summary.provider,
+        schedule,
         units,
         summaries: used,
         provider_receipts,
@@ -675,12 +708,13 @@ pub fn compose_fixed_work<'a>(
     })
 }
 
-fn compose_fixed_work_summary(
-    identity: ProviderWorkSummaryId,
-    summaries: &BTreeMap<ProviderWorkSummaryId, &FixedWorkProviderSummary>,
-    visiting: &mut BTreeSet<ProviderWorkSummaryId>,
-    memo: &mut BTreeMap<ProviderWorkSummaryId, u64>,
-    used: &mut BTreeSet<ProviderWorkSummaryId>,
+fn compose_fixed_fuel_summary(
+    identity: ProviderFuelSummaryId,
+    schedule: FuelScheduleIdentity,
+    summaries: &BTreeMap<ProviderFuelSummaryId, &FixedFuelProviderSummary>,
+    visiting: &mut BTreeSet<ProviderFuelSummaryId>,
+    memo: &mut BTreeMap<ProviderFuelSummaryId, u64>,
+    used: &mut BTreeSet<ProviderFuelSummaryId>,
 ) -> Result<u64, ExternalRootDiagnostic> {
     if let Some(units) = memo.get(&identity) {
         used.insert(identity);
@@ -688,34 +722,42 @@ fn compose_fixed_work_summary(
     }
     if !visiting.insert(identity) {
         return Err(ExternalRootDiagnostic(format!(
-            "fixed-work summary graph contains a cycle through 0x{:016x}",
+            "fixed-fuel summary graph contains a cycle through 0x{:016x}",
             identity.normalized_identity()
         )));
     }
     let summary = summaries.get(&identity).ok_or_else(|| {
         ExternalRootDiagnostic(format!(
-            "fixed-work callee summary 0x{:016x} is missing",
+            "fixed-fuel callee summary 0x{:016x} is missing",
             identity.normalized_identity()
         ))
     })?;
+    if summary.schedule != schedule {
+        return Err(ExternalRootDiagnostic(format!(
+            "fixed-fuel summary 0x{:016x} uses schedule version {}, but the root uses version {}",
+            identity.normalized_identity(),
+            summary.schedule.schedule_version(),
+            schedule.schedule_version()
+        )));
+    }
     let mut units = summary.local_units;
     for call in &summary.calls {
         if call.maximum_invocations == 0 {
             return Err(ExternalRootDiagnostic(format!(
-                "fixed-work edge from 0x{:016x} to 0x{:016x} has zero maximum invocations",
+                "fixed-fuel edge from 0x{:016x} to 0x{:016x} has zero maximum invocations",
                 identity.normalized_identity(),
                 call.callee.normalized_identity()
             )));
         }
         let callee_units =
-            compose_fixed_work_summary(call.callee, summaries, visiting, memo, used)?;
+            compose_fixed_fuel_summary(call.callee, schedule, summaries, visiting, memo, used)?;
         let edge_units = callee_units
             .checked_mul(call.maximum_invocations)
             .ok_or_else(|| {
-                ExternalRootDiagnostic("fixed-work composition multiplication overflowed".into())
+                ExternalRootDiagnostic("fixed-fuel composition multiplication overflowed".into())
             })?;
         units = units.checked_add(edge_units).ok_or_else(|| {
-            ExternalRootDiagnostic("fixed-work composition addition overflowed".into())
+            ExternalRootDiagnostic("fixed-fuel composition addition overflowed".into())
         })?;
     }
     visiting.remove(&identity);
@@ -724,16 +766,18 @@ fn compose_fixed_work_summary(
     Ok(units)
 }
 
-fn fingerprint_fixed_work_composition(
-    used: &BTreeSet<ProviderWorkSummaryId>,
-    summaries: &BTreeMap<ProviderWorkSummaryId, &FixedWorkProviderSummary>,
+fn fingerprint_fixed_fuel_composition(
+    schedule: FuelScheduleIdentity,
+    used: &BTreeSet<ProviderFuelSummaryId>,
+    summaries: &BTreeMap<ProviderFuelSummaryId, &FixedFuelProviderSummary>,
 ) -> u64 {
     let mut hash = Fnv1a::new();
+    hash.u64(u64::from(schedule.schedule_version()));
     hash.u64(used.len() as u64);
     for identity in used {
         let summary = summaries
             .get(identity)
-            .expect("used fixed-work summary exists");
+            .expect("used fixed-fuel summary exists");
         hash.u64(summary.identity.normalized_identity());
         hash.u64(summary.provider.normalized_identity());
         hash.u64(summary.local_units);
@@ -748,11 +792,12 @@ fn fingerprint_fixed_work_composition(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructuralWorkResourceColumn {
-    pub profile: StructuralWorkProfileId,
+pub struct LogicalFuelResourceColumn {
+    pub schedule: FuelScheduleIdentity,
+    pub provision: FuelProvisionId,
     pub ceiling_units: u64,
-    pub realization: ComposedFixedWorkDemand,
-    pub validation_receipt: StructuralWorkValidationReceiptId,
+    pub realization: ComposedFuelDemand,
+    pub validation_receipt: FuelValidationReceiptId,
 }
 
 /// The `StatePlan` itself is the public ceiling. This column retains only the
@@ -786,7 +831,7 @@ pub struct ExternalRootCandidate {
     pub nesting_relation: NestingRelationId,
     pub acknowledgement_policy: Option<AcknowledgementPolicyId>,
     pub stack: StackResourceColumn,
-    pub structural_work: StructuralWorkResourceColumn,
+    pub logical_fuel: LogicalFuelResourceColumn,
     pub machine_state: MachineStateResourceColumn,
     pub component_pins: BTreeSet<ComponentVersionPin>,
 }
@@ -876,7 +921,7 @@ impl ValidatedExternalRoot {
 
 /// Admitted execution binding for one exact external-root realization.
 ///
-/// This does not fuse the stack, structural-work, and machine-state algebras.
+/// This does not fuse the stack, logical-fuel, and machine-state algebras.
 /// It binds their independently validated results, the selected normalized
 /// provider plan, and the executable entry into one provider execution that a
 /// root admission may publish.
@@ -892,7 +937,7 @@ pub struct ProviderExecution {
     boundary_contract_fingerprint: u64,
     stack_artifact_composition_fingerprint: u64,
     stack_demand_fingerprint: u64,
-    structural_work_fingerprint: u64,
+    logical_fuel_fingerprint: u64,
     machine_state_validation_receipt: StateValidationReceiptId,
     exit_assurance: OpaqueProviderExitAssurance,
     exit_assurance_fingerprint: u64,
@@ -933,12 +978,7 @@ impl ProviderExecution {
                 .artifact_composition_fingerprint(),
         );
         hash.u64(candidate.stack.realization.composition_fingerprint());
-        hash.u64(
-            candidate
-                .structural_work
-                .realization
-                .composition_fingerprint(),
-        );
+        hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
         hash.u64(
             candidate
                 .machine_state
@@ -963,10 +1003,7 @@ impl ProviderExecution {
                 .realization
                 .artifact_composition_fingerprint(),
             stack_demand_fingerprint: candidate.stack.realization.composition_fingerprint(),
-            structural_work_fingerprint: candidate
-                .structural_work
-                .realization
-                .composition_fingerprint(),
+            logical_fuel_fingerprint: candidate.logical_fuel.realization.composition_fingerprint(),
             machine_state_validation_receipt: candidate.machine_state.validation_receipt,
             exit_assurance,
             exit_assurance_fingerprint,
@@ -1011,11 +1048,8 @@ impl ProviderExecution {
                     .artifact_composition_fingerprint()
             && self.stack_demand_fingerprint
                 == candidate.stack.realization.composition_fingerprint()
-            && self.structural_work_fingerprint
-                == candidate
-                    .structural_work
-                    .realization
-                    .composition_fingerprint()
+            && self.logical_fuel_fingerprint
+                == candidate.logical_fuel.realization.composition_fingerprint()
             && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt
             && self.effects == candidate.effects
     }
@@ -1055,20 +1089,24 @@ pub fn validate_external_root(
             "external-root composed WCSU exceeds the admitted stack ceiling".into(),
         ));
     }
-    if candidate.structural_work.ceiling_units == 0 {
+    if candidate.logical_fuel.ceiling_units == 0 {
         return Err(ExternalRootDiagnostic(
-            "external-root structural-work ceiling must be nonzero".into(),
+            "external-root logical-fuel ceiling must be nonzero".into(),
         ));
     }
-    if candidate.structural_work.realization.units() > candidate.structural_work.ceiling_units {
+    if candidate.logical_fuel.schedule != candidate.logical_fuel.realization.schedule() {
         return Err(ExternalRootDiagnostic(
-            "external-root composed structural work exceeds the admitted ceiling".into(),
+            "external-root fuel provision and realization use different schedule versions".into(),
         ));
     }
-    if candidate.structural_work.realization.root_provider() != candidate.provider {
+    if candidate.logical_fuel.realization.units() > candidate.logical_fuel.ceiling_units {
         return Err(ExternalRootDiagnostic(
-            "external-root structural-work root provider does not match the selected provider"
-                .into(),
+            "external-root composed logical fuel exceeds the admitted ceiling".into(),
+        ));
+    }
+    if candidate.logical_fuel.realization.root_provider() != candidate.provider {
+        return Err(ExternalRootDiagnostic(
+            "external-root logical-fuel root provider does not match the selected provider".into(),
         ));
     }
     validate_state_footprint(boundary, &candidate.machine_state.realization).map_err(|error| {
@@ -1206,7 +1244,7 @@ pub struct InstalledRootRecord {
     pub nesting_relation: NestingRelationId,
     pub acknowledgement_policy: Option<AcknowledgementPolicyId>,
     pub stack: StackResourceColumn,
-    pub structural_work: StructuralWorkResourceColumn,
+    pub logical_fuel: LogicalFuelResourceColumn,
     pub machine_state: MachineStateResourceColumn,
     pub component_pins: BTreeSet<ComponentVersionPin>,
 }
@@ -1974,7 +2012,7 @@ impl InstalledRootLedger {
             nesting_relation: root.candidate.nesting_relation,
             acknowledgement_policy: root.candidate.acknowledgement_policy,
             stack: root.candidate.stack,
-            structural_work: root.candidate.structural_work,
+            logical_fuel: root.candidate.logical_fuel,
             machine_state: root.candidate.machine_state,
             component_pins: root.candidate.component_pins,
         };
@@ -2237,32 +2275,30 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     );
     hash.u64(candidate.stack.realization.composition_fingerprint());
     hash.u64(candidate.stack.validation_receipt.normalized_identity());
-    hash.u64(candidate.structural_work.profile.normalized_identity());
-    hash.u64(candidate.structural_work.ceiling_units);
+    hash.u64(u64::from(
+        candidate.logical_fuel.schedule.schedule_version(),
+    ));
+    hash.u64(candidate.logical_fuel.provision.normalized_identity());
+    hash.u64(candidate.logical_fuel.ceiling_units);
     hash.u64(
         candidate
-            .structural_work
+            .logical_fuel
             .realization
             .root()
             .normalized_identity(),
     );
     hash.u64(
         candidate
-            .structural_work
+            .logical_fuel
             .realization
             .root_provider()
             .normalized_identity(),
     );
-    hash.u64(candidate.structural_work.realization.units());
+    hash.u64(candidate.logical_fuel.realization.units());
+    hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
     hash.u64(
         candidate
-            .structural_work
-            .realization
-            .composition_fingerprint(),
-    );
-    hash.u64(
-        candidate
-            .structural_work
+            .logical_fuel
             .validation_receipt
             .normalized_identity(),
     );
@@ -2381,6 +2417,10 @@ mod tests {
 
     fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
         constructor(identity).expect("normalized external-root identity")
+    }
+
+    fn fuel_schedule() -> FuelScheduleIdentity {
+        FuelScheduleIdentity::from_schedule_version(1).expect("canonical test fuel schedule")
     }
 
     fn install_id<T>(
@@ -2523,31 +2563,33 @@ mod tests {
         .expect("validated boundary")
     }
 
-    fn fixed_work() -> ComposedFixedWorkDemand {
-        let leaf = FixedWorkProviderSummary {
-            identity: root_id(31, ProviderWorkSummaryId::from_normalized_identity),
+    fn fixed_fuel() -> ComposedFuelDemand {
+        let leaf = FixedFuelProviderSummary {
+            identity: root_id(31, ProviderFuelSummaryId::from_normalized_identity),
             provider: root_id(12, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 5,
             calls: BTreeSet::new(),
             validation_receipt: root_id(
                 41,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        let root = FixedWorkProviderSummary {
-            identity: root_id(30, ProviderWorkSummaryId::from_normalized_identity),
+        let root = FixedFuelProviderSummary {
+            identity: root_id(30, ProviderFuelSummaryId::from_normalized_identity),
             provider: root_id(2, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 2,
-            calls: BTreeSet::from([FixedWorkCall {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: leaf.identity,
                 maximum_invocations: 1,
             }]),
             validation_receipt: root_id(
                 40,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        compose_fixed_work(root.identity, [&root, &leaf]).expect("fixed-work composition")
+        compose_fixed_fuel(root.identity, [&root, &leaf]).expect("fixed-fuel composition")
     }
 
     fn stack_demand(
@@ -2609,14 +2651,12 @@ mod tests {
                 ),
                 validation_receipt: root_id(50, StackValidationReceiptId::from_normalized_identity),
             },
-            structural_work: StructuralWorkResourceColumn {
-                profile: root_id(53, StructuralWorkProfileId::from_normalized_identity),
+            logical_fuel: LogicalFuelResourceColumn {
+                schedule: fuel_schedule(),
+                provision: root_id(53, FuelProvisionId::from_normalized_identity),
                 ceiling_units: 64,
-                realization: fixed_work(),
-                validation_receipt: root_id(
-                    51,
-                    StructuralWorkValidationReceiptId::from_normalized_identity,
-                ),
+                realization: fixed_fuel(),
+                validation_receipt: root_id(51, FuelValidationReceiptId::from_normalized_identity),
             },
             machine_state: MachineStateResourceColumn {
                 realization: StateFootprintEvidence::new(
@@ -3281,7 +3321,7 @@ mod tests {
         assert_eq!(record.effects.len(), 1);
         assert_eq!(record.trust_receipts.len(), 1);
         assert_eq!(record.stack.realization.composed_wcsu_bytes(), 2048);
-        assert_eq!(record.structural_work.realization.units(), 7);
+        assert_eq!(record.logical_fuel.realization.units(), 7);
         assert_eq!(
             record.machine_state.realization.registers().as_slice(),
             &[MachineRegister::X86Rax]
@@ -3610,9 +3650,17 @@ mod tests {
         assert!(error.0.contains("candidate root"));
 
         let mut over_work = candidate(entry_id(1001));
-        over_work.structural_work.ceiling_units = 6;
-        let error = validate_external_root(over_work, &boundary()).expect_err("work ceiling");
-        assert!(error.0.contains("structural work"));
+        over_work.logical_fuel.ceiling_units = 6;
+        let error =
+            validate_external_root(over_work, &boundary()).expect_err("logical-fuel ceiling");
+        assert!(error.0.contains("logical fuel"));
+
+        let mut wrong_fuel_schedule = candidate(entry_id(1001));
+        wrong_fuel_schedule.logical_fuel.schedule =
+            FuelScheduleIdentity::from_schedule_version(2).expect("different fuel schedule");
+        let error = validate_external_root(wrong_fuel_schedule, &boundary())
+            .expect_err("fuel provision cannot reinterpret another schedule's units");
+        assert!(error.0.contains("different schedule versions"));
 
         let mut wrong_state = candidate(entry_id(1001));
         wrong_state.machine_state.realization = StateFootprintEvidence::new(
@@ -3828,97 +3876,115 @@ mod tests {
     }
 
     #[test]
-    fn fixed_work_composition_is_transitive_canonical_and_fails_closed() {
-        let leaf_identity = root_id(61, ProviderWorkSummaryId::from_normalized_identity);
-        let root_identity = root_id(60, ProviderWorkSummaryId::from_normalized_identity);
-        let leaf = FixedWorkProviderSummary {
+    fn fixed_fuel_composition_is_transitive_canonical_and_fails_closed() {
+        let error = FuelScheduleIdentity::from_schedule_version(0)
+            .expect_err("zero cannot identify a fuel schedule");
+        assert!(error.0.contains("cannot be zero"));
+
+        let leaf_identity = root_id(61, ProviderFuelSummaryId::from_normalized_identity);
+        let root_identity = root_id(60, ProviderFuelSummaryId::from_normalized_identity);
+        let leaf = FixedFuelProviderSummary {
             identity: leaf_identity,
             provider: root_id(62, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 4,
             calls: BTreeSet::new(),
             validation_receipt: root_id(
                 63,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        let root = FixedWorkProviderSummary {
+        let root = FixedFuelProviderSummary {
             identity: root_identity,
             provider: root_id(2, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 3,
-            calls: BTreeSet::from([FixedWorkCall {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: leaf_identity,
                 maximum_invocations: 2,
             }]),
             validation_receipt: root_id(
                 64,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
 
-        let forward = compose_fixed_work(root_identity, [&root, &leaf]).expect("composition");
-        let reverse = compose_fixed_work(root_identity, [&leaf, &root]).expect("composition");
+        let forward = compose_fixed_fuel(root_identity, [&root, &leaf]).expect("composition");
+        let reverse = compose_fixed_fuel(root_identity, [&leaf, &root]).expect("composition");
         assert_eq!(forward.units(), 11);
+        assert_eq!(forward.schedule(), fuel_schedule());
         assert_eq!(forward, reverse);
         assert_eq!(forward.summaries().len(), 2);
         assert_eq!(forward.provider_receipts().len(), 2);
 
-        let error = compose_fixed_work(root_identity, [&root]).expect_err("missing callee");
+        let error = compose_fixed_fuel(root_identity, [&root]).expect_err("missing callee");
         assert!(error.0.contains("missing"));
 
-        let cyclic_leaf = FixedWorkProviderSummary {
-            calls: BTreeSet::from([FixedWorkCall {
+        let mismatched_leaf = FixedFuelProviderSummary {
+            schedule: FuelScheduleIdentity::from_schedule_version(2)
+                .expect("different fuel schedule"),
+            ..leaf.clone()
+        };
+        let error = compose_fixed_fuel(root_identity, [&root, &mismatched_leaf])
+            .expect_err("mixed fuel schedules must not compose");
+        assert!(error.0.contains("schedule version"));
+
+        let cyclic_leaf = FixedFuelProviderSummary {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: root_identity,
                 maximum_invocations: 1,
             }]),
             ..leaf
         };
-        let error = compose_fixed_work(root_identity, [&root, &cyclic_leaf])
-            .expect_err("cyclic work graph");
+        let error = compose_fixed_fuel(root_identity, [&root, &cyclic_leaf])
+            .expect_err("cyclic fuel graph");
         assert!(error.0.contains("cycle"));
     }
 
     #[test]
-    fn fixed_work_composition_retains_exact_graph_beyond_compact_fingerprint() {
-        let leaf_identity = root_id(71, ProviderWorkSummaryId::from_normalized_identity);
-        let root_identity = root_id(70, ProviderWorkSummaryId::from_normalized_identity);
-        let leaf = FixedWorkProviderSummary {
+    fn fixed_fuel_composition_retains_exact_graph_beyond_compact_fingerprint() {
+        let leaf_identity = root_id(71, ProviderFuelSummaryId::from_normalized_identity);
+        let root_identity = root_id(70, ProviderFuelSummaryId::from_normalized_identity);
+        let leaf = FixedFuelProviderSummary {
             identity: leaf_identity,
             provider: root_id(72, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 4,
             calls: BTreeSet::new(),
             validation_receipt: root_id(
                 73,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        let root = FixedWorkProviderSummary {
+        let root = FixedFuelProviderSummary {
             identity: root_identity,
             provider: root_id(74, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 3,
-            calls: BTreeSet::from([FixedWorkCall {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: leaf_identity,
                 maximum_invocations: 2,
             }]),
             validation_receipt: root_id(
                 75,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
-        let exact = compose_fixed_work(root_identity, [&root, &leaf]).expect("original work graph");
+        let exact = compose_fixed_fuel(root_identity, [&root, &leaf]).expect("original fuel graph");
 
-        let drifted_leaf = FixedWorkProviderSummary {
+        let drifted_leaf = FixedFuelProviderSummary {
             local_units: 2,
             ..leaf
         };
-        let drifted_root = FixedWorkProviderSummary {
-            calls: BTreeSet::from([FixedWorkCall {
+        let drifted_root = FixedFuelProviderSummary {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: leaf_identity,
                 maximum_invocations: 4,
             }]),
             ..root
         };
-        let mut collided = compose_fixed_work(root_identity, [&drifted_root, &drifted_leaf])
-            .expect("equal-total drifted work graph");
+        let mut collided = compose_fixed_fuel(root_identity, [&drifted_root, &drifted_leaf])
+            .expect("equal-total drifted fuel graph");
         collided.composition_fingerprint = exact.composition_fingerprint;
 
         assert_eq!(exact.units, collided.units);
@@ -3926,7 +3992,7 @@ mod tests {
         assert_eq!(exact.provider_receipts, collided.provider_receipts);
         assert_ne!(
             exact, collided,
-            "compact fingerprint collision cannot erase exact work-graph evidence"
+            "compact fingerprint collision cannot erase exact fuel-graph evidence"
         );
     }
 
@@ -3937,60 +4003,62 @@ mod tests {
         // capture the clock, set one preallocated coalescing wake state, and
         // return. Every edge is one-shot; application timer draining remains
         // outside this hard-root graph.
-        let root_identity = root_id(100, ProviderWorkSummaryId::from_normalized_identity);
-        let acknowledge_identity = root_id(101, ProviderWorkSummaryId::from_normalized_identity);
-        let clock_identity = root_id(102, ProviderWorkSummaryId::from_normalized_identity);
-        let wake_identity = root_id(103, ProviderWorkSummaryId::from_normalized_identity);
-        let return_identity = root_id(104, ProviderWorkSummaryId::from_normalized_identity);
+        let root_identity = root_id(100, ProviderFuelSummaryId::from_normalized_identity);
+        let acknowledge_identity = root_id(101, ProviderFuelSummaryId::from_normalized_identity);
+        let clock_identity = root_id(102, ProviderFuelSummaryId::from_normalized_identity);
+        let wake_identity = root_id(103, ProviderFuelSummaryId::from_normalized_identity);
+        let return_identity = root_id(104, ProviderFuelSummaryId::from_normalized_identity);
 
-        let leaf = |identity, provider_identity, receipt_identity| FixedWorkProviderSummary {
+        let leaf = |identity, provider_identity, receipt_identity| FixedFuelProviderSummary {
             identity,
             provider: root_id(provider_identity, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 1,
             calls: BTreeSet::new(),
             validation_receipt: root_id(
                 receipt_identity,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
         let acknowledge = leaf(acknowledge_identity, 201, 301);
         let clock = leaf(clock_identity, 202, 302);
         let wake = leaf(wake_identity, 203, 303);
         let return_path = leaf(return_identity, 204, 304);
-        let timer = FixedWorkProviderSummary {
+        let timer = FixedFuelProviderSummary {
             identity: root_identity,
             provider: root_id(200, RootProviderId::from_normalized_identity),
+            schedule: fuel_schedule(),
             local_units: 1,
             calls: BTreeSet::from([
-                FixedWorkCall {
+                FixedFuelCall {
                     callee: acknowledge_identity,
                     maximum_invocations: 1,
                 },
-                FixedWorkCall {
+                FixedFuelCall {
                     callee: clock_identity,
                     maximum_invocations: 1,
                 },
-                FixedWorkCall {
+                FixedFuelCall {
                     callee: wake_identity,
                     maximum_invocations: 1,
                 },
-                FixedWorkCall {
+                FixedFuelCall {
                     callee: return_identity,
                     maximum_invocations: 1,
                 },
             ]),
             validation_receipt: root_id(
                 300,
-                ProviderWorkValidationReceiptId::from_normalized_identity,
+                ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
         };
 
-        let forward = compose_fixed_work(
+        let forward = compose_fixed_fuel(
             root_identity,
             [&timer, &acknowledge, &clock, &wake, &return_path],
         )
         .expect("the first Cathedral timer profile is finite fixed work");
-        let reverse = compose_fixed_work(
+        let reverse = compose_fixed_fuel(
             root_identity,
             [&return_path, &wake, &clock, &acknowledge, &timer],
         )
@@ -4009,21 +4077,21 @@ mod tests {
         );
         assert_eq!(forward.provider_receipts().len(), 5);
 
-        let recursive_acknowledge = FixedWorkProviderSummary {
-            calls: BTreeSet::from([FixedWorkCall {
+        let recursive_acknowledge = FixedFuelProviderSummary {
+            calls: BTreeSet::from([FixedFuelCall {
                 callee: root_identity,
                 maximum_invocations: 1,
             }]),
             ..acknowledge.clone()
         };
-        let error = compose_fixed_work(
+        let error = compose_fixed_fuel(
             root_identity,
             [&timer, &recursive_acknowledge, &clock, &wake, &return_path],
         )
         .expect_err("a recursive acknowledgement provider cannot hide behind the timer root");
         assert!(error.0.contains("cycle"));
 
-        let error = compose_fixed_work(root_identity, [&timer, &acknowledge, &clock, &return_path])
+        let error = compose_fixed_fuel(root_identity, [&timer, &acknowledge, &clock, &return_path])
             .expect_err("a timer provider cannot omit its wake summary");
         assert!(error.0.contains("missing"));
     }
