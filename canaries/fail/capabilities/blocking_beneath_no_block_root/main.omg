@@ -1,0 +1,15 @@
+// FFIVAL boundary-coherence gate: an externally callable root that omits
+// `blocks;` promises not to occupy its worker. Calling a blocking service
+// beneath that root cannot hide the operational behavior.
+
+boundary trait WaitService {
+    machine wait() blocks;
+}
+
+data Main {
+    service: WaitService;
+}
+
+boundary machine Main::run(&mut self) {
+    block self.service.wait();
+}
