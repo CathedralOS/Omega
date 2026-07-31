@@ -380,8 +380,11 @@ Required tests:
 
 The compiler already carries independent predicate, semantic-role,
 establishment-origin, normalized route, alias, and receipt records. The source
-parser, establishment checker, coercion resolver, and artifact schema still
-need to adopt the surface and rules in this brief.
+parser and establishment checker use predicate `requires` plus exact authored
+requirement routes; checked artifacts retain those identities, and neither
+owner placement nor boundary contract placement infers authority. The coercion
+resolver and the remaining domain-theory artifact fields still need to adopt
+the rest of this brief.
 
 Migration should:
 

@@ -429,9 +429,7 @@ fn rejects_ambiguous_inferred_domain_operator_home() {
 }
 
 #[test]
-fn normalizes_domain_establishment_route_identities() {
-    use omega_core::semantics::DomainEstablishmentRoute;
-
+fn does_not_infer_domain_establishment_from_contract_placement() {
     let source = r#"
     data Token {
         value: u64;
@@ -465,40 +463,12 @@ fn normalizes_domain_establishment_route_identities() {
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
-    let owner = program
-        .machines
-        .iter()
-        .find(|machine| machine.name.as_str() == "Token::issue")
-        .expect("owner machine");
-    let issuer = program
-        .traits
-        .iter()
-        .find(|definition| definition.name.as_str() == "TokenIssuer")
-        .expect("boundary trait");
-    let requirement = program
-        .trait_machine_signatures(issuer.machines)
-        .first()
-        .expect("issue requirement");
     let issued = program
         .domain_definitions
         .iter()
         .find(|domain| domain.name.as_str() == "Token::Issued")
         .expect("issued domain");
-    assert!(
-        issued
-            .establishment_routes
-            .contains(&DomainEstablishmentRoute::OwnerCheckedMachine {
-                machine: owner.symbol,
-            })
-    );
-    assert!(
-        issued
-            .establishment_routes
-            .contains(&DomainEstablishmentRoute::BoundaryRequirement {
-                boundary_trait: issuer.symbol,
-                requirement: requirement.symbol,
-            })
-    );
+    assert!(issued.establishment_routes.is_empty());
 
     let stamped = program
         .domain_definitions
@@ -601,8 +571,12 @@ fn expands_alias_establishment_routes_to_atomic_domains() {
         value: u64;
     }
 
-    domain Token::Issued;
-    domain Token::Stamped;
+    domain Token::Issued {
+        TokenIssuer::issue;
+    }
+    domain Token::Stamped {
+        TokenIssuer::issue;
+    }
     domain Token::Ready = Token::Issued & Token::Stamped;
 
     boundary trait TokenIssuer {

@@ -76,7 +76,7 @@ to their atomic conjunction before type and contract identity, compatibility,
 admission, and executable predicate lowering, retain public/private publication
 legality, reject unknown/cross-carrier/cyclic expansions, and report unmet
 atomic facts. Establishment relationships now normalize independently as exact
-checked-requirement, owner-machine, or boundary-requirement identities; alias
+checked- or boundary-requirement identities; alias
 guarantees expand to atomic routes, typed constraints and snapshots preserve
 them, and checked consumers no longer reconstruct authority from names.
 Core `Extent` now exposes its ordinary `{ base: addr, length: u64 }` geometry
@@ -149,7 +149,7 @@ fail-closed on this path. Predicate `requires`, authored route bodies,
 denotation-preserving representation/scale conversion, and per-domain
 weakening remain.
 
-The source/IR route migration has begun: domain predicate `requires` and exact
+The source/IR route migration is complete: domain predicate `requires` and exact
 `Trait::requirement` body entries now parse into independent records; authored
 routes resolve once to ordinary checked or boundary requirement symbols and
 reject unresolved or result-mismatched citations. Checked conformers originate
@@ -162,9 +162,9 @@ rejects with directed migration guidance. Domain operators now use ordinary
 top-level declarations: an exact `operator Type::Domain::operation ...` name or
 one unique domain-qualified operand tuple supplies the semantic home, nested
 declarations reject with directed migration guidance, and operator ownership
-no longer grants domain establishment. Inferred owner-machine and
-boundary-requirement routes remain only for their corpus migration; retire them
-in favor of authored exact routes.
+no longer grants domain establishment. Owner-machine and ambient boundary
+contract placement no longer infer routes; every checked or admitted
+establishment path comes from an exact requirement authored by the domain.
 
 Acceptance: a look-alike trait cannot establish another domain; owner code has
 no establishment privilege outside named routes; checked and admitted

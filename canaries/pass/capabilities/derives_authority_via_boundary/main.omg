@@ -15,7 +15,9 @@ domain Folder::Writable;
 data File {
 }
 
-domain File::Writable;
+domain File::Writable {
+    Filesystem::open;
+}
 
 boundary trait Filesystem {
     machine open(folder: Folder, path: &[u8] in Utf8) -> File

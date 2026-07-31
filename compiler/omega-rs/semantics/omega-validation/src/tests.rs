@@ -19,7 +19,9 @@ fn boundary_requirement_may_authorize_its_exact_qualified_result() {
     let typed = typed_program_from_source(
         r#"
         data Token {}
-        domain Token::Issued;
+        domain Token::Issued {
+            TokenIssuer::issue;
+        }
 
         boundary trait TokenIssuer {
             machine issue() -> Token
