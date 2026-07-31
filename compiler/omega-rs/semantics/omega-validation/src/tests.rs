@@ -164,6 +164,36 @@ fn content_projection_rejects_arbitrary_helper_call() {
 }
 
 #[test]
+fn content_projection_rejects_non_linear_carrier() {
+    let typed = typed_program_from_source(
+        r#"
+        data Unit {}
+        data CountedQuantity<U> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Counter { remaining: u64; }
+        domain Counter::Available;
+
+        machine Available::content(counter: &Counter) -> CountedQuantity<Unit>
+        satisfies Content<CountedQuantity<Unit>>::project
+        {
+            CountedQuantity { magnitude: counter.remaining }
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("content accounting must require a linear claim");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("carrier `Counter` is not linear")
+            && diagnostic.message.contains("owned linear claims")
+    }));
+}
+
+#[test]
 fn boundary_requirement_may_authorize_its_exact_qualified_result() {
     let typed = typed_program_from_source(
         r#"

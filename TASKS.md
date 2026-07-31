@@ -268,6 +268,15 @@ symbols. Core algebra definitions remain structurally generic through checked
 lowering. Runtime-scalar embedding is the next closed-fragment rung; the
 backing and conservation consumers are still outstanding.
 
+Implementation checkpoint (2026-07-31): checked callable signatures now use
+those retained algebra identities for the first custody-conservation gate. A
+content-bearing result rejects when it has compatible content-bearing inputs
+but every compatible source is a shared or exclusive borrow; a by-value linear
+input remains an eligible consumed source. This establishes the documented
+`submit(&buffer) -> PendingWrite` rejection without recognizing carrier,
+domain, parameter, or operation names. Full n-to-m equality, separation,
+backing, retirement, and ambiguity proofs remain outstanding.
+
 - complete the remaining closed content-projection fragment by adding explicit
   runtime-scalar embeddings into proof naturals; continue rejecting branches,
   loops, arbitrary calls, allocation, effects, and hidden state;
@@ -687,8 +696,9 @@ improvements do not change public identity.
   build-time outcomes; it is telemetry precursor evidence, not canonical-IR
   fuel.
 - **FFIVAL:** validate the settled boundary model before adding any new
-  construct. First add rejection canaries for a returned custody claim sourced
-  only from a borrow and incompatible affinity/executor selection. Then
+  construct. The returned-custody-from-borrow rejection canary now lands
+  through content-algebra facts; next add the incompatible affinity/executor
+  selection rejection canary. Then
   implement a narrow Windows `user32` slice:
   `RegisterClassEx`, `CreateWindowEx`/`WM_NCCREATE`, `GetMessage`,
   `DispatchMessage`, `DefWindowProc`, `DestroyWindow`, and

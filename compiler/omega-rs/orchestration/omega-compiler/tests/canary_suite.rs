@@ -39563,6 +39563,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/content_projection_foreign_owner",
     "core/content_projection_duplicate",
     "core/content_projection_arbitrary_call",
+    "core/content_retained_custody_from_borrow",
     "core/extent_root_adapter_direct_call_does_not_grant",
     "core/carry_permission_adapter_direct_call_does_not_grant",
     "core/numeric_exact_narrowing_unproven",
