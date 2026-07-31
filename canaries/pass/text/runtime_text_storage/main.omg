@@ -6,9 +6,9 @@
 // carrier end to end.
 use omega::language::std::console;
 
-domain [u8; 64]::Utf8 {
+domain [u8; 64]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     console: Console;

@@ -1,8 +1,8 @@
 data Socket {}
 
-domain Socket::Connected {
+domain Socket::Connected
+requires
     true;
-}
 
 pub domain Socket::Usable = Socket::Connected;
 

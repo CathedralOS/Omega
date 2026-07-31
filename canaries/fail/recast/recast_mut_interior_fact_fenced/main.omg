@@ -1,9 +1,9 @@
 // FAIL CANARY: raw byte-region views cannot establish a constrained target.
 // Mutable recasts owe fact implication in both directions, and arbitrary bytes
 // prove no `Small` invariant.
-domain u32::Small {
+domain u32::Small
+requires
     self <= 10;
-}
 
 data Main {
     buf: [u8; 4];

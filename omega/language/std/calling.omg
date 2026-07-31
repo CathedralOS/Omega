@@ -11,9 +11,9 @@
 // COUNT CARRIERS: byte sizes, alignments, counts, indices, register ordinals,
 // immediates, and nonnegative stack offsets use u64, never addr.
 
-domain [u8; 256]::Utf8 {
+domain [u8; 256]::Utf8
+requires
     valid_utf8(self);
-}
 
 data SystemVEightbyteClass {
     case Integer;

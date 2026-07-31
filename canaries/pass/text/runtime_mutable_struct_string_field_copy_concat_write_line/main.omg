@@ -1,12 +1,12 @@
 use omega::language::std::console;
 
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 
-domain [u8; 32]::Utf8 {
+domain [u8; 32]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Room {
     label: [u8; 16] in Utf8;

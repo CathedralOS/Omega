@@ -5,9 +5,9 @@
 // line was stale -- the machinery works for honest bytes). The ADVERSARIAL
 // half does NOT hold: see pending/wire/utf8_decode_accepts_invalid_bytes
 // (the decoder never runs the domain predicate on untrusted bytes).
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 data LabelMessage {
     #0 count: u32;

@@ -9,9 +9,9 @@ data Item {
     value: i32;
 }
 
-domain Item::Ready {
+domain Item::Ready
+requires
     self.value > 0;
-}
 
 machine free_inner(item: &Item) -> i32
 requires

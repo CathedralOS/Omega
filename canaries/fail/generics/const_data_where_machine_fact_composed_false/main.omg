@@ -4,10 +4,10 @@ machine is_positive(value: u64) -> bool {
     value > 0
 }
 
-domain u64::BufferSize {
+domain u64::BufferSize
+requires
     is_positive(self);
     self <= 8
-}
 
 data FixedBuffer<const N: u64>
 where

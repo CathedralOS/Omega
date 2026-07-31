@@ -2,9 +2,10 @@ data Quantity {
     value: i32;
 }
 
-domain Quantity::Additive {
+domain Quantity::Additive
+requires
     self.value >= 0;
-
+{
     operator combine<T, U>(left: T, right: U) -> T;
     operator combine<A, B>(left: B, right: A) -> B;
 }

@@ -8,10 +8,10 @@ data Ticket {
 }
 
 domain Ticket::Issued;
-domain Ticket::Recorded {}
-domain Ticket::Universal {
+domain Ticket::Recorded;
+domain Ticket::Universal
+requires
     true;
-}
 
 data Main {
     console: Console;

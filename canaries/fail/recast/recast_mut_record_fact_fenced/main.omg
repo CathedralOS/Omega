@@ -1,8 +1,8 @@
 // FAIL CANARY: a mutable record view owes fact implication in both
 // directions. Arbitrary byte writes cannot preserve a constrained field.
-domain u16::Small {
+domain u16::Small
+requires
     self <= 10;
-}
 
 data Facted {
     value: u16 in Small;

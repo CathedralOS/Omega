@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // A library that ACQUIRES filesystem authority. The `Disk` boundary is held in a
 // machine-owned field and the package exercises `Disk` directly through
 // it, rather than receiving the authority from a caller. That makes the call an

@@ -190,9 +190,12 @@ once, after symbol assignment, to checked- or boundary-requirement identities;
 unknown, ambiguous, and exact-result-mismatched routes reject. Checked
 conformance exits consult those identities, prove every predicate on a mixed
 domain, and publish `authorized_route_establishment` rather than ambient owner
-evidence. `Extent::Granted` uses the authored route surface. Legacy body
-predicates and inferred owner routes remain temporarily for source-corpus
-migration and are not the target representation.
+evidence. `Extent::Granted` uses the authored route surface. Predicate-in-body
+syntax is now rejected with directed `requires` migration guidance, and the
+source, sample, canary, and embedded-test corpora use the independent predicate
+record. Legacy nested domain operators and inferred owner routes remain
+temporarily for their separate migration and are not the target
+representation.
 
 Implementation status (P1a establishment routes, 2026-07-28):
 `DomainEstablishmentRoute` records the exact trait-requirement identity

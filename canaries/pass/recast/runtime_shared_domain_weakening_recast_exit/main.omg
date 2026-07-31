@@ -3,14 +3,14 @@
 // any representation that the established source value did not already admit.
 use omega::language::std::console;
 
-domain u32::Wide {
+domain u32::Wide
+requires
     self <= 100;
-}
 
-domain u32::Narrow {
+domain u32::Narrow
+requires
     self in u32::Wide;
     self <= 10;
-}
 
 data Main {
     console: Console;

@@ -228,9 +228,9 @@ fn exposes_exit_acceptance_through_shared_view_surface() {
             health: i32;
         }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self.health > 0;
-        }
 
         data Main {
             player: Player;

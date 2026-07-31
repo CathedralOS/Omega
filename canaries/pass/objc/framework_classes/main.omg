@@ -10,9 +10,9 @@
 // without a window server connection at load time. All non-null -> exit 9; any
 // nil -> a distinct code (10=NSString, 11=NSApplication, 12=NSWindow) to pinpoint.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

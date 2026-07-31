@@ -6,9 +6,9 @@
 // `Reference { Constrained { Slice } }` as the fat `{ptr, len}` descriptor;
 // before the layout fix the field was a thin 8-byte pointer and the copy
 // silently dropped its length.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 data Slot {
     out: &[u8] in Utf8;
 }

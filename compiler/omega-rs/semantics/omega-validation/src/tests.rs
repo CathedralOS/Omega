@@ -1286,9 +1286,9 @@ fn rejects_unknown_domain_membership_in_domain_body() {
     data Player {
     }
 
-    domain Player::Alive {
+    domain Player::Alive
+    requires
         self in Player::Valid
-    }
 
     data Main {
     }
@@ -1317,8 +1317,12 @@ fn rejects_unknown_domain_membership_in_domain_body() {
 fn repeated_normalized_domain_name_requires_equal_semantics() {
     let matching = typed_program_from_source(
         r#"
-        domain [u8; 8]::Utf8 { valid_utf8(self); }
-        domain [u8; 16]::Utf8 { valid_utf8(self); }
+        domain [u8; 8]::Utf8
+        requires
+            valid_utf8(self);
+        domain [u8; 16]::Utf8
+        requires
+            valid_utf8(self);
         "#,
     );
     validate_program(&matching)
@@ -1326,8 +1330,12 @@ fn repeated_normalized_domain_name_requires_equal_semantics() {
 
     let divergent = typed_program_from_source(
         r#"
-        domain [u8; 8]::Utf8 { valid_utf8(self); }
-        domain [u8; 16]::Utf8 { no_nul(self); }
+        domain [u8; 8]::Utf8
+        requires
+            valid_utf8(self);
+        domain [u8; 16]::Utf8
+        requires
+            no_nul(self);
         "#,
     );
     let diagnostics =
@@ -1347,8 +1355,10 @@ fn domain_constraints_resolve_same_short_name_by_carrier() {
             signed: i64 in Tagged;
             unsigned: u64 in Tagged;
         }
-        domain i64::Tagged {}
-        domain u64::Tagged { self >= 0; }
+        domain i64::Tagged;
+        domain u64::Tagged
+        requires
+            self >= 0;
         "#,
     );
     validate_program(&typed)
@@ -1360,7 +1370,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
     let mut typed = typed_program_from_source(
         r#"
         data Holder { value: i64 in Tagged; }
-        domain i64::Tagged {}
+        domain i64::Tagged;
         "#,
     );
     let (_, constraints) = typed
@@ -1404,7 +1414,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
 fn empty_domain_explicit_as_requires_neither_predicate_nor_user_satisfier() {
     let typed = typed_program_from_source(
         r#"
-        domain i64::Km {}
+        domain i64::Km;
 
         machine qualify(raw: i64) {
             let distance: i64 = raw as i64 in Km;
@@ -2442,9 +2452,9 @@ fn rejects_non_boolean_shaped_proof_fact() {
     data Player {
     }
 
-    domain Player::Weird {
+    domain Player::Weird
+    requires
         1 + 2
-    }
 
     data Main {
     }
@@ -2478,13 +2488,13 @@ fn rejects_domain_import_with_different_target_type() {
     data Enemy {
     }
 
-    domain Enemy::Valid {
+    domain Enemy::Valid
+    requires
         true
-    }
 
-    domain Player::Alive {
+    domain Player::Alive
+    requires
         self in Enemy::Valid
-    }
 
     data Main {
     }
@@ -2518,13 +2528,13 @@ fn rejects_domain_import_cycles() {
     data Player {
     }
 
-    domain Player::Alive {
+    domain Player::Alive
+    requires
         self in Player::Valid
-    }
 
-    domain Player::Valid {
+    domain Player::Valid
+    requires
         self in Player::Alive
-    }
 
     data Main {
     }
@@ -2558,7 +2568,9 @@ fn rejects_unknown_transparent_alias_constituent() {
         data Socket {}
         domain Socket::Usable =
             Socket::Connected & Socket::Missing;
-        domain Socket::Connected { true; }
+        domain Socket::Connected
+        requires
+            true;
         "#,
     );
 
@@ -2576,8 +2588,12 @@ fn rejects_transparent_alias_constituent_with_different_carrier() {
         r#"
         data Socket {}
         data Session {}
-        domain Socket::Connected { true; }
-        domain Session::Authenticated { true; }
+        domain Socket::Connected
+        requires
+            true;
+        domain Session::Authenticated
+        requires
+            true;
         domain Socket::Usable =
             Socket::Connected & Session::Authenticated;
         "#,
@@ -2615,7 +2631,9 @@ fn rejects_public_alias_that_publishes_private_constituent() {
     let typed = typed_program_from_source(
         r#"
         data Socket {}
-        domain Socket::Connected { true; }
+        domain Socket::Connected
+        requires
+            true;
         pub domain Socket::Usable = Socket::Connected;
         "#,
     );

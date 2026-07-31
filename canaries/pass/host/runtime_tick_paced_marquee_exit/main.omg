@@ -1,9 +1,9 @@
 // Canary twin of samples/tick_marquee: a tick-paced render loop with a real elapsed-time
 // assertion (see the sample for the full story). Exit 0. Differential.
 use omega::language::std::console;
-domain [u8; 12]::Utf8 {
+domain [u8; 12]::Utf8
+requires
     valid_utf8(self);
-}
 boundary trait Clock2 { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
 data Main {
     console: Console;

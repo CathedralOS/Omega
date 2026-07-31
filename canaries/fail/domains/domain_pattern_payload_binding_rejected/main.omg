@@ -1,7 +1,9 @@
 // FAIL CANARY: payload binding is a case-only operation. A declared domain
 // may classify a record, but it does not imply a case payload shape.
 data Player { health: i32; }
-domain Player::Alive { self.health > 0; }
+domain Player::Alive
+requires
+    self.health > 0;
 data Main { player: Player; }
 machine Main::main(&mut self) {
     transition self.player {

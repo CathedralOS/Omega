@@ -9,9 +9,9 @@ reaches
     value > 0 && value <= 8
 }
 
-domain u64::BufferSize {
+domain u64::BufferSize
+requires
     is_buffer_size(self);
-}
 data FixedBuffer<const N: u64>
 where
     N in BufferSize,

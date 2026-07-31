@@ -3,9 +3,10 @@
 // `value`, so the builtin scalar addition stays selected (evidence records a
 // builtin fallback). Flow proof state is irrelevant to this choice.
 
-domain i32::Degrees {
+domain i32::Degrees
+requires
     self >= 0;
-
+{
     operator add(left: i32, right: i32) -> i32 spelling +;
 }
 

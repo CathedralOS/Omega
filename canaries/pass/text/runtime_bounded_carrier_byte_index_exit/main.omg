@@ -4,12 +4,12 @@
 // two bytes of "ALERT" -- both hold, so the ok arm exits 70. (Indexing in guards is
 // the parsing/scanning workhorse; using a byte's VALUE in a wider int context, e.g.
 // exiting it, needs a separate u8->i32 zero-extension still missing.)
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

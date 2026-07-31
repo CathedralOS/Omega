@@ -8,9 +8,9 @@ fn rejects_unproven_exit_ensures_domain_membership() {
             health: i32;
         }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self.health > 0;
-        }
 
         data Main {
             player: Player;
@@ -41,9 +41,9 @@ fn accepts_exit_ensures_preserved_from_entry_fact() {
             health: i32;
         }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self.health > 0;
-        }
 
         data Main {
             player: Player;
@@ -70,9 +70,9 @@ fn does_not_seed_machine_ensures_into_machine_entry_contexts() {
             health: i32;
         }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self.health > 0;
-        }
 
         data Main {
             player: Player;
@@ -162,13 +162,13 @@ fn accepts_exit_ensures_domain_union_when_left_branch_is_proven() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;
@@ -196,9 +196,9 @@ fn accepts_exit_ensures_boolean_expression_from_domain_fact() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -226,9 +226,9 @@ fn accepts_exit_ensures_boolean_union_expression_from_domain_fact() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -256,9 +256,9 @@ fn rejects_exit_ensures_boolean_expression_from_domain_fact_after_mutating_call(
             salt: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -303,9 +303,9 @@ fn accepts_exit_ensures_boolean_expression_from_domain_fact_across_disjoint_muta
             salt: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -343,9 +343,9 @@ fn accepts_exit_ensures_fixed_indexed_scalar_member_expression_from_domain_fact(
             value: i32;
         }
 
-        domain Entry::Positive {
+        domain Entry::Positive
+        requires
             self.value > 0;
-        }
 
         data Main {
             entries: [Entry; 2];
@@ -374,9 +374,9 @@ fn rejects_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_after_
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -423,9 +423,9 @@ fn accepts_exit_ensures_fixed_indexed_boolean_expression_from_domain_fact_across
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -464,9 +464,9 @@ fn accepts_exit_ensures_dynamic_indexed_scalar_member_expression_from_domain_fac
             value: i32;
         }
 
-        domain Entry::Positive {
+        domain Entry::Positive
+        requires
             self.value > 0;
-        }
 
         data Main {
             entries: [Entry; 2];
@@ -496,13 +496,13 @@ fn accepts_exit_ensures_domain_union_when_right_branch_is_proven() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;
@@ -530,13 +530,13 @@ fn rejects_unproven_exit_ensures_domain_union() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;
@@ -596,13 +596,13 @@ fn accepts_requires_domain_union_when_left_branch_is_proven() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;
@@ -634,9 +634,9 @@ fn accepts_requires_boolean_expression_from_domain_fact() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -668,9 +668,9 @@ fn accepts_requires_boolean_union_expression_from_domain_fact() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -702,9 +702,9 @@ fn accepts_requires_scalar_member_expression_from_domain_fact() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -736,9 +736,9 @@ fn accepts_requires_fixed_indexed_scalar_member_expression_from_domain_fact() {
             value: i32;
         }
 
-        domain Entry::Positive {
+        domain Entry::Positive
+        requires
             self.value > 0;
-        }
 
         data Main {
             entries: [Entry; 2];
@@ -770,9 +770,9 @@ fn accepts_requires_dynamic_indexed_scalar_member_expression_from_domain_fact() 
             value: i32;
         }
 
-        domain Entry::Positive {
+        domain Entry::Positive
+        requires
             self.value > 0;
-        }
 
         data Main {
             entries: [Entry; 2];
@@ -806,9 +806,9 @@ fn rejects_requires_boolean_expression_from_domain_fact_after_mutating_call() {
             salt: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -856,9 +856,9 @@ fn accepts_requires_boolean_expression_from_domain_fact_across_disjoint_mutating
             salt: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
         data Main {
             password: Password;
@@ -900,9 +900,9 @@ fn rejects_requires_scalar_member_expression_after_same_index_mutation() {
             other: i32;
         }
 
-        domain Entry::Positive {
+        domain Entry::Positive
+        requires
             self.value > 0;
-        }
 
         data Main {
             entries: [Entry; 2];
@@ -941,9 +941,9 @@ fn rejects_requires_fixed_indexed_boolean_expression_from_domain_fact_after_muta
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -992,9 +992,9 @@ fn accepts_requires_fixed_indexed_boolean_expression_from_domain_fact_across_dis
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -1037,9 +1037,9 @@ fn rejects_requires_dynamic_indexed_boolean_expression_from_domain_fact_after_mu
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -1089,9 +1089,9 @@ fn accepts_requires_dynamic_indexed_boolean_expression_from_domain_fact_across_d
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -1137,9 +1137,9 @@ fn rejects_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_afte
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -1188,9 +1188,9 @@ fn accepts_exit_ensures_dynamic_indexed_boolean_expression_from_domain_fact_acro
             tag: i32;
         }
 
-        domain Item::Valid {
+        domain Item::Valid
+        requires
             self.value > 0;
-        }
 
         data Main {
             items: [Item; 2];
@@ -1232,13 +1232,13 @@ fn accepts_requires_domain_union_when_right_branch_is_proven() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;
@@ -1270,13 +1270,13 @@ fn rejects_unproven_requires_domain_union() {
             score: i32;
         }
 
-        domain Password::Valid {
+        domain Password::Valid
+        requires
             self.length > 0;
-        }
 
-        domain Password::Secure {
+        domain Password::Secure
+        requires
             self.score >= 8;
-        }
 
         data Main {
             password: Password;
@@ -1610,9 +1610,9 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
             health: i32;
         }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self.health > 0;
-        }
 
         data Main {
             player: Player;
@@ -1706,9 +1706,9 @@ fn accepts_requires_from_local_alias_transfer() {
             health: i32;
         }
 
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self.health > 0;
-        }
 
         data Main {
             player: Player;
@@ -2014,13 +2014,13 @@ fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
             machine write(text: [u8] in Utf8);
         }
 
-        domain [u8]::Utf8 {
+        domain [u8]::Utf8
+        requires
             valid_utf8(self);
-        }
 
-        domain [u8; 4]::Utf8 {
+        domain [u8; 4]::Utf8
+        requires
             valid_utf8(self);
-        }
 
         data Main {
             sink: Sink;
@@ -2044,13 +2044,13 @@ fn bounded_byte_domain_projection_requires_matching_predicate_theory() {
             machine write(text: [u8] in Text);
         }
 
-        domain [u8]::Text {
+        domain [u8]::Text
+        requires
             no_nul(self);
-        }
 
-        domain [u8; 4]::Text {
+        domain [u8; 4]::Text
+        requires
             valid_utf8(self);
-        }
 
         data Main {
             sink: Sink;

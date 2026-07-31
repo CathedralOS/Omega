@@ -16,12 +16,12 @@
 
 use omega::language::std::console;
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 5]::Utf8 {
+domain [u8; 5]::Utf8
+requires
     valid_utf8(self);
-}
 data Main {
     console: Console;
     text: [u8; 5] in Utf8;

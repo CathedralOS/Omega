@@ -7,9 +7,9 @@ data Item {
     value: i32;
 }
 
-domain Item::Ready {
+domain Item::Ready
+requires
     self.value > 0;
-}
 
 boundary trait Console {
     machine show(item: &Item)

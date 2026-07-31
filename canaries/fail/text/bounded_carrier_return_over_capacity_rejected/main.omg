@@ -2,9 +2,9 @@
 // the declared capacity just like a field/local write. Accepting this would
 // let the callee return `{len = 5, bytes[4]}` and make the caller trust an
 // out-of-bounds length before any assignment-site capacity check could help.
-domain [u8; 4]::Utf8 {
+domain [u8; 4]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
 }

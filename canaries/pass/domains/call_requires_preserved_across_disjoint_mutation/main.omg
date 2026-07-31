@@ -3,10 +3,10 @@ data Player {
     mana: i32;
 }
 
-domain Player::Valid {
+domain Player::Valid
+requires
     self.health >= 0;
     self.health <= 100;
-}
 
 data Main {
     player: Player;

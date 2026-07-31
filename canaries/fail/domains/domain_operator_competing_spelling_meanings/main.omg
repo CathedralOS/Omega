@@ -8,15 +8,17 @@ data Quantity {
     value: i32;
 }
 
-domain Quantity::Linear {
+domain Quantity::Linear
+requires
     self.value >= 0;
-
+{
     operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
 }
 
-domain Quantity::Cyclic {
+domain Quantity::Cyclic
+requires
     self.value >= 0;
-
+{
     operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
 }
 

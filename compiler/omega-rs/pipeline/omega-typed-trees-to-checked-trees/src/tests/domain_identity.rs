@@ -30,8 +30,8 @@ fn specializations_for<'program>(
 fn reordered_domain_conjunctions_share_one_specialization() {
     let checked = check(
         r#"
-        domain i32::Alpha {}
-        domain i32::Beta {}
+        domain i32::Alpha;
+        domain i32::Beta;
         data Main {}
 
         machine inspect<T [copy]>(value: T) {}
@@ -60,8 +60,8 @@ fn reordered_domain_conjunctions_share_one_specialization() {
 fn distinct_domains_with_the_same_term_count_do_not_share_a_specialization() {
     let checked = check(
         r#"
-        domain i32::Alpha {}
-        domain i32::Beta {}
+        domain i32::Alpha;
+        domain i32::Beta;
         data Main {}
 
         machine inspect<T [copy]>(value: T) {}

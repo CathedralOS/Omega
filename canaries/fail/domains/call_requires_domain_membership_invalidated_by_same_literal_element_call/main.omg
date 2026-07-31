@@ -3,9 +3,9 @@ data Item {
     tag: i32;
 }
 
-domain Item::Valid {
+domain Item::Valid
+requires
     self.value > 0;
-}
 
 data Main {
     items: [Item; 2];

@@ -9,10 +9,10 @@ data Entity {
     case Monster(health: i32);
 }
 
-domain Entity::Dangerous {
+domain Entity::Dangerous
+requires
     self in Entity::Monster;
     self.health > 0;
-}
 
 data Main {
     entity: Entity;

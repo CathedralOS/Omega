@@ -1,12 +1,12 @@
 // The branch prelude must materialize a call-free text-equality local before
 // transition argument capture. Forwarding `x` from the nested edge must see
 // the initialized slot rather than its zero-initialized value.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 data Store { name: [u8; 8] in Utf8; }
 machine Store::check(&mut self, idx: i32) -> bool {

@@ -2,12 +2,12 @@
 // edge establishes `self.i < self.items.len`, but the sibling call can replace
 // the collection before the indexed read. Its recursive frame overlaps
 // `self.items`, so the Houdini candidate must fail closed.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     items: [u8; 8] in Utf8;

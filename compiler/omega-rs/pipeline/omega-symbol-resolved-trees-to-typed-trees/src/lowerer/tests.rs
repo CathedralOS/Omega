@@ -129,17 +129,16 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
 #[test]
 fn lowers_domain_definitions() {
     let source = r#"
-    domain Player::Valid {
+    domain Player::Valid
+    requires
         self.health >= 0
-    }
 
-    domain Player::Alive {
+    domain Player::Alive
+    requires
         self in Player::Valid;
         self.health > 0
-    }
 
-    domain Player::Tagged {
-    }
+    domain Player::Tagged;
     "#;
 
     let tokens = Lexer::new(source)
@@ -206,12 +205,11 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
         boxed_signed: Box<i64 in Tagged>;
     }
 
-    domain i64::Tagged {
-    }
+    domain i64::Tagged;
 
-    domain u64::Tagged {
+    domain u64::Tagged
+    requires
         self >= 0;
-    }
     "#;
 
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -318,18 +316,18 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
         authenticated: bool;
     }
 
-    domain Socket::Connected {
+    domain Socket::Connected
+    requires
         self.connected;
-    }
-    domain Socket::Authenticated {
+    domain Socket::Authenticated
+    requires
         self.authenticated;
-    }
     domain Socket::Usable =
         Socket::Connected & Socket::Authenticated;
     domain Socket::Ready = Socket::Usable;
-    domain Socket::Prepared {
+    domain Socket::Prepared
+    requires
         self in Socket::Ready;
-    }
 
     data Holder {
         aliased: Socket in Usable;
@@ -433,9 +431,13 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
 #[test]
 fn parameter_domain_conjunction_synthesizes_each_membership_contract() {
     let source = r#"
-    domain [u8]::Meaning {}
-    domain [u8]::Utf8 { valid_utf8(self); }
-    domain [u8]::NoNul { no_nul(self); }
+    domain [u8]::Meaning;
+    domain [u8]::Utf8
+    requires
+        valid_utf8(self);
+    domain [u8]::NoNul
+    requires
+        no_nul(self);
 
     machine inspect(bytes: &[u8] in Meaning & Utf8 & NoNul) {
     }
@@ -570,9 +572,10 @@ fn preserves_domain_operator_declarations() {
         value: i32;
     }
 
-    domain Quantity::Additive {
+    domain Quantity::Additive
+    requires
         self.value >= 0;
-
+    {
         operator add(left: Quantity, right: Quantity) -> Quantity;
     }
     "#;

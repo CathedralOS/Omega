@@ -7,12 +7,12 @@
 // that makes in-place mutation (e.g. building text byte-by-byte) possible.
 // Exits 70.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 4]::Utf8 {
+domain [u8; 4]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

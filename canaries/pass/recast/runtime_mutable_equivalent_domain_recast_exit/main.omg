@@ -5,9 +5,9 @@
 // proved equivalent. Other canaries independently pin mutable write-through.
 use omega::language::std::console;
 
-domain u32::Small {
+domain u32::Small
+requires
     self <= 100;
-}
 
 data Main {
     console: Console;

@@ -2,9 +2,9 @@ data Player {
     health: i32;
 }
 
-domain Player::Alive {
+domain Player::Alive
+requires
     self.health > 0;
-}
 
 data Main {
     player: Player;

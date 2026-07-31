@@ -2,12 +2,12 @@
 // collection length, but the preheader overwrites limit before the loop-entry
 // guard. Even though the natural loop preserves limit, the arrival fact is
 // stale and cannot bridge `i < limit` to the indexed collection.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     items: [u8; 8] in Utf8;

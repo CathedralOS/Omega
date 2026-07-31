@@ -2,9 +2,9 @@
 // carrier. The validator scans once and establishes the domain membership on
 // the caller's mutable operand; the fact is then carried rather than re-proved.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 
 boundary operator Text::validate_utf8(text: &mut [u8]) -> ()
 ensures

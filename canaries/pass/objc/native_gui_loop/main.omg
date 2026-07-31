@@ -15,9 +15,9 @@
 // is the end-goal behavior; the only remaining piece is the source-transparent
 // wiring so the UNCHANGED samples' boundary Gui/Clock/Input calls reach it.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

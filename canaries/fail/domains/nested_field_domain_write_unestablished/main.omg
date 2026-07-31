@@ -4,9 +4,9 @@
 // nested-field write SILENTLY BYPASSED the domain check -- a non-ascii literal
 // would have been accepted into an `Ascii` field. It is now rejected: the prover
 // cannot establish `"café"` (a multibyte `é`) is `ascii_only`.
-domain [u8]::Ascii {
+domain [u8]::Ascii
+requires
     ascii_only(self);
-}
 use omega::language::std::console;
 
 data Inner {

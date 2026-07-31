@@ -3,12 +3,12 @@
 // `&[u8] in Utf8` view to resolve a Command, and loops until `quit`. The parser
 // returns the Command enum directly (the value-call splices its enum result into
 // the caller's branch each iteration).
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
     machine read_line(out_line: &mut [u8; 16] in Utf8);

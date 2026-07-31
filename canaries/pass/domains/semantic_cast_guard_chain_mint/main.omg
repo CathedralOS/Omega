@@ -5,9 +5,9 @@
 // domain. RUNS exit 70.
 use omega::language::std::console;
 data Main { console: Console; }
-domain i64::Km {
+domain i64::Km
+requires
     self >= 0;
-}
 machine qualify(raw: i64) -> i64
 requires
     raw >= 0

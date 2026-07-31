@@ -371,7 +371,9 @@ fn generic_body_can_consume_machine_parameter_ensures() {
     let source = r#"
         data Main {}
         machine Main::run(&mut self) {}
-        domain i32::Positive { self > 0 }
+        domain i32::Positive
+        requires
+            self > 0
 
         machine pipeline<machine Establish, machine Consume>(value: &mut i32)
         where machine Establish(item: &mut i32)

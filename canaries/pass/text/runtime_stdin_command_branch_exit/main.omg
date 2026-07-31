@@ -7,9 +7,9 @@
 // surface with no `String`.
 use omega::language::std::console;
 
-domain [u8; 32]::Utf8 {
+domain [u8; 32]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Command {
     case Look;

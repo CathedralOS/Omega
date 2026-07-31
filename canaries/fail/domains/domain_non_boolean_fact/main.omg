@@ -2,9 +2,9 @@ data Player {
     health: i32;
 }
 
-domain Player::Weird {
+domain Player::Weird
+requires
     1 + 2;
-}
 
 data Main {
     player: Player;

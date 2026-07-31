@@ -2,12 +2,12 @@
 // prelude: it must write `x` after arm_a is selected and before arm_a's nested
 // guard reads it. Text equality needs the frame-slot comparison writer on that
 // pre-guard path; a terminal-leaf write is too late.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 data Store { name: [u8; 8] in Utf8; }
 machine Store::check(&mut self, idx: i32) -> bool {

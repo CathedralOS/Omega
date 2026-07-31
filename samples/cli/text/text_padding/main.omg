@@ -10,15 +10,15 @@
 
 use omega::language::std::console;
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 32]::Utf8 {
+domain [u8; 32]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 256]::Utf8 {
+domain [u8; 256]::Utf8
+requires
     valid_utf8(self);
-}
 
 data Main {
     console: Console;

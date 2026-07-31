@@ -6,12 +6,12 @@
 // "abc" has len 3: `len == 3` is TRUE, `len == 9` is FALSE. Exercising both arms
 // proves the guard actually evaluates now.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

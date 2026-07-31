@@ -8,9 +8,9 @@
 // builds the NSWindow, value-called with integer literals. A non-null window ->
 // exit 8. This is the hardest Gui op proven in its true sample shape.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

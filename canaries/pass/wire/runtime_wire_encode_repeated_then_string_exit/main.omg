@@ -1,6 +1,6 @@
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 // Wire REPEATED + STRING-LAST in ONE message: a packed repeated field
 // (runtime-sized payload via FixedVec's intrinsic length) followed by the &[u8] in Utf8
 // field carrying the highest field number (the &[u8] in Utf8 must encode last --

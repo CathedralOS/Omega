@@ -2,9 +2,9 @@
 // fact. A checked outbound adapter may freely forget the predicate fact when
 // handing bytes to a raw consumer. Bytes received without that fact must pass
 // through an explicit validator before a checked consumer can require Utf8.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
 
 boundary operator Text::validate_utf8(text: &mut [u8]) -> ()
 ensures

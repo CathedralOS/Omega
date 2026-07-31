@@ -6,15 +6,15 @@
 // `String`, no `{ptr, len}` descriptor. `self.line = ""` establishes the
 // out-param's `in Utf8` domain before the call. `self.line == "== Gate =="` matches
 // (length 10, every byte) -> exit 70.
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Formatter {

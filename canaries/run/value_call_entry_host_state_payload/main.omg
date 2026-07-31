@@ -17,12 +17,12 @@
 // exit 70 = Ok payload delivered; 71 unused; 72 = Ok len lost (the mis-order);
 // 73 = Ok tail lost; 75 = Error kind delivered; 76 = Error kind lost.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 16]::Utf8 {
+domain [u8; 16]::Utf8
+requires
     valid_utf8(self);
-}
 boundary trait Console {
     machine read_line(out_line: &mut [u8; 16] in Utf8);
     machine exit_process(return_code: i32);

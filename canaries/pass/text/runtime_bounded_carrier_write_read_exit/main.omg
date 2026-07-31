@@ -5,9 +5,9 @@
 // addressing (length at offset 0, content at offset pointer_size) and content-
 // compares against the literal. `self.label == "Gate"` matches (length 4 == 4,
 // every byte equal) so it exits 70. The interpreter agrees (differential).
-domain [u8; 8]::Utf8 {
+domain [u8; 8]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

@@ -2404,10 +2404,10 @@ fn parses_export_items_with_optional_alias() {
 #[test]
 fn parses_domain_definition_surface() {
     let source = r#"
-        domain Player::Alive {
+        domain Player::Alive
+        requires
             self in Player::Valid;
             self.health > 0
-        }
         "#;
 
     let tokens = Lexer::new(source)
@@ -2490,11 +2490,35 @@ fn parses_domain_requires_and_requirement_routes_independently() {
 }
 
 #[test]
+fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
+    let source = r#"
+        domain Player::Alive {
+            self.health > 0;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let error = parse_syntax_trees(&tokens).expect_err("body predicates must be retired");
+    assert!(
+        error
+            .message
+            .contains("domain predicates must be written in `requires`"),
+        "got: {}",
+        error.message
+    );
+    assert!(error.message.contains("`Trait::requirement`"));
+}
+
+#[test]
 fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
     let source = r#"
         domain Reservation::Issued;
-        domain Reservation::Recorded {}
-        domain Reservation::Universal { true; }
+        domain Reservation::Recorded;
+        domain Reservation::Universal
+        requires
+            true;
         "#;
 
     let tokens = Lexer::new(source)

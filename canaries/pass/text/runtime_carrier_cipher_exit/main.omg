@@ -4,12 +4,12 @@
 // index, every iteration. Shifting "HELLO" by 3 gives "KHOOR"; the transformed
 // bytes are read back (out[0]=='K'(75), out[4]=='R'(82)) to confirm. Exits 70.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8
+requires
     valid_utf8(self);
-}
-domain [u8; 5]::Utf8 {
+domain [u8; 5]::Utf8
+requires
     valid_utf8(self);
-}
 use omega::language::std::console;
 
 data Main {

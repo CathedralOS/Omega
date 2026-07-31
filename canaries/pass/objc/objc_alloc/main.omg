@@ -5,9 +5,9 @@
 // message send dispatched correctly through the libobjc runtime. obj != 0 ->
 // exit 7; a broken send (wrong regs / unbound symbol) -> 0 or crash.
 
-domain [u8]::CString {
+domain [u8]::CString
+requires
     no_nul(self);
-}
 use omega::language::std::console;
 
 boundary trait ObjectiveC {

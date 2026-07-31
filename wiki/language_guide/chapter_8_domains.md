@@ -876,8 +876,9 @@ Vec<u8>::Utf8             // owned text (needs the allocator)
 intrinsics (settled 2026-07-05).** `Utf8` is no more special than `Ascii`,
 `Utf16`, or Shift-JIS; each is a validity *domain* over the byte container,
 defined in `core`, with no compiler privilege. There is no blessed `valid_utf8`
-primitive. A domain's body **is** its predicate; the compiler's only string
-job is turning quoted text into bytes (copy source bytes + byte-level escapes;
+primitive. A domain's `requires` clause states its predicates; the compiler's
+only string job is turning quoted text into bytes (copy source bytes +
+byte-level escapes;
 no codepoint synthesis, ASCII-transparent source). Litmus: delete every encoding
 from the library and the compiler must still lex and parse — it just can't
 establish `in <encoding>` on anything, which is correct.
@@ -1181,9 +1182,11 @@ Working interpretation:
 > been retired. Predicate `requires` and exact `Trait::requirement` body routes
 > now have independent syntax/IR records; authored routes resolve to checked or
 > boundary requirement identities, and mixed routed/predicate results must
-> prove the predicates. The legacy body-predicate and inferred-owner surfaces
-> remain during corpus migration. Exact representation/scale conversion and
-> per-domain erasure are not yet implemented. Arithmetic policies still have
-> special lowering paths. General
+> prove the predicates. Predicate-in-body syntax is retired with directed
+> `requires` migration guidance, and the source, sample, and embedded-test
+> corpora use the settled clause. Legacy nested domain operators and inferred
+> owner routes remain during their separate migration. Exact
+> representation/scale conversion and per-domain erasure are not yet
+> implemented. Arithmetic policies still have special lowering paths. General
 > domain work must preserve every domain-theory axis independently in the IR; see
 > [semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).

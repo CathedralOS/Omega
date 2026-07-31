@@ -343,9 +343,9 @@ data Token {
     value: u64;
 }
 
-domain Token::Positive {
+domain Token::Positive
+requires
     self.value > 0;
-}
 
 machine Token::zero() -> Token
 ensures

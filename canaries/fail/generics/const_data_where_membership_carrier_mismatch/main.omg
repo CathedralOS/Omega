@@ -1,8 +1,8 @@
 // Pre-resolution const membership must not bypass the ordinary carrier check
 // when a qualified domain belongs to a different integer type.
-domain u32::Small {
+domain u32::Small
+requires
     self <= 8;
-}
 
 data FixedBuffer<const N: u64>
 where

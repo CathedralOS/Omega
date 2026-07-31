@@ -1007,12 +1007,12 @@ fn filesystem_path_carrier_concat() {
     interpret_fs(
         "fs-path-concat",
         r#"
-domain [u8; 32]::Path {
+domain [u8; 32]::Path
+requires
     no_nul(self)
-}
-domain [u8; 64]::Path {
+domain [u8; 64]::Path
+requires
     no_nul(self)
-}
 data Main {
     console: Console;
     parent: [u8; 32] in Path;
