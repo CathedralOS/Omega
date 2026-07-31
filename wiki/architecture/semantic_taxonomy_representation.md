@@ -402,6 +402,35 @@ contract/ceiling; validation and admission check the binding/provider behavior
 as a refinement and produce any trust receipt. `ProviderPlan` is then derived
 from explicit conformance closure rather than authored rows.
 
+Selected-provider closure also derives executable TCB metadata independently of
+the machine contract:
+
+```text
+ExecutableEntryOrigin = StaticSelection | OmegaRuntimeAdmission
+
+ExecutableEntry {
+    provider_identity,
+    executable_identity,
+    provider_plan_identity,
+    implementation_evidence,
+    origin,
+    execution_scope,
+    containment_guarantees_with_evidence,
+}
+
+ScopeCompleteness =
+    Complete { scope, evidence }
+  | Incomplete { scope, attributed_providers }
+```
+
+Containment guarantees name memory isolation outside explicitly shared
+authority, forcible termination, fault containment, and bounded resource use.
+They compose by proved implication/set inclusion only where their scopes and
+evidence agree. An opaque uncontained in-process provider forces
+`Incomplete` for that address-space scope; known entries remain useful but are
+not presented as exhaustive. This metadata is a selected-artifact property and
+does not enter source service-reach identity.
+
 Source `boundary` remains insufficient to reconstruct this enum: a checked
 exported callable and an accepted bodyless declaration both mention the word
 but have different supply modes. Likewise, body absence distinguishes a trait

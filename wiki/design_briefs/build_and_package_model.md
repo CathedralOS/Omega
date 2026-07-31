@@ -94,6 +94,29 @@ The exact `Build` library method names remain ordinary API design. Conceptually
 the operations are target-profile selection plus type-per-slot override; users
 do not repeat every default and cannot append or mutate derived plan rows.
 
+Provider selection also determines executable TCB provenance. Static selection
+of an opaque in-process realization contributes a known executable entry even
+though source reach is unchanged; selecting an isolated realization contributes
+an endpoint instead. A package that fixes such a selection exports that
+dependency transitively to every consuming artifact. A checked wrapper may
+narrow its API but cannot erase the selected implementation's evidence,
+execution scope, or containment guarantees.
+
+The artifact manifest separates known entries from completeness. Known entries
+record static versus Omega-mediated runtime origin. An uncontained opaque
+in-process entry makes the caller-address-space manifest incomplete and names
+the provider responsible, because that code may introduce further executable
+bytes without an Omega admission. Build profiles evaluate exact identities,
+platform-baseline policy, implementation evidence, scope completeness, and
+required memory/termination/fault/resource containment. They may permit and
+mark an artifact or reject it before installation.
+
+A filesystem path or unresolved loader name is not executable identity.
+Ordinary package policy rejects an opaque provider whose content, signer, or
+profile-owned platform identity cannot be pinned. Explicit admission of a known
+opaque binary still expands the TCB; identity prevents substitution and enables
+revocation, not behavioral verification.
+
 ## Build-time authority and execution split
 
 `build.omg` may perform authorized package-local staging and may use filesystem,

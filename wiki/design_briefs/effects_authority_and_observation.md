@@ -57,6 +57,14 @@ ceiling is true. A wake operation may reach its scheduler service without being
 declared `suspends`; reach is trait-granular while temporal behavior is
 operation-granular.
 
+Reach auditing has no per-trait opt-in beyond declaring the service boundary.
+Checked bodies infer their complete row, bodyless surfaces publish it, and
+callers inherit it. A deployment profile may classify entries such as
+`DynamicLibraryLoading` as forbidden or review-critical, but that policy does
+not change propagation or source contract identity. Static selection of a DLL
+provider is an artifact/provider fact rather than a loader reach; only a
+runtime loading operation reaches the loading service.
+
 ## Contract axes
 
 The complete machine contract retains independent axes with distinct source

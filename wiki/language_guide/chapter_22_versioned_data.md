@@ -163,6 +163,19 @@ gates entry; quiescence of the old era gates reclamation. Parked continuations
 ordinarily pin the code and metadata of their era. "New routing is active" and
 "the old era is reclaimed" are therefore separate completion states.
 
+Candidate admission also checks its selected-provider TCB manifest. Coexisting
+eras contribute the union of their known executable entries and the weakest
+scope-completeness and containment evidence. Fully checked Omega eras coexist
+as separate owned state trees; process-static services define their own
+versioned-registration or atomic-handover semantics for shared logical names.
+
+A reclaimed mapping may reuse its virtual address only after quiescence proves
+that no live authority reaches it. Bare `addr` and sealed inert `Ptr<T>` values
+cannot recreate such authority. An incomplete or poisoned drain, or a possible
+untracked opaque holder, leaves the mapping reserved and
+unmapped/trapping until the containing execution domain retires. That
+quarantine detects stale entry; it does not discharge outstanding obligations.
+
 Arena-backed pools, era ledgers, coexistence policy, migration graphs, and
 replacement orchestration are runtime/package concerns. Cathedral is the
 planned first customer. Its implementation validates that ordinary data,

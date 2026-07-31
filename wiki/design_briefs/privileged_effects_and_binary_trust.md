@@ -98,6 +98,15 @@ cannot address task/control storage it was not granted. An independent
 final-byte transfer certificate and CET, PAC, or shadow-stack hardening are
 future PCC/TCB-reduction layers, not prerequisites for v1 semantics.
 
+Call/state admission does not make opaque in-process bytes memory-safe. Selected
+provider closure separately emits the executable TCB manifest: exact known
+entries and evidence, execution scope, containment guarantees, and a
+scope-relative completeness result. An uncontained opaque provider makes that
+address-space inventory incomplete because it can introduce further executable
+code outside Omega's admission path. Profiles may explicitly accept and mark
+that expansion, require enforced isolation, or reject it; a checked wrapper
+cannot change the result.
+
 ## Cathedral M3 slice
 
 The first useful slice is:

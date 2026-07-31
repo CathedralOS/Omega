@@ -82,6 +82,14 @@ guarantees, and service reach. The selected realization may be checked Omega cod
 an implementation accepted through a host package, target binding, firmware
 surface, dynamic loader, or other provider edge.
 
+Static import and runtime loading are distinct. Calling a statically selected
+window provider reaches `WindowSystem`; the build's provider graph records that
+its implementation came from a DLL. Calling a runtime loader additionally
+reaches `DynamicLibraryLoading`, and the loaded realization still requires
+provider admission. Reach is complete for every trait: checked bodies infer it,
+bodyless surfaces publish it, and callers inherit it. Deployment policy, rather
+than a per-trait opt-in, decides which entries are critical.
+
 `boundary` is not a synonym for "reaches a service." These are separate axes:
 
 - `reaches` names what externally visible behavior class can happen.
@@ -1317,16 +1325,29 @@ facts are derived from bodies; opaque facts are admitted by bindings. Each fact
 retains its own trust class and exact provenance, and composite guarantees
 report their weakest input. An opaque third-party binary loaded in-process
 remains part of the trusted computing base even when a checked adapter wraps it.
-The boundary manifest names that provider and its receipts; an isolated process
-exposes an endpoint instead.
-The exact root declaration and safety-profile rejection surface remains owner
-question #2.
+TCB expansion follows selected providers rather than source reach. The boundary
+manifest names each known provider/executable identity, static-selection or
+Omega-mediated-runtime origin, evidence class, execution scope, and admitted
+containment guarantees. An isolated process exposes an endpoint in the caller's
+manifest and has a separate executable manifest for its own scope.
+
+The manifest also reports whether the known-entry list is complete for that
+scope. An uncontained opaque in-process provider makes it incomplete and is
+named as the cause, because it may load or generate executable code without an
+Omega admission. The runtime ledger therefore reports what Omega admitted,
+never a falsely exhaustive map of an opaque process. Build profiles may permit
+and mark that result or reject it before installation; platform baselines are
+ordinary policy allowlists.
 
 ## Build Artifacts
 
 Compiler artifacts should list imported libraries, syscall surfaces, the
 registered boundary providers used, inferred authority flow, direct/transitive
-host calls, accepted policies, and domain-evidence origins.
+host calls, accepted policies, domain-evidence origins, and the transitive
+executable TCB manifest. The TCB section keeps known entries separate from its
+scope-relative completeness result and reports memory-isolation,
+forcible-termination, fault-containment, and bounded-resource guarantees
+independently.
 
 Example shape:
 
