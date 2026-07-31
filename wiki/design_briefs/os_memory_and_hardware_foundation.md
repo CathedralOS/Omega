@@ -655,8 +655,8 @@ that subset; atomic mutation follows the atomic rule through a shared view
 borrow, and a bare accessor cannot become an ordinary scalar. Binding-private
 access is now restricted to machines authored in the nominal placement
 policy's canonical package for both value- and statement-position calls.
-Generic atomic-family helper contracts are blocked on `OWNER_QUESTIONS.md` #8,
-and the source-visible loan/profile admission surface is blocked on #7.
+Generic atomic-family helper contracts are blocked on `OWNER_QUESTIONS.md` #7,
+and the source-visible loan/profile admission surface is blocked on #6.
 Target-specific external/atomic emission remains implementation work.
 
 ## IPC and DMA

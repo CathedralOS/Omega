@@ -8,58 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-30.
 
-## 1. What is the reusable hosted-FFI execution and gateway contract?
-
-An opaque native function supplies neither checked WCSU nor Omega's blocking,
-cancellation, retention, callback, and failure guarantees. A direct adapter can
-run it on the current activation stack under an admitted foreign-call plan. A
-gateway can instead suspend the Omega caller and execute the function on a
-bounded pool of native worker stacks. That confines stack accounting and keeps
-native blocking off Omega scheduler workers, but relocates rather than removes
-unboundedness: a hung call retains one worker, may retain loans indefinitely,
-and can exhaust the shared pool.
-
-This choice cannot be a compiler heuristic. Some foreign APIs require the
-initiating thread, thread-local state, a UI/COM apartment, or synchronous
-callbacks. Others are best served by an ordinary worker gateway. Hostile code
-needs a process or hardware protection boundary rather than a declared stack
-number. Guarded stacks detect ordinary exhaustion but prove containment, not
-successful completion.
-
-Decide:
-
-- how a binding selects direct execution, a pinned or general native-worker
-  gateway, or an isolated process without creating a second component model;
-- the normalized foreign-call plan for direct execution, including admitted
-  same-stack contribution, blocking/failure behavior, callback topology, and
-  target calling plan;
-- the normalized gateway resource plan: worker count, worker stack provision,
-  queue capacity, admission/exhaustion behavior, scheduling partitions,
-  cancellation disposition, retained-loan custody, and shutdown/quiescence;
-- whether the common API exposes both bounded `try_submit -> Accepted | Busy`
-  and possibly-unbounded `suspend submit`, and how moved arguments return on
-  failed admission;
-- how cancellation distinguishes native acknowledged cancellation, legal
-  detachment under gateway-owned storage, deferred finalization, and
-  process-level termination;
-- how reports keep time-to-safe-point, operation completion, cancellation
-  finalization, retained-resource release, and gateway admission latency
-  separate and attributed; and
-- which stack-guard/failure-domain facts are derived or admitted per target,
-  without claiming that a guard makes arbitrary in-process native corruption
-  recoverable.
-
-Recommendation: model a gateway as an ordinary boundary provider backed by a
-bounded native-worker resource, not as a new call kind. Let binding packages
-select the execution disposition explicitly. Provide bounded admission and
-backpressure, retain exact loan/custody paths until native completion, and
-partition unknown or blocking libraries away from latency-sensitive platform
-services. Treat a guard as enforced stack containment and an overflow as an
-abnormal exit; it does not prove the foreign call's WCSU or permit resuming
-possibly corrupted in-process state. Keep direct FFI available for audited
-leaf calls and require process isolation for hostile native code.
-
-## 2. How are claim-content projections and backing authored?
+## 1. How are claim-content projections and backing authored?
 
 The resource semantics are settled: content is independent of multiplicity,
 each content-bearing qualification publishes one normalized projection into a
@@ -101,7 +50,7 @@ references by semantic identity, and keep the authored surface small enough
 that the compiler can decide equality, containment, restriction, subtraction,
 and separated composition without executing owner-defined code.
 
-## 3. How are opaque in-process executable dependencies surfaced and refused?
+## 2. How are opaque in-process executable dependencies surfaced and refused?
 
 The boundary-provider report already names imported symbols, selected
 providers, and admission receipts. That makes an opaque native dependency
@@ -136,7 +85,7 @@ reject disallowed in-process providers. Treat platform baselines, third-party
 in-process binaries, and isolated endpoints as different admitted relationships.
 Do not let an ordinary wrapper erase the selected provider's trust class.
 
-## 4. What does contained execution failure do to outstanding obligations?
+## 3. What does contained execution failure do to outstanding obligations?
 
 Process-wide nuclear abort leaves no continuing runtime. A contained activation,
 callback, component, or worker may instead be force-terminated while the rest of
@@ -168,7 +117,7 @@ explicitly assigns teardown that authority. Everything else remains attributed,
 poisons the owning cohort, and blocks reclamation until an authorized recovery
 or a wider failure boundary retires the cohort.
 
-## 5. How are modular concurrency environment premises authored and discharged?
+## 4. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -212,7 +161,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 6. What is the public float-conversion requirement family?
+## 5. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not the public names or
 signatures for policy-bearing conversions. `FloatSemantics` already defines
@@ -247,7 +196,7 @@ exact/trapping/saturating result adapters; keep directed rounding as separate
 operation names; and omit same-format conversion. This follows the settled
 operand-driven provider model without carrying type or policy tags at runtime.
 
-## 7. What is the source-visible placed-storage admission surface?
+## 6. What is the source-visible placed-storage admission surface?
 
 The normalized semantics are settled: a qualified `Extent` yields a bounded
 shared or exclusive loan; a selected provider binds one offset-keyed
@@ -294,7 +243,7 @@ one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
 make `place` the sole consuming constructor for `Placed<P, T>`. Package
 wrappers may compose those operations but cannot mint or erase their evidence.
 
-## 8. What is the generic atomic accessor requirement family?
+## 7. What is the generic atomic accessor requirement family?
 
 Placed atomic fields already derive unique opaque accessors and direct atomic
 syntax is gated per load, store, swap, compare-exchange, and fetch operation.
@@ -326,7 +275,7 @@ failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
 
-## 9. What is the v1 canonical portable IR contract?
+## 8. What is the v1 canonical portable IR contract?
 
 The architecture requires one versioned, distributable, interpreter-defined IR
 whose semantics are independent from mutable optimizer representations and

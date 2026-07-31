@@ -394,7 +394,7 @@ direct foreign call
     -> runs on the current activation stack
     -> admitted foreign stack contribution enters this StackPlan
 
-gateway/component call
+provider-stack/component call
     -> caller accounts for its checked local stub
     -> foreign provider owns a separately provisioned stack
 ```
@@ -421,13 +421,13 @@ provenance edge. A derived Omega WCSU used on a provider stack therefore retains
 the provider's admitted stack and behavior premises. A checked Omega provider
 may derive its own facts from its body.
 
-A hosted native-worker gateway is an ordinary boundary provider, not a task
-runtime mode. It can pool guarded native stacks and keep native blocking off
-Omega scheduler workers, but it does not prove completion or cancellation.
-Pool exhaustion, retained loans, cancellation finalization, and shutdown
-remain separate resource obligations. The reusable gateway contract is owner
-question #2. Retained foreign storage uses the settled call-scoped-borrow or
-linear-in-flight-claim model.
+A hosted blocking executor is an ordinary package, not a task-runtime mode or
+language call kind. It may pool guarded native stacks and keep native blocking
+off no-block scheduler workers, but it does not prove completion or
+cancellation. Pool exhaustion, retained custody, cancellation finalization,
+and shutdown remain ordinary resource obligations. Storage used only before
+return may be borrowed; storage used after return moves into an ordinary linear
+protocol claim through ownership conservation.
 
 The compiler task canary now carries an admitted suspension-only permission
 through a qualified selected-machine entry, local transfer, canonical
@@ -465,9 +465,9 @@ arguments remain TR3–TR8 work.
     checked suspension/pinning contracts.
 14. A blocking call without a finite wait ceiling reports unbounded semantic
     response with the responsible call path.
-15. A foreign same-stack call contributes admitted stack demand; a foreign
-    gateway owns a separate stack and cannot launder unbounded completion into
-    a bounded suspension claim.
+15. A foreign same-stack call contributes admitted stack demand; a package
+    blocking executor owns a separate stack and cannot launder unbounded
+    completion into a bounded suspension claim.
 
 ## Engineering sequence
 
@@ -512,6 +512,6 @@ arguments remain TR3–TR8 work.
 9. Implement canonical-IR metering plus restricted fixed-work entry and
    safe-point segment checking; keep logical work, response wait, and target
    timing conversion distinct.
-10. Implement registered callback lowering under the calling-plan/boundary
-    lane and keep hosted FFI gateway policy under owner question #1 rather
-    than adding either to `TaskRuntime`.
+10. Implement registered callback lowering and the Windows acceptance slice
+    under the calling-plan/boundary lane. Keep any blocking executor as an
+    ordinary package rather than adding either facility to `TaskRuntime`.
