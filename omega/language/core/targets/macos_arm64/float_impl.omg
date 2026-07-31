@@ -1,4 +1,4 @@
-// macOS/AArch64 native realizations for the first F7 provider-plan slice.
+// macOS/AArch64 realizations for F7's primitive spelling provider-plan slice.
 macos_arm64 machine FloatNativeProvider::add32(left: f32, right: f32) -> f32
     satisfies Float::add
     via Binding::CompilerIntrinsic("Float::add.f32");
@@ -6,3 +6,75 @@ macos_arm64 machine FloatNativeProvider::add32(left: f32, right: f32) -> f32
 macos_arm64 machine FloatNativeProvider::add64(left: f64, right: f64) -> f64
     satisfies Float::add
     via Binding::CompilerIntrinsic("Float::add.f64");
+
+macos_arm64 machine FloatNativeProvider::subtract32(left: f32, right: f32) -> f32
+    satisfies Float::subtract
+    via Binding::CompilerIntrinsic("Float::subtract.f32");
+
+macos_arm64 machine FloatNativeProvider::subtract64(left: f64, right: f64) -> f64
+    satisfies Float::subtract
+    via Binding::CompilerIntrinsic("Float::subtract.f64");
+
+macos_arm64 machine FloatNativeProvider::multiply32(left: f32, right: f32) -> f32
+    satisfies Float::multiply
+    via Binding::CompilerIntrinsic("Float::multiply.f32");
+
+macos_arm64 machine FloatNativeProvider::multiply64(left: f64, right: f64) -> f64
+    satisfies Float::multiply
+    via Binding::CompilerIntrinsic("Float::multiply.f64");
+
+macos_arm64 machine FloatNativeProvider::divide32(left: f32, right: f32) -> f32
+    satisfies Float::divide
+    via Binding::CompilerIntrinsic("Float::divide.f32");
+
+macos_arm64 machine FloatNativeProvider::divide64(left: f64, right: f64) -> f64
+    satisfies Float::divide
+    via Binding::CompilerIntrinsic("Float::divide.f64");
+
+macos_arm64 machine FloatNativeProvider::equal32(left: f32, right: f32) -> bool
+    satisfies Float::equal
+    via Binding::CompilerIntrinsic("Float::equal.f32");
+
+macos_arm64 machine FloatNativeProvider::equal64(left: f64, right: f64) -> bool
+    satisfies Float::equal
+    via Binding::CompilerIntrinsic("Float::equal.f64");
+
+macos_arm64 machine FloatNativeProvider::not_equal32(left: f32, right: f32) -> bool
+    satisfies Float::not_equal
+    via Binding::CompilerIntrinsic("Float::not_equal.f32");
+
+macos_arm64 machine FloatNativeProvider::not_equal64(left: f64, right: f64) -> bool
+    satisfies Float::not_equal
+    via Binding::CompilerIntrinsic("Float::not_equal.f64");
+
+macos_arm64 machine FloatNativeProvider::less32(left: f32, right: f32) -> bool
+    satisfies Float::less
+    via Binding::CompilerIntrinsic("Float::less.f32");
+
+macos_arm64 machine FloatNativeProvider::less64(left: f64, right: f64) -> bool
+    satisfies Float::less
+    via Binding::CompilerIntrinsic("Float::less.f64");
+
+macos_arm64 machine FloatNativeProvider::less_or_equal32(left: f32, right: f32) -> bool
+    satisfies Float::less_or_equal
+    via Binding::CompilerIntrinsic("Float::less_or_equal.f32");
+
+macos_arm64 machine FloatNativeProvider::less_or_equal64(left: f64, right: f64) -> bool
+    satisfies Float::less_or_equal
+    via Binding::CompilerIntrinsic("Float::less_or_equal.f64");
+
+macos_arm64 machine FloatNativeProvider::greater32(left: f32, right: f32) -> bool
+    satisfies Float::greater
+    via Binding::CompilerIntrinsic("Float::greater.f32");
+
+macos_arm64 machine FloatNativeProvider::greater64(left: f64, right: f64) -> bool
+    satisfies Float::greater
+    via Binding::CompilerIntrinsic("Float::greater.f64");
+
+macos_arm64 machine FloatNativeProvider::greater_or_equal32(left: f32, right: f32) -> bool
+    satisfies Float::greater_or_equal
+    via Binding::CompilerIntrinsic("Float::greater_or_equal.f32");
+
+macos_arm64 machine FloatNativeProvider::greater_or_equal64(left: f64, right: f64) -> bool
+    satisfies Float::greater_or_equal
+    via Binding::CompilerIntrinsic("Float::greater_or_equal.f64");

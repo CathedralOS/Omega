@@ -876,18 +876,21 @@ and allocation handles expose no compiler-owned stack/control storage.
   selected `ProviderPlan` realization.
   The first rung-3 slice now reifies each exact overloaded boundary-operator
   signature as an independent one-row provider slot. Explicit f32/f64
-  `Float::add` satisfiers exist for `windows_x64`, `linux_x64`, `linux_arm64`,
-  and `macos_arm64`, selecting the corresponding compiler-known intrinsic.
+  satisfiers for all four primitive arithmetic and six primitive comparison
+  requirements exist on `windows_x64`, `linux_x64`, `linux_arm64`, and
+  `macos_arm64`, selecting the corresponding compiler-known intrinsic.
   Selection validates the exact binding even when the requirement is unused,
   rejects mislabeled intrinsics or an absent exact selection, and retains the
   selected plan identity on checked spelled/named operator uses. The identity
   rides state graph, control flow, and abstract-operation facts; instruction
   selection resolves it through the retained selected-plan set and rejects
-  zero, missing-plan, or contradictory evidence. Cross-target selection,
-  stage-copy, backend fail-closed, malformed-binding, and native pipeline
-  canaries pin the slice. Remaining rung-3 work includes every other operation
-  family, checked software fallbacks, canonical floating-control-state
-  preconditions/restoration, and rung-4 differential evidence.
+  zero, missing-plan, or contradictory evidence. Cross-target selection for
+  all twenty exact slots per target, used-operation identity, stage-copy,
+  backend fail-closed, malformed-binding, and native pipeline canaries pin the
+  slice. Primitive spellings have completed target-plan migration; remaining
+  rung-3 work includes named operation families, checked software fallbacks,
+  canonical floating-control-state preconditions/restoration, and rung-4
+  differential evidence.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the

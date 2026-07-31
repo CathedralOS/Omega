@@ -34558,14 +34558,51 @@ fn float_operator_spellings_record_named_core_identities() {
 }
 
 #[test]
-fn float_add_provider_plans_are_selected_for_every_native_target() {
+fn primitive_float_provider_plans_are_selected_for_every_native_target() {
+    const MIGRATED_REQUIREMENTS: &[&str] = &[
+        "Float::add",
+        "Float::subtract",
+        "Float::multiply",
+        "Float::divide",
+        "Float::equal",
+        "Float::not_equal",
+        "Float::less",
+        "Float::less_or_equal",
+        "Float::greater",
+        "Float::greater_or_equal",
+    ];
     let canary = pass_canary("operators/float_operator_identities");
     for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
         let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|diagnostics| {
                 panic!("core float provider plans should check for {target}: {diagnostics:#?}")
             });
-        let mut selected_formats = Vec::new();
+        let operator_path = |operator: &omega_typed_trees::operator::OperatorDefinition| {
+            checked
+                .typed
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        };
+        let expected_intrinsic = |operator: &omega_typed_trees::operator::OperatorDefinition| {
+            let path = operator_path(operator);
+            if !MIGRATED_REQUIREMENTS.contains(&path.as_str()) {
+                return None;
+            }
+            let left = checked.typed.operator_parameters(operator).first()?;
+            let format = match checked
+                .typed
+                .primitive_type_reference(left.type_reference)?
+            {
+                omega_typed_trees::types::PrimitiveType::F32 => "f32",
+                omega_typed_trees::types::PrimitiveType::F64 => "f64",
+                _ => return None,
+            };
+            Some(format!("{path}.{format}"))
+        };
+        let mut used_intrinsics = std::collections::BTreeSet::new();
 
         for operator_use in checked.facts.operators.resolved_uses() {
             let Some(candidate) = checked.facts.operators.selected_candidate(operator_use) else {
@@ -34579,37 +34616,12 @@ fn float_add_provider_plans_are_selected_for_every_native_target() {
             else {
                 continue;
             };
-            let path = checked
-                .typed
-                .operator_path_members(operator.name)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
-            if path != "Float::add" {
+            let Some(expected_intrinsic) = expected_intrinsic(operator) else {
                 continue;
-            }
-
-            let [left, right] = checked.typed.operator_parameters(operator) else {
-                panic!("Float::add must retain two operands");
-            };
-            let primitive = checked
-                .typed
-                .primitive_type_reference(left.type_reference)
-                .expect("Float::add operand must retain its primitive format");
-            assert_eq!(
-                checked.typed.primitive_type_reference(right.type_reference),
-                Some(primitive),
-                "Float::add provider slot must not mix formats"
-            );
-            let expected_intrinsic = match primitive {
-                omega_typed_trees::types::PrimitiveType::F32 => "Float::add.f32",
-                omega_typed_trees::types::PrimitiveType::F64 => "Float::add.f64",
-                other => panic!("unexpected Float::add carrier {other:?}"),
             };
             assert_ne!(
                 operator_use.provider_plan_identity, 0,
-                "{target} Float::add use must retain the selected ProviderPlan identity"
+                "{target} {expected_intrinsic} use must retain the selected ProviderPlan identity"
             );
             let plan = checked
                 .selected_provider_plans()
@@ -34631,35 +34643,69 @@ fn float_add_provider_plans_are_selected_for_every_native_target() {
                 matches!(
                     &row.binding,
                     omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
-                        if name == expected_intrinsic
+                        if name == &expected_intrinsic
                 ),
-                "{target} selected the wrong Float::add realization: {row:?}"
+                "{target} selected the wrong {expected_intrinsic} realization: {row:?}"
             );
-            selected_formats.push(expected_intrinsic);
+            used_intrinsics.insert(expected_intrinsic);
         }
 
         assert_eq!(
-            selected_formats,
-            ["Float::add.f32"],
-            "the canary contains exactly one used Float::add format"
+            used_intrinsics,
+            [
+                "Float::add.f32".to_owned(),
+                "Float::divide.f64".to_owned(),
+                "Float::equal.f64".to_owned(),
+                "Float::greater.f32".to_owned(),
+                "Float::greater_or_equal.f32".to_owned(),
+                "Float::less.f32".to_owned(),
+                "Float::less_or_equal.f32".to_owned(),
+                "Float::multiply.f32".to_owned(),
+                "Float::not_equal.f32".to_owned(),
+                "Float::subtract.f32".to_owned(),
+            ]
+            .into_iter()
+            .collect(),
+            "every primitive float operation used by the canary must consume its target plan"
         );
-        for expected_intrinsic in ["Float::add.f32", "Float::add.f64"] {
+
+        let mut selected_count = 0usize;
+        for operator in checked.typed.operators() {
+            let Some(expected_intrinsic) = expected_intrinsic(operator) else {
+                continue;
+            };
+            selected_count += 1;
+            let slot = omega_typed_trees::operator::boundary_operator_requirement_identity(
+                &checked.typed,
+                operator,
+            );
+            let plan = checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .find(|plan| plan.target == target && plan.schema.trait_name == slot)
+                .unwrap_or_else(|| {
+                    panic!("{target} must select exact plan slot {slot} for {expected_intrinsic}")
+                });
             assert!(
-                checked.selected_provider_plans().plans().iter().any(|plan| {
-                    plan.target == target
-                        && matches!(
-                            plan.rows.as_slice(),
-                            [row]
-                                if matches!(
-                                    &row.binding,
-                                    omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
-                                        if name == expected_intrinsic
-                                )
-                        )
-                }),
-                "{target} must select the {expected_intrinsic} overload plan even when this canary does not call it"
+                matches!(
+                    plan.rows.as_slice(),
+                    [row]
+                        if row.method == "realize"
+                            && matches!(
+                                &row.binding,
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                                    if name == &expected_intrinsic
+                            )
+                ),
+                "{target} selected the wrong realization for {expected_intrinsic}: {plan:?}"
             );
         }
+        assert_eq!(
+            selected_count,
+            MIGRATED_REQUIREMENTS.len() * 2,
+            "each primitive requirement must retain distinct f32/f64 plan slots"
+        );
     }
 }
 
