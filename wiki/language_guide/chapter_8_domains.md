@@ -745,13 +745,20 @@ contract; the `spelling` clause only binds the surface symbol that resolves to
 it.
 
 ```omega
-domain Quantity;
+domain Quantity::Additive;
 
-operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+operator Quantity::Additive::add(
+    left: Quantity,
+    right: Quantity,
+) -> Quantity spelling +;
 ```
 
 Operators associated with a domain remain ordinary named declarations; the
-domain body is reserved for establishment routes. Domain-sensitive resolution
+domain body is reserved for establishment routes. An exact qualified name such
+as `Quantity::Additive::add` supplies an unambiguous semantic home. A unique
+declared-domain constraint across the operand tuple may supply the same home
+when the operator name itself is unqualified. The association never grants the
+operator authority to establish domain membership. Domain-sensitive resolution
 selects among spelled candidates by
 the complete operand-type tuple plus the bindings' selected semantic domains.
 Competing participating meanings for the same use are a compile error; inactive
@@ -1184,8 +1191,11 @@ Working interpretation:
 > boundary requirement identities, and mixed routed/predicate results must
 > prove the predicates. Predicate-in-body syntax is retired with directed
 > `requires` migration guidance, and the source, sample, and embedded-test
-> corpora use the settled clause. Legacy nested domain operators and inferred
-> owner routes remain during their separate migration. Exact
+> corpora use the settled clause. Domain operators use ordinary top-level
+> declarations with exact or uniquely inferred semantic homes; nested
+> declarations reject, and operator association grants no establishment
+> authority. Inferred owner-machine and boundary-requirement routes remain
+> during their separate migration. Exact
 > representation/scale conversion and per-domain erasure are not yet
 > implemented. Arithmetic policies still have special lowering paths. General
 > domain work must preserve every domain-theory axis independently in the IR; see

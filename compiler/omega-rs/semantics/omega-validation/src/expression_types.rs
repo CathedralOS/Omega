@@ -1464,7 +1464,7 @@ fn binary_operator_spelling(
 /// Reject an arithmetic / ordering operator on a STRUCT operand for which no
 /// operator with that spelling is DECLARED (`self.a + self.b` for a plain
 /// `data P {}` lowered to a garbage byte op). A struct's only such operators are
-/// DOMAIN operators (`domain Quantity::Additive { operator add ... spelling + }`),
+/// DOMAIN operators (`operator Quantity::Additive::add ... spelling +`),
 /// so we ask the use-site authority `resolve_spelling`: an EMPTY candidate set for
 /// a concrete-data receiver means the operator is undeclared. Scalars (intrinsic
 /// builtins) and arrays are not concrete-data receivers, so they are untouched;
@@ -1497,7 +1497,7 @@ fn report_undeclared_struct_operator(
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` applies `{operator:?}` to a `{type_name}` value, but no such \
          operator is declared for it -- only `==`/`!=` (via `{type_name} satisfies Equatable`) \
-         or a `domain {type_name}::... {{ operator ... }}` meaning operates on a data type",
+         or a top-level `operator {type_name}::Domain::name ...` meaning operates on a data type",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
     )));

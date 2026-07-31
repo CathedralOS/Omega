@@ -906,10 +906,6 @@ pub enum DomainEstablishmentRoute {
     OwnerCheckedMachine {
         machine: crate::symbols::SymbolHandle,
     },
-    /// An operator declared inside the domain theory.
-    OwnerOperator {
-        operator: crate::symbols::SymbolHandle,
-    },
     /// An exact result guarantee on an owner-authored boundary requirement.
     BoundaryRequirement {
         boundary_trait: crate::symbols::SymbolHandle,
@@ -922,7 +918,6 @@ impl DomainEstablishmentRoute {
         match self {
             Self::CheckedRequirement { .. } => "checked_requirement",
             Self::OwnerCheckedMachine { .. } => "owner_checked_machine",
-            Self::OwnerOperator { .. } => "owner_operator",
             Self::BoundaryRequirement { .. } => "boundary_requirement",
         }
     }
@@ -933,7 +928,6 @@ impl DomainEstablishmentRoute {
                 trait_definition, ..
             } => trait_definition,
             Self::OwnerCheckedMachine { machine } => machine,
-            Self::OwnerOperator { operator } => operator,
             Self::BoundaryRequirement { boundary_trait, .. } => boundary_trait,
         }
     }
@@ -942,9 +936,7 @@ impl DomainEstablishmentRoute {
         match self {
             Self::CheckedRequirement { requirement, .. }
             | Self::BoundaryRequirement { requirement, .. } => requirement,
-            Self::OwnerCheckedMachine { .. } | Self::OwnerOperator { .. } => {
-                crate::symbols::SymbolHandle::invalid()
-            }
+            Self::OwnerCheckedMachine { .. } => crate::symbols::SymbolHandle::invalid(),
         }
     }
 }
@@ -966,8 +958,8 @@ pub enum QualificationEvidenceOrigin {
     /// A checked conformance returned through an exact requirement route
     /// authored by the domain declaration.
     AuthorizedRouteEstablishment,
-    /// Transitional evidence from a legacy inferred owner machine/operator
-    /// route. Retained only while declarations migrate to authored routes.
+    /// Transitional evidence from a legacy inferred owner-machine route.
+    /// Retained only while declarations migrate to authored routes.
     OwnerEstablishment,
     /// Existing evidence was conserved through a checked transformation.
     CheckedTransformation,

@@ -248,8 +248,7 @@ fn machine_domain_establishment_origin(
                             && specialization.instance == machine.symbol
                     }))
             .then_some(QualificationEvidenceOrigin::OwnerEstablishment),
-            DomainEstablishmentRoute::OwnerOperator { .. }
-            | DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
+            DomainEstablishmentRoute::BoundaryRequirement { .. } => None,
         })
 }
 
@@ -334,19 +333,8 @@ pub(crate) fn operator_contract_evidence(
         );
     }
 
-    let operator_is_owned_by_domain = domain.establishment_routes.iter().any(|route| {
-        matches!(
-            route,
-            DomainEstablishmentRoute::OwnerOperator { operator }
-                if *operator == operator_symbol
-        )
-    });
     QualificationEvidence::from_origin(
-        if operator_is_owned_by_domain {
-            QualificationEvidenceOrigin::OwnerEstablishment
-        } else {
-            QualificationEvidenceOrigin::CheckedTransformation
-        },
+        QualificationEvidenceOrigin::CheckedTransformation,
         operator_symbol,
     )
 }

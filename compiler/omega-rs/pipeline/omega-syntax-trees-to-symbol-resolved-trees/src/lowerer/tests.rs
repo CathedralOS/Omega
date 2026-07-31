@@ -334,9 +334,8 @@ fn preserves_domain_operator_declarations() {
     domain Quantity::Additive
     requires
         self.value >= 0;
-    {
-        operator add(left: Quantity, right: Quantity) -> Quantity;
-    }
+
+    operator Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
     "#;
 
     let tokens = Lexer::new(source)
@@ -370,6 +369,66 @@ fn preserves_domain_operator_declarations() {
 }
 
 #[test]
+fn infers_top_level_operator_home_from_qualified_operands() {
+    let source = r#"
+    domain i32::Degrees;
+
+    operator add(left: i32 in Degrees, right: i32 in Degrees) -> i32 in Degrees spelling +;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "i32::Degrees")
+        .expect("domain should lower");
+    let operator = program
+        .operator_definitions(domain.operators)
+        .first()
+        .expect("qualified operands should supply one semantic home");
+
+    assert!(program.operators.is_empty());
+    assert_eq!(
+        domain.semantic_roles.denotation_dimension,
+        Some(domain.semantic_id)
+    );
+    assert_eq!(
+        program
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["add"]
+    );
+}
+
+#[test]
+fn rejects_ambiguous_inferred_domain_operator_home() {
+    let source = r#"
+    domain i32::Degrees;
+    domain i32::Radians;
+
+    operator add(left: i32 in Degrees, right: i32 in Radians) -> i32 spelling +;
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("competing operand domains must not infer an operator home");
+    assert!(
+        diagnostic
+            .message
+            .contains("has more than one possible domain home")
+    );
+}
+
+#[test]
 fn normalizes_domain_establishment_route_identities() {
     use omega_core::semantics::DomainEstablishmentRoute;
 
@@ -393,11 +452,11 @@ fn normalizes_domain_establishment_route_identities() {
             result in Token::Issued;
     }
 
-    domain Token::Stamped {
-        operator stamp(value: Token) -> Token
-        ensures
-            result in Token::Stamped;
-    }
+    domain Token::Stamped;
+
+    operator Token::Stamped::stamp(value: Token) -> Token
+    ensures
+        result in Token::Stamped;
     "#;
 
     let tokens = Lexer::new(source)
@@ -446,16 +505,8 @@ fn normalizes_domain_establishment_route_identities() {
         .iter()
         .find(|domain| domain.name.as_str() == "Token::Stamped")
         .expect("stamped domain");
-    let operator = program
-        .operator_definitions(stamped.operators)
-        .first()
-        .expect("domain-owned operator");
-    assert_eq!(
-        stamped.establishment_routes,
-        [DomainEstablishmentRoute::OwnerOperator {
-            operator: operator.symbol,
-        }]
-    );
+    assert!(program.operator_definitions(stamped.operators).len() == 1);
+    assert!(stamped.establishment_routes.is_empty());
 }
 
 #[test]

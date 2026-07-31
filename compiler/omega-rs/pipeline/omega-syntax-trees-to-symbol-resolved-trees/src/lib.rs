@@ -2,6 +2,7 @@ mod constant;
 mod data;
 mod domain;
 mod domain_establishment;
+mod domain_operator_homes;
 mod expression;
 mod invariant;
 mod item;

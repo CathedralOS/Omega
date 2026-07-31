@@ -575,9 +575,8 @@ fn preserves_domain_operator_declarations() {
     domain Quantity::Additive
     requires
         self.value >= 0;
-    {
-        operator add(left: Quantity, right: Quantity) -> Quantity;
-    }
+
+    operator Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
     "#;
 
     let tokens = Lexer::new(source)

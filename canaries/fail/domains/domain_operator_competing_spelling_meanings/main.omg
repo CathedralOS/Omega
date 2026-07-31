@@ -1,8 +1,10 @@
 // Chapter 8: competing *participating* domain meanings for one use are a
-// compile error. Both semantic facets are selected on the `left` binding, and
-// both bind `+` over the same `(Quantity, Quantity)` operand tuple, so this use
-// is ambiguous. Merely declaring both domains is legal; see the matching pass
-// canary `domain_operator_inactive_same_carrier_coexists`.
+// compile error. Each operand selects one semantic facet, and both domains bind
+// `+` over the same `(Quantity, Quantity)` operand tuple, so this use is
+// ambiguous. Merely declaring both domains is legal; see the matching pass
+// canary `domain_operator_inactive_same_carrier_coexists`. Keeping the facets
+// on different bindings also avoids the independently invalid act of selecting
+// two denotation/dimension domains on one binding.
 
 data Quantity {
     value: i32;
@@ -11,23 +13,21 @@ data Quantity {
 domain Quantity::Linear
 requires
     self.value >= 0;
-{
-    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
-}
+
+operator Quantity::Linear::add(left: Quantity, right: Quantity) -> Quantity spelling +;
 
 domain Quantity::Cyclic
 requires
     self.value >= 0;
-{
-    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
-}
+
+operator Quantity::Cyclic::add(left: Quantity, right: Quantity) -> Quantity spelling +;
 
 data Main {}
 
 machine Main::combine(
     &self,
-    left: Quantity in Linear & Cyclic,
-    right: Quantity
+    left: Quantity in Linear,
+    right: Quantity in Cyclic
 ) {
     let sum: Quantity = left + right;
 }

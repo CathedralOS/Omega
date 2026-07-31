@@ -76,7 +76,7 @@ to their atomic conjunction before type and contract identity, compatibility,
 admission, and executable predicate lowering, retain public/private publication
 legality, reject unknown/cross-carrier/cyclic expansions, and report unmet
 atomic facts. Establishment relationships now normalize independently as exact
-owner-machine, domain-operator, or boundary-requirement identities; alias
+checked-requirement, owner-machine, or boundary-requirement identities; alias
 guarantees expand to atomic routes, typed constraints and snapshots preserve
 them, and checked consumers no longer reconstruct authority from names.
 Core `Extent` now exposes its ordinary `{ base: addr, length: u64 }` geometry
@@ -158,9 +158,13 @@ and a routed domain carrying predicates still requires those propositions to
 be proved. Core `Extent::Granted` now authors its `ExtentRootProvider::grant`
 route directly. Domain predicates across the core, canary, sample, lattice,
 and embedded-test corpora now use ordinary `requires`; predicate-in-body syntax
-rejects with directed migration guidance. Legacy nested domain operators and
-inferred owner machine/operator/boundary routes remain only for their corpus
-migration; retire them after operator homes move to the settled surface.
+rejects with directed migration guidance. Domain operators now use ordinary
+top-level declarations: an exact `operator Type::Domain::operation ...` name or
+one unique domain-qualified operand tuple supplies the semantic home, nested
+declarations reject with directed migration guidance, and operator ownership
+no longer grants domain establishment. Inferred owner-machine and
+boundary-requirement routes remain only for their corpus migration; retire them
+in favor of authored exact routes.
 
 Acceptance: a look-alike trait cannot establish another domain; owner code has
 no establishment privilege outside named routes; checked and admitted
