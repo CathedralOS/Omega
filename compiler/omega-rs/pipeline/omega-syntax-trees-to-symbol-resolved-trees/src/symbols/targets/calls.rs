@@ -119,14 +119,17 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
     // machine's entry state so downstream passes (contract call obligations,
     // state-call planning) see a resolved target instead of an invalid symbol.
-    free_machine_entry_state_symbol(symbols, target.as_str())
+    resolve_free_machine_entry_state_symbol(symbols, target.as_str())
 }
 
 /// The entry-state symbol of the free top-level machine named `target`, or
 /// invalid. A free machine's implicit entry state is named `entry` (the parser
 /// generates the name); explicit `entry foo` states are matched by the call
 /// target name first.
-fn free_machine_entry_state_symbol(symbols: &SymbolTable, target: &str) -> SymbolHandle {
+pub(in crate::symbols) fn resolve_free_machine_entry_state_symbol(
+    symbols: &SymbolTable,
+    target: &str,
+) -> SymbolHandle {
     let machine_symbol = top_level_symbol_by_kinds(symbols, &[SymbolKind::Machine], target);
     if !machine_symbol.is_valid() {
         return SymbolHandle::invalid();
@@ -165,7 +168,7 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if parameter.is_valid() {
             return parameter;
         }
-        return free_machine_entry_state_symbol(symbols, target.as_str());
+        return resolve_free_machine_entry_state_symbol(symbols, target.as_str());
     }
 
     let owner = owner

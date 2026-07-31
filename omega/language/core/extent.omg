@@ -9,17 +9,40 @@
 // debt or another exclusive authority. Zero-filled storage does not establish
 // an `Extent`; APIs that need an honest zero/empty state use `ExtentSlot`.
 //
+use omega::language::core::content;
+
 data Extent [linear] {
     base: addr;
     length: u64;
 }
 
+// Contract-only target predicate. Its proof interpretation embeds both
+// scalars into natural arithmetic and requires `base + length` to be at most
+// the selected target address-space bound; it is never wrapping `addr`
+// arithmetic and has no executable call surface.
+boundary machine no_wrap(base: addr, length: u64) -> bool;
+
 // `Granted` is authority evidence, not a structural invariant. Constructing
 // the geometry above does not establish it; checked transformations must
 // conserve an existing claim and admitted roots must inherit the exact
 // owner-authored boundary requirement.
-pub domain Extent::Granted {
+pub domain Extent::Granted
+requires
+    no_wrap(self.base, self.length)
+{
     ExtentRootProvider::grant;
+}
+
+// `Granted` owns one canonical half-open address interval. Runtime address
+// arithmetic must not define the one-past end: proof-level naturals retain an
+// end equal to the address-space bound even when `addr` cannot represent it.
+machine Granted::content(extent: &Extent) -> Interval<Nat>
+satisfies Content<Interval<Nat>>::project
+{
+    Interval {
+        start: embed(extent.base),
+        end: embed(extent.base) + embed(extent.length)
+    }
 }
 
 // The domain owner authorizes exactly this admitted root crossing. The caller

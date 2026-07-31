@@ -242,6 +242,55 @@ fn lowers_domain_definitions() {
 }
 
 #[test]
+fn resolves_free_machine_calls_in_domain_predicates() {
+    let source = r#"
+    boundary machine no_wrap(base: addr, length: u64) -> bool;
+
+    data Region {
+        base: addr;
+        length: u64;
+    }
+
+    domain Region::Valid
+    requires
+        no_wrap(self.base, self.length);
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Region::Valid")
+        .expect("valid domain");
+    let [omega_symbol_resolved_trees::domain::ProofFact::Expression(predicate)] =
+        program.proof_facts(domain.facts)
+    else {
+        panic!("one predicate call");
+    };
+    let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(*predicate)
+    else {
+        panic!("predicate should remain a call");
+    };
+    assert!(call.target_symbol.is_valid());
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "no_wrap")
+        .expect("predicate machine");
+    assert!(
+        program
+            .machine_state_handles(machine.states)
+            .iter()
+            .any(|state| program.machine_state(*state).symbol == call.target_symbol)
+    );
+}
+
+#[test]
 fn resolves_repeated_capacity_specializations_as_one_domain_identity() {
     let source = r#"
     domain [u8; 8]::Utf8

@@ -244,8 +244,8 @@ paths, prove statically inactive alternatives absent, and propagate that
 liveness and exact claim identity through opaque calls. Borrow owner paths and
 proof/debug artifacts retain the case identity structurally.
 
-This is not full P1c: content projections/backing and conservation witnesses
-remain implementation work. Symbol-keyed substitutions already retain
+This is not full P1c: backing and conservation witnesses remain implementation
+work. Symbol-keyed substitutions already retain
 contained claims through nested generic transparent records.
 
 Implementation checkpoint (2026-07-31): core now publishes `Content<A>`,
@@ -284,17 +284,10 @@ input remains an eligible consumed source. This establishes the documented
 domain, parameter, or operation names. Full n-to-m equality, separation,
 backing, retirement, and ambiguity proofs remain outstanding.
 
-- complete the remaining closed content-projection fragment by adding explicit
-  runtime-scalar embeddings into proof naturals; continue rejecting branches,
-  loops, arbitrary calls, allocation, effects, and hidden state;
-- implement interval content with proof-level natural bounds plus normalized
-  coordinate-space identity; require every `Extent::Granted` establishment
-  route to prove `no_wrap(base, length)` against the target address-space
-  bound;
 - add `CountedQuantity` with proof-level natural magnitude and normalized unit
-  identity as the first customer-driven extension for
-  conserved residual capacity in bounded bump/arena regions; general fragmented
-  heaps remain fallible or require exact placement/reservation evidence;
+  identity to conserved residual capacity in bounded bump/arena regions;
+  general fragmented heaps remain fallible or require exact
+  placement/reservation evidence;
 - require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
   postconditions;

@@ -2,6 +2,8 @@ use omega_core::byte_predicates::ByteSequencePredicate;
 use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
+use super::targets::resolve_free_machine_entry_state_symbol;
+
 pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let domain_symbols = program
         .domain_definitions
@@ -93,7 +95,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         resolve_domain_symbol(symbols, &domain_symbols, &name);
                 }
                 omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
-                    assign_proof_expression_membership_symbols(
+                    assign_proof_expression_symbols(
                         symbols,
                         &domain_symbols,
                         &mut program.tables.bodies.expressions,
@@ -208,7 +210,7 @@ fn resolved_domain_byte_predicate(
     matches!(members, [member] if member.as_str() == "self").then_some(predicate)
 }
 
-fn assign_proof_expression_membership_symbols(
+fn assign_proof_expression_symbols(
     symbols: &SymbolTable,
     domain_symbols: &[(
         String,
@@ -221,31 +223,29 @@ fn assign_proof_expression_membership_symbols(
     let expression_node = expression_table.expression(expression).clone();
     match expression_node {
         omega_symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
                 atomic.value,
             );
-        }
-        omega_symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
-            for value in expression_table.expression_handles(values).to_vec() {
-                assign_proof_expression_membership_symbols(
+            if atomic.result.is_valid() {
+                assign_proof_expression_symbols(
                     symbols,
                     domain_symbols,
                     expression_table,
-                    value,
+                    atomic.result,
                 );
             }
         }
+        omega_symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
+            for value in expression_table.expression_handles(values).to_vec() {
+                assign_proof_expression_symbols(symbols, domain_symbols, expression_table, value);
+            }
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
-            assign_proof_expression_membership_symbols(
-                symbols,
-                domain_symbols,
-                expression_table,
-                binary.left,
-            );
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(symbols, domain_symbols, expression_table, binary.left);
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
@@ -254,7 +254,7 @@ fn assign_proof_expression_membership_symbols(
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
-                assign_proof_expression_membership_symbols(
+                assign_proof_expression_symbols(
                     symbols,
                     domain_symbols,
                     expression_table,
@@ -262,22 +262,34 @@ fn assign_proof_expression_membership_symbols(
                 );
             }
             for argument in expression_table.expression_handles(call.arguments).to_vec() {
-                assign_proof_expression_membership_symbols(
+                assign_proof_expression_symbols(
                     symbols,
                     domain_symbols,
                     expression_table,
                     argument,
                 );
             }
+            if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
+                let target_symbol =
+                    resolve_free_machine_entry_state_symbol(symbols, call.target.as_str());
+                if let omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+                    expression_table.expression_mut(expression)
+                {
+                    call.target_symbol = target_symbol;
+                }
+            }
+        }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
+            assign_proof_expression_symbols(symbols, domain_symbols, expression_table, cast.value);
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
                 indexed.collection,
             );
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
@@ -286,7 +298,7 @@ fn assign_proof_expression_membership_symbols(
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Range(range) => {
             if range.start.is_valid() {
-                assign_proof_expression_membership_symbols(
+                assign_proof_expression_symbols(
                     symbols,
                     domain_symbols,
                     expression_table,
@@ -294,7 +306,7 @@ fn assign_proof_expression_membership_symbols(
                 );
             }
             if range.end.is_valid() {
-                assign_proof_expression_membership_symbols(
+                assign_proof_expression_symbols(
                     symbols,
                     domain_symbols,
                     expression_table,
@@ -303,7 +315,7 @@ fn assign_proof_expression_membership_symbols(
             }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
@@ -322,7 +334,7 @@ fn assign_proof_expression_membership_symbols(
             }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
@@ -330,15 +342,10 @@ fn assign_proof_expression_membership_symbols(
             );
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            assign_proof_expression_membership_symbols(
-                symbols,
-                domain_symbols,
-                expression_table,
-                inner,
-            );
+            assign_proof_expression_symbols(symbols, domain_symbols, expression_table, inner);
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
-            assign_proof_expression_membership_symbols(
+            assign_proof_expression_symbols(
                 symbols,
                 domain_symbols,
                 expression_table,
@@ -350,7 +357,7 @@ fn assign_proof_expression_membership_symbols(
                 .struct_fields(struct_literal.fields)
                 .to_vec()
             {
-                assign_proof_expression_membership_symbols(
+                assign_proof_expression_symbols(
                     symbols,
                     domain_symbols,
                     expression_table,
@@ -359,7 +366,6 @@ fn assign_proof_expression_membership_symbols(
             }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
-        | omega_symbol_resolved_trees::expression::ExpressionNode::Cast(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::Float(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | omega_symbol_resolved_trees::expression::ExpressionNode::Name(_)
