@@ -1,10 +1,11 @@
 // Ordinary numeric conversion operations.
 //
-// Qualification `as` changes static facts on one unchanged runtime carrier.
-// Numeric conversion is different: it may change representation, payload, and
-// runtime work, so public code reaches it through named machines. The legacy
-// numeric `as` spelling remains confined to these checked implementations while
-// backend conversion operations are migrated behind this source-visible API.
+// Proof-directed exact integer `as` is the compiler-derived surface for a
+// representation change that preserves the mathematical value. It invokes no
+// machine. This module supplies named library conveniences for exact conversion
+// and the required visible operations for loss, saturation, or trapping. The
+// policy-qualified casts inside those operations are compiler intrinsics that
+// implement the named contract; they are not a hidden public conversion path.
 //
 // A widening name is used only when the complete source range fits the target.
 // Narrowing names the conversion behavior explicitly. The policy applies to
@@ -42,7 +43,7 @@ pub machine narrow_u16_to_u8_saturating(value: u16) -> u8 {
 pub machine narrow_u16_to_u8_trapping(value: u16) -> u8 {
     let invalid: bool = value > 255;
     numeric_conversion_trap_if(invalid);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine widen_u8_to_u16(value: u8) -> u16 {
@@ -80,7 +81,7 @@ pub machine narrow_u32_to_u8_saturating(value: u32) -> u8 {
 pub machine narrow_u32_to_u8_trapping(value: u32) -> u8 {
     let invalid: bool = value > 255;
     numeric_conversion_trap_if(invalid);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine narrow_u32_to_u16_exact(value: u32 [0..=65535]) -> u16
@@ -104,7 +105,7 @@ pub machine narrow_u32_to_u16_saturating(value: u32) -> u16 {
 pub machine narrow_u32_to_u16_trapping(value: u32) -> u16 {
     let invalid: bool = value > 65535;
     numeric_conversion_trap_if(invalid);
-    value as u16
+    value as u16 in Trapping
 }
 
 pub machine widen_u16_to_u32(value: u16) -> u32 {
@@ -138,7 +139,7 @@ pub machine narrow_u64_to_u8_saturating(value: u64) -> u8 {
 pub machine narrow_u64_to_u8_trapping(value: u64) -> u8 {
     let invalid: bool = value > 255;
     numeric_conversion_trap_if(invalid);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine narrow_u64_to_u16_exact(value: u64 [0..=65535]) -> u16
@@ -162,7 +163,7 @@ pub machine narrow_u64_to_u16_saturating(value: u64) -> u16 {
 pub machine narrow_u64_to_u16_trapping(value: u64) -> u16 {
     let invalid: bool = value > 65535;
     numeric_conversion_trap_if(invalid);
-    value as u16
+    value as u16 in Trapping
 }
 
 pub machine narrow_u64_to_u32_exact(value: u64 [0..=4294967295]) -> u32
@@ -186,7 +187,7 @@ pub machine narrow_u64_to_u32_saturating(value: u64) -> u32 {
 pub machine narrow_u64_to_u32_trapping(value: u64) -> u32 {
     let invalid: bool = value > 4294967295;
     numeric_conversion_trap_if(invalid);
-    value as u32
+    value as u32 in Trapping
 }
 
 pub machine widen_u32_to_u64(value: u32) -> u64 {
@@ -221,7 +222,7 @@ pub machine narrow_i16_to_i8_trapping(value: i16) -> i8 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 127;
     numeric_conversion_trap_if(above);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine widen_i8_to_i16(value: i8) -> i16 {
@@ -264,7 +265,7 @@ pub machine narrow_i32_to_i8_trapping(value: i32) -> i8 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 127;
     numeric_conversion_trap_if(above);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine narrow_i32_to_i16_exact(value: i32 [-32768..=32767]) -> i16
@@ -293,7 +294,7 @@ pub machine narrow_i32_to_i16_trapping(value: i32) -> i16 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 32767;
     numeric_conversion_trap_if(above);
-    value as i16
+    value as i16 in Trapping
 }
 
 pub machine widen_i16_to_i32(value: i16) -> i32 {
@@ -332,7 +333,7 @@ pub machine narrow_i64_to_i8_trapping(value: i64) -> i8 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 127;
     numeric_conversion_trap_if(above);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine narrow_i64_to_i16_exact(value: i64 [-32768..=32767]) -> i16
@@ -361,7 +362,7 @@ pub machine narrow_i64_to_i16_trapping(value: i64) -> i16 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 32767;
     numeric_conversion_trap_if(above);
-    value as i16
+    value as i16 in Trapping
 }
 
 pub machine narrow_i64_to_i32_exact(value: i64 [-2147483648..=2147483647]) -> i32
@@ -390,7 +391,7 @@ pub machine narrow_i64_to_i32_trapping(value: i64) -> i32 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 2147483647;
     numeric_conversion_trap_if(above);
-    value as i32
+    value as i32 in Trapping
 }
 
 pub machine widen_i32_to_i64(value: i32) -> i64 {
@@ -425,7 +426,7 @@ pub machine narrow_u8_to_i8_saturating(value: u8) -> i8 {
 pub machine narrow_u8_to_i8_trapping(value: u8) -> i8 {
     let invalid: bool = value > 127;
     numeric_conversion_trap_if(invalid);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine widen_u8_to_i16(value: u8) -> i16 {
@@ -459,7 +460,7 @@ pub machine narrow_u16_to_i8_saturating(value: u16) -> i8 {
 pub machine narrow_u16_to_i8_trapping(value: u16) -> i8 {
     let invalid: bool = value > 127;
     numeric_conversion_trap_if(invalid);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine narrow_u16_to_i16_exact(value: u16 [0..=32767]) -> i16
@@ -481,7 +482,7 @@ pub machine narrow_u16_to_i16_saturating(value: u16) -> i16 {
 pub machine narrow_u16_to_i16_trapping(value: u16) -> i16 {
     let invalid: bool = value > 32767;
     numeric_conversion_trap_if(invalid);
-    value as i16
+    value as i16 in Trapping
 }
 
 pub machine widen_u16_to_i32(value: u16) -> i32 {
@@ -511,7 +512,7 @@ pub machine narrow_u32_to_i8_saturating(value: u32) -> i8 {
 pub machine narrow_u32_to_i8_trapping(value: u32) -> i8 {
     let invalid: bool = value > 127;
     numeric_conversion_trap_if(invalid);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine narrow_u32_to_i16_exact(value: u32 [0..=32767]) -> i16
@@ -533,7 +534,7 @@ pub machine narrow_u32_to_i16_saturating(value: u32) -> i16 {
 pub machine narrow_u32_to_i16_trapping(value: u32) -> i16 {
     let invalid: bool = value > 32767;
     numeric_conversion_trap_if(invalid);
-    value as i16
+    value as i16 in Trapping
 }
 
 pub machine narrow_u32_to_i32_exact(value: u32 [0..=2147483647]) -> i32
@@ -555,7 +556,7 @@ pub machine narrow_u32_to_i32_saturating(value: u32) -> i32 {
 pub machine narrow_u32_to_i32_trapping(value: u32) -> i32 {
     let invalid: bool = value > 2147483647;
     numeric_conversion_trap_if(invalid);
-    value as i32
+    value as i32 in Trapping
 }
 
 pub machine widen_u32_to_i64(value: u32) -> i64 {
@@ -581,7 +582,7 @@ pub machine narrow_u64_to_i8_saturating(value: u64) -> i8 {
 pub machine narrow_u64_to_i8_trapping(value: u64) -> i8 {
     let invalid: bool = value > 127;
     numeric_conversion_trap_if(invalid);
-    value as i8
+    value as i8 in Trapping
 }
 
 pub machine narrow_u64_to_i16_exact(value: u64 [0..=32767]) -> i16
@@ -603,7 +604,7 @@ pub machine narrow_u64_to_i16_saturating(value: u64) -> i16 {
 pub machine narrow_u64_to_i16_trapping(value: u64) -> i16 {
     let invalid: bool = value > 32767;
     numeric_conversion_trap_if(invalid);
-    value as i16
+    value as i16 in Trapping
 }
 
 pub machine narrow_u64_to_i32_exact(value: u64 [0..=2147483647]) -> i32
@@ -625,7 +626,7 @@ pub machine narrow_u64_to_i32_saturating(value: u64) -> i32 {
 pub machine narrow_u64_to_i32_trapping(value: u64) -> i32 {
     let invalid: bool = value > 2147483647;
     numeric_conversion_trap_if(invalid);
-    value as i32
+    value as i32 in Trapping
 }
 
 pub machine narrow_u64_to_i64_exact(value: u64) -> i64
@@ -659,7 +660,7 @@ pub machine narrow_u64_to_i64_trapping(value: u64) -> i64 {
     let first_invalid: u64 = 9223372036854775808;
     let invalid: bool = value >= first_invalid;
     numeric_conversion_trap_if(invalid);
-    value as i64
+    value as i64 in Trapping
 }
 
 // --- Signed -> unsigned ---------------------------------------------------
@@ -683,7 +684,7 @@ pub machine narrow_i8_to_u8_saturating(value: i8) -> u8 {
 pub machine narrow_i8_to_u8_trapping(value: i8) -> u8 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine narrow_i8_to_u16_exact(value: i8 [0..=127]) -> u16
@@ -705,7 +706,7 @@ pub machine narrow_i8_to_u16_saturating(value: i8) -> u16 {
 pub machine narrow_i8_to_u16_trapping(value: i8) -> u16 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u16
+    value as u16 in Trapping
 }
 
 pub machine narrow_i8_to_u32_exact(value: i8 [0..=127]) -> u32
@@ -727,7 +728,7 @@ pub machine narrow_i8_to_u32_saturating(value: i8) -> u32 {
 pub machine narrow_i8_to_u32_trapping(value: i8) -> u32 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u32
+    value as u32 in Trapping
 }
 
 pub machine narrow_i8_to_u64_exact(value: i8 [0..=127]) -> u64
@@ -749,7 +750,7 @@ pub machine narrow_i8_to_u64_saturating(value: i8) -> u64 {
 pub machine narrow_i8_to_u64_trapping(value: i8) -> u64 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u64
+    value as u64 in Trapping
 }
 
 pub machine narrow_i16_to_u8_exact(value: i16 [0..=255]) -> u8
@@ -773,7 +774,7 @@ pub machine narrow_i16_to_u8_trapping(value: i16) -> u8 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 255;
     numeric_conversion_trap_if(above);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine narrow_i16_to_u16_exact(value: i16 [0..=32767]) -> u16
@@ -795,7 +796,7 @@ pub machine narrow_i16_to_u16_saturating(value: i16) -> u16 {
 pub machine narrow_i16_to_u16_trapping(value: i16) -> u16 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u16
+    value as u16 in Trapping
 }
 
 pub machine narrow_i16_to_u32_exact(value: i16 [0..=32767]) -> u32
@@ -817,7 +818,7 @@ pub machine narrow_i16_to_u32_saturating(value: i16) -> u32 {
 pub machine narrow_i16_to_u32_trapping(value: i16) -> u32 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u32
+    value as u32 in Trapping
 }
 
 pub machine narrow_i16_to_u64_exact(value: i16 [0..=32767]) -> u64
@@ -839,7 +840,7 @@ pub machine narrow_i16_to_u64_saturating(value: i16) -> u64 {
 pub machine narrow_i16_to_u64_trapping(value: i16) -> u64 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u64
+    value as u64 in Trapping
 }
 
 pub machine narrow_i32_to_u8_exact(value: i32 [0..=255]) -> u8
@@ -863,7 +864,7 @@ pub machine narrow_i32_to_u8_trapping(value: i32) -> u8 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 255;
     numeric_conversion_trap_if(above);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine narrow_i32_to_u16_exact(value: i32 [0..=65535]) -> u16
@@ -887,7 +888,7 @@ pub machine narrow_i32_to_u16_trapping(value: i32) -> u16 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 65535;
     numeric_conversion_trap_if(above);
-    value as u16
+    value as u16 in Trapping
 }
 
 pub machine narrow_i32_to_u32_exact(value: i32 [0..=2147483647]) -> u32
@@ -909,7 +910,7 @@ pub machine narrow_i32_to_u32_saturating(value: i32) -> u32 {
 pub machine narrow_i32_to_u32_trapping(value: i32) -> u32 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u32
+    value as u32 in Trapping
 }
 
 pub machine narrow_i32_to_u64_exact(value: i32 [0..=2147483647]) -> u64
@@ -931,7 +932,7 @@ pub machine narrow_i32_to_u64_saturating(value: i32) -> u64 {
 pub machine narrow_i32_to_u64_trapping(value: i32) -> u64 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u64
+    value as u64 in Trapping
 }
 
 pub machine narrow_i64_to_u8_exact(value: i64 [0..=255]) -> u8
@@ -955,7 +956,7 @@ pub machine narrow_i64_to_u8_trapping(value: i64) -> u8 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 255;
     numeric_conversion_trap_if(above);
-    value as u8
+    value as u8 in Trapping
 }
 
 pub machine narrow_i64_to_u16_exact(value: i64 [0..=65535]) -> u16
@@ -979,7 +980,7 @@ pub machine narrow_i64_to_u16_trapping(value: i64) -> u16 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 65535;
     numeric_conversion_trap_if(above);
-    value as u16
+    value as u16 in Trapping
 }
 
 pub machine narrow_i64_to_u32_exact(value: i64 [0..=4294967295]) -> u32
@@ -1003,7 +1004,7 @@ pub machine narrow_i64_to_u32_trapping(value: i64) -> u32 {
     numeric_conversion_trap_if(below);
     let above: bool = value > 4294967295;
     numeric_conversion_trap_if(above);
-    value as u32
+    value as u32 in Trapping
 }
 
 pub machine narrow_i64_to_u64_exact(value: i64) -> u64
@@ -1025,5 +1026,5 @@ pub machine narrow_i64_to_u64_saturating(value: i64) -> u64 {
 pub machine narrow_i64_to_u64_trapping(value: i64) -> u64 {
     let below: bool = value < 0;
     numeric_conversion_trap_if(below);
-    value as u64
+    value as u64 in Trapping
 }

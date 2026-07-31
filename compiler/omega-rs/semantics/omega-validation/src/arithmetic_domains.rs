@@ -1348,6 +1348,43 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
     Some(Interval { low, high })
 }
 
+/// Whether every value admitted by `source` is representable by the target
+/// integer carrier. Unbounded endpoints compare structurally: an unbounded
+/// source side is accepted only when the target is unbounded on that side too.
+fn integer_interval_fits_primitive(
+    source: Interval,
+    source_primitive: PrimitiveType,
+    target: PrimitiveType,
+) -> bool {
+    let Some(source_range) = primitive_range(source_primitive) else {
+        return false;
+    };
+    let Some(target) = primitive_range(target) else {
+        return false;
+    };
+    // Every runtime value is already constrained by its source carrier. Keep a
+    // tighter flow interval only when it is wholly inside that carrier. A
+    // wrapped expression's mathematical interval can lie outside the carrier;
+    // intersecting a disjoint interval would manufacture an empty range and
+    // falsely prove arbitrary targets, so fall back to the full carrier.
+    let source = if source_range.contains(source) {
+        source
+    } else {
+        source_range
+    };
+    let low_fits = match (source.low, target.low) {
+        (_, None) => true,
+        (Some(source), Some(target)) => source >= target,
+        (None, Some(_)) => false,
+    };
+    let high_fits = match (source.high, target.high) {
+        (_, None) => true,
+        (Some(source), Some(target)) => source <= target,
+        (None, Some(_)) => false,
+    };
+    low_fits && high_fits
+}
+
 /// The bit width of an integer primitive (the F8 shift-count bound), or `None`
 /// for non-integer types. `Addr` is excluded deliberately: shifting an address
 /// is already rejected by the address-arithmetic model above.
@@ -2031,6 +2068,26 @@ fn analyze(
                         primitive_name(target),
                     )));
                 }
+            }
+            // Exact integer coercion preserves the mathematical value. Width
+            // narrowing and signedness changes therefore need a proof that
+            // the source interval fits the complete target range; a cast is
+            // not an opt-in truncation/reinterpretation surface. Widening
+            // succeeds from the source carrier's ordinary full-range fact.
+            if cast.domain == ArithmeticDomain::Exact
+                && let Some(source_primitive) = source
+                    .primitive
+                    .filter(|source| primitive_range(*source).is_some())
+                && let Some(target) = primitive.filter(|target| primitive_range(*target).is_some())
+                && !integer_interval_fits_primitive(source.interval, source_primitive, target)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "Exact integer cast in {owner} from `{}` to `{}` is not provably \
+                     representable; constrain the source with a range or dominating guard, \
+                     or use a named Wrapping, Saturating, or Trapping conversion.",
+                    source.primitive.map(primitive_name).unwrap_or("integer"),
+                    primitive_name(target),
+                )));
             }
             // The cast bounds the value to the target type's range (and re-tags its
             // domain), so it is a widening/narrowing escape from an overflow.
@@ -2798,7 +2855,7 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{Interval, float_interval_fits_integer};
+    use super::{Interval, float_interval_fits_integer, integer_interval_fits_primitive};
     use omega_typed_trees::types::PrimitiveType;
 
     fn iv(low: i64, high: i64) -> Interval {
@@ -2901,6 +2958,61 @@ mod tests {
             0.0,
             18446744073709551616.0,
             PrimitiveType::U64,
+        ));
+    }
+
+    #[test]
+    fn exact_integer_cast_requires_interval_containment() {
+        assert!(integer_interval_fits_primitive(
+            iv(i8::MIN as i64, i8::MAX as i64),
+            PrimitiveType::I8,
+            PrimitiveType::I32,
+        ));
+        assert!(integer_interval_fits_primitive(
+            iv(0, u8::MAX as i64),
+            PrimitiveType::U8,
+            PrimitiveType::U8,
+        ));
+        assert!(!integer_interval_fits_primitive(
+            iv(-1, i8::MAX as i64),
+            PrimitiveType::I8,
+            PrimitiveType::U8,
+        ));
+        assert!(!integer_interval_fits_primitive(
+            iv(0, 300),
+            PrimitiveType::I32,
+            PrimitiveType::U8,
+        ));
+        assert!(integer_interval_fits_primitive(
+            Interval {
+                low: Some(0),
+                high: None,
+            },
+            PrimitiveType::U64,
+            PrimitiveType::U64,
+        ));
+        assert!(!integer_interval_fits_primitive(
+            Interval {
+                low: Some(0),
+                high: None,
+            },
+            PrimitiveType::U64,
+            PrimitiveType::I64,
+        ));
+        // Abstract arithmetic can exceed its runtime carrier. The carrier
+        // remains an intrinsic bound, so same-carrier policy erasure is exact.
+        assert!(integer_interval_fits_primitive(
+            Interval::UNBOUNDED,
+            PrimitiveType::U32,
+            PrimitiveType::U32,
+        ));
+        // A wrapped i8 computation may have a pre-wrap mathematical interval
+        // outside i8. It cannot use an empty intersection to prove that the
+        // actual (possibly negative) i8 result fits u8.
+        assert!(!integer_interval_fits_primitive(
+            iv(200, 200),
+            PrimitiveType::I8,
+            PrimitiveType::U8,
         ));
     }
 }

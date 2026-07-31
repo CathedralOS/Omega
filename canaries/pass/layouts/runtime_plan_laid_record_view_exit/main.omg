@@ -7,6 +7,7 @@
 // used by the filesystem struct-stat migration.
 use omega::language::std::console;
 use omega::language::core::layout;
+use omega::language::core::numeric_conversion;
 
 data Spread {
     entries: [FieldEntry; 64];
@@ -57,7 +58,7 @@ machine Main::main(&mut self) {
     // projected plan-laid scalars remain typed pointee loads through widening
     // and explicit narrowing conversions.
     let low: u64 = view.value.low as u64;
-    let high: u16 = view.value.high as u16;
+    let high: u16 = narrow_u64_to_u16_wrapping(view.value.high);
     transition low == 30 && high == 40 {
         true -> good()
         _ -> bad()

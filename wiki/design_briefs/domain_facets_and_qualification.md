@@ -383,8 +383,11 @@ establishment-origin, normalized route, alias, and receipt records. The source
 parser and establishment checker use predicate `requires` plus exact authored
 requirement routes; checked artifacts retain those identities, and neither
 owner placement nor boundary contract placement infers authority. The coercion
-resolver and the remaining domain-theory artifact fields still need to adopt
-the rest of this brief.
+resolver now enforces denotation-preserving integer `as`: widening follows the
+source carrier range and narrowing or signedness changes require a complete
+representability proof. Normalized unit-scale coercion, weakening/erasure, and
+the remaining domain-theory artifact fields still need to adopt the rest of
+this brief.
 
 Migration should:
 
@@ -397,7 +400,8 @@ Migration should:
 4. make an authorized route's return position establish provenance only after
    every domain predicate is proved;
 5. implement exact denotation-preserving `as` across numeric representation
-   and normalized unit scales without invoking user code;
+   and normalized unit scales without invoking user code (integer
+   representation complete; normalized unit scales pending);
 6. implement per-atom implicit weakening, explicit semantic erasure, and
    ownership-governed claim removal; and
 7. preserve those facts through generics, contracts, artifacts, and separate

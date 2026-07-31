@@ -122,7 +122,7 @@ memory provider without split, merge, or an array of checked claims.
 
 #### P1b — domain establishment and exact coercion surface
 
-**DESIGN SETTLED; IMPLEMENTATION PENDING.** Move predicate propositions from
+**DESIGN SETTLED; IMPLEMENTATION IN PROGRESS.** Move predicate propositions from
 domain bodies to ordinary `requires`. Domain bodies enumerate exact
 trait-requirement identities authorized to establish provenance; every
 predicate is proved at an authorized route's qualified return. An empty domain
@@ -138,16 +138,20 @@ Predicate-only atoms may weaken implicitly; semantic and non-owning provenance
 atoms erase only through explicit `as`; owned claims require consumption or
 transfer.
 
-Implementation checkpoint (2026-07-30): explicit `as` now qualifies directly
+Implementation checkpoint (2026-07-31): explicit `as` now qualifies directly
 into an empty domain, including a transparent alias only when every expanded
 atom has neither predicates nor establishment routes. The legacy core
 `RepresentationQualification` trait, its privileged semantic roles, selected
 satisfier field, erased named-call lowering, and canonical-use artifact are
 retired. `05_qualification_evidence.json` instead reports each exact
 `vacuous_qualification` origin. Predicate-bearing and routed atoms remain
-fail-closed on this path. Predicate `requires`, authored route bodies,
-denotation-preserving representation/scale conversion, and per-domain
-weakening remain.
+fail-closed on this path. Exact integer `as` now preserves mathematical value:
+all widening accepted by the source carrier range, while narrowing and
+signedness changes require a declared-range or dominating-guard proof.
+Unproved casts reject and direct authors to visible named policies; same-carrier
+policy erasure remains exact by bounding inferred facts with the source carrier.
+Denotation-preserving normalized unit representation/scale conversion, explicit
+semantic erasure, and per-domain weakening remain.
 
 The source/IR route migration is complete: domain predicate `requires` and exact
 `Trait::requirement` body entries now parse into independent records; authored
@@ -435,6 +439,16 @@ ceilings, and publication-before-ledger-record all reject.
   spellings that remain in samples are same-carrier arithmetic qualification
   (or the wire policy's same-type compatibility spelling), not hidden numeric
   conversion; float conversion remains its own F7 lane.
+- Proof-directed exact integer `as` is now enforced across the compiler and
+  corpus. The checker retains tighter flow facts only when the intrinsic source
+  carrier contains them and otherwise falls back to that carrier's full range,
+  so widening and same-carrier arithmetic-policy erasure are exact by
+  construction without manufacturing an empty proof interval. Narrowing and
+  cross-signed coercion require complete target containment from a declared
+  range or dominating guard. Unproved casts reject with policy guidance.
+  Positive/negative canaries pin widening, declared-range narrowing,
+  guard-derived narrowing, and rejection, while former truncation and
+  reinterpretation fixtures now name Wrapping or Trapping explicitly.
 - Call-result normalization now materializes a value-machine call directly
   beneath a value cast or qualification through the ordinary synthetic local
   route. Inline named conversion, subsequent arithmetic-policy qualification,
@@ -499,11 +513,12 @@ ceilings, and publication-before-ledger-record all reject.
   integer migration.
 - Checked-result narrowing is design-blocked on the open arithmetic-library
   question in `wiki/language_guide/appendix_open_questions.md`; do not invent a
-  result family merely to mirror another language. Remaining implementation
-  work is float/integer and float-format policy operations plus proof-directed
-  exact `as`. Keep `arithmetic/runtime_integer_casts_exit` as coverage for
-  sign/zero extension, proved truncation, and cast-valued transition lowering;
-  the named policy surface has separate coverage.
+  result family merely to mirror another language. Remaining numeric-conversion
+  implementation work is float/integer and float-format policy operations;
+  exact integer `as` is complete. Keep
+  `arithmetic/runtime_integer_casts_exit` as coverage for sign/zero extension,
+  proved truncation, and cast-valued transition lowering; the named policy
+  surface has separate coverage.
 
 Acceptance: qualified `as` targets preserve denotation, bare targets make
 non-owning semantic erasure explicit, arbitrary user code is never invoked,

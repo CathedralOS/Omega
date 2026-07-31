@@ -1,8 +1,8 @@
 // The TASKS "signed/unsigned residue" sibling shape (1): a modulo whose left
-// operand is a numeric CAST -- `((random.seed >> 32) as u32) % 199` -- must
+// operand is a named wrapping conversion -- `narrow_u64_to_u32_wrapping(...) % 199` -- must
 // lower with the UNSIGNED modulo. Pre-fix the operand signedness resolver
-// (`resolve_runtime_storage_is_signed_in_table`) could not see through Cast
-// nodes (returned None -> signed fallback), so once the cast value crosses
+// (`resolve_runtime_storage_is_signed_in_table`) could not see through the
+// conversion result (returned None -> signed fallback), so once it crosses
 // 2^31 the signed remainder is negative; stored into the u32 slot it reads as
 // a huge value and misses every expected guard arm. The cast's TARGET type
 // (u32 here) decides the signedness, regardless of the source expression.
@@ -16,6 +16,8 @@
 // Exit 71: roll == 4294967209 = the signed-remainder misfire: (3299435481 as
 // i32) = -995531815, and -995531815 % 199 = -87, which the u32 slot stores as
 // 4294967209. Exit 1: any other value.
+
+use omega::language::core::numeric_conversion;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -49,7 +51,7 @@ machine Main::main(&mut self) -> i32 {
         &mut self,
         random: &mut RandomState
     ) {
-        let roll: u32 = ((random.seed >> 32) as u32) % 199;
+        let roll: u32 = narrow_u64_to_u32_wrapping(random.seed >> 32) % 199;
 
         transition {
             roll == 158 -> unsigned_modulo()
