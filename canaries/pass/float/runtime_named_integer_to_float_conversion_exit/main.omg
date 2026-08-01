@@ -1,0 +1,60 @@
+// Complete destination-owned integer-to-float matrix. Narrow signed and
+// unsigned sources prove extension identity; large values pin nearest-even at
+// the binary32/binary64 precision boundary and the upper half of u64.
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let signed8: i8 = -8;
+    let signed16: i16 = -16;
+    let signed32: i32 = -32;
+    let signed64_for32: i64 = 16777217;
+    let signed64_for64: i64 = 9007199254740993;
+    let unsigned8: u8 = 8;
+    let unsigned16: u16 = 16;
+    let unsigned32: u32 = 32;
+    let unsigned64: u64 = 18446744073709551615;
+
+    let f32_i8: f32 = F32::from_i8(signed8);
+    let f32_i16: f32 = F32::from_i16(signed16);
+    let f32_i32: f32 = F32::from_i32(signed32);
+    let f32_i64: f32 = F32::from_i64(signed64_for32);
+    let f32_u8: f32 = F32::from_u8(unsigned8);
+    let f32_u16: f32 = F32::from_u16(unsigned16);
+    let f32_u32: f32 = F32::from_u32(unsigned32);
+    let f32_u64: f32 = F32::from_u64(unsigned64);
+
+    let f64_i8: f64 = F64::from_i8(signed8);
+    let f64_i16: f64 = F64::from_i16(signed16);
+    let f64_i32: f64 = F64::from_i32(signed32);
+    let f64_i64: f64 = F64::from_i64(signed64_for64);
+    let f64_u8: f64 = F64::from_u8(unsigned8);
+    let f64_u16: f64 = F64::from_u16(unsigned16);
+    let f64_u32: f64 = F64::from_u32(unsigned32);
+    let f64_u64: f64 = F64::from_u64(unsigned64);
+
+    transition {
+        f32_i8 == -8.0f32
+            && f32_i16 == -16.0f32
+            && f32_i32 == -32.0f32
+            && f32_i64 == 16777216.0f32
+            && f32_u8 == 8.0f32
+            && f32_u16 == 16.0f32
+            && f32_u32 == 32.0f32
+            && f32_u64 == 18446744073709551616.0f32
+            && f64_i8 == -8.0
+            && f64_i16 == -16.0
+            && f64_i32 == -32.0
+            && f64_i64 == 9007199254740992.0
+            && f64_u8 == 8.0
+            && f64_u16 == 16.0
+            && f64_u32 == 32.0
+            && f64_u64 == 18446744073709551616.0 -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

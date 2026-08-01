@@ -484,7 +484,10 @@ ceilings, and publication-before-ledger-record all reject.
   float-format slice is now published as total nearest-even
   `F32::from_f64`/`F64::from_f32` requirements with exact provider selection on
   all four native targets; interpreter/native rounding-boundary and infinity
-  canaries pin execution. Integer-to-float and float-to-integer families remain.
+  canaries pin execution. The complete `F32`/`F64` integer-source matrix is
+  also published for signed and unsigned 8/16/32/64-bit carriers, with exact
+  provider selection on all targets and dual-engine nearest-even/signedness/
+  upper-half-`u64` canaries. The float-to-integer policy families remain.
 - Generalize named-machine/requirement overload identity beyond the current
   path-and-parameter rule: normalize the result's dispatch-bearing domain set,
   reject duplicate sets at declaration, select the empty set without an
@@ -963,8 +966,9 @@ and allocation handles expose no compiler-owned stack/control storage.
   The public float/integer and float-format conversion requirement family is
   settled. Result-domain overload resolution and provider/artifact lowering are
   now live. The public float-format pair is published and pinned across all
-  native target plans plus both execution engines. Remaining work is the
-  integer-to-float and float-to-integer source/core families and canaries. The
+  native target plans plus both execution engines. The integer-to-float matrix
+  is likewise published and pinned. Remaining work is the float-to-integer
+  unqualified/`Trapping`/`Saturating` source/core family and canaries. The
   checked-result operation remains separately design-blocked on its public
   result carrier.
 
