@@ -68,7 +68,7 @@ pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<
                 arguments.len(),
             )));
         }
-        let instance_name = crate::domain_constraints::indexed_domain_instance_name(
+        let instance_name = omega_typed_trees::domain::indexed_domain_instance_name(
             program,
             domain,
             index_parameters,

@@ -1,6 +1,8 @@
 // PDI2: one erased domain family spans carriers and distinguishes canonical
 // closed proof-static indices without changing either carrier's layout.
 
+use omega::language::std::console;
+
 data Unit {
     scale: i32;
     length_exponent: i32;
@@ -92,7 +94,11 @@ machine retag_i64<const To: Unit>(value: i64) -> i64 in Quantity<To> {
 }
 
 data Main {
+    console: Console;
 }
 
 machine Main::main(&mut self) {
+    let meters: i64 in Quantity<Units::METER> = retag_i64(70);
+    let seconds: i64 in Quantity<Units::SECOND> = retag_i64(0);
+    self.console.exit_process(meters as i32);
 }

@@ -2,6 +2,7 @@ use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
+use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +72,109 @@ impl Default for DomainAliasConstituent {
             domain_symbol: SymbolHandle::invalid(),
         }
     }
+}
+
+/// Deterministic identity of one closed indexed-domain instance. Both initial
+/// typed lowering and later generic-machine specialization call this helper so
+/// replacing a direct const binder with its canonical value cannot mint a
+/// second spelling-dependent identity for the same instance.
+pub fn indexed_domain_instance_name(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    parameters: &[crate::data::TypeParameter],
+    arguments: &[TypeReferenceHandle],
+) -> Result<String, Diagnostic> {
+    if arguments.is_empty() {
+        return Ok(program
+            .semantic_domains
+            .name(domain.semantic_id)
+            .unwrap_or(domain.name.as_str())
+            .to_owned());
+    }
+    let mut identities = Vec::with_capacity(arguments.len());
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind else {
+            return Err(Diagnostic::error(format!(
+                "domain family `{}` has a non-const index binder `{}`",
+                domain.name, parameter.name
+            )));
+        };
+        let expected = const_index_type_name(program, type_reference)?;
+        identities.push(closed_domain_argument_identity(
+            program, *argument, &expected,
+        )?);
+    }
+    let base = program
+        .semantic_domains
+        .name(domain.semantic_id)
+        .unwrap_or(domain.name.as_str());
+    Ok(format!("{base}<{}>", identities.join(",")))
+}
+
+fn const_index_type_name(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Result<String, Diagnostic> {
+    use crate::types::{FixedArrayLength, TypeReferenceNode};
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => Ok(name.as_str().to_owned()),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => Ok(format!(
+            "[{}; {length}]",
+            const_index_type_name(program, *element_type)?
+        )),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            const_index_type_name(program, *base_type)
+        }
+        TypeReferenceNode::Unit => Ok("()".to_owned()),
+        _ => Err(Diagnostic::error(
+            "indexed-domain const parameter types must have canonical structural identity",
+        )),
+    }
+}
+
+fn closed_domain_argument_identity(
+    program: &TypedTrees,
+    argument: TypeReferenceHandle,
+    expected: &str,
+) -> Result<String, Diagnostic> {
+    let crate::types::TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return Err(Diagnostic::error(
+            "closed indexed-domain arguments must be canonical const values or direct const binders",
+        ));
+    };
+    if let Some(value) = omega_core::const_value::CanonicalConstValue::from_atom(name.as_str()) {
+        if value.type_name != expected {
+            return Err(Diagnostic::error(format!(
+                "indexed-domain argument has canonical type `{}`, expected `{expected}`",
+                value.type_name
+            )));
+        }
+        return Ok(format!(
+            "const:{}:{}:{}",
+            value.type_name,
+            value.encoding.len(),
+            value.encoding
+        ));
+    }
+    if name.as_str().parse::<i128>().is_ok() {
+        return Ok(format!("integer:{expected}:{}", name.as_str()));
+    }
+    // A direct generic const binder remains open only until ordinary machine
+    // specialization. It is not PDI3's computed expression surface.
+    Ok(format!(
+        "binder:{}:{}",
+        if symbol.is_valid() {
+            program.symbols.display_path(*symbol, "::")
+        } else {
+            name.as_str().to_owned()
+        },
+        expected
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

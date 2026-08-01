@@ -100,7 +100,7 @@ fn normalize_constraint_span(
                 domain_constraint.arguments.len()
             )));
         }
-        let instance_name = indexed_domain_instance_name(
+        let instance_name = omega_typed_trees::domain::indexed_domain_instance_name(
             program,
             domain,
             index_parameters,
@@ -223,104 +223,4 @@ pub(crate) fn domain_accepts_carrier(
         return false;
     };
     (*symbol == parameter.symbol || name == &parameter.name) && carrier.is_valid()
-}
-
-pub(crate) fn indexed_domain_instance_name(
-    program: &TypedTrees,
-    domain: &omega_typed_trees::domain::DomainDefinition,
-    parameters: &[omega_typed_trees::data::TypeParameter],
-    arguments: &[omega_typed_trees::types::TypeReferenceHandle],
-) -> Result<String, Diagnostic> {
-    if arguments.is_empty() {
-        return Ok(program
-            .semantic_domains
-            .name(domain.semantic_id)
-            .unwrap_or(domain.name.as_str())
-            .to_owned());
-    }
-    let mut identities = Vec::with_capacity(arguments.len());
-    for (parameter, argument) in parameters.iter().zip(arguments) {
-        let omega_typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
-        else {
-            return Err(Diagnostic::error(format!(
-                "domain family `{}` has a non-const index binder `{}`",
-                domain.name, parameter.name
-            )));
-        };
-        let expected = const_index_type_name(program, type_reference)?;
-        identities.push(closed_domain_argument_identity(
-            program, *argument, &expected,
-        )?);
-    }
-    let base = program
-        .semantic_domains
-        .name(domain.semantic_id)
-        .unwrap_or(domain.name.as_str());
-    Ok(format!("{base}<{}>", identities.join(",")))
-}
-
-fn const_index_type_name(
-    program: &TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
-) -> Result<String, Diagnostic> {
-    use omega_typed_trees::types::{FixedArrayLength, TypeReferenceNode};
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => Ok(name.as_str().to_owned()),
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => Ok(format!(
-            "[{}; {length}]",
-            const_index_type_name(program, *element_type)?
-        )),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            const_index_type_name(program, *base_type)
-        }
-        TypeReferenceNode::Unit => Ok("()".to_owned()),
-        _ => Err(Diagnostic::error(
-            "indexed-domain const parameter types must have canonical structural identity",
-        )),
-    }
-}
-
-fn closed_domain_argument_identity(
-    program: &TypedTrees,
-    argument: omega_typed_trees::types::TypeReferenceHandle,
-    expected: &str,
-) -> Result<String, Diagnostic> {
-    let omega_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(argument)
-    else {
-        return Err(Diagnostic::error(
-            "closed indexed-domain arguments must be canonical const values or direct const binders",
-        ));
-    };
-    if let Some(value) = omega_core::const_value::CanonicalConstValue::from_atom(name.as_str()) {
-        if value.type_name != expected {
-            return Err(Diagnostic::error(format!(
-                "indexed-domain argument has canonical type `{}`, expected `{expected}`",
-                value.type_name
-            )));
-        }
-        return Ok(format!(
-            "const:{}:{}:{}",
-            value.type_name,
-            value.encoding.len(),
-            value.encoding
-        ));
-    }
-    if name.as_str().parse::<i128>().is_ok() {
-        return Ok(format!("integer:{expected}:{}", name.as_str()));
-    }
-    // A direct generic const binder remains open only until ordinary machine
-    // specialization. It is not PDI3's computed expression surface.
-    Ok(format!(
-        "binder:{}:{}",
-        if symbol.is_valid() {
-            program.symbols.display_path(*symbol, "::")
-        } else {
-            name.as_str().to_owned()
-        },
-        expected
-    ))
 }

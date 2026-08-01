@@ -22403,8 +22403,8 @@ fn closed_indexed_domain_canaries() {
     let uses = &checked.facts.qualifications.vacuous_uses;
     assert_eq!(
         uses.len(),
-        2,
-        "both explicit indexed qualifications should be retained"
+        3,
+        "closed qualification plus both concrete generic instances should be retained"
     );
     for use_fact in uses {
         let machine = checked
@@ -22436,6 +22436,60 @@ fn closed_indexed_domain_canaries() {
     let evidence = omega_visualizations::qualification_evidence_manifest_json(&checked);
     assert!(evidence.contains("\"semantic_domain_id\":"));
     assert!(evidence.contains("\"semantic_domain\":"));
+    let retag = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "retag_i64")
+        .expect("retag template instance");
+    let specializations = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.template == retag.symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(specializations.len(), 2);
+    assert!(
+        specializations
+            .iter()
+            .all(|specialization| specialization.const_arguments.len() == 1)
+    );
+    assert_ne!(
+        specializations[0].const_arguments,
+        specializations[1].const_arguments
+    );
+    assert_ne!(
+        specializations[0].fingerprint,
+        specializations[1].fingerprint
+    );
+    let contracts = omega_visualizations::machine_contract_manifest_json(&checked);
+    assert!(contracts.contains("\"const_arguments\":"));
+
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-closed-indexed-qualification-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: pass.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("closed indexed generic conversion should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("closed indexed generic conversion should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected destination-specialized retag to return exit 70, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
 
     for path in [
         "generics/closed_indexed_domain_mismatch",
@@ -22446,6 +22500,7 @@ fn closed_indexed_domain_canaries() {
         "generics/closed_indexed_qualification_unknown_const",
         "generics/closed_indexed_qualification_wrong_arity",
         "generics/closed_indexed_qualification_wrong_type",
+        "generics/const_machine_destination_not_inferred",
     ] {
         let canary = fail_canary(path);
         let expected = fs::read_to_string(canary.join("expected.txt"))

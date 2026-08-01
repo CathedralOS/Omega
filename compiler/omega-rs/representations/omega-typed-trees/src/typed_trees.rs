@@ -99,9 +99,10 @@ fn named_type_name_through_shells(
     }
 }
 
-/// One compile-time machine specialization. Static machine arguments are
-/// symbols, never runtime callable values; `fingerprint` is normalized from
-/// declaration/type/path spellings rather than arena addresses.
+/// One compile-time machine specialization. Const arguments are canonical
+/// proof-static identities and static machine arguments are symbols; neither
+/// becomes a runtime value. `fingerprint` is normalized from declaration,
+/// type, const-value, and machine-path identity rather than arena addresses.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: omega_core::symbols::SymbolHandle,
@@ -111,6 +112,7 @@ pub struct MachineSpecialization {
     /// this symbol rather than guessing from specialization order.
     pub instance: omega_core::symbols::SymbolHandle,
     pub type_arguments: Vec<String>,
+    pub const_arguments: Vec<String>,
     pub machine_arguments: Vec<omega_core::symbols::SymbolHandle>,
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.

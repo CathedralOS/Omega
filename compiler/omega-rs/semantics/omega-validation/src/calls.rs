@@ -4071,9 +4071,9 @@ fn fence_generic_value_callee(
         return;
     }
     diagnostics.push(Diagnostic::error(format!(
-        "a value call to the generic machine `{target}` is not supported natively yet (the \
-         monomorphized result is never materialized): wrap it in a concrete machine, or use a \
-         statement call",
+        "a value call to generic machine `{target}` cannot derive a complete \
+         type/const/machine specialization tuple from its argument and result types; add a \
+         concrete destination annotation or provide concrete argument type evidence",
     )));
 }
 

@@ -429,10 +429,12 @@ instances, direct destination binders survive generic signatures, and ordinary
 per-pair operators attach to the family without affecting layout. Indexed
 explicit qualification now selects either a closed value or a direct
 destination binder and retains that exact instance through checked artifacts.
-Finish const-machine call specialization and the units package to exercise an
-executed destination-parameterized conversion. Only afterward add computed
-open result indices, licensed normalization, and retained compatibility evidence. They
-extend the facts a domain may carry without changing this qualification model.
+Const-machine call specialization now executes destination-parameterized
+conversion for canonical result/parameter evidence, including distinct cloned
+instances. Finish the units package and its operator/conversion canaries. Only
+afterward add computed open result indices, licensed normalization, and retained
+compatibility evidence. They extend the facts a domain may carry without
+changing this qualification model.
 
 ## Cross-references
 

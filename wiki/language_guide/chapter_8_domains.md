@@ -111,8 +111,9 @@ machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
 }
 ```
 
-Const-machine call specialization and computed index expressions remain staged
-work; the latter belongs to the next proof-static rung.
+Concrete constrained parameter/result evidence specializes calls to such a
+machine, so a destination annotation can select and execute the closed binder.
+Computed index expressions remain staged for the next proof-static rung.
 
 ## Domains In Contracts
 
@@ -1239,8 +1240,8 @@ Working interpretation:
 > conversion now uses proof-directed `as`; unit conversion remains ordinary
 > library behavior. Structured const values and closed indexed-family binding
 > constraints and indexed explicit qualification are live, including direct
-> const destination binders and exact instance evidence. Const-machine call
-> specialization remains before computed open result indices.
+> const destination binders and exact instance evidence. Constrained-position
+> const-machine specialization is live; computed open result indices remain next.
 > Per-atom weakening is enforced at ordinary value-flow boundaries:
 > predicate-only atoms may disappear implicitly, while semantic meaning,
 > non-owning routed provenance, and non-Exact arithmetic policy require an
