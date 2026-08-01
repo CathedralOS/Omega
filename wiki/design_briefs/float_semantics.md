@@ -1,4 +1,4 @@
-# Float Semantics — the design record (settled 2026-07-28)
+# Float Semantics — the design record (settled 2026-07-31)
 
 This is the settled float model. Chapter 5's Float Facts section is the
 user-facing surface; this file records the rationale and implementation laws.
@@ -168,9 +168,45 @@ for rounding boundaries, subnormal underflow, overflow, signed zero,
 infinities, NaN comparison and min/max behavior, classification, square root,
 the directed arithmetic families, and fused-versus-unfused results. This
 completes F7 rung 1 for the settled operation surface. The legacy `as`
-evaluator path is only a compatibility consumer; exact public float-conversion
-requirement names and signatures remain a language-design blocker because the
-settled record excludes `as` without selecting its replacement surface.
+evaluator path is only a compatibility consumer.
+
+### Public conversion family (settled 2026-07-31)
+
+Policy-bearing conversion uses destination-owned requirement identities:
+`F32::from_f64`, `F32::from_i64`, `I32::from_f64`, and the corresponding
+primitive-destination families. A generic consumer names the exact operation it
+needs through an ordinary one-off machine bound, so the family needs no
+universal `Convert<From, To>` trait.
+
+The default format and integer-to-float operation rounds nearest-even. The
+default float-to-integer operation rounds toward zero; fractionality is lossy,
+not a failure. Its unqualified result is proof-gated on a finite input whose
+truncated result lies in range. `Trapping` and `Saturating` are result-domain
+overloads of the same operation identity, while `Wrapping` has no candidate.
+The overload result retains the selected policy; callers explicitly erase it
+when subsequent arithmetic should return to Exact.
+
+Named-machine result dispatch is a general domain rule rather than float
+magic. For one path and parameter signature, the expected result's normalized
+dispatch-bearing domain set must equal one declaration's result set. With no
+expected result, the empty set selects the unqualified overload. Predicate-only
+knowledge does not dispatch and is proved after selection. Semantic-role
+contributions, routed provenance, and empty explicit tags do dispatch; mixed
+domains still owe their predicates. Duplicate dispatch sets reject at the
+declaration, and the normalized set enters requirement and artifact identity.
+Fixed operator spellings remain operand-directed.
+
+Directed one-step conversions remain separately named requirements and never
+read an ambient/runtime rounding mode. Ordinary library wrappers may compose
+rounding and conversion when their contracts prove the same meaning; a
+one-step `FloatSemantics` conversion is required where composition would double
+round. Bare float-format conversion is total, including infinity; refinements
+such as `Finite` are later predicate obligations, not conversion variants.
+Same-format policy qualification belongs to `as`, not this family.
+
+A failure-returning conversion changes result shape. Its public name and
+carrier stay deferred with checked-result arithmetic; this does not block the
+ordinary, trapping, saturating, format, or integer-to-float requirements.
 
 Rung-2 checkpoint (2026-07-29): executable policy adapters now live beside
 `FloatSemantics`. `Trapping` checks the semantic result alone, so propagating a

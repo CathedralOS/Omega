@@ -121,10 +121,12 @@ overflow, signed zero, infinities, NaN comparisons and min/max, classification,
 square root, every directed arithmetic family, and fused-versus-unfused
 behavior. Core float requirements backed by the hermetic semantic engine do
 not count as host observation; compatibility imports retain the dynamic host-
-boundary purity fence. The public float-conversion requirement family remains
-a language-design blocker: exact denotation-preserving coercions may use `as`,
-while rounding, trapping, saturation, checked failure, and cross-format policy
-still need explicit requirement names and signatures.
+boundary purity fence. The public float-conversion family is now settled as
+destination-owned named requirements with result-domain overloads for
+same-shape arithmetic policy. Exact denotation-preserving coercions remain
+`as`; directed one-step rounding remains separately named. Only the public
+failure-returning result carrier remains deferred with checked-result
+arithmetic.
 
 ## Admission uses the complete invocation contract
 

@@ -118,6 +118,47 @@ machine in_span(g: Game) -> bool {
 }
 ```
 
+### Result-domain overloads
+
+A named machine or requirement may reuse one path and parameter signature when
+each declaration returns a different set of dispatch-bearing domains. This is
+compile-time overload selection over erased qualification, not runtime return
+type inspection:
+
+```omega
+boundary machine I32::from_f64(value: f64) -> i32
+    requires finite_in_i32_interval(value);
+
+boundary machine I32::from_f64(value: f64) -> i32 in Trapping;
+boundary machine I32::from_f64(value: f64) -> i32 in Saturating;
+```
+
+The expected result type supplies the requested dispatch set. With no usable
+expected type, the requested set is empty, so the unqualified overload is the
+default. Resolution requires set equality: neither weakening nor a partial
+semantic match participates. A caller asking for `i32 in Saturating & Km`
+therefore needs an overload returning both selections or must compose two
+explicit operations.
+
+Dispatch-bearing status is derived from the normalized domain theory. A domain
+that contributes a semantic role, authorizes an establishment route, or is an
+empty explicit tag participates. A domain carrying only predicate obligations
+does not; its predicates are proved after the machine has been selected. A
+mixed domain participates once by identity and still contributes all of its
+predicate obligations afterward. Aliases are expanded before this partition.
+
+For one path and normalized parameter signature, result dispatch sets must be
+pairwise distinct. Two declarations differing only by predicate refinements
+are therefore a declaration-site duplicate; publish the stronger result once
+or state the difference through `ensures`. The normalized result dispatch set
+is part of requirement identity, artifact identity, and emitted-symbol
+distinction. This makes result selection a lookup rather than a search. Other
+ordinary parameter or generic ambiguities remain possible and reject normally.
+
+Fixed operator spellings remain operand-directed. Their return type does not
+select an operator meaning; this result-domain rule is for explicit named
+machine and requirement calls.
+
 ## Supply Forms
 
 The one machine construct has four explicit supply forms:

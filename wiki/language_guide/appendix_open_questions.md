@@ -69,8 +69,8 @@ Last pruned: 2026-07-31.
 - Decide how much predicate/domain inference to attempt beyond executable
   predicate bodies, explicit evidence, and flow narrowing.
 - Finish the remaining domain spaces: general open-family linking,
-  `weakens_to` certificate syntax, and the named float-conversion requirement
-  surface (owner question #1).
+  `weakens_to` certificate syntax, and implementation of named-machine
+  result-domain overload lookup.
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

@@ -61,7 +61,7 @@ cleanup of debt-bearing elements.
 but a scalar byte count does not identify where storage lies. The residual tail
 extent supplies placement for the bump canary. The source spelling for the
 n-to-m split, retirement, and recomposition theorem remains blocked on
-`OWNER_QUESTIONS.md` #6.
+`OWNER_QUESTIONS.md` #5.
 
 ## Failure and provisioning
 

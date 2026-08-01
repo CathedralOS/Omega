@@ -314,6 +314,10 @@ two independently chosen type parameters.
 
 Distinct parameter types may coexist as an overload set, but resolution must
 eventually choose one unique candidate from operand types and proof context.
+This is the operator-specific rule: fixed spellings remain operand-directed.
+Explicit named machine and requirement calls may additionally use the
+result-domain lookup specified in chapter 3; ordinary return carriers and
+predicate refinements never distinguish those overloads.
 
 ## Numeric Semantics
 
@@ -376,23 +380,74 @@ value overflow, not operand validity, so its count obligation is Exact's.
 The compiler never adopts the ISA's silent count-masking under Exact —
 `x << 64 == x` is an invented number.
 
-### Float-to-integer casts
+### Float-to-integer conversion
 
-A float-to-integer cast is also proof-or-policy (settled and implemented
+A float-to-integer conversion is also proof-or-policy (settled and implemented
 2026-07-18):
 
-- The default Exact cast must prove that the operand is finite and inside the
-  target integer's half-open conversion interval. A declared float range can
-  supply the proof. A dominating incoming guard can supply it with ordered
-  lower/upper comparisons; `x == x` is the explicit witness that excludes NaN.
-- `in Saturating` truncates toward zero and clamps at the target width on every
-  integer target. NaN converts to zero.
-- `in Trapping` truncates an in-range finite value and traps on NaN, infinity,
-  or either out-of-range direction.
-- `in Wrapping` is a compile error: floats have no modular conversion reading.
+- The unqualified named conversion truncates toward zero and must prove that
+  the operand is finite and its truncated result lies inside the target
+  integer's half-open interval. A declared float range or dominating guard may
+  supply that proof; `x == x` is the explicit witness that excludes NaN.
+- The `Saturating` result overload truncates toward zero and clamps at the
+  target width on every integer target. NaN converts to zero.
+- The `Trapping` result overload truncates a finite value and traps on NaN,
+  infinity, or either out-of-range direction.
+- `Wrapping` has no overload: floats have no modular conversion reading.
+
+An `as` conversion is narrower still: it requires proof that the float denotes
+an integral value representable by the target, so the cast preserves
+denotation. Fractional toward-zero conversion uses the named family below.
 
 These rules are identical in the interpreter and the x86-64/AArch64 bindings;
 ISA-specific invalid-conversion sentinels are never language-visible.
+
+### Public numeric-conversion requirements
+
+Non-exact numeric conversion uses destination-owned named requirements. The
+ordinary family begins with:
+
+```omega
+F32::from_f64(value)   // binary64 to binary32, nearest-even
+F32::from_i64(value)   // exact integer meaning to binary32, nearest-even
+I32::from_f64(value)   // binary64 to i32, toward-zero
+```
+
+Equivalent destination families exist for the other primitive carriers. These
+names identify the conversion direction; result-domain overloads select
+same-shape arithmetic policy without multiplying names:
+
+```omega
+let exact: i32 = I32::from_f64(value);
+let checked_at_runtime: i32 in Trapping = I32::from_f64(value);
+let clamped: i32 in Saturating = I32::from_f64(value);
+```
+
+With no expected result type, the unqualified overload is selected. Its
+finite/range precondition must then be proved, and a failed proof diagnostic
+lists the available qualified overloads. `Wrapping` has no float-conversion
+meaning and supplies no candidate. A caller that wants saturation only for the
+conversion may explicitly erase the resulting policy before later Exact
+arithmetic.
+
+Float-to-float conversion to a bare IEEE carrier is total; infinity is an
+ordinary result. A destination such as `f32 in Finite` adds a predicate proof
+obligation after conversion selection rather than creating another overload.
+For float-to-integer conversion, fractional inputs are lossy but not failing:
+toward-zero determines the integer. Non-finite inputs and a truncated result
+outside the destination range are the proof, trap, or saturation edges.
+
+Directed one-step conversions, when published, use separate requirement names
+such as `F32::from_f64_toward_positive`; there is no ambient or runtime rounding
+mode. Libraries may compose ordinary rounding and conversion machines when
+their contracts prove equivalence. They must use the corresponding one-step
+`FloatSemantics` operation where composition would introduce double rounding.
+
+A failure-returning conversion has a different result shape and therefore a
+different requirement identity. Its public name and carrier remain deferred to
+the checked-result arithmetic decision rather than being guessed here.
+Same-format qualification is not a conversion requirement: `as` adds or
+explicitly removes an erased domain without invoking a machine.
 
 Two rules keep it honest:
 
