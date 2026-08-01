@@ -22545,6 +22545,18 @@ fn std_units_package_conversion_and_operator_canaries() {
     let pass = pass_canary("generics/runtime_std_units_exit");
     let checked = compile_to_checked(&pass.join("main.omg"), None)
         .expect("shipped named units, conversions, and operators should check");
+    assert!(
+        checked
+            .facts
+            .index_compatibility
+            .conditions
+            .iter()
+            .any(|condition| matches!(
+                condition.discharge,
+                omega_checked_trees::IndexCompatibilityDischarge::ClosedEvaluation
+            )),
+        "closed unit flows should retain their closed-evaluation verification condition"
+    );
     let interpreted = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
@@ -22614,6 +22626,27 @@ fn open_computed_quantity_result_canary_runs() {
             .iter()
             .any(|specialization| specialization.template_contract_fingerprint != 0)
     );
+    assert!(
+        checked
+            .facts
+            .index_compatibility
+            .conditions
+            .iter()
+            .any(|condition| {
+                condition.name.starts_with("index-equality:")
+                    && matches!(
+                        condition.discharge,
+                        omega_checked_trees::IndexCompatibilityDischarge::LicensedNormalization {
+                            operation_count
+                        } if operation_count > 0
+                    )
+            }),
+        "computed result flow should retain its licensed-normalization verification condition"
+    );
+    let compatibility = omega_visualizations::index_compatibility_manifest_json(&checked);
+    assert!(compatibility.contains("\"name\": \"index-equality:"));
+    assert!(compatibility.contains("\"discharge\": \"licensed_normalization\""));
+    assert!(compatibility.contains("\"operation_count\": "));
     let interpreted = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);

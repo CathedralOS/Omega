@@ -12,6 +12,7 @@ use omega_proof::obligations::ProofPlan;
 use omega_typed_trees::TypedTrees;
 
 mod carry;
+mod index_compatibility;
 
 pub(crate) fn build_check_facts(
     program: &TypedTrees,
@@ -35,6 +36,8 @@ pub(crate) fn build_check_facts(
         &operations,
         &service_reach_inference,
     );
+    let index_compatibility =
+        index_compatibility::build_index_compatibility_facts(program, &operators, &flow);
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
@@ -67,6 +70,7 @@ pub(crate) fn build_check_facts(
         operations,
         capabilities,
         flow,
+        index_compatibility,
         termination,
         service_reaches,
         qualifications,

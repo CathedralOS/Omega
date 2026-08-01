@@ -1,7 +1,7 @@
 use crate::{
     BorrowFacts, CarryFacts, CheckedOperatorFacts, CheckedValueFacts, DomainFacts, FlowFacts,
-    InvariantFacts, MachineContractPlans, ProofFacts, QualificationFacts, ServiceReachFacts,
-    TerminationFacts,
+    IndexCompatibilityFacts, InvariantFacts, MachineContractPlans, ProofFacts, QualificationFacts,
+    ServiceReachFacts, TerminationFacts,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -17,6 +17,9 @@ pub struct CheckFacts {
     pub operations: omega_effects::OperationalPlan,
     pub capabilities: omega_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
+    /// PDI3 named equality verification conditions and their exact discharge
+    /// evidence. These rows never participate in semantic type identity.
+    pub index_compatibility: IndexCompatibilityFacts,
     /// TPR3 slice 4 (decision 23): the checker-established termination
     /// summaries + completed witness elaborations.
     pub termination: TerminationFacts,
@@ -47,6 +50,7 @@ impl CheckFacts {
         operations: omega_effects::OperationalPlan,
         capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
+        index_compatibility: IndexCompatibilityFacts,
         termination: TerminationFacts,
         service_reaches: ServiceReachFacts,
         qualifications: QualificationFacts,
@@ -64,6 +68,7 @@ impl CheckFacts {
             operations,
             capabilities,
             flow,
+            index_compatibility,
             termination,
             service_reaches,
             qualifications,

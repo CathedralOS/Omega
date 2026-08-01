@@ -289,6 +289,71 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
+/// Public PDI3 compatibility surface. The named condition and its exact
+/// discharge route are retained independently of indexed-domain identity.
+pub fn index_compatibility_manifest_json(program: &CheckedTrees) -> String {
+    use omega_checked_trees::IndexCompatibilityDischarge;
+
+    let mut rows = program
+        .facts
+        .index_compatibility
+        .conditions
+        .iter()
+        .collect::<Vec<_>>();
+    rows.sort_by(|left, right| left.name.cmp(&right.name));
+
+    let mut json = String::from("{\n  \"index_compatibility\": [");
+    for (index, condition) in rows.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        let (route, operation_count, evidence_fact) = match condition.discharge {
+            IndexCompatibilityDischarge::ClosedEvaluation => ("closed_evaluation", None, None),
+            IndexCompatibilityDischarge::LicensedNormalization { operation_count } => {
+                ("licensed_normalization", Some(operation_count), None)
+            }
+            IndexCompatibilityDischarge::EstablishedLocalFact { fact } => {
+                ("established_local_fact", None, Some(fact.arena_index()))
+            }
+        };
+        json.push_str("\n    {\n      \"name\": ");
+        push_json_string(&mut json, &condition.name);
+        json.push_str(",\n      \"program_point\": ");
+        push_json_string(
+            &mut json,
+            &exact_program_point_label(program, condition.point),
+        );
+        json.push_str(",\n      \"family\": ");
+        push_json_string(
+            &mut json,
+            &qualification_symbol_label(program, condition.family),
+        );
+        json.push_str(",\n      \"actual_instance\": ");
+        json.push_str(&condition.actual_instance.0.to_string());
+        json.push_str(",\n      \"expected_instance\": ");
+        json.push_str(&condition.expected_instance.0.to_string());
+        json.push_str(",\n      \"actual_expression\": ");
+        push_json_string(&mut json, &condition.actual_label);
+        json.push_str(",\n      \"expected_expression\": ");
+        push_json_string(&mut json, &condition.expected_label);
+        json.push_str(",\n      \"discharge\": ");
+        push_json_string(&mut json, route);
+        json.push_str(",\n      \"operation_count\": ");
+        match operation_count {
+            Some(count) => json.push_str(&count.to_string()),
+            None => json.push_str("null"),
+        }
+        json.push_str(",\n      \"evidence_fact\": ");
+        match evidence_fact {
+            Some(fact) => json.push_str(&fact.to_string()),
+            None => json.push_str("null"),
+        }
+        json.push_str("\n    }");
+    }
+    json.push_str("\n  ]\n}\n");
+    json
+}
+
 /// Normalized per-state claim outcome maps and content projections retained by
 /// the checked ownership and qualification passes. This proof/debug artifact
 /// exposes exact output paths, input-or-established sources, and the closed
@@ -712,6 +777,55 @@ fn program_point_name(point: omega_facts::ProgramPoint) -> &'static str {
         ProgramPoint::CallRequires { .. } => "call_requires",
         ProgramPoint::CallEnsures { .. } => "call_ensures",
         ProgramPoint::Exit { .. } => "exit",
+    }
+}
+
+fn exact_program_point_label(program: &CheckedTrees, point: omega_facts::ProgramPoint) -> String {
+    use omega_facts::ProgramPoint;
+
+    let symbol = |symbol| qualification_symbol_label(program, symbol);
+    match point {
+        ProgramPoint::Global => "global".to_owned(),
+        ProgramPoint::Definition { symbol: definition } => symbol(definition),
+        ProgramPoint::Machine { machine_symbol } => symbol(machine_symbol),
+        ProgramPoint::State { state_symbol, .. } => symbol(state_symbol),
+        ProgramPoint::Statement {
+            state_symbol,
+            statement_index,
+            ..
+        } => format!("{}:statement-{statement_index}", symbol(state_symbol)),
+        ProgramPoint::Call {
+            state_symbol,
+            statement_index,
+            call_ordinal,
+            ..
+        } => format!(
+            "{}:call-{statement_index}-{call_ordinal}",
+            symbol(state_symbol)
+        ),
+        ProgramPoint::CallRequires {
+            state_symbol,
+            statement_index,
+            call_ordinal,
+            ..
+        } => format!(
+            "{}:call-requires-{statement_index}-{call_ordinal}",
+            symbol(state_symbol)
+        ),
+        ProgramPoint::CallEnsures {
+            state_symbol,
+            statement_index,
+            call_ordinal,
+            ..
+        } => format!(
+            "{}:call-ensures-{statement_index}-{call_ordinal}",
+            symbol(state_symbol)
+        ),
+        ProgramPoint::Exit {
+            state_symbol,
+            statement_index,
+            ..
+        } => format!("{}:exit-{statement_index}", symbol(state_symbol)),
     }
 }
 
