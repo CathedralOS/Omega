@@ -88,7 +88,9 @@ pub(crate) fn resolve_branch_expression_handle(
                     target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
+                    semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
                 },
             ))
@@ -161,7 +163,9 @@ pub(super) fn resolve_runtime_branch_alias_expression_handle(
                     target_label: cast.target_label,
                     domain: cast.domain,
                     semantic_domain: cast.semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
+                    semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
                 },
             ))

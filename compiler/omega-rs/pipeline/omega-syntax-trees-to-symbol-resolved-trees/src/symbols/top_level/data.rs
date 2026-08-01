@@ -8,6 +8,7 @@ pub(super) fn assign_data_symbols(
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
+    let type_constraints = &program.tables.types.constraints;
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
     let data_payload_fields = &mut program.tables.declarations.data_payload_fields;
@@ -56,6 +57,7 @@ pub(super) fn assign_data_symbols(
                     data_type_parameters,
                     state_parameters,
                     child_type_references,
+                    type_constraints,
                     &mut contract,
                     parameter_symbol,
                     &local_type_parameters,

@@ -78,6 +78,19 @@ machine keep_speed(
     transition { _ -> value }
 }
 
+// An empty indexed domain may be selected explicitly with no runtime work.
+machine qualify_i64_meters(value: i64) -> i64 in Quantity<Units::METER> {
+    transition { _ -> (value as i64 in Quantity<Units::METER>) }
+}
+
+// The destination remains a direct proof-static binder. The body performs an
+// ordinary conversion step (identity here) and then selects that exact result
+// index; no unit-specific behavior is built into `as`.
+machine retag_i64<const To: Unit>(value: i64) -> i64 in Quantity<To> {
+    let tagged: i64 in Quantity<To> = (value as i64 in Quantity<To>);
+    transition { _ -> tagged }
+}
+
 data Main {
 }
 

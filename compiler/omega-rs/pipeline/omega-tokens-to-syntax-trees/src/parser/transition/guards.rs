@@ -803,6 +803,7 @@ pub(super) fn rewrite_destructure_guard_expression(
             target_label: cast.target_label,
             domain: cast.domain,
             semantic_domain: cast.semantic_domain,
+            semantic_domain_arguments: cast.semantic_domain_arguments,
             form: cast.form,
         }),
         ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {

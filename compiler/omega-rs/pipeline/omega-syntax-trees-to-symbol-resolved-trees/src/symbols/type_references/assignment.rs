@@ -8,6 +8,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    let type_constraints = &program.tables.types.constraints;
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
     let data_payload_fields = &mut program.tables.declarations.data_payload_fields;
@@ -22,13 +23,15 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             assign_type_parameter_constraint_symbols(
                 symbols,
                 child_type_references,
+                type_constraints,
                 &type_parameters,
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
             );
             if let Some(quotient) = &mut data_definition.quotient {
-                assign_type_reference_symbol_with_locals(
+                assign_type_reference_symbol_with_locals_and_constraints(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     &type_parameters,
                     &mut quotient.carrier,
                 );
@@ -42,9 +45,10 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {
                     omega_symbol_resolved_trees::data::DataMember::Field(field) => {
-                        assign_type_reference_symbol_with_locals(
+                        assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,
                             child_type_references,
+                            type_constraints,
                             &type_parameters,
                             &mut field.type_reference,
                         );
@@ -57,9 +61,10 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     // anyway (no named symbol needed); only NAMED payload types broke.
                     omega_symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         for field in data_payload_fields.span_mut_or_empty(variant.payload) {
-                            assign_type_reference_symbol_with_locals(
+                            assign_type_reference_symbol_with_locals_and_constraints(
                                 symbols,
                                 child_type_references,
+                                type_constraints,
                                 &type_parameters,
                                 &mut field.type_reference,
                             );
@@ -76,18 +81,21 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         assign_type_parameter_constraint_symbols(
             symbols,
             child_type_references,
+            type_constraints,
             &type_parameters,
             data_type_parameters.span_mut_or_empty(domain.type_parameters),
         );
-        assign_type_reference_symbol_with_locals(
+        assign_type_reference_symbol_with_locals_and_constraints(
             symbols,
             child_type_references,
+            type_constraints,
             &type_parameters,
             &mut domain.target_type,
         );
-        assign_type_reference_argument_symbols(
+        assign_type_reference_argument_symbols_with_constraints(
             symbols,
             child_type_references,
+            type_constraints,
             &type_parameters,
             SymbolHandle::invalid(),
             domain.index_arguments,
@@ -95,9 +103,10 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     });
 
     program.roots.conformances.for_each_mut(|conformance| {
-        assign_type_reference_argument_symbols(
+        assign_type_reference_argument_symbols_with_constraints(
             symbols,
             child_type_references,
+            type_constraints,
             &[],
             SymbolHandle::invalid(),
             conformance.arguments,
@@ -105,24 +114,10 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     });
 }
 
-pub(in crate::symbols) fn assign_type_reference_symbol_with_self_type(
+pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
-    self_type_symbol: SymbolHandle,
-    type_reference: &mut omega_symbol_resolved_trees::types::TypeReference,
-) {
-    assign_type_reference_symbol_with_context(
-        symbols,
-        child_type_references,
-        &[],
-        self_type_symbol,
-        type_reference,
-    );
-}
-
-pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type(
-    symbols: &SymbolTable,
-    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
     type_reference: &mut omega_symbol_resolved_trees::types::TypeReference,
@@ -130,21 +125,24 @@ pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type
     assign_type_reference_symbol_with_context(
         symbols,
         child_type_references,
+        type_constraints,
         local_type_parameters,
         self_type_symbol,
         type_reference,
     );
 }
 
-pub(in crate::symbols) fn assign_type_reference_symbol_with_locals(
+pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_constraints(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
     type_reference: &mut omega_symbol_resolved_trees::types::TypeReference,
 ) {
     assign_type_reference_symbol_with_context(
         symbols,
         child_type_references,
+        type_constraints,
         local_type_parameters,
         SymbolHandle::invalid(),
         type_reference,
@@ -154,6 +152,7 @@ pub(in crate::symbols) fn assign_type_reference_symbol_with_locals(
 fn assign_type_reference_symbol_with_context(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
     type_reference: &mut omega_symbol_resolved_trees::types::TypeReference,
@@ -163,6 +162,7 @@ fn assign_type_reference_symbol_with_context(
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
+                type_constraints,
                 local_type_parameters,
                 self_type_symbol,
                 reference.referee,
@@ -172,15 +172,31 @@ fn assign_type_reference_symbol_with_context(
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
+                type_constraints,
                 local_type_parameters,
                 self_type_symbol,
                 constrained.base_type,
             );
+            for constraint in type_constraints.span_or_empty(constrained.constraints) {
+                let omega_symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
+                else {
+                    continue;
+                };
+                assign_type_reference_argument_symbols_with_constraints(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    local_type_parameters,
+                    self_type_symbol,
+                    domain.arguments,
+                );
+            }
         }
         omega_symbol_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
+                type_constraints,
                 local_type_parameters,
                 self_type_symbol,
                 fixed_array.element_type,
@@ -195,6 +211,7 @@ fn assign_type_reference_symbol_with_context(
             assign_type_reference_handle_symbol_with_context(
                 symbols,
                 child_type_references,
+                type_constraints,
                 local_type_parameters,
                 self_type_symbol,
                 slice.element_type,
@@ -204,9 +221,10 @@ fn assign_type_reference_symbol_with_context(
             generic.base_symbol =
                 resolve_type_symbol(symbols, local_type_parameters, &generic.base_name);
 
-            assign_type_reference_argument_symbols(
+            assign_type_reference_argument_symbols_with_constraints(
                 symbols,
                 child_type_references,
+                type_constraints,
                 local_type_parameters,
                 self_type_symbol,
                 generic.arguments,
@@ -245,6 +263,7 @@ fn assign_fixed_array_length_symbol(
 fn assign_type_parameter_constraint_symbols(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
     type_parameters: &mut [omega_symbol_resolved_trees::data::TypeParameter],
 ) {
@@ -254,9 +273,10 @@ fn assign_type_parameter_constraint_symbols(
         else {
             continue;
         };
-        assign_type_reference_symbol_with_locals(
+        assign_type_reference_symbol_with_locals_and_constraints(
             symbols,
             child_type_references,
+            type_constraints,
             local_type_parameters,
             type_reference,
         );
@@ -266,6 +286,7 @@ fn assign_type_parameter_constraint_symbols(
 fn assign_type_reference_handle_symbol_with_context(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
     handle: Handle<omega_symbol_resolved_trees::types::TypeReference>,
@@ -274,6 +295,7 @@ fn assign_type_reference_handle_symbol_with_context(
     assign_type_reference_symbol_with_context(
         symbols,
         child_type_references,
+        type_constraints,
         local_type_parameters,
         self_type_symbol,
         &mut type_reference,
@@ -281,9 +303,10 @@ fn assign_type_reference_handle_symbol_with_context(
     *child_type_references.get_mut(handle) = type_reference;
 }
 
-pub(in crate::symbols) fn assign_type_reference_argument_symbols(
+pub(in crate::symbols) fn assign_type_reference_argument_symbols_with_constraints(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
     arguments: HandleSpan<omega_symbol_resolved_trees::types::TypeReference>,
@@ -303,12 +326,35 @@ pub(in crate::symbols) fn assign_type_reference_argument_symbols(
         assign_type_reference_symbol_with_context(
             symbols,
             child_type_references,
+            type_constraints,
             local_type_parameters,
             self_type_symbol,
             &mut argument,
         );
         *child_type_references.get_mut(handle) = argument;
     }
+}
+
+// Cast/zero-value target leaves use a separate semantic-domain field and do
+// not own declaration constraint spans. Signature/declaration traversal uses
+// the `_and_constraints` variants above so indexed arguments resolve in their
+// lexical generic scope.
+pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
+    self_type_symbol: SymbolHandle,
+    type_reference: &mut omega_symbol_resolved_trees::types::TypeReference,
+) {
+    let constraints = Arena::new();
+    assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
+        symbols,
+        child_type_references,
+        &constraints,
+        local_type_parameters,
+        self_type_symbol,
+        type_reference,
+    );
 }
 
 fn resolve_type_symbol(

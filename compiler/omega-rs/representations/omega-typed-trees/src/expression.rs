@@ -296,7 +296,9 @@ impl ExpressionTable {
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
+                    semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
                 }))
             }
@@ -1213,7 +1215,9 @@ impl ExpressionTable {
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
+                    semantic_domain_id: cast.semantic_domain_id,
                     form: cast.form,
                 }))
             }
@@ -1416,7 +1420,9 @@ impl ExpressionTable {
                     // Tree-built casts are compiler-internal (tests/builders)
                     // and never carry the qualification suffix.
                     semantic_domain: HandleSpan::empty(),
+                    semantic_domain_arguments: HandleSpan::empty(),
                     semantic_domain_symbol: SymbolHandle::invalid(),
+                    semantic_domain_id: omega_core::semantics::SemanticDomainId::NULL,
                     form: cast.form,
                 }))
             }
@@ -1820,9 +1826,14 @@ pub struct TableCastExpression {
     /// spelling (decision 19), judged at validation (the staged mint fence).
     /// EMPTY = no suffix.
     pub semantic_domain: HandleSpan<Identifier>,
+    /// PDI2 proof-static family arguments in the typed type-reference table.
+    pub semantic_domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// Carrier-aware declared-domain identity, normalized once before
     /// validation. Invalid for an unknown or ambiguous spelling.
     pub semantic_domain_symbol: SymbolHandle,
+    /// Exact normalized family-instance identity. Equal to the declaration ID
+    /// for a monomorphic domain and distinct per canonical closed index pack.
+    pub semantic_domain_id: omega_core::semantics::SemanticDomainId,
     /// Value conversion vs §5b borrow recast (`&x as &T`). Only `Value`
     /// survives past the typed trees today: the resolved->typed lowering is
     /// the recast judgment's choke point (rung A).

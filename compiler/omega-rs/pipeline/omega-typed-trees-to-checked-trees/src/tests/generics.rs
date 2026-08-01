@@ -980,6 +980,41 @@ fn unused_recursive_generic_value_template_is_not_emitted_or_fenced() {
 }
 
 #[test]
+fn const_generic_template_is_not_consumed_by_machine_specialization() {
+    let source = r#"
+        data Unit {}
+        domain<T, const U: Unit> T::Quantity<U>;
+
+        machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
+            transition { _ -> (value as i64 in Quantity<To>) }
+        }
+
+        data Main {}
+        machine Main::run(&mut self) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("const-generic template should validate");
+    let retag = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "retag")
+        .expect("retag template should remain in checked semantic data");
+    let [parameter] = checked.machine_type_parameters(retag) else {
+        panic!("retag should retain its const binder");
+    };
+    assert!(matches!(
+        parameter.kind,
+        omega_typed_trees::data::TypeParameterKind::Const { .. }
+    ));
+}
+
+#[test]
 fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
     let source = r#"
         data Index { case Zero; }

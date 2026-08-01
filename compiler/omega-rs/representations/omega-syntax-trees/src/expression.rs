@@ -200,6 +200,9 @@ pub struct TableCastExpression {
     /// domain qualification spelling (decision 19). Carried for the checked
     /// layers to judge; EMPTY for policy/no-suffix casts.
     pub semantic_domain: HandleSpan<Identifier>,
+    /// PDI2 proof-static argument pack for a declared semantic-domain family.
+    /// EMPTY for policy casts and monomorphic declared domains.
+    pub semantic_domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// Value conversion vs §5b borrow recast (`&x as &T`).
     pub form: omega_core::cast_form::CastForm,
 }

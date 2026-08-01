@@ -426,10 +426,12 @@ Migration should:
 Structured canonical const values and closed indexed family constraints are
 implemented. One declaration spans carriers, canonical closed values identify
 instances, direct destination binders survive generic signatures, and ordinary
-per-pair operators attach to the family without affecting layout. Finish the
-indexed explicit-qualification path and units package to exercise an executable
-destination-parameterized conversion. Only afterward add computed open result
-indices, licensed normalization, and retained compatibility evidence. They
+per-pair operators attach to the family without affecting layout. Indexed
+explicit qualification now selects either a closed value or a direct
+destination binder and retains that exact instance through checked artifacts.
+Finish const-machine call specialization and the units package to exercise an
+executed destination-parameterized conversion. Only afterward add computed
+open result indices, licensed normalization, and retained compatibility evidence. They
 extend the facts a domain may carry without changing this qualification model.
 
 ## Cross-references

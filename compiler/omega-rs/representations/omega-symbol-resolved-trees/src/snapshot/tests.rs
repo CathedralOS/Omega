@@ -67,6 +67,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: Default::default(),
             service_reaches: HandleSpan::empty(),
+            invokes: HandleSpan::empty(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),

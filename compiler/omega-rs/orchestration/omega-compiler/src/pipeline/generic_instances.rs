@@ -1014,95 +1014,142 @@ fn canonicalize_closed_domain_indices(
         }
     }
 
-    for constraint in syntax.tables.type_references.domain_constraints() {
-        let Some(family) = families.get(constraint.name.as_str()) else {
+    let mut applications = syntax
+        .tables
+        .type_references
+        .domain_constraints()
+        .into_iter()
+        .map(|constraint| (constraint.name.as_str().to_owned(), constraint.arguments))
+        .collect::<Vec<_>>();
+    applications.extend(
+        syntax
+            .expressions
+            .iter_expressions()
+            .filter_map(|(_, expression)| {
+                let ExpressionNode::Cast(cast) = expression else {
+                    return None;
+                };
+                if cast.semantic_domain.is_empty() {
+                    return None;
+                }
+                let name = syntax
+                    .expressions
+                    .identifier_path_members(cast.semantic_domain)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                Some((name, cast.semantic_domain_arguments))
+            }),
+    );
+
+    for (name, argument_span) in applications {
+        let Some(family) = families.get(&name) else {
             continue;
         };
         let arguments = syntax
             .tables
             .type_references
-            .type_reference_handles(constraint.arguments)
+            .type_reference_handles(argument_span)
             .to_vec();
-        if arguments.len() != family.parameters.len() {
-            return Err(Diagnostic::error(format!(
-                "indexed domain `{}` requires {} closed const argument(s), but {} were supplied",
-                constraint.name,
-                family.parameters.len(),
-                arguments.len()
-            )));
-        }
-        for ((parameter_name, parameter_type), argument) in family.parameters.iter().zip(arguments)
-        {
-            let node = syntax
-                .tables
-                .type_references
-                .type_reference(argument)
-                .clone();
-            match node {
-                TypeReferenceNode::Named(name) => {
-                    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-                        let required = syntax_type_identity(syntax, *parameter_type)
-                            .map_err(Diagnostic::error)?;
-                        if value.type_name != required {
-                            return Err(Diagnostic::error(format!(
-                                "index argument for `{}::{parameter_name}` has canonical type `{}`, expected `{required}`",
-                                constraint.name, value.type_name
-                            )));
-                        }
-                        continue;
+        canonicalize_closed_domain_application(
+            syntax,
+            &name,
+            family,
+            arguments,
+            const_definitions,
+            const_values,
+        )?;
+    }
+    Ok(())
+}
+
+fn canonicalize_closed_domain_application(
+    syntax: &mut SyntaxTrees,
+    family_name: &str,
+    family: &ClosedDomainFamily,
+    arguments: Vec<TypeReferenceHandle>,
+    const_definitions: &HashMap<String, ConstDefinition>,
+    const_values: &HashMap<String, i128>,
+) -> Result<(), Diagnostic> {
+    if arguments.len() != family.parameters.len() {
+        return Err(Diagnostic::error(format!(
+            "indexed domain `{}` requires {} closed const argument(s), but {} were supplied",
+            family_name,
+            family.parameters.len(),
+            arguments.len()
+        )));
+    }
+    for ((parameter_name, parameter_type), argument) in family.parameters.iter().zip(arguments) {
+        let node = syntax
+            .tables
+            .type_references
+            .type_reference(argument)
+            .clone();
+        match node {
+            TypeReferenceNode::Named(name) => {
+                if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+                    let required =
+                        syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
+                    if value.type_name != required {
+                        return Err(Diagnostic::error(format!(
+                            "index argument for `{}::{parameter_name}` has canonical type `{}`, expected `{required}`",
+                            family_name, value.type_name
+                        )));
                     }
-                    if let Some(value) = const_values.get(name.as_str()) {
-                        syntax.tables.type_references.replace_type_reference(
-                            argument,
-                            TypeReferenceNode::Named(Identifier::generated(value.to_string())),
-                        );
-                        continue;
-                    }
-                    let Some(definition) = const_definitions.get(name.as_str()) else {
-                        // A direct generic const binder is resolved and checked
-                        // later in its declaration context. Unknown names fail
-                        // there as well; never guess that a type is a value.
-                        continue;
-                    };
-                    let value = canonicalize_const_definition(syntax, definition, *parameter_type)
-                        .map_err(|reason| {
-                            Diagnostic::error(format!(
-                                "index argument for `{}::{parameter_name}` is invalid: {reason}",
-                                constraint.name
-                            ))
-                        })?;
-                    syntax.tables.type_references.replace_type_reference(
-                        argument,
-                        TypeReferenceNode::Named(Identifier::generated(value.atom())),
-                    );
+                    continue;
                 }
-                TypeReferenceNode::ConstExpression(expression) => {
-                    let value = evaluate_const_argument_expression(
-                        syntax,
-                        expression,
-                        const_values,
-                        &HashMap::new(),
-                        &HashSet::new(),
-                        const_integer_type(syntax, *parameter_type),
-                    )
-                    .and_then(EvaluatedConst::into_concrete)
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                            "index argument expression for `{}` is invalid: {reason}",
-                            constraint.name
-                        ))
-                    })?;
+                if let Some(value) = const_values.get(name.as_str()) {
                     syntax.tables.type_references.replace_type_reference(
                         argument,
                         TypeReferenceNode::Named(Identifier::generated(value.to_string())),
                     );
+                    continue;
                 }
-                _ => {
-                    return Err(Diagnostic::error(format!(
-                        "indexed domain `{}::{parameter_name}` requires a closed const value or direct const binder",
-                        constraint.name
-                    )));
-                }
+                let Some(definition) = const_definitions.get(name.as_str()) else {
+                    // A direct generic const binder is resolved and checked
+                    // later in its declaration context. Unknown names fail
+                    // there as well; never guess that a type is a value.
+                    continue;
+                };
+                let value = canonicalize_const_definition(syntax, definition, *parameter_type)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "index argument for `{}::{parameter_name}` is invalid: {reason}",
+                            family_name
+                        ))
+                    })?;
+                syntax.tables.type_references.replace_type_reference(
+                    argument,
+                    TypeReferenceNode::Named(Identifier::generated(value.atom())),
+                );
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                let value = evaluate_const_argument_expression(
+                    syntax,
+                    expression,
+                    const_values,
+                    &HashMap::new(),
+                    &HashSet::new(),
+                    const_integer_type(syntax, *parameter_type),
+                )
+                .and_then(EvaluatedConst::into_concrete)
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "index argument expression for `{}` is invalid: {reason}",
+                        family_name
+                    ))
+                })?;
+                syntax.tables.type_references.replace_type_reference(
+                    argument,
+                    TypeReferenceNode::Named(Identifier::generated(value.to_string())),
+                );
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "indexed domain `{}::{parameter_name}` requires a closed const value or direct const binder",
+                    family_name
+                )));
             }
         }
     }

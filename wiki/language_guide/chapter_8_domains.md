@@ -102,8 +102,17 @@ Bindings select a closed canonical index, such as
 signature. Structurally equal values have one semantic identity even when a
 record literal spells its fields in a different order; different values are
 different domains and cannot flow into one another implicitly. The carrier is
-unchanged at runtime. Computed index expressions and executable qualification
-into a generic destination remain staged work.
+unchanged at runtime. Explicit qualification selects a closed canonical value
+or direct const binder without runtime work:
+
+```omega
+machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
+    transition { _ -> (value as i64 in Quantity<To>) }
+}
+```
+
+Const-machine call specialization and computed index expressions remain staged
+work; the latter belongs to the next proof-static rung.
 
 ## Domains In Contracts
 
@@ -263,8 +272,8 @@ Examples:
   `BoxOffice` state;
 - `extent as Extent::Granted` fails when authority requires an admitted root
   or a conserved predecessor; and
-- `distance as i32::M` converts kilometres to metres exactly while preserving
-  the represented physical quantity.
+- `distance as i32` explicitly erases its non-owning unit meaning; converting
+  kilometres to metres remains a named unit-library machine.
 
 An `as` lowering may emit a bounded intrinsic instruction such as
 zero-extension or construct a fat reference. This is packaging, not an
@@ -1229,8 +1238,9 @@ Working interpretation:
 > boundary requirement in the domain declaration. Exact integer representation
 > conversion now uses proof-directed `as`; unit conversion remains ordinary
 > library behavior. Structured const values and closed indexed-family binding
-> constraints are live; indexed explicit qualification remains before computed
-> open result indices.
+> constraints and indexed explicit qualification are live, including direct
+> const destination binders and exact instance evidence. Const-machine call
+> specialization remains before computed open result indices.
 > Per-atom weakening is enforced at ordinary value-flow boundaries:
 > predicate-only atoms may disappear implicitly, while semantic meaning,
 > non-owning routed provenance, and non-Exact arithmetic policy require an

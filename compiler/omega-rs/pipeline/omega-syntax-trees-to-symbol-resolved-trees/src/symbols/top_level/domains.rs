@@ -9,6 +9,7 @@ pub(super) fn assign_domain_symbols(
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
+    let type_constraints = &program.tables.types.constraints;
     let roots = &mut program.roots;
     let declarations = &mut program.tables.declarations;
     let operator_definitions = &mut declarations.operator_definitions;
@@ -29,6 +30,7 @@ pub(super) fn assign_domain_symbols(
                 data_type_parameters,
                 state_parameters,
                 child_type_references,
+                type_constraints,
                 operator,
             );
         }

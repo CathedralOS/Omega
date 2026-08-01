@@ -30,6 +30,7 @@ pub(super) fn assign_statement_reference_symbols(
     let expression_table = &mut tables.bodies.expressions;
     let state_statements = &mut tables.declarations.state_statements;
     let child_type_references = &mut tables.declarations.child_type_references;
+    let type_constraints = &tables.types.constraints;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
         let machine_type_parameters = machine.type_parameters;
@@ -70,6 +71,7 @@ pub(super) fn assign_statement_reference_symbols(
                     state_symbol,
                     expression_table,
                     child_type_references,
+                    type_constraints,
                     statement_path_members,
                     statement,
                     symbols,

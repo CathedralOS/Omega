@@ -557,6 +557,12 @@ pub(crate) fn validate_cast_types(
     if cast.form.is_recast() {
         return;
     }
+    crate::type_references::validate_indexed_qualification_arguments(
+        program,
+        machine,
+        cast,
+        diagnostics,
+    );
     let target_name = program.named_type_reference(cast.target_type);
     // N6 quotient mint: `carrier as Quotient` is not a scalar conversion.
     // It introduces an equivalence class while retaining no representative,

@@ -2,16 +2,15 @@ use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
 use crate::symbols::lookup::top_level_symbol;
-use crate::symbols::top_level::next_child_of_kind;
-use crate::symbols::type_references::{
-    assign_type_reference_argument_symbols, assign_type_reference_symbol_with_locals_and_self_type,
-};
+use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
+use crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints;
 
 pub(super) fn assign_trait_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
+    let type_constraints = &program.tables.types.constraints;
     let declarations = &mut program.tables.declarations;
     let data_type_parameters = &mut declarations.data_type_parameters;
     let trait_requirements = &mut declarations.trait_requirements;
@@ -36,9 +35,10 @@ pub(super) fn assign_trait_symbols(
         for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
             requirement.symbol =
                 top_level_symbol(symbols, SymbolKind::Trait, requirement.name.as_str());
-            assign_type_reference_argument_symbols(
+            assign_type_reference_argument_symbols_with_constraints(
                 symbols,
                 child_type_references,
+                type_constraints,
                 &local_type_parameters,
                 trait_symbol,
                 requirement.arguments,
@@ -48,29 +48,17 @@ pub(super) fn assign_trait_symbols(
         for machine in trait_machine_signatures.span_mut_or_empty(trait_definition.machines) {
             machine.symbol = next_child_of_kind(&mut trait_children, symbols, SymbolKind::State);
             let machine_symbol = machine.symbol;
-            let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
-
-            for parameter in state_parameters.span_mut_or_empty(machine.parameters) {
-                parameter.symbol =
-                    next_child_of_kind(&mut machine_children, symbols, SymbolKind::Parameter);
-                assign_type_reference_symbol_with_locals_and_self_type(
-                    symbols,
-                    child_type_references,
-                    &local_type_parameters,
-                    trait_symbol,
-                    &mut parameter.type_reference,
-                );
-            }
-
-            if let Some(return_type) = &mut machine.return_type {
-                assign_type_reference_symbol_with_locals_and_self_type(
-                    symbols,
-                    child_type_references,
-                    &local_type_parameters,
-                    trait_symbol,
-                    return_type,
-                );
-            }
+            assign_machine_parameter_signature_symbols(
+                symbols,
+                data_type_parameters,
+                state_parameters,
+                child_type_references,
+                type_constraints,
+                machine,
+                machine_symbol,
+                &local_type_parameters,
+                trait_symbol,
+            );
         }
     });
 }

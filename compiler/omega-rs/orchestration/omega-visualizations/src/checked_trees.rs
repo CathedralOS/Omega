@@ -273,6 +273,16 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
             &mut json,
             &qualification_symbol_label(program, use_fact.domain),
         );
+        json.push_str(",\n      \"semantic_domain_id\": ");
+        json.push_str(&use_fact.semantic_domain.0.to_string());
+        json.push_str(",\n      \"semantic_domain\": ");
+        push_json_string(
+            &mut json,
+            program
+                .semantic_domains
+                .name(use_fact.semantic_domain)
+                .unwrap_or("<unknown>"),
+        );
         json.push_str("\n    }");
     }
     json.push_str("\n  ]\n}\n");

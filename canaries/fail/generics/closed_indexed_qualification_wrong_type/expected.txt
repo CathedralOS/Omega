@@ -1,0 +1,1 @@
+declares type `bool`, but the parameter requires `Unit`

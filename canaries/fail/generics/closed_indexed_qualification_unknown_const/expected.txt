@@ -1,0 +1,1 @@
+neither a canonical named const nor a direct in-scope const binder

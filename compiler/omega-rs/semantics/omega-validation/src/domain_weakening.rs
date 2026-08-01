@@ -180,9 +180,9 @@ fn expression_atoms(
                 append_declared_atom(
                     program,
                     cast.semantic_domain_symbol,
-                    omega_core::semantics::SemanticDomainId::NULL,
-                    false,
-                    None,
+                    cast.semantic_domain_id,
+                    !cast.semantic_domain_arguments.is_empty(),
+                    Some(qualification_cast_label(program, cast)),
                     &mut atoms,
                     &mut Vec::new(),
                 );
@@ -391,4 +391,36 @@ fn domain_constraint_label(
         .collect::<Vec<_>>()
         .join(", ");
     format!("{}<{arguments}>", domain.name)
+}
+
+fn qualification_cast_label(
+    program: &TypedTrees,
+    cast: &omega_typed_trees::expression::TableCastExpression,
+) -> String {
+    let name = program
+        .expression_table
+        .name_path_members(cast.semantic_domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    if cast.semantic_domain_arguments.is_empty() {
+        return name;
+    }
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(cast.semantic_domain_arguments)
+        .iter()
+        .map(
+            |argument| match program.type_reference_table.type_reference(*argument) {
+                TypeReferenceNode::Named { name, .. } => {
+                    omega_core::const_value::CanonicalConstValue::from_atom(name.as_str())
+                        .map_or_else(|| name.to_string(), |value| value.display)
+                }
+                _ => program.display_type_reference(*argument),
+            },
+        )
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{name}<{arguments}>")
 }
