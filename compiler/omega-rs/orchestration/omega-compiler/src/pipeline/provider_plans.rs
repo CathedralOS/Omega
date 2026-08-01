@@ -251,8 +251,8 @@ fn expected_float_intrinsic(
         "F32" | "F64" => {
             let operation = match requirement.as_str() {
                 "minimum" | "maximum" => requirement.as_str(),
-                "negate" | "square_root" | "is_nan" | "is_finite" | "is_infinite" | "is_normal"
-                | "is_subnormal" => requirement.as_str(),
+                "negate" | "square_root" | "classify" | "is_nan" | "is_finite" | "is_infinite"
+                | "is_normal" | "is_subnormal" => requirement.as_str(),
                 "multiply_then_add" => requirement.as_str(),
                 _ => return None,
             };
@@ -267,6 +267,7 @@ fn expected_float_intrinsic(
                         operation,
                         "negate"
                             | "square_root"
+                            | "classify"
                             | "is_nan"
                             | "is_finite"
                             | "is_infinite"
@@ -301,6 +302,17 @@ fn expected_float_intrinsic(
                     }
                 }
                 _ => return None,
+            }
+            if operation == "classify" {
+                if typed.display_type_reference(operator.return_type) != "FloatClass" {
+                    return None;
+                }
+                let format = if expected_primitive == omega_typed_trees::types::PrimitiveType::F32 {
+                    "f32"
+                } else {
+                    "f64"
+                };
+                return Some(format!("{}::classify.{format}", namespace.as_str()));
             }
             let expected_result = if matches!(
                 operation,

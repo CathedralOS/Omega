@@ -19,6 +19,7 @@ pub(super) fn is_float_classification_predicate(operator: StateGuardOperator) ->
             | StateGuardOperator::IsInfinite
             | StateGuardOperator::IsNormal
             | StateGuardOperator::IsSubnormal
+            | StateGuardOperator::FloatClassify
     )
 }
 
@@ -97,6 +98,14 @@ pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
         (
             BuiltinFunction::FloatIsSubnormal,
             StateGuardOperator::IsSubnormal,
+        ),
+        (
+            BuiltinFunction::FloatClassifyF32,
+            StateGuardOperator::FloatClassify,
+        ),
+        (
+            BuiltinFunction::FloatClassifyF64,
+            StateGuardOperator::FloatClassify,
         ),
     ] {
         if Some(call.target_symbol) == input.program.symbols.builtin_function_symbol(builtin) {

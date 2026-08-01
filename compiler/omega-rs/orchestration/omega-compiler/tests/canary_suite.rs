@@ -34588,6 +34588,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::is_normal",
         "F32::is_subnormal",
         "F64::is_subnormal",
+        "F32::classify",
+        "F64::classify",
         "F32::multiply_then_add",
         "F64::multiply_then_add",
     ];
@@ -34722,8 +34724,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count, 40,
-            "the 20 overloaded primitive slots and twenty named-operation slots must all select"
+            selected_count, 42,
+            "the 20 overloaded primitive slots and twenty-two named-operation slots must all select"
         );
     }
 }
@@ -35138,6 +35140,155 @@ fn named_float_classification_predicates_select_and_execute() {
         })
         .unwrap_or_else(|diagnostics| {
             panic!("classification calls should compile for {target}: {diagnostics:#?}")
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn named_float_classify_preserves_enum_layout_and_executes() {
+    let canary = pass_canary("float/named_provider_classify_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("named float classify calls should compile to checked trees");
+
+    let layouts = omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host())
+        .expect("FloatClass layout should build");
+    let float_class = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.name.as_str() == "FloatClass")
+        .map(|(_, layout)| layout)
+        .expect("FloatClass layout");
+    assert_eq!(float_class.layout.size, 8, "packed intrinsic store width");
+    assert_eq!(float_class.layout.alignment, 4, "tag alignment");
+    let omega_layout::DataShape::Enum { variants, .. } = &float_class.shape else {
+        panic!("FloatClass must remain an enum");
+    };
+    let variants = layouts.variants.span_or_empty(*variants);
+    assert_eq!(
+        variants
+            .iter()
+            .map(|variant| variant.name.as_str())
+            .collect::<Vec<_>>(),
+        ["NaN", "Infinity", "Normal", "Subnormal", "Zero"],
+        "native tags are source-order ordinals"
+    );
+    for variant in &variants[1..] {
+        let [negative] = layouts.fields.span_or_empty(variant.fields) else {
+            panic!("{} must carry exactly one sign payload", variant.name);
+        };
+        assert_eq!(negative.name.as_str(), "negative");
+        assert_eq!(negative.offset, 4, "sign payload follows the i32 tag");
+        assert_eq!(negative.layout.size, 1, "sign payload is a bool");
+    }
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    for operator_use in checked.facts.operators.named_uses() {
+        if operator_use.provider_plan_identity == 0 {
+            continue;
+        }
+        let plan = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+            .expect("named classify evidence must retain its plan");
+        let [row] = plan.rows.as_slice() else {
+            panic!("named classify plan must contain one row");
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            panic!("named classify plan must select a compiler intrinsic");
+        };
+        if !name.contains("::classify.") {
+            continue;
+        }
+        selected_intrinsics.insert(name.clone());
+        let (expected_builtin, expected_target) = if name.starts_with("F32::") {
+            (
+                omega_core::symbols::BuiltinFunction::FloatClassifyF32,
+                "float#classify_f32",
+            )
+        } else {
+            (
+                omega_core::symbols::BuiltinFunction::FloatClassifyF64,
+                "float#classify_f64",
+            )
+        };
+        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("`{name}` must remain a unary builtin call");
+        };
+        assert_eq!(
+            Some(call.target_symbol),
+            checked
+                .typed
+                .symbols
+                .builtin_function_symbol(expected_builtin)
+        );
+        assert_eq!(call.target.as_str(), expected_target);
+        assert!(!call.receiver.is_valid());
+        assert_eq!(call.arguments.count(), 1);
+    }
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::classify.f32".to_owned(),
+            "F64::classify.f64".to_owned(),
+        ]
+        .into_iter()
+        .collect()
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.exit_code, 70, "classify builtin must interpret");
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-named-float-classify-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("named float classify calls should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("named float classify canary should run");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "classify must execute natively; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-named-float-classify-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy classify canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write cross-target build manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("classify calls should compile for {target}: {diagnostics:#?}")
         });
         let _ = fs::remove_dir_all(&scratch);
     }
@@ -39501,6 +39652,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/named_provider_min_max_sqrt_exit",
     "float/named_provider_negate_is_nan_exit",
     "float/named_provider_classification_predicates_exit",
+    "float/named_provider_classify_exit",
     "float/named_provider_multiply_then_add_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
@@ -40589,6 +40741,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/named_float_intrinsic_mismatch_rejected",
     "providers/named_float_negate_intrinsic_mismatch_rejected",
     "providers/named_float_classification_intrinsic_mismatch_rejected",
+    "providers/named_float_classify_intrinsic_mismatch_rejected",
     "providers/named_float_multiply_then_add_intrinsic_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",

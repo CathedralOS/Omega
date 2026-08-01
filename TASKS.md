@@ -922,16 +922,19 @@ and allocation handles expose no compiler-owned stack/control storage.
   IEEE patterns, with an internal 4/8 metadata marker retaining the source
   format across direct bool writes whose operand folds to an immediate. Zero,
   normal, subnormal, infinity, and NaN edges plus native width-lockstep tests
-  pin both formats. Multiply-then-add preserves its
+  pin both formats. Enum-valued `classify` uses format-specific unnameable
+  builtins and returns the declared eight-byte `FloatClass` carrier directly:
+  source-order i32 tag at byte zero and the overlaid sign payload at byte four.
+  Layout assertions plus every tag/sign edge pin interpreter, native, and
+  cross-target execution. Multiply-then-add preserves its
   distinct two-rounding contract through an unnameable format-specific ternary
   compiler call that survives state-local expression copying. Both native
   backends retain all three authored operands, emit a separate multiply and
   add, and adapt policy only at the final result; cancellation and finite-
   overflow canaries prove unfused and operand-aware Saturating behavior in both
-  engines. Remaining rung-3 work includes FMA, the other
-  enum-valued `classify` requirement, directed-rounding families, checked software
-  fallbacks, canonical floating-control-state preconditions/restoration, and
-  rung-4 differential evidence.
+  engines. Remaining rung-3 work includes FMA, directed-rounding families,
+  checked software fallbacks, canonical floating-control-state
+  preconditions/restoration, and rung-4 differential evidence.
   **Language-design blocked:** the public float/integer and
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the

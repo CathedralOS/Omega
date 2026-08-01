@@ -14199,6 +14199,7 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
             | StateGuardOperator::IsInfinite
             | StateGuardOperator::IsNormal
             | StateGuardOperator::IsSubnormal
+            | StateGuardOperator::FloatClassify
             | StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
@@ -14227,6 +14228,7 @@ fn runtime_binary_operation_byte_size(
             | StateGuardOperator::IsInfinite
             | StateGuardOperator::IsNormal
             | StateGuardOperator::IsSubnormal
+            | StateGuardOperator::FloatClassify
     ) && let Some(width @ (4 | 8)) = operands.immediate_integer(right)
     {
         return width as usize;
@@ -14883,6 +14885,80 @@ fn float_classification_predicate_bytes(
     Ok(bytes)
 }
 
+fn append_rel32_jump_placeholder(bytes: &mut Vec<u8>) -> usize {
+    let start = bytes.len();
+    bytes.extend([0xe9, 0, 0, 0, 0]);
+    start
+}
+
+fn patch_rel32_jump(
+    bytes: &mut [u8],
+    branch_start: usize,
+    target: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = target as isize - (branch_start + 5) as isize;
+    let displacement = rel32(displacement)?;
+    bytes[branch_start + 1..branch_start + 5].copy_from_slice(&displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_packed_float_class(bytes: &mut Vec<u8>, tag: u8) {
+    bytes.extend([0x4d, 0x89, 0xc2]); // mov r10,r8 (negative payload at bit 32)
+    bytes.extend([0x49, 0x83, 0xca, tag]); // or r10,tag
+}
+
+/// Return the stable native `FloatClass` carrier in r10: i32 tag at bits
+/// 0..31 and the overlaid `negative: bool` payload at bit 32. Tags follow the
+/// source declaration order: NaN=0, Infinity=1, Normal=2, Subnormal=3, Zero=4.
+fn float_classify_bytes(byte_size: usize) -> Result<Vec<u8>, Diagnostic> {
+    let (infinity, minimum_normal, sign_shift) = if byte_size > 4 {
+        (0x7ff0_0000_0000_0000_u64, 0x0010_0000_0000_0000_u64, 63)
+    } else {
+        (0x7f80_0000_u64, 0x0080_0000_u64, 31)
+    };
+    let mut bytes = Vec::new();
+    append_float_abs_to_rax(&mut bytes, FloatPolicySource::Result, byte_size);
+    bytes.extend([0x4d, 0x89, 0xd0]); // mov r8,r10
+    bytes.extend([0x49, 0xc1, 0xe8, sign_shift]); // shr r8,31/63
+    bytes.extend([0x49, 0xc1, 0xe0, 0x20]); // shl r8,32
+
+    bytes.extend([0x49, 0xb9]);
+    bytes.extend(infinity.to_le_bytes());
+    append_cmp_rax_r9(&mut bytes);
+    let nan_branch = append_policy_branch_placeholder(&mut bytes, 0x87); // ja nan
+    let infinity_branch = append_policy_branch_placeholder(&mut bytes, 0x84); // je infinity
+    bytes.extend([0x48, 0x83, 0xf8, 0x00]); // cmp rax,0
+    let zero_branch = append_policy_branch_placeholder(&mut bytes, 0x84); // je zero
+    bytes.extend([0x49, 0xb9]);
+    bytes.extend(minimum_normal.to_le_bytes());
+    append_cmp_rax_r9(&mut bytes);
+    let subnormal_branch = append_policy_branch_placeholder(&mut bytes, 0x82); // jb subnormal
+
+    append_packed_float_class(&mut bytes, 2);
+    let normal_end = append_rel32_jump_placeholder(&mut bytes);
+    let subnormal = bytes.len();
+    append_packed_float_class(&mut bytes, 3);
+    let subnormal_end = append_rel32_jump_placeholder(&mut bytes);
+    let zero = bytes.len();
+    append_packed_float_class(&mut bytes, 4);
+    let zero_end = append_rel32_jump_placeholder(&mut bytes);
+    let infinity_label = bytes.len();
+    append_packed_float_class(&mut bytes, 1);
+    let infinity_end = append_rel32_jump_placeholder(&mut bytes);
+    let nan = bytes.len();
+    bytes.extend([0x45, 0x31, 0xd2]); // xor r10d,r10d (NaN tag, no payload)
+    let end = bytes.len();
+
+    patch_policy_branch(&mut bytes, nan_branch, nan)?;
+    patch_policy_branch(&mut bytes, infinity_branch, infinity_label)?;
+    patch_policy_branch(&mut bytes, zero_branch, zero)?;
+    patch_policy_branch(&mut bytes, subnormal_branch, subnormal)?;
+    for branch in [normal_end, subnormal_end, zero_end, infinity_end] {
+        patch_rel32_jump(&mut bytes, branch, end)?;
+    }
+    Ok(bytes)
+}
+
 fn float_multiply_then_add_bytes(
     byte_size: usize,
     domain: ArithmeticDomain,
@@ -14943,6 +15019,10 @@ fn append_runtime_float_binary_operation(
     }
     if is_integer_float_classification_predicate(operator) {
         bytes.extend(float_classification_predicate_bytes(operator, byte_size)?);
+        return Ok(());
+    }
+    if operator == StateGuardOperator::FloatClassify {
+        bytes.extend(float_classify_bytes(byte_size)?);
         return Ok(());
     }
     let wide = byte_size > 4;
@@ -15094,6 +15174,11 @@ fn runtime_float_binary_operation_width_with_domain(
     }
     if is_integer_float_classification_predicate(operator) {
         return float_classification_predicate_bytes(operator, byte_size)
+            .map(|bytes| bytes.len())
+            .unwrap_or(0);
+    }
+    if operator == StateGuardOperator::FloatClassify {
+        return float_classify_bytes(byte_size)
             .map(|bytes| bytes.len())
             .unwrap_or(0);
     }
@@ -16344,6 +16429,7 @@ mod float_arithmetic_policy_tests {
                 StateGuardOperator::IsInfinite,
                 StateGuardOperator::IsNormal,
                 StateGuardOperator::IsSubnormal,
+                StateGuardOperator::FloatClassify,
             ] {
                 let mut bytes = Vec::new();
                 append_runtime_float_binary_operation(

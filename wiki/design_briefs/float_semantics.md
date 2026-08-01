@@ -234,6 +234,12 @@ when a direct bool write folds that operand to an immediate, while the operand
 itself still evaluates exactly once. Zero, normal, subnormal, infinity, and NaN
 edges execute in both formats; width-lockstep and cross-target canaries pin the
 native paths.
+Enum-valued `classify` uses format-specific unnameable builtins and packs the
+declared `FloatClass` ABI directly: its source-order i32 tag occupies byte zero
+and the overlaid `negative: bool` payload occupies byte four. The acceptance
+test derives and asserts that eight-byte layout before executing every tag and
+both payload signs in the interpreter, native AArch64, and both Linux target
+emitters; exact-binding rejection keeps it distinct from bool predicates.
 Multiply-then-add rewrites the selected root to an unnameable format-specific
 ternary compiler call so its realization identity survives state-local
 expression copying. Native lowering retains the three authored operands, emits
@@ -241,9 +247,8 @@ a separate multiply followed by add, and applies result policy only after both
 roundings. Binary32/binary64 cancellation edges prove native and interpreter
 execution remain unfused; a finite-overflow canary pins operand-aware
 Saturating behavior.
-Primitive spellings and these twenty named slots are migrated, not all of rung
-3: FMA, the enum-valued `classify` requirement, directed-rounding families,
-checked software fallbacks, canonical
+Primitive spellings and these twenty-two named slots are migrated, not all of
+rung 3: FMA, directed-rounding families, checked software fallbacks, canonical
 floating-control-state proof/restoration, and admitted-hardware differential
 evidence remain.
 

@@ -151,6 +151,14 @@ linux_x64 machine FloatNativeProvider::is_subnormal64(value: f64) -> bool
     satisfies F64::is_subnormal
     via Binding::CompilerIntrinsic("F64::is_subnormal.f64");
 
+linux_x64 machine FloatNativeProvider::classify32(value: f32) -> FloatClass
+    satisfies F32::classify
+    via Binding::CompilerIntrinsic("F32::classify.f32");
+
+linux_x64 machine FloatNativeProvider::classify64(value: f64) -> FloatClass
+    satisfies F64::classify
+    via Binding::CompilerIntrinsic("F64::classify.f64");
+
 linux_x64 machine FloatNativeProvider::multiply_then_add32(
     left: f32,
     right: f32,

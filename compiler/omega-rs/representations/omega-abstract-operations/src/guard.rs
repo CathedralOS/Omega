@@ -50,6 +50,9 @@ pub enum StateGuardOperator {
     IsNormal,
     /// Unary IEEE subnormal predicate (zero exponent, nonzero fraction).
     IsSubnormal,
+    /// Unary IEEE classifier. The raw source float is carried on the left;
+    /// native lowering returns the stable packed `FloatClass` enum carrier.
+    FloatClassify,
     /// Internal structural carrier for the second and third operands of a
     /// ternary float realization. It returns the third operand while keeping
     /// the second in the architecture's pinned MTA scratch register.

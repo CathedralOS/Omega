@@ -234,6 +234,14 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
             function: BuiltinFunction::FloatIsSubnormal,
             arity: 1,
         }),
+        "F32::classify.f32" => Some(NamedFloatRealization::Builtin {
+            function: BuiltinFunction::FloatClassifyF32,
+            arity: 1,
+        }),
+        "F64::classify.f64" => Some(NamedFloatRealization::Builtin {
+            function: BuiltinFunction::FloatClassifyF64,
+            arity: 1,
+        }),
         _ => None,
     }
 }
@@ -281,6 +289,13 @@ mod tests {
             Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F32))
         );
         assert_eq!(named_float_realization("F32::fused_multiply_add.f32"), None);
+        assert_eq!(
+            named_float_realization("F32::classify.f32"),
+            Some(NamedFloatRealization::Builtin {
+                function: BuiltinFunction::FloatClassifyF32,
+                arity: 1,
+            })
+        );
         assert_eq!(
             named_float_realization("F64::is_subnormal.f64"),
             Some(NamedFloatRealization::Builtin {

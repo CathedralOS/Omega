@@ -772,6 +772,9 @@ fn runtime_float_binary_operation_width_with_domain(
     ) {
         return super::runtime_storage::float_classification_predicate_width(operator, byte_size);
     }
+    if operator == StateGuardOperator::FloatClassify {
+        return super::runtime_storage::float_classify_width(byte_size);
+    }
     let guard = super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     guard + runtime_float_binary_operation_width_base(operator)
 }
