@@ -367,6 +367,22 @@ When one declaration carries both predicates and an establishment route, the
 route governs removal. An owned obligation cannot weaken or cast away; custody
 requires consumption or transfer.
 
+### Domains in result overload selection
+
+Explicit named machines and requirements may overload one path and parameter
+signature by their normalized result-domain set. Predicate knowledge alone
+never selects such an overload. Semantic-role contributions, routed
+provenance, and empty explicit tags do; a mixed domain selects by its identity
+and still owes its predicates after selection. This partition is derived from
+the existing normalized domain record and requires no source marker.
+
+The expected result's dispatch-bearing set must equal the declaration's set.
+Implicit predicate weakening and proof entailment run only after selection;
+semantic or provenance weakening never helps resolution. Declarations with the
+same parameter signature and dispatch set are duplicates even when one return
+type names extra predicate-only domains. Chapter 3 specifies the lookup and
+identity rules. Fixed operator spellings remain selected from their operands.
+
 Establishing a domain over *runtime* data is therefore ordinary code, not a
 compiler builtin. To turn untrusted bytes into `&[u8]::Utf8` you write a
 machine that reads the bytes, guards that each unit is valid, and casts in the

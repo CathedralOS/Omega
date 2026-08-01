@@ -244,6 +244,17 @@ flow facts. Resolution is compile-time, unambiguous, and recorded in the
 checked artifact. Adding an unrelated import cannot inject a competing
 meaning.
 
+Named machine and requirement calls additionally admit result-domain overload
+sets. Their dispatch projection contains normalized semantic-role
+contributions, routed provenance, and empty explicit tags; a domain carrying
+only predicates contributes no dispatch key. The expected result projection
+must equal one declared projection, with the empty projection selected when no
+expected result is available. Predicates and ordinary compatibility are checked
+only after that lookup. Equal projections on the same path and parameter
+signature are a declaration-site duplicate, even if the written results differ
+by predicate refinements. Fixed operator spellings retain their separate
+operand-directed rule.
+
 ## Arithmetic policies
 
 `Wrapping`, `Saturating`, and `Trapping` are the closed core arithmetic-policy

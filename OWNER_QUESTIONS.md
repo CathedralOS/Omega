@@ -8,42 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-31.
 
-## 1. What is the public float-conversion requirement family?
-
-The float record settles conversion semantics but not the public names or
-signatures for policy-bearing conversions. `FloatSemantics` already defines
-format conversion, integer-to-float rounding, and
-exact/trapping/saturating float-to-integer results. Exact
-denotation-preserving coercion belongs to `as`; directed rounding and every
-lossy, trapping, saturating, or checked-result choice require separately
-visible operations. Publishing guessed names now would freeze a core API that
-the owning brief never chose.
-
-Decide:
-
-- which non-exact cases use destination-qualified operations such as
-  `F32::from_f64` and `I32::from_f64`, and whether one generic conversion
-  requirement instead carries source and destination types;
-- whether exact, trapping, and saturating float-to-integer behavior is selected
-  solely from the destination qualification or appears in distinct requirement
-  identities;
-- the separately named toward-zero/toward-positive/toward-negative format and
-  integer-to-float variants, without introducing a runtime rounding-mode
-  parameter;
-- how source-visible primitive carrier requirements cite the proof-only
-  `FloatSemantics` conversion functions and integer meaning;
-- whether same-format policy conversion is a real operation or absent from the
-  requirement family; and
-- which diagnostics distinguish rejected exact `as` from the available
-  policy-bearing operations.
-
-Recommendation: use destination-qualified, statically typed requirement
-identities; let the destination arithmetic-policy qualification select
-exact/trapping/saturating result adapters; keep directed rounding as separate
-operation names; and omit same-format conversion. This follows the settled
-operand-driven provider model without carrying type or policy tags at runtime.
-
-## 2. What is the source-visible placed-storage admission surface?
+## 1. What is the source-visible placed-storage admission surface?
 
 The normalized semantics are settled: a qualified `Extent` yields a bounded
 shared or exclusive loan; a selected provider binds one offset-keyed
@@ -90,7 +55,7 @@ one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
 make `place` the sole consuming constructor for `Placed<P, T>`. Package
 wrappers may compose those operations but cannot mint or erase their evidence.
 
-## 3. What is the generic atomic accessor requirement family?
+## 2. What is the generic atomic accessor requirement family?
 
 Placed atomic fields already derive unique opaque accessors and direct atomic
 syntax is gated per load, store, swap, compare-exchange, and fetch operation.
@@ -122,7 +87,7 @@ failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
 
-## 4. What is the v1 canonical portable IR contract?
+## 3. What is the v1 canonical portable IR contract?
 
 The architecture requires one versioned, distributable, interpreter-defined IR
 whose semantics are independent from mutable optimizer representations and
@@ -171,7 +136,7 @@ derive the separately versioned fuel schedule over its stable operation/block
 identities. Do not canonize TypedTrees or a mutable backend representation by
 accident.
 
-## 5. How does a boundary requirement author algebra-denominated backing?
+## 4. How does a boundary requirement author algebra-denominated backing?
 
 The semantic rule is settled: an admitted content-bearing root must receive a
 per-invocation backing receipt in the same compiler-owned algebra as its
@@ -208,7 +173,7 @@ binder erases at runtime, cannot be constructed in ordinary source, and the
 normalized algebra expression plus containment theorem survive beside the
 receipt identity.
 
-## 6. How are content-conservation theorems authored in contracts?
+## 5. How are content-conservation theorems authored in contracts?
 
 The n-ary law and its closed algebras are settled, and checked claim outcome
 maps already identify which input claim feeds each result path. The design
