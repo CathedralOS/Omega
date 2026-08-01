@@ -142,8 +142,7 @@ have one generic identity. Floating/text values, references, slices, dynamic
 identities, and boundary-opaque data are ineligible. A noncanonical `Rat`
 rejects at the generic argument site. Quotient data and records with
 default-domain facts also reject until their canonical-representative or
-index-site proof path is implemented. Closed indexed domain families described
-next remain staged work.
+index-site proof path is implemented.
 
 Second, an erased domain family may take a closed static index. The generic
 carrier is bound and then used in the ordinary position:
@@ -181,6 +180,18 @@ Diagnostics preserve the source-written index expression when available and
 name whether compatibility came from closed evaluation, normalization, or an
 exact established local fact. Those display and evidence records do not enter
 semantic identity.
+
+Closed indexed families and their direct-binder qualification path are
+implemented. A concrete constrained argument or destination supplies a
+const-generic machine's closed binder during specialization:
+
+```omega
+let meters: i64 in Quantity<Units::METER> = retag_i64(70);
+```
+
+The binder is erased, distinct canonical destinations receive distinct
+machine instances, and an incomplete tuple rejects before code generation.
+Computed open result expressions remain the third stage.
 
 ## Machine Parameters
 

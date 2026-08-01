@@ -716,10 +716,12 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   rejects, and the index remains absent from carrier layout. Indexed explicit
   qualification now accepts both closed canonical values and a direct in-scope
   const binder, retains the exact instance in typed/checked artifacts, and
-  rejects missing, mistyped, or unresolved index packs. Finish const-machine
-  specialization so a caller can execute a destination-parameterized generic
-  conversion, then publish the first units package with named combinations and
-  its conversion/operator canaries.
+  rejects missing, mistyped, or unresolved index packs. Result/parameter type
+  evidence now specializes const-generic machine calls, clones distinct
+  canonical tuples, refreshes exact indexed identities, and executes a
+  destination-parameterized conversion in both engines; incomplete inference
+  rejects. Publish the first units package with named combinations and its
+  conversion/operator canaries.
 - **PDI3:** only after PDI2, add computed open result indices, exact selected
   algebra-instance normalization, established-local-fact compatibility, and
   retained verification-condition evidence. Do not add a special citation

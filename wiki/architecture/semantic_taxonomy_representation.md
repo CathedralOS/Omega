@@ -166,9 +166,11 @@ denominator, uncancelled signed coordinates, or a non-unit gcd. Closed domain
 families now carry typed telescopes, canonical instance arguments, and
 per-instance semantic identities through typed snapshots and copying while
 preserving carrier ABI. Explicit qualification now selects a closed value or
-direct const binder and publishes that exact instance through checked evidence;
-const-machine call specialization remains before the destination-generic path
-is executable by a caller. Open index-expression/evidence records remain PDI3. Quotient and
+direct const binder and publishes that exact instance through checked evidence.
+Const-generic machine specialization infers canonical values from constrained
+parameter/result positions, clones distinct tuples, and re-interns copied
+constraints/casts before validation; the destination-generic path executes in
+both engines. Open index-expression/evidence records remain PDI3. Quotient and
 default-domain-constrained value kinds fail closed until their
 canonical-representative/proof admission path exists.
 
@@ -815,9 +817,9 @@ service reach.
    typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
    re-derivation from body shape/keyword presence.
    Structured canonical const values and the closed indexed-domain family
-   representation and explicit indexed qualification are landed; finish
-   const-machine call specialization before carrying open computed index
-   expressions or their equality evidence.
+   representation, explicit indexed qualification, and constrained-position
+   const-machine specialization are landed. Publish the first units package
+   before carrying open computed index expressions or their equality evidence.
 4. **Checked plans.** Split predicate facts, static semantic roles, and
   establishment evidence; add
   the place-keyed permission plan, service-reach plan, suspension plan,

@@ -1015,6 +1015,141 @@ fn const_generic_template_is_not_consumed_by_machine_specialization() {
 }
 
 #[test]
+fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
+    let source = r#"
+        domain<T, const U: u64> T::Quantity<U>;
+
+        machine retag<const To: u64>(value: i64) -> i64 in Quantity<To> {
+            transition { _ -> (value as i64 in Quantity<To>) }
+        }
+
+        data Main {}
+        machine Main::run(&mut self) {
+            let first: i64 in Quantity<1> = retag(70);
+            let second: i64 in Quantity<2> = retag(70);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    crate::specialize_static_machine_calls(&mut typed)
+        .expect("const result indices should specialize before validation");
+    let concrete_return_domains = typed
+        .machine_specializations
+        .iter()
+        .map(|specialization| {
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.instance)
+                .expect("specialized machine");
+            let return_type = typed
+                .machine_states(machine)
+                .first()
+                .expect("entry state")
+                .return_type;
+            let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } =
+                typed.type_reference_table.type_reference(return_type)
+            else {
+                panic!("specialized return should be constrained");
+            };
+            let [omega_typed_trees::types::TypeConstraintNode::Domain(domain)] =
+                typed.type_reference_table.constraints(*constraints)
+            else {
+                panic!("specialized return should carry Quantity");
+            };
+            typed
+                .semantic_domains
+                .name(domain.semantic_id)
+                .expect("indexed semantic identity")
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        concrete_return_domains,
+        ["Quantity<integer:u64:1>", "Quantity<integer:u64:2>"]
+    );
+    let cast_domains = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, expression)| {
+            let omega_typed_trees::expression::ExpressionNode::Cast(cast) = expression else {
+                return None;
+            };
+            typed
+                .semantic_domains
+                .name(cast.semantic_domain_id)
+                .map(str::to_owned)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cast_domains,
+        ["Quantity<integer:u64:1>", "Quantity<integer:u64:2>"]
+    );
+    let checked = lower_typed_trees(typed).expect("const result indices should specialize");
+
+    let retag = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "retag")
+        .expect("retag template instance");
+    assert!(checked.machine_type_parameters(retag).is_empty());
+    let specializations = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.template == retag.symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(specializations.len(), 2);
+    assert_ne!(specializations[0].instance, specializations[1].instance);
+    assert_eq!(specializations[0].const_arguments, ["1"]);
+    assert_eq!(specializations[1].const_arguments, ["2"]);
+    assert_ne!(
+        specializations[0].fingerprint,
+        specializations[1].fingerprint
+    );
+
+    for specialization in specializations {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == specialization.instance)
+            .expect("concrete retag instance");
+        let state = checked
+            .machine_states(machine)
+            .first()
+            .expect("retag entry state");
+        let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = checked
+            .type_reference_table
+            .type_reference(state.return_type)
+        else {
+            panic!("specialized retag result should remain constrained");
+        };
+        let [omega_typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
+            checked.type_reference_table.constraints(*constraints)
+        else {
+            panic!("specialized retag result should carry Quantity");
+        };
+        let cast_id = checked
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(_, expression)| {
+                let omega_typed_trees::expression::ExpressionNode::Cast(cast) = expression else {
+                    return None;
+                };
+                (cast.semantic_domain_symbol == result_domain.symbol
+                    && cast.semantic_domain_id == result_domain.semantic_id)
+                    .then_some(cast.semantic_domain_id)
+            })
+            .find(|identity| *identity == result_domain.semantic_id);
+        assert_eq!(cast_id, Some(result_domain.semantic_id));
+    }
+}
+
+#[test]
 fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
     let source = r#"
         data Index { case Zero; }

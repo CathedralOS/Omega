@@ -1231,6 +1231,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         }
         json.push_str(",\n      \"type_arguments\": [");
         push_json_strings(&mut json, &specialization.type_arguments);
+        json.push_str("],\n      \"const_arguments\": [");
+        push_json_strings(&mut json, &specialization.const_arguments);
         json.push_str("],\n      \"machine_argument_contract_fingerprints\": [");
         for (identity_index, identity) in specialization
             .machine_argument_contract_fingerprints
@@ -2516,6 +2518,7 @@ mod tests {
                 template: symbol,
                 instance: symbol,
                 type_arguments: vec!["Card".to_owned()],
+                const_arguments: Vec::new(),
                 machine_arguments: vec![SymbolHandle::from_arena_index(8)],
                 template_contract_fingerprint: 0x1111,
                 accepted_template_commitment: Some("accepted_map".to_owned()),

@@ -1,0 +1,16 @@
+domain<T, const U: u64> T::Quantity<U>;
+
+machine retag<const To: u64>(value: i64) -> i64 in Quantity<To> {
+    transition { _ -> (value as i64 in Quantity<To>) }
+}
+
+machine wrong(value: i64) -> i64 {
+    let unindexed: i64 = retag(value);
+    transition { _ -> unindexed }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

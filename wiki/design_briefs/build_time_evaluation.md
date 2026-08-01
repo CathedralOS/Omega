@@ -93,8 +93,9 @@ records fail closed until the evaluator can prove their canonical
 representative or domain facts at that site. Closed erased domain families now
 consume the same canonical atoms for per-instance semantic identity. Indexed
 explicit qualification now preserves a closed atom or direct const binder as
-that exact identity; const-machine call specialization remains PDI2, and open
-symbolic index evaluation remains PDI3.
+that exact identity. Constrained parameter/result evidence now specializes
+const-generic calls to canonical tuples and refreshes their exact domain
+identity before checking; open symbolic index evaluation remains PDI3.
 
 Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
 arithmetic evaluates the same executable `FloatSemantics` functions that define

@@ -1,13 +1,13 @@
 //! Compile-time specialization of generic machines.
 //!
-//! Type parameters and static machine parameters are one specialization
-//! tuple. The first concrete tuple reuses the authored declaration; every
-//! additional tuple receives a deep-copied body with fresh lexical symbols.
-//! Calls are rewritten to their selected concrete state, calls through
-//! `F(...)` become direct calls to the selected entry, and each tuple records
-//! a deterministic cache identity. Incomplete tuples remain generic and are
-//! fenced by validation; no runtime callable value or dictionary is
-//! introduced.
+//! Type parameters, canonical const parameters, and static machine parameters
+//! are one specialization tuple. The first concrete tuple reuses the authored
+//! declaration; every additional tuple receives a deep-copied body with fresh
+//! lexical symbols. Calls are rewritten to their selected concrete state,
+//! calls through `F(...)` become direct calls to the selected entry, and each
+//! tuple records a deterministic cache identity. Incomplete tuples remain
+//! generic and are fenced by validation; no runtime const/callable value or
+//! dictionary is introduced.
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -18,7 +18,7 @@ use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use omega_typed_trees::signature::StateSignature;
 use omega_typed_trees::statement::{StatementHandle, StatementNode};
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Clone)]
 struct Candidate {
@@ -29,6 +29,8 @@ struct Candidate {
     type_parameters: Vec<(SymbolHandle, String)>,
     parameter_bounds: Vec<Vec<omega_validation::DeclaredPropertyRequirement>>,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
+    const_parameters: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
+    const_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_parameters: Vec<(SymbolHandle, String, StateSignature)>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
@@ -56,6 +58,7 @@ struct CallSelection {
     caller_is_generic: bool,
     self_forwarded_machine_parameters: bool,
     type_bindings: Vec<Option<TypeReferenceHandle>>,
+    const_bindings: Vec<Option<TypeReferenceHandle>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
 }
@@ -65,6 +68,7 @@ impl CallSelection {
         !self.conflicted
             && !self.self_forwarded_machine_parameters
             && self.type_bindings.iter().all(Option::is_some)
+            && self.const_bindings.iter().all(Option::is_some)
             && self.machine_bindings.iter().all(Option::is_some)
     }
 }
@@ -72,6 +76,7 @@ impl CallSelection {
 #[derive(Clone, PartialEq, Eq)]
 struct SpecializationKey {
     type_arguments: Vec<String>,
+    const_arguments: Vec<String>,
     machine_arguments: Vec<SymbolHandle>,
 }
 
@@ -87,18 +92,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         if parameters.is_empty() {
             continue;
         }
-        // Const-machine specialization is a separate rung. Do not mistake an
-        // empty type/machine binding tuple for a complete specialization and
-        // consume the const binders before validation can check their body.
-        if parameters
-            .iter()
-            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
-        {
-            continue;
-        }
-
         let mut type_parameters = Vec::new();
         let mut parameter_bounds = Vec::new();
+        let mut const_parameters = Vec::new();
         let mut machine_parameters = Vec::new();
         for parameter in parameters {
             match &parameter.kind {
@@ -113,9 +109,11 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                     parameter.name.as_str().to_owned(),
                     contract.clone(),
                 )),
-                TypeParameterKind::Const { .. } => {
-                    unreachable!("const-generic machines are fenced before machine specialization")
-                }
+                TypeParameterKind::Const { type_reference } => const_parameters.push((
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    *type_reference,
+                )),
             }
         }
         all_type_parameter_symbols.extend(type_parameters.iter().cloned());
@@ -141,9 +139,11 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             template_name: machine.name.as_str().to_owned(),
             state_symbols: states.iter().map(|state| state.symbol).collect(),
             type_bindings: vec![None; type_parameters.len()],
+            const_bindings: vec![None; const_parameters.len()],
             machine_bindings: vec![None; machine_parameters.len()],
             type_parameters,
             parameter_bounds,
+            const_parameters,
             machine_parameters,
             conflicted: false,
         });
@@ -153,6 +153,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
     }
 
     let mut type_proposals = Vec::new();
+    let mut const_proposals = Vec::new();
     let mut machine_proposals = Vec::new();
     let contract_expressions = contract_expression_handles(program);
 
@@ -177,6 +178,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &call.machine_arguments,
             &mut machine_proposals,
             &mut type_proposals,
+            &mut const_proposals,
         );
     }
 
@@ -199,6 +201,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                         None,
                         &mut machine_proposals,
                         &mut type_proposals,
+                        &mut const_proposals,
                     ),
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                         if let ExpressionNode::Call(call) =
@@ -220,6 +223,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                                     .then_some(local.type_reference),
                                 &mut machine_proposals,
                                 &mut type_proposals,
+                                &mut const_proposals,
                             );
                         }
                     }
@@ -240,6 +244,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                                 None,
                                 &mut machine_proposals,
                                 &mut type_proposals,
+                                &mut const_proposals,
                             );
                         }
                     }
@@ -263,6 +268,20 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidate = &mut candidates[candidate_index];
         match candidate.type_bindings[parameter_index] {
             None => candidate.type_bindings[parameter_index] = Some(binding),
+            Some(existing) if !same_type_identity(program, existing, binding) => {
+                candidate.conflicted = true;
+            }
+            Some(_) => {}
+        }
+    }
+
+    for (candidate_index, parameter_index, binding) in const_proposals {
+        if type_reference_is_any_generic_parameter(program, binding) {
+            continue;
+        }
+        let candidate = &mut candidates[candidate_index];
+        match candidate.const_bindings[parameter_index] {
+            None => candidate.const_bindings[parameter_index] = Some(binding),
             Some(existing) if !same_type_identity(program, existing, binding) => {
                 candidate.conflicted = true;
             }
@@ -306,7 +325,8 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             continue;
         }
         let candidate = candidates[candidate_index].clone();
-        let has_static_selection = candidate.machine_bindings.iter().any(Option::is_some);
+        let has_static_selection = candidate.const_bindings.iter().any(Option::is_some)
+            || candidate.machine_bindings.iter().any(Option::is_some);
         let has_incomplete_call = selections.iter().any(|selection| {
             selection.candidate_index == candidate_index
                 && !selection.self_forwarded_machine_parameters
@@ -315,7 +335,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         if has_incomplete_call {
             if has_static_selection {
                 diagnostics.push(Diagnostic::error(format!(
-                    "generic machine `{}` has a static machine selection, but its complete type/machine specialization tuple cannot be derived",
+                    "generic machine `{}` has a static selection, but its complete type/const/machine specialization tuple cannot be derived",
                     candidate.template_name
                 )));
             }
@@ -330,16 +350,18 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
         if has_static_selection
             && (candidate.type_bindings.iter().any(Option::is_none)
+                || candidate.const_bindings.iter().any(Option::is_none)
                 || candidate.machine_bindings.iter().any(Option::is_none))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "generic machine `{}` has a static machine selection, but its complete type/machine specialization tuple cannot be derived",
+                "generic machine `{}` has a static selection, but its complete type/const/machine specialization tuple cannot be derived",
                 candidate.template_name
             )));
             continue;
         }
         if !approved
             || candidate.type_bindings.iter().any(Option::is_none)
+            || candidate.const_bindings.iter().any(Option::is_none)
             || candidate.machine_bindings.iter().any(Option::is_none)
         {
             continue;
@@ -363,6 +385,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
     }
     if diagnostics.is_empty() && applied_any {
+        refresh_closed_domain_instance_identities(program).map_err(|error| vec![error])?;
         monomorphize_generic_machine_value_calls(program)
     } else if diagnostics.is_empty() {
         Ok(())
@@ -400,6 +423,7 @@ fn collect_call_proposals(
     expected_return: Option<TypeReferenceHandle>,
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
     let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
         return;
@@ -411,6 +435,7 @@ fn collect_call_proposals(
         machine_arguments,
         machine_proposals,
         type_proposals,
+        const_proposals,
     );
 
     let candidate = &candidates[callee.candidate_index];
@@ -427,23 +452,27 @@ fn collect_call_proposals(
         ) else {
             continue;
         };
-        infer_type_bindings(
+        infer_static_bindings(
             program,
             *required,
             actual,
             &candidate.type_parameters,
+            &candidate.const_parameters,
             callee.candidate_index,
             type_proposals,
+            const_proposals,
         );
     }
     if let Some(actual) = expected_return {
-        infer_type_bindings(
+        infer_static_bindings(
             program,
             callee.return_type,
             actual,
             &candidate.type_parameters,
+            &candidate.const_parameters,
             callee.candidate_index,
             type_proposals,
+            const_proposals,
         );
     }
 }
@@ -457,6 +486,7 @@ fn collect_machine_proposals(
     machine_arguments: &[StaticMachineArgument],
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
     let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
         return;
@@ -468,6 +498,7 @@ fn collect_machine_proposals(
         machine_arguments,
         machine_proposals,
         type_proposals,
+        const_proposals,
     );
 }
 
@@ -478,6 +509,7 @@ fn collect_machine_proposals_for_callee(
     machine_arguments: &[StaticMachineArgument],
     machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
     let candidate = &candidates[callee.candidate_index];
     if machine_arguments.len() != candidate.machine_parameters.len() {
@@ -504,22 +536,26 @@ fn collect_machine_proposals_for_callee(
             let actual_type =
                 omega_validation::unwrapped_type_reference(program, actual.type_reference)
                     .unwrap_or(actual.type_reference);
-            infer_type_bindings(
+            infer_static_bindings(
                 program,
                 required.type_reference,
                 actual_type,
                 &candidate.type_parameters,
+                &candidate.const_parameters,
                 callee.candidate_index,
                 type_proposals,
+                const_proposals,
             );
         }
-        infer_type_bindings(
+        infer_static_bindings(
             program,
             requirement.return_type,
             actual_state.return_type,
             &candidate.type_parameters,
+            &candidate.const_parameters,
             callee.candidate_index,
             type_proposals,
+            const_proposals,
         );
     }
 }
@@ -662,6 +698,7 @@ fn collect_call_selections(
         let candidate = &candidates[callee.candidate_index];
         let mut machine_proposals = Vec::new();
         let mut type_proposals = Vec::new();
+        let mut const_proposals = Vec::new();
         collect_machine_proposals_for_callee(
             program,
             candidates,
@@ -669,6 +706,7 @@ fn collect_call_selections(
             &call.machine_arguments,
             &mut machine_proposals,
             &mut type_proposals,
+            &mut const_proposals,
         );
         let selection = selection_from_proposals(
             program,
@@ -678,6 +716,7 @@ fn collect_call_selections(
             false,
             machine_proposals,
             type_proposals,
+            const_proposals,
         );
         upsert_selection(&mut selections, selection);
     }
@@ -792,6 +831,7 @@ fn selection_for_call(
     let candidate = &candidates[callee.candidate_index];
     let mut machine_proposals = Vec::new();
     let mut type_proposals = Vec::new();
+    let mut const_proposals = Vec::new();
     collect_call_proposals(
         program,
         caller_machine,
@@ -805,6 +845,7 @@ fn selection_for_call(
         expected_return,
         &mut machine_proposals,
         &mut type_proposals,
+        &mut const_proposals,
     );
     Some(selection_from_proposals(
         program,
@@ -814,6 +855,7 @@ fn selection_for_call(
         caller_is_generic,
         machine_proposals,
         type_proposals,
+        const_proposals,
     ))
 }
 
@@ -825,6 +867,7 @@ fn selection_from_proposals(
     caller_is_generic: bool,
     machine_proposals: Vec<(usize, usize, StaticMachineArgument)>,
     type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
 ) -> CallSelection {
     let mut selection = CallSelection {
         site,
@@ -833,6 +876,7 @@ fn selection_from_proposals(
         caller_is_generic,
         self_forwarded_machine_parameters: false,
         type_bindings: vec![None; candidate.type_parameters.len()],
+        const_bindings: vec![None; candidate.const_parameters.len()],
         machine_bindings: vec![None; candidate.machine_parameters.len()],
         conflicted: false,
     };
@@ -842,6 +886,18 @@ fn selection_from_proposals(
         }
         match selection.type_bindings[parameter] {
             None => selection.type_bindings[parameter] = Some(binding),
+            Some(existing) if !same_type_identity(program, existing, binding) => {
+                selection.conflicted = true
+            }
+            Some(_) => {}
+        }
+    }
+    for (_, parameter, binding) in const_proposals {
+        if type_reference_is_any_generic_parameter(program, binding) {
+            continue;
+        }
+        match selection.const_bindings[parameter] {
+            None => selection.const_bindings[parameter] = Some(binding),
             Some(existing) if !same_type_identity(program, existing, binding) => {
                 selection.conflicted = true
             }
@@ -875,11 +931,13 @@ fn type_reference_is_any_generic_parameter(
             .machine_type_parameters(machine)
             .iter()
             .any(|parameter| {
-                matches!(parameter.kind, TypeParameterKind::Type)
-                    && (parameter.symbol == *symbol
-                        || (!parameter.symbol.is_valid()
-                            && !symbol.is_valid()
-                            && parameter.name.as_str() == name.as_str()))
+                matches!(
+                    parameter.kind,
+                    TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                ) && (parameter.symbol == *symbol
+                    || (!parameter.symbol.is_valid()
+                        && !symbol.is_valid()
+                        && parameter.name.as_str() == name.as_str()))
             })
     })
 }
@@ -895,6 +953,11 @@ fn upsert_selection(selections: &mut Vec<CallSelection>, selection: CallSelectio
             .filter(|item| item.is_some())
             .count()
             + existing
+                .const_bindings
+                .iter()
+                .filter(|item| item.is_some())
+                .count()
+            + existing
                 .machine_bindings
                 .iter()
                 .filter(|item| item.is_some())
@@ -904,6 +967,11 @@ fn upsert_selection(selections: &mut Vec<CallSelection>, selection: CallSelectio
             .iter()
             .filter(|item| item.is_some())
             .count()
+            + selection
+                .const_bindings
+                .iter()
+                .filter(|item| item.is_some())
+                .count()
             + selection
                 .machine_bindings
                 .iter()
@@ -937,6 +1005,15 @@ fn unique_complete_selections(
                         .into_string()
                 })
                 .collect(),
+            const_arguments: selection
+                .const_bindings
+                .iter()
+                .map(|binding| {
+                    program
+                        .normalized_type_identity(binding.expect("complete selection"))
+                        .into_string()
+                })
+                .collect(),
             machine_arguments: selection
                 .machine_bindings
                 .iter()
@@ -961,29 +1038,47 @@ fn has_forwarded_generic_call(selections: &[CallSelection], candidate_index: usi
     })
 }
 
-fn infer_type_bindings(
+fn infer_static_bindings(
     program: &TypedTrees,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,
-    parameters: &[(SymbolHandle, String)],
+    type_parameters: &[(SymbolHandle, String)],
+    const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
     candidate_index: usize,
-    proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
 ) {
     if !required.is_valid() || !actual.is_valid() {
         return;
     }
     if let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(required)
-        && let Some(index) = parameters
-            .iter()
-            .position(|(parameter_symbol, parameter_name)| {
-                parameter_symbol == symbol
-                    || (!parameter_symbol.is_valid()
-                        && !symbol.is_valid()
-                        && parameter_name == name.as_str())
-            })
+        && let Some(index) =
+            type_parameters
+                .iter()
+                .position(|(parameter_symbol, parameter_name)| {
+                    parameter_symbol == symbol
+                        || (!parameter_symbol.is_valid()
+                            && !symbol.is_valid()
+                            && parameter_name == name.as_str())
+                })
     {
-        proposals.push((candidate_index, index, actual));
+        type_proposals.push((candidate_index, index, actual));
+        return;
+    }
+    if let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(required)
+        && let Some(index) =
+            const_parameters
+                .iter()
+                .position(|(parameter_symbol, parameter_name, _)| {
+                    parameter_symbol == symbol
+                        || (!parameter_symbol.is_valid()
+                            && !symbol.is_valid()
+                            && parameter_name == name.as_str())
+                })
+    {
+        const_proposals.push((candidate_index, index, actual));
         return;
     }
 
@@ -998,13 +1093,15 @@ fn infer_type_bindings(
             TypeReferenceNode::Reference {
                 referee: actual, ..
             },
-        ) => infer_type_bindings(
+        ) => infer_static_bindings(
             program,
             *required,
             *actual,
-            parameters,
+            type_parameters,
+            const_parameters,
             candidate_index,
-            proposals,
+            type_proposals,
+            const_proposals,
         ),
         // Borrow syntax is carried by the CALL edge, not as a wrapper on the
         // place expression itself. Thus `f<T>(&T)` called as `f(&place)` sees
@@ -1016,21 +1113,56 @@ fn infer_type_bindings(
                 referee: required, ..
             },
             _,
-        ) => infer_type_bindings(
+        ) => infer_static_bindings(
             program,
             *required,
             actual,
-            parameters,
+            type_parameters,
+            const_parameters,
             candidate_index,
-            proposals,
+            type_proposals,
+            const_proposals,
         ),
-        (TypeReferenceNode::Constrained { base_type, .. }, _) => infer_type_bindings(
+        (
+            TypeReferenceNode::Constrained {
+                base_type: required_base,
+                constraints: required_constraints,
+            },
+            TypeReferenceNode::Constrained {
+                base_type: actual_base,
+                constraints: actual_constraints,
+            },
+        ) => {
+            infer_static_bindings(
+                program,
+                *required_base,
+                *actual_base,
+                type_parameters,
+                const_parameters,
+                candidate_index,
+                type_proposals,
+                const_proposals,
+            );
+            infer_domain_argument_bindings(
+                program,
+                *required_constraints,
+                *actual_constraints,
+                type_parameters,
+                const_parameters,
+                candidate_index,
+                type_proposals,
+                const_proposals,
+            );
+        }
+        (TypeReferenceNode::Constrained { base_type, .. }, _) => infer_static_bindings(
             program,
             *base_type,
             omega_validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
-            parameters,
+            type_parameters,
+            const_parameters,
             candidate_index,
-            proposals,
+            type_proposals,
+            const_proposals,
         ),
         (
             TypeReferenceNode::Slice {
@@ -1049,13 +1181,15 @@ fn infer_type_bindings(
                 element_type: actual,
                 ..
             },
-        ) => infer_type_bindings(
+        ) => infer_static_bindings(
             program,
             *required,
             *actual,
-            parameters,
+            type_parameters,
+            const_parameters,
             candidate_index,
-            proposals,
+            type_proposals,
+            const_proposals,
         ),
         (
             TypeReferenceNode::Generic {
@@ -1079,18 +1213,77 @@ fn infer_type_bindings(
                         .type_reference_handles(*actual_arguments),
                 )
             {
-                infer_type_bindings(
+                infer_static_bindings(
                     program,
                     *required,
                     *actual,
-                    parameters,
+                    type_parameters,
+                    const_parameters,
                     candidate_index,
-                    proposals,
+                    type_proposals,
+                    const_proposals,
                 );
             }
         }
         _ => {}
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn infer_domain_argument_bindings(
+    program: &TypedTrees,
+    required_constraints: HandleSpan<TypeConstraintNode>,
+    actual_constraints: HandleSpan<TypeConstraintNode>,
+    type_parameters: &[(SymbolHandle, String)],
+    const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
+    candidate_index: usize,
+    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+) {
+    for required in program
+        .type_reference_table
+        .constraints(required_constraints)
+    {
+        let TypeConstraintNode::Domain(required) = required else {
+            continue;
+        };
+        let Some(actual) = program
+            .type_reference_table
+            .constraints(actual_constraints)
+            .iter()
+            .find_map(|constraint| {
+                let TypeConstraintNode::Domain(actual) = constraint else {
+                    return None;
+                };
+                same_domain_family(required, actual).then_some(actual)
+            })
+        else {
+            continue;
+        };
+        for (required, actual) in required.arguments.iter().zip(&actual.arguments) {
+            infer_static_bindings(
+                program,
+                *required,
+                *actual,
+                type_parameters,
+                const_parameters,
+                candidate_index,
+                type_proposals,
+                const_proposals,
+            );
+        }
+    }
+}
+
+fn same_domain_family(
+    left: &omega_typed_trees::types::DomainConstraint,
+    right: &omega_typed_trees::types::DomainConstraint,
+) -> bool {
+    if left.symbol.is_valid() && right.symbol.is_valid() {
+        return left.symbol == right.symbol;
+    }
+    left.name == right.name
+        || left.name.as_str().rsplit("::").next() == right.name.as_str().rsplit("::").next()
 }
 
 fn type_reference_is_still_generic(
@@ -1181,7 +1374,7 @@ fn apply_multiple_specializations(
         .any(|selection| selection.candidate_index == candidate_index && !selection.is_complete())
     {
         return Err(vec![Diagnostic::error(format!(
-            "generic machine `{}` has a static machine selection, but its complete type/machine specialization tuple cannot be derived",
+            "generic machine `{}` has a static selection, but its complete type/const/machine specialization tuple cannot be derived",
             template.template_name
         ))]);
     }
@@ -1233,6 +1426,7 @@ fn apply_multiple_specializations(
 fn candidate_for_selection(template: &Candidate, selection: &CallSelection) -> Candidate {
     let mut candidate = template.clone();
     candidate.type_bindings = selection.type_bindings.clone();
+    candidate.const_bindings = selection.const_bindings.clone();
     candidate.machine_bindings = selection.machine_bindings.clone();
     candidate.conflicted = selection.conflicted;
     candidate
@@ -1290,6 +1484,20 @@ fn clone_specialized_machine(
                 .into_string()
         })
         .collect();
+    let const_arguments: Vec<String> = candidate
+        .const_bindings
+        .iter()
+        .map(|binding| source.display_type_reference(binding.expect("complete specialization")))
+        .collect();
+    let const_identities: Vec<String> = candidate
+        .const_bindings
+        .iter()
+        .map(|binding| {
+            source
+                .normalized_type_identity(binding.expect("complete specialization"))
+                .into_string()
+        })
+        .collect();
     let machine_paths: Vec<String> = candidate
         .machine_bindings
         .iter()
@@ -1304,8 +1512,12 @@ fn clone_specialized_machine(
                 .join("::")
         })
         .collect();
-    let fingerprint =
-        specialization_fingerprint(&candidate.template_name, &type_identities, &machine_paths);
+    let fingerprint = specialization_fingerprint(
+        &candidate.template_name,
+        &type_identities,
+        &const_identities,
+        &machine_paths,
+    );
     let generated_name = format!(
         "{}$specialized${fingerprint:016x}${ordinal}",
         candidate.template_name
@@ -1470,6 +1682,7 @@ fn clone_specialized_machine(
         program.push_machine_state(&mut cloned, state);
     }
 
+    copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map);
     substitute_cloned_type_parameters(source, program, candidate, type_start);
     rewrite_cloned_calls(
         source,
@@ -1487,6 +1700,7 @@ fn clone_specialized_machine(
             template: candidate.template_symbol,
             instance: instance_symbol,
             type_arguments,
+            const_arguments,
             machine_arguments: candidate
                 .machine_bindings
                 .iter()
@@ -1530,6 +1744,67 @@ fn copy_expression_span(
         .map(|expression| copy_expression(source, program, *expression, symbols))
         .collect();
     program.expression_table.insert_expression_handles(copied)
+}
+
+/// `ExpressionTable::copy_from` owns expression recursion but deliberately
+/// cannot clone handles from the separate type-reference table. A specialized
+/// machine is a new semantic graph, so copy cast/zero-value type payloads here
+/// before binder substitution; otherwise a cloned cast would still point into
+/// the first in-place specialization's argument span.
+fn copy_cloned_expression_type_payloads(
+    source: &TypedTrees,
+    program: &mut TypedTrees,
+    expression_start: usize,
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) {
+    let cast_payloads = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .filter_map(|(handle, expression)| {
+            let ExpressionNode::Cast(cast) = expression else {
+                return None;
+            };
+            Some((handle, cast.target_type, cast.semantic_domain_arguments))
+        })
+        .collect::<Vec<_>>();
+    for (handle, target_type, arguments) in cast_payloads {
+        let target_type = copy_type_reference(source, program, target_type, symbols);
+        let copied_arguments = source
+            .type_reference_table
+            .type_reference_handles(arguments)
+            .iter()
+            .map(|argument| copy_type_reference(source, program, *argument, symbols))
+            .collect::<Vec<_>>();
+        let arguments = program
+            .type_reference_table
+            .insert_type_reference_handles(copied_arguments);
+        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
+            unreachable!("collected cast changed kind")
+        };
+        cast.target_type = target_type;
+        cast.semantic_domain_arguments = arguments;
+    }
+
+    let zero_values = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .filter_map(|(handle, expression)| {
+            let ExpressionNode::ZeroValue(type_reference) = expression else {
+                return None;
+            };
+            Some((handle, *type_reference))
+        })
+        .collect::<Vec<_>>();
+    for (handle, type_reference) in zero_values {
+        let type_reference = copy_type_reference(source, program, type_reference, symbols);
+        let ExpressionNode::ZeroValue(current) = program.expression_table.expression_mut(handle)
+        else {
+            unreachable!("collected zero-value expression changed kind")
+        };
+        *current = type_reference;
+    }
 }
 
 fn copy_type_reference(
@@ -1620,6 +1895,35 @@ fn substitute_cloned_type_parameters(
             source,
             program,
             binding.expect("complete specialization"),
+            &[],
+        );
+        let replacement = program
+            .type_reference_table
+            .type_reference(replacement)
+            .clone();
+        for occurrence in occurrences {
+            program
+                .type_reference_table
+                .substitute_node(occurrence, replacement.clone());
+        }
+    }
+    for ((parameter_symbol, _, _), binding) in candidate
+        .const_parameters
+        .iter()
+        .zip(candidate.const_bindings.iter())
+    {
+        let occurrences: Vec<_> = program
+            .type_reference_table
+            .named_references()
+            .filter(|(handle, symbol, _)| {
+                handle.arena_index() as usize >= type_start && symbol == parameter_symbol
+            })
+            .map(|(handle, _, _)| handle)
+            .collect();
+        let replacement = copy_type_reference(
+            source,
+            program,
+            binding.expect("complete const specialization"),
             &[],
         );
         let replacement = program
@@ -1765,6 +2069,120 @@ fn rewrite_cloned_calls(
     }
 }
 
+/// Const substitution changes an indexed-domain instance from binder identity
+/// (`Quantity<To>`) to the selected canonical value (`Quantity<METER>`). The
+/// semantic ID is derived data, so refresh every affected constraint and cast
+/// before validation or checked-fact construction observes the specialized
+/// graph.
+fn refresh_closed_domain_instance_identities(program: &mut TypedTrees) -> Result<(), Diagnostic> {
+    let mut constraint_updates = Vec::new();
+    for (_, _, constraints) in program
+        .type_reference_table
+        .constrained_type_reference_sites()
+    {
+        for (offset, constraint) in program
+            .type_reference_table
+            .constraints(constraints)
+            .iter()
+            .enumerate()
+        {
+            let TypeConstraintNode::Domain(constraint) = constraint else {
+                continue;
+            };
+            if constraint.arguments.is_empty() || !constraint.symbol.is_valid() {
+                continue;
+            }
+            let Some(domain) = program
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.symbol == constraint.symbol)
+                .cloned()
+            else {
+                continue;
+            };
+            let parameters = program.domain_type_parameters(&domain);
+            let index_parameters = if parameters.is_empty() {
+                &[][..]
+            } else {
+                &parameters[1..]
+            };
+            let identity = omega_typed_trees::domain::indexed_domain_instance_name(
+                program,
+                &domain,
+                index_parameters,
+                &constraint.arguments,
+            )?;
+            constraint_updates.push((constraints, offset, identity, domain.semantic_roles));
+        }
+    }
+
+    for (constraints, offset, identity, roles) in constraint_updates {
+        let semantic_id = program.semantic_domains.intern(&identity);
+        let TypeConstraintNode::Domain(domain) =
+            &mut program.type_reference_table.constraints_mut(constraints)[offset]
+        else {
+            unreachable!("collected domain constraint changed kind")
+        };
+        domain.semantic_id = semantic_id;
+        domain.semantic_roles = omega_core::semantics::DomainSemanticRoles {
+            denotation_dimension: roles.denotation_dimension.map(|_| semantic_id),
+            arithmetic_policy: roles.arithmetic_policy.map(|_| semantic_id),
+        };
+    }
+
+    let cast_sites = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(handle, expression)| {
+            let ExpressionNode::Cast(cast) = expression else {
+                return None;
+            };
+            (cast.semantic_domain_symbol.is_valid() && !cast.semantic_domain_arguments.is_empty())
+                .then_some((
+                    handle,
+                    cast.semantic_domain_symbol,
+                    cast.semantic_domain_arguments,
+                ))
+        })
+        .collect::<Vec<_>>();
+    let mut cast_updates = Vec::new();
+    for (handle, symbol, arguments) in cast_sites {
+        let Some(domain) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == symbol)
+            .cloned()
+        else {
+            continue;
+        };
+        let parameters = program.domain_type_parameters(&domain);
+        let index_parameters = if parameters.is_empty() {
+            &[][..]
+        } else {
+            &parameters[1..]
+        };
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(arguments);
+        let identity = omega_typed_trees::domain::indexed_domain_instance_name(
+            program,
+            &domain,
+            index_parameters,
+            arguments,
+        )?;
+        cast_updates.push((handle, identity));
+    }
+    for (handle, identity) in cast_updates {
+        let semantic_id = program.semantic_domains.intern(&identity);
+        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
+            unreachable!("collected cast changed kind")
+        };
+        cast.semantic_domain_id = semantic_id;
+    }
+
+    Ok(())
+}
+
 fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> SymbolHandle {
     symbols
         .iter()
@@ -1790,6 +2208,22 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         .map(|binding| {
             program
                 .normalized_type_identity(binding.expect("complete type specialization"))
+                .into_string()
+        })
+        .collect();
+    let const_arguments: Vec<String> = candidate
+        .const_bindings
+        .iter()
+        .map(|binding| {
+            program.display_type_reference(binding.expect("complete const specialization"))
+        })
+        .collect();
+    let const_identities: Vec<String> = candidate
+        .const_bindings
+        .iter()
+        .map(|binding| {
+            program
+                .normalized_type_identity(binding.expect("complete const specialization"))
                 .into_string()
         })
         .collect();
@@ -1823,6 +2257,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             template: candidate.template_symbol,
             instance: candidate.template_symbol,
             type_arguments: type_arguments.clone(),
+            const_arguments,
             machine_arguments,
             template_contract_fingerprint,
             accepted_template_commitment,
@@ -1830,6 +2265,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             fingerprint: specialization_fingerprint(
                 &candidate.template_name,
                 &type_identities,
+                &const_identities,
                 &machine_paths,
             ),
         });
@@ -1842,6 +2278,33 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
         let replacement = program
             .type_reference_table
             .type_reference(binding.expect("complete type specialization"))
+            .clone();
+        let occurrences: Vec<TypeReferenceHandle> = program
+            .type_reference_table
+            .named_references()
+            .filter(|(_, symbol, name)| {
+                symbol == parameter_symbol
+                    || (!symbol.is_valid()
+                        && !parameter_symbol.is_valid()
+                        && *name == parameter_name.as_str())
+            })
+            .map(|(handle, _, _)| handle)
+            .collect();
+        for occurrence in occurrences {
+            program
+                .type_reference_table
+                .substitute_node(occurrence, replacement.clone());
+        }
+    }
+
+    for ((parameter_symbol, parameter_name, _), binding) in candidate
+        .const_parameters
+        .iter()
+        .zip(candidate.const_bindings.iter())
+    {
+        let replacement = program
+            .type_reference_table
+            .type_reference(binding.expect("complete const specialization"))
             .clone();
         let occurrences: Vec<TypeReferenceHandle> = program
             .type_reference_table
@@ -2404,6 +2867,7 @@ fn encode_normalized_text(text: &str, binders: &[(String, String)], output: &mut
 fn specialization_fingerprint(
     template: &str,
     type_arguments: &[String],
+    const_arguments: &[String],
     machine_arguments: &[String],
 ) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
@@ -2411,6 +2875,7 @@ fn specialization_fingerprint(
     let mut hash = OFFSET;
     for part in std::iter::once(template)
         .chain(type_arguments.iter().map(String::as_str))
+        .chain(const_arguments.iter().map(String::as_str))
         .chain(machine_arguments.iter().map(String::as_str))
     {
         for byte in part.as_bytes().iter().copied().chain(std::iter::once(0xff)) {
