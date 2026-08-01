@@ -65,6 +65,40 @@ impl NormalizedDomainExpression {
     }
 }
 
+/// The canonical set of domains that may select a named-machine or
+/// requirement overload from its expected result type.
+///
+/// Unlike [`NormalizedDomainExpression`], this set expands transparent domain
+/// aliases and omits predicate-only refinements. Arithmetic policies, domains
+/// with a semantic role or establishment route, and explicit empty tags remain
+/// dispatch-bearing. Terms are sorted and deduplicated so authored conjunction
+/// order cannot affect overload identity.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct NormalizedResultDispatchSet {
+    terms: Vec<NormalizedDomainTerm>,
+}
+
+impl NormalizedResultDispatchSet {
+    pub fn terms(&self) -> &[NormalizedDomainTerm] {
+        &self.terms
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.terms.is_empty()
+    }
+
+    pub fn identity(&self) -> String {
+        self.terms
+            .iter()
+            .map(|term| match term {
+                NormalizedDomainTerm::Arithmetic(name) => format!("arithmetic:{name}"),
+                NormalizedDomainTerm::Declared(name) => format!("declared:{name}"),
+            })
+            .collect::<Vec<_>>()
+            .join("&")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NormalizedDomainTerm {
     Arithmetic(String),
@@ -105,6 +139,147 @@ impl TypedTrees {
     ) -> NormalizedDomainExpression {
         NormalizedDomainExpression::from_constraints(self, constraints)
     }
+
+    /// Normalize the dispatch-bearing domain set on the outer result value.
+    /// Reference and nested constrained shells are transparent; domains inside
+    /// an aggregate element or generic argument belong to that nested value and
+    /// do not select the enclosing result overload.
+    pub fn normalized_result_dispatch_set(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> NormalizedResultDispatchSet {
+        let mut terms = Vec::new();
+        collect_result_dispatch_terms(self, type_reference, &mut terms, &mut Vec::new());
+        terms.sort();
+        terms.dedup();
+        NormalizedResultDispatchSet { terms }
+    }
+}
+
+fn collect_result_dispatch_terms(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    terms: &mut Vec<NormalizedDomainTerm>,
+    alias_stack: &mut Vec<SymbolHandle>,
+) {
+    if !type_reference.is_valid() {
+        return;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_result_dispatch_terms(program, *referee, terms, alias_stack);
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            collect_result_dispatch_terms(program, *base_type, terms, alias_stack);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                match constraint {
+                    TypeConstraintNode::ArithmeticDomain(domain) => {
+                        terms.push(NormalizedDomainTerm::Arithmetic(domain.name().to_owned()))
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        collect_declared_result_dispatch_terms(program, domain, terms, alias_stack);
+                    }
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::Range { .. } => {}
+                }
+            }
+        }
+        TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn collect_declared_result_dispatch_terms(
+    program: &TypedTrees,
+    constraint: &DomainConstraint,
+    terms: &mut Vec<NormalizedDomainTerm>,
+    alias_stack: &mut Vec<SymbolHandle>,
+) {
+    let definition = constraint.symbol.is_valid().then(|| {
+        program
+            .domain_definitions()
+            .iter()
+            .find(|definition| definition.symbol == constraint.symbol)
+    });
+    if let Some(Some(definition)) = definition {
+        if let Some(alias) = definition.alias.as_ref() {
+            if alias_stack.contains(&definition.symbol) {
+                return;
+            }
+            alias_stack.push(definition.symbol);
+            for constituent in &alias.constituents {
+                let Some(constituent_definition) = program
+                    .domain_definitions()
+                    .iter()
+                    .find(|candidate| candidate.symbol == constituent.domain_symbol)
+                else {
+                    continue;
+                };
+                let constituent_constraint = DomainConstraint {
+                    name: constituent_definition.name.clone(),
+                    symbol: constituent_definition.symbol,
+                    semantic_id: constituent_definition.semantic_id,
+                    predicate_body: constituent_definition.predicate_body,
+                    semantic_roles: constituent_definition.semantic_roles,
+                    establishment_routes: constituent_definition.establishment_routes.clone(),
+                };
+                collect_declared_result_dispatch_terms(
+                    program,
+                    &constituent_constraint,
+                    terms,
+                    alias_stack,
+                );
+            }
+            alias_stack.pop();
+            return;
+        }
+        if definition.predicate_body.is_present()
+            && definition.semantic_roles.is_empty()
+            && definition.establishment_routes.is_empty()
+        {
+            return;
+        }
+        terms.push(NormalizedDomainTerm::Declared(declared_domain_name(
+            program,
+            definition.semantic_id,
+            definition.name.as_str(),
+        )));
+        return;
+    }
+
+    // Compiler-known or partially constructed constraints may not have a
+    // declaration record yet. Their copied normalized metadata is still the
+    // authority for dispatch-bearing classification.
+    if constraint.predicate_body.is_present()
+        && constraint.semantic_roles.is_empty()
+        && constraint.establishment_routes.is_empty()
+    {
+        return;
+    }
+    terms.push(NormalizedDomainTerm::Declared(declared_domain_name(
+        program,
+        constraint.semantic_id,
+        constraint.name.as_str(),
+    )));
+}
+
+fn declared_domain_name(
+    program: &TypedTrees,
+    semantic_id: omega_core::semantics::SemanticDomainId,
+    fallback: &str,
+) -> String {
+    semantic_id
+        .is_valid()
+        .then(|| program.semantic_domains.name(semantic_id))
+        .flatten()
+        .unwrap_or(fallback)
+        .to_owned()
 }
 
 #[derive(Default)]
@@ -352,9 +527,12 @@ fn compound(tag: &str, parts: impl IntoIterator<Item = String>) -> String {
 mod tests {
     use super::{NormalizedDomainTerm, NormalizedTypeIdentity};
     use crate::TypedTrees;
+    use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
     use crate::name::Identifier;
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
-    use omega_core::semantics::{DomainPredicateBody, DomainSemanticRoles, SemanticDomainId};
+    use omega_core::semantics::{
+        DomainEstablishmentRoute, DomainPredicateBody, DomainSemanticRoles, SemanticDomainId,
+    };
     use omega_core::symbols::SymbolHandle;
 
     fn declared(name: &str, semantic_id: SemanticDomainId) -> TypeConstraintNode {
@@ -365,6 +543,24 @@ mod tests {
             predicate_body: DomainPredicateBody::Present,
             semantic_roles: DomainSemanticRoles::default(),
             establishment_routes: Vec::new(),
+        })
+    }
+
+    fn declared_with_metadata(
+        name: &str,
+        symbol: SymbolHandle,
+        semantic_id: SemanticDomainId,
+        predicate_body: DomainPredicateBody,
+        semantic_roles: DomainSemanticRoles,
+        establishment_routes: Vec<DomainEstablishmentRoute>,
+    ) -> TypeConstraintNode {
+        TypeConstraintNode::Domain(DomainConstraint {
+            name: Identifier::generated(name),
+            symbol,
+            semantic_id,
+            predicate_body,
+            semantic_roles,
+            establishment_routes,
         })
     }
 
@@ -449,5 +645,210 @@ mod tests {
 
         let alpha_identity: NormalizedTypeIdentity = program.normalized_type_identity(alpha_type);
         assert_ne!(alpha_identity, program.normalized_type_identity(beta_type));
+    }
+
+    #[test]
+    fn result_dispatch_set_partitions_predicates_from_semantic_and_empty_tags() {
+        let mut program = TypedTrees::default();
+        let predicate = program.semantic_domains.intern("Positive");
+        let semantic = program.semantic_domains.intern("Km");
+        let routed = program.semantic_domains.intern("Validated");
+        let empty = program.semantic_domains.intern("Marker");
+        let base = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("i32"),
+            });
+        let route = DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition: SymbolHandle::from_arena_index(41),
+            requirement: SymbolHandle::from_arena_index(42),
+        };
+        let result = constrained(
+            &mut program,
+            base,
+            [
+                declared_with_metadata(
+                    "Positive",
+                    SymbolHandle::invalid(),
+                    predicate,
+                    DomainPredicateBody::Present,
+                    DomainSemanticRoles::default(),
+                    Vec::new(),
+                ),
+                declared_with_metadata(
+                    "Km",
+                    SymbolHandle::invalid(),
+                    semantic,
+                    DomainPredicateBody::Present,
+                    DomainSemanticRoles {
+                        denotation_dimension: Some(semantic),
+                        arithmetic_policy: None,
+                    },
+                    Vec::new(),
+                ),
+                declared_with_metadata(
+                    "Validated",
+                    SymbolHandle::invalid(),
+                    routed,
+                    DomainPredicateBody::Present,
+                    DomainSemanticRoles::default(),
+                    vec![route],
+                ),
+                declared_with_metadata(
+                    "Marker",
+                    SymbolHandle::invalid(),
+                    empty,
+                    DomainPredicateBody::Bodyless,
+                    DomainSemanticRoles::default(),
+                    Vec::new(),
+                ),
+                TypeConstraintNode::ArithmeticDomain(
+                    omega_core::arithmetic::ArithmeticDomain::Saturating,
+                ),
+                declared_with_metadata(
+                    "MarkerAgain",
+                    SymbolHandle::invalid(),
+                    empty,
+                    DomainPredicateBody::Bodyless,
+                    DomainSemanticRoles::default(),
+                    Vec::new(),
+                ),
+                TypeConstraintNode::ArithmeticDomain(
+                    omega_core::arithmetic::ArithmeticDomain::Saturating,
+                ),
+            ],
+        );
+
+        let dispatch = program.normalized_result_dispatch_set(result);
+        assert_eq!(
+            dispatch.terms(),
+            [
+                NormalizedDomainTerm::Arithmetic("Saturating".to_owned()),
+                NormalizedDomainTerm::Declared("Km".to_owned()),
+                NormalizedDomainTerm::Declared("Marker".to_owned()),
+                NormalizedDomainTerm::Declared("Validated".to_owned()),
+            ]
+        );
+        assert_eq!(
+            dispatch.identity(),
+            "arithmetic:Saturating&declared:Km&declared:Marker&declared:Validated"
+        );
+    }
+
+    #[test]
+    fn result_dispatch_set_expands_aliases_before_partitioning() {
+        let mut program = TypedTrees::default();
+        let predicate_id = program.semantic_domains.intern("Positive");
+        let marker_id = program.semantic_domains.intern("Marker");
+        let alias_id = program.semantic_domains.intern("PositiveMarker");
+        let predicate_symbol = SymbolHandle::from_arena_index(51);
+        let marker_symbol = SymbolHandle::from_arena_index(52);
+        let alias_symbol = SymbolHandle::from_arena_index(53);
+
+        program.push_domain_definition(DomainDefinition {
+            symbol: predicate_symbol,
+            name: Identifier::generated("Positive"),
+            semantic_id: predicate_id,
+            predicate_body: DomainPredicateBody::Present,
+            ..DomainDefinition::default()
+        });
+        program.push_domain_definition(DomainDefinition {
+            symbol: marker_symbol,
+            name: Identifier::generated("Marker"),
+            semantic_id: marker_id,
+            predicate_body: DomainPredicateBody::Bodyless,
+            ..DomainDefinition::default()
+        });
+        program.push_domain_definition(DomainDefinition {
+            symbol: alias_symbol,
+            name: Identifier::generated("PositiveMarker"),
+            alias: Some(DomainAliasDefinition {
+                constituents: vec![
+                    DomainAliasConstituent {
+                        domain_symbol: predicate_symbol,
+                        ..DomainAliasConstituent::default()
+                    },
+                    DomainAliasConstituent {
+                        domain_symbol: marker_symbol,
+                        ..DomainAliasConstituent::default()
+                    },
+                ],
+            }),
+            semantic_id: alias_id,
+            ..DomainDefinition::default()
+        });
+
+        let base = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("i32"),
+            });
+        let result = constrained(
+            &mut program,
+            base,
+            [declared_with_metadata(
+                "PositiveMarker",
+                alias_symbol,
+                alias_id,
+                DomainPredicateBody::Bodyless,
+                DomainSemanticRoles::default(),
+                Vec::new(),
+            )],
+        );
+
+        assert_eq!(
+            program.normalized_result_dispatch_set(result).terms(),
+            [NormalizedDomainTerm::Declared("Marker".to_owned())]
+        );
+    }
+
+    #[test]
+    fn result_dispatch_set_flattens_qualification_shells_but_not_element_domains() {
+        let mut program = TypedTrees::default();
+        let outer = program.semantic_domains.intern("Outer");
+        let element = program.semantic_domains.intern("Element");
+        let base = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("i32"),
+            });
+        let qualified_element = constrained(
+            &mut program,
+            base,
+            [declared_with_metadata(
+                "Element",
+                SymbolHandle::invalid(),
+                element,
+                DomainPredicateBody::Bodyless,
+                DomainSemanticRoles::default(),
+                Vec::new(),
+            )],
+        );
+        let array = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: qualified_element,
+                length: crate::types::FixedArrayLength::Literal(4),
+            });
+        let result = constrained(
+            &mut program,
+            array,
+            [declared_with_metadata(
+                "Outer",
+                SymbolHandle::invalid(),
+                outer,
+                DomainPredicateBody::Bodyless,
+                DomainSemanticRoles::default(),
+                Vec::new(),
+            )],
+        );
+
+        assert_eq!(
+            program.normalized_result_dispatch_set(result).terms(),
+            [NormalizedDomainTerm::Declared("Outer".to_owned())]
+        );
     }
 }
