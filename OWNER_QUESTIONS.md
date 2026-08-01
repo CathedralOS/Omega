@@ -6,41 +6,9 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Last pruned: 2026-07-30.
+Last pruned: 2026-07-31.
 
-## 1. What does contained execution failure do to outstanding obligations?
-
-Process-wide nuclear abort leaves no continuing runtime. A contained activation,
-callback, component, or worker may instead be force-terminated while the rest of
-the system survives. Execution quiescence then does not imply obligation
-quiescence: the dead execution may have held a lock, carried a linear claim,
-owned a retained foreign loan, or been responsible for a provider entry pin.
-Reclaiming its artifact merely because no instruction is still executing would
-silently orphan those obligations.
-
-Decide:
-
-- which obligations are owned by the execution, its component cohort, a stable
-  provider ledger, or another named custodian at the instant of forced exit;
-- which obligations may be mechanically returned by runtime teardown and which
-  require semantic code that can no longer run;
-- whether an unresolved obligation poisons the execution, registration,
-  component version, isolation domain, or whole process;
-- which reclamation and replacement operations remain blocked by that poison,
-  and which explicit recovery authority may clear or transfer it;
-- how forced-exit reports name the originating execution and every retained
-  holding path instead of presenting only a generic non-quiescent status; and
-- how this composes with nuclear abort, ordinary edge cleanup, foreign-worker
-  failure, callback drain, and component replacement without inventing cleanup
-  that did not execute.
-
-Recommendation: separate execution quiescence from obligation quiescence.
-Runtime teardown may discharge only obligations whose provider contract
-explicitly assigns teardown that authority. Everything else remains attributed,
-poisons the owning cohort, and blocks reclamation until an authorized recovery
-or a wider failure boundary retires the cohort.
-
-## 2. How are modular concurrency environment premises authored and discharged?
+## 1. How are modular concurrency environment premises authored and discharged?
 
 Omega can derive normalized atomic events and concurrent transitions from a
 closed machine graph, but a separately compiled package cannot know which
@@ -84,7 +52,7 @@ or through derived composition evidence. Keep finite exploration parameters in
 the proof artifact, never in semantic contract identity unless the published
 protocol itself is deliberately bounded.
 
-## 3. What is the public float-conversion requirement family?
+## 2. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not the public names or
 signatures for policy-bearing conversions. `FloatSemantics` already defines
@@ -119,7 +87,7 @@ exact/trapping/saturating result adapters; keep directed rounding as separate
 operation names; and omit same-format conversion. This follows the settled
 operand-driven provider model without carrying type or policy tags at runtime.
 
-## 4. What is the source-visible placed-storage admission surface?
+## 3. What is the source-visible placed-storage admission surface?
 
 The normalized semantics are settled: a qualified `Extent` yields a bounded
 shared or exclusive loan; a selected provider binds one offset-keyed
@@ -166,7 +134,7 @@ one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
 make `place` the sole consuming constructor for `Placed<P, T>`. Package
 wrappers may compose those operations but cannot mint or erase their evidence.
 
-## 5. What is the generic atomic accessor requirement family?
+## 4. What is the generic atomic accessor requirement family?
 
 Placed atomic fields already derive unique opaque accessors and direct atomic
 syntax is gated per load, store, swap, compare-exchange, and fetch operation.
@@ -198,7 +166,7 @@ failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
 
-## 6. What is the v1 canonical portable IR contract?
+## 5. What is the v1 canonical portable IR contract?
 
 The architecture requires one versioned, distributable, interpreter-defined IR
 whose semantics are independent from mutable optimizer representations and
@@ -247,7 +215,7 @@ derive the separately versioned fuel schedule over its stable operation/block
 identities. Do not canonize TypedTrees or a mutable backend representation by
 accident.
 
-## 7. How does a boundary requirement author algebra-denominated backing?
+## 6. How does a boundary requirement author algebra-denominated backing?
 
 The semantic rule is settled: an admitted content-bearing root must receive a
 per-invocation backing receipt in the same compiler-owned algebra as its
@@ -284,7 +252,7 @@ binder erases at runtime, cannot be constructed in ordinary source, and the
 normalized algebra expression plus containment theorem survive beside the
 receipt identity.
 
-## 8. How are content-conservation theorems authored in contracts?
+## 7. How are content-conservation theorems authored in contracts?
 
 The n-ary law and its closed algebras are settled, and checked claim outcome
 maps already identify which input claim feeds each result path. The design

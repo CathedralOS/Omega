@@ -293,20 +293,20 @@ fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
 - **BUMP-ALLOCATOR-CANARY — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #8:** implement an ordinary package-level bump strategy
+  `OWNER_QUESTIONS.md` #7:** implement an ordinary package-level bump strategy
   over a consumed `Extent` once source content-conservation contracts can state
   its split, retirement, reset recomposition, and backing return. Keep
   allocatable tail, live extents, and retired extents distinct: release cleans
   `T` and returns authority but restores bump capacity only at reset. Exercise
   RAM and non-RAM placed access without adding an Arena primitive, interior
   mutability, or a new borrowing rule;
-- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #7:**
+- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #6:**
   require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
   postconditions. Provider selection and receipt identity are live, but no
   source/IR binder yet supplies the receipt's per-invocation algebra value;
 - **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #8:** prove all consumed content equals the separated
+  `OWNER_QUESTIONS.md` #7:** prove all consumed content equals the separated
   composition of produced content plus any remainder retired through an
   authorized route. The equation and closed algebras are settled, but the
   documented `content(...)`/`old(...)` forms remain schematic: no source or IR
@@ -367,8 +367,8 @@ establishment from raw bytes reject.
 **PARTIALLY DESIGN BLOCKED.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the normalized
 model. The source-visible loan/profile admission surface is blocked on
-`OWNER_QUESTIONS.md` #4, and public generic atomic accessor requirements are
-blocked on #5. Target-specific lowering remains implementation work.
+`OWNER_QUESTIONS.md` #3, and public generic atomic accessor requirements are
+blocked on #4. Target-specific lowering remains implementation work.
 
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
   writable, and atomic accessors. Ordinary writes require plan permission,
@@ -381,8 +381,8 @@ blocked on #5. Target-specific lowering remains implementation work.
   accessors are restricted to machines authored in the nominal placement
   policy's canonical package, including statement-position calls whose
   generated target symbol is absent. Generic atomic-family helper contracts
-  are blocked on owner question #5. Admitted source-loan construction is
-  blocked on owner question #4.
+  are blocked on owner question #4. Admitted source-loan construction is
+  blocked on owner question #3.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.
@@ -725,7 +725,7 @@ improvements do not change public identity.
   from canonical IR and its interpreter meter rather than treating that
   provider-authored precursor as an IR proof. The v1 canonical IR schema,
   serialization, and verifier/lowering boundary are blocked on
-  `OWNER_QUESTIONS.md` #6. The current TypedTrees evaluator now publishes an
+  `OWNER_QUESTIONS.md` #5. The current TypedTrees evaluator now publishes an
   explicitly versioned deterministic step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not canonical-IR
   fuel.
@@ -758,8 +758,8 @@ improvements do not change public identity.
 - **REPLACE-OPAQUE:** extend component acceptance tests with selected-provider
   manifest union across coexisting eras, process-static service handover
   contracts, and mapping reuse only after proof that no live authority reaches
-  the cohort. Proven quiescence permits ordinary reuse; incomplete/poisoned
-  drain or a possible opaque holder reserves an unmapped/trapping quarantine
+  the cohort. Proven quiescence permits ordinary reuse; an incomplete drain or
+  a possible opaque holder reserves an unmapped/trapping quarantine
   with attributed capacity loss. A stale call must fault without being reported
   as discharged, and an opaque callback into replaceable code must use a
   process-lifetime gateway or an accepted unregister/quiescence contract.
@@ -770,7 +770,7 @@ improvements do not change public identity.
   killed safely, an orphan pins its worker/storage/provider era, and bounded
   recovery from a hung call requires process isolation.
 - Build the package-level bump-allocation canary after
-  `OWNER_QUESTIONS.md` #8. Core supplies qualified `Extent`, placement, and
+  `OWNER_QUESTIONS.md` #7. Core supplies qualified `Extent`, placement, and
   conservation; it does not bless Arena, bump, slab, pool, buddy, or heap
   strategy semantics.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
@@ -914,7 +914,7 @@ and allocation handles expose no compiler-owned stack/control storage.
   float-format conversion requirement names and signatures are not settled
   anywhere in the owning brief. Exact `as` covers only the
   denotation-preserving subset; policy-bearing conversion remains
-  `OWNER_QUESTIONS.md` #3.
+  `OWNER_QUESTIONS.md` #2.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
@@ -1031,14 +1031,13 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 contained execution failure | obligation poison, recovery, and reclamation |
-| #2 modular concurrency premises | separately compiled protocol verification |
-| #3 float-conversion requirements | checked integer/float and cross-format conversion |
-| #4 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
-| #5 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
-| #6 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
-| #7 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
-| #8 content-conservation contracts | normalized n-to-m content equations, correspondence, allocator canaries, inference, and retained proof evidence |
+| #1 modular concurrency premises | separately compiled protocol verification |
+| #2 float-conversion requirements | checked integer/float and cross-format conversion |
+| #3 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
+| #4 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
+| #5 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
+| #6 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
+| #7 content-conservation contracts | normalized n-to-m content equations, correspondence, allocator canaries, inference, and retained proof evidence |
 
 ## Vertical acceptance slices
 

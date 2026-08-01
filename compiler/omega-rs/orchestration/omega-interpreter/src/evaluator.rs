@@ -3192,7 +3192,7 @@ impl<'program> Evaluator<'program> {
             "read_byte" => {
                 // The next raw stdin byte as `ByteRead::Byte { value }`, or
                 // `ByteRead::Eof` at end-of-input (Eof = ordinal 0 = the ZII
-                // zero case; sentinel spellings vetoed, OWNER_QUESTIONS #12).
+                // zero case; sentinel spellings vetoed).
                 // No CRLF normalization: byte-level readers see the stream
                 // as-is.
                 Ok(Some(self.read_stdin_byte_value()))
@@ -4692,7 +4692,7 @@ impl<'program> Evaluator<'program> {
     /// and LF are both handled; returns an empty string at end of input.
     /// One raw stdin byte as a std `ByteRead` value: `Byte { value }` while
     /// input remains, `Eof` after (ordinal 0 -- the ZII zero case; sentinel
-    /// spellings vetoed, OWNER_QUESTIONS #12). The declaring type resolves by
+    /// spellings vetoed). The declaring type resolves by
     /// name from std/console.omg (invalid + name-global fallback when a
     /// program shadows or lacks it, the WireVerdict precedent).
     fn read_stdin_byte_value(&mut self) -> Value {
@@ -5243,7 +5243,7 @@ impl<'program> Evaluator<'program> {
                 if target == "read_byte" {
                     // The next raw stdin byte as `ByteRead::Byte { value }`,
                     // or `ByteRead::Eof` at end-of-input (the ZII zero case;
-                    // OWNER_QUESTIONS #12); the byte path does no CRLF
+                    // sentinel spellings are vetoed); the byte path does no CRLF
                     // normalization. Mirrors the statement-position arm in
                     // try_host_call, but read_byte is value-position by
                     // nature (`let r = self.console.read_byte()`).

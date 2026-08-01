@@ -182,6 +182,17 @@ edge is not special.")
 If unwinding is ever added, it must be modelled as explicit graph edges with
 cleanup and proof obligations, never as a second control-flow system.
 
+There is likewise no asynchronous in-process force-termination path. Checked
+execution leaves through checked edges; component replacement uses cooperative
+drain, coexistence, or explicit migration. A false admitted premise or an
+unmodelled hardware failure is a violation of the proof basis, not a recoverable
+edge and not a reason to invent runtime proof-state poisoning. The language's
+terminal response is process-wide nuclear abort. A deployment may place that
+process inside an independently designed containment or redundant failover
+architecture. Detection and fault-attribution coverage may be reported as
+provider/deployment evidence, but absence of a report proves nothing about
+silent corruption.
+
 ## Host Failure
 
 Host calls and syscalls declare how they fail, and they fail the same way

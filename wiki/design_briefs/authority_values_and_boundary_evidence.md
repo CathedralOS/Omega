@@ -225,10 +225,10 @@ frontier. An ambiguous mapping requires an explicit postcondition or rejects.
 
 The semantics above are settled, but the source-visible proof-only binder for
 an admitted receipt's per-invocation backing is not. `content(receipt)` remains
-schematic until `OWNER_QUESTIONS.md` #7 chooses that binder and its failure
+schematic until `OWNER_QUESTIONS.md` #6 chooses that binder and its failure
 surface; implementations must not infer backing equal to the returned claim.
 Likewise, `content(value)` and `old(value)` below state the settled semantic
-relation but are not yet source intrinsics. `OWNER_QUESTIONS.md` #8 must choose
+relation but are not yet source intrinsics. `OWNER_QUESTIONS.md` #7 must choose
 their exact qualification-selection, pre-state, separated-composition, and
 authorized-retirement surface before explicit n-to-m conservation contracts
 can be implemented; an outcome map alone does not prove content equality.

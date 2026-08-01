@@ -4,7 +4,7 @@ Status: architectural direction settled 2026-07-30. The hard-root accounting
 precursor is schedule-keyed and uses logical-fuel provisions; canonical portable
 IR, metering, and general fixed-work segment checking remain implementation
 work. The concrete v1 portable-IR contract is owner-blocked on
-`OWNER_QUESTIONS.md` #6; the current evaluator-step schedule is telemetry
+`OWNER_QUESTIONS.md` #5; the current evaluator-step schedule is telemetry
 precursor evidence, not canonical-IR fuel.
 
 ## Context
@@ -125,6 +125,10 @@ A selected-point report has three honest outcomes:
 - `Unknown(reason)` when the checker cannot prove a bound; and
 - `NoFiniteGuarantee(edge)` when a reachable wait or foreign edge publishes no
   finite response contract.
+
+A hard-control profile requiring bounded response rejects `Unknown` and
+`NoFiniteGuarantee` at its roots. Force-terminating a blocked holder is not a
+substitute for a response theorem.
 
 A monotonic clock or performance counter may report one observed execution
 under a target provider. Observation is not a future guarantee. Converting a

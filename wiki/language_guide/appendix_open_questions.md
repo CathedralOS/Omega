@@ -54,8 +54,6 @@ Last pruned: 2026-07-31.
   storage uses call-scoped borrows or ownership-conserving linear protocol
   claims. Add the boundary-coherence canaries and narrow Windows `user32`
   acceptance slice; any blocking executor remains an ordinary package.
-- Settle contained execution failure with outstanding obligations in owner
-  question #1.
 - Implement the settled admitted-artifact loader ladder: reusable sealed
   artifact qualification, linear extent-backed placement, freeze, final
   validation, synchronous visibility, and installed-code claim. There is no
@@ -74,7 +72,7 @@ Last pruned: 2026-07-31.
   predicate bodies, explicit evidence, and flow narrowing.
 - Finish the remaining domain spaces: general open-family linking,
   `weakens_to` certificate syntax, and the named float-conversion requirement
-  surface (owner question #3).
+  surface (owner question #2).
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

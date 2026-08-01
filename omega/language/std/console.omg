@@ -31,8 +31,8 @@ boundary trait Console {
     machine read_line(out_line: &mut [u8])
     reaches
         Console;
-    // Byte-level stdin/stdout (the universal console surface, OWNER_QUESTIONS
-    // #12): `read_byte` yields the next stdin byte as `ByteRead::Byte`, or
+    // Byte-level stdin/stdout (the settled universal console surface):
+    // `read_byte` yields the next stdin byte as `ByteRead::Byte`, or
     // `ByteRead::Eof` at end-of-input; `write_byte` appends one byte to
     // stdout. Both interpreter and native providers implement these leaves;
     // the friendly text adapters below are shared checked Omega code.

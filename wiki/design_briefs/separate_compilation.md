@@ -195,12 +195,12 @@ Mapping reuse has one rule:
 In checked Omega, inert `addr` values and sealed inert `Ptr<T>` carriers cannot
 recreate memory or execution authority; any live authoritative reference
 therefore remains visible to quiescence accounting. Proven quiescence permits
-ordinary virtual-address reuse. An incomplete drain, poisoned obligation, or
-possible untracked opaque holder leaves the range reserved and
+ordinary virtual-address reuse. An incomplete drain or possible untracked
+opaque holder leaves the range reserved and
 unmapped/trapping until a wider isolation domain is retired. Quarantine detects
 stale entry but discharges no lock, claim, or protocol obligation. Repeated
-poisoned replacements consume reserved virtual-address capacity and report the
-attributed loss.
+incomplete replacements consume reserved virtual-address capacity and report
+the attributed loss.
 
 ## Claim custody and retention reporting
 
