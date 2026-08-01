@@ -154,9 +154,9 @@ fingerprint input. Index eligibility is structural and cannot be supplied by
 an ordinary conformance. Because indices and domains erase, neither field
 changes carrier layout or SIMD shape.
 
-Implementation status (PDI1/PDI2 checkpoint, 2026-08-01): the pre-resolution generic pass
-canonicalizes eligible structured literal constants recursively and replaces
-their source reference with a reserved length-delimited value atom. The atom's
+Implementation status (PDI1–PDI3 complete, 2026-08-01): the pre-resolution
+generic pass canonicalizes eligible structured literal constants recursively
+and replaces their source reference with a reserved length-delimited value atom. The atom's
 type plus canonical structural encoding is generic/monomorphization identity;
 its canonical display is diagnostic data. Declaration-aware validation accepts
 the atom only at a matching `const` parameter, including generic shapes the
@@ -171,8 +171,11 @@ Const-generic machine specialization infers canonical values from constrained
 parameter and result positions, refreshes exact identities after substitution,
 and runs distinct tuples in both engines. The shipped units module now closes
 PDI2 with named combinations, visible conversion policy, cross-module
-operators, and an imported cross-index rejection rail. Computed open index
-expressions and their retained compatibility evidence remain PDI3.
+operators, and an imported cross-index rejection rail. Computed open indices
+now retain exact operation/algebra authority, canonical expressions, named
+compatibility conditions, and closed/normalization/local-fact discharge
+evidence. Exact active facts may prove compatibility without changing semantic
+identity; unresolved equality rejects without ambient theorem search.
 Quotient and default-domain-constrained value kinds fail closed until their
 canonical-representative/proof admission path exists.
 
@@ -821,8 +824,9 @@ service reach.
    Structured canonical const values and the closed indexed-domain family
    representation, explicit indexed qualification, and constrained-position
    const-machine specialization are landed. The first units package and its
-   imported conversion/operator canaries are also landed; carry open computed
-   index expressions or their equality evidence only as the next PDI3 step.
+   imported conversion/operator canaries are also landed. Open computed index
+   expressions, exact algebra authority, and retained closed/normalization/
+   local-fact equality evidence complete PDI3.
 4. **Checked plans.** Split predicate facts, static semantic roles, and
   establishment evidence; add
   the place-keyed permission plan, service-reach plan, suspension plan,

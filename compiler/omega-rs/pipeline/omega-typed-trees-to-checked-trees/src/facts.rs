@@ -18,7 +18,7 @@ pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
     operations: OperationalPlan,
-) -> CheckFacts {
+) -> Result<CheckFacts, Vec<omega_core::diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let values = build_value_facts(program);
     let mut operators = build_operator_facts(program, &values);
@@ -36,8 +36,9 @@ pub(crate) fn build_check_facts(
         &operations,
         &service_reach_inference,
     );
-    let index_compatibility =
-        index_compatibility::build_index_compatibility_facts(program, &operators, &flow);
+    let index_compatibility = index_compatibility::build_index_compatibility_facts(
+        program, &operators, &semantic, &flow,
+    )?;
     // Domain-owned meanings are selected only from declarations, mints, and
     // signature `requires`; the selector accepts no flow/fact environment.
     select_pending_domain_operator_meanings(program, &mut operators);
@@ -59,7 +60,7 @@ pub(crate) fn build_check_facts(
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
 
-    CheckFacts::with_roots(
+    Ok(CheckFacts::with_roots(
         semantic,
         borrow,
         proof,
@@ -76,7 +77,7 @@ pub(crate) fn build_check_facts(
         qualifications,
         contract_plans,
         carry,
-    )
+    ))
 }
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's

@@ -890,9 +890,9 @@ terminating normalizer owns what a domain expression *is*; type identity,
 semantic interface identity, and monomorphization keys depend only on it. The
 entailment engine proves propositions *about* expressions and can never
 redefine canonical identity. Closed indexed domains extend the normalized form
-with canonical closed index values; future computed indices add licensed
-symbolic index expressions.
-proved compatibility remains subsumption rather than type-identity mutation.
+with canonical closed index values; computed indices add licensed symbolic
+index expressions. Exact active facts may prove compatibility, but proved
+compatibility remains subsumption rather than type-identity mutation.
 Physical ABI remains the **carrier's** ABI (representation erasure holds).
 
 For the currently authored conjunction form, normalization is concrete:
@@ -1246,7 +1246,9 @@ Working interpretation:
 > library behavior. Structured const values and closed indexed-family binding
 > constraints and indexed explicit qualification are live, including direct
 > const destination binders and exact instance evidence. Constrained-position
-> const-machine specialization is live; computed open result indices remain next.
+> const-machine specialization is live. Computed open result indices now retain
+> licensed normalization authority and named compatibility evidence; exact
+> active local facts may discharge remaining equality without rewriting identity.
 > Per-atom weakening is enforced at ordinary value-flow boundaries:
 > predicate-only atoms may disappear implicitly, while semantic meaning,
 > non-owning routed provenance, and non-Exact arithmetic policy require an

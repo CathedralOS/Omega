@@ -1,1 +1,1 @@
-implicit domain weakening
+index compatibility condition

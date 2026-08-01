@@ -14,13 +14,13 @@ trait IndexAdd {
 operator IndexAlgebra::plus(left: u64, right: u64) -> u64 spelling +;
 
 // A deliberately small AC algebra is enough for this normalizer canary. The
-// selected public `+` operation is constant-zero; PDI3 cares that this exact
+// selected public `+` operation is constant-three; PDI3 cares that this exact
 // operation and its exact proved algebra instance license the index syntax.
 machine plus_index(a: u64, b: u64) -> u64
 satisfies IndexAlgebra::plus, IndexAdd::add as Canonical
-ensures result == 0
+ensures result == 3
 {
-    transition { _ -> 0 }
+    transition { _ -> 3 }
 }
 
 machine plus_index_comm(a: u64, b: u64) -> u64
@@ -56,6 +56,21 @@ machine add_indexed<const A: u64, const B: u64>(
     70 as i64 in Indexed<A + B>
 }
 
+machine establish_three(a: u64, b: u64) -> u64
+ensures a + b == 3
+{
+    _ = plus_index(a, b);
+    transition { _ -> 3 }
+}
+
+// Keep one universal open compatibility boundary after the concrete runtime
+// call specializes `add_indexed`; AC normalization alone discharges this row.
+machine reorder_indexed<const A: u64, const B: u64>(
+    value: i64 in Indexed<A + B>
+) -> i64 in Indexed<B + A> {
+    value
+}
+
 data Main {
     console: Console;
 }
@@ -63,6 +78,10 @@ data Main {
 machine Main::main(&mut self) {
     let left: i64 in Indexed<1> = indexed_left(68);
     let right: i64 in Indexed<2> = indexed_right(2);
+    // `+` is the selected public operation, not compiler-known integer
+    // arithmetic. Establish the concrete equality explicitly; the universal
+    // `reorder_indexed` row above remains a licensed-AC judgment.
+    _ = establish_three(1, 2);
     let sum: i64 in Indexed<3> = add_indexed(left, right);
     self.console.exit_process(sum as i32);
 }

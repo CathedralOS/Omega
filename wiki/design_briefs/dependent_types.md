@@ -123,8 +123,16 @@ different values, collapses equivalent structural spellings, and remains
 erased from carrier layout. Executable destination qualification and
 const-machine specialization run in both engines. The first shipped units
 package supplies named closed combinations, visible conversion policy, and
-per-pair operators across module boundaries. Computed index expressions and
-compatibility evidence remain PDI3.
+per-pair operators across module boundaries.
+
+PDI3 implementation status (2026-08-01): complete. Computed open result indices
+retain their exact selected operation and proved algebra authority through
+specialization and checked artifacts. Closed canonical identity and licensed
+normalization discharge matching instances. Otherwise an exact active
+`requires` fact or prior/result-call `ensures` may discharge the named equality
+condition without rewriting identity. Multi-index and nested literal boundaries
+retain every evidence handle; unresolved equality rejects, and no ambient lemma
+search or indexed-domain citation surface exists.
 
 ### The proof-side proposition-family fragment
 

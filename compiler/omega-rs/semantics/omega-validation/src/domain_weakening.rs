@@ -137,6 +137,15 @@ fn validate_implicit_domain_weakening_with_policy_retention(
         .into_iter()
         .filter(|atom| !(retain_arithmetic_policy && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| atom_requires_explicit_removal(program, atom))
+        // PDI3 same-family indexed mismatches are equality obligations, not
+        // implicit semantic removal. Their exact closed/normalization/local-
+        // fact judgment runs after semantic flow contexts exist in checked
+        // lowering. Every other missing atom remains an error here.
+        .filter(|atom| {
+            !target
+                .iter()
+                .any(|candidate| is_deferred_index_compatibility(atom, candidate))
+        })
         .filter(|atom| {
             !target
                 .iter()
@@ -157,6 +166,29 @@ fn validate_implicit_domain_weakening_with_policy_retention(
             .collect::<Vec<_>>()
             .join(", "),
     )));
+}
+
+fn is_deferred_index_compatibility(left: &DomainAtom, right: &DomainAtom) -> bool {
+    matches!(
+        (left, right),
+        (
+            DomainAtom::Declared {
+                family: left_family,
+                instance: left_instance,
+                indexed: true,
+                ..
+            },
+            DomainAtom::Declared {
+                family: right_family,
+                instance: right_instance,
+                indexed: true,
+                ..
+            }
+        ) if left_family == right_family
+            && left_instance.is_valid()
+            && right_instance.is_valid()
+            && left_instance != right_instance
+    )
 }
 
 fn expression_atoms(

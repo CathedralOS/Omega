@@ -14,10 +14,11 @@ pub enum IndexCompatibilityDischarge {
         /// denotes direct canonical identity of the same open binder/value.
         operation_count: usize,
     },
-    EstablishedLocalFact {
-        /// Exact fact in the semantic flow context that discharged the named
-        /// condition. It is evidence only and never rewrites either instance.
-        fact: FactHandle,
+    EstablishedLocalFacts {
+        /// Exact facts in the semantic flow context that discharged each
+        /// unequal member of the index pack. Evidence never rewrites either
+        /// indexed-domain instance.
+        facts: Vec<FactHandle>,
     },
 }
 

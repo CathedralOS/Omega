@@ -307,13 +307,15 @@ pub fn index_compatibility_manifest_json(program: &CheckedTrees) -> String {
         if index > 0 {
             json.push(',');
         }
-        let (route, operation_count, evidence_fact) = match condition.discharge {
-            IndexCompatibilityDischarge::ClosedEvaluation => ("closed_evaluation", None, None),
-            IndexCompatibilityDischarge::LicensedNormalization { operation_count } => {
-                ("licensed_normalization", Some(operation_count), None)
+        let (route, operation_count, evidence_facts) = match &condition.discharge {
+            IndexCompatibilityDischarge::ClosedEvaluation => {
+                ("closed_evaluation", None, Vec::new())
             }
-            IndexCompatibilityDischarge::EstablishedLocalFact { fact } => {
-                ("established_local_fact", None, Some(fact.arena_index()))
+            IndexCompatibilityDischarge::LicensedNormalization { operation_count } => {
+                ("licensed_normalization", Some(*operation_count), Vec::new())
+            }
+            IndexCompatibilityDischarge::EstablishedLocalFacts { facts } => {
+                ("established_local_fact", None, facts.clone())
             }
         };
         json.push_str("\n    {\n      \"name\": ");
@@ -343,11 +345,14 @@ pub fn index_compatibility_manifest_json(program: &CheckedTrees) -> String {
             Some(count) => json.push_str(&count.to_string()),
             None => json.push_str("null"),
         }
-        json.push_str(",\n      \"evidence_fact\": ");
-        match evidence_fact {
-            Some(fact) => json.push_str(&fact.to_string()),
-            None => json.push_str("null"),
+        json.push_str(",\n      \"evidence_facts\": [");
+        for (index, fact) in evidence_facts.iter().enumerate() {
+            if index > 0 {
+                json.push_str(", ");
+            }
+            json.push_str(&fact.arena_index().to_string());
         }
+        json.push(']');
         json.push_str("\n    }");
     }
     json.push_str("\n  ]\n}\n");
