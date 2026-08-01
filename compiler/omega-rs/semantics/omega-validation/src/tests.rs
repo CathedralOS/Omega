@@ -4300,6 +4300,7 @@ mod provider_plan {
         };
         let row = |method: &str, number: u32| ProviderPlanRow {
             method: method.to_owned(),
+            requirement_identity: String::new(),
             binding: ProviderBinding::Syscall { number },
         };
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {

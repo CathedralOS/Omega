@@ -549,6 +549,12 @@ pub(crate) fn derive_satisfies_plans(
             };
             plan.rows.push(ProviderPlanRow {
                 method: requirement.as_str().to_owned(),
+                requirement_identity: satisfied_requirement_identity(
+                    typed,
+                    machine.name.as_str(),
+                    clause.trait_name.as_str(),
+                    requirement.as_str(),
+                ),
                 binding: row_binding,
             });
         }
@@ -621,11 +627,69 @@ fn derive_boundary_operator_plans(
                 });
             plans[position].rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
+                requirement_identity: String::new(),
                 binding: external_provider_binding(binding, &provider_type),
             });
         }
     }
     plans
+}
+
+pub(crate) fn satisfied_requirement_identity(
+    typed: &TypedTrees,
+    machine_name: &str,
+    trait_name: &str,
+    requirement_name: &str,
+) -> String {
+    let Some(machine) = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+    else {
+        return String::new();
+    };
+    let Some(definition) = typed.traits().iter().find(|definition| {
+        definition.name.as_str() == trait_name
+            || definition
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .is_some_and(|leaf| leaf == trait_name)
+    }) else {
+        return String::new();
+    };
+    let named = typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.name.as_str() == requirement_name)
+        .collect::<Vec<_>>();
+    let selected = match named.as_slice() {
+        // A unique human name remains the executable compatibility key. Its
+        // full normalized identity is already carried by ServiceMethod and
+        // folded into the provider artifact fingerprint.
+        [_single] => return String::new(),
+        many => {
+            let implementation_dispatch = typed
+                .machine_states(machine)
+                .first()
+                .map(|entry| typed.normalized_result_dispatch_set(entry.return_type));
+            let mut matching = many.iter().copied().filter(|signature| {
+                implementation_dispatch.as_ref().is_some_and(|dispatch| {
+                    typed.normalized_result_dispatch_set(signature.return_type) == *dispatch
+                })
+            });
+            let selected = matching.next();
+            selected.filter(|_| matching.next().is_none())
+        }
+    };
+    selected
+        .map(|signature| {
+            typed
+                .normalized_trait_requirement_overload_identity(definition, signature)
+                .identity()
+        })
+        .unwrap_or_default()
 }
 
 fn external_provider_binding(
@@ -751,32 +815,17 @@ pub(crate) fn validate_provider_plan_candidates(
             else {
                 continue;
             };
-            let service_ceiling = plan
-                .schema
-                .methods
-                .iter()
-                .find(|method| method.name == row.method)
-                .map(|method| method.service_reach.as_slice())
-                .unwrap_or_default();
-            let invocation_ceiling = plan
-                .schema
-                .methods
-                .iter()
-                .find(|method| method.name == row.method)
-                .map(|method| method.synchronous_invocations.as_slice())
-                .unwrap_or_default();
+            let Some(method) = plan.schema.method_for_row(row) else {
+                continue;
+            };
+            let service_ceiling = method.service_reach.as_slice();
+            let invocation_ceiling = method.synchronous_invocations.as_slice();
             let hidden_invocations = invocation_plan
                 .for_machine(adapter.symbol)
                 .into_iter()
                 .flat_map(|summary| summary.inferred_transitive.iter().copied())
                 .filter(|target| {
-                    !is_self_forwarded_invocation(
-                        typed,
-                        adapter,
-                        &plan.schema,
-                        &row.method,
-                        *target,
-                    )
+                    !is_self_forwarded_invocation(typed, adapter, &plan.schema, method, *target)
                 })
                 .filter_map(|target| invocation_service_name(typed, adapter, target))
                 .filter(|target| !invocation_ceiling.contains(target))
@@ -834,7 +883,10 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     for (source_index, source) in selected.iter().enumerate() {
         for method in &source.schema.methods {
-            let row = source.rows.iter().find(|row| row.method == method.name);
+            let row = source
+                .rows
+                .iter()
+                .find(|row| source.schema.row_binds_method(row, method));
             let checked_targets = row.and_then(|row| {
                 let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
                     return None;
@@ -853,7 +905,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                                 typed,
                                 adapter,
                                 &source.schema,
-                                &method.name,
+                                method,
                                 **target,
                             )
                         })
@@ -940,17 +992,10 @@ fn is_self_forwarded_invocation(
     typed: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     schema: &omega_effects::provider_plan::ServiceSchema,
-    method_name: &str,
+    method: &omega_effects::provider_plan::ServiceMethod,
     target: omega_effects::InvocationTarget,
 ) -> bool {
     let omega_effects::InvocationTarget::Parameter(0) = target else {
-        return false;
-    };
-    let Some(method) = schema
-        .methods
-        .iter()
-        .find(|method| method.name == method_name)
-    else {
         return false;
     };
     let Some(boundary) = typed.traits().iter().find(|definition| {
@@ -1265,6 +1310,7 @@ mod tests {
                     .iter()
                     .map(|method| omega_effects::provider_plan::ServiceMethod {
                         name: (*method).to_owned(),
+                        requirement_identity: String::new(),
                         parameter_count: 0,
                         parameter_type_identities: Vec::new(),
                         entry_claims: Vec::new(),
@@ -1282,6 +1328,7 @@ mod tests {
                 .iter()
                 .map(|method| ProviderPlanRow {
                     method: (*method).to_owned(),
+                    requirement_identity: String::new(),
                     binding: ProviderBinding::VtableSlot { index: 0 },
                 })
                 .collect(),
@@ -1688,6 +1735,7 @@ mod tests {
         plan.provider_type.clear();
         plan.rows.push(ProviderPlanRow {
             method: "first".to_owned(),
+            requirement_identity: String::new(),
             binding: ProviderBinding::VtableField {
                 table: String::new(),
                 field: "first".to_owned(),
@@ -1710,6 +1758,7 @@ mod tests {
         plan.provider_type.clear();
         plan.rows.push(ProviderPlanRow {
             method: "first".to_owned(),
+            requirement_identity: String::new(),
             binding: ProviderBinding::CheckedAdapter {
                 machine: "first_adapter".to_owned(),
             },

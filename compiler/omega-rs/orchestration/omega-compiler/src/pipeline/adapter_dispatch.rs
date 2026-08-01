@@ -27,6 +27,7 @@ use omega_typed_trees::TypedTrees;
 struct AdapterRow {
     trait_leaf: String,
     requirement: String,
+    requirement_identity: String,
     adapter_target: String,
     symbol: omega_core::symbols::SymbolHandle,
     /// Self-forwarding shape: prepend the call's receiver as argument 0.
@@ -72,8 +73,8 @@ pub(crate) fn rewrite_adapter_calls(
                 .plans()
                 .iter()
                 .find(|plan| plan.schema.trait_name == definition.name.as_str());
-            let selected_row = selected_slot.is_some_and(|plan| {
-                plan.rows.iter().any(|row| {
+            let selected_row = selected_slot.and_then(|plan| {
+                plan.rows.iter().find(|row| {
                     row.method == requirement.as_str()
                         && matches!(
                             &row.binding,
@@ -86,16 +87,25 @@ pub(crate) fn rewrite_adapter_calls(
             // A retained whole-provider selection is authoritative: activate
             // only the exact checked-adapter rows copied into that immutable
             // plan. Unselected adapters never participate in dispatch.
-            if !selected_row {
+            let Some(selected_row) = selected_row else {
                 continue;
-            }
+            };
             // Self-forwarding: entry takes the trait itself first, then the
             // requirement's parameters (the conformance validator admitted
             // the shape; this re-derivation only picks the rewrite form).
             let required_count = typed
                 .trait_machine_signatures(definition)
                 .iter()
-                .find(|signature| signature.name == *requirement)
+                .find(|signature| {
+                    signature.name == *requirement
+                        && (selected_row.requirement_identity.is_empty()
+                            || typed
+                                .normalized_trait_requirement_overload_identity(
+                                    definition, signature,
+                                )
+                                .identity()
+                                == selected_row.requirement_identity)
+                })
                 .map(|signature| typed.state_signature_parameters(signature).len());
             let actual_parameters = typed.state_parameters(entry_state);
             let forward_receiver = required_count.is_some_and(|required| {
@@ -109,10 +119,14 @@ pub(crate) fn rewrite_adapter_calls(
             // their owner path (`Provider::method`) to remain executable after
             // the boundary receiver is removed.
             let leaf_name = machine.name.as_str().to_owned();
-            if let Some(existing) = adapters
-                .iter()
-                .find(|row| row.trait_leaf == trait_leaf && row.requirement == requirement.as_str())
-            {
+            if let Some(existing) = adapters.iter().find(|row| {
+                row.trait_leaf == trait_leaf
+                    && if selected_row.requirement_identity.is_empty() {
+                        row.requirement == requirement.as_str()
+                    } else {
+                        row.requirement_identity == selected_row.requirement_identity
+                    }
+            }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "requirement `{trait_leaf}::{}` has two checked adapters \
                      (`{}` and `{leaf_name}`) -- adapter dispatch is \
@@ -125,6 +139,7 @@ pub(crate) fn rewrite_adapter_calls(
             adapters.push(AdapterRow {
                 trait_leaf,
                 requirement: requirement.as_str().to_owned(),
+                requirement_identity: selected_row.requirement_identity.clone(),
                 adapter_target: leaf_name,
                 symbol: entry_state.symbol,
                 forward_receiver,
@@ -213,7 +228,13 @@ pub(crate) fn rewrite_adapter_calls(
                     continue;
                 };
                 let Some(row) = adapters.iter().find(|row| {
-                    row.trait_leaf == trait_leaf && row.requirement == call.target.as_str()
+                    adapter_matches_call(
+                        typed,
+                        row,
+                        &trait_leaf,
+                        call.target.as_str(),
+                        call.target_symbol,
+                    )
                 }) else {
                     continue;
                 };
@@ -289,7 +310,13 @@ pub(crate) fn rewrite_adapter_calls(
             .find(|(_, name, _)| *name == field)
             .and_then(|(_, _, trait_leaf)| {
                 adapters.iter().find(|row| {
-                    row.trait_leaf == *trait_leaf && row.requirement == call.target.as_str()
+                    adapter_matches_call(
+                        typed,
+                        row,
+                        trait_leaf,
+                        call.target.as_str(),
+                        call.target_symbol,
+                    )
                 })
             })
             .map(|row| (row.symbol, row.adapter_target.clone(), row.forward_receiver))
@@ -319,6 +346,33 @@ pub(crate) fn rewrite_adapter_calls(
         }
     }
     Ok(())
+}
+
+fn adapter_matches_call(
+    typed: &TypedTrees,
+    row: &AdapterRow,
+    trait_leaf: &str,
+    target_name: &str,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> bool {
+    if row.trait_leaf != trait_leaf || row.requirement != target_name {
+        return false;
+    }
+    if row.requirement_identity.is_empty() {
+        return true;
+    }
+    typed.traits().iter().any(|definition| {
+        typed
+            .trait_machine_signatures(definition)
+            .iter()
+            .any(|signature| {
+                signature.symbol == target_symbol
+                    && typed
+                        .normalized_trait_requirement_overload_identity(definition, signature)
+                        .identity()
+                        == row.requirement_identity
+            })
+    })
 }
 
 /// Leaf name of a state parameter's declared type, when it is a plain named

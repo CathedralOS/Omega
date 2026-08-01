@@ -1,0 +1,36 @@
+// Same-name boundary requirements differ only by their normalized result
+// dispatch set. Destination context selects the requirement, and provider
+// planning must preserve that exact identity through adapter dispatch.
+use omega::language::std::console;
+
+boundary trait Convert {
+    machine convert(value: i32) -> i32;
+    machine convert(value: i32) -> i32 in Saturating;
+}
+
+data ConvertProvider {}
+
+machine ConvertProvider::ordinary(value: i32) -> i32 satisfies Convert::convert {
+    transition { _ -> (69) }
+}
+
+machine ConvertProvider::saturating(value: i32) -> i32 in Saturating satisfies Convert::convert {
+    transition { _ -> (70 as i32 in Saturating) }
+}
+
+data Main {
+    console: Console;
+    converter: Convert;
+}
+
+machine Main::main(&mut self) {
+    let ordinary: i32 = self.converter.convert(0);
+    let saturated: i32 in Saturating = self.converter.convert(0);
+    transition {
+        ordinary == 69 && saturated == (70 as i32 in Saturating) -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}
