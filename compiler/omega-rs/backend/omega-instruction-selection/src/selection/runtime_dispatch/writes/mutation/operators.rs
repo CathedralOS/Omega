@@ -11,6 +11,17 @@ pub(super) fn supports_runtime_value_operand(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 2 | 4 | 8)
 }
 
+pub(super) fn is_float_classification_predicate(operator: StateGuardOperator) -> bool {
+    matches!(
+        operator,
+        StateGuardOperator::IsNan
+            | StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    )
+}
+
 pub(super) fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
@@ -57,8 +68,9 @@ pub(super) fn builtin_runtime_call_operator(
 }
 
 /// A single-argument float builtin that lowers on the binary value-write path.
-/// `sqrt(x)` carries both expression positions as `x`; `float#is_nan(x)` later
-/// replaces the ignored right runtime operand with zero so `x` executes once.
+/// `sqrt(x)` carries both expression positions as `x`; float classification
+/// predicates later replace the ignored right runtime operand with zero so
+/// `x` executes once.
 pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
     input: &InstructionSelectionInput<'_>,
     call: &TableCallExpression,
@@ -74,13 +86,22 @@ pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
     {
         return Some(StateGuardOperator::Sqrt);
     }
-    if Some(call.target_symbol)
-        == input
-            .program
-            .symbols
-            .builtin_function_symbol(BuiltinFunction::FloatIsNan)
-    {
-        return Some(StateGuardOperator::IsNan);
+    for (builtin, operator) in [
+        (BuiltinFunction::FloatIsNan, StateGuardOperator::IsNan),
+        (BuiltinFunction::FloatIsFinite, StateGuardOperator::IsFinite),
+        (
+            BuiltinFunction::FloatIsInfinite,
+            StateGuardOperator::IsInfinite,
+        ),
+        (BuiltinFunction::FloatIsNormal, StateGuardOperator::IsNormal),
+        (
+            BuiltinFunction::FloatIsSubnormal,
+            StateGuardOperator::IsSubnormal,
+        ),
+    ] {
+        if Some(call.target_symbol) == input.program.symbols.builtin_function_symbol(builtin) {
+            return Some(operator);
+        }
     }
     None
 }

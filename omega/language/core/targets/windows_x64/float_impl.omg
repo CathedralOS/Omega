@@ -119,6 +119,38 @@ windows_x64 machine FloatNativeProvider::is_nan64(value: f64) -> bool
     satisfies F64::is_nan
     via Binding::CompilerIntrinsic("F64::is_nan.f64");
 
+windows_x64 machine FloatNativeProvider::is_finite32(value: f32) -> bool
+    satisfies F32::is_finite
+    via Binding::CompilerIntrinsic("F32::is_finite.f32");
+
+windows_x64 machine FloatNativeProvider::is_finite64(value: f64) -> bool
+    satisfies F64::is_finite
+    via Binding::CompilerIntrinsic("F64::is_finite.f64");
+
+windows_x64 machine FloatNativeProvider::is_infinite32(value: f32) -> bool
+    satisfies F32::is_infinite
+    via Binding::CompilerIntrinsic("F32::is_infinite.f32");
+
+windows_x64 machine FloatNativeProvider::is_infinite64(value: f64) -> bool
+    satisfies F64::is_infinite
+    via Binding::CompilerIntrinsic("F64::is_infinite.f64");
+
+windows_x64 machine FloatNativeProvider::is_normal32(value: f32) -> bool
+    satisfies F32::is_normal
+    via Binding::CompilerIntrinsic("F32::is_normal.f32");
+
+windows_x64 machine FloatNativeProvider::is_normal64(value: f64) -> bool
+    satisfies F64::is_normal
+    via Binding::CompilerIntrinsic("F64::is_normal.f64");
+
+windows_x64 machine FloatNativeProvider::is_subnormal32(value: f32) -> bool
+    satisfies F32::is_subnormal
+    via Binding::CompilerIntrinsic("F32::is_subnormal.f32");
+
+windows_x64 machine FloatNativeProvider::is_subnormal64(value: f64) -> bool
+    satisfies F64::is_subnormal
+    via Binding::CompilerIntrinsic("F64::is_subnormal.f64");
+
 windows_x64 machine FloatNativeProvider::multiply_then_add32(
     left: f32,
     right: f32,

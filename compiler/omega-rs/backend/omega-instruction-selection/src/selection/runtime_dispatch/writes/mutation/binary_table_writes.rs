@@ -24,7 +24,10 @@ use super::super::static_values::{
     RuntimeStaticValues, invalidate_runtime_static_value_in_table,
     resolve_runtime_static_integer_landing_in_table,
 };
-use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
+use super::operators::{
+    builtin_runtime_call_operator_in_table, is_float_classification_predicate,
+    runtime_binary_operator,
+};
 use super::value_operands::{
     binary_value_operand_byte_width, binary_value_operands_are_float,
     resolve_runtime_comparison_operand_in_table_with_root,
@@ -644,11 +647,22 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         static_values,
         runtime_value_operands,
     )?;
-    let right = if operator == StateGuardOperator::IsNan {
+    let classification_byte_width = is_float_classification_predicate(operator).then(|| {
+        binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            left_expression,
+            right_expression,
+        )
+    });
+    let right = if let Some(byte_width) = classification_byte_width {
         // The encoder compares the left float register with itself. Keep an
-        // ignored, side-effect-free placeholder here so the authored unary
-        // argument is never evaluated a second time.
-        runtime_value_operands.insert(RuntimeValueOperand::Immediate(0))
+        // ignored metadata placeholder here so the authored unary argument is
+        // never evaluated a second time; 4/8 retains its source format when
+        // the operand itself folds to an untyped immediate.
+        runtime_value_operands.insert(RuntimeValueOperand::Immediate(byte_width as i64))
     } else {
         resolve_runtime_comparison_operand_in_table_with_root(
             input,
@@ -724,15 +738,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     ) || target_place
         .as_ref()
         .is_some_and(|place| place.byte_count == 4);
-    let unary_operand_is_f32 = operator == StateGuardOperator::IsNan
-        && binary_value_operand_byte_width(
-            input,
-            dispatch_index,
-            value_source_key,
-            expressions,
-            left_expression,
-            right_expression,
-        ) == 4;
+    let unary_operand_is_f32 = classification_byte_width == Some(4);
     if is_float && (target_is_f32 || unary_operand_is_f32) {
         narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
         narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
@@ -1159,8 +1165,18 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         static_values,
         runtime_value_operands,
     )?;
-    let right = if operator == StateGuardOperator::IsNan {
-        runtime_value_operands.insert(RuntimeValueOperand::Immediate(0))
+    let classification_byte_width = is_float_classification_predicate(operator).then(|| {
+        binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expression,
+            right_expression,
+        )
+    });
+    let right = if let Some(byte_width) = classification_byte_width {
+        runtime_value_operands.insert(RuntimeValueOperand::Immediate(byte_width as i64))
     } else {
         resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
             input,
@@ -1211,15 +1227,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // its `Float` initializer (`let a: f32 = 2.5; ... a + b`) -- carries the wrong
     // (f64) bit pattern and must be narrowed to f32 bits. This is the LOCAL
     // float-arithmetic entry point; without it the addss reads garbage.
-    let unary_operand_is_f32 = operator == StateGuardOperator::IsNan
-        && binary_value_operand_byte_width(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            left_expression,
-            right_expression,
-        ) == 4;
+    let unary_operand_is_f32 = classification_byte_width == Some(4);
     if is_float && (byte_size == 4 || unary_operand_is_f32) {
         narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
         narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);

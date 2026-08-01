@@ -14195,6 +14195,10 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
         StateGuardOperator::Equal
             | StateGuardOperator::NotEqual
             | StateGuardOperator::IsNan
+            | StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
             | StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
@@ -14216,6 +14220,17 @@ fn runtime_binary_operation_byte_size(
     right: RuntimeValueOperandHandle,
     target_byte_size: usize,
 ) -> usize {
+    if matches!(
+        operator,
+        StateGuardOperator::IsNan
+            | StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    ) && let Some(width @ (4 | 8)) = operands.immediate_integer(right)
+    {
+        return width as usize;
+    }
     if is_comparison_operator(operator) {
         runtime_binary_compare_byte_size(operands, left, right)
     } else if matches!(
@@ -14800,6 +14815,74 @@ fn append_float_pair(bytes: &mut Vec<u8>) {
     bytes.extend([0x4d, 0x89, 0xda]); // mov r10,r11 (third/result)
 }
 
+fn is_integer_float_classification_predicate(operator: StateGuardOperator) -> bool {
+    matches!(
+        operator,
+        StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    )
+}
+
+/// Classify the raw IEEE operand bits in r10 and leave a canonical bool in
+/// r10. Signless bit-pattern ordering makes the format boundaries exact and
+/// avoids changing the host FP environment.
+fn float_classification_predicate_bytes(
+    operator: StateGuardOperator,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let (infinity, minimum_normal) = if byte_size > 4 {
+        (0x7ff0_0000_0000_0000_u64, 0x0010_0000_0000_0000_u64)
+    } else {
+        (0x7f80_0000_u64, 0x0080_0000_u64)
+    };
+    let mut bytes = Vec::new();
+    append_float_abs_to_rax(&mut bytes, FloatPolicySource::Result, byte_size);
+    bytes.extend([0x45, 0x31, 0xd2]); // xor r10d,r10d (default false)
+    let mut end_branches = Vec::new();
+    match operator {
+        StateGuardOperator::IsFinite => {
+            bytes.extend([0x49, 0xb9]); // mov r9,imm64
+            bytes.extend(infinity.to_le_bytes());
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+        }
+        StateGuardOperator::IsInfinite => {
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(infinity.to_le_bytes());
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x85)); // jne end
+        }
+        StateGuardOperator::IsNormal => {
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(minimum_normal.to_le_bytes());
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x82)); // jb end
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(infinity.to_le_bytes());
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+        }
+        StateGuardOperator::IsSubnormal => {
+            bytes.extend([0x48, 0x83, 0xf8, 0x00]); // cmp rax,0
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x84)); // je end
+            bytes.extend([0x49, 0xb9]);
+            bytes.extend(minimum_normal.to_le_bytes());
+            append_cmp_rax_r9(&mut bytes);
+            end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+        }
+        _ => unreachable!("classification helper is predicate-only"),
+    }
+    bytes.extend([0x41, 0xba]); // mov r10d,1
+    bytes.extend(1_u32.to_le_bytes());
+    let end = bytes.len();
+    for branch in end_branches {
+        patch_policy_branch(&mut bytes, branch, end)?;
+    }
+    Ok(bytes)
+}
+
 fn float_multiply_then_add_bytes(
     byte_size: usize,
     domain: ArithmeticDomain,
@@ -14856,6 +14939,10 @@ fn append_runtime_float_binary_operation(
     }
     if operator == StateGuardOperator::MultiplyThenAdd {
         bytes.extend(float_multiply_then_add_bytes(byte_size, domain)?);
+        return Ok(());
+    }
+    if is_integer_float_classification_predicate(operator) {
+        bytes.extend(float_classification_predicate_bytes(operator, byte_size)?);
         return Ok(());
     }
     let wide = byte_size > 4;
@@ -15002,6 +15089,11 @@ fn runtime_float_binary_operation_width_with_domain(
     }
     if operator == StateGuardOperator::MultiplyThenAdd {
         return float_multiply_then_add_bytes(byte_size, domain)
+            .map(|bytes| bytes.len())
+            .unwrap_or(0);
+    }
+    if is_integer_float_classification_predicate(operator) {
+        return float_classification_predicate_bytes(operator, byte_size)
             .map(|bytes| bytes.len())
             .unwrap_or(0);
     }
@@ -16240,6 +16332,37 @@ mod float_arithmetic_policy_tests {
                         byte_size * 8,
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn classification_sequences_stay_in_width_lockstep() {
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::IsFinite,
+                StateGuardOperator::IsInfinite,
+                StateGuardOperator::IsNormal,
+                StateGuardOperator::IsSubnormal,
+            ] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    operator,
+                    byte_size,
+                    ArithmeticDomain::Exact,
+                )
+                .expect("encode float classification");
+                assert_eq!(
+                    bytes.len(),
+                    runtime_float_binary_operation_width_with_domain(
+                        operator,
+                        byte_size,
+                        ArithmeticDomain::Exact,
+                    ),
+                    "f{} {operator:?} width",
+                    byte_size * 8,
+                );
             }
         }
     }

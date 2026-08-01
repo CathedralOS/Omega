@@ -1,0 +1,106 @@
+// F7 exact named ProviderPlan realizations for the remaining bool-valued
+// IEEE classification predicates. Stored results keep value calls outside
+// transition guards while both formats cover every class boundary.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    finite_one32: bool;
+    finite_infinity32: bool;
+    infinite_infinity32: bool;
+    infinite_nan32: bool;
+    normal_one32: bool;
+    normal_subnormal32: bool;
+    subnormal_subnormal32: bool;
+    subnormal_zero32: bool;
+    finite_one64: bool;
+    finite_infinity64: bool;
+    infinite_infinity64: bool;
+    infinite_nan64: bool;
+    normal_one64: bool;
+    normal_subnormal64: bool;
+    subnormal_subnormal64: bool;
+    subnormal_zero64: bool;
+}
+
+machine Main::main(&mut self) {
+    let zero32: f32 = 0.0f32;
+    let one32: f32 = 1.0f32;
+    let subnormal32: f32 = 1.401298464324817070923729583289916131280e-45;
+    let infinity32: f32 = one32 / zero32;
+    let nan32: f32 = zero32 / zero32;
+    self.finite_one32 = F32::is_finite(one32);
+    self.finite_infinity32 = F32::is_finite(infinity32);
+    self.infinite_infinity32 = F32::is_infinite(infinity32);
+    self.infinite_nan32 = F32::is_infinite(nan32);
+    self.normal_one32 = F32::is_normal(one32);
+    self.normal_subnormal32 = F32::is_normal(subnormal32);
+    self.subnormal_subnormal32 = F32::is_subnormal(subnormal32);
+    self.subnormal_zero32 = F32::is_subnormal(zero32);
+
+    let zero64: f64 = 0.0;
+    let one64: f64 = 1.0;
+    let subnormal64: f64 = 5e-324;
+    let infinity64: f64 = one64 / zero64;
+    let nan64: f64 = zero64 / zero64;
+    self.finite_one64 = F64::is_finite(one64);
+    self.finite_infinity64 = F64::is_finite(infinity64);
+    self.infinite_infinity64 = F64::is_infinite(infinity64);
+    self.infinite_nan64 = F64::is_infinite(nan64);
+    self.normal_one64 = F64::is_normal(one64);
+    self.normal_subnormal64 = F64::is_normal(subnormal64);
+    self.subnormal_subnormal64 = F64::is_subnormal(subnormal64);
+    self.subnormal_zero64 = F64::is_subnormal(zero64);
+
+    transition self.finite_one32 { true -> finite_infinity32() _ -> fail(71) }
+
+    state finite_infinity32(&mut self) {
+        transition self.finite_infinity32 { false -> infinite_infinity32() _ -> fail(72) }
+    }
+    state infinite_infinity32(&mut self) {
+        transition self.infinite_infinity32 { true -> infinite_nan32() _ -> fail(73) }
+    }
+    state infinite_nan32(&mut self) {
+        transition self.infinite_nan32 { false -> normal_one32() _ -> fail(74) }
+    }
+    state normal_one32(&mut self) {
+        transition self.normal_one32 { true -> normal_subnormal32() _ -> fail(75) }
+    }
+    state normal_subnormal32(&mut self) {
+        transition self.normal_subnormal32 { false -> subnormal_subnormal32() _ -> fail(76) }
+    }
+    state subnormal_subnormal32(&mut self) {
+        transition self.subnormal_subnormal32 { true -> subnormal_zero32() _ -> fail(77) }
+    }
+    state subnormal_zero32(&mut self) {
+        transition self.subnormal_zero32 { false -> finite_one64() _ -> fail(78) }
+    }
+    state finite_one64(&mut self) {
+        transition self.finite_one64 { true -> finite_infinity64() _ -> fail(79) }
+    }
+    state finite_infinity64(&mut self) {
+        transition self.finite_infinity64 { false -> infinite_infinity64() _ -> fail(80) }
+    }
+    state infinite_infinity64(&mut self) {
+        transition self.infinite_infinity64 { true -> infinite_nan64() _ -> fail(81) }
+    }
+    state infinite_nan64(&mut self) {
+        transition self.infinite_nan64 { false -> normal_one64() _ -> fail(82) }
+    }
+    state normal_one64(&mut self) {
+        transition self.normal_one64 { true -> normal_subnormal64() _ -> fail(83) }
+    }
+    state normal_subnormal64(&mut self) {
+        transition self.normal_subnormal64 { false -> subnormal_subnormal64() _ -> fail(84) }
+    }
+    state subnormal_subnormal64(&mut self) {
+        transition self.subnormal_subnormal64 { true -> subnormal_zero64() _ -> fail(85) }
+    }
+    state subnormal_zero64(&mut self) {
+        transition self.subnormal_zero64 { false -> good() _ -> fail(86) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+}

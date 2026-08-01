@@ -251,7 +251,8 @@ fn expected_float_intrinsic(
         "F32" | "F64" => {
             let operation = match requirement.as_str() {
                 "minimum" | "maximum" => requirement.as_str(),
-                "negate" | "square_root" | "is_nan" => requirement.as_str(),
+                "negate" | "square_root" | "is_nan" | "is_finite" | "is_infinite" | "is_normal"
+                | "is_subnormal" => requirement.as_str(),
                 "multiply_then_add" => requirement.as_str(),
                 _ => return None,
             };
@@ -261,7 +262,18 @@ fn expected_float_intrinsic(
                 omega_typed_trees::types::PrimitiveType::F64
             };
             match parameters {
-                [value] if matches!(operation, "negate" | "square_root" | "is_nan") => {
+                [value]
+                    if matches!(
+                        operation,
+                        "negate"
+                            | "square_root"
+                            | "is_nan"
+                            | "is_finite"
+                            | "is_infinite"
+                            | "is_normal"
+                            | "is_subnormal"
+                    ) =>
+                {
                     if typed.primitive_type_reference(value.type_reference)
                         != Some(expected_primitive)
                     {
@@ -290,7 +302,10 @@ fn expected_float_intrinsic(
                 }
                 _ => return None,
             }
-            let expected_result = if operation == "is_nan" {
+            let expected_result = if matches!(
+                operation,
+                "is_nan" | "is_finite" | "is_infinite" | "is_normal" | "is_subnormal"
+            ) {
                 omega_typed_trees::types::PrimitiveType::Bool
             } else {
                 expected_primitive

@@ -763,6 +763,15 @@ fn runtime_float_binary_operation_width_with_domain(
         // fmov a + fmov b + fmul + fmov c + fadd + fmov result.
         return 24 + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     }
+    if matches!(
+        operator,
+        StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    ) {
+        return super::runtime_storage::float_classification_predicate_width(operator, byte_size);
+    }
     let guard = super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     guard + runtime_float_binary_operation_width_base(operator)
 }

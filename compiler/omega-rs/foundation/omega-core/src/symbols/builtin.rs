@@ -89,10 +89,14 @@ pub enum BuiltinFunction {
     /// the checked call into state-local lowering tables.
     FloatMultiplyThenAddF32,
     FloatMultiplyThenAddF64,
+    FloatIsFinite,
+    FloatIsInfinite,
+    FloatIsNormal,
+    FloatIsSubnormal,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 25;
+    pub const COUNT: usize = 29;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -121,6 +125,10 @@ impl BuiltinFunction {
             Self::FloatIsNan => "float#is_nan",
             Self::FloatMultiplyThenAddF32 => "float#multiply_then_add_f32",
             Self::FloatMultiplyThenAddF64 => "float#multiply_then_add_f64",
+            Self::FloatIsFinite => "float#is_finite",
+            Self::FloatIsInfinite => "float#is_infinite",
+            Self::FloatIsNormal => "float#is_normal",
+            Self::FloatIsSubnormal => "float#is_subnormal",
         }
     }
 
@@ -151,6 +159,10 @@ impl BuiltinFunction {
             Self::FloatIsNan => 22,
             Self::FloatMultiplyThenAddF32 => 23,
             Self::FloatMultiplyThenAddF64 => 24,
+            Self::FloatIsFinite => 25,
+            Self::FloatIsInfinite => 26,
+            Self::FloatIsNormal => 27,
+            Self::FloatIsSubnormal => 28,
         }
     }
 
@@ -180,6 +192,10 @@ impl BuiltinFunction {
             | Self::FloatIsNan
             | Self::FloatMultiplyThenAddF32
             | Self::FloatMultiplyThenAddF64
+            | Self::FloatIsFinite
+            | Self::FloatIsInfinite
+            | Self::FloatIsNormal
+            | Self::FloatIsSubnormal
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -384,6 +400,22 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatMultiplyThenAddF64.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatIsFinite.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatIsInfinite.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatIsNormal.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatIsSubnormal.name()),
+        ),
     ]
 }
 
@@ -439,6 +471,10 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatIsNan,
             BuiltinFunction::FloatMultiplyThenAddF32,
             BuiltinFunction::FloatMultiplyThenAddF64,
+            BuiltinFunction::FloatIsFinite,
+            BuiltinFunction::FloatIsInfinite,
+            BuiltinFunction::FloatIsNormal,
+            BuiltinFunction::FloatIsSubnormal,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

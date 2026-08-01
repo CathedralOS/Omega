@@ -41,6 +41,15 @@ pub enum StateGuardOperator {
     /// with one real operand and one ignored zero placeholder so `x` is
     /// evaluated exactly once.
     IsNan,
+    /// Unary IEEE finite predicate, carried like `IsNan` with one real
+    /// operand and one ignored zero placeholder.
+    IsFinite,
+    /// Unary IEEE infinity predicate.
+    IsInfinite,
+    /// Unary IEEE normal predicate (finite, nonzero exponent field).
+    IsNormal,
+    /// Unary IEEE subnormal predicate (zero exponent, nonzero fraction).
+    IsSubnormal,
     /// Internal structural carrier for the second and third operands of a
     /// ternary float realization. It returns the third operand while keeping
     /// the second in the architecture's pinned MTA scratch register.

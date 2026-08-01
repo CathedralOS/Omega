@@ -1,0 +1,1 @@
+requires exact intrinsic `F32::is_finite.f32`
