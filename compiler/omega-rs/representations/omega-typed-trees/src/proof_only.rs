@@ -98,7 +98,9 @@ impl ProofOnlyClassification {
                     .iter()
                     .find_map(|argument| self.proof_only_mention(program, *argument))
             }
-            TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Unit => None,
+            TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::Unit => None,
         }
     }
 }
@@ -330,6 +332,7 @@ fn collect_inline_data_edges(
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => {}
     }
 }

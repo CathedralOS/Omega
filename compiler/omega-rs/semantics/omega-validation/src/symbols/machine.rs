@@ -194,6 +194,7 @@ fn callable_receiver_type_name(
         }
         TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => None,
         TypeReferenceNode::Generic { .. } => None,
+        TypeReferenceNode::ConstExpression(_) => None,
         TypeReferenceNode::DynamicTrait { name, .. } => Some(name.as_str()),
         TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
         TypeReferenceNode::Unit => None,

@@ -16,6 +16,9 @@ pub(crate) fn lower_typed_trees(
     // before MP4 consumes the call-site selections and clears the template's
     // parameter list.
     crate::specialize_static_machine_calls(&mut program)?;
+    omega_validation::normalize_open_index_expressions(&mut program)?;
+    crate::monomorphization::refresh_closed_domain_instance_identities(&mut program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
     // and before both engines fork off it -- every downstream read (native

@@ -81,7 +81,7 @@ pub(super) fn layout_for_type_reference(
         | TypeReferenceNode::Named { symbol, name } => {
             layout_for_named_type(context, *symbol, name.as_str())
         }
-        TypeReferenceNode::Unit => TypeLayout::default(),
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => TypeLayout::default(),
     }
 }
 

@@ -439,6 +439,7 @@ fn substitute_machine_parameters_in_type(
             }
         }
         typed::types::TypeReferenceNode::DynamicTrait { .. }
+        | typed::types::TypeReferenceNode::ConstExpression(_)
         | typed::types::TypeReferenceNode::Unit => {}
     }
 }

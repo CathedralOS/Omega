@@ -711,6 +711,7 @@ fn collect_bounded_value_obligation(
         }
         TypeReferenceNode::DynamicTrait { .. } => {}
         TypeReferenceNode::Named { name: _, .. } => {}
+        TypeReferenceNode::ConstExpression(_) => {}
         TypeReferenceNode::Unit => {}
     }
 }
@@ -774,6 +775,7 @@ fn collect_bounded_initializer_obligation(
         }
         TypeReferenceNode::DynamicTrait { .. } => {}
         TypeReferenceNode::Named { name: _, .. } => {}
+        TypeReferenceNode::ConstExpression(_) => {}
         TypeReferenceNode::Unit => {}
     }
 }
@@ -1884,6 +1886,7 @@ fn collect_constraints(
         TypeReferenceNode::Slice { element_type } => collect_constraints(program, *element_type),
         TypeReferenceNode::DynamicTrait { .. } => ConstraintBuffer::new(),
         TypeReferenceNode::Named { name, .. } => primitive_constraints(name),
+        TypeReferenceNode::ConstExpression(_) => ConstraintBuffer::new(),
         TypeReferenceNode::Unit => ConstraintBuffer::new(),
     }
 }
@@ -2081,6 +2084,7 @@ fn data_field_type_reference(
         TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
     }
 }
@@ -2770,6 +2774,7 @@ fn constrained_type_reference(
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
     }
 }

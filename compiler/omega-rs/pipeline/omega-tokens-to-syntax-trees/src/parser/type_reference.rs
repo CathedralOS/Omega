@@ -352,6 +352,21 @@ fn const_expression_requires_declared_width(
         || const_expression_requires_declared_width(syntax_trees, binary.right)
 }
 
+fn const_expression_contains_name(
+    syntax_trees: &SyntaxTrees,
+    expression: omega_syntax_trees::expression::ExpressionHandle,
+) -> bool {
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Binary(binary) => {
+            const_expression_contains_name(syntax_trees, binary.left)
+                || const_expression_contains_name(syntax_trees, binary.right)
+        }
+        ExpressionNode::Unary(unary) => const_expression_contains_name(syntax_trees, unary.operand),
+        _ => false,
+    }
+}
+
 /// Fold the first richer const-argument slice before generic-instance
 /// synthesis: closed integer expressions in the language's current 64-bit
 /// signed/unsigned envelope. The folded decimal
@@ -532,34 +547,35 @@ pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
     let mut input = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
-        let argument = if input.at_integer() || input.at_punctuation(PunctuationKind::Minus) {
-            let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
-            input = rest;
-            if const_expression_requires_declared_width(syntax_trees, expression) {
+        // Parse the whole proof-static expression first. A lone name remains
+        // the PDI2 closed-constant/direct-binder leaf; a compound expression
+        // is retained for PDI3 normalization after names and operators have
+        // exact symbols. This also keeps `>` as the argument-pack delimiter:
+        // the dedicated const-expression parser deliberately stops before the
+        // comparison layer.
+        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        input = rest;
+        let argument = match syntax_trees.expressions.expression(expression) {
+            ExpressionNode::Name(_) => {
+                let name = syntax_trees.expressions.display_name(expression);
+                syntax_trees
+                    .type_references
+                    .insert_named(Identifier::generated(name))
+            }
+            _ if const_expression_contains_name(syntax_trees, expression)
+                || const_expression_requires_declared_width(syntax_trees, expression) =>
+            {
                 syntax_trees
                     .type_references
                     .insert(TypeReferenceNode::ConstExpression(expression))
-            } else {
+            }
+            _ => {
                 let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
                     .map_err(|reason| input.error_here(reason))?;
                 syntax_trees
                     .type_references
                     .insert_named(Identifier::generated(value.to_string()))
             }
-        } else {
-            let (first, mut rest) = input.take_identifier()?;
-            let mut path = first.as_str().to_owned();
-            while rest.at_punctuation(PunctuationKind::ColonColon) {
-                rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-                let (member, next) = rest.take_identifier()?;
-                path.push_str("::");
-                path.push_str(member.as_str());
-                rest = next;
-            }
-            input = rest;
-            syntax_trees
-                .type_references
-                .insert_named(Identifier::generated(path))
         };
         arguments.push(argument);
         if input.at_punctuation(PunctuationKind::Comma) {

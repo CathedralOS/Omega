@@ -1104,6 +1104,70 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
 }
 
 #[test]
+fn preserves_open_index_operator_expression_in_domain_argument() {
+    let source = r#"
+        data Unit {}
+        domain<T, const U: Unit> T::Quantity<U>;
+        data Rate<const A: Unit, const B: Unit> {
+            value: f64 in Quantity<A / B>;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("open index expression should parse");
+    let rate = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Rate" => {
+                Some(data)
+            }
+            _ => None,
+        })
+        .expect("Rate data");
+    let field = parsed
+        .items
+        .data_members(rate.members)
+        .iter()
+        .find_map(|member| match member {
+            omega_syntax_trees::item::DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .expect("Rate::value field");
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        parsed.type_references.type_reference(field.type_reference)
+    else {
+        panic!("quantity should be a constrained carrier");
+    };
+    let [omega_syntax_trees::types::TypeConstraintNode::Domain(domain)] =
+        parsed.type_references.constraints(*constraints)
+    else {
+        panic!("quantity domain constraint");
+    };
+    let [argument] = parsed
+        .type_references
+        .type_reference_handles(domain.arguments)
+    else {
+        panic!("one quantity index");
+    };
+    let TypeReferenceNode::ConstExpression(expression) =
+        parsed.type_references.type_reference(*argument)
+    else {
+        panic!("A / B should remain an open const expression");
+    };
+    let ExpressionNode::Binary(binary) = parsed.expressions.expression(*expression) else {
+        panic!("open index should retain the divide expression");
+    };
+    assert_eq!(
+        binary.operator,
+        omega_syntax_trees::expression::BinaryOperator::Divide
+    );
+    assert_eq!(parsed.expressions.display_name(binary.left), "A");
+    assert_eq!(parsed.expressions.display_name(binary.right), "B");
+}
+
+#[test]
 fn parses_compiler_owned_carry_atoms_and_expands_portable() {
     let source = r#"
         data Sample {

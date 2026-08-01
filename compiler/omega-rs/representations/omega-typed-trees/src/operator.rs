@@ -216,10 +216,32 @@ pub fn resolve_satisfied_boundary_operator<'program>(
     namespace: &str,
     requirement: &str,
 ) -> Option<&'program OperatorDefinition> {
+    resolve_satisfied_operator(program, machine, namespace, requirement, true)
+}
+
+/// Resolve an ordinary checked machine's exact operator requirement. This is
+/// the PDI3 counterpart to the boundary-provider route: signature and path are
+/// identical, while `boundary_only` is deliberately false.
+pub fn resolve_satisfied_checked_operator<'program>(
+    program: &'program TypedTrees,
+    machine: &crate::machine::Machine,
+    namespace: &str,
+    requirement: &str,
+) -> Option<&'program OperatorDefinition> {
+    resolve_satisfied_operator(program, machine, namespace, requirement, false)
+}
+
+fn resolve_satisfied_operator<'program>(
+    program: &'program TypedTrees,
+    machine: &crate::machine::Machine,
+    namespace: &str,
+    requirement: &str,
+    boundary_only: bool,
+) -> Option<&'program OperatorDefinition> {
     let state = program.machine_states(machine).first()?;
     let actual_parameters = program.state_parameters(state);
     let mut candidates = program.operators().iter().filter(|operator| {
-        if !operator.is_boundary
+        if (boundary_only && !operator.is_boundary)
             || !operator_path_matches(operator, program, namespace, requirement)
         {
             return false;
@@ -686,6 +708,7 @@ fn expected_type_parameter<'a>(
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
     }
 }
@@ -831,6 +854,7 @@ fn collect_type_parameter_occurrences(
         | TypeReferenceNode::DynamicTrait { symbol, .. } => {
             normalizer.canonical_index(*symbol);
         }
+        TypeReferenceNode::ConstExpression(_) => {}
         TypeReferenceNode::Unit => {}
     }
 }

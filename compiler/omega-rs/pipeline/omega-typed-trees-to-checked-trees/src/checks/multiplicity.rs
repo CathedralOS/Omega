@@ -1675,7 +1675,8 @@ fn append_linear_claim_frontier(
             // Const-parameter lengths must become literal before this stage
             // can enumerate the complete fixed-index ownership frontier.
         }
-        TypeReferenceNode::Reference { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => {}

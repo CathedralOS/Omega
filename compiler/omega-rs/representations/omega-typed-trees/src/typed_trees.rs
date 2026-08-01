@@ -46,6 +46,32 @@ pub struct TypedTrees {
     /// machine), while the policy type/source body is deliberately absent:
     /// only the validated plan fingerprint is public contract material.
     pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
+    /// PDI3 exact operation/algebra selections for proof-static open index
+    /// expressions. The expression tree remains the canonical structural
+    /// input; these records bind each operator node to the public operation
+    /// contract and proved algebra instance that license normalization.
+    pub open_index_normalizations: Vec<OpenIndexNormalization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenIndexNormalization {
+    pub expression: crate::expression::ExpressionHandle,
+    pub index_type: crate::types::TypeReferenceHandle,
+    pub operations: Vec<OpenIndexOperationSelection>,
+    /// Artifact provenance only. It never enters semantic type identity.
+    pub normalizer_version: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenIndexOperationSelection {
+    pub expression: crate::expression::ExpressionHandle,
+    pub spelling: omega_core::operator_spelling::OperatorSpelling,
+    pub operator: omega_core::symbols::SymbolHandle,
+    pub operation_contract_identity: String,
+    pub provider: omega_core::symbols::SymbolHandle,
+    pub algebra_trait: omega_core::symbols::SymbolHandle,
+    pub algebra_requirement: String,
+    pub algebra_alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -253,6 +279,7 @@ impl TypedTrees {
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
             boundary_calling_plans: Vec::new(),
+            open_index_normalizations: Vec::new(),
         }
     }
 
@@ -1400,9 +1427,9 @@ impl TypedTrees {
             return Multiplicity::Affine;
         }
         match self.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Unit => {
-                Multiplicity::Unrestricted
-            }
+            TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
             TypeReferenceNode::Constrained { base_type, .. } => self.type_multiplicity(*base_type),
             TypeReferenceNode::FixedArray { element_type, .. } => {
                 self.type_multiplicity(*element_type)

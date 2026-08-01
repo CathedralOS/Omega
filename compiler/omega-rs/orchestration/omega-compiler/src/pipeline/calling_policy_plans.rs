@@ -586,6 +586,9 @@ fn value_shape_from_type(
             "array type `{}` still has a non-literal length",
             typed.display_type_reference(type_reference)
         )),
+        TypeReferenceNode::ConstExpression(_) => {
+            Err("a proof-static index expression is not a boundary value shape".to_owned())
+        }
         TypeReferenceNode::Unit => Err("unit is not a boundary value shape".to_owned()),
     }
 }

@@ -1125,6 +1125,13 @@ fn canonicalize_closed_domain_application(
                 );
             }
             TypeReferenceNode::ConstExpression(expression) => {
+                // PDI3 open indexed-domain expressions must survive this
+                // pre-resolution pass so binder names and selected operators
+                // can acquire exact symbols later. Closed integer arithmetic
+                // keeps the existing eager fold and diagnostics.
+                if const_expression_contains_name(syntax, expression) {
+                    continue;
+                }
                 let value = evaluate_const_argument_expression(
                     syntax,
                     expression,
@@ -1154,6 +1161,18 @@ fn canonicalize_closed_domain_application(
         }
     }
     Ok(())
+}
+
+fn const_expression_contains_name(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Binary(binary) => {
+            const_expression_contains_name(syntax, binary.left)
+                || const_expression_contains_name(syntax, binary.right)
+        }
+        ExpressionNode::Unary(unary) => const_expression_contains_name(syntax, unary.operand),
+        _ => false,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

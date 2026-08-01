@@ -313,6 +313,7 @@ fn type_reference_base_symbol(
         } => *base_symbol,
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::ConstExpression(_)
         | omega_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
     }
 }

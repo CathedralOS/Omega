@@ -1330,7 +1330,9 @@ fn type_descriptor(
             symbol: *symbol,
             name: name.clone(),
         },
-        TypeReferenceNode::Unit => omega_layout::TypeLayoutDescriptor::Unit,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+            omega_layout::TypeLayoutDescriptor::Unit
+        }
     }
 }
 

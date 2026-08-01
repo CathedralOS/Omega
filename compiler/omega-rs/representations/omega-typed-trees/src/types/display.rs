@@ -50,6 +50,7 @@ impl TypeReferenceNode {
                     })
                 )
             }
+            TypeReferenceNode::ConstExpression(_) => "const <expression>".to_owned(),
             TypeReferenceNode::DynamicTrait { name, .. } => format!("dyn {name}"),
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
@@ -114,6 +115,9 @@ impl TypeReferenceNode {
                         table.display_name_with_constraints(*argument, expressions)
                     })
                 )
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                format!("const {}", expressions.display_name(*expression))
             }
             TypeReferenceNode::DynamicTrait { name, .. } => format!("dyn {name}"),
             TypeReferenceNode::Named { name, .. } => name.to_string(),

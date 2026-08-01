@@ -18,6 +18,11 @@ pub enum TypeReference {
     FixedArray(FixedArrayTypeReference),
     Slice(SliceTypeReference),
     Generic(GenericTypeReference),
+    /// A proof-static indexed-domain argument whose value is computed from
+    /// const binders. Unlike ordinary const-generic arithmetic, this survives
+    /// pre-resolution so exact operand and operator symbols can participate in
+    /// PDI3 semantic identity.
+    ConstExpression(crate::expression::ExpressionHandle),
     DynamicTrait {
         symbol: SymbolHandle,
         name: DiagnosticName,
@@ -520,6 +525,10 @@ impl TypeReferenceTable {
                     arguments,
                 })
             }
+            TypeReference::ConstExpression(expression) => {
+                let expression = expressions.copy_from(source_expressions, *expression);
+                self.insert(TypeReferenceNode::ConstExpression(expression))
+            }
             TypeReference::DynamicTrait { symbol, name } => {
                 self.insert(TypeReferenceNode::DynamicTrait {
                     symbol: *symbol,
@@ -569,6 +578,8 @@ pub enum TypeReferenceNode {
         lifetime_arguments: Vec<DiagnosticName>,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
+    /// Table-backed form of [`TypeReference::ConstExpression`].
+    ConstExpression(crate::expression::ExpressionHandle),
     DynamicTrait {
         symbol: SymbolHandle,
         name: DiagnosticName,
@@ -695,6 +706,7 @@ impl TypeReference {
             TypeReference::FixedArray(_)
             | TypeReference::Slice(_)
             | TypeReference::Generic(_)
+            | TypeReference::ConstExpression(_)
             | TypeReference::DynamicTrait { .. }
             | TypeReference::SelfType { .. }
             | TypeReference::Unit => None,

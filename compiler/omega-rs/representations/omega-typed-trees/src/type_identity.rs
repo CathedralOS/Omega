@@ -7,6 +7,7 @@
 //! identities (decision 19 / DOM4).
 
 use crate::TypedTrees;
+use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -342,6 +343,7 @@ fn collect_result_dispatch_terms(
         TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Unit => {}
@@ -450,6 +452,19 @@ impl TypeIdentityContext<'_> {
         {
             return replacement.clone();
         }
+        // Open index expressions are parsed before their enclosing const
+        // telescope is available, so a direct binder leaf can still carry an
+        // invalid expression symbol. Binder-aware template identity recovers
+        // that exact local by its symbol-table name; concrete qualified names
+        // never match this one-segment route.
+        if !symbol.is_valid()
+            && !fallback.contains("::")
+            && let Some((_, replacement)) = self.binders.iter().find(|(candidate, _)| {
+                candidate.is_valid() && program.symbols.name(*candidate) == fallback
+            })
+        {
+            return replacement.clone();
+        }
         if symbol.is_valid() {
             let path = program.symbols.display_path(symbol, "::");
             if !path.is_empty() {
@@ -526,6 +541,10 @@ fn normalize_type_reference(
                     .map(|argument| normalize_type_reference(program, *argument, context)),
             ),
         ),
+        TypeReferenceNode::ConstExpression(expression) => compound(
+            "index-expression",
+            [normalize_index_expression(program, *expression, context)],
+        ),
         TypeReferenceNode::DynamicTrait { symbol, name } => compound(
             "dynamic-trait",
             [atom("name", &context.name(program, *symbol, name.as_str()))],
@@ -535,6 +554,105 @@ fn normalize_type_reference(
             [atom("name", &context.name(program, *symbol, name.as_str()))],
         ),
         TypeReferenceNode::Unit => "unit".to_owned(),
+    }
+}
+
+fn normalize_index_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    context: &TypeIdentityContext<'_>,
+) -> String {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            let fallback = members
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            atom(
+                "const-name",
+                &context.name(program, path.symbol, fallback.as_str()),
+            )
+        }
+        ExpressionNode::Binary(binary) => {
+            let selection = program
+                .open_index_normalizations
+                .iter()
+                .flat_map(|normalization| &normalization.operations)
+                .find(|selection| selection.expression == expression);
+            compound(
+                index_binary_operator_name(binary.operator),
+                selection
+                    .map(|selection| {
+                        vec![
+                            atom("operation", &selection.operation_contract_identity),
+                            atom(
+                                "algebra",
+                                &format!(
+                                    "{}::{} as {}",
+                                    program.symbols.display_path(selection.algebra_trait, "::"),
+                                    selection.algebra_requirement,
+                                    selection.algebra_alias.as_deref().unwrap_or("<default>")
+                                ),
+                            ),
+                            normalize_index_expression(program, binary.left, context),
+                            normalize_index_expression(program, binary.right, context),
+                        ]
+                    })
+                    .unwrap_or_else(|| {
+                        vec![
+                            normalize_index_expression(program, binary.left, context),
+                            normalize_index_expression(program, binary.right, context),
+                        ]
+                    }),
+            )
+        }
+        ExpressionNode::Integer(value) => atom("integer", &value.to_string()),
+        ExpressionNode::Unary(unary) => compound(
+            "logical-not",
+            [normalize_index_expression(program, unary.operand, context)],
+        ),
+        // These shapes are rejected by PDI3 index validation. Keep their
+        // provisional identity structural and independent of diagnostic
+        // rendering so even a rejected tree never makes display text an
+        // equality oracle.
+        ExpressionNode::Boolean(value) => atom("boolean", &value.to_string()),
+        ExpressionNode::Float(value) => atom("float", &value.to_string()),
+        ExpressionNode::String(value) => atom("string", value),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Atomic(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Range(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::ZeroValue(_) => "unsupported-index-expression".to_owned(),
+    }
+}
+
+fn index_binary_operator_name(operator: BinaryOperator) -> &'static str {
+    match operator {
+        BinaryOperator::Add => "add",
+        BinaryOperator::And => "and",
+        BinaryOperator::BitwiseAnd => "bitwise-and",
+        BinaryOperator::BitwiseOr => "bitwise-or",
+        BinaryOperator::BitwiseXor => "bitwise-xor",
+        BinaryOperator::Divide => "divide",
+        BinaryOperator::Equal => "equal",
+        BinaryOperator::Greater => "greater",
+        BinaryOperator::GreaterOrEqual => "greater-or-equal",
+        BinaryOperator::Less => "less",
+        BinaryOperator::LessOrEqual => "less-or-equal",
+        BinaryOperator::Modulo => "modulo",
+        BinaryOperator::Multiply => "multiply",
+        BinaryOperator::NotEqual => "not-equal",
+        BinaryOperator::Or => "or",
+        BinaryOperator::ShiftLeft => "shift-left",
+        BinaryOperator::ShiftRight => "shift-right",
+        BinaryOperator::Subtract => "subtract",
     }
 }
 
@@ -682,6 +800,7 @@ mod tests {
     use super::{NormalizedDomainTerm, NormalizedTypeIdentity};
     use crate::TypedTrees;
     use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
+    use crate::expression::{BinaryExpression, BinaryOperator, Expression, NamePath};
     use crate::name::Identifier;
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
     use omega_core::semantics::{
@@ -846,6 +965,43 @@ mod tests {
 
         let alpha_identity: NormalizedTypeIdentity = program.normalized_type_identity(alpha_type);
         assert_ne!(alpha_identity, program.normalized_type_identity(beta_type));
+    }
+
+    #[test]
+    fn open_index_identity_is_structural_not_diagnostic_display() {
+        let mut program = TypedTrees::default();
+        let expression = |left: &str, right: &str| {
+            Expression::Binary(Box::new(BinaryExpression {
+                left: Expression::Name(NamePath::unresolved_from_iter([Identifier::generated(
+                    left,
+                )])),
+                operator: BinaryOperator::Divide,
+                right: Expression::Name(NamePath::unresolved_from_iter([Identifier::generated(
+                    right,
+                )])),
+            }))
+        };
+        let a_over_b = program.expression_table.insert_tree(&expression("A", "B"));
+        let same_a_over_b = program.expression_table.insert_tree(&expression("A", "B"));
+        let b_over_a = program.expression_table.insert_tree(&expression("B", "A"));
+        let a_over_b = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(a_over_b));
+        let same_a_over_b = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(same_a_over_b));
+        let b_over_a = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(b_over_a));
+
+        assert_eq!(
+            program.normalized_type_identity(a_over_b),
+            program.normalized_type_identity(same_a_over_b)
+        );
+        assert_ne!(
+            program.normalized_type_identity(a_over_b),
+            program.normalized_type_identity(b_over_a)
+        );
     }
 
     #[test]

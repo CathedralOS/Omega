@@ -1,0 +1,18 @@
+data IndexSpace {}
+
+domain<T, const I: i32> T::Indexed<I>;
+
+operator IndexAlgebra::plus(left: i32, right: i32) -> i32 spelling +;
+
+machine plus_index(a: i32, b: i32) -> i32
+satisfies IndexAlgebra::plus
+{
+    transition { _ -> a }
+}
+
+data Open<const A: i32, const B: i32> {
+    value: i64 in Indexed<A + B>;
+}
+
+data Main {}
+machine Main::main() {}

@@ -169,6 +169,7 @@ fn collect_type_domain_homes(
         TypeReference::FixedArray(_)
         | TypeReference::Slice(_)
         | TypeReference::Generic(_)
+        | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
         | TypeReference::Named { .. }
         | TypeReference::SelfType { .. }

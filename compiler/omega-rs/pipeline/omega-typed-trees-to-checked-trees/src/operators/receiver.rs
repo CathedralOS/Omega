@@ -203,7 +203,8 @@ fn field_type_reference(
                 (base_symbol.is_valid() && data.symbol == *base_symbol) || data.name == *base_name
             })
             .and_then(|data| data_field_type_reference(program, data, field_symbol)),
-        TypeReferenceNode::FixedArray { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,
@@ -237,7 +238,8 @@ fn indexed_element_type_reference(
         } => indexed_element_type_reference(program, *referee),
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-        TypeReferenceNode::Generic { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => None,

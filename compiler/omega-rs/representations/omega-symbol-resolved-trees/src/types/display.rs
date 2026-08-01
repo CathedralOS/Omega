@@ -32,6 +32,7 @@ impl TypeReference {
                 };
                 format!("{}<{arguments}>", generic.base_name)
             }
+            TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
             TypeReference::DynamicTrait { name, .. } => format!("dyn {name}"),
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::SelfType { .. } => "Self".to_owned(),
@@ -71,6 +72,7 @@ impl TypeReference {
                 };
                 format!("{}<{arguments}>", generic.base_name)
             }
+            TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
             TypeReference::DynamicTrait { name, .. } => format!("dyn {name}"),
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::SelfType { .. } => "Self".to_owned(),

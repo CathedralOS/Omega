@@ -599,6 +599,7 @@ fn land_float_value_for_type(
         TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => {}
     }
 }

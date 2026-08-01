@@ -22589,6 +22589,28 @@ fn std_units_package_conversion_and_operator_canaries() {
 }
 
 #[test]
+fn open_computed_quantity_result_canary_runs() {
+    let canary = pass_canary("generics/open_computed_quantity_result");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("generic computed index result should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let fail = fail_canary("generics/open_index_unlicensed_algebra");
+    let expected = fs::read_to_string(fail.join("expected.txt"))
+        .expect("unlicensed open-index canary should carry expected.txt");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("an unproved index algebra must not license normalization");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(combined.contains(expected.trim()), "{combined}");
+}
+
+#[test]
 fn runtime_const_data_expression_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_data_expression_exit");
     let build_dir = std::env::temp_dir().join(format!(

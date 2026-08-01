@@ -113,7 +113,8 @@ pub(super) fn borrowed_initializers(
                 owner_path,
             )
         }
-        TypeReferenceNode::Slice { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => Vec::new(),
     }

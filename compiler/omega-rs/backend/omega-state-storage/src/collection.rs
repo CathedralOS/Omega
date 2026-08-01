@@ -2537,7 +2537,8 @@ fn collect_type_reference_invariant_names(
                 collect_type_reference_invariant_names(program, *argument, names, span);
             }
         }
-        TypeReferenceNode::DynamicTrait { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Unit => {}
     }

@@ -601,6 +601,11 @@ pub enum TypeReferenceSnapshot {
         lifetime_arguments: Vec<String>,
         arguments: Vec<TypeReferenceSnapshot>,
     },
+    ConstExpression {
+        expression: ExpressionSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        normalization: Option<OpenIndexNormalizationSnapshot>,
+    },
     DynamicTrait {
         name: String,
     },
@@ -611,6 +616,24 @@ pub enum TypeReferenceSnapshot {
     Invalid {
         handle: u32,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OpenIndexNormalizationSnapshot {
+    pub index_type: Box<TypeReferenceSnapshot>,
+    pub normalizer_version: u32,
+    pub operations: Vec<OpenIndexOperationSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OpenIndexOperationSnapshot {
+    pub expression: ExpressionSnapshot,
+    pub spelling: &'static str,
+    pub operation_contract_identity: String,
+    pub provider: String,
+    pub algebra_trait: String,
+    pub algebra_requirement: String,
+    pub algebra_alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1423,6 +1446,37 @@ fn type_reference_snapshot(
                 .iter()
                 .map(|argument| type_reference_snapshot(program, *argument))
                 .collect(),
+        },
+        TypeReferenceNode::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
+            expression: expression_snapshot(program, *expression),
+            normalization: program
+                .open_index_normalizations
+                .iter()
+                .find(|normalization| normalization.expression == *expression)
+                .map(|normalization| OpenIndexNormalizationSnapshot {
+                    index_type: Box::new(type_reference_snapshot(
+                        program,
+                        normalization.index_type,
+                    )),
+                    normalizer_version: normalization.normalizer_version,
+                    operations: normalization
+                        .operations
+                        .iter()
+                        .map(|operation| OpenIndexOperationSnapshot {
+                            expression: expression_snapshot(program, operation.expression),
+                            spelling: operation.spelling.symbol(),
+                            operation_contract_identity: operation
+                                .operation_contract_identity
+                                .clone(),
+                            provider: program.symbols.display_path(operation.provider, "::"),
+                            algebra_trait: program
+                                .symbols
+                                .display_path(operation.algebra_trait, "::"),
+                            algebra_requirement: operation.algebra_requirement.clone(),
+                            algebra_alias: operation.algebra_alias.clone(),
+                        })
+                        .collect(),
+                }),
         },
         TypeReferenceNode::DynamicTrait { name, .. } => TypeReferenceSnapshot::DynamicTrait {
             name: name.to_string(),

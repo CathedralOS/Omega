@@ -761,6 +761,10 @@ impl<'program> LayoutBuilder<'program> {
 
                 self.layout_named_type(*symbol, name)
             }
+            TypeReferenceNode::ConstExpression(expression) => Err(Diagnostic::error(format!(
+                "proof-static index expression `{}` reached runtime layout as a standalone type",
+                self.program.expression_table.display_name(*expression)
+            ))),
             TypeReferenceNode::Unit => Ok(TypeLayout {
                 size: 0,
                 alignment: 1,
@@ -1097,6 +1101,7 @@ impl<'program> LayoutBuilder<'program> {
                     name: name.clone(),
                 }
             }
+            TypeReferenceNode::ConstExpression(_) => TypeLayoutDescriptor::Unit,
             TypeReferenceNode::Unit => TypeLayoutDescriptor::Unit,
         }
     }

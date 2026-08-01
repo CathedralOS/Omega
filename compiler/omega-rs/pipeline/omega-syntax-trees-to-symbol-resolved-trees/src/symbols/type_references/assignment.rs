@@ -230,6 +230,10 @@ fn assign_type_reference_symbol_with_context(
                 generic.arguments,
             );
         }
+        // PDI3 index expressions retain their lexical binder spellings here;
+        // typed index normalization resolves them against the enclosing const
+        // telescope and records the exact selected operation separately.
+        omega_symbol_resolved_trees::types::TypeReference::ConstExpression(_) => {}
         omega_symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, name } => {
             *symbol = crate::symbols::lookup::top_level_symbol(
                 symbols,

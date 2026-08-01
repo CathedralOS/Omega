@@ -594,6 +594,9 @@ pub enum TypeReferenceSnapshot {
         lifetime_arguments: Vec<String>,
         arguments: Vec<TypeReferenceSnapshot>,
     },
+    ConstExpression {
+        expression: ExpressionSnapshot,
+    },
     DynamicTrait {
         name: String,
     },
@@ -1398,6 +1401,9 @@ fn type_reference_snapshot_from_program(
                 .iter()
                 .map(|argument| type_reference_snapshot_from_program(program, argument))
                 .collect(),
+        },
+        TypeReference::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
+            expression: table_expression_snapshot(program, *expression),
         },
         TypeReference::DynamicTrait { name, .. } => TypeReferenceSnapshot::DynamicTrait {
             name: name.to_string(),

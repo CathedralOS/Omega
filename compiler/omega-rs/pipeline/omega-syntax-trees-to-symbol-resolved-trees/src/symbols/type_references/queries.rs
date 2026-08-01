@@ -31,6 +31,9 @@ fn type_reference_symbol(
             child_type_references.get(slice.element_type),
         ),
         omega_symbol_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
+        omega_symbol_resolved_trees::types::TypeReference::ConstExpression(_) => {
+            SymbolHandle::invalid()
+        }
         omega_symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, .. } => *symbol,
         omega_symbol_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
         omega_symbol_resolved_trees::types::TypeReference::SelfType { symbol } => *symbol,

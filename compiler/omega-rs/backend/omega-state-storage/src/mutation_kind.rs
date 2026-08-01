@@ -96,7 +96,8 @@ fn is_mutable_reference_type(program: &CheckedTrees, type_reference: TypeReferen
         TypeReferenceNode::Constrained { base_type, .. } => {
             is_mutable_reference_type(program, *base_type)
         }
-        TypeReferenceNode::FixedArray { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }

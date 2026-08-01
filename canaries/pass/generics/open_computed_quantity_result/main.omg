@@ -1,0 +1,68 @@
+// PDI3: a generic result retains an erased expression over its input indices.
+use omega::language::std::console;
+
+domain<T, const I: u64> T::Indexed<I>;
+
+trait IndexAdd {
+    machine add(a: Self, b: Self) -> Self;
+    machine add_comm(a: Self, b: Self) -> Self
+    ensures add(a, b) == add(b, a);
+    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    ensures add(add(a, b), c) == add(a, add(b, c));
+}
+
+operator IndexAlgebra::plus(left: u64, right: u64) -> u64 spelling +;
+
+// A deliberately small AC algebra is enough for this normalizer canary. The
+// selected public `+` operation is constant-zero; PDI3 cares that this exact
+// operation and its exact proved algebra instance license the index syntax.
+machine plus_index(a: u64, b: u64) -> u64
+satisfies IndexAlgebra::plus, IndexAdd::add as Canonical
+ensures result == 0
+{
+    transition { _ -> 0 }
+}
+
+machine plus_index_comm(a: u64, b: u64) -> u64
+satisfies IndexAdd::add_comm as Canonical
+ensures plus_index(a, b) == plus_index(b, a)
+{
+    _ = plus_index(a, b);
+    _ = plus_index(b, a);
+    transition { _ -> 0 }
+}
+
+machine plus_index_assoc(a: u64, b: u64, c: u64) -> u64
+satisfies IndexAdd::add_assoc as Canonical
+ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
+{
+    _ = plus_index(plus_index(a, b), c);
+    _ = plus_index(a, plus_index(b, c));
+    transition { _ -> 0 }
+}
+
+machine indexed_left(value: i64) -> i64 in Indexed<1> {
+    value as i64 in Indexed<1>
+}
+
+machine indexed_right(value: i64) -> i64 in Indexed<2> {
+    value as i64 in Indexed<2>
+}
+
+machine add_indexed<const A: u64, const B: u64>(
+    left: i64 in Indexed<A>,
+    right: i64 in Indexed<B>
+) -> i64 in Indexed<A + B> {
+    70 as i64 in Indexed<A + B>
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let left: i64 in Indexed<1> = indexed_left(68);
+    let right: i64 in Indexed<2> = indexed_right(2);
+    let sum: i64 in Indexed<3> = add_indexed(left, right);
+    self.console.exit_process(sum as i32);
+}

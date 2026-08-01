@@ -351,7 +351,8 @@ fn type_is_primitive(program: &TypedTrees, type_reference: TypeReferenceHandle) 
             base_type: referee, ..
         } => type_is_primitive(program, *referee),
         TypeReferenceNode::Named { name, .. } => PrimitiveType::from_name(name.as_str()).is_some(),
-        TypeReferenceNode::Generic { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
