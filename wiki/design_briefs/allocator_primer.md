@@ -1,21 +1,22 @@
 # Allocator Design for Omega — Primer
 
-> Landscape + rationale to prime the allocator decision. The concrete staged
-> plan + decisions (A1–A5) live in [`allocator_story.md`](allocator_story.md);
-> this is the "why / what does everyone else do / what fits us" companion.
+> Historical landscape and rationale from before allocation strategies were
+> reduced to ordinary packages. The current substrate and canary live in
+> [`allocator_story.md`](allocator_story.md); capitalized `Arena`, allocation
+> rungs, and lifetime-bound allocation-handle proposals below are research
+> history, not current language or core design.
 > Synthesized from a 6-facet research sweep (Rust, Zig/Jai/Odin, safety-critical,
 > regions/multi-heap, proofs/guarantees, Omega-fit); implementation claims were
 > checked against the then-live corpus and must be rechecked as the Arena slice
 > lands.
 
-The durable model is an explicit bounded `Arena` capability with dependent
-resource contracts; reaching an allocation boundary contributes its
-boundary-trait service identity. Residual arena capacity is a conserved
-`CountedQuantity<Bytes>` content projection whose magnitude is a proof-level
-`Nat` and whose unit identity is `Bytes`, not a generic process-wide memory
-meter. Multiple heaps are separately provisioned allocator or `Region`
-capabilities. Quantitative operational rows such as peak concurrent retention
-remain separate from claim-content conservation.
+The durable model is explicit qualified `Extent` authority plus ordinary
+allocator packages. Reaching a provider for fresh backing contributes that
+boundary service's identity; using already-owned storage need not. A bump
+package may project residual magnitude as `CountedQuantity<Bytes>`, but its
+exact residual tail still supplies placement, and released storage is not
+reusable until reset. Quantitative operational rows such as peak concurrent
+retention remain separate from claim-content conservation.
 
 **Where Omega is today.** No heap, no allocator. Storage is inline (`[T;N]`,
 struct fields), bounded (`FixedVec<T,N>` — `push` is a *compile-time* proof
@@ -23,10 +24,11 @@ obligation `len < N`, never a runtime trap), or borrowed (`{ptr,len}` slice
 descriptors). Zero-expressibility is a representation preference, not a promise
 that zero establishes every value; domains and construction gate authority or
 validity when zero would forge either.
-The allocator is **designed but unbuilt**: `allocator_story.md` specifies an
-`Arena` as a bounded lifetime-scoped capability, backed by an Extent or admitted
-provider, with explicit allocation authority and resource contracts. Concretely
-blocked: `Vec<u8>::Utf8` (owned/growable text) and copy-out wire decode.
+Allocator strategies are **unbuilt**. The first acceptance test is a
+package-level bump allocator over `Extent`, placement, and content
+conservation. Reusable fragmented allocation is deferred to its container
+customer. Concretely blocked: `Vec<u8>::Utf8` (owned/growable text) and copy-out
+wire decode.
 Fixed-capacity console input is no longer allocator-gated:
 `Console::read_line(&mut [u8])` specializes against the caller's concrete
 bounded carrier.

@@ -225,10 +225,10 @@ frontier. An ambiguous mapping requires an explicit postcondition or rejects.
 
 The semantics above are settled, but the source-visible proof-only binder for
 an admitted receipt's per-invocation backing is not. `content(receipt)` remains
-schematic until `OWNER_QUESTIONS.md` #8 chooses that binder and its failure
+schematic until `OWNER_QUESTIONS.md` #7 chooses that binder and its failure
 surface; implementations must not infer backing equal to the returned claim.
 Likewise, `content(value)` and `old(value)` below state the settled semantic
-relation but are not yet source intrinsics. `OWNER_QUESTIONS.md` #9 must choose
+relation but are not yet source intrinsics. `OWNER_QUESTIONS.md` #8 must choose
 their exact qualification-selection, pre-state, separated-composition, and
 authorized-retirement surface before explicit n-to-m conservation contracts
 can be implemented; an outcome map alone does not prove content equality.
@@ -313,11 +313,11 @@ which authority family descendants may recombine.
 
 ### Borrowed geometry is not owned decomposition
 
-Layout fields, placed views, subrange loans, borrow-backed Arenas, and ordinary
-allocator free-list entries remain views or private geometry under one owned
-root. They do not transform the root into independently owned claims and
-therefore need no content split. Owned decomposition is required only when a
-subresource genuinely leaves the parent's ownership domain.
+Layout fields, placed views, subrange loans, and ordinary allocator-private
+free-list geometry remain views under one owned root and need no content split.
+Owned decomposition is required when a subresource genuinely leaves the
+parent's ownership domain, including an allocator returning an independently
+owned allocation claim.
 
 Runtime-indexed owned extraction remains a monotone acceptance restriction
 until the frontier and prover can name the unique moved element. Static field,

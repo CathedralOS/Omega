@@ -63,7 +63,7 @@ ensures
     result.len == items.len;
 
 // Append a value using already-owned capacity. Reallocation is never ambient;
-// a future growing owner must reach its explicit Arena-backed allocation.
+// a future growing owner must use an explicit allocator package/capability.
 boundary operator Vec::push<T>(items: &mut Vec<T>, value: T) -> ()
 requires
     items.len < items.capacity;

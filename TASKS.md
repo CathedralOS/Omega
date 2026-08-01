@@ -292,20 +292,21 @@ embeddings and arithmetic), semantic-domain identity, and the stable projection
 fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
-- **ARENA-CONTENT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #7:**
-  attach the retained `CountedQuantity<Bytes>` algebra to the settled bounded
-  Arena handle and conserve residual capacity across allocation/reset. The
-  accounting theorem is settled, but the exact handle, qualification,
-  threading operation, rejection shape, and `Allocation<T>` lifetime carrier
-  are not. General fragmented heaps remain fallible or require exact
-  placement/reservation evidence;
-- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #8:**
+- **BUMP-ALLOCATOR-CANARY — LANGUAGE-DESIGN BLOCKED on
+  `OWNER_QUESTIONS.md` #8:** implement an ordinary package-level bump strategy
+  over a consumed `Extent` once source content-conservation contracts can state
+  its split, retirement, reset recomposition, and backing return. Keep
+  allocatable tail, live extents, and retired extents distinct: release cleans
+  `T` and returns authority but restores bump capacity only at reset. Exercise
+  RAM and non-RAM placed access without adding an Arena primitive, interior
+  mutability, or a new borrowing rule;
+- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #7:**
   require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
   postconditions. Provider selection and receipt identity are live, but no
   source/IR binder yet supplies the receipt's per-invocation algebra value;
 - **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #9:** prove all consumed content equals the separated
+  `OWNER_QUESTIONS.md` #8:** prove all consumed content equals the separated
   composition of produced content plus any remainder retired through an
   authorized route. The equation and closed algebras are settled, but the
   documented `content(...)`/`old(...)` forms remain schematic: no source or IR
@@ -321,7 +322,8 @@ those rows remain absent until their actual checked proofs exist.
 
 Extent split/merge is triggered only when an independently owned subrange must
 cross an ownership boundary; it is not required for the admitted-root,
-placed-view, subrange-loan, or borrow-backed Arena slices. Virtual-to-physical
+placed-view, or subrange-loan slices. A package allocator that returns an owned
+subextent does cross that boundary and must conserve the split. Virtual-to-physical
 owned decomposition remains rejected until a compact canonical symbolic mapping
 algebra with decidable containment, equality, restriction, and separated
 composition is specified. Runtime-indexed extraction likewise remains a
@@ -424,7 +426,8 @@ Prerequisites:
 2. P2's source-visible materialization and placed access;
 3. checked activation/invalidation operations (structured x86 CR3 access is
    live; additional TLB operations are catalog engineering); and
-4. ordinary Arena/Allocation support for dynamic hierarchy allocation.
+4. an ordinary allocator package over qualified `Extent` storage for dynamic
+   hierarchy allocation.
 
 A fixed bootstrap table may use pre-reserved storage before the dynamic
 allocator exists. Do not restore `omega-page-tables` or any compiler-owned
@@ -766,12 +769,16 @@ improvements do not change public identity.
   language call kind or plan axis. Document that an in-process worker cannot be
   killed safely, an orphan pins its worker/storage/provider era, and bounded
   recovery from a hung call requires process isolation.
-- Replace ambient allocation with `Arena`/`Allocation`; the source-visible
-  handle and allocation surface are language-design blocked on
-  `OWNER_QUESTIONS.md` #7. Connect Arena backing to qualified `Extent` after
-  that decision and P1.
+- Build the package-level bump-allocation canary after
+  `OWNER_QUESTIONS.md` #8. Core supplies qualified `Extent`, placement, and
+  conservation; it does not bless Arena, bump, slab, pool, buddy, or heap
+  strategy semantics.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
-  domain qualification.
+  domain qualification. Before growable containers select an allocator,
+  specify separately whether their requirement needs cleanup/retirement,
+  authority return, or immediate capacity reuse; reusable fragmented
+  allocation remains a container/backend dependency rather than a new owner
+  question.
 
 Acceptance: linear debt cannot disappear through aggregation or bulk reclaim;
 CPU/thread-restricted activations require selected preservation evidence; task
@@ -1025,9 +1032,8 @@ blocked work.
 | #4 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
 | #5 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
 | #6 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
-| #7 bounded Arena capability | runtime Arena/Allocation surface and conserved residual capacity |
-| #8 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
-| #9 content-conservation contracts | normalized n-to-m content equations, correspondence, inference, and retained proof evidence |
+| #7 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
+| #8 content-conservation contracts | normalized n-to-m content equations, correspondence, allocator canaries, inference, and retained proof evidence |
 
 ## Vertical acceptance slices
 
@@ -1042,6 +1048,12 @@ blocked work.
   spans `f64` and `i64` carriers, carrier layout and SIMD shape remain unchanged,
   arithmetic-policy composition stays independent, and predicate facts derive
   through `ensures`. Computed `A / B` result indices belong to rung 3.
+- **Allocator substrate:** implement a package-level bump strategy over one
+  qualified `Extent`. Two allocations coexist; release cleans and returns an
+  exact retired subextent without restoring tail capacity; reset rejects while
+  a live claim remains and succeeds after full recomposition; finish returns
+  the original backing; RAM and non-RAM placements expose their ordinary access
+  views.
 - **OS gauntlet:** UART/MMIO, Cathedral-owned address translation, DMA,
   hostile/trusted shared-page IPC, Cathedral-owned exception/timer entry, and
   SMP AP bringup. A new customer-shaped compiler concept fails the slice.
@@ -1067,6 +1079,8 @@ blocked work.
 - runtime-generated host code, JIT, and arbitrary self-modifying code;
 - independent final-byte CFI certificates and optional CET/PAC/shadow-stack
   hardening;
-- universe levels before a full math-library replay goal; and
+- universe levels before a full math-library replay goal;
+- reusable fragmented allocation until a growable-container/backend customer
+  can state its retirement, authority-return, and immediate-reuse demands; and
 - an optimizing SSA/register-allocation/SIMD backend beyond current correctness
   requirements.

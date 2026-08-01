@@ -148,23 +148,24 @@ Omega does not add one flat `memory_budget` meter. Allocation and storage
 already require authority. A sponsor provisions the concrete resources an
 execution may use:
 
-- independently sized `Region` or allocator capabilities;
+- independently sized `Extent` or allocator capabilities;
 - WCSU-derived stacks and activation-stack pools;
 - static image/code storage admitted at installation; and
 - qualified extents for pinned, shared, physical, DMA-visible, persistent, or
   other provider-defined memory.
 
-Multiple heaps are multiple allocator or `Region` values. A component receives
-a bounded child region instead of ambient access to a global allocator.
+Multiple heaps are multiple allocator or `Extent` values. A component receives
+bounded child storage authority instead of ambient access to a global allocator.
 External retained storage remains ordinary claim and custody accounting.
 
-Infallible allocation from a bounded bump/arena region is the first concrete
+Infallible allocation in the package-level bump canary is the first concrete
 customer for a `CountedQuantity<Bytes>` content algebra. Allocation consumes
 normalized size, alignment padding, and metadata from a proof-level natural
-residual magnitude keyed by the `Bytes` unit identity;
-split and return conserve that quantity. A scalar free-byte count does not
-prove placement in a fragmented general heap. Such allocators remain fallible
-or require an exact free-extent/reservation theorem.
+residual magnitude keyed by the `Bytes` unit identity. The residual tail
+`Extent` supplies placement; released extents become retired content and do not
+restore bump capacity until reset recomposes the original backing. A scalar
+free-byte count does not prove placement in a fragmented general heap. Such
+allocators remain fallible or require an exact free-extent/reservation theorem.
 
 ## Contracts, installation, and proof-carrying code
 
@@ -192,5 +193,6 @@ separate future lane.
 5. Preserve `Bounded`, `Unknown`, and attributed no-finite-guarantee outcomes
    in artifacts and diagnostics.
 6. Add trusted native block metering; defer a separate IR-to-native PCC chain.
-7. Add `CountedQuantity<Bytes>` when bounded arena allocation is implemented;
-   retain placement evidence or fallibility for general heaps.
+7. Add `CountedQuantity<Bytes>` with the package-level bump-allocation canary;
+   retain exact tail placement and keep general fragmented allocators fallible
+   unless they supply placement/reservation evidence.
