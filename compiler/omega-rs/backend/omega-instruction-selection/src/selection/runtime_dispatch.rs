@@ -605,9 +605,13 @@ fn computed_host_builtin_operands(
             expressions.expression_handle_at_offset(call.arguments, 1),
         ));
     }
-    let is_sqrt = symbols.builtin_function_symbol(omega_core::symbols::BuiltinFunction::Sqrt)
-        == Some(call.target_symbol);
-    if is_sqrt && call.arguments.count() == 1 {
+    let is_unary_float = [
+        omega_core::symbols::BuiltinFunction::Sqrt,
+        omega_core::symbols::BuiltinFunction::FloatIsNan,
+    ]
+    .into_iter()
+    .any(|builtin| symbols.builtin_function_symbol(builtin) == Some(call.target_symbol));
+    if is_unary_float && call.arguments.count() == 1 {
         let operand = expressions.expression_handle_at_offset(call.arguments, 0);
         return Some((operand, operand));
     }

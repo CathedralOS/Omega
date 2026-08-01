@@ -56,6 +56,7 @@ mod host_open_flags {
     }
 }
 use crate::value::{Cell, Value};
+use omega_checked_trees::{CheckedOperatorFacts, CheckedTrees};
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::bignum::BigInt;
 use omega_core::float_semantics::{
@@ -190,12 +191,12 @@ mod host_stat_offsets {
     pub const BLKSIZE: usize = 96;
 }
 
-pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
+pub(crate) fn run(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
     run_with_options(checked, stdin, InterpretOptions::default())
 }
 
 pub(crate) fn run_with_options(
-    checked: &TypedTrees,
+    checked: &CheckedTrees,
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
@@ -386,11 +387,11 @@ pub(crate) fn run_granted_build_machine_arguments(
 }
 
 fn run_on_current_thread(
-    checked: &TypedTrees,
+    checked: &CheckedTrees,
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
-    let mut evaluator = Evaluator::new(checked, stdin);
+    let mut evaluator = Evaluator::new_checked(checked, stdin);
     match options.filesystem {
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
@@ -544,6 +545,10 @@ struct VirtualFd {
 
 struct Evaluator<'program> {
     program: &'program TypedTrees,
+    /// Full-program interpretation retains checked named-operator evidence so
+    /// a root-preserving intrinsic rewrite can still report the source
+    /// operation. Const/build-time evaluation runs before that evidence exists.
+    operator_facts: Option<&'program CheckedOperatorFacts>,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     stdin: &'program [u8],
@@ -640,6 +645,7 @@ impl<'program> Evaluator<'program> {
     fn new(program: &'program TypedTrees, stdin: &'program [u8]) -> Self {
         Self {
             program,
+            operator_facts: None,
             stdout: Vec::new(),
             stderr: Vec::new(),
             stdin,
@@ -675,6 +681,12 @@ impl<'program> Evaluator<'program> {
             call_depth: 0,
             guard_depth: 0,
         }
+    }
+
+    fn new_checked(checked: &'program CheckedTrees, stdin: &'program [u8]) -> Self {
+        let mut evaluator = Self::new(&checked.typed, stdin);
+        evaluator.operator_facts = Some(&checked.facts.operators);
+        evaluator
     }
 
     fn tick(&mut self) -> EvalResult<()> {
@@ -4924,7 +4936,15 @@ impl<'program> Evaluator<'program> {
                 } else {
                     None
                 };
-                self.eval_binary(binary.operator, left, right, unsigned_operands, scalar_type)
+                let named_float_operation = self.named_float_operation_name(handle);
+                self.eval_binary(
+                    binary.operator,
+                    left,
+                    right,
+                    unsigned_operands,
+                    scalar_type,
+                    named_float_operation,
+                )
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
             ExpressionNode::Cast(cast) => {
@@ -5089,6 +5109,24 @@ impl<'program> Evaluator<'program> {
                     other => Err(Halt::Trap(format!(
                         "sqrt expects a float argument, got {other:?}"
                     ))),
+                };
+            }
+        }
+        // Internal unary predicate selected only by exact named-float plans.
+        // Evaluate the argument once; duplicating `x` into a synthetic `x != x`
+        // tree after checking would duplicate nontrivial argument evaluation.
+        if target == "float#is_nan" && call.receiver == ExpressionHandle::invalid() {
+            let args = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if args.len() == 1 {
+                return match self.eval_expression(args[0], frame)? {
+                    Value::Float(value) => Ok(Value::Bool(FloatSemantics::is_nan(
+                        &FloatMeaning::from_f64(value),
+                    ))),
+                    _ => unsupported("float#is_nan argument is not a float"),
                 };
             }
         }
@@ -8044,6 +8082,27 @@ impl<'program> Evaluator<'program> {
             })
     }
 
+    /// Recover the authored named float operation for a root-preserving
+    /// intrinsic rewrite. Provider dispatch deliberately rewrites the
+    /// expression node in place, so the checked use fact remains the stable
+    /// bridge from the executing binary node back to `F32::...` / `F64::...`.
+    fn named_float_operation_name(&self, expression: ExpressionHandle) -> Option<&str> {
+        let operator_use = self
+            .operator_facts?
+            .named_uses()
+            .find(|operator_use| operator_use.expression == expression)?;
+        let operator = self
+            .program
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == operator_use.selected_operator_symbol)?;
+        let members = self.program.operator_path_members(operator.name);
+        match members.first()?.as_str() {
+            "F32" | "F64" => members.last().map(|member| member.as_str()),
+            _ => None,
+        }
+    }
+
     fn eval_binary(
         &self,
         operator: BinaryOperator,
@@ -8051,6 +8110,7 @@ impl<'program> Evaluator<'program> {
         right: Value,
         unsigned_operands: bool,
         scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
+        named_float_operation: Option<&str>,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
 
@@ -8092,7 +8152,7 @@ impl<'program> Evaluator<'program> {
             let r = right
                 .as_float()
                 .ok_or_else(|| Halt::Trap("non-numeric float operand".to_owned()))?;
-            return self.eval_float_binary(operator, l, r, scalar_type);
+            return self.eval_float_binary(operator, l, r, scalar_type, named_float_operation);
         }
 
         // Integer arithmetic / comparison. A payload-free CASE operand
@@ -8371,6 +8431,7 @@ impl<'program> Evaluator<'program> {
         l: f64,
         r: f64,
         scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
+        named_float_operation: Option<&str>,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
         // Decode landed values to the shared proof meaning, execute exact
@@ -8410,6 +8471,11 @@ impl<'program> Evaluator<'program> {
                     match FloatSemantics::apply_trapping_policy(meaning) {
                         Ok(finite) => finite,
                         Err(FloatPolicyTrap::NaNResult) => {
+                            if let Some(operation) = named_float_operation {
+                                return trap(format!(
+                                    "named float operation `{operation}` produced NaN in Trapping domain"
+                                ));
+                            }
                             let reason = if left.is_finite() && right.is_finite() {
                                 "invalid float operation in Trapping domain"
                             } else {
@@ -8418,6 +8484,11 @@ impl<'program> Evaluator<'program> {
                             return trap(reason.to_owned());
                         }
                         Err(FloatPolicyTrap::InfinityResult) => {
+                            if let Some(operation) = named_float_operation {
+                                return trap(format!(
+                                    "named float operation `{operation}` produced infinity in Trapping domain"
+                                ));
+                            }
                             let reason = if division && right.is_zero() {
                                 "float division by zero in Trapping domain"
                             } else if left.is_finite() && right.is_finite() {

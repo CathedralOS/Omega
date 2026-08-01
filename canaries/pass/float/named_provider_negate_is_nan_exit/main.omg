@@ -1,0 +1,121 @@
+// F7 exact primitive-expression realizations for named float ProviderPlans.
+// Negation preserves the selected named-use root while flipping every sign,
+// including signed zero. NaN classification uses the compiler's unary,
+// single-evaluation unordered predicate.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    negative_zero32: f32;
+    positive_zero32: f32;
+    negative_infinity32: f32;
+    negative_zero_reciprocal32: f32;
+    positive_zero_reciprocal32: f32;
+    nan_verdict32: bool;
+    infinity_verdict32: bool;
+    finite_verdict32: bool;
+    negative_zero64: f64;
+    positive_zero64: f64;
+    negative_infinity64: f64;
+    negative_zero_reciprocal64: f64;
+    positive_zero_reciprocal64: f64;
+    nan_verdict64: bool;
+    infinity_verdict64: bool;
+    finite_verdict64: bool;
+}
+
+machine Main::main(&mut self) {
+    let zero32: f32 = 0.0f32;
+    let nan32: f32 = zero32 / zero32;
+    let infinity32: f32 = 1.0f32 / zero32;
+    self.negative_zero32 = F32::negate(zero32);
+    self.positive_zero32 = F32::negate(self.negative_zero32);
+    self.negative_infinity32 = F32::negate(infinity32);
+    self.nan_verdict32 = F32::is_nan(nan32);
+    self.infinity_verdict32 = F32::is_nan(infinity32);
+    self.finite_verdict32 = F32::is_nan(1.0f32);
+    self.negative_zero_reciprocal32 = 1.0f32 / self.negative_zero32;
+    self.positive_zero_reciprocal32 = 1.0f32 / self.positive_zero32;
+
+    let zero64: f64 = 0.0;
+    let nan64: f64 = zero64 / zero64;
+    let infinity64: f64 = 1.0 / zero64;
+    self.negative_zero64 = F64::negate(zero64);
+    self.positive_zero64 = F64::negate(self.negative_zero64);
+    self.negative_infinity64 = F64::negate(infinity64);
+    self.nan_verdict64 = F64::is_nan(nan64);
+    self.infinity_verdict64 = F64::is_nan(infinity64);
+    self.finite_verdict64 = F64::is_nan(1.0);
+    self.negative_zero_reciprocal64 = 1.0 / self.negative_zero64;
+    self.positive_zero_reciprocal64 = 1.0 / self.positive_zero64;
+
+    transition self.negative_zero_reciprocal32 < 0.0f32 {
+        true -> check_positive_zero32()
+        _ -> fail(71)
+    }
+
+    state check_positive_zero32(&mut self) {
+        transition self.positive_zero_reciprocal32 > 0.0f32 {
+            true -> check_infinity32()
+            _ -> fail(72)
+        }
+    }
+    state check_infinity32(&mut self) {
+        transition self.negative_infinity32 < 0.0f32 {
+            true -> check_nan32()
+            _ -> fail(73)
+        }
+    }
+    state check_nan32(&mut self) {
+        transition self.nan_verdict32 { true -> check_infinity_not_nan32() _ -> fail(74) }
+    }
+    state check_infinity_not_nan32(&mut self) {
+        transition self.infinity_verdict32 == false {
+            true -> check_finite_not_nan32()
+            _ -> fail(75)
+        }
+    }
+    state check_finite_not_nan32(&mut self) {
+        transition self.finite_verdict32 == false {
+            true -> check_negative_zero64()
+            _ -> fail(76)
+        }
+    }
+    state check_negative_zero64(&mut self) {
+        transition self.negative_zero_reciprocal64 < 0.0 {
+            true -> check_positive_zero64()
+            _ -> fail(77)
+        }
+    }
+    state check_positive_zero64(&mut self) {
+        transition self.positive_zero_reciprocal64 > 0.0 {
+            true -> check_infinity64()
+            _ -> fail(78)
+        }
+    }
+    state check_infinity64(&mut self) {
+        transition self.negative_infinity64 < 0.0 {
+            true -> check_nan64()
+            _ -> fail(79)
+        }
+    }
+    state check_nan64(&mut self) {
+        transition self.nan_verdict64 { true -> check_infinity_not_nan64() _ -> fail(80) }
+    }
+    state check_infinity_not_nan64(&mut self) {
+        transition self.infinity_verdict64 == false {
+            true -> check_finite_not_nan64()
+            _ -> fail(81)
+        }
+    }
+    state check_finite_not_nan64(&mut self) {
+        transition self.finite_verdict64 == false {
+            true -> good()
+            _ -> fail(82)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+}

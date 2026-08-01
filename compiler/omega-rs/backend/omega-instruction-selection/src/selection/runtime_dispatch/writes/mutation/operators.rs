@@ -56,9 +56,9 @@ pub(super) fn builtin_runtime_call_operator(
     builtin_runtime_call_operator_by_symbol(input, call.target_symbol)
 }
 
-/// A single-argument builtin call (`sqrt(x)`) that lowers on the binary
-/// value-write path with both operands set to the one argument. `None` for a
-/// receiver-ful or non-unary call, or a non-unary-builtin target.
+/// A single-argument float builtin that lowers on the binary value-write path.
+/// `sqrt(x)` carries both expression positions as `x`; `float#is_nan(x)` later
+/// replaces the ignored right runtime operand with zero so `x` executes once.
 pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
     input: &InstructionSelectionInput<'_>,
     call: &TableCallExpression,
@@ -73,6 +73,14 @@ pub(in crate::selection) fn builtin_runtime_unary_call_operator_in_table(
             .builtin_function_symbol(BuiltinFunction::Sqrt)
     {
         return Some(StateGuardOperator::Sqrt);
+    }
+    if Some(call.target_symbol)
+        == input
+            .program
+            .symbols
+            .builtin_function_symbol(BuiltinFunction::FloatIsNan)
+    {
+        return Some(StateGuardOperator::IsNan);
     }
     None
 }

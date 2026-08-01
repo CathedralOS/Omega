@@ -765,6 +765,7 @@ fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> us
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
+        | StateGuardOperator::IsNan
         | StateGuardOperator::Greater
         | StateGuardOperator::GreaterOrEqual
         | StateGuardOperator::Less

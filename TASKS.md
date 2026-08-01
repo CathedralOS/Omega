@@ -895,14 +895,19 @@ and allocation handles expose no compiler-owned stack/control storage.
   all twenty exact slots per target, used-operation identity, stage-copy,
   backend fail-closed, malformed-binding, and native pipeline canaries pin the
   slice. Primitive spellings have completed target-plan migration. The first
-  named-operation cohort now adds exact F32/F64 `minimum`, `maximum`, and
-  `square_root` satisfiers on all four native targets. Checked named-use
-  evidence authorizes an execution-only rewrite to the existing min/max/sqrt
-  builtins in both engine pipelines; source proof identity remains attached to
-  the boundary requirement, and native/interpreter canaries cover NaN operand
-  order, equal signed-zero choice, both widths, and exact-square roots.
-  Remaining rung-3 work includes negate, multiply-then-add/FMA,
-  classification/predicates, directed-rounding families, checked software
+  named-operation cohort now adds exact F32/F64 `minimum`, `maximum`,
+  `square_root`, `negate`, and `is_nan` satisfiers on all four native targets.
+  Checked named-use evidence authorizes an execution-only rewrite in both
+  engine pipelines while source proof identity remains attached to the
+  boundary requirement. Negate becomes a root-preserving multiply by a landed
+  negative one; `is_nan` becomes an unnameable unary compiler builtin, so its
+  operand is evaluated once and its binary32/binary64 width is retained through
+  nested lowering. Native/interpreter canaries cover NaN operand order, equal
+  signed-zero choice, exact-square roots, signed-zero/infinity negation, and
+  NaN/non-NaN predicates in both widths; x86-64/AArch64 cross-target output and
+  exact-binding rejection pin the new paths. Remaining rung-3 work includes
+  multiply-then-add/FMA, the other classification/predicates,
+  directed-rounding families, checked software
   fallbacks, canonical floating-control-state preconditions/restoration, and
   rung-4 differential evidence.
   **Language-design blocked:** the public float/integer and

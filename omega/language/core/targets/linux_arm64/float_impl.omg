@@ -102,3 +102,19 @@ linux_arm64 machine FloatNativeProvider::square_root32(value: f32) -> f32
 linux_arm64 machine FloatNativeProvider::square_root64(value: f64) -> f64
     satisfies F64::square_root
     via Binding::CompilerIntrinsic("F64::square_root.f64");
+
+linux_arm64 machine FloatNativeProvider::negate32(value: f32) -> f32
+    satisfies F32::negate
+    via Binding::CompilerIntrinsic("F32::negate.f32");
+
+linux_arm64 machine FloatNativeProvider::negate64(value: f64) -> f64
+    satisfies F64::negate
+    via Binding::CompilerIntrinsic("F64::negate.f64");
+
+linux_arm64 machine FloatNativeProvider::is_nan32(value: f32) -> bool
+    satisfies F32::is_nan
+    via Binding::CompilerIntrinsic("F32::is_nan.f32");
+
+linux_arm64 machine FloatNativeProvider::is_nan64(value: f64) -> bool
+    satisfies F64::is_nan
+    via Binding::CompilerIntrinsic("F64::is_nan.f64");

@@ -81,10 +81,13 @@ pub enum BuiltinFunction {
     AsmWriteCr0,
     AsmWriteCr3,
     AsmWriteCr4,
+    /// Internal unary predicate used only by selected named-float plans. The
+    /// `#` keeps it unnameable from source during the provider migration.
+    FloatIsNan,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 22;
+    pub const COUNT: usize = 23;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -110,6 +113,7 @@ impl BuiltinFunction {
             Self::AsmWriteCr0 => "asm#write_cr0",
             Self::AsmWriteCr3 => "asm#write_cr3",
             Self::AsmWriteCr4 => "asm#write_cr4",
+            Self::FloatIsNan => "float#is_nan",
         }
     }
 
@@ -137,6 +141,7 @@ impl BuiltinFunction {
             Self::AsmWriteCr0 => 19,
             Self::AsmWriteCr3 => 20,
             Self::AsmWriteCr4 => 21,
+            Self::FloatIsNan => 22,
         }
     }
 
@@ -163,6 +168,7 @@ impl BuiltinFunction {
             Self::Max
             | Self::Min
             | Self::Sqrt
+            | Self::FloatIsNan
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -355,6 +361,10 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmWriteCr4.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatIsNan.name()),
+        ),
     ]
 }
 
@@ -407,6 +417,7 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmEnableInterrupts,
             BuiltinFunction::AsmSnapshotFlags,
             BuiltinFunction::AsmRestoreFlags,
+            BuiltinFunction::FloatIsNan,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

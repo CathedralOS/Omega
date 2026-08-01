@@ -14159,6 +14159,9 @@ fn runtime_value_operand_value_byte_size(
     if let Some((_, _, _, _, byte_size)) = operands.frame_fixed_indexed(operand) {
         return Some(byte_size);
     }
+    if let Some(width) = operands.binary_byte_width(operand) {
+        return Some(width);
+    }
     if let Some((left, _, right)) = operands.binary(operand) {
         return runtime_value_operand_value_byte_size(operands, left)
             .or_else(|| runtime_value_operand_value_byte_size(operands, right));
@@ -14191,6 +14194,7 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
         operator,
         StateGuardOperator::Equal
             | StateGuardOperator::NotEqual
+            | StateGuardOperator::IsNan
             | StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
@@ -14822,6 +14826,17 @@ fn append_runtime_float_binary_operation(
         // computes sqrt(xmm1) = sqrt(x) into xmm0, so the shared final line
         // below (op on xmm0, xmm1) already produces the right result.
         StateGuardOperator::Sqrt => 0x51, // sqrtsd/sqrtss
+        StateGuardOperator::IsNan => {
+            if wide {
+                bytes.extend([0x66, 0x0f, 0x2e, 0xc0]); // ucomisd xmm0,xmm0
+            } else {
+                bytes.extend([0x0f, 0x2e, 0xc0]); // ucomiss xmm0,xmm0
+                bytes.push(0x90); // keep f32/f64 widths identical
+            }
+            bytes.extend([0x0f, 0x9a, 0xc0]); // setp al (unordered)
+            bytes.extend([0x44, 0x0f, 0xb6, 0xd0]); // movzx r10d, al
+            return Ok(());
+        }
         // COMPARISON into a 0/1 result in r10 (`let ok: bool = self.a >
         // self.b` with float operands), the aarch64 twin. `ucomis*` sets
         // ZF/PF/CF (unordered = all three): ordering picks the operand ORDER
@@ -14929,7 +14944,8 @@ fn runtime_float_binary_operation_width_with_domain(
 fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     match operator {
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
-        StateGuardOperator::Greater
+        StateGuardOperator::IsNan
+        | StateGuardOperator::Greater
         | StateGuardOperator::GreaterOrEqual
         | StateGuardOperator::Less
         | StateGuardOperator::LessOrEqual
