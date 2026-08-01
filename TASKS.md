@@ -896,7 +896,8 @@ and allocation handles expose no compiler-owned stack/control storage.
   backend fail-closed, malformed-binding, and native pipeline canaries pin the
   slice. Primitive spellings have completed target-plan migration. The first
   named-operation cohort now adds exact F32/F64 `minimum`, `maximum`,
-  `square_root`, `negate`, and `is_nan` satisfiers on all four native targets.
+  `square_root`, `negate`, `is_nan`, and `multiply_then_add` satisfiers on all
+  four native targets.
   Checked named-use evidence authorizes an execution-only rewrite in both
   engine pipelines while source proof identity remains attached to the
   boundary requirement. Negate becomes a root-preserving multiply by a landed
@@ -905,8 +906,14 @@ and allocation handles expose no compiler-owned stack/control storage.
   nested lowering. Native/interpreter canaries cover NaN operand order, equal
   signed-zero choice, exact-square roots, signed-zero/infinity negation, and
   NaN/non-NaN predicates in both widths; x86-64/AArch64 cross-target output and
-  exact-binding rejection pin the new paths. Remaining rung-3 work includes
-  multiply-then-add/FMA, the other classification/predicates,
+  exact-binding rejection pin the new paths. Multiply-then-add preserves its
+  distinct two-rounding contract through an unnameable format-specific ternary
+  compiler call that survives state-local expression copying. Both native
+  backends retain all three authored operands, emit a separate multiply and
+  add, and adapt policy only at the final result; cancellation and finite-
+  overflow canaries prove unfused and operand-aware Saturating behavior in both
+  engines. Remaining rung-3 work includes FMA, the other
+  classification/predicates,
   directed-rounding families, checked software
   fallbacks, canonical floating-control-state preconditions/restoration, and
   rung-4 differential evidence.

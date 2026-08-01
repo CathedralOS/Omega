@@ -41,6 +41,13 @@ pub enum StateGuardOperator {
     /// with one real operand and one ignored zero placeholder so `x` is
     /// evaluated exactly once.
     IsNan,
+    /// Internal structural carrier for the second and third operands of a
+    /// ternary float realization. It returns the third operand while keeping
+    /// the second in the architecture's pinned MTA scratch register.
+    FloatPair,
+    /// `round(round(a * b) + c)`, with all three original operands retained
+    /// for exactly-once evaluation and final-result policy adaptation.
+    MultiplyThenAdd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

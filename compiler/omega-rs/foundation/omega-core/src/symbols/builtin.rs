@@ -84,10 +84,15 @@ pub enum BuiltinFunction {
     /// Internal unary predicate used only by selected named-float plans. The
     /// `#` keeps it unnameable from source during the provider migration.
     FloatIsNan,
+    /// Internal ternary operations selected only by exact named-float plans.
+    /// Separate symbols retain the source format after expression tables copy
+    /// the checked call into state-local lowering tables.
+    FloatMultiplyThenAddF32,
+    FloatMultiplyThenAddF64,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 23;
+    pub const COUNT: usize = 25;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -114,6 +119,8 @@ impl BuiltinFunction {
             Self::AsmWriteCr3 => "asm#write_cr3",
             Self::AsmWriteCr4 => "asm#write_cr4",
             Self::FloatIsNan => "float#is_nan",
+            Self::FloatMultiplyThenAddF32 => "float#multiply_then_add_f32",
+            Self::FloatMultiplyThenAddF64 => "float#multiply_then_add_f64",
         }
     }
 
@@ -142,6 +149,8 @@ impl BuiltinFunction {
             Self::AsmWriteCr3 => 20,
             Self::AsmWriteCr4 => 21,
             Self::FloatIsNan => 22,
+            Self::FloatMultiplyThenAddF32 => 23,
+            Self::FloatMultiplyThenAddF64 => 24,
         }
     }
 
@@ -169,6 +178,8 @@ impl BuiltinFunction {
             | Self::Min
             | Self::Sqrt
             | Self::FloatIsNan
+            | Self::FloatMultiplyThenAddF32
+            | Self::FloatMultiplyThenAddF64
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -365,6 +376,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatIsNan.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyThenAddF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatMultiplyThenAddF64.name()),
+        ),
     ]
 }
 
@@ -418,6 +437,8 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmSnapshotFlags,
             BuiltinFunction::AsmRestoreFlags,
             BuiltinFunction::FloatIsNan,
+            BuiltinFunction::FloatMultiplyThenAddF32,
+            BuiltinFunction::FloatMultiplyThenAddF64,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

@@ -23,6 +23,7 @@ enum NamedFloatRealization {
         arity: usize,
     },
     Negate(FloatFormat),
+    MultiplyThenAdd(FloatFormat),
 }
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
@@ -86,6 +87,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
         let expected_arity = match realization {
             NamedFloatRealization::Builtin { arity, .. } => arity,
             NamedFloatRealization::Negate(_) => 1,
+            NamedFloatRealization::MultiplyThenAdd(_) => 3,
         };
         if arguments.len() != expected_arity {
             diagnostics.push(Diagnostic::error(format!(
@@ -155,6 +157,30 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     right: negative_one,
                 })
             }
+            NamedFloatRealization::MultiplyThenAdd(format) => {
+                // Retain all three operands in an unnameable compiler call.
+                // Its format-specific symbol survives the expression-table
+                // copies between checking and instruction selection, where a
+                // plain nested tree would lose its selected-plan identity.
+                // Both engines execute this as two explicit operations:
+                // round(round(left * right) + addend), never as FMA.
+                let function = match format {
+                    FloatFormat::F32 => BuiltinFunction::FloatMultiplyThenAddF32,
+                    FloatFormat::F64 => BuiltinFunction::FloatMultiplyThenAddF64,
+                };
+                let Some(symbol) = checked.typed.symbols.builtin_function_symbol(function) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "compiler builtin `{}` is absent while lowering a selected named float intrinsic",
+                        function.name()
+                    )));
+                    continue;
+                };
+                let mut call = call;
+                call.receiver = omega_typed_trees::expression::ExpressionHandle::invalid();
+                call.target = omega_typed_trees::name::Identifier::generated(function.name());
+                call.target_symbol = symbol;
+                ExpressionNode::Call(call)
+            }
         };
         *checked.typed.expression_table.expression_mut(expression) = replacement;
     }
@@ -182,6 +208,12 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
         }),
         "F32::negate.f32" => Some(NamedFloatRealization::Negate(FloatFormat::F32)),
         "F64::negate.f64" => Some(NamedFloatRealization::Negate(FloatFormat::F64)),
+        "F32::multiply_then_add.f32" => {
+            Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F32))
+        }
+        "F64::multiply_then_add.f64" => {
+            Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F64))
+        }
         "F32::is_nan.f32" | "F64::is_nan.f64" => Some(NamedFloatRealization::Builtin {
             function: BuiltinFunction::FloatIsNan,
             arity: 1,
@@ -228,6 +260,11 @@ mod tests {
                 arity: 1,
             })
         );
+        assert_eq!(
+            named_float_realization("F32::multiply_then_add.f32"),
+            Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F32))
+        );
+        assert_eq!(named_float_realization("F32::fused_multiply_add.f32"), None);
         assert_eq!(
             named_float_realization("F32::square_root_toward_positive.f32"),
             None

@@ -118,3 +118,19 @@ linux_arm64 machine FloatNativeProvider::is_nan32(value: f32) -> bool
 linux_arm64 machine FloatNativeProvider::is_nan64(value: f64) -> bool
     satisfies F64::is_nan
     via Binding::CompilerIntrinsic("F64::is_nan.f64");
+
+linux_arm64 machine FloatNativeProvider::multiply_then_add32(
+    left: f32,
+    right: f32,
+    addend: f32
+) -> f32
+    satisfies F32::multiply_then_add
+    via Binding::CompilerIntrinsic("F32::multiply_then_add.f32");
+
+linux_arm64 machine FloatNativeProvider::multiply_then_add64(
+    left: f64,
+    right: f64,
+    addend: f64
+) -> f64
+    satisfies F64::multiply_then_add
+    via Binding::CompilerIntrinsic("F64::multiply_then_add.f64");

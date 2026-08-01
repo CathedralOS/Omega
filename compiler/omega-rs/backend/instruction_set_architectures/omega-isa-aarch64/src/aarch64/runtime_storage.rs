@@ -5382,9 +5382,18 @@ pub(in crate::aarch64) fn float_policy_guard_width(
     byte_size: usize,
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> usize {
-    float_policy_guard_bytes(domain, operator, byte_size, 17, 26, 15, 14)
-        .map(|bytes| bytes.len())
-        .unwrap_or(0)
+    float_policy_guard_bytes(
+        domain,
+        operator,
+        byte_size,
+        17,
+        26,
+        (operator == StateGuardOperator::MultiplyThenAdd).then_some(9),
+        15,
+        14,
+    )
+    .map(|bytes| bytes.len())
+    .unwrap_or(0)
 }
 
 /// F5 float ARITHMETIC policy guard, emitted right after the FP op leaves
@@ -5401,8 +5410,8 @@ pub(in crate::aarch64) fn float_policy_guard_width(
 /// - `Trapping`: every non-finite result `brk`s, including a NaN or infinity
 ///   propagated from a non-finite operand.
 ///
-/// Every other operator/domain returns no bytes. Clobbers `left`, `right`
-/// (dead: the result rides v0), and both scratches. The WIDTH twin calls
+/// Every other operator/domain returns no bytes. Clobbers `left`, `right`, an
+/// optional MTA `middle` (dead: the result rides v0), and both scratches. The WIDTH twin calls
 /// this with fixed registers and takes `.len()` -- one source of truth (the
 /// place-copy rung-2a discipline), no hand-counted lockstep constant.
 fn float_policy_guard_bytes(
@@ -5411,6 +5420,7 @@ fn float_policy_guard_bytes(
     byte_size: usize,
     left: u8,
     right: u8,
+    middle: Option<u8>,
     s0: u8,
     s1: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -5423,6 +5433,7 @@ fn float_policy_guard_bytes(
         StateGuardOperator::Add
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
+            | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::Divide
             | StateGuardOperator::Min
             | StateGuardOperator::Max
@@ -5474,19 +5485,32 @@ fn float_policy_guard_bytes(
             checks.push((encode_conditional_branch_not_equal, Vec::new()));
             if operator == StateGuardOperator::Divide {
                 // divisor +-0.0 -> keep the IEEE non-finite (no clamp).
-                checks.push((encode_conditional_branch_equal, vec![abs(right)]));
-            } else {
-                checks.push((encode_conditional_branch_higher_or_same, vec![abs(right)]));
-            }
-            if operator == StateGuardOperator::Divide {
+                checks.push((
+                    encode_conditional_branch_equal,
+                    vec![abs(right), encode_compare_x_immediate(right, 0)?],
+                ));
                 // After the zero check the divisor's |bits| are already in
                 // `right`: compare against Inf for the finiteness face.
                 checks.push((
                     encode_conditional_branch_higher_or_same,
                     vec![encode_compare_x_register(right, s1)],
                 ));
+            } else {
+                checks.push((
+                    encode_conditional_branch_higher_or_same,
+                    vec![abs(right), encode_compare_x_register(right, s1)],
+                ));
             }
-            checks.push((encode_conditional_branch_higher_or_same, vec![abs(left)]));
+            if let Some(middle) = middle {
+                checks.push((
+                    encode_conditional_branch_higher_or_same,
+                    vec![abs(middle), encode_compare_x_register(middle, s1)],
+                ));
+            }
+            checks.push((
+                encode_conditional_branch_higher_or_same,
+                vec![abs(left), encode_compare_x_register(left, s1)],
+            ));
             // Assemble: compute each branch's distance to the end.
             let mut segments: Vec<Vec<u8>> = Vec::new();
             for (index, (_, setup)) in checks.iter().enumerate() {
@@ -5494,18 +5518,7 @@ fn float_policy_guard_bytes(
                 for instruction in setup {
                     segment.extend(instruction);
                 }
-                // The compare feeding this branch: the FIRST check reuses the
-                // result classify above; the divisor-zero check compares
-                // against zero; the finiteness checks compare against s1.
-                match (operator == StateGuardOperator::Divide, index) {
-                    (_, 0) => {}
-                    (true, 1) => segment.extend(encode_compare_x_immediate(right, 0)?),
-                    (true, 2) => {} // compare emitted via setup above
-                    (true, 3) => segment.extend(encode_compare_x_register(left, s1)),
-                    (false, 1) => segment.extend(encode_compare_x_register(right, s1)),
-                    (false, 2) => segment.extend(encode_compare_x_register(left, s1)),
-                    _ => unreachable!("check chain shape"),
-                }
+                debug_assert!(index == 0 || !setup.is_empty());
                 segment.extend([0, 0, 0, 0]); // branch placeholder
                 segments.push(segment);
             }
@@ -6097,6 +6110,34 @@ fn append_runtime_float_binary_operation(
     domain: omega_core::arithmetic::ArithmeticDomain,
     guard_scratches: [u8; 2],
 ) -> Result<(), Diagnostic> {
+    if operator == StateGuardOperator::FloatPair {
+        // The pair is internal to MTA lowering. Keep the second operand in the
+        // pinned x9 scratch and return the third through the pair destination.
+        bytes.extend(encode_move_x_register(9, left_register));
+        bytes.extend(encode_move_x_register(left_register, right_register));
+        return Ok(());
+    }
+    if operator == StateGuardOperator::MultiplyThenAdd {
+        // x9 was populated by the structural FloatPair. Two explicit FP ops
+        // preserve round(round(a*b)+c); this is intentionally not FMADD.
+        bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 1, 9)?);
+        bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 1, right_register)?);
+        bytes.extend(encode_float_add(byte_size, 0, 0, 1)?);
+        bytes.extend(float_policy_guard_bytes(
+            domain,
+            operator,
+            byte_size,
+            left_register,
+            right_register,
+            Some(9),
+            guard_scratches[0],
+            guard_scratches[1],
+        )?);
+        bytes.extend(encode_float_move_to_gpr(byte_size, left_register, 0)?);
+        return Ok(());
+    }
     bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
     bytes.extend(encode_float_move_from_gpr(byte_size, 1, right_register)?);
     // F5: the arithmetic ops append the policy guard AFTER the op (the raw
@@ -6108,6 +6149,7 @@ fn append_runtime_float_binary_operation(
             byte_size,
             left_register,
             right_register,
+            None,
             guard_scratches[0],
             guard_scratches[1],
         )?);
@@ -7608,6 +7650,7 @@ mod tests {
                     byte_size,
                     17,
                     26,
+                    None,
                     15,
                     14,
                 )
@@ -7621,6 +7664,59 @@ mod tests {
                 assert_eq!(
                     bytes.len(),
                     float_policy_guard_width(operator, byte_size, ArithmeticDomain::Trapping)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn multiply_then_add_emission_keeps_two_operations_and_width_lockstep() {
+        use omega_core::arithmetic::ArithmeticDomain;
+
+        for byte_size in [4usize, 8] {
+            for domain in [
+                ArithmeticDomain::Exact,
+                ArithmeticDomain::Saturating,
+                ArithmeticDomain::Trapping,
+            ] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    byte_size,
+                    17,
+                    StateGuardOperator::MultiplyThenAdd,
+                    26,
+                    domain,
+                    [15, 14],
+                )
+                .expect("encode multiply-then-add");
+                assert_eq!(
+                    bytes.len(),
+                    24 + float_policy_guard_width(
+                        StateGuardOperator::MultiplyThenAdd,
+                        byte_size,
+                        domain,
+                    ),
+                    "f{} {domain:?} width",
+                    byte_size * 8,
+                );
+                let instructions = bytes
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+                    .collect::<Vec<_>>();
+                assert!(
+                    instructions.contains(&u32::from_le_bytes(
+                        encode_float_multiply(byte_size, 0, 0, 1).expect("encode scalar multiply"),
+                    )),
+                    "f{} must contain a scalar multiply",
+                    byte_size * 8,
+                );
+                assert!(
+                    instructions.contains(&u32::from_le_bytes(
+                        encode_float_add(byte_size, 0, 0, 1).expect("encode scalar add"),
+                    )),
+                    "f{} must contain a separate scalar add",
+                    byte_size * 8,
                 );
             }
         }

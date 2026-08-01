@@ -14655,6 +14655,7 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
         StateGuardOperator::Add
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
+            | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::Divide
             | StateGuardOperator::Min
             | StateGuardOperator::Max
@@ -14666,6 +14667,7 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
 enum FloatPolicySource {
     Result,
     Left,
+    Middle,
     Right,
 }
 
@@ -14676,6 +14678,7 @@ fn append_float_abs_to_rax(bytes: &mut Vec<u8>, source: FloatPolicySource, byte_
     match source {
         FloatPolicySource::Result => bytes.extend([0x4c, 0x89, 0xd0]), // mov rax,r10
         FloatPolicySource::Left => bytes.extend([0x4c, 0x89, 0xc0]),   // mov rax,r8
+        FloatPolicySource::Middle => bytes.extend([0x48, 0x89, 0xd0]), // mov rax,rdx
         FloatPolicySource::Right => bytes.extend([0x4c, 0x89, 0xd8]),  // mov rax,r11
     }
     if byte_size > 4 {
@@ -14708,13 +14711,15 @@ fn patch_policy_branch(
 }
 
 /// F5 float-arithmetic policy guard. Entry: r10=result bits, r8=preserved
-/// left bits, r11=right bits. Exit: r10 is unchanged or clamped; r8/r9/r11
-/// and rax are scratch. The branch targets are patched from the emitted byte
-/// stream, so the width twin can use this function's actual length.
+/// left bits, r11=right bits, and optionally rdx=middle bits for MTA. Exit:
+/// r10 is unchanged or clamped; r8/r9/rdx/r11 and rax are scratch. The branch
+/// targets are patched from the emitted byte stream, so the width twin can use
+/// this function's actual length.
 fn float_policy_guard_bytes(
     domain: ArithmeticDomain,
     operator: StateGuardOperator,
     byte_size: usize,
+    include_middle: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !float_policy_applies(operator, domain) {
         return Ok(Vec::new());
@@ -14751,6 +14756,12 @@ fn float_policy_guard_bytes(
             append_cmp_rax_r9(&mut bytes);
             end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
 
+            if include_middle {
+                append_float_abs_to_rax(&mut bytes, FloatPolicySource::Middle, byte_size);
+                append_cmp_rax_r9(&mut bytes);
+                end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
+            }
+
             append_float_abs_to_rax(&mut bytes, FloatPolicySource::Left, byte_size);
             append_cmp_rax_r9(&mut bytes);
             end_branches.push(append_policy_branch_placeholder(&mut bytes, 0x83)); // jae end
@@ -14781,6 +14792,51 @@ fn float_policy_guard_bytes(
     Ok(bytes)
 }
 
+/// Internal ternary carrier: preserve the second MTA operand in rdx and
+/// return the third in r10. The surrounding binary evaluator already
+/// preserves the first operand on its stack.
+fn append_float_pair(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4c, 0x89, 0xd2]); // mov rdx,r10 (middle)
+    bytes.extend([0x4d, 0x89, 0xda]); // mov r10,r11 (third/result)
+}
+
+fn float_multiply_then_add_bytes(
+    byte_size: usize,
+    domain: ArithmeticDomain,
+) -> Result<Vec<u8>, Diagnostic> {
+    let wide = byte_size > 4;
+    let mut bytes = Vec::new();
+    if float_policy_applies(StateGuardOperator::MultiplyThenAdd, domain) {
+        bytes.extend([0x4d, 0x89, 0xd0]); // mov r8,r10 (first)
+    }
+    if wide {
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0,r10
+        bytes.extend([0x66, 0x48, 0x0f, 0x6e, 0xca]); // movq xmm1,rdx
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xd3]); // movq xmm2,r11
+    } else {
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0,r10d
+        bytes.extend([0x66, 0x0f, 0x6e, 0xca]); // movd xmm1,edx
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xd3]); // movd xmm2,r11d
+    }
+    let scalar_prefix = if wide { 0xf2 } else { 0xf3 };
+    bytes.extend([scalar_prefix, 0x0f, 0x59, 0xc1]); // muls{d,s} xmm0,xmm1
+    bytes.extend([scalar_prefix, 0x0f, 0x58, 0xc2]); // adds{d,s} xmm0,xmm2
+    if wide {
+        bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10,xmm0
+    } else {
+        bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d,xmm0
+    }
+    if float_policy_applies(StateGuardOperator::MultiplyThenAdd, domain) {
+        bytes.extend(float_policy_guard_bytes(
+            domain,
+            StateGuardOperator::MultiplyThenAdd,
+            byte_size,
+            true,
+        )?);
+    }
+    Ok(bytes)
+}
+
 /// Floating-point binary op (f64/f32) that reuses the integer operand pipeline:
 /// the operand bit patterns are already loaded in r10 (left) and r11 (right).
 /// Move them into xmm0/xmm1, run the SSE arithmetic op, then move the result
@@ -14794,6 +14850,14 @@ fn append_runtime_float_binary_operation(
     byte_size: usize,
     domain: ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
+    if operator == StateGuardOperator::FloatPair {
+        append_float_pair(bytes);
+        return Ok(());
+    }
+    if operator == StateGuardOperator::MultiplyThenAdd {
+        bytes.extend(float_multiply_then_add_bytes(byte_size, domain)?);
+        return Ok(());
+    }
     let wide = byte_size > 4;
     let guarded = float_policy_applies(operator, domain);
     if guarded {
@@ -14915,7 +14979,9 @@ fn append_runtime_float_binary_operation(
         bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
     }
     if guarded {
-        bytes.extend(float_policy_guard_bytes(domain, operator, byte_size)?);
+        bytes.extend(float_policy_guard_bytes(
+            domain, operator, byte_size, false,
+        )?);
     }
     Ok(())
 }
@@ -14931,8 +14997,16 @@ fn runtime_float_binary_operation_width_with_domain(
     byte_size: usize,
     domain: ArithmeticDomain,
 ) -> usize {
+    if operator == StateGuardOperator::FloatPair {
+        return 6;
+    }
+    if operator == StateGuardOperator::MultiplyThenAdd {
+        return float_multiply_then_add_bytes(byte_size, domain)
+            .map(|bytes| bytes.len())
+            .unwrap_or(0);
+    }
     let policy_width = if float_policy_applies(operator, domain) {
-        3 + float_policy_guard_bytes(domain, operator, byte_size)
+        3 + float_policy_guard_bytes(domain, operator, byte_size, false)
             .map(|bytes| bytes.len())
             .unwrap_or(0)
     } else {
@@ -16147,6 +16221,7 @@ mod float_arithmetic_policy_tests {
                 StateGuardOperator::Subtract,
                 StateGuardOperator::Multiply,
                 StateGuardOperator::Divide,
+                StateGuardOperator::MultiplyThenAdd,
             ] {
                 for domain in [
                     ArithmeticDomain::Exact,
@@ -16177,10 +16252,13 @@ mod float_arithmetic_policy_tests {
                 StateGuardOperator::Subtract,
                 StateGuardOperator::Multiply,
                 StateGuardOperator::Divide,
+                StateGuardOperator::MultiplyThenAdd,
             ] {
                 for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
-                    let bytes = float_policy_guard_bytes(domain, operator, byte_size)
-                        .expect("encode policy guard");
+                    let include_middle = operator == StateGuardOperator::MultiplyThenAdd;
+                    let bytes =
+                        float_policy_guard_bytes(domain, operator, byte_size, include_middle)
+                            .expect("encode policy guard");
                     let mut branches = 0;
                     for start in 0..bytes.len().saturating_sub(5) {
                         if bytes[start] == 0x0f
@@ -16198,10 +16276,10 @@ mod float_arithmetic_policy_tests {
                             branches += 1;
                         }
                     }
-                    let minimum_branches = if domain == ArithmeticDomain::Trapping {
-                        1
-                    } else {
-                        3
+                    let minimum_branches = match (domain, include_middle) {
+                        (ArithmeticDomain::Trapping, _) => 1,
+                        (_, true) => 4,
+                        _ => 3,
                     };
                     assert!(branches >= minimum_branches);
                     assert_eq!(
@@ -16215,10 +16293,40 @@ mod float_arithmetic_policy_tests {
     }
 
     #[test]
+    fn multiply_then_add_emits_two_scalar_operations_without_contraction() {
+        for (byte_size, prefix) in [(4usize, 0xf3), (8, 0xf2)] {
+            let bytes = float_multiply_then_add_bytes(byte_size, ArithmeticDomain::Exact)
+                .expect("encode exact multiply-then-add");
+            assert!(
+                bytes
+                    .windows(4)
+                    .any(|window| window == [prefix, 0x0f, 0x59, 0xc1]),
+                "f{} must contain a scalar multiply",
+                byte_size * 8,
+            );
+            assert!(
+                bytes
+                    .windows(4)
+                    .any(|window| window == [prefix, 0x0f, 0x58, 0xc2]),
+                "f{} must contain a separate scalar add",
+                byte_size * 8,
+            );
+            assert_eq!(
+                bytes.len(),
+                runtime_float_binary_operation_width_with_domain(
+                    StateGuardOperator::MultiplyThenAdd,
+                    byte_size,
+                    ArithmeticDomain::Exact,
+                ),
+            );
+        }
+    }
+
+    #[test]
     fn float_comparisons_never_gain_policy_bytes() {
         for operator in [StateGuardOperator::Equal, StateGuardOperator::NotEqual] {
             assert!(
-                float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
+                float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8, false)
                     .expect("gated guard")
                     .is_empty()
             );
@@ -16233,7 +16341,7 @@ mod float_arithmetic_policy_tests {
             StateGuardOperator::Sqrt,
         ] {
             assert!(
-                !float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8)
+                !float_policy_guard_bytes(ArithmeticDomain::Trapping, operator, 8, false)
                     .expect("result policy guard")
                     .is_empty()
             );

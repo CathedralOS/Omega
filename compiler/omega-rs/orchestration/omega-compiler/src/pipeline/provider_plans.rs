@@ -252,6 +252,7 @@ fn expected_float_intrinsic(
             let operation = match requirement.as_str() {
                 "minimum" | "maximum" => requirement.as_str(),
                 "negate" | "square_root" | "is_nan" => requirement.as_str(),
+                "multiply_then_add" => requirement.as_str(),
                 _ => return None,
             };
             let expected_primitive = if namespace.as_str() == "F32" {
@@ -271,6 +272,17 @@ fn expected_float_intrinsic(
                     if typed.primitive_type_reference(left.type_reference)
                         != Some(expected_primitive)
                         || typed.primitive_type_reference(right.type_reference)
+                            != Some(expected_primitive)
+                    {
+                        return None;
+                    }
+                }
+                [left, right, addend] if operation == "multiply_then_add" => {
+                    if typed.primitive_type_reference(left.type_reference)
+                        != Some(expected_primitive)
+                        || typed.primitive_type_reference(right.type_reference)
+                            != Some(expected_primitive)
+                        || typed.primitive_type_reference(addend.type_reference)
                             != Some(expected_primitive)
                     {
                         return None;
