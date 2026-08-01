@@ -1083,6 +1083,9 @@ pub struct ExternalBindingRow {
     pub target_name: String,
     pub trait_name: String,
     pub method: String,
+    /// Exact overload identity when the human method name is overloaded.
+    /// Singleton rows retain the established human-name operation key.
+    pub requirement_identity: String,
     /// The attached provider data type that owns the table layout. Empty for
     /// free leaves and required for table-field bindings.
     pub table_type: String,
@@ -1188,7 +1191,12 @@ pub fn merge_external_binding_rows(
             }
             continue;
         }
-        let key = HostOperationKey::from_names(&row.trait_name, &row.method);
+        let operation_identity = if row.requirement_identity.is_empty() {
+            row.method.as_str()
+        } else {
+            row.requirement_identity.as_str()
+        };
+        let key = HostOperationKey::from_names(&row.trait_name, operation_identity);
         if plan
             .bindings
             .iter()
@@ -1273,8 +1281,8 @@ pub fn merge_external_binding_rows(
         insert_platform_lowering(
             plan,
             "*",
-            &row.method,
-            [host_operation(&row.trait_name, &row.method)],
+            operation_identity,
+            [host_operation(&row.trait_name, operation_identity)],
             PlatformCallData::None,
         );
     }
@@ -1505,6 +1513,7 @@ mod binding_plan_tests {
             target_name: "macos_arm64".to_owned(),
             trait_name: "Console".to_owned(),
             method: method.to_owned(),
+            requirement_identity: String::new(),
             table_type: "ConsoleNativeProvider".to_owned(),
             parameter_count: 1,
             boundary_entry_plan: None,
@@ -1539,6 +1548,51 @@ mod binding_plan_tests {
         )
         .expect_err("a freestanding target has no implicit Console intrinsic");
         assert!(freestanding.contains("is unavailable on target"));
+    }
+
+    #[test]
+    fn external_result_overloads_retain_distinct_emitted_keys() {
+        let row = |identity: &str, symbol: &str| ExternalBindingRow {
+            target_name: "windows_x64".to_owned(),
+            trait_name: "Convert".to_owned(),
+            method: "convert".to_owned(),
+            requirement_identity: identity.to_owned(),
+            table_type: String::new(),
+            parameter_count: 1,
+            boundary_entry_plan: None,
+            binding: ExternalBindingKind::DllImport {
+                module: "convert.dll".to_owned(),
+                symbol: symbol.to_owned(),
+            },
+        };
+        let ordinary = "Convert::convert(i32)->i32";
+        let saturating = "Convert::convert(i32)->i32 in Saturating";
+        let mut plan = build_host_abi_plan(NativeTarget::windows_x64());
+
+        merge_external_binding_rows(
+            &mut plan,
+            &[
+                row(ordinary, "convert_ordinary"),
+                row(saturating, "convert_saturating"),
+            ],
+        )
+        .expect("same-name result overloads own distinct host-operation identities");
+
+        for identity in [ordinary, saturating] {
+            let expected = super::HostOperationKey::from_names("Convert", identity);
+            assert!(
+                plan.bindings
+                    .iter()
+                    .any(|(_, binding)| binding.operation_key == expected),
+                "missing exact binding key for {identity}"
+            );
+            assert!(
+                plan.platform_call_lowerings
+                    .iter()
+                    .any(|(_, lowering)| lowering.state.as_ref() == identity),
+                "missing exact lowering key for {identity}"
+            );
+        }
     }
 
     #[test]
@@ -1719,6 +1773,7 @@ mod binding_plan_tests {
                 target_name: "windows_x64".to_owned(),
                 trait_name: "SourceService".to_owned(),
                 method: "invoke".to_owned(),
+                requirement_identity: String::new(),
                 table_type: String::new(),
                 parameter_count: 1,
                 boundary_entry_plan: Some(source_boundary.clone()),

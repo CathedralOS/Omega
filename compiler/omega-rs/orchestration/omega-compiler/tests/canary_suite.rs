@@ -15663,6 +15663,44 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_result_domain_requirement_overload_exit_canary_runs() {
+    // Result-domain identity survives requirement collection, provider-plan
+    // selection, checked adapter dispatch, and both executable engines.
+    let canary = pass_canary("providers/runtime_result_domain_requirement_overload_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("result-overloaded provider requirements should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must dispatch each exact requirement overload; error: {:?}",
+        outcome.error
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-result-overloaded-provider-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("result-overloaded provider requirements should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("result-overloaded provider canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native runtime must dispatch each exact requirement overload"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_selected_provider_adapter_exit_canary_runs() {
     // PRV4b/4c composition: a retained whole-provider selection is
     // authoritative for adapter dispatch. Selecting SecondProvider must ignore
@@ -40266,6 +40304,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/external_leaf_dllimport_compile",
     "providers/runtime_import_call_argument_exit",
     "providers/runtime_adapter_dispatch_exit",
+    "providers/runtime_result_domain_requirement_overload_exit",
     "providers/runtime_adapter_forwarding_exit",
     "providers/runtime_boundary_capability_state_forwarding_exit",
     "host/runtime_console_byte_literal_exit",

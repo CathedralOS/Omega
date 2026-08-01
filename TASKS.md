@@ -495,8 +495,11 @@ ceilings, and publication-before-ledger-record all reject.
   families across locals, assignments, returns, arguments, fields, arrays, and
   no-context calls; singleton declarations retain ordinary compatibility after
   lookup. Runtime and rejection canaries pin empty/qualified dispatch,
-  predicate collapse, and exact-set semantic weakening. Requirement/provider
-  artifact identity and the public conversion families remain.
+  predicate collapse, and exact-set semantic weakening. Requirement collection,
+  provider-plan coverage/fingerprints, adapter dispatch, authored host bindings,
+  and platform-call lowering now retain exact result-overload identity; a
+  dual-engine provider canary pins ordinary versus `Saturating` requirement
+  dispatch. The public conversion families remain.
 - All fixed-width integer pairs are now available from
   `core::numeric_conversion`. Widening is named only where the complete source
   range fits; every other pair—including a signed-to-wider-unsigned conversion
@@ -954,9 +957,10 @@ and allocation handles expose no compiler-owned stack/control storage.
   checked software fallbacks, canonical floating-control-state
   preconditions/restoration, and rung-4 differential evidence.
   The public float/integer and float-format conversion requirement family is
-  settled. Remaining work is source/core publication, result-domain overload
-  resolution, provider selection/lowering, and canaries. The checked-result
-  operation remains separately design-blocked on its public result carrier.
+  settled. Result-domain overload resolution and provider/artifact lowering are
+  now live. Remaining work is source/core publication and conversion-family
+  canaries. The checked-result operation remains separately design-blocked on
+  its public result carrier.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.

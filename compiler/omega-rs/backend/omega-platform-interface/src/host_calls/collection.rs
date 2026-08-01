@@ -139,9 +139,13 @@ fn collect_assignment_result_host_lowering(
     let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol) else {
         return Ok(());
     };
-    let Some((lowering_handle, lowering)) =
-        find_platform_call_lowering_by_target(host_abi, &platform_name, &call.target)
-    else {
+    let Some((lowering_handle, lowering)) = find_platform_call_lowering_by_target(
+        program,
+        host_abi,
+        &platform_name,
+        &call.target,
+        call.target_symbol,
+    ) else {
         // A boundary call with no native lowering on this target: record it as
         // unsupported so the report explains the gap.
         plan.unsupported_calls.insert(UnsupportedHostCall {
@@ -268,9 +272,13 @@ fn collect_local_result_host_lowering(
         }
         return Ok(());
     };
-    let Some((lowering_handle, lowering)) =
-        find_platform_call_lowering_by_target(host_abi, &platform_name, &call.target)
-    else {
+    let Some((lowering_handle, lowering)) = find_platform_call_lowering_by_target(
+        program,
+        host_abi,
+        &platform_name,
+        &call.target,
+        call.target_symbol,
+    ) else {
         plan.unsupported_calls.insert(UnsupportedHostCall {
             source_key: state_key(machine, state),
             statement_index,
@@ -384,7 +392,7 @@ fn collect_call_host_lowering(
             .unwrap_or(0);
 
     let Some((lowering_handle, lowering)) =
-        find_platform_call_lowering(host_abi, &platform_name, call)
+        find_platform_call_lowering(program, host_abi, &platform_name, call)
     else {
         let platform_call = platform_call_name(program, call);
         plan.unsupported_calls.insert(UnsupportedHostCall {

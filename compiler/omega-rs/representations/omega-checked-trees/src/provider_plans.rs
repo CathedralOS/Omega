@@ -140,6 +140,7 @@ mod tests {
                 trait_name: format!("{name}Service"),
                 methods: vec![ServiceMethod {
                     name: method.into(),
+                    requirement_identity: String::new(),
                     parameter_count: 0,
                     parameter_type_identities: Vec::new(),
                     entry_claims: Vec::new(),
@@ -154,6 +155,7 @@ mod tests {
             },
             rows: vec![ProviderPlanRow {
                 method: method.into(),
+                requirement_identity: String::new(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine: format!("{name}Provider::{method}"),
                 },

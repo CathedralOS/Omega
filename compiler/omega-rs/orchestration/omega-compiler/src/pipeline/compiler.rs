@@ -134,6 +134,13 @@ fn extract_external_binding_rows(
                     field: field.as_str().to_owned(),
                 },
             };
+            let requirement_identity =
+                crate::pipeline::provider_plans::satisfied_requirement_identity(
+                    typed,
+                    machine.name.as_str(),
+                    clause.trait_name.as_str(),
+                    requirement.as_str(),
+                );
             rows.push(ExternalBindingRow {
                 // Target-machine filtering clears the selected machine's
                 // marker so it can participate as an ordinary implementation.
@@ -147,11 +154,14 @@ fn extract_external_binding_rows(
                 ),
                 trait_name: clause.trait_name.as_str().to_owned(),
                 method: requirement.as_str().to_owned(),
+                requirement_identity: requirement_identity.clone(),
                 table_type: provider_type.to_owned(),
                 parameter_count: boundary_trait_method_parameter_count(
                     syntax_trees,
+                    typed,
                     clause.trait_name.as_str(),
                     requirement.as_str(),
+                    &requirement_identity,
                 ),
                 boundary_entry_plan: selected_source_boundary_entry_plan(
                     typed,
@@ -160,6 +170,7 @@ fn extract_external_binding_rows(
                     &plan_name,
                     clause.trait_name.as_str(),
                     requirement.as_str(),
+                    &requirement_identity,
                 ),
                 binding,
             });
@@ -179,6 +190,7 @@ fn selected_source_boundary_entry_plan(
     provider_plan_name: &str,
     trait_name: &str,
     method_name: &str,
+    requirement_identity: &str,
 ) -> Option<omega_calling_conventions::BoundaryEntryPlan> {
     if !selected_plan_names
         .iter()
@@ -190,10 +202,11 @@ fn selected_source_boundary_entry_plan(
         .iter()
         .find(|plan| plan.name == provider_plan_name)
         .and_then(|plan| {
-            plan.schema
-                .methods
-                .iter()
-                .find(|method| method.name == method_name)
+            plan.schema.methods.iter().find(|method| {
+                method.name == method_name
+                    && (requirement_identity.is_empty()
+                        || method.requirement_identity == requirement_identity)
+            })
         })?
         .calling_plan_fingerprint?;
     let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
@@ -218,6 +231,13 @@ fn selected_source_boundary_entry_plan(
                         .any(|signature| {
                             signature.symbol == identity.requirement_machine
                                 && signature.name.as_str() == method_name
+                                && (requirement_identity.is_empty()
+                                    || typed
+                                        .normalized_trait_requirement_overload_identity(
+                                            definition, signature,
+                                        )
+                                        .identity()
+                                        == requirement_identity)
                         })
                 })
         })
@@ -230,9 +250,28 @@ fn selected_source_boundary_entry_plan(
 /// missing, which the resolver refuses elsewhere).
 fn boundary_trait_method_parameter_count(
     syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    typed: &omega_typed_trees::TypedTrees,
     trait_name: &str,
     method: &str,
+    requirement_identity: &str,
 ) -> usize {
+    if !requirement_identity.is_empty()
+        && let Some(count) = typed.traits().iter().find_map(|definition| {
+            typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|signature| {
+                    signature.name.as_str() == method
+                        && typed
+                            .normalized_trait_requirement_overload_identity(definition, signature)
+                            .identity()
+                            == requirement_identity
+                })
+                .map(|signature| typed.state_signature_parameters(signature).len())
+        })
+    {
+        return count;
+    }
     for item in syntax_trees.root_items() {
         let omega_syntax_trees::item::Item::Trait(trait_definition) = item else {
             continue;
