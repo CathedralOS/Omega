@@ -216,6 +216,9 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
 }
 
 fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
+    if let Some(target) = integer_to_float_intrinsic_target(intrinsic) {
+        return Some(NamedFloatRealization::Convert(target));
+    }
     match intrinsic {
         "F32::minimum.f32" | "F64::minimum.f64" => Some(NamedFloatRealization::Builtin {
             function: BuiltinFunction::Min,
@@ -267,6 +270,25 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
         }),
         "F32::from_f64.f64" => Some(NamedFloatRealization::Convert(FloatFormat::F32)),
         "F64::from_f32.f32" => Some(NamedFloatRealization::Convert(FloatFormat::F64)),
+        _ => None,
+    }
+}
+
+fn integer_to_float_intrinsic_target(intrinsic: &str) -> Option<FloatFormat> {
+    let (namespace, operation) = intrinsic.split_once("::")?;
+    let (requirement, source_suffix) = operation.rsplit_once('.')?;
+    let source = requirement.strip_prefix("from_")?;
+    if source != source_suffix
+        || !matches!(
+            source,
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+        )
+    {
+        return None;
+    }
+    match namespace {
+        "F32" => Some(FloatFormat::F32),
+        "F64" => Some(FloatFormat::F64),
         _ => None,
     }
 }
@@ -336,6 +358,15 @@ mod tests {
             named_float_realization("F64::from_f32.f32"),
             Some(NamedFloatRealization::Convert(FloatFormat::F64))
         );
+        assert_eq!(
+            named_float_realization("F32::from_i8.i8"),
+            Some(NamedFloatRealization::Convert(FloatFormat::F32))
+        );
+        assert_eq!(
+            named_float_realization("F64::from_u64.u64"),
+            Some(NamedFloatRealization::Convert(FloatFormat::F64))
+        );
+        assert_eq!(named_float_realization("F32::from_u64.i64"), None);
         assert_eq!(
             named_float_realization("F32::square_root_toward_positive.f32"),
             None

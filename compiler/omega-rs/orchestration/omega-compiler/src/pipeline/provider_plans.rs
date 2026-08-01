@@ -278,6 +278,37 @@ fn expected_float_intrinsic(
                     requirement.as_str()
                 ));
             }
+            if let Some(source_name) = requirement.as_str().strip_prefix("from_") {
+                let expected_source = match source_name {
+                    "i8" => omega_typed_trees::types::PrimitiveType::I8,
+                    "i16" => omega_typed_trees::types::PrimitiveType::I16,
+                    "i32" => omega_typed_trees::types::PrimitiveType::I32,
+                    "i64" => omega_typed_trees::types::PrimitiveType::I64,
+                    "u8" => omega_typed_trees::types::PrimitiveType::U8,
+                    "u16" => omega_typed_trees::types::PrimitiveType::U16,
+                    "u32" => omega_typed_trees::types::PrimitiveType::U32,
+                    "u64" => omega_typed_trees::types::PrimitiveType::U64,
+                    _ => return None,
+                };
+                let expected_result = if namespace.as_str() == "F32" {
+                    omega_typed_trees::types::PrimitiveType::F32
+                } else {
+                    omega_typed_trees::types::PrimitiveType::F64
+                };
+                let [value] = parameters else {
+                    return None;
+                };
+                if typed.primitive_type_reference(value.type_reference) != Some(expected_source)
+                    || typed.primitive_type_reference(operator.return_type) != Some(expected_result)
+                {
+                    return None;
+                }
+                return Some(format!(
+                    "{}::{}.{source_name}",
+                    namespace.as_str(),
+                    requirement.as_str()
+                ));
+            }
             let operation = match requirement.as_str() {
                 "minimum" | "maximum" => requirement.as_str(),
                 "negate" | "square_root" | "classify" | "is_nan" | "is_finite" | "is_infinite"

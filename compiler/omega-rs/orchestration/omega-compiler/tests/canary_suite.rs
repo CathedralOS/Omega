@@ -34660,6 +34660,22 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::multiply_then_add",
         "F32::from_f64",
         "F64::from_f32",
+        "F32::from_i8",
+        "F32::from_i16",
+        "F32::from_i32",
+        "F32::from_i64",
+        "F32::from_u8",
+        "F32::from_u16",
+        "F32::from_u32",
+        "F32::from_u64",
+        "F64::from_i8",
+        "F64::from_i16",
+        "F64::from_i32",
+        "F64::from_i64",
+        "F64::from_u8",
+        "F64::from_u16",
+        "F64::from_u32",
+        "F64::from_u64",
     ];
     let canary = pass_canary("operators/float_operator_identities");
     for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
@@ -34688,6 +34704,14 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             {
                 omega_typed_trees::types::PrimitiveType::F32 => "f32",
                 omega_typed_trees::types::PrimitiveType::F64 => "f64",
+                omega_typed_trees::types::PrimitiveType::I8 => "i8",
+                omega_typed_trees::types::PrimitiveType::I16 => "i16",
+                omega_typed_trees::types::PrimitiveType::I32 => "i32",
+                omega_typed_trees::types::PrimitiveType::I64 => "i64",
+                omega_typed_trees::types::PrimitiveType::U8 => "u8",
+                omega_typed_trees::types::PrimitiveType::U16 => "u16",
+                omega_typed_trees::types::PrimitiveType::U32 => "u32",
+                omega_typed_trees::types::PrimitiveType::U64 => "u64",
                 _ => return None,
             };
             Some(format!("{path}.{format}"))
@@ -34792,8 +34816,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count, 44,
-            "the 20 overloaded primitive slots and twenty-four named-operation slots must all select"
+            selected_count, 60,
+            "the 20 overloaded primitive slots and forty named-operation slots must all select"
         );
     }
 }
@@ -34868,6 +34892,83 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
     let output = Command::new(build_dir.join(executable_name()))
         .output()
         .expect("public float-format conversion canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn named_integer_to_float_requirements_execute_in_both_engines() {
+    let canary = pass_canary("float/runtime_named_integer_to_float_conversion_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("public integer-to-float requirements should compile");
+
+    let selected_intrinsics = checked
+        .facts
+        .operators
+        .named_uses()
+        .filter_map(|operator_use| {
+            let plan = checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)?;
+            let [row] = plan.rows.as_slice() else {
+                return None;
+            };
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+                &row.binding
+            else {
+                return None;
+            };
+            name.contains("::from_i")
+                .then_some(name.clone())
+                .or_else(|| name.contains("::from_u").then_some(name.clone()))
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected_intrinsics = [
+        "F32::from_i8.i8",
+        "F32::from_i16.i16",
+        "F32::from_i32.i32",
+        "F32::from_i64.i64",
+        "F32::from_u8.u8",
+        "F32::from_u16.u16",
+        "F32::from_u32.u32",
+        "F32::from_u64.u64",
+        "F64::from_i8.i8",
+        "F64::from_i16.i16",
+        "F64::from_i32.i32",
+        "F64::from_i64.i64",
+        "F64::from_u8.u8",
+        "F64::from_u16.u16",
+        "F64::from_u32.u32",
+        "F64::from_u64.u64",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(selected_intrinsics, expected_intrinsics);
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must execute the complete integer-to-float matrix; error: {:?}",
+        outcome.error
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-named-integer-to-float-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("public integer-to-float requirements should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("public integer-to-float canary should run");
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -39797,6 +39898,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/named_provider_classify_exit",
     "float/named_provider_multiply_then_add_exit",
     "float/runtime_named_format_conversion_exit",
+    "float/runtime_named_integer_to_float_conversion_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
