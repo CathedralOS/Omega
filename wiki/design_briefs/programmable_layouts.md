@@ -161,7 +161,7 @@ for concrete `Placed<P, T>` spellings and omits inaccessible or unauthorized
 operations. Atomic fields now derive exact `bool`/`u32`/`u64` operation-family
 accessors, and binding-private operations are restricted to the nominal policy
 package. The source-visible loan/profile admission surface and public generic
-atomic requirements remain blocked on `OWNER_QUESTIONS.md` #3 and #4;
+atomic requirements remain blocked on `OWNER_QUESTIONS.md` #2 and #3;
 target-specific lowering remains implementation work.
 
 ## Codecs are ordinary checked requirements

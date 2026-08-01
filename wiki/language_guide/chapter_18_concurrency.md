@@ -279,9 +279,11 @@ resource reservation, and inline completion belongs to the concrete `start`
 operation. Omega does not combine these independent facts into a universal
 runtime-supply record.
 
-The future temporal/model checker will consume the same policies, provenance
-anchors, operation contracts, reach, and provider hypotheses; carry is an
-input to that model, not a miniature trace language.
+The deferred composition-proof model will consume the same policies,
+provenance anchors, operation contracts, concrete interaction edges, and
+provider evidence; carry is an input to that model, not a miniature trace
+language. Transitive `reaches` remains an audit/authority set and is not used as
+the concrete interaction graph.
 
 ## Task Storage: Accountable, Provider-Planned
 
@@ -577,20 +579,45 @@ order even though they appear later in this chapter.
 
 ## Concurrent Protocol Model
 
-The proof checker extracts atomic events and a transition model from concurrent
-machine graphs. Atomic reports spell the relations
+The proof checker extracts atomic events from concurrent machine graphs. Atomic
+reports spell the relations
 `sequenced_before`, `reads_from`, `modification_order`, `synchronizes_with`,
 `happens_before`, and `global_sequential_order`; abbreviated academic names are
 not source or report vocabulary.
 
+Ownership, receiver polarity, handle multiplicity, protocol state, claims, and
+`invokes` already constrain which concurrent compositions are legal. A package
+proves its implementation for every topology that its public API admits. Omega
+does not add ambient environment assumptions to package contracts, and
+`reaches` remains the transitive set of boundary services used for authority
+and auditing rather than a concrete interaction graph.
+
+When a concrete customer requires whole-composition protocol properties, the
+compiler will assemble the facts it already tracks into one canonical sealed
+proof-static model at final composition or deployment:
+
 ```text
-processes = concurrently activated machine graphs
-resources = task completions, locks, queues, barriers, pipes, fd waits, external events
-actions = machine transitions and waitable operations
-edges = waits-for, owns, releases, unblocks
+activations = activation classes, creation bounds, core placement, priorities
+resources   = concrete tasks, locks, queues, barriers, waits, external events
+actions     = transitions, atomic events, spawn/join, acquire/release, wait/wake
+edges       = invokes, waits-for, owns, releases, unblocks
+premises    = selected scheduler, timing, fairness, and provider evidence
 ```
 
-Then it can check properties such as:
+Only the compiler constructs this erased model. Ordinary proof machines may
+consume it through `omega::core`; automatic profile checks cover known
+disciplines such as ordered acquisition, structured joins, session endpoints,
+and conserved permits. The checker verifies supplied proofs and does not search
+for one. This model is deliberately deferred until a protocol or safety profile
+needs it.
+
+Implementation properties such as linearizability attach to the selected
+implementation or conformance. Deadlock freedom, starvation freedom, bounded
+memory, and response bounds attach to the composed deployment artifact with
+their exact premises and trust provenance. A hot swap, provider change, or
+topology change revalidates those properties.
+
+Useful composition obligations include:
 
 - A `finish` does not wait on an activation that waits back on its claimant.
 - Lock acquisition order has no cycle.
@@ -600,18 +627,20 @@ Then it can check properties such as:
 - A host wait is either modeled, boundary, or rejected in the selected proof
   mode.
 
-Types supply structural invariants such as initialization, exclusive ownership,
-and claim conservation. Protocol packages author the remaining semantic facts
-they promise, such as publication validity, FIFO behavior, linearizability, or
-absence of lost wakeups. The checker explores legal interleavings, observations,
-and reorderings against those facts; a stale observation is permitted when the
-protocol does not prohibit it.
+Structural and parametric guarantees do not require a closed activation set:
+ownership remains race-free under dynamic spawning, ordered acquisition cannot
+form a lock cycle, and a session protocol may govern every dynamically created
+session. Quantitative whole-system guarantees instead require a closed
+interference envelope: fixed topology, creation bounded by conserved permits,
+enforced admission rates, or an authored proof quantified over the dynamic
+structure. An external arrival rate is never inferred; it is admitted with
+provenance or converted into a derived admitted-work bound by an enforcing rate
+limiter whose rejection/backpressure is part of the service contract.
 
-Finite exploration retains its activation bound and counterexample trace. It
-does not become an unbounded theorem without an authored cutoff, inductive
-invariant, ranking argument, or equivalent proof. Separately compiled packages
-also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #1.
+Bounded exploration is testing, not a contract or artifact guarantee. A theorem
+whose statement deliberately contains a bound remains an ordinary theorem; for
+example, proving a protocol for at most eight participants is distinct from
+searching four participants without a proof.
 
 ## Minimal Deadlock Shapes
 
@@ -648,8 +677,15 @@ Different builds may ask for different concurrency guarantees.
 - Blocking-audited: every waitable host boundary is modeled, boundary, or
   reported.
 - Progress-admitted: external waits name granted progress profiles, timeout,
-  cancellation, or explicit environment assumptions. General machine-side
-  progress proofs wait for trace logic.
+  cancellation, or explicit provider evidence. General machine-side progress
+  proofs wait for the deferred composition model.
+
+Multicore response and blocking guarantees additionally select a scheduler and
+resource-sharing protocol. A single-core priority-ceiling theorem does not lift
+to cross-core shared resources. A deployment profile must partition resources
+per core, forbid cross-core sharing, or select a proved multiprocessor protocol
+with its own blocking analysis. These are provider/profile choices, not source
+keywords.
 
 Servers, kernels, drivers, CLIs, and embedded firmware do not all want the same
 definition of "may block." The proof mode should be explicit in build artifacts.

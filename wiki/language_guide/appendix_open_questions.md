@@ -42,8 +42,6 @@ Last pruned: 2026-07-31.
   mappings before implementing the settled portable fences and protocol
   checker. Complete contention tests, migrate the source ordering vocabulary,
   and keep checked ISA plus device/DMA barriers distinct.
-- Settle modular package environment premises and their composition in owner
-  question #2.
 - Migrate the task-plan prototype away from generalized runtime supply.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-
@@ -72,7 +70,7 @@ Last pruned: 2026-07-31.
   predicate bodies, explicit evidence, and flow narrowing.
 - Finish the remaining domain spaces: general open-family linking,
   `weakens_to` certificate syntax, and the named float-conversion requirement
-  surface (owner question #2).
+  surface (owner question #1).
 - Decide whether invariant windows may ever carry graph-edge proof debt; the
   current rule treats transitions as consumption points.
 - Specify how weakened machine invariants appear in target-state signatures.

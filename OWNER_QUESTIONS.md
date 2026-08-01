@@ -8,51 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-07-31.
 
-## 1. How are modular concurrency environment premises authored and discharged?
-
-Omega can derive normalized atomic events and concurrent transitions from a
-closed machine graph, but a separately compiled package cannot know which
-operations its consumers will run concurrently. Whole-program exploration alone
-therefore cannot justify a reusable protocol contract. A package must publish
-the fact it establishes together with the smallest environment premise under
-which the proof holds, and a consumer must discharge that premise when the
-package is instantiated or composed.
-
-The premise is not a restatement of the package body or a fixed thread count.
-It may constrain which public operations overlap, which atomic locations the
-environment may modify, which callback or re-entry edges exist, and which
-fairness or progress hypotheses are admitted. A finite exploration bound is
-evidence only for that bound unless an authored cutoff theorem connects it to
-the unbounded protocol.
-
-Decide:
-
-- the source surface for an open package to declare permitted concurrent
-  operations, environment writes, re-entry edges, and positive progress
-  assumptions without exposing the internal event graph;
-- which premises a checked body can infer and which must be authored at a
-  bodyless, imported, generic, dynamic, or otherwise open surface;
-- how premises compose through package calls, transparent refinements,
-  protocol wrappers, dynamic operational envelopes, and selected providers;
-- how a consumer discharges a premise from ownership, access contracts,
-  activation topology, provider receipts, or another selected protocol proof;
-- how bounded exploration records activation bounds and authored cutoff
-  evidence without promoting testing to an unbounded theorem;
-- how opaque or admitted providers retain exact trust provenance in the
-  resulting proof rather than laundering an assumption into a derived fact;
-  and
-- how diagnostics connect a failed composition site to the originating
-  package assumption and a concrete counterexample trace.
-
-Recommendation: reuse normalized machine contracts and selected-conformance
-evidence for an assume/guarantee protocol layer. Infer the smallest premise
-where the complete body and activation graph are closed; require an authored
-premise at open published surfaces; and make consumers discharge it explicitly
-or through derived composition evidence. Keep finite exploration parameters in
-the proof artifact, never in semantic contract identity unless the published
-protocol itself is deliberately bounded.
-
-## 2. What is the public float-conversion requirement family?
+## 1. What is the public float-conversion requirement family?
 
 The float record settles conversion semantics but not the public names or
 signatures for policy-bearing conversions. `FloatSemantics` already defines
@@ -87,7 +43,7 @@ exact/trapping/saturating result adapters; keep directed rounding as separate
 operation names; and omit same-format conversion. This follows the settled
 operand-driven provider model without carrying type or policy tags at runtime.
 
-## 3. What is the source-visible placed-storage admission surface?
+## 2. What is the source-visible placed-storage admission surface?
 
 The normalized semantics are settled: a qualified `Extent` yields a bounded
 shared or exclusive loan; a selected provider binds one offset-keyed
@@ -134,7 +90,7 @@ one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
 make `place` the sole consuming constructor for `Placed<P, T>`. Package
 wrappers may compose those operations but cannot mint or erase their evidence.
 
-## 4. What is the generic atomic accessor requirement family?
+## 3. What is the generic atomic accessor requirement family?
 
 Placed atomic fields already derive unique opaque accessors and direct atomic
 syntax is gated per load, store, swap, compare-exchange, and fetch operation.
@@ -166,7 +122,7 @@ failure orderings. Derive only the conformances admitted by the normalized
 placement, and let ordinary atomic types conform to the same operation
 requirements so generic protocol code does not need a placed-only abstraction.
 
-## 5. What is the v1 canonical portable IR contract?
+## 4. What is the v1 canonical portable IR contract?
 
 The architecture requires one versioned, distributable, interpreter-defined IR
 whose semantics are independent from mutable optimizer representations and
@@ -215,7 +171,7 @@ derive the separately versioned fuel schedule over its stable operation/block
 identities. Do not canonize TypedTrees or a mutable backend representation by
 accident.
 
-## 6. How does a boundary requirement author algebra-denominated backing?
+## 5. How does a boundary requirement author algebra-denominated backing?
 
 The semantic rule is settled: an admitted content-bearing root must receive a
 per-invocation backing receipt in the same compiler-owned algebra as its
@@ -252,7 +208,7 @@ binder erases at runtime, cannot be constructed in ordinary source, and the
 normalized algebra expression plus containment theorem survive beside the
 receipt identity.
 
-## 7. How are content-conservation theorems authored in contracts?
+## 6. How are content-conservation theorems authored in contracts?
 
 The n-ary law and its closed algebras are settled, and checked claim outcome
 maps already identify which input claim feeds each result path. The design

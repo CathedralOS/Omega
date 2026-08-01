@@ -39,7 +39,7 @@ may run forever when no completion guarantee is authored. This is the source mod
 event loops, services, schedulers, and other productive machines.
 
 Productivity does not by itself prove fairness, eventual wakeup, deadlines, or
-starvation freedom. Decision 23 represents v1 provider/environment premises as
+starvation freedom. Decision 23 represents v1 provider progress evidence as
 sealed opaque progress profiles admitted through boundary grants. They remain
 separate from termination and from the negative guarantees obtained by
 omitting `suspends` or `blocks`.
