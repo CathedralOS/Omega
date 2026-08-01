@@ -227,6 +227,11 @@ a ceiling to time requires a separate target timing model and retains that
 model's trust provenance. See
 [`canonical_ir_fuel_and_resource_provisioning.md`](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
+A hard-control profile that requires bounded response rejects both
+`Unknown(reason)` and `NoFiniteGuarantee(edge)`. It does not make an unbounded
+lock or wait safe by force-terminating its holder, and it need not build a
+dynamic wait-for graph merely to admit primitives that the profile forbids.
+
 ## Carry Policy Is A Product
 
 Values that remain live across scheduler/storage transitions contribute four
@@ -606,7 +611,7 @@ Finite exploration retains its activation bound and counterexample trace. It
 does not become an unbounded theorem without an authored cutoff, inductive
 invariant, ranking argument, or equivalent proof. Separately compiled packages
 also need an environment premise describing permitted concurrent use; the
-source and composition rules for those premises remain owner question #2.
+source and composition rules for those premises remain owner question #1.
 
 ## Minimal Deadlock Shapes
 

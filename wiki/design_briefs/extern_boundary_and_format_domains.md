@@ -547,9 +547,7 @@ handoff. Those details stay in providers. Image/subsystem selection belongs in
 
 ## Still open
 
-- contained execution failure with outstanding obligations
-  (`OWNER_QUESTIONS.md` #1); and
-- target-specific launch/exit details not covered by existing calling plans.
+Target-specific launch/exit details not covered by existing calling plans.
 
 Exact `Build` library method names for choosing a target profile remain
 ordinary library/API engineering. Per-requirement provider override has settled on

@@ -171,8 +171,8 @@ versioned-registration or atomic-handover semantics for shared logical names.
 
 A reclaimed mapping may reuse its virtual address only after quiescence proves
 that no live authority reaches it. Bare `addr` and sealed inert `Ptr<T>` values
-cannot recreate such authority. An incomplete or poisoned drain, or a possible
-untracked opaque holder, leaves the mapping reserved and
+cannot recreate such authority. An incomplete drain or a possible untracked
+opaque holder leaves the mapping reserved and
 unmapped/trapping until the containing execution domain retires. That
 quarantine detects stale entry; it does not discharge outstanding obligations.
 

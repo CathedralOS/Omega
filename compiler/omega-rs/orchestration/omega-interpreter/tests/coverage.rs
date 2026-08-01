@@ -4372,7 +4372,7 @@ machine Main::main(&mut self) {
     );
 }
 
-/// std Console BYTE ops (OWNER_QUESTIONS #12): `read_byte()` yields each raw
+/// std Console BYTE ops: `read_byte()` yields each raw
 /// stdin byte as `ByteRead::Byte { value }`, then `ByteRead::Eof` at
 /// end-of-input (Eof = ordinal 0 = the ZII zero case; sentinel spellings
 /// vetoed); `write_byte(b)` appends the byte to stdout. The program echoes

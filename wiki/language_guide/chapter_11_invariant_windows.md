@@ -58,6 +58,30 @@ A consumption point is anywhere in-domain-ness could be observed:
 - **Any boundary or capability-carrying call.** The world can observe
   memory, whether or not the call names the place.
 
+## Failure Does Not Cancel A Window
+
+A modeled recoverable failure is an ordinary sum outcome handled at a call or
+transition edge. Calls and transitions are consumption points, so every path to
+that outcome already has all reachable invariant windows closed. There is no
+`cancel`, `poison`, `unstable`, or other runtime state for proof debt: a window
+closes by re-establishing its facts, or the program is rejected.
+
+Proof facts have no mutable runtime truth bit. A runtime check or admitted
+receipt may establish a fact, and artifacts may retain its evidence provenance,
+but later code cannot retroactively downgrade the fact. If an admitted provider
+lied or hardware violated the execution model, the earlier proof was unsound;
+marking metadata afterward cannot repair code that already relied on it. A
+detected violation takes the process-wide abort path; any continued service
+comes from an independently designed deployment containment or failover path.
+Omega's runtime never chooses to asynchronously destroy checked execution
+inside a window.
+
+Unestablished storage is different from an established value whose invariant
+was later broken. If establishment fails, no `T` exists and the raw storage may
+be released through its ordinary storage claim. Once `T` is established, its
+cleanup and obligations may depend on its invariant, so it cannot be discarded
+mid-window.
+
 ## Exclusivity Is The Borrow Checker
 
 A window is sound because nothing can see into it, and that is the ordinary
