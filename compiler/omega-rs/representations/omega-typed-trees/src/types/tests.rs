@@ -113,6 +113,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
         TypeConstraintNode::Range { minimum, maximum },
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated("Utf8"),
+            arguments: Vec::new(),
             symbol: domain_symbol,
             semantic_id,
             predicate_body,

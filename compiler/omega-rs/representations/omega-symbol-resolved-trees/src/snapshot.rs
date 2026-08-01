@@ -614,6 +614,10 @@ pub enum TypeConstraintSnapshot {
     ArithmeticDomain {
         domain: String,
     },
+    Domain {
+        name: String,
+        arguments: Vec<TypeReferenceSnapshot>,
+    },
 }
 
 fn data_definition_snapshot(
@@ -1400,11 +1404,20 @@ fn type_constraint_snapshot(
     constraint: &TypeConstraint,
 ) -> TypeConstraintSnapshot {
     match constraint {
-        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => {
-            TypeConstraintSnapshot::Named {
-                name: name.to_string(),
-            }
-        }
+        TypeConstraint::Named(name) => TypeConstraintSnapshot::Named {
+            name: name.to_string(),
+        },
+        TypeConstraint::Domain(domain) => TypeConstraintSnapshot::Domain {
+            name: domain.name.to_string(),
+            arguments: program
+                .tables
+                .declarations
+                .child_type_references
+                .span_or_empty(domain.arguments)
+                .iter()
+                .map(|argument| type_reference_snapshot(program, argument))
+                .collect(),
+        },
         TypeConstraint::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: table_expression_snapshot(program, *minimum),
             maximum: table_expression_snapshot(program, *maximum),

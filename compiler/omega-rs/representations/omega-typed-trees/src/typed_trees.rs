@@ -355,6 +355,23 @@ impl TypedTrees {
             .append_to_span(&mut self.roots.domain_definitions, domain_definition);
     }
 
+    pub fn push_domain_type_parameter(
+        &mut self,
+        domain: &mut domain::DomainDefinition,
+        parameter: data::TypeParameter,
+    ) {
+        self.data_type_parameters
+            .append_to_span(&mut domain.type_parameters, parameter);
+    }
+
+    pub fn domain_type_parameters(
+        &self,
+        domain: &domain::DomainDefinition,
+    ) -> &[data::TypeParameter] {
+        self.data_type_parameters
+            .span_or_empty(domain.type_parameters)
+    }
+
     pub fn push_domain_operator(
         &mut self,
         domain: &mut domain::DomainDefinition,

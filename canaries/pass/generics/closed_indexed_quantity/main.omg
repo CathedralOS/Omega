@@ -1,0 +1,85 @@
+// PDI2: one erased domain family spans carriers and distinguishes canonical
+// closed proof-static indices without changing either carrier's layout.
+
+data Unit {
+    scale: i32;
+    length_exponent: i32;
+    time_exponent: i32;
+}
+
+data Units {
+}
+
+const Units::METER: Unit = Unit {
+    scale: 1,
+    length_exponent: 1,
+    time_exponent: 0
+};
+
+const Units::METER_REORDERED: Unit = Unit {
+    time_exponent: 0,
+    length_exponent: 1,
+    scale: 1
+};
+
+const Units::SECOND: Unit = Unit {
+    scale: 1,
+    length_exponent: 0,
+    time_exponent: 1
+};
+
+const Units::METER_PER_SECOND: Unit = Unit {
+    scale: 1,
+    length_exponent: 1,
+    time_exponent: -1
+};
+
+domain<T, const U: Unit> T::Quantity<U>;
+
+// Operators remain ordinary per-pair declarations. The family itself imposes
+// no carrier-wide arithmetic requirement.
+operator Quantity::add_i64_meters(
+    left: i64 in Quantity<Units::METER>,
+    right: i64 in Quantity<Units::METER>
+) -> i64 in Quantity<Units::METER>;
+
+operator Quantity::add_f64_meters(
+    left: f64 in Quantity<Units::METER>,
+    right: f64 in Quantity<Units::METER>
+) -> f64 in Quantity<Units::METER>;
+
+// Direct const binders are the PDI2 generic-destination surface. This is not
+// PDI3 computation: the result index is exactly the selected named value.
+trait QuantityConversion {
+    machine retag_i64<const To: Unit>(value: i64) -> i64 in Quantity<To>;
+}
+
+machine keep_i64_meters(
+    value: i64 in Quantity<Units::METER>
+) -> i64 in Quantity<Units::METER> {
+    transition { _ -> value }
+}
+
+machine canonical_meter_identity(
+    value: i64 in Quantity<Units::METER>
+) -> i64 in Quantity<Units::METER_REORDERED> {
+    transition { _ -> value }
+}
+
+machine keep_f64_meters(
+    value: f64 in Quantity<Units::METER>
+) -> f64 in Quantity<Units::METER> {
+    transition { _ -> value }
+}
+
+machine keep_speed(
+    value: i64 in Quantity<Units::METER_PER_SECOND>
+) -> i64 in Quantity<Units::METER_PER_SECOND> {
+    transition { _ -> value }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

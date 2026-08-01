@@ -423,12 +423,14 @@ Migration should:
 7. preserve those facts through generics, contracts, artifacts, and separate
    compilation.
 
-Structured canonical const values are implemented. Next add closed indexed
-domains and a units package with named combinations; this already spans
-carriers and supports destination-parameterized conversion. Only afterward add
-computed open result indices, licensed normalization, and retained
-compatibility evidence. They extend the facts a domain may carry without
-changing this qualification model.
+Structured canonical const values and closed indexed family constraints are
+implemented. One declaration spans carriers, canonical closed values identify
+instances, direct destination binders survive generic signatures, and ordinary
+per-pair operators attach to the family without affecting layout. Finish the
+indexed explicit-qualification path and units package to exercise an executable
+destination-parameterized conversion. Only afterward add computed open result
+indices, licensed normalization, and retained compatibility evidence. They
+extend the facts a domain may carry without changing this qualification model.
 
 ## Cross-references
 

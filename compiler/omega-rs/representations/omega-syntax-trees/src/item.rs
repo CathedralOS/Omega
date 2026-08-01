@@ -608,7 +608,12 @@ pub struct DataVariant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainDefinition {
     pub name: Identifier,
+    /// Generic carrier binder followed by proof-static const binders. Empty
+    /// for an ordinary monomorphic domain.
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub target_type: crate::types::TypeReferenceHandle,
+    /// Const binders selected into family identity (`Quantity<U>`).
+    pub index_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// Retained for transparent-alias publication legality. General module
     /// export semantics remain owned by explicit `export` items.
     pub is_public: bool,
@@ -635,7 +640,9 @@ impl Default for DomainDefinition {
     fn default() -> Self {
         Self {
             name: Identifier::generated(""),
+            type_parameters: HandleSpan::empty(),
             target_type: crate::types::TypeReferenceHandle::invalid(),
+            index_arguments: HandleSpan::empty(),
             is_public: false,
             alias: None,
             authored_routes: Vec::new(),

@@ -218,10 +218,6 @@ pub(crate) fn desugar_generic_data_instances(
             },
         );
     }
-    if generic_data.is_empty() {
-        return Ok(());
-    }
-
     // Const-v0 declarations disappear during symbol resolution, but generic
     // data instances are selected before that stage. Retain every declaration
     // for structured-value canonicalization and the integer subset separately
@@ -258,6 +254,13 @@ pub(crate) fn desugar_generic_data_instances(
             Some((qualified_name, value))
         })
         .collect();
+
+    canonicalize_closed_domain_indices(syntax, &const_definitions, &const_values)
+        .map_err(|diagnostic| vec![diagnostic])?;
+
+    if generic_data.is_empty() {
+        return Ok(());
+    }
 
     // FIXPOINT. Each round scans every type-reference position for a
     // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
@@ -880,6 +883,230 @@ fn qualified_const_name(definition: &ConstDefinition) -> String {
             definition.name.as_str()
         )
     }
+}
+
+#[derive(Clone)]
+struct ClosedDomainFamily {
+    parameters: Vec<(String, TypeReferenceHandle)>,
+}
+
+/// PDI2's closed-index precursor runs beside generic-data canonicalization but
+/// does not monomorphize the domain: the family remains nominal and erased.
+/// Only its const arguments are rewritten to the same canonical leaves used by
+/// PDI1 generic identity.
+fn canonicalize_closed_domain_indices(
+    syntax: &mut SyntaxTrees,
+    const_definitions: &HashMap<String, ConstDefinition>,
+    const_values: &HashMap<String, i128>,
+) -> Result<(), Diagnostic> {
+    let mut families = HashMap::<String, ClosedDomainFamily>::new();
+
+    for item in syntax.root_items() {
+        let Item::Domain(definition) = item else {
+            continue;
+        };
+        let parameters = syntax
+            .tables
+            .items
+            .type_parameters(definition.type_parameters);
+        let header_arguments = syntax
+            .tables
+            .type_references
+            .type_reference_handles(definition.index_arguments);
+
+        if parameters.is_empty() {
+            if !header_arguments.is_empty() {
+                return Err(Diagnostic::error(format!(
+                    "domain `{}` supplies index arguments but declares no generic carrier/const telescope",
+                    definition.name
+                )));
+            }
+            continue;
+        }
+
+        let Some(carrier) = parameters.first() else {
+            unreachable!();
+        };
+        if !matches!(carrier.kind, TypeParameterKind::Type) {
+            return Err(Diagnostic::error(format!(
+                "indexed domain `{}` must declare its carrier type parameter first",
+                definition.name
+            )));
+        }
+        let TypeReferenceNode::Named(target) = syntax
+            .tables
+            .type_references
+            .type_reference(definition.target_type)
+        else {
+            return Err(Diagnostic::error(format!(
+                "indexed domain `{}` must use its carrier binder directly before `::{}`",
+                definition.name, definition.name
+            )));
+        };
+        if target.as_str() != carrier.name.as_str() {
+            return Err(Diagnostic::error(format!(
+                "indexed domain `{}` binds carrier `{}` but declares the family over `{target}`",
+                definition.name, carrier.name
+            )));
+        }
+
+        let mut const_parameters = Vec::new();
+        for parameter in &parameters[1..] {
+            let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                return Err(Diagnostic::error(format!(
+                    "indexed domain `{}` may declare only one carrier type followed by proof-static const parameters",
+                    definition.name
+                )));
+            };
+            validate_const_index_type(syntax, type_reference, &mut HashSet::new()).map_err(
+                |reason| {
+                    Diagnostic::error(format!(
+                        "indexed domain `{}::{}` has an ineligible index type: {reason}",
+                        definition.name, parameter.name
+                    ))
+                },
+            )?;
+            const_parameters.push((parameter.name.as_str().to_owned(), type_reference));
+        }
+        if const_parameters.is_empty() {
+            return Err(Diagnostic::error(format!(
+                "generic domain `{}` must declare at least one proof-static const index after its carrier",
+                definition.name
+            )));
+        }
+        if header_arguments.len() != const_parameters.len() {
+            return Err(Diagnostic::error(format!(
+                "indexed domain `{}` declares {} const parameter(s) but selects {} index argument(s) in its family header",
+                definition.name,
+                const_parameters.len(),
+                header_arguments.len()
+            )));
+        }
+        for ((parameter_name, _), argument) in const_parameters.iter().zip(header_arguments) {
+            let TypeReferenceNode::Named(argument_name) =
+                syntax.tables.type_references.type_reference(*argument)
+            else {
+                return Err(Diagnostic::error(format!(
+                    "indexed domain `{}` must select each const binder directly in its family header",
+                    definition.name
+                )));
+            };
+            if argument_name.as_str() != parameter_name {
+                return Err(Diagnostic::error(format!(
+                    "indexed domain `{}` must select const binder `{parameter_name}` in declaration order, not `{argument_name}`",
+                    definition.name
+                )));
+            }
+        }
+        if families
+            .insert(
+                definition.name.as_str().to_owned(),
+                ClosedDomainFamily {
+                    parameters: const_parameters,
+                },
+            )
+            .is_some()
+        {
+            return Err(Diagnostic::error(format!(
+                "indexed domain family `{}` is declared more than once",
+                definition.name
+            )));
+        }
+    }
+
+    for constraint in syntax.tables.type_references.domain_constraints() {
+        let Some(family) = families.get(constraint.name.as_str()) else {
+            continue;
+        };
+        let arguments = syntax
+            .tables
+            .type_references
+            .type_reference_handles(constraint.arguments)
+            .to_vec();
+        if arguments.len() != family.parameters.len() {
+            return Err(Diagnostic::error(format!(
+                "indexed domain `{}` requires {} closed const argument(s), but {} were supplied",
+                constraint.name,
+                family.parameters.len(),
+                arguments.len()
+            )));
+        }
+        for ((parameter_name, parameter_type), argument) in family.parameters.iter().zip(arguments)
+        {
+            let node = syntax
+                .tables
+                .type_references
+                .type_reference(argument)
+                .clone();
+            match node {
+                TypeReferenceNode::Named(name) => {
+                    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+                        let required = syntax_type_identity(syntax, *parameter_type)
+                            .map_err(Diagnostic::error)?;
+                        if value.type_name != required {
+                            return Err(Diagnostic::error(format!(
+                                "index argument for `{}::{parameter_name}` has canonical type `{}`, expected `{required}`",
+                                constraint.name, value.type_name
+                            )));
+                        }
+                        continue;
+                    }
+                    if let Some(value) = const_values.get(name.as_str()) {
+                        syntax.tables.type_references.replace_type_reference(
+                            argument,
+                            TypeReferenceNode::Named(Identifier::generated(value.to_string())),
+                        );
+                        continue;
+                    }
+                    let Some(definition) = const_definitions.get(name.as_str()) else {
+                        // A direct generic const binder is resolved and checked
+                        // later in its declaration context. Unknown names fail
+                        // there as well; never guess that a type is a value.
+                        continue;
+                    };
+                    let value = canonicalize_const_definition(syntax, definition, *parameter_type)
+                        .map_err(|reason| {
+                            Diagnostic::error(format!(
+                                "index argument for `{}::{parameter_name}` is invalid: {reason}",
+                                constraint.name
+                            ))
+                        })?;
+                    syntax.tables.type_references.replace_type_reference(
+                        argument,
+                        TypeReferenceNode::Named(Identifier::generated(value.atom())),
+                    );
+                }
+                TypeReferenceNode::ConstExpression(expression) => {
+                    let value = evaluate_const_argument_expression(
+                        syntax,
+                        expression,
+                        const_values,
+                        &HashMap::new(),
+                        &HashSet::new(),
+                        const_integer_type(syntax, *parameter_type),
+                    )
+                    .and_then(EvaluatedConst::into_concrete)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "index argument expression for `{}` is invalid: {reason}",
+                            constraint.name
+                        ))
+                    })?;
+                    syntax.tables.type_references.replace_type_reference(
+                        argument,
+                        TypeReferenceNode::Named(Identifier::generated(value.to_string())),
+                    );
+                }
+                _ => {
+                    return Err(Diagnostic::error(format!(
+                        "indexed domain `{}::{parameter_name}` requires a closed const value or direct const binder",
+                        constraint.name
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2278,7 +2505,10 @@ fn type_reference_slug(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Opt
 fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
     match constraint {
         TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
-        TypeConstraintNode::Domain(name) => Some(name.as_str().to_string()),
+        TypeConstraintNode::Domain(domain) if domain.arguments.is_empty() => {
+            Some(domain.name.as_str().to_string())
+        }
+        TypeConstraintNode::Domain(_) => None,
         TypeConstraintNode::ArithmeticDomain(domain) => Some(domain.name().to_string()),
         TypeConstraintNode::Range { .. } => None,
     }

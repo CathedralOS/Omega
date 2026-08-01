@@ -150,9 +150,14 @@ fn collect_type_domain_homes(
                 };
                 for (index, domain) in program.domain_definitions.iter().enumerate() {
                     let full = &domain_names[index];
-                    if (full == authored.as_str()
-                        || full.rsplit("::").next() == Some(authored.as_str()))
-                        && type_references_match(program, carrier, &domain.target_type)
+                    if (full == authored.name.as_str()
+                        || full.rsplit("::").next() == Some(authored.name.as_str()))
+                        && domain_accepts_carrier(
+                            program,
+                            domain,
+                            carrier,
+                            authored.arguments.len(),
+                        )
                         && !matches.contains(&index)
                     {
                         matches.push(index);
@@ -169,6 +174,33 @@ fn collect_type_domain_homes(
         | TypeReference::SelfType { .. }
         | TypeReference::Unit => {}
     }
+}
+
+fn domain_accepts_carrier(
+    program: &SymbolResolvedTrees,
+    domain: &omega_symbol_resolved_trees::domain::DomainDefinition,
+    carrier: &omega_symbol_resolved_trees::types::TypeReference,
+    argument_count: usize,
+) -> bool {
+    let parameters = program.data_type_parameters(domain.type_parameters);
+    if parameters.is_empty() {
+        return argument_count == 0 && type_references_match(program, carrier, &domain.target_type);
+    }
+    let Some(parameter) = parameters.first() else {
+        return false;
+    };
+    if !matches!(
+        parameter.kind,
+        omega_symbol_resolved_trees::data::TypeParameterKind::Type
+    ) || argument_count != parameters.len().saturating_sub(1)
+    {
+        return false;
+    }
+    matches!(
+        &domain.target_type,
+        omega_symbol_resolved_trees::types::TypeReference::Named { name, .. }
+            if name.as_str() == parameter.name.as_str()
+    )
 }
 
 fn type_references_match(

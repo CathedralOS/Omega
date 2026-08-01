@@ -88,6 +88,23 @@ program explicitly asks for a runtime diagnostic/checking build.
 This chapter assumes Chapter 7's contract model already exists. Domains do not
 replace contracts; they give contracts reusable semantic names.
 
+### Closed indexed domain families
+
+A domain family may bind its carrier and one or more proof-static const
+parameters explicitly:
+
+```omega
+domain<T, const U: Unit> T::Quantity<U>;
+```
+
+Bindings select a closed canonical index, such as
+`i64 in Quantity<Units::METER>`, or use a direct const binder in a generic
+signature. Structurally equal values have one semantic identity even when a
+record literal spells its fields in a different order; different values are
+different domains and cannot flow into one another implicitly. The carrier is
+unchanged at runtime. Computed index expressions and executable qualification
+into a generic destination remain staged work.
+
 ## Domains In Contracts
 
 Machines and states can require or guarantee domains.
@@ -857,8 +874,9 @@ policy is explicit because it changes future operator behavior.
 terminating normalizer owns what a domain expression *is*; type identity,
 semantic interface identity, and monomorphization keys depend only on it. The
 entailment engine proves propositions *about* expressions and can never
-redefine canonical identity. Future indexed domains extend the normalized form
-with canonical closed index values and licensed symbolic index expressions;
+redefine canonical identity. Closed indexed domains extend the normalized form
+with canonical closed index values; future computed indices add licensed
+symbolic index expressions.
 proved compatibility remains subsumption rather than type-identity mutation.
 Physical ABI remains the **carrier's** ABI (representation erasure holds).
 
@@ -1210,8 +1228,9 @@ Working interpretation:
 > establishment routes; every routed qualification names its exact checked or
 > boundary requirement in the domain declaration. Exact integer representation
 > conversion now uses proof-directed `as`; unit conversion remains ordinary
-> library behavior. Proof-static indexed domains are staged as structured const
-> values, closed indexed families, then computed open result indices.
+> library behavior. Structured const values and closed indexed-family binding
+> constraints are live; indexed explicit qualification remains before computed
+> open result indices.
 > Per-atom weakening is enforced at ordinary value-flow boundaries:
 > predicate-only atoms may disappear implicitly, while semantic meaning,
 > non-owning routed provenance, and non-Exact arithmetic policy require an

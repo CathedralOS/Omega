@@ -8,7 +8,9 @@ use omega_core::symbols::SymbolHandle;
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub target_type: TypeReferenceHandle,
+    pub index_arguments: Vec<TypeReferenceHandle>,
     pub is_public: bool,
     /// Authored transparent alias theory. Semantic consumers expand this
     /// record before normalization rather than treating the alias as evidence.
@@ -35,7 +37,9 @@ impl Default for DomainDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            type_parameters: HandleSpan::empty(),
             target_type: TypeReferenceHandle::invalid(),
+            index_arguments: Vec::new(),
             is_public: false,
             alias: None,
             predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,

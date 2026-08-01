@@ -11,6 +11,13 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DomainDefinition> {
+    let (generic_parameters, input) =
+        crate::parser::data::parse_type_parameters(syntax_trees, input)?;
+    if !generic_parameters.lifetime_parameters.is_empty() {
+        return Err(input.error_here(
+            "domain families take a carrier type and proof-static const parameters, not lifetime parameters",
+        ));
+    }
     // The domain TARGET is normally a named type (`domain String::Utf8`), but it
     // may be a slice/array carrier (`domain [u8]::Utf8`; encoding domains over the
     // `[u8]` slice). A bracket-prefixed target is parsed as a full type reference;
@@ -30,7 +37,13 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     };
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (domain_name, input) = input.take_identifier()?;
-    let name = Identifier::generated(format!("{target_label}::{domain_name}"));
+    let (index_arguments, input) =
+        crate::parser::type_reference::parse_domain_argument_handles(syntax_trees, input)?;
+    let name = if generic_parameters.type_parameters.is_empty() {
+        Identifier::generated(format!("{target_label}::{domain_name}"))
+    } else {
+        domain_name
+    };
     let (alias, authored_routes, predicate_body, facts, operators, body_token_count, input) =
         if input.at_punctuation(PunctuationKind::Equal) {
             let (alias, input) = parse_domain_alias(syntax_trees, input)?;
@@ -62,7 +75,9 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     Ok((
         DomainDefinition {
             name,
+            type_parameters: generic_parameters.type_parameters,
             target_type,
+            index_arguments,
             is_public: false,
             alias,
             authored_routes,

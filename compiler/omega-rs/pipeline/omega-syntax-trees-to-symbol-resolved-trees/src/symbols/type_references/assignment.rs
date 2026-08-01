@@ -70,11 +70,27 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         });
 
     program.roots.domain_definitions.for_each_mut(|domain| {
+        let type_parameters = data_type_parameters
+            .span_or_empty(domain.type_parameters)
+            .to_vec();
+        assign_type_parameter_constraint_symbols(
+            symbols,
+            child_type_references,
+            &type_parameters,
+            data_type_parameters.span_mut_or_empty(domain.type_parameters),
+        );
         assign_type_reference_symbol_with_locals(
             symbols,
             child_type_references,
-            &[],
+            &type_parameters,
             &mut domain.target_type,
+        );
+        assign_type_reference_argument_symbols(
+            symbols,
+            child_type_references,
+            &type_parameters,
+            SymbolHandle::invalid(),
+            domain.index_arguments,
         );
     });
 

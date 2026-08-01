@@ -253,7 +253,11 @@ pub struct DataPayloadFieldSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DomainDefinitionSnapshot {
     pub name: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub type_parameters: Vec<DomainTypeParameterSnapshot>,
     pub target_type: TypeReferenceSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub index_arguments: Vec<TypeReferenceSnapshot>,
     pub is_public: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub alias: Vec<DomainAliasConstituentSnapshot>,
@@ -265,6 +269,14 @@ pub struct DomainDefinitionSnapshot {
     pub facts: Vec<ProofFactSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub body_token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DomainTypeParameterSnapshot {
+    pub name: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub const_type: Option<TypeReferenceSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -604,6 +616,8 @@ pub enum TypeConstraintSnapshot {
     },
     Domain {
         name: String,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        arguments: Vec<TypeReferenceSnapshot>,
         symbol: u32,
         semantic_id: u32,
         predicate_body: &'static str,
@@ -684,7 +698,31 @@ fn domain_definition_snapshot(
 ) -> DomainDefinitionSnapshot {
     DomainDefinitionSnapshot {
         name: domain.name.to_string(),
+        type_parameters: program
+            .domain_type_parameters(domain)
+            .iter()
+            .map(|parameter| DomainTypeParameterSnapshot {
+                name: parameter.name.to_string(),
+                kind: match parameter.kind {
+                    crate::data::TypeParameterKind::Type => "type",
+                    crate::data::TypeParameterKind::Const { .. } => "const",
+                    crate::data::TypeParameterKind::Machine { .. } => "machine",
+                },
+                const_type: match parameter.kind {
+                    crate::data::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference_snapshot(program, type_reference))
+                    }
+                    crate::data::TypeParameterKind::Type
+                    | crate::data::TypeParameterKind::Machine { .. } => None,
+                },
+            })
+            .collect(),
         target_type: type_reference_snapshot(program, domain.target_type),
+        index_arguments: domain
+            .index_arguments
+            .iter()
+            .map(|argument| type_reference_snapshot(program, *argument))
+            .collect(),
         is_public: domain.is_public,
         alias: domain
             .alias
@@ -1388,6 +1426,11 @@ fn type_constraint_snapshot(
         },
         TypeConstraintNode::Domain(domain) => TypeConstraintSnapshot::Domain {
             name: domain.name.to_string(),
+            arguments: domain
+                .arguments
+                .iter()
+                .map(|argument| type_reference_snapshot(program, *argument))
+                .collect(),
             symbol: domain.symbol.arena_index(),
             semantic_id: domain.semantic_id.0,
             predicate_body: domain.predicate_body.as_str(),

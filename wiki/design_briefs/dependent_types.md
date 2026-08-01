@@ -113,8 +113,16 @@ PDI1 implementation status (2026-08-01): this structural eligibility judgment
 and canonical closed-value identity are live for generic `const` arguments over
 eligible literal integers, booleans, fixed arrays, records, and cases. Field
 order is declaration-canonical, and current structural `Rat` values are checked
-for positivity, cancellation, and gcd reduction at the argument site. The
-closed erased domain-family surface and its index field remain PDI2.
+for positivity, cancellation, and gcd reduction at the argument site.
+
+PDI2 implementation checkpoint (2026-08-01): closed erased domain families now
+carry an explicit carrier binder and typed const telescope through syntax,
+resolved, and typed trees. Binding constraints accept canonical closed values
+or a direct in-scope const binder; normalized instance identity distinguishes
+different values, collapses equivalent structural spellings, and remains
+erased from carrier layout. Executable destination qualification and the first
+library units package remain before PDI2 is complete; computed index
+expressions and compatibility evidence remain PDI3.
 
 ### The proof-side proposition-family fragment
 

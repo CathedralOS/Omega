@@ -168,8 +168,26 @@ fn lower_type_constraint_handle(
         syntax::types::TypeConstraintNode::Named(name) => {
             Ok(TypeConstraint::Named(crate::name::lower_name(name)))
         }
-        syntax::types::TypeConstraintNode::Domain(name) => {
-            Ok(TypeConstraint::Domain(crate::name::lower_name(name)))
+        syntax::types::TypeConstraintNode::Domain(domain) => {
+            let mut arguments = HandleSpan::empty();
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(domain.arguments)
+            {
+                let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .child_type_references
+                    .append_to_span(&mut arguments, argument);
+            }
+            Ok(TypeConstraint::Domain(
+                omega_symbol_resolved_trees::types::DomainConstraint {
+                    name: crate::name::lower_name(&domain.name),
+                    arguments,
+                },
+            ))
         }
         syntax::types::TypeConstraintNode::Range { minimum, maximum } => {
             let minimum = lower_expression_into_table(lowerer, syntax_trees, *minimum)?;

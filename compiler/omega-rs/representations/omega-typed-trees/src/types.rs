@@ -442,9 +442,17 @@ impl TypeReferenceTable {
             } => {
                 self.remap_symbols_in(base_type, expressions, symbols);
                 for constraint in self.constraints(constraints).to_vec() {
-                    if let TypeConstraintNode::Range { minimum, maximum } = constraint {
-                        expressions.remap_symbols_in(minimum, symbols);
-                        expressions.remap_symbols_in(maximum, symbols);
+                    match constraint {
+                        TypeConstraintNode::Domain(domain) => {
+                            for argument in domain.arguments {
+                                self.remap_symbols_in(argument, expressions, symbols);
+                            }
+                        }
+                        TypeConstraintNode::Range { minimum, maximum } => {
+                            expressions.remap_symbols_in(minimum, symbols);
+                            expressions.remap_symbols_in(maximum, symbols);
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                     }
                 }
             }
@@ -546,12 +554,31 @@ impl TypeReferenceTable {
         );
 
         for (offset, constraint) in source_constraints.iter().enumerate() {
+            let copied_constraint = match constraint {
+                TypeConstraintNode::Domain(domain) => {
+                    let mut domain = domain.clone();
+                    domain.arguments = domain
+                        .arguments
+                        .iter()
+                        .map(|argument| {
+                            self.copy_from(
+                                source,
+                                source_expressions,
+                                target_expressions,
+                                *argument,
+                            )
+                        })
+                        .collect();
+                    TypeConstraintNode::Domain(domain)
+                }
+                _ => constraint.copy_from(source_expressions, target_expressions),
+            };
             self.set_constraint_at_offset(
                 copied,
                 offset
                     .try_into()
                     .expect("type constraint span count overflow"),
-                constraint.copy_from(source_expressions, target_expressions),
+                copied_constraint,
             );
         }
 
@@ -740,6 +767,10 @@ pub enum TypeConstraintNode {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct DomainConstraint {
     pub name: Identifier,
+    /// Closed canonical const atoms, or a direct const-binder leaf while a
+    /// generic template remains structural. These handles live in the owning
+    /// typed type-reference table and erase with the domain constraint.
+    pub arguments: Vec<TypeReferenceHandle>,
     pub symbol: SymbolHandle,
     pub semantic_id: omega_core::semantics::SemanticDomainId,
     pub predicate_body: omega_core::semantics::DomainPredicateBody,

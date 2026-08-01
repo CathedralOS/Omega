@@ -105,6 +105,7 @@ mod tests {
             program
                 .type_reference_table
                 .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                    arguments: Vec::new(),
                     name: Identifier::generated("Positive"),
                     symbol: SymbolHandle::invalid(),
                     semantic_id: positive,

@@ -18,6 +18,10 @@ pub(super) fn assign_domain_symbols(
     roots.domain_definitions.for_each_mut(|domain| {
         domain.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Domain);
         let mut domain_children = symbols.child_handles(domain.symbol).into_iter().flatten();
+        for parameter in data_type_parameters.span_mut_or_empty(domain.type_parameters) {
+            parameter.symbol =
+                next_child_of_kind(&mut domain_children, symbols, SymbolKind::TypeParameter);
+        }
         for operator in operator_definitions.span_mut_or_empty(domain.operators) {
             assign_operator_symbols(
                 symbols,

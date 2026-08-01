@@ -7,7 +7,9 @@ use omega_core::symbols::SymbolHandle;
 pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub target_type: TypeReference,
+    pub index_arguments: HandleSpan<TypeReference>,
     pub is_public: bool,
     /// Authored transparent alias theory, independent from predicate facts.
     pub alias: Option<DomainAliasDefinition>,
