@@ -5974,6 +5974,7 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
             | StateGuardOperator::IsInfinite
             | StateGuardOperator::IsNormal
             | StateGuardOperator::IsSubnormal
+            | StateGuardOperator::FloatClassify
             | StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
@@ -6056,6 +6057,7 @@ pub(in crate::aarch64) fn runtime_binary_operation_byte_size(
             | StateGuardOperator::IsInfinite
             | StateGuardOperator::IsNormal
             | StateGuardOperator::IsSubnormal
+            | StateGuardOperator::FloatClassify
     ) && let Some(width @ (4 | 8)) = operands.immediate_integer(right)
     {
         return width as usize;
@@ -6248,6 +6250,119 @@ pub(in crate::aarch64) fn float_classification_predicate_width(
         .unwrap_or(0)
 }
 
+fn append_packed_float_class(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    tag: usize,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_add_x_immediate(
+        destination_register,
+        destination_register,
+        tag,
+    )?);
+    Ok(())
+}
+
+/// Return the stable `FloatClass` enum carrier: i32 tag at byte 0 and the
+/// overlaid `negative: bool` payload at byte 4. The source declaration fixes
+/// tags as NaN=0, Infinity=1, Normal=2, Subnormal=3, Zero=4.
+fn float_classify_bytes(
+    byte_size: usize,
+    destination_register: u8,
+    scratches: [u8; 2],
+) -> Result<Vec<u8>, Diagnostic> {
+    let (infinity, minimum_normal, sign_shift) = if byte_size > 4 {
+        (0x7ff0_0000_0000_0000_u64, 0x0010_0000_0000_0000_u64, 63)
+    } else {
+        (0x7f80_0000_u64, 0x0080_0000_u64, 31)
+    };
+    let value = scratches[0];
+    let threshold = scratches[1];
+    let mut bytes = Vec::new();
+    if byte_size > 4 {
+        bytes.extend(encode_move_x_register(value, destination_register));
+        bytes.extend(encode_and_x_low_ones(value, value, 63));
+    } else {
+        bytes.extend(encode_move_w_register(value, destination_register));
+        bytes.extend(encode_and_w_low_ones(value, value, 31));
+    }
+    bytes.extend(encode_lsr_x_immediate(
+        destination_register,
+        destination_register,
+        sign_shift,
+    ));
+    bytes.extend(encode_lsl_x_immediate(
+        destination_register,
+        destination_register,
+        32,
+    ));
+
+    append_unsigned_immediate_padded(&mut bytes, threshold, infinity);
+    bytes.extend(encode_compare_x_register(value, threshold));
+    let nan_branch = bytes.len();
+    bytes.extend([0; 4]);
+    let infinity_branch = bytes.len();
+    bytes.extend([0; 4]);
+    bytes.extend(encode_compare_x_immediate(value, 0)?);
+    let zero_branch = bytes.len();
+    bytes.extend([0; 4]);
+    append_unsigned_immediate_padded(&mut bytes, threshold, minimum_normal);
+    bytes.extend(encode_compare_x_register(value, threshold));
+    let subnormal_branch = bytes.len();
+    bytes.extend([0; 4]);
+
+    append_packed_float_class(&mut bytes, destination_register, 2)?;
+    let normal_end = bytes.len();
+    bytes.extend([0; 4]);
+    let subnormal = bytes.len();
+    append_packed_float_class(&mut bytes, destination_register, 3)?;
+    let subnormal_end = bytes.len();
+    bytes.extend([0; 4]);
+    let zero = bytes.len();
+    append_packed_float_class(&mut bytes, destination_register, 4)?;
+    let zero_end = bytes.len();
+    bytes.extend([0; 4]);
+    let infinity_label = bytes.len();
+    append_packed_float_class(&mut bytes, destination_register, 1)?;
+    let infinity_end = bytes.len();
+    bytes.extend([0; 4]);
+    let nan = bytes.len();
+    bytes.extend(encode_movz_w(destination_register, 0));
+    let end = bytes.len();
+
+    for (branch, instruction) in [
+        (
+            nan_branch,
+            encode_conditional_branch_higher((nan - nan_branch) as isize)?,
+        ),
+        (
+            infinity_branch,
+            encode_conditional_branch_equal((infinity_label - infinity_branch) as isize)?,
+        ),
+        (
+            zero_branch,
+            encode_conditional_branch_equal((zero - zero_branch) as isize)?,
+        ),
+        (
+            subnormal_branch,
+            encode_conditional_branch_lower((subnormal - subnormal_branch) as isize)?,
+        ),
+    ] {
+        bytes[branch..branch + 4].copy_from_slice(&instruction);
+    }
+    for branch in [normal_end, subnormal_end, zero_end, infinity_end] {
+        let instruction = encode_unconditional_branch(end as isize - branch as isize)?;
+        bytes[branch..branch + 4].copy_from_slice(&instruction);
+    }
+    Ok(bytes)
+}
+
+pub(in crate::aarch64) fn float_classify_width(byte_size: usize) -> usize {
+    float_classify_bytes(byte_size, 17, [15, 14])
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
 fn append_runtime_float_binary_operation(
     bytes: &mut Vec<u8>,
     byte_size: usize,
@@ -6288,6 +6403,14 @@ fn append_runtime_float_binary_operation(
     if is_integer_float_classification_predicate(operator) {
         bytes.extend(float_classification_predicate_bytes(
             operator,
+            byte_size,
+            left_register,
+            guard_scratches,
+        )?);
+        return Ok(());
+    }
+    if operator == StateGuardOperator::FloatClassify {
+        bytes.extend(float_classify_bytes(
             byte_size,
             left_register,
             guard_scratches,
@@ -6772,6 +6895,23 @@ mod tests {
                     byte_size * 8,
                 );
             }
+            let mut bytes = Vec::new();
+            append_runtime_float_binary_operation(
+                &mut bytes,
+                byte_size,
+                17,
+                StateGuardOperator::FloatClassify,
+                26,
+                omega_core::arithmetic::ArithmeticDomain::Exact,
+                [15, 14],
+            )
+            .expect("encode enum float classification");
+            assert_eq!(
+                bytes.len(),
+                float_classify_width(byte_size),
+                "f{} FloatClassify width",
+                byte_size * 8,
+            );
         }
     }
 

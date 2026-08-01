@@ -1,0 +1,122 @@
+// F7 enum-valued IEEE classification through exact selected ProviderPlans.
+// Every FloatClass tag is exercised in both permanent formats; signed cases
+// also pin the overlaid bool payload at byte 4 of the native enum carrier.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    nan32: FloatClass;
+    infinity32: FloatClass;
+    normal32: FloatClass;
+    subnormal32: FloatClass;
+    zero32: FloatClass;
+    nan64: FloatClass;
+    infinity64: FloatClass;
+    normal64: FloatClass;
+    subnormal64: FloatClass;
+    zero64: FloatClass;
+}
+
+machine Main::main(&mut self) {
+    let positive_zero32: f32 = 0.0f32;
+    let positive_one32: f32 = 1.0f32;
+    let positive_subnormal32: f32 = 1.401298464324817070923729583289916131280e-45;
+    let negative_zero32: f32 = F32::negate(positive_zero32);
+    self.nan32 = F32::classify(positive_zero32 / positive_zero32);
+    self.infinity32 = F32::classify(0.0f32 - positive_one32 / positive_zero32);
+    self.normal32 = F32::classify(positive_one32);
+    self.subnormal32 = F32::classify(0.0f32 - positive_subnormal32);
+    self.zero32 = F32::classify(negative_zero32);
+
+    let positive_zero64: f64 = 0.0;
+    let positive_one64: f64 = 1.0;
+    let positive_subnormal64: f64 = 5e-324;
+    let negative_zero64: f64 = F64::negate(positive_zero64);
+    self.nan64 = F64::classify(positive_zero64 / positive_zero64);
+    self.infinity64 = F64::classify(0.0 - positive_one64 / positive_zero64);
+    self.normal64 = F64::classify(positive_one64);
+    self.subnormal64 = F64::classify(0.0 - positive_subnormal64);
+    self.zero64 = F64::classify(negative_zero64);
+
+    transition self.nan32 { FloatClass::NaN -> infinity32() _ -> fail(71) }
+
+    state infinity32(&mut self) {
+        transition self.infinity32 {
+            FloatClass::Infinity { negative } -> infinity32_sign(negative)
+            _ -> fail(72)
+        }
+    }
+    state infinity32_sign(&mut self, negative: bool) {
+        transition negative { true -> normal32() _ -> fail(73) }
+    }
+    state normal32(&mut self) {
+        transition self.normal32 {
+            FloatClass::Normal { negative } -> normal32_sign(negative)
+            _ -> fail(74)
+        }
+    }
+    state normal32_sign(&mut self, negative: bool) {
+        transition negative { false -> subnormal32() _ -> fail(75) }
+    }
+    state subnormal32(&mut self) {
+        transition self.subnormal32 {
+            FloatClass::Subnormal { negative } -> subnormal32_sign(negative)
+            _ -> fail(76)
+        }
+    }
+    state subnormal32_sign(&mut self, negative: bool) {
+        transition negative { true -> zero32() _ -> fail(77) }
+    }
+    state zero32(&mut self) {
+        transition self.zero32 {
+            FloatClass::Zero { negative } -> zero32_sign(negative)
+            _ -> fail(78)
+        }
+    }
+    state zero32_sign(&mut self, negative: bool) {
+        transition negative { true -> nan64() _ -> fail(79) }
+    }
+    state nan64(&mut self) {
+        transition self.nan64 { FloatClass::NaN -> infinity64() _ -> fail(80) }
+    }
+    state infinity64(&mut self) {
+        transition self.infinity64 {
+            FloatClass::Infinity { negative } -> infinity64_sign(negative)
+            _ -> fail(81)
+        }
+    }
+    state infinity64_sign(&mut self, negative: bool) {
+        transition negative { true -> normal64() _ -> fail(82) }
+    }
+    state normal64(&mut self) {
+        transition self.normal64 {
+            FloatClass::Normal { negative } -> normal64_sign(negative)
+            _ -> fail(83)
+        }
+    }
+    state normal64_sign(&mut self, negative: bool) {
+        transition negative { false -> subnormal64() _ -> fail(84) }
+    }
+    state subnormal64(&mut self) {
+        transition self.subnormal64 {
+            FloatClass::Subnormal { negative } -> subnormal64_sign(negative)
+            _ -> fail(85)
+        }
+    }
+    state subnormal64_sign(&mut self, negative: bool) {
+        transition negative { true -> zero64() _ -> fail(86) }
+    }
+    state zero64(&mut self) {
+        transition self.zero64 {
+            FloatClass::Zero { negative } -> zero64_sign(negative)
+            _ -> fail(87)
+        }
+    }
+    state zero64_sign(&mut self, negative: bool) {
+        transition negative { true -> good() _ -> fail(88) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+}

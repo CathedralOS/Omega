@@ -93,10 +93,12 @@ pub enum BuiltinFunction {
     FloatIsInfinite,
     FloatIsNormal,
     FloatIsSubnormal,
+    FloatClassifyF32,
+    FloatClassifyF64,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 29;
+    pub const COUNT: usize = 31;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -129,6 +131,8 @@ impl BuiltinFunction {
             Self::FloatIsInfinite => "float#is_infinite",
             Self::FloatIsNormal => "float#is_normal",
             Self::FloatIsSubnormal => "float#is_subnormal",
+            Self::FloatClassifyF32 => "float#classify_f32",
+            Self::FloatClassifyF64 => "float#classify_f64",
         }
     }
 
@@ -163,6 +167,8 @@ impl BuiltinFunction {
             Self::FloatIsInfinite => 26,
             Self::FloatIsNormal => 27,
             Self::FloatIsSubnormal => 28,
+            Self::FloatClassifyF32 => 29,
+            Self::FloatClassifyF64 => 30,
         }
     }
 
@@ -196,6 +202,8 @@ impl BuiltinFunction {
             | Self::FloatIsInfinite
             | Self::FloatIsNormal
             | Self::FloatIsSubnormal
+            | Self::FloatClassifyF32
+            | Self::FloatClassifyF64
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -416,6 +424,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatIsSubnormal.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatClassifyF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatClassifyF64.name()),
+        ),
     ]
 }
 
@@ -475,6 +491,8 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatIsInfinite,
             BuiltinFunction::FloatIsNormal,
             BuiltinFunction::FloatIsSubnormal,
+            BuiltinFunction::FloatClassifyF32,
+            BuiltinFunction::FloatClassifyF64,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

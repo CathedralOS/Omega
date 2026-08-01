@@ -612,6 +612,8 @@ fn computed_host_builtin_operands(
         omega_core::symbols::BuiltinFunction::FloatIsInfinite,
         omega_core::symbols::BuiltinFunction::FloatIsNormal,
         omega_core::symbols::BuiltinFunction::FloatIsSubnormal,
+        omega_core::symbols::BuiltinFunction::FloatClassifyF32,
+        omega_core::symbols::BuiltinFunction::FloatClassifyF64,
     ]
     .into_iter()
     .any(|builtin| symbols.builtin_function_symbol(builtin) == Some(call.target_symbol));

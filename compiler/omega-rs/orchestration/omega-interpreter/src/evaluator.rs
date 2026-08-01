@@ -5131,6 +5131,62 @@ impl<'program> Evaluator<'program> {
                 };
             }
         }
+        // Internal enum-valued classifiers selected only by exact named-float
+        // plans. The format is encoded in the unnameable builtin identity so
+        // state-local expression copying cannot erase it.
+        if matches!(target, "float#classify_f32" | "float#classify_f64")
+            && call.receiver == ExpressionHandle::invalid()
+        {
+            let args = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if args.len() == 1 {
+                let format = if target == "float#classify_f32" {
+                    SemanticFloatFormat::BINARY32
+                } else {
+                    SemanticFloatFormat::BINARY64
+                };
+                return match self.eval_expression(args[0], frame)? {
+                    Value::Float(value) => {
+                        let meaning = if format == SemanticFloatFormat::BINARY32 {
+                            FloatMeaning::from_f32(value as f32)
+                        } else {
+                            FloatMeaning::from_f64(value)
+                        };
+                        let (variant_name, negative) =
+                            match FloatSemantics::classify(format, &meaning) {
+                                SemanticFloatClass::NaN => ("NaN", None),
+                                SemanticFloatClass::Infinity { negative } => {
+                                    ("Infinity", Some(negative))
+                                }
+                                SemanticFloatClass::Normal { negative } => {
+                                    ("Normal", Some(negative))
+                                }
+                                SemanticFloatClass::Subnormal { negative } => {
+                                    ("Subnormal", Some(negative))
+                                }
+                                SemanticFloatClass::Zero { negative } => ("Zero", Some(negative)),
+                            };
+                        Ok(Value::Enum {
+                            type_symbol: self
+                                .find_data_by_name("FloatClass")
+                                .map(|data| data.symbol)
+                                .unwrap_or_else(SymbolHandle::invalid),
+                            variant_name: variant_name.to_owned(),
+                            payload: negative
+                                .map(|negative| {
+                                    vec![("negative".to_owned(), Value::Bool(negative).cell())]
+                                })
+                                .unwrap_or_default(),
+                        })
+                    }
+                    _ => unsupported("float classification argument is not a float"),
+                };
+            }
+        }
+
         // Internal unary predicates selected only by exact named-float plans.
         // Evaluate the argument once; lowering a predicate to a duplicated
         // expression would repeat nontrivial argument evaluation.

@@ -534,18 +534,23 @@ classification, and directed rounding. Checked operator evidence records the
 primitive identity selected at each use. All f32/f64 primitive arithmetic and
 comparison overloads now select explicit x86-64/AArch64 target satisfiers and
 retain their exact `ProviderPlan` identities through lowering. The named F32/F64
-`minimum`, `maximum`, `square_root`, `negate`, `is_nan`, and
+`minimum`, `maximum`, `square_root`, `negate`, `is_nan`, `is_finite`,
+`is_infinite`, `is_normal`, `is_subnormal`, `classify`, and
 `multiply_then_add` requirements likewise select explicit target satisfiers.
 Their checked plan identity
 authorizes compiler-known execution lowering without replacing the source
 requirement in proof evidence. Negate preserves the expression root while
 lowering to multiplication by a format-landed negative one. The NaN predicate
 uses an internal unary operation, evaluates its argument once, and retains the
-argument's binary32/binary64 width. Multiply-then-add rewrites to an unnameable,
-format-specific ternary compiler operation that survives state-local expression
-copying. Both engines execute a separate multiply followed by add, preserve all
-three authored operands for final result-policy adaptation, and never contract
-it into the separately named fused operation. Other named operation
+argument's binary32/binary64 width. The remaining boolean classification
+predicates and enum-valued `classify` inspect the raw IEEE bits without reading
+ambient floating-point control state. `classify` returns the source-order
+`FloatClass` tag plus the sign payload carried by infinity, normal, subnormal,
+and zero cases. Multiply-then-add rewrites to an unnameable, format-specific
+ternary compiler operation that survives state-local expression copying. Both
+engines execute a separate multiply followed by add, preserve all three
+authored operands for final result-policy adaptation, and never contract it
+into the separately named fused operation. Other named operation
 families remain on bootstrap target lowering until their own satisfiers and
 execution paths replace it.
 
