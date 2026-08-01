@@ -8431,7 +8431,10 @@ impl<'program> Evaluator<'program> {
             // result). Saturating cannot reach an out-of-range count (the
             // F8a validation obligation rejects it), so its floor/clamp arms
             // below only ever see in-range counts.
-            if domain == ArithmeticDomain::Trapping && (r as u64) >= primitive_bit_width(ty) {
+            if domain == ArithmeticDomain::Trapping
+                && matches!(operator, ShiftLeft | ShiftRight)
+                && (r as u64) >= primitive_bit_width(ty)
+            {
                 return trap(format!(
                     "shift count out of range in Trapping domain: the count is not below \
                      the operand width for {ty:?}"

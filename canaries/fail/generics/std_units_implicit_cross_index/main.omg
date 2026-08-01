@@ -1,0 +1,14 @@
+use omega::language::std::units;
+
+machine accept_meters(value: i64 in Quantity<Units::METER>) {
+}
+
+machine wrong(value: i64 in Quantity<Units::KILOMETER>) {
+    accept_meters(value);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -170,42 +170,54 @@ pub(super) fn propagate_statement_transfers(
         }
     }
 
-    // #66 read-narrowing across a write: an assignment into any domain-refined
-    // declared place RE-ESTABLISHES that destination's domain. The old fact was
-    // invalidated by the mutation just above; re-add it only because the write
-    // checker separately proves the assigned value in the same declaration's
-    // domain. This covers attached fields, mutable parameters, and direct
-    // locals without trusting assignment syntax by itself.
-    if let StatementNode::Assignment(assignment) = statement
-        && let Some(machine) = crate::field_domain::machine_by_symbol(program, machine_symbol)
-        && let Some(state) = crate::find_state_in_machine(program, machine_symbol, state_symbol)
-    {
-        for domain_symbol in crate::field_domain::assignment_target_domain_symbols(
-            program,
-            machine,
-            state,
-            assignment.target,
-        ) {
-            let fact = semantic.append_fact(Fact {
-                place: FactPlace::Place(target_place),
-                point: ProgramPoint::Statement {
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                },
-                origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    omega_core::semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    state_symbol,
-                ),
-                payload: FactPayload::DomainMembership {
-                    value: ExpressionHandle::invalid(),
-                    domain: HandleSpan::empty(),
-                    domain_symbol,
-                },
-            });
-            semantic.append_ref(&mut refs, fact);
+    // #66 read-narrowing across a write: initializing or assigning any
+    // domain-refined declared place ESTABLISHES that destination's domain. The
+    // write checker separately proves the source satisfies the declaration;
+    // recording the fact here makes a checked LET usable at later call and
+    // operator boundaries just like a checked reassignment. An uninitialized
+    // local grants nothing.
+    let declared_target_domains = match statement {
+        StatementNode::Assignment(assignment) => {
+            match (
+                crate::field_domain::machine_by_symbol(program, machine_symbol),
+                crate::find_state_in_machine(program, machine_symbol, state_symbol),
+            ) {
+                (Some(machine), Some(state)) => {
+                    crate::field_domain::assignment_target_domain_symbols(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                }
+                _ => Vec::new(),
+            }
         }
+        StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+            crate::field_domain::domain_constraint_symbols(program, local.type_reference)
+        }
+        _ => Vec::new(),
+    };
+    for domain_symbol in declared_target_domains {
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::from_origin(
+                omega_core::semantics::QualificationEvidenceOrigin::CheckedValidation,
+                state_symbol,
+            ),
+            payload: FactPayload::DomainMembership {
+                value: ExpressionHandle::invalid(),
+                domain: HandleSpan::empty(),
+                domain_symbol,
+            },
+        });
+        semantic.append_ref(&mut refs, fact);
     }
 
     if refs.is_empty() {

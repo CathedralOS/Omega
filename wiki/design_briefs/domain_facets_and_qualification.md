@@ -431,10 +431,12 @@ explicit qualification now selects either a closed value or a direct
 destination binder and retains that exact instance through checked artifacts.
 Const-machine call specialization now executes destination-parameterized
 conversion for canonical result/parameter evidence, including distinct cloned
-instances. Finish the units package and its operator/conversion canaries. Only
-afterward add computed open result indices, licensed normalization, and retained
-compatibility evidence. They extend the facts a domain may carry without
-changing this qualification model.
+instances. The shipped `omega::language::std::units` package now exercises
+named closed combinations, explicit conversion/scaling policy, and ordinary
+per-pair operators across imports in both engines; implicit cross-index calls
+reject. PDI2 is complete. Next add computed open result indices, licensed
+normalization, and retained compatibility evidence. They extend the facts a
+domain may carry without changing this qualification model.
 
 ## Cross-references
 
