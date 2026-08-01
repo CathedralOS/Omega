@@ -187,7 +187,9 @@ fn private_native_carrier(
             visiting.pop();
             carrier
         }
-        TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Unit => None,
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => None,
     }
 }
 
@@ -232,12 +234,7 @@ pub(crate) fn validate_machine_trait_conformances(
 ) {
     for conformance in program.machine_trait_conformances(machine) {
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
-            if validate_machine_boundary_operator_conformance(
-                program,
-                machine,
-                conformance,
-                diagnostics,
-            ) {
+            if validate_machine_operator_conformance(program, machine, conformance, diagnostics) {
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
@@ -300,13 +297,12 @@ pub(crate) fn validate_machine_trait_conformances(
     }
 }
 
-/// Boundary-operator requirements share the ordinary machine `satisfies`
-/// spelling with trait requirements, but resolve by exact overloaded
-/// signature rather than a trait symbol. External target leaves inherit the
-/// operator's contract through their admitted binding. Checked software
-/// satisfiers remain fail-closed until operator-law entailment consumes their
-/// bodies as well.
-fn validate_machine_boundary_operator_conformance(
+/// Operator requirements share the ordinary machine `satisfies` spelling with
+/// trait requirements, but resolve by exact overloaded signature rather than
+/// a trait symbol. Boundary leaves retain their admitted-binding rule;
+/// checked ordinary operators may be provided by checked software when the
+/// declaration carries no additional contract to entail.
+fn validate_machine_operator_conformance(
     program: &TypedTrees,
     machine: &Machine,
     conformance: &omega_typed_trees::machine::TraitConformance,
@@ -320,8 +316,7 @@ fn validate_machine_boundary_operator_conformance(
     let names_operator = program.operators().iter().any(|operator| {
         let path = program.operator_path_members(operator.name);
         matches!(path, [owner, member]
-            if operator.is_boundary
-                && owner.as_str() == namespace
+            if owner.as_str() == namespace
                 && member.as_str() == requirement_name)
     });
     if !names_operator {
@@ -334,28 +329,34 @@ fn validate_machine_boundary_operator_conformance(
         .is_empty()
     {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` supplies type arguments to boundary-operator requirement `{}::{}`; the exact overloaded operator is selected from the machine signature",
+            "machine `{}` supplies type arguments to operator requirement `{}::{}`; the exact overloaded operator is selected from the machine signature",
             machine.name, namespace, requirement_name,
         )));
         return true;
     }
 
-    let Some(operator) = omega_typed_trees::operator::resolve_satisfied_boundary_operator(
+    let Some(operator) = omega_typed_trees::operator::resolve_satisfied_checked_operator(
         program,
         machine,
         namespace,
         requirement_name,
     ) else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` does not match one exact overload of boundary-operator requirement `{}::{}`; its entry parameter and result types must equal one declared requirement signature",
+            "machine `{}` does not match one exact overload of operator requirement `{}::{}`; its entry parameter and result types must equal one declared requirement signature",
             machine.name, namespace, requirement_name,
         )));
         return true;
     };
 
-    if conformance.via.is_none() {
+    if operator.is_boundary && conformance.via.is_none() {
         diagnostics.push(Diagnostic::error(format!(
             "checked machine `{}` satisfies boundary operator `{}`, but checked operator-law entailment is not implemented yet; use an admitted target leaf with `via Binding::...` until the checked-software provider rung lands",
+            machine.name,
+            omega_typed_trees::operator::boundary_operator_requirement_identity(program, operator),
+        )));
+    } else if !operator.is_boundary && !program.operator_contracts(operator).is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked machine `{}` satisfies operator `{}`, but checked operator-contract entailment is not implemented for contracted ordinary operators",
             machine.name,
             omega_typed_trees::operator::boundary_operator_requirement_identity(program, operator),
         )));

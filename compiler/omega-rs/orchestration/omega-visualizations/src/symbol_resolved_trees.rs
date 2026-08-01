@@ -978,6 +978,7 @@ fn type_reference_symbol(
                 .get(slice.element_type),
         ),
         TypeReference::Generic(generic) => generic.base_symbol,
+        TypeReference::ConstExpression(_) => SymbolHandle::invalid(),
         TypeReference::DynamicTrait { symbol, .. } => *symbol,
         TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => *symbol,
         TypeReference::Unit => SymbolHandle::invalid(),

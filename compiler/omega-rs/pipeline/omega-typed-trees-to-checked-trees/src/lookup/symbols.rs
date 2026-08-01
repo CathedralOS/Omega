@@ -43,7 +43,8 @@ pub(crate) fn machine_symbol_from_type_reference_handle(
         } => program
             .single_trait_impl_data_symbol(*trait_symbol)
             .unwrap_or(*trait_symbol),
-        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        omega_typed_trees::types::TypeReferenceNode::ConstExpression(_)
+        | omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
         | omega_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
     }

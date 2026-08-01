@@ -83,6 +83,7 @@ pub use properties::{
     effective_type_carry_policy, type_satisfies_declared_property,
 };
 pub use result_overloads::resolve_named_result_overloads;
+pub use type_references::normalize_open_index_expressions;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_program_internal(program, false)

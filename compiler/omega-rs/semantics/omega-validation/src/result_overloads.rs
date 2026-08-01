@@ -681,6 +681,7 @@ fn array_element_type(
         omega_typed_trees::types::TypeReferenceNode::Generic { .. }
         | omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | omega_typed_trees::types::TypeReferenceNode::Named { .. }
+        | omega_typed_trees::types::TypeReferenceNode::ConstExpression(_)
         | omega_typed_trees::types::TypeReferenceNode::Unit => None,
     }
 }

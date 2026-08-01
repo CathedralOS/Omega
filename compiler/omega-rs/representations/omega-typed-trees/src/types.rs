@@ -213,6 +213,21 @@ impl TypeReferenceTable {
             .collect()
     }
 
+    /// Every proof-static open index expression retained in type position.
+    /// Callers use the node handle to scope specialization rewrites to newly
+    /// cloned type-reference regions without scanning diagnostic renderings.
+    pub fn const_expression_sites(
+        &self,
+    ) -> Vec<(TypeReferenceHandle, crate::expression::ExpressionHandle)> {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::ConstExpression(expression) => Some((handle, *expression)),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn set_constraint_span(
         &mut self,
         handle: TypeReferenceHandle,
@@ -282,6 +297,7 @@ impl TypeReferenceTable {
             TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Unit => None,
         }
@@ -405,6 +421,10 @@ impl TypeReferenceTable {
                     arguments,
                 })
             }
+            TypeReferenceNode::ConstExpression(expression) => {
+                let expression = target_expressions.copy_from(source_expressions, *expression);
+                self.insert(TypeReferenceNode::ConstExpression(expression))
+            }
             TypeReferenceNode::DynamicTrait { symbol, name } => {
                 self.insert(TypeReferenceNode::DynamicTrait {
                     symbol: *symbol,
@@ -490,6 +510,9 @@ impl TypeReferenceTable {
                     unreachable!();
                 };
                 *current = remapped(base_symbol, symbols);
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                expressions.remap_symbols_in(expression, symbols);
             }
             TypeReferenceNode::DynamicTrait { symbol, .. }
             | TypeReferenceNode::Named { symbol, .. } => {
@@ -629,6 +652,10 @@ pub enum TypeReferenceNode {
         lifetime_arguments: Vec<Identifier>,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
+    /// A PDI3 proof-static expression over const binders. The expression is
+    /// erased with its enclosing domain constraint but retains resolved names
+    /// and selected-operation evidence for semantic identity and checking.
+    ConstExpression(crate::expression::ExpressionHandle),
     DynamicTrait {
         symbol: SymbolHandle,
         name: Identifier,
@@ -693,6 +720,7 @@ impl TypeReferenceNode {
             TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Unit => None,
         }
@@ -737,6 +765,7 @@ impl TypeReferenceNode {
                 }
             }
             TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
+            TypeReferenceNode::ConstExpression(_) => SymbolHandle::invalid(),
             TypeReferenceNode::Named { symbol, name } => {
                 if PrimitiveType::from_name(name.as_str()).is_some() {
                     SymbolHandle::invalid()

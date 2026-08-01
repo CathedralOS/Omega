@@ -35,7 +35,8 @@ pub(in crate::checks) fn fixed_array_type_length(
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
         } => fixed_array_type_length(program, *referee),
-        TypeReferenceNode::Generic { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }

@@ -388,7 +388,8 @@ fn collect_type_return_lifetimes(
                 );
             }
         }
-        TypeReferenceNode::Slice { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => {}
     }
@@ -592,7 +593,8 @@ fn collect_borrow_carrying_owner_paths(
                 output,
             )
         }
-        TypeReferenceNode::Slice { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => true,
     }
@@ -749,7 +751,8 @@ fn type_structurally_carries_borrow(
                 require_mutable,
             )
         }
-        TypeReferenceNode::Slice { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => false,
     }

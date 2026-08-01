@@ -137,7 +137,7 @@ pub(crate) fn argument_matches_type_reference_handle(
                     | ExpressionNode::Unary(_)
             )
         }
-        TypeReferenceNode::Unit => false,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
     }
 }
 

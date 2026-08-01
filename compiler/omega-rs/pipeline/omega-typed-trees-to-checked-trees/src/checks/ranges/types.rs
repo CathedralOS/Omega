@@ -382,7 +382,8 @@ fn type_reference_is_slice(
             base_type: referee, ..
         } => type_reference_is_slice(program, *referee),
         TypeReferenceNode::Slice { .. } => true,
-        TypeReferenceNode::FixedArray { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }
         | TypeReferenceNode::DynamicTrait { .. }
@@ -415,7 +416,8 @@ fn data_field_type_reference(
                 data_field_in_definition(program, data_definition, member_symbol, member_name)
             })
         }
-        TypeReferenceNode::FixedArray { .. }
+        TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,

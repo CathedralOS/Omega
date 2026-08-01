@@ -68,9 +68,10 @@ pub(crate) fn lower_type_reference_handle(
                 arguments: lower_child_type_references(lowerer, syntax_trees, *arguments)?,
             },
         })),
-        syntax::types::TypeReferenceNode::ConstExpression(_) => Err(Diagnostic::error(
-            "const generic argument expression could not be evaluated before symbol resolution",
-        )),
+        syntax::types::TypeReferenceNode::ConstExpression(expression) => {
+            let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
+            Ok(TypeReference::ConstExpression(expression))
+        }
         syntax::types::TypeReferenceNode::DynamicTrait(name) => Ok(TypeReference::DynamicTrait {
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(name),

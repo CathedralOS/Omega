@@ -332,7 +332,7 @@ fn validate_field_type_reference(
                 push_unknown_field_type(schema, scope, field, name.as_str(), diagnostics);
             }
         }
-        TypeReferenceNode::Unit => {}
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {}
     }
 }
 

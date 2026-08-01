@@ -181,7 +181,10 @@ fn type_symbol(
         TypeReference::DynamicTrait { symbol, .. }
         | TypeReference::Named { symbol, .. }
         | TypeReference::SelfType { symbol } => Some(*symbol),
-        TypeReference::FixedArray(_) | TypeReference::Slice(_) | TypeReference::Unit => None,
+        TypeReference::FixedArray(_)
+        | TypeReference::Slice(_)
+        | TypeReference::ConstExpression(_)
+        | TypeReference::Unit => None,
     }
 }
 

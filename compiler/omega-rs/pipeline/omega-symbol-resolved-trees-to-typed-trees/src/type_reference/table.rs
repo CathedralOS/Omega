@@ -118,6 +118,16 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                     arguments: lowered_arguments,
                 }))
         }
+        resolved::types::TypeReferenceNode::ConstExpression(expression) => {
+            let expression = crate::expression::lower_expression_handle_from_table(
+                &source_trees.tables.bodies.expressions,
+                typed_trees,
+                *expression,
+            )?;
+            Ok(typed_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
+        }
         resolved::types::TypeReferenceNode::DynamicTrait { symbol, name } => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::DynamicTrait {

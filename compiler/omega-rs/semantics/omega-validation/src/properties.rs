@@ -243,7 +243,9 @@ impl<'program> CarryDerivation<'program> {
                     .to_vec();
                 self.derive_named_data(base_symbol, base_name.as_str(), Some(&arguments))
             }
-            TypeReferenceNode::Unit => CarryPolicy::PERMISSIVE,
+            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                CarryPolicy::PERMISSIVE
+            }
             // Borrows, slices, and erased satisfiers need per-value/provenance
             // evidence. Until that enforcement lands, absence fails closed.
             TypeReferenceNode::Reference { .. }

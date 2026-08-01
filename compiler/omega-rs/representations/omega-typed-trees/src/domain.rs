@@ -143,8 +143,21 @@ fn closed_domain_argument_identity(
     let crate::types::TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
     else {
+        if matches!(
+            program.type_reference_table.type_reference(argument),
+            crate::types::TypeReferenceNode::ConstExpression(_)
+        ) {
+            // PDI3 retains an open computed index until exact operation and
+            // algebra selection. The same structural identity works before
+            // selection and incorporates that semantic authority afterward,
+            // when the instance identities are refreshed a second time.
+            return Ok(format!(
+                "expression:{expected}:{}",
+                program.normalized_type_identity(argument)
+            ));
+        }
         return Err(Diagnostic::error(
-            "closed indexed-domain arguments must be canonical const values or direct const binders",
+            "indexed-domain arguments must be canonical const values, direct const binders, or supported open const expressions",
         ));
     };
     if let Some(value) = omega_core::const_value::CanonicalConstValue::from_atom(name.as_str()) {
