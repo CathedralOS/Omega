@@ -37,6 +37,10 @@ pub enum StateGuardOperator {
     /// `sqrt(x)`: a UNARY float op carried on the binary value-write path with
     /// both operands = `x`; the encoder reads the first SSE register only.
     Sqrt,
+    /// Unary IEEE NaN predicate. It is carried on the binary value-write path
+    /// with one real operand and one ignored zero placeholder so `x` is
+    /// evaluated exactly once.
+    IsNan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

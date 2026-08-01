@@ -556,6 +556,7 @@ fn host_computed_scalar_argument_slot_count(
                                     omega_core::symbols::BuiltinFunction::Max,
                                     omega_core::symbols::BuiltinFunction::Min,
                                     omega_core::symbols::BuiltinFunction::Sqrt,
+                                    omega_core::symbols::BuiltinFunction::FloatIsNan,
                                 ]
                                 .into_iter()
                                 .any(|builtin| {
@@ -610,6 +611,7 @@ fn entry_native_expression_result_layout(
                 omega_core::symbols::BuiltinFunction::Max,
                 omega_core::symbols::BuiltinFunction::Min,
                 omega_core::symbols::BuiltinFunction::Sqrt,
+                omega_core::symbols::BuiltinFunction::FloatIsNan,
             ]
             .into_iter()
             .any(|builtin| {

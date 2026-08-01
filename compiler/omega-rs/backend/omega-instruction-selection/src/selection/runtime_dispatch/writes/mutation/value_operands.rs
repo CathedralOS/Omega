@@ -14,7 +14,9 @@ use crate::selection::storage_places::{
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_fat_slice_in_table,
 };
-use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
+use omega_abstract_operations::{
+    RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator,
+};
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
@@ -29,7 +31,8 @@ use super::super::static_values::{
     resolve_runtime_static_integer_value, resolve_runtime_static_integer_value_in_table,
 };
 use super::operators::{
-    builtin_runtime_call_operator, builtin_runtime_call_operator_in_table, runtime_binary_operator,
+    builtin_runtime_call_operator, builtin_runtime_call_operator_in_table,
+    builtin_runtime_unary_call_operator_in_table, runtime_binary_operator,
     supports_runtime_value_operand,
 };
 use super::{
@@ -301,6 +304,85 @@ fn resolve_runtime_value_operand_in_table_with_root(
     }
 
     if let ExpressionNode::Call(call) = expressions.expression(expression) {
+        if let Some(operator) = builtin_runtime_unary_call_operator_in_table(input, call) {
+            let operand_expression = expressions.expression_handle_at_offset(call.arguments, 0);
+            let left = resolve_runtime_value_operand_in_table_with_root(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions,
+                root_expression,
+                operand_expression,
+                minimum_call_ordinal,
+                static_values,
+                runtime_value_operands,
+            )?;
+            let right = if operator == StateGuardOperator::IsNan {
+                runtime_value_operands.insert(RuntimeValueOperand::Immediate(0))
+            } else {
+                // Existing sqrt representation; the encoder reads its right
+                // float register. IsNan deliberately does not duplicate this.
+                resolve_runtime_value_operand_in_table_with_root(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    statement_index,
+                    expressions,
+                    root_expression,
+                    operand_expression,
+                    minimum_call_ordinal,
+                    static_values,
+                    runtime_value_operands,
+                )?
+            };
+            let is_float = binary_value_operands_are_float(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                operand_expression,
+                operand_expression,
+            );
+            let byte_width = binary_value_operand_byte_width(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                operand_expression,
+                operand_expression,
+            );
+            if operator == StateGuardOperator::IsNan && byte_width == 4 {
+                super::binary_table_writes::narrow_f32_literal_operands(
+                    runtime_value_operands,
+                    expressions,
+                    operand_expression,
+                    left,
+                );
+            }
+            let arithmetic_domain = resolve_binary_operation_arithmetic_domain_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                expressions,
+                expression,
+                operand_expression,
+                operand_expression,
+                is_float,
+                byte_width,
+            )?;
+            return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+                left,
+                operator,
+                right,
+                is_float,
+                byte_width,
+                arithmetic_domain,
+                operands_signed: true,
+            }));
+        }
+
         if let Some(operator) = builtin_runtime_call_operator_in_table(input, call) {
             let left_expr = expressions.expression_handle_at_offset(call.arguments, 0);
             let right_expr = expressions.expression_handle_at_offset(call.arguments, 1);

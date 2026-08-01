@@ -533,12 +533,16 @@ the arithmetic/comparison spellings, multiply-then-add versus FMA,
 classification, and directed rounding. Checked operator evidence records the
 primitive identity selected at each use. All f32/f64 primitive arithmetic and
 comparison overloads now select explicit x86-64/AArch64 target satisfiers and
-retain their exact `ProviderPlan` identities through lowering. The named
-F32/F64 `minimum`, `maximum`, and `square_root` requirements likewise select
-explicit target satisfiers. Their checked plan identity authorizes dispatch to
-the existing compiler-known lowering without replacing the source requirement
-in proof evidence. Other named operation families remain on bootstrap target
-lowering until their own satisfiers and execution paths replace it.
+retain their exact `ProviderPlan` identities through lowering. The named F32/F64
+`minimum`, `maximum`, `square_root`, `negate`, and `is_nan` requirements
+likewise select explicit target satisfiers. Their checked plan identity
+authorizes compiler-known execution lowering without replacing the source
+requirement in proof evidence. Negate preserves the expression root while
+lowering to multiplication by a format-landed negative one. The NaN predicate
+uses an internal unary operation, evaluates its argument once, and retains the
+argument's binary32/binary64 width. Other named operation families remain on
+bootstrap target lowering until their own satisfiers and execution paths
+replace it.
 
 ### Value domains — wellness facts
 

@@ -34,6 +34,53 @@ pub(crate) fn validate_implicit_domain_weakening(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_implicit_domain_weakening_with_policy_retention(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        owner,
+        false,
+        diagnostics,
+    );
+}
+
+/// Named float operators deliberately carry an operand arithmetic policy to
+/// their float result through checked adapter evidence. Other semantic atoms
+/// still obey the ordinary explicit-removal rule.
+pub(crate) fn validate_implicit_domain_weakening_retaining_arithmetic_policy(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_implicit_domain_weakening_with_policy_retention(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        owner,
+        true,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_implicit_domain_weakening_with_policy_retention(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    owner: &str,
+    retain_arithmetic_policy: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if !value.is_valid() || !target_type.is_valid() {
         return;
     }
@@ -54,6 +101,7 @@ pub(crate) fn validate_implicit_domain_weakening(
 
     let dropped = source
         .into_iter()
+        .filter(|atom| !(retain_arithmetic_policy && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| atom_requires_explicit_removal(program, *atom))
         .filter(|atom| {
             !target

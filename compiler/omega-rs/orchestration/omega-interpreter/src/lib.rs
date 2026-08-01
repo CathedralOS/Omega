@@ -223,7 +223,7 @@ impl InterpretOutcome {
 /// Interpret a checked program, returning its exit code and stdout. `stdin` provides the
 /// bytes a `read_line` host call would consume (unused in the first milestone).
 pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
-    evaluator::run(&checked.typed, stdin)
+    evaluator::run(checked, stdin)
 }
 
 /// How the interpreter serves a program's `Filesystem` capability.
@@ -277,7 +277,7 @@ pub fn interpret_with_options(
     stdin: &[u8],
     options: InterpretOptions,
 ) -> InterpretOutcome {
-    evaluator::run_with_options(&checked.typed, stdin, options)
+    evaluator::run_with_options(checked, stdin, options)
 }
 
 /// CONST EVALUATION (comptime stage 1): evaluate the zero-argument machine

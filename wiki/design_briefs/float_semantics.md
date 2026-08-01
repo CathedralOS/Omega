@@ -211,14 +211,20 @@ identity survives state graph, control flow, and abstract-operation lowering;
 instruction selection resolves it back through the retained selected-plan set
 and rejects zero, missing, or contradictory evidence. Cross-target canaries pin
 all twenty exact slots per target, every used primitive operation family, and a
-native pipeline compile. The first named-operation cohort adds exact F32/F64
-`minimum`, `maximum`, and `square_root` slots on every native target. Their
-checked named-use plan identity authorizes an execution-only rewrite to the
-existing min/max/sqrt builtins in both engine pipelines; proof evidence still
-names the source boundary requirement. NaN operand order, equal signed-zero
-selection, both formats, and exact-square roots run in interpreter/native
-canaries. Primitive spellings and this six-slot named cohort are migrated, not
-all of rung 3: negate, multiply-then-add/FMA, classification/predicates,
+native pipeline compile. The named-operation cohort adds exact F32/F64
+`minimum`, `maximum`, `square_root`, `negate`, and `is_nan` slots on every
+native target. Their checked named-use plan identity authorizes an
+execution-only rewrite in both engine pipelines; proof evidence still names
+the source boundary requirement. Negate rewrites the same expression root to
+multiplication by a landed negative one. `is_nan` rewrites that root to an
+unnameable unary compiler builtin rather than duplicating its operand as
+`x != x`, retaining exactly-once evaluation and the operand's binary32/binary64
+width through nested lowering. NaN operand order, equal signed-zero selection,
+exact-square roots, signed-zero/infinity negation, and NaN/non-NaN predicates
+in both formats run in interpreter/native canaries; x86-64/AArch64 cross-target
+output and exact binding rejection pin the new realization paths. Primitive
+spellings and these ten named slots are migrated, not all of rung 3:
+multiply-then-add/FMA, the other classification/predicates,
 directed-rounding families, checked software fallbacks, canonical
 floating-control-state proof/restoration, and admitted-hardware differential
 evidence remain.

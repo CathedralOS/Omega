@@ -5956,6 +5956,7 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
         operator,
         StateGuardOperator::Equal
             | StateGuardOperator::NotEqual
+            | StateGuardOperator::IsNan
             | StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
@@ -5990,6 +5991,9 @@ pub(in crate::aarch64) fn runtime_value_operand_value_byte_size(
     }
     if let Some((_, _, _, _, byte_size)) = operands.frame_fixed_indexed(operand) {
         return Some(byte_size);
+    }
+    if let Some(width) = operands.binary_byte_width(operand) {
+        return Some(width);
     }
     if let Some((left, _, right)) = operands.binary(operand) {
         return runtime_value_operand_value_byte_size(operands, left)
@@ -6146,6 +6150,13 @@ fn append_runtime_float_binary_operation(
         StateGuardOperator::Sqrt => {
             bytes.extend(encode_float_sqrt(byte_size, 0, 1)?);
             guard(bytes)?;
+        }
+        StateGuardOperator::IsNan => {
+            bytes.extend(encode_float_compare(byte_size, 0, 0)?);
+            bytes.extend(encode_movz_w(left_register, 0));
+            bytes.extend(encode_conditional_branch_no_overflow(8)?);
+            bytes.extend(encode_movz_w(left_register, 1));
+            return Ok(());
         }
         // COMPARISON into a 0/1 GPR result (`let ok: bool = self.a > self.b`
         // with float operands): FCMP at the OPERAND width, then the integer

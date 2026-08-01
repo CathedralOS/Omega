@@ -1667,6 +1667,35 @@ pub(crate) fn validate_call_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_call_arguments_handles_with_policy_retention(
+        program,
+        current_machine,
+        current_state,
+        value_env,
+        arguments,
+        target_name,
+        parameters,
+        callee_state,
+        writable_roots,
+        false,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_call_arguments_handles_with_policy_retention(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
+    arguments: &[ExpressionHandle],
+    target_name: &str,
+    parameters: &[StateParameter],
+    callee_state: Option<&State>,
+    writable_roots: &WritableRoots<'_, '_>,
+    retain_arithmetic_policy: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
     }
@@ -1809,15 +1838,27 @@ pub(crate) fn validate_call_arguments_handles(
             "argument",
             diagnostics,
         );
-        crate::domain_weakening::validate_implicit_domain_weakening(
-            program,
-            current_machine,
-            current_state,
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            diagnostics,
-        );
+        if retain_arithmetic_policy {
+            crate::domain_weakening::validate_implicit_domain_weakening_retaining_arithmetic_policy(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                diagnostics,
+            );
+        } else {
+            crate::domain_weakening::validate_implicit_domain_weakening(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                diagnostics,
+            );
+        }
         // NOTE: an array/scalar SHAPE check does NOT belong at the argument position
         // -- `&self.msg` (address-of a `[u8; N]` buffer) passed to an `addr`/pointer
         // param is a valid array-value-into-scalar-target flow, and boundary/host
@@ -4138,7 +4179,17 @@ fn validate_expression_call_bounds(
             arguments.push(call.receiver);
         }
         arguments.extend_from_slice(explicit_arguments);
-        validate_call_arguments_handles(
+        let retains_arithmetic_policy = matches!(
+            (
+                program
+                    .operator_path_members(operator.name)
+                    .first()
+                    .map(|name| name.as_str()),
+                program.primitive_type_reference(operator.return_type),
+            ),
+            (Some("F32"), Some(PrimitiveType::F32)) | (Some("F64"), Some(PrimitiveType::F64))
+        );
+        validate_call_arguments_handles_with_policy_retention(
             program,
             current_machine,
             Some(current_state),
@@ -4148,6 +4199,7 @@ fn validate_expression_call_bounds(
             parameters,
             None,
             writable_roots,
+            retains_arithmetic_policy,
             diagnostics,
         );
         return;

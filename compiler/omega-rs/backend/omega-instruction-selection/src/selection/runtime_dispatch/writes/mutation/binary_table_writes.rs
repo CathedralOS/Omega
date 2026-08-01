@@ -26,7 +26,8 @@ use super::super::static_values::{
 };
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::{
-    binary_value_operands_are_float, resolve_runtime_comparison_operand_in_table_with_root,
+    binary_value_operand_byte_width, binary_value_operands_are_float,
+    resolve_runtime_comparison_operand_in_table_with_root,
     resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal,
     resolve_runtime_value_operand_in_table,
 };
@@ -602,19 +603,26 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         static_values,
         runtime_value_operands,
     )?;
-    let right = resolve_runtime_comparison_operand_in_table_with_root(
-        input,
-        dispatch_index,
-        value_source_key,
-        statement_index,
-        expressions,
-        value,
-        right_expression,
-        comparison_operator,
-        left_expression,
-        static_values,
-        runtime_value_operands,
-    )?;
+    let right = if operator == StateGuardOperator::IsNan {
+        // The encoder compares the left float register with itself. Keep an
+        // ignored, side-effect-free placeholder here so the authored unary
+        // argument is never evaluated a second time.
+        runtime_value_operands.insert(RuntimeValueOperand::Immediate(0))
+    } else {
+        resolve_runtime_comparison_operand_in_table_with_root(
+            input,
+            dispatch_index,
+            value_source_key,
+            statement_index,
+            expressions,
+            value,
+            right_expression,
+            comparison_operator,
+            left_expression,
+            static_values,
+            runtime_value_operands,
+        )?
+    };
     // A case-name equality (the lowered form of `in`) compares the TAG only;
     // the place operand must not read payload bytes. The encoder compares at
     // the operand's recorded width, so an unclamped enum place would fold
@@ -675,7 +683,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     ) || target_place
         .as_ref()
         .is_some_and(|place| place.byte_count == 4);
-    if is_float && target_is_f32 {
+    let unary_operand_is_f32 = operator == StateGuardOperator::IsNan
+        && binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            left_expression,
+            right_expression,
+        ) == 4;
+    if is_float && (target_is_f32 || unary_operand_is_f32) {
         narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
         narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
     }
@@ -1062,20 +1079,24 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
         static_values,
         runtime_value_operands,
     )?;
-    let right = resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
-        input,
-        dispatch_index,
-        source_key,
-        statement_index,
-        expressions,
-        value,
-        right_expression,
-        comparison_operator,
-        left_expression,
-        minimum_call_ordinal,
-        static_values,
-        runtime_value_operands,
-    )?;
+    let right = if operator == StateGuardOperator::IsNan {
+        runtime_value_operands.insert(RuntimeValueOperand::Immediate(0))
+    } else {
+        resolve_runtime_comparison_operand_in_table_with_root_and_call_ordinal(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            value,
+            right_expression,
+            comparison_operator,
+            left_expression,
+            minimum_call_ordinal,
+            static_values,
+            runtime_value_operands,
+        )?
+    };
     // A case-name equality (the lowered form of `in`) compares the TAG only;
     // see the same clamp in the targeted-mutation path above.
     if let Some(comparison_operator) = comparison_operator {
@@ -1110,7 +1131,16 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     // its `Float` initializer (`let a: f32 = 2.5; ... a + b`) -- carries the wrong
     // (f64) bit pattern and must be narrowed to f32 bits. This is the LOCAL
     // float-arithmetic entry point; without it the addss reads garbage.
-    if is_float && byte_size == 4 {
+    let unary_operand_is_f32 = operator == StateGuardOperator::IsNan
+        && binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expression,
+            right_expression,
+        ) == 4;
+    if is_float && (byte_size == 4 || unary_operand_is_f32) {
         narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
         narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
     }
@@ -1157,7 +1187,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
 /// those would corrupt them, so this must not touch them. Recurses through a nested
 /// Binary operand expression in lockstep with the operand tree so a float literal
 /// inside an inner sub-expression is narrowed too. No-op for non-literal operands.
-fn narrow_f32_literal_operands(
+pub(super) fn narrow_f32_literal_operands(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     expressions: &ExpressionTable,
     operand_expression: ExpressionHandle,
