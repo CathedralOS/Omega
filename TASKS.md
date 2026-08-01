@@ -1003,9 +1003,8 @@ move it to a convenience library.
   object identity and the ObjectTable migration bundle wait for a deployment
   that requires replacement without holder cooperation.
 - Implement serialized capability attenuation/revocation.
-- Migrate atomic source orderings to
-  `NoOrdering | Receive | Publish | ReceivePublish | GlobalOrder`; implement
-  normalized `Atomic::fence` for `Receive | Publish | ReceivePublish`; define
+- Implement normalized `Atomic::fence` for
+  `Receive | Publish | ReceivePublish`; define
   the formal atomic-event model and complete target-refinement proofs before
   enabling protocol verification. Keep the strong receive baseline on
   AArch64; a weaker acquire instruction requires protocol-scoped proof and

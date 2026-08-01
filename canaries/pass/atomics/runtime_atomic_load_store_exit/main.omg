@@ -1,12 +1,12 @@
 // RUN canary (ch17 "Atomics" / concurrency stage 1, M2): AtomicU32 store then
-// load round-trips correctly. `store(value, Relaxed)` writes the value;
-// `load(Relaxed)` reads it back. On x86_64 this Relaxed pair lowers to plain
-// aligned `mov`; the ordering validator separately rejects operation/order
-// combinations that have no meaning. Exact SeqCst store realization remains a
-// documented lowering frontier (`xchg` or an equivalent sequence).
+// load round-trips correctly. It executes the legal load/store ordering pairs:
+// NoOrdering, Publish-to-Receive, and GlobalOrder. On x86_64 NoOrdering lowers
+// to plain aligned `mov`, while GlobalOrder store uses the locked `xchg`
+// realization. The ordering validator separately rejects combinations that
+// have no meaning.
 //
-// Guard ladder: load result matches stored value (exit 70), or exits 71
-// on mismatch (should never fire on a correct implementation).
+// Guard ladder: each load result matches its stored value (exit 70), or exits
+// 71/72/73 on mismatch.
 
 use omega::language::std::console;
 
@@ -16,17 +16,36 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.counter.store(42, Relaxed);
-    let v: u32 = self.counter.load(Relaxed);
+    self.counter.store(42, NoOrdering);
+    let v: u32 = self.counter.load(NoOrdering);
 
     transition v == 42 {
-        true -> good()
-        false -> bad()
+        true -> publish_receive()
+        false -> bad(71)
     }
+
+    state publish_receive(&mut self) {
+        self.counter.store(43, Publish);
+        let v: u32 = self.counter.load(Receive);
+        transition v == 43 {
+            true -> global_order()
+            false -> bad(72)
+        }
+    }
+
+    state global_order(&mut self) {
+        self.counter.store(44, GlobalOrder);
+        let v: u32 = self.counter.load(GlobalOrder);
+        transition v == 44 {
+            true -> good()
+            false -> bad(73)
+        }
+    }
+
     state good(&mut self) {
         self.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(&mut self, code: i32) {
+        self.console.exit_process(code);
     }
 }

@@ -1,14 +1,16 @@
 // Expected exit: 70.
-// Cross-platform atomics smoke test: exercises BOTH atomic read-modify-write
-// ops so each target's real atomic instruction is emitted end-to-end.
+// Cross-platform atomics smoke test: exercises atomic read-modify-write plus
+// every legal load/store ordering family so each target's real instructions
+// are emitted end-to-end.
 //
-//   fetch_add        -> LOCK xadd  (x86_64) / LDADD (aarch64, Relaxed)
+//   fetch_add        -> LOCK xadd  (x86_64) / LDADD (aarch64, NoOrdering)
 //   compare_exchange -> LOCK CMPXCHG (x86_64) / CASAL (aarch64)
 //
 // All operands are constants and nothing is passed as a state argument, so the
-// program compiles for every declared target. Exit 70 iff both ops behaved:
+// program compiles for every declared target. Exit 70 iff all ops behaved:
 //   store(10); fetch_add(5)  -> old1==10, counter==15
 //   compare_exchange(15,99)  -> prior==15 (match), counter==99
+//   Publish store/Receive load and GlobalOrder store/load round-trip
 //
 // Verified on the host (windows_x64) by execution; the aarch64 LDADD/CASAL
 // paths are verified by cross-emission + disassembly (this box cannot run them).
@@ -27,9 +29,9 @@ data Main {
 
 machine Main::main(&mut self) {
     self.console.write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
-    self.counter.store(10, Relaxed);
+    self.counter.store(10, NoOrdering);
 
-    let old1: u32 in Wrapping = self.counter.fetch_add(5, Relaxed);
+    let old1: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
     transition old1 == 10 {
         true -> after_add()
         _ -> bad()
@@ -37,7 +39,7 @@ machine Main::main(&mut self) {
 
     state after_add(&mut self) {
         // counter is now 15 (a field, so it survived the transition).
-        let prior: u32 in Wrapping = self.counter.compare_exchange(15, 99, AcqRel, Acquire);
+        let prior: u32 in Wrapping = self.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 {
             true -> after_cas()
             _ -> bad()
@@ -46,19 +48,37 @@ machine Main::main(&mut self) {
 
     state after_cas(&mut self) {
         transition self.counter == 99 {
+            true -> publish_receive()
+            _ -> bad()
+        }
+    }
+
+    state publish_receive(&mut self) {
+        self.counter.store(100, Publish);
+        let observed: u32 = self.counter.load(Receive);
+        transition observed == 100 {
+            true -> global_order()
+            _ -> bad()
+        }
+    }
+
+    state global_order(&mut self) {
+        self.counter.store(101, GlobalOrder);
+        let observed: u32 = self.counter.load(GlobalOrder);
+        transition observed == 101 {
             true -> good()
             _ -> bad()
         }
     }
 
     state good(&mut self) {
-        self.console.write_line("PASS: fetch_add returned 10, CAS matched 15, counter ends 99 (exit 70)");
+        self.console.write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state bad(&mut self) {
-        self.console.write_line("FAIL: an atomic op misbehaved -- fetch_add old value, CAS prior, or final counter wrong (exit 71)");
+        self.console.write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(71);

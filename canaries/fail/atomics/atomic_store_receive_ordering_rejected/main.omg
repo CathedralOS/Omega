@@ -1,0 +1,7 @@
+// Atomic stores cannot receive from a value they do not read.
+
+data Main { counter: AtomicU32; }
+
+machine Main::main(&mut self) {
+    self.counter.store(1, Receive);
+}

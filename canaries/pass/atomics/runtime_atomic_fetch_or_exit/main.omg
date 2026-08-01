@@ -10,8 +10,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.counter.store(10, Relaxed);
-    let prior: u32 = self.counter.fetch_or(5, AcqRel);
+    self.counter.store(10, NoOrdering);
+    let prior: u32 = self.counter.fetch_or(5, ReceivePublish);
     transition prior == 10 {
         true -> check_first_value()
         false -> bad_first_prior()
@@ -25,7 +25,7 @@ machine Main::main(&mut self) {
     }
 
     state do_second_or(&mut self) {
-        let prior2: u32 = self.counter.fetch_or(16, Relaxed);
+        let prior2: u32 = self.counter.fetch_or(16, NoOrdering);
         transition prior2 == 15 {
             true -> check_second_value()
             false -> bad_second_prior()

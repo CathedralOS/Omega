@@ -536,9 +536,10 @@ Working rules:
   success/failure orderings), and the fetch-and-modify family.
 - The implemented load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/fetch_and/swap/
   compare_exchange slice carries ordering as normalized operation data through
-  both backends. Its source vocabulary still requires migration to the names
-  above, and instruction selection is not by itself a formal memory-model or
-  target-refinement proof. Fetch/swap/CAS return the prior observed by that
+  both backends. The parser accepts exactly the vocabulary above and rejects
+  the conventional literature spellings as source names. Instruction selection
+  is not by itself a formal memory-model or target-refinement proof.
+  Fetch/swap/CAS return the prior observed by that
   instruction, not by a preceding load. Swap uses a first-class carrier and
   therefore does not manufacture an arithmetic-domain proof obligation.
   `fetch_sub` performs exact-width two's-complement subtraction through one

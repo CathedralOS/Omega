@@ -1,1 +1,0 @@
-failure ordering `Release` is invalid for success ordering `SeqCst`

@@ -2977,7 +2977,7 @@ mod tests {
             "distinct atomic operation families must alter normalized identity"
         );
 
-        let store = AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Release));
+        let store = AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Publish));
         plan.authorize(
             field_key(&plan, "head"),
             BorrowPolarity::Shared,
@@ -2989,7 +2989,9 @@ mod tests {
             field_key(&plan, "head"),
             BorrowPolarity::Shared,
             BorrowPolarity::Shared,
-            AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(MemoryOrdering::AcqRel)),
+            AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(
+                MemoryOrdering::ReceivePublish,
+            )),
         )
         .expect("admitted fetch-add");
         assert!(
@@ -2997,13 +2999,15 @@ mod tests {
                 field_key(&plan, "head"),
                 BorrowPolarity::Shared,
                 BorrowPolarity::Shared,
-                AccessOperation::Atomic(AtomicAccessOperation::FetchSub(MemoryOrdering::AcqRel)),
+                AccessOperation::Atomic(AtomicAccessOperation::FetchSub(
+                    MemoryOrdering::ReceivePublish
+                )),
             )
             .is_err(),
             "one admitted fetch family does not imply another"
         );
         let invalid_load =
-            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Release));
+            AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Publish));
         let error = plan
             .authorize(
                 field_key(&plan, "head"),
@@ -3011,7 +3015,7 @@ mod tests {
                 BorrowPolarity::Shared,
                 invalid_load,
             )
-            .expect_err("release cannot order an atomic load");
+            .expect_err("Publish cannot order an atomic load");
         assert!(error.0.contains("invalid ordering"));
         assert!(
             plan.authorize(
@@ -3077,7 +3081,7 @@ mod tests {
             .project(field_key(placement.access(), "head"))
             .expect("pure atomic projection");
         let request = head
-            .atomic_compare_exchange(MemoryOrdering::AcqRel, MemoryOrdering::Acquire)
+            .atomic_compare_exchange(MemoryOrdering::ReceivePublish, MemoryOrdering::Receive)
             .expect("authorized compare-exchange")
             .into_primitive_request();
         assert_eq!(request.plan(), placement.identity());
@@ -3100,8 +3104,8 @@ mod tests {
         assert_eq!(
             request.operation(),
             AccessOperation::Atomic(AtomicAccessOperation::CompareExchange {
-                success: MemoryOrdering::AcqRel,
-                failure: MemoryOrdering::Acquire,
+                success: MemoryOrdering::ReceivePublish,
+                failure: MemoryOrdering::Receive,
             })
         );
         assert_eq!(request.reach(), &BoundaryReach::default());
@@ -3528,26 +3532,30 @@ mod tests {
                 .expect("atomic projection");
             assert_eq!(
                 counter
-                    .atomic_load(MemoryOrdering::Acquire)
+                    .atomic_load(MemoryOrdering::Receive)
                     .expect("atomic load")
                     .access()
                     .operation(),
-                AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Acquire))
+                AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Receive))
             );
             assert_eq!(
                 counter
-                    .atomic_fetch_add(MemoryOrdering::AcqRel)
+                    .atomic_fetch_add(MemoryOrdering::ReceivePublish)
                     .expect("atomic fetch-add")
                     .access()
                     .operation(),
-                AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(MemoryOrdering::AcqRel))
+                AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(
+                    MemoryOrdering::ReceivePublish
+                ))
             );
             assert!(
-                counter.atomic_fetch_sub(MemoryOrdering::AcqRel).is_err(),
+                counter
+                    .atomic_fetch_sub(MemoryOrdering::ReceivePublish)
+                    .is_err(),
                 "unlisted atomic families must remain absent"
             );
             assert!(
-                counter.atomic_load(MemoryOrdering::Release).is_err(),
+                counter.atomic_load(MemoryOrdering::Publish).is_err(),
                 "operation-specific ordering legality remains sealed"
             );
         }

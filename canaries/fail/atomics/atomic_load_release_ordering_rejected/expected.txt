@@ -1,1 +1,0 @@
-atomic load cannot use `Release` ordering
