@@ -1104,10 +1104,22 @@ fn resolve_free_machine<'plan>(
     target_symbol: SymbolHandle,
     target_state: &Identifier,
 ) -> Option<&'plan MachineFlow> {
-    if target_symbol.is_valid()
-        && let Some(machine) = control_flow.machine_by_symbol(target_symbol)
-    {
-        return Some(machine);
+    if target_symbol.is_valid() {
+        let exact = control_flow
+            .machines
+            .iter()
+            .map(|(_, machine)| machine)
+            .find(|machine| {
+                control_flow
+                    .states
+                    .span(machine.states)
+                    .is_some_and(|states| {
+                        states.iter().any(|state| state.key.state == target_symbol)
+                    })
+            });
+        if exact.is_some() {
+            return exact;
+        }
     }
 
     control_flow
@@ -1161,23 +1173,33 @@ fn resolve_attached_data_state_key_by_name(
     target_symbol: SymbolHandle,
     target_state: &Identifier,
 ) -> Option<StateKey> {
-    control_flow
+    let candidates = control_flow
         .machines
         .iter()
         .filter_map(|(_, candidate)| {
             (candidate.attached_data.as_ref() == Some(attached_data)).then_some(candidate)
         })
-        .find_map(|candidate| {
+        .collect::<Vec<_>>();
+    if target_symbol.is_valid()
+        && let Some(exact) = candidates.iter().find_map(|candidate| {
             control_flow
                 .states
                 .span(candidate.states)?
                 .iter()
-                .find_map(|state| {
-                    let matches = (target_symbol.is_valid() && state.key.state == target_symbol)
-                        || (state.key.segment_index == 0 && state.name == *target_state);
-                    matches.then_some(state.key)
-                })
+                .find(|state| state.key.state == target_symbol)
+                .map(|state| state.key)
         })
+    {
+        return Some(exact);
+    }
+    candidates.into_iter().find_map(|candidate| {
+        control_flow
+            .states
+            .span(candidate.states)?
+            .iter()
+            .find(|state| state.key.segment_index == 0 && state.name == *target_state)
+            .map(|state| state.key)
+    })
 }
 
 fn source_state_parameter_type_name(

@@ -378,11 +378,23 @@ fn validate_machine_single_requirement(
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(requirement) = program
+    // The machine's conforming signature is its ENTRY state (the first state:
+    // an implicit entry always parses first, and single-entry proof machines
+    // are the shape this mode serves).
+    let Some(entry_state) = program.machine_states(machine).first() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` satisfies `{}::{}` but has no states",
+            machine.name, trait_definition.name, requirement_name
+        )));
+        return;
+    };
+    let implementation_dispatch = program.normalized_result_dispatch_set(entry_state.return_type);
+    let named_requirements = program
         .trait_machine_signatures(trait_definition)
         .iter()
-        .find(|requirement| requirement.name == *requirement_name)
-    else {
+        .filter(|requirement| requirement.name == *requirement_name)
+        .collect::<Vec<_>>();
+    if named_requirements.is_empty() {
         if explicitly_named {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` satisfies `{}::{}`, but trait `{}` has no requirement named `{}`",
@@ -401,15 +413,30 @@ fn validate_machine_single_requirement(
             )));
         }
         return;
+    }
+    let matching_requirements = if named_requirements.len() == 1 {
+        named_requirements
+    } else {
+        named_requirements
+            .into_iter()
+            .filter(|requirement| {
+                program.normalized_result_dispatch_set(requirement.return_type)
+                    == implementation_dispatch
+            })
+            .collect::<Vec<_>>()
     };
-
-    // The machine's conforming signature is its ENTRY state (the first state:
-    // an implicit entry always parses first, and single-entry proof machines
-    // are the shape this mode serves).
-    let Some(entry_state) = program.machine_states(machine).first() else {
+    let [requirement] = matching_requirements.as_slice() else {
+        let dispatch = if implementation_dispatch.is_empty() {
+            "<empty>".to_owned()
+        } else {
+            implementation_dispatch.identity()
+        };
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` satisfies `{}::{}` but has no states",
-            machine.name, trait_definition.name, requirement_name
+            "machine `{}` satisfies `{}::{}`, but its entry result dispatch set `{dispatch}` selects {} matching requirement overload(s); exactly one is required",
+            machine.name,
+            trait_definition.name,
+            requirement_name,
+            matching_requirements.len(),
         )));
         return;
     };
@@ -538,13 +565,36 @@ fn trait_requirement_state<'program>(
     machine: &'program Machine,
     requirement: &StateSignature,
 ) -> Option<(&'program Machine, &'program State)> {
+    let required_dispatch = program.normalized_result_dispatch_set(requirement.return_type);
+    let overloaded = program
+        .traits()
+        .iter()
+        .find(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|candidate| candidate.symbol == requirement.symbol)
+        })
+        .is_some_and(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(|candidate| candidate.name == requirement.name)
+                .count()
+                > 1
+        });
     trait_conformance_candidate_machines(program, machine)
         .into_iter()
         .find_map(|candidate| {
             program
                 .machine_states(candidate)
                 .iter()
-                .find(|state| state.name == requirement.name)
+                .find(|state| {
+                    state.name == requirement.name
+                        && (!overloaded
+                            || program.normalized_result_dispatch_set(state.return_type)
+                                == required_dispatch)
+                })
                 .map(|state| (candidate, state))
         })
 }

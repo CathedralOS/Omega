@@ -558,20 +558,35 @@ fn attached_machine_with_target_state(
     target_symbol: SymbolHandle,
     target_name: &str,
 ) -> Option<SymbolHandle> {
-    input.control_flow.machines.iter().find_map(|(_, machine)| {
-        if machine.attached_data.as_ref() != Some(type_name) {
-            return None;
-        }
+    let candidates = input
+        .control_flow
+        .machines
+        .iter()
+        .filter_map(|(_, machine)| {
+            (machine.attached_data.as_ref() == Some(type_name)).then_some(machine)
+        })
+        .collect::<Vec<_>>();
+    if target_symbol.is_valid()
+        && let Some(exact) = candidates.iter().find_map(|machine| {
+            input
+                .control_flow
+                .states
+                .span(machine.states)?
+                .iter()
+                .any(|state| state.key.state == target_symbol)
+                .then_some(machine.symbol)
+        })
+    {
+        return Some(exact);
+    }
+    candidates.into_iter().find_map(|machine| {
         input
             .control_flow
             .states
             .span(machine.states)?
             .iter()
-            .find(|state| {
-                (target_symbol.is_valid() && state.key.state == target_symbol)
-                    || state.name.as_str() == target_name
-            })
-            .map(|_| machine.symbol)
+            .any(|state| state.name.as_str() == target_name)
+            .then_some(machine.symbol)
     })
 }
 

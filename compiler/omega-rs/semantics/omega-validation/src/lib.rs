@@ -1,5 +1,6 @@
 mod arithmetic_domains;
 mod call_cycles;
+mod callable_overloads;
 mod calls;
 mod content_projections;
 mod contract_entailment;
@@ -26,6 +27,7 @@ mod properties;
 mod qualification_evidence;
 mod quotients;
 mod recasts;
+mod result_overloads;
 mod state_signatures;
 mod struct_literals;
 mod symbols;
@@ -80,6 +82,7 @@ pub use properties::{
     DeclaredPropertyRequirement, declared_property_requirements, effective_data_carry_policy,
     effective_type_carry_policy, type_satisfies_declared_property,
 };
+pub use result_overloads::resolve_named_result_overloads;
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_program_internal(program, false)
@@ -124,6 +127,7 @@ fn validate_program_internal(
     generic_contract_entailment_prevalidated: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let fact_plan = omega_facts::build_definition_fact_plan(program);
 

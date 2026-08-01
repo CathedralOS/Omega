@@ -1,0 +1,17 @@
+// Result dispatch requires exact set equality. The family has empty and
+// Saturating candidates, but the caller requests Saturating & Marker; silently
+// weakening away Marker would select the wrong semantic identity.
+domain i32::Marker;
+
+machine convert(value: i32) -> i32 {
+    transition { _ -> (value) }
+}
+
+machine convert(value: i32) -> i32 in Saturating {
+    transition { _ -> (value as i32 in Saturating) }
+}
+
+data Main {}
+machine Main::main(&mut self) {
+    let converted: i32 in Saturating & Marker = convert(1);
+}
