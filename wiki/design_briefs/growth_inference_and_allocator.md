@@ -16,14 +16,13 @@
 > adversarial verification pass. The body incorporates the resulting
 > corrections.
 
-> **Vocabulary reconciliation (2026-07-18):** this brief remains authoritative
-> for growth-bound inference and peak accounting. Its older allocator taxonomy
-> is superseded by [`allocator_story.md`](allocator_story.md): `Extent` is
-> concrete-range authority, `Arena` is the bounded allocation/lifetime domain,
-> and `Allocation<T>` is arena-bound typed storage. `Allocator` remains the
-> deferred general interface. Loop-shaped snippets below are mathematical
-> pseudocode for state-transition or tail-recursive cycles, not proposed
-> `for`/`while` surface syntax.
+> **Vocabulary reconciliation (2026-07-31):** this brief remains authoritative
+> for growth-bound inference only. Its allocator taxonomy, including `Arena` as
+> a semantic capability and the claimed peak-accounting ladder, is superseded
+> by [`allocator_story.md`](allocator_story.md). Core supplies `Extent`,
+> placement, and conservation; allocation strategies are ordinary packages.
+> Loop-shaped snippets below are mathematical pseudocode for state-transition
+> or tail-recursive cycles, not proposed `for`/`while` surface syntax.
 
 ---
 
@@ -61,21 +60,12 @@ loop:**
   unbounded case is *rejected at the low rung*, never silently truncated as the
   256-byte hack does today.
 
-**The future bounded allocator surface is an explicit `Arena`; static storage
-remains inline/BSS and dynamic storage is an arena Allocation or a later general
-Allocator request.** The proof target is peak live requested bytes within the
-declared Arena/provider budget; reach stays honest (allocation-service reach
-records the possibility of a runtime request), and a target's ceiling is enforced by withholding allocation
-authority. Extent range authority, Arena allocation permission, and
-Allocation-owned bytes remain distinct. The whole field (Zig, Ada/SPARK,
-Jai/Odin, Vale/Austral, Verona, PMR)
-validates the pieces *ergonomically* but proves *nothing* — every existing bound is
-a runtime check or a prohibition. Omega's genuinely novel, defensible claim is
-**no-OOM as a discharged theorem on the same engine that discharges array-index
-bounds** — the unification the safety-critical industry assembles today from 3–4
-tools that don't share a semantic model. The concentrated novelty (and the real
-research risk) is **global peak-accounting over allocation requests** — the exact piece
-Ada/SPARK *deferred*. (Full decided shape: §4 and §4.1–§4.9.)
+Static storage remains inline/BSS. Dynamic allocation requires an ordinary
+package holding qualified storage authority or reaching a selected provider.
+The bump-allocation canary demonstrates local proof-obligated capacity over an
+exact residual tail; it does not establish a language-wide Arena capability or
+a solved global peak-accounting theorem. Reach stays honest whenever fresh
+backing is requested from a provider.
 
 ---
 
@@ -410,6 +400,13 @@ soundness proof (no one has one yet).
 
 ## 4. How growth inference meets allocation — the decided shape
 
+> **Superseded allocator analysis:** sections 4.1–4.9 preserve the reasoning
+> that motivated explicit allocation authority and honest provider reach, but
+> their capitalized `Arena`/`Allocation` API and allocator-rung taxonomy are not
+> normative. The current allocation design is
+> [`allocator_story.md`](allocator_story.md). No core Arena primitive follows
+> from this historical analysis.
+
 Static storage, concrete range authority, allocation permission, and returned
 owned bytes are separate relationships:
 
@@ -635,9 +632,10 @@ Beating the *determined* is not a goal; not *seducing the lazy* is.
 case, as a *linear length-arithmetic* theorem. Be honest that the loop case needs
 EITHER a blessed loop-append invariant axiom OR a small octagon domain — not the
 bare non-relational interval engine. Do NOT build AARA, a string solver,
-whole-program region inference, or size-indexed `Vect`.** The future allocator is
-the settled rung lattice with allocator-as-capability; concentrate novelty on rungs
-3–4 (proof-bounded Arena + global peak-accounting), the piece Ada deferred.
+whole-program region inference, or size-indexed `Vect`.** Dynamic allocation is
+package code over explicit storage authority. Keep the growth theorem
+independent from any allocator strategy and validate the substrate first with
+the bump-allocation canary.
 
 Ordered, tied to the lattice and the #66 unblock:
 
@@ -656,19 +654,13 @@ Ordered, tied to the lattice and the #66 unblock:
    ⊤), symbolic×symbolic (must *reject* unless a side is pinned).
 3. **(rung 2, optional) Add octagons** only if blessed invariants prove too narrow
    in practice — the relational fallback CSSV validates.
-4. **(rung 3) Proof-bounded Arena:** `allocate(a,n)` obligation `n ≤ remaining`, infallible
-   after proof.** SSA-thread the remaining-bytes interval through the *same*
-   arithmetic-domain merge (resolved ergonomics R3). SPARK's heap `Storage_Error`
-   → a theorem — the headline novelty. Keep the handle affine/non-escaping
-   (Omega's body-escape analysis already rejects `-> &local`).
-5. **(rung 3, peak-accounting) Peak-not-net high-water-mark summation** — the
-   global obligation Ada deferred. Per-site proofs are local; `total live ≤ budget`
-   is global; region-reset = disjointness proof. Hardest and most defensible. If it
-   doesn't scale, fall back to per-Arena budgets with a declared envelope — never
-   silent over-approximation.
-6. **(rung 4) Bounded heap** with a pluggable locality backend (mimalloc/snmalloc
-   *under* the rung, invisible to the prover) and the fallible/abort escape for
-   everything that widened to ⊤.
+4. **Package-level bump canary:** after content-conservation syntax lands,
+   express `allocate(a,n)` with exact aligned-tail placement and a proof of
+   adequate residual capacity. Release returns authority as retired content;
+   only reset recomposes the original backing and restores bump capacity.
+5. Treat global peak accounting and reusable fragmented allocation as separate
+   future customer-driven analyses. Neither is implied by the bump canary or by
+   a scalar `CountedQuantity<Bytes>`.
 
 ### Residual annotation burden (honest)
 

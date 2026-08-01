@@ -1,131 +1,116 @@
-# Design Brief: Arena Allocation Story
+# Design Brief: Allocation Substrate and Strategy Packages
 
-Current direction; implementation remains staged in `TASKS.md`. The allocator
-surface uses an explicit bounded Arena capability and dependent contracts.
-Allocator boundary reach is a service member. The exact source-visible handle,
-qualification, threading operation, rejection shape, and `Allocation<T>`
-carrier are owner-blocked in `OWNER_QUESTIONS.md` #7; do not infer them from the
-stage-1 boundary trait. Quantitative row entries wait for the resource-algebra
-brief.
+Status: semantic direction settled 2026-07-31; implementation remains staged
+in `TASKS.md`.
 
-This brief supersedes the old allocator use of `Region`. A region in ordinary
-memory prose means a span; Omega's precise authority over a concrete span is an
-`Extent`. The allocation capability is an `Arena`.
+Omega does not make an Arena, bump allocator, slab, pool, buddy allocator, or
+general heap a language primitive. Core supplies the reusable substrate:
 
-## Vocabulary and relationships
+- `Extent`, a linear claim over concrete storage carrying placement and access
+  qualifications;
+- exact separated split/merge and content conservation;
+- layout, establishment, access, cleanup, and non-disclosure rules for values
+  placed in an extent; and
+- boundary services from which a package may obtain new storage.
 
-| Concept | Meaning |
-|---|---|
-| `Extent` | authority over one concrete address-space range |
-| `Arena` | bounded, lifetime-scoped allocation domain, backed by an Extent or provider |
-| `Allocation<T>` | arena-bound owned storage with layout and establishment state for `T` |
-| `Allocator` | deferred general interface for strategies weaker/different than Arena semantics |
-| budget/reservation | quantitative capacity fact or token, not the storage object |
-| pool | fixed-size/fixed-class allocation strategy, normally a package over an Arena or provider |
+Allocation strategies are ordinary checked packages over that substrate. A
+bump-allocation implementation is the acceptance canary, not a blessed core
+abstraction. Its public name is a package choice.
 
-These are core/library abstractions over existing ownership, lifetime, domain,
-and provider machinery; this settle adds no grammar. Capitalized `Arena` names
-the capability. Lowercase "arena" may describe an implementation strategy only,
-never a second semantic object.
+## Backing and access
 
-The dependency chain is:
+The caller chooses backing by supplying an appropriately qualified `Extent`.
+The strategy inherits its placement and access properties; it does not decide
+that storage is RAM, GPU memory, MMIO, persistent memory, or another class.
 
-```text
-Extent or admitted provider backing
-    -> Arena borrow/capability
-        -> Allocation<T>
-            -> slices and placed/typed views
-```
+Splitting and accounting are independent of placement. Establishing, reading,
+writing, transferring, and cleaning a `T` still require the selected backing's
+ordinary layout and access evidence. Therefore a generic allocation result does
+not promise `&mut T`: RAM-backed storage may lend an ordinary mutable view,
+while GPU or other placed storage exposes the corresponding placed-view API.
 
-Each child is lifetime-bounded by its parent. Arena reset or reclamation is
-illegal while any Allocation remains live; an Allocation cannot outlive the
-Arena from which it was issued.
+## Bump-allocation canary
 
-## Multiplicity follows representation
-
-Multiplicity is structurally derived rather than chosen as allocator policy.
-
-- `Arena::over(&mut backing)` borrow-carries an Extent and is affine. Dropping
-  it ends allocation permission after all Allocations have ended.
-- A form that consumes and stores an owned linear Extent necessarily derives
-  linearity. It is a distinct owned-backing wrapper/lease and must return or
-  release the backing explicitly.
-- `Allocation<T>` derives its multiplicity from its fields and `T`. Storing a
-  linear value makes the allocation/container debt-bearing; consuming it must
-  move or terminally consume every obligation before storage is reclaimed.
-
-Bulk reclamation never substitutes for element consumption. The Allocation's
-borrow blocks reset while it is live, so arenas may semantically store affine or
-linear values without laundering debt. An initial implementation may reject
-debt-bearing `T` until generic structural-linearity enforcement lands; that is a
-dated engineering fence in `TASKS.md`, not language doctrine.
-
-## Storage lifecycle and ZII
-
-Allocation grants storage, not a live `T`:
+The canary consumes one backing extent and represents three distinct states:
 
 ```text
-reserved storage -> initialized/established storage -> live T -> reclaimed
+allocatable tail   storage not yet issued by the monotonic cursor
+live extent        owned by an allocation value
+retired extent     returned after cleanup, but unavailable until reset
 ```
 
-Reads gate until establishment. Zero-expressibility does not assert zero
-contents: recycled storage may contain arbitrary prior bytes. A provider may
-offer actually-zeroed storage, but immediate establishment is legal only when
-zero honestly establishes `T`; otherwise construction must establish the
-required value/domain facts first.
+Allocation takes exclusive access to the strategy only for the call. It splits
+an aligned subextent from the tail, establishes `T`, and returns an owned linear
+claim. The borrow ends when the call returns, so several allocations coexist
+without shared-borrow mutation, interior mutability, lease counters, or a new
+borrow-checker rule.
 
-Establishment and non-disclosure protect different parties:
+Release runs `T`'s ordinary cleanup and transfers the exact live extent back to
+the strategy as retired content. It does not rewind the cursor or restore
+allocatable capacity. A standalone `allocation.release()` is insufficient
+unless it returns authority that is subsequently transferred back; the
+operation must conserve the claim explicitly.
 
-- establishment prevents a new checked reader from consuming invalid bytes;
-- provider-established non-disclosure prevents a prior principal's bytes from
-  leaking when storage becomes visible across a trust boundary.
+Reset is legal only after the allocatable tail and every retired extent
+recompose to the original backing, proving that no live allocation remains. It
+then rewinds the cursor and restores the tail. Finishing the strategy similarly
+returns the original backing extent. Bulk reclamation never substitutes for
+cleanup of debt-bearing elements.
 
-Non-disclosure must hold before recipient visibility and cover the entire
-recipient-visible range, including padding and page slack. Scrubbing, complete
-authorized overwrite, narrowed mapping, or an equivalent admitted policy may
-establish it. Recipient-side establishment never discharges previous-owner
-confidentiality.
+`CountedQuantity<Bytes>` may summarize residual magnitude for a capacity proof,
+but a scalar byte count does not identify where storage lies. The residual tail
+extent supplies placement for the bump canary. The source spelling for the
+n-to-m split, retirement, and recomposition theorem remains blocked on
+`OWNER_QUESTIONS.md` #8.
 
-## Current state
+## Failure and provisioning
 
-- `Vec<T>` is browsable surface (`omega/language/core/vec.omg`) with no runtime storage
-  lowering. `String` remains statically fixed-capacity.
-- The provider registry reserves the allocation-service seam needed for host or
-  Cathedral backing.
-- Lifetimes make arena-borrowing containers expressible.
-- Extent, Arena, and Allocation are separate relationships. An Arena may borrow
-  an Extent; it never manufactures fresh range authority.
+A package may expose both operations:
 
-## Recommendations
+- a fallible request that preserves and returns the unchanged state on
+  rejection; and
+- an infallible request whose caller proves adequate aligned tail capacity.
 
-1. **No ambient heap.** Allocation requires an explicit Arena or later
-   Allocator capability.
-2. **Arena v1.** Ship the stronger bounded, bulk-lifetime abstraction before a
-   general pluggable Allocator interface.
-3. **Vec ladder.** Keep fixed-capacity containers as the permanent floor; then
-   add fixed-capacity `Vec<'a, T>` backed by an Arena Allocation, with no growth;
-   add pluggable growth only if a real customer requires it.
-4. **Proof-obligated capacity.** Proven sites allocate infallibly under
-   `requested <= remaining`; genuinely dynamic sites use an explicit fallible
-   reserve/allocation outcome. No silent OOM trap.
-5. **Cleanup.** Containers discharge their elements when consumed/dropped under
-   ordinary multiplicity rules. Arena bulk reclamation begins only after every
-   Allocation ends.
-6. **Service reach.** Only reaching the allocation provider contributes its
-   boundary-service member; ordinary reads/writes of already-owned allocations
-   do not.
+Provisioning storage and reaching a storage provider remain separate. Using an
+already-owned extent need not reach a provider. Obtaining fresh backing through
+a boundary service contributes that service's reach and its admitted or derived
+evidence.
 
-## Staging
+## Retirement is not reuse
 
-1. Heap-free fixed-capacity containers and Arena contract surface.
-2. Borrow-backed Arena plus fixed-capacity `Vec<'a, T>`, establishment gates,
-   element cleanup, and bulk reclamation.
-3. Debt-bearing generic elements after structural multiplicity through generics
-   is enforced.
-4. General `Allocator` interface, growth, and movable storage only when demanded.
+Allocator contracts must keep three properties separate:
 
-## Touches
+1. retire an allocation and clean its value;
+2. return its extent authority to the allocator; and
+3. make that capacity immediately reusable.
 
-Runtime allocation ABI and descriptors, lifetimes, structural multiplicity,
-drop/consumption analysis, effects, instruction selection, length/capacity
-proofs, Extent-backed OS allocation, and cross-principal sanitization.
+A bump strategy supports the first two and delays the third until reset. A
+container can therefore be correct over such a strategy while retaining old
+buffers and wasting capacity. Containers that require prompt reuse should ask
+for that stronger capability explicitly rather than make it part of every
+allocation interface.
+
+General fragmented allocation is a later container-driven problem. Total free
+bytes do not prove that one sufficiently large contiguous extent exists, so
+such an allocator remains fallible or supplies exact placement/reservation
+evidence. Do not shape a common allocator interface around the bump canary
+before that customer is implemented.
+
+## Implementation staging
+
+1. Finish the source-visible content-conservation contract in owner question
+   #8.
+2. Implement the bump-allocation canary as ordinary package code over `Extent`,
+   placement, and conservation.
+3. Require canaries for coexisting allocations, failed reset with a live claim,
+   release into retired content, successful reset/recomposition, backing return,
+   and RAM versus non-RAM access.
+4. Treat any failure to express the canary as evidence of a substrate gap, not
+   as permission to add an Arena primitive.
+5. Design reusable fragmented allocation when the container/backend customer
+   is ready.
+
+The existing core `Arena` boundary trait is an early service seam, not evidence
+that bump semantics belong in core. Its eventual name and interface should be
+judged with the general allocator customer; no current owner question depends
+on it.

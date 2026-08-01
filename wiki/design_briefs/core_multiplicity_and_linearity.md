@@ -141,9 +141,10 @@ claims exactly once. Proof/debug artifacts report both levels in one nested
 conservation witness.
 
 Borrowed division remains cheaper. Layout fields, subrange loans, placed views,
-and borrow-backed Arenas retain one owned root and therefore do not split its
-content. Runtime-indexed owned extraction remains rejected until the frontier
-and prover can name the unique moved element.
+and allocator-private geometry retain one owned root and therefore do not split
+its content. An allocator that returns an independently owned subextent does
+split content and must conserve it. Runtime-indexed owned extraction remains
+rejected until the frontier and prover can name the unique moved element.
 
 ## Representation law
 

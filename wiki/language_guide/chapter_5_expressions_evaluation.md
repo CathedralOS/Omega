@@ -291,10 +291,11 @@ requires
 
 The proof checker owns `start <= items.len`. The boundary primitive owns the
 descriptor/pointer rewrite that actually constructs the narrower view.
-Owned dynamic storage is constructed from an explicit Arena-backed
-`Allocation<T>`; `Vec` has no ambient `with_capacity` shortcut. A growable text
-owner is that same `Vec<u8>` qualified by `Utf8`; append operations carry both
-the capacity/domain proofs and the ordinary unique-borrow obligation.
+Owned dynamic storage is obtained through an explicit allocator package over
+qualified storage authority; `Vec` has no ambient `with_capacity` shortcut. A
+growable text owner is that same `Vec<u8>` qualified by `Utf8`; append
+operations carry both the capacity/domain proofs and the ordinary unique-borrow
+obligation.
 
 Operator declarations form overload sets by call signature. Overload resolution
 keys on the operator path plus parameter types; return type alone never

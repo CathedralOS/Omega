@@ -1,26 +1,20 @@
-// Core Arena surface — ALLOCATOR STORY STAGE 1 (contract only).
+// Provisional allocation-provider seam (contract only).
 //
-// `Arena` is the bounded allocation boundary: allocation is an explicit
-// CAPABILITY, never ambient state. `Extent` separately means authority over a
-// concrete address-space range; the two relationships must not share a name.
-// Arena implementations reclaim their storage in bulk only after ordinary
-// multiplicity rules have discharged or moved every stored obligation.
-// The concrete range authority they allocate is `Extent`; returning a bare
-// `addr` here would confuse a forgeable number with authority over storage.
+// This trait does not define an Arena language capability or bless bump, slab,
+// pool, buddy, or heap semantics. Allocation strategies are ordinary packages
+// over qualified `Extent`, placement, and conservation. The current name and
+// allocate/deallocate pair predate that reduction and should be judged with the
+// future reusable-allocator/container customer rather than treated as settled
+// core API.
 //
-// STAGE 1 declares only this contract surface: the trait exists so code and
-// designs can NAME the boundary, and so `Arena` service reach attaches to the
-// machines that will carry it. No
-// provider is bound, no runtime exists, and nothing in core requires a
-// Arena yet — stage 1 containers (core/fixed_vec.omg) are deliberately
-// allocator-free. Stage 2 binds Arena implementations through the reserved
-// `Allocation` boundary-provider category, introduces arena-bound
-// `Allocation<T>`, and makes `Vec<'a, T>` borrow that storage.
+// The concrete range authority returned here is `Extent`; returning a bare
+// `addr` would confuse a forgeable number with authority over storage. Reaching
+// this boundary requests fresh backing and therefore contributes provider
+// reach. Operating on storage already owned by a package does not.
 //
 // `size`/`align` are byte COUNTS (u64). The returned Extent carries its selected
 // geometry in ordinary fields and its grant metadata in domain evidence;
-// reclaiming consumes that exact qualified authority. The typed
-// `Allocation<T>` story sits ABOVE this boundary.
+// reclaiming consumes that exact qualified authority.
 
 use omega::language::core::extent;
 

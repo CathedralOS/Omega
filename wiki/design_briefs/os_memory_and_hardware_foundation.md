@@ -48,13 +48,12 @@ status.
 These pieces compose `data`, `machine`, `trait`, `domain`, `boundary`, ordinary
 contracts, linearity, capabilities, and plan policies.
 
-## Extent and Arena
+## Extent and allocation strategies
 
-`Arena` is bounded allocation authority: it permits drawing storage from a
-resource under capacity and lifetime rules. A borrow-backed Arena is affine; an
-owned-backing wrapper derives linearity from its Extent. The returned
-`Allocation<T>` borrows its Arena and carries typed establishment/ownership; it
-is not itself the allocator or a fresh root authority. See
+`Extent` is the core storage authority. Bump, slab, pool, buddy, and general
+heap strategies are ordinary packages that consume or borrow appropriately
+qualified extents and conserve every owned subextent they issue. No Arena
+capability or allocator strategy is part of the language model. See
 [`allocator_story.md`](allocator_story.md).
 
 A placed view instead needs authority over an
@@ -179,10 +178,10 @@ underapproximation remains safe but restricts use. A provider can still lie
 about external reality, and that accepted assertion remains visible in its
 receipt.
 
-Layout fields, placed views, subrange loans, borrow-backed Arenas, and allocator
-free-list entries do not split owned authority. They remain borrowed or private
-geometry under one root. Owned split/merge is needed only when a subrange
-actually leaves the parent's ownership domain.
+Layout fields, placed views, subrange loans, and allocator-private free-list
+geometry do not split owned authority. Owned split/merge is needed when a
+subrange actually leaves the parent's ownership domain, including an allocator
+returning an independently owned allocation claim.
 
 Virtual and physical quantities cannot be decomposed as independent conserved
 projections when their correspondence matters. That requires a future compact,
