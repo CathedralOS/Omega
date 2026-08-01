@@ -23577,6 +23577,34 @@ fn runtime_value_call_terminal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_result_domain_machine_overload_exit_canary_runs() {
+    let canary = pass_canary("domains/runtime_result_domain_machine_overload_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-result-domain-overload-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("result-domain machine overload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("result-domain machine overload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected qualified and empty result sets to select distinct callees, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_std_math_sin_cos_exit_canary_runs() {
     // std math natively: sin's polynomial (exit 72 on miss), the binary
     // ladder at sin(10) (73), and the let-bound cos composition (74) --
@@ -41111,6 +41139,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_alias_wrong_target",
     "domains/domain_alias_reports_atomic_requirement",
     "domains/domain_non_boolean_fact",
+    "domains/result_domain_overload_duplicate_predicate",
+    "domains/result_domain_overload_semantic_weakening",
     "domains/domain_operator_competing_spelling_meanings",
     "domains/domain_operator_meaning_unproven",
     "domains/domain_operator_meaning_invalidated_by_mutation",

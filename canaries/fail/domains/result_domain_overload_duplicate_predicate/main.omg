@@ -1,0 +1,12 @@
+// Range/predicate refinements do not dispatch. These declarations therefore
+// have the same empty result-dispatch set and must reject at the declaration.
+machine convert(value: i32) -> i32 {
+    transition { _ -> (value) }
+}
+
+machine convert(value: i32) -> i32 [0..=100] {
+    transition { _ -> (value) }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

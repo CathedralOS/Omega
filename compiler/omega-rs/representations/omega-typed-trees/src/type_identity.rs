@@ -99,6 +99,42 @@ impl NormalizedResultDispatchSet {
     }
 }
 
+/// Canonical overload identity for an explicit named machine or requirement.
+/// The result carrier and predicate-only refinements are deliberately absent:
+/// a declaration is selected by path, parameter signature, and the exact set
+/// of dispatch-bearing result domains.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NormalizedNamedCallableIdentity {
+    path: String,
+    parameters: String,
+    result_dispatch: NormalizedResultDispatchSet,
+}
+
+impl NormalizedNamedCallableIdentity {
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub fn parameters(&self) -> &str {
+        &self.parameters
+    }
+
+    pub fn result_dispatch(&self) -> &NormalizedResultDispatchSet {
+        &self.result_dispatch
+    }
+
+    pub fn identity(&self) -> String {
+        compound(
+            "named-callable",
+            [
+                atom("path", &self.path),
+                atom("parameters", &self.parameters),
+                atom("result-dispatch", &self.result_dispatch.identity()),
+            ],
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NormalizedDomainTerm {
     Arithmetic(String),
@@ -153,6 +189,85 @@ impl TypedTrees {
         terms.sort();
         terms.dedup();
         NormalizedResultDispatchSet { terms }
+    }
+
+    /// Canonical identity of one top-level named machine overload. A machine's
+    /// first state is its callable entry signature; explicit sibling states do
+    /// not create additional top-level overloads.
+    pub fn normalized_machine_overload_identity(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> Option<NormalizedNamedCallableIdentity> {
+        let entry = self.machine_states(machine).first()?;
+        Some(self.normalized_named_callable_identity(
+            machine.name.as_str(),
+            machine.symbol,
+            self.machine_type_parameters(machine),
+            self.state_parameters(entry),
+            entry.return_type,
+        ))
+    }
+
+    /// Canonical identity of one trait machine requirement overload.
+    pub fn normalized_trait_requirement_overload_identity(
+        &self,
+        trait_definition: &crate::trait_definition::TraitDefinition,
+        requirement: &crate::signature::StateSignature,
+    ) -> NormalizedNamedCallableIdentity {
+        let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
+        type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+        self.normalized_named_callable_identity(
+            &format!("{}::{}", trait_definition.name, requirement.name),
+            trait_definition.symbol,
+            &type_parameters,
+            self.state_signature_parameters(requirement),
+            requirement.return_type,
+        )
+    }
+
+    fn normalized_named_callable_identity(
+        &self,
+        path: &str,
+        owner_symbol: SymbolHandle,
+        type_parameters: &[crate::data::TypeParameter],
+        parameters: &[crate::signature::StateParameter],
+        return_type: TypeReferenceHandle,
+    ) -> NormalizedNamedCallableIdentity {
+        let mut binders = Vec::with_capacity(type_parameters.len() + 1);
+        if owner_symbol.is_valid() {
+            binders.push((owner_symbol, "$Self".to_owned()));
+        }
+        binders.extend(
+            type_parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| parameter.symbol.is_valid())
+                .map(|(index, parameter)| (parameter.symbol, format!("$T{index}"))),
+        );
+        let parameters = parameters
+            .iter()
+            .map(|parameter| {
+                compound(
+                    "parameter",
+                    [
+                        atom("self", if parameter.is_self { "yes" } else { "no" }),
+                        atom("mutable", if parameter.is_mutable { "yes" } else { "no" }),
+                        atom("const", if parameter.is_const { "yes" } else { "no" }),
+                        self.normalized_type_identity_with_binders(
+                            parameter.type_reference,
+                            &binders,
+                        )
+                        .into_string(),
+                    ],
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        NormalizedNamedCallableIdentity {
+            path: path.to_owned(),
+            parameters,
+            result_dispatch: self.normalized_result_dispatch_set(return_type),
+        }
     }
 }
 
@@ -578,6 +693,51 @@ mod tests {
             })
     }
 
+    fn generic_machine(
+        program: &mut TypedTrees,
+        owner_symbol: SymbolHandle,
+        binder_symbol: SymbolHandle,
+        binder_name: &str,
+        return_type: omega_core::arena::Handle<TypeReferenceNode>,
+    ) -> crate::machine::Machine {
+        let mut machine = crate::machine::Machine {
+            symbol: owner_symbol,
+            name: Identifier::generated("I32::from_value"),
+            ..crate::machine::Machine::default()
+        };
+        program.push_machine_type_parameter(
+            &mut machine,
+            crate::data::TypeParameter {
+                symbol: binder_symbol,
+                name: Identifier::generated(binder_name),
+                ..crate::data::TypeParameter::default()
+            },
+        );
+        let parameter_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: binder_symbol,
+                name: Identifier::generated(binder_name),
+            });
+        let mut entry = crate::state::State {
+            symbol: SymbolHandle::from_arena_index(owner_symbol.arena_index() + 100),
+            name: Identifier::generated("from_value"),
+            return_type,
+            ..crate::state::State::default()
+        };
+        program.push_state_parameter(
+            &mut entry,
+            crate::signature::StateParameter {
+                symbol: SymbolHandle::from_arena_index(owner_symbol.arena_index() + 200),
+                name: Identifier::generated("value"),
+                type_reference: parameter_type,
+                ..crate::signature::StateParameter::default()
+            },
+        );
+        program.push_machine_state(&mut machine, entry);
+        machine
+    }
+
     #[test]
     fn domain_conjunction_identity_is_sorted_deduplicated_and_semantic() {
         let mut program = TypedTrees::default();
@@ -850,5 +1010,78 @@ mod tests {
             program.normalized_result_dispatch_set(result).terms(),
             [NormalizedDomainTerm::Declared("Outer".to_owned())]
         );
+    }
+
+    #[test]
+    fn named_machine_identity_normalizes_binders_and_collapses_predicate_only_results() {
+        let mut program = TypedTrees::default();
+        let i32_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("i32"),
+            });
+        let positive = program.semantic_domains.intern("Positive");
+        let predicate_result = constrained(
+            &mut program,
+            i32_type,
+            [declared_with_metadata(
+                "Positive",
+                SymbolHandle::invalid(),
+                positive,
+                DomainPredicateBody::Present,
+                DomainSemanticRoles::default(),
+                Vec::new(),
+            )],
+        );
+        let saturating_result = constrained(
+            &mut program,
+            i32_type,
+            [TypeConstraintNode::ArithmeticDomain(
+                omega_core::arithmetic::ArithmeticDomain::Saturating,
+            )],
+        );
+        let unqualified = generic_machine(
+            &mut program,
+            SymbolHandle::from_arena_index(61),
+            SymbolHandle::from_arena_index(71),
+            "T",
+            i32_type,
+        );
+        let predicate_only = generic_machine(
+            &mut program,
+            SymbolHandle::from_arena_index(62),
+            SymbolHandle::from_arena_index(72),
+            "Renamed",
+            predicate_result,
+        );
+        let saturating = generic_machine(
+            &mut program,
+            SymbolHandle::from_arena_index(63),
+            SymbolHandle::from_arena_index(73),
+            "AnotherName",
+            saturating_result,
+        );
+
+        let unqualified_identity = program
+            .normalized_machine_overload_identity(&unqualified)
+            .expect("machine has an entry");
+        let predicate_identity = program
+            .normalized_machine_overload_identity(&predicate_only)
+            .expect("machine has an entry");
+        let saturating_identity = program
+            .normalized_machine_overload_identity(&saturating)
+            .expect("machine has an entry");
+
+        assert_eq!(unqualified_identity, predicate_identity);
+        assert_ne!(unqualified_identity, saturating_identity);
+        assert_eq!(unqualified_identity.path(), "I32::from_value");
+        assert!(unqualified_identity.result_dispatch().is_empty());
+        assert_eq!(
+            saturating_identity.result_dispatch().identity(),
+            "arithmetic:Saturating"
+        );
+        assert!(unqualified_identity.parameters().contains("$T0"));
+        assert!(!unqualified_identity.identity().is_empty());
     }
 }

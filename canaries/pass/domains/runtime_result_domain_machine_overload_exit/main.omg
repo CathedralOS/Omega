@@ -1,0 +1,31 @@
+// Named-machine result overloads select from the destination's normalized
+// dispatch-bearing domain set. The same path/parameter signature has an empty
+// default and a Saturating result; a typed LET must bind the latter while an
+// ordinary LET binds the former. Runtime values differ so symbol/backend
+// identity mistakes are observable.
+use omega::language::std::console;
+
+machine convert(value: i32) -> i32 {
+    transition { _ -> (69) }
+}
+
+machine convert(value: i32) -> i32 in Saturating {
+    transition { _ -> (70 as i32 in Saturating) }
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let qualified: i32 in Saturating = convert(0);
+    let qualified_pair: [i32 in Saturating; 1] = [convert(0)];
+    let ordinary: i32 = convert(0);
+    transition {
+        qualified == (70 as i32 in Saturating) && qualified_pair[0] == (70 as i32 in Saturating) && ordinary == 69 -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

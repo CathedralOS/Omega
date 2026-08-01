@@ -75,7 +75,25 @@ impl<'program> TopLevelSymbols<'program> {
         }
 
         for machine in program.machines() {
-            if symbols.machine(machine.name.as_str()).is_some() {
+            let same_named = symbols
+                .machines
+                .iter()
+                .filter(|symbol| symbol.name == machine.name.as_str())
+                .collect::<Vec<_>>();
+            let is_result_overload_family = !same_named.is_empty()
+                && program
+                    .normalized_machine_overload_identity(machine)
+                    .is_some_and(|identity| {
+                        same_named.iter().all(|previous| {
+                            program
+                                .normalized_machine_overload_identity(previous.machine)
+                                .is_some_and(|previous_identity| {
+                                    previous_identity.path() == identity.path()
+                                        && previous_identity.parameters() == identity.parameters()
+                                })
+                        })
+                    });
+            if !same_named.is_empty() && !is_result_overload_family {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate machine `{}`",
                     machine.name

@@ -21,6 +21,11 @@ pub(crate) fn lower_typed_trees(
     // and before both engines fork off it -- every downstream read (native
     // and interpreter) then rounds once from the spelling.
     omega_validation::land_float_literal_destinations(&mut program);
+    // Named-machine result overloads are provisionally bound to the first
+    // same-named symbol during early resolution. Rebind them now, after domain
+    // normalization and destination typing, before validation/backend facts
+    // consume the call identity.
+    omega_validation::resolve_named_result_overloads(&mut program)?;
     let validated = validate_typed_program(&program)?;
     let mut facts = build_check_facts(&program, &validated.proof_plan, validated.operations);
 
