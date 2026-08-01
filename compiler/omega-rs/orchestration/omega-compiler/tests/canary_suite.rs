@@ -34658,6 +34658,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::classify",
         "F32::multiply_then_add",
         "F64::multiply_then_add",
+        "F32::fused_multiply_add",
+        "F64::fused_multiply_add",
         "F32::from_f64",
         "F64::from_f32",
         "F32::from_i8",
@@ -34711,6 +34713,13 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         let expected_intrinsic = |operator: &omega_typed_trees::operator::OperatorDefinition| {
             let path = operator_path(operator);
             if !MIGRATED_REQUIREMENTS.contains(&path.as_str()) {
+                return None;
+            }
+            if path.contains("::fused_multiply_add")
+                && !matches!(target, "linux_arm64" | "macos_arm64")
+            {
+                // Generic x86-64 remains SSE2-baseline. Its FMA requirement
+                // must wait for a feature-qualified or checked software plan.
                 return None;
             }
             let left = checked.typed.operator_parameters(operator).first()?;
@@ -34851,8 +34860,40 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count, 108,
-            "the 20 overloaded primitive slots and 88 named-operation slots must all select"
+            selected_count,
+            if matches!(target, "linux_arm64" | "macos_arm64") {
+                110
+            } else {
+                108
+            },
+            "all migrated primitive and target-valid named-operation slots must select"
+        );
+        let selected_fma_plans = checked
+            .selected_provider_plans()
+            .plans()
+            .iter()
+            .filter(|plan| {
+                plan.target == target && plan.rows.iter().any(|row| {
+                    matches!(
+                        &row.binding,
+                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name }
+                            if matches!(
+                                name.as_str(),
+                                "F32::fused_multiply_add.f32"
+                                    | "F64::fused_multiply_add.f64"
+                            )
+                    )
+                })
+            })
+            .count();
+        assert_eq!(
+            selected_fma_plans,
+            if matches!(target, "linux_arm64" | "macos_arm64") {
+                2
+            } else {
+                0
+            },
+            "only baseline-FMADD AArch64 targets may select the FMA provider slots"
         );
     }
 }
@@ -35878,6 +35919,120 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+}
+
+#[test]
+fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
+    let canary = pass_canary("float/named_provider_fused_multiply_add_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("named FMA provider calls should compile to checked trees on macOS AArch64");
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    for operator_use in checked.facts.operators.named_uses() {
+        if operator_use.provider_plan_identity == 0 {
+            continue;
+        }
+        let plan = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+            .expect("named FMA evidence must resolve to its retained plan");
+        let [row] = plan.rows.as_slice() else {
+            panic!("named FMA plan must contain exactly one row");
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            panic!("named FMA plan must select a compiler intrinsic");
+        };
+        if !name.contains("fused_multiply_add") {
+            continue;
+        }
+        selected_intrinsics.insert(name.clone());
+
+        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("`{name}` must preserve its selected root as a compiler call");
+        };
+        assert_eq!(call.arguments.count(), 3);
+        assert!(!call.receiver.is_valid());
+        let expected_builtin = match name.as_str() {
+            "F32::fused_multiply_add.f32" => {
+                omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF32
+            }
+            "F64::fused_multiply_add.f64" => {
+                omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF64
+            }
+            _ => panic!("unexpected FMA intrinsic `{name}`"),
+        };
+        assert_eq!(
+            Some(call.target_symbol),
+            checked
+                .typed
+                .symbols
+                .builtin_function_symbol(expected_builtin)
+        );
+    }
+
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::fused_multiply_add.f32".to_owned(),
+            "F64::fused_multiply_add.f64".to_owned(),
+        ]
+        .into_iter()
+        .collect()
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "selected FMA must preserve its single-rounding semantics in the interpreter"
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-named-float-fma-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("named FMA provider calls should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("named FMA provider canary should run");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "selected FMA must execute natively; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-named-float-fma-linux-arm64-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let source_dir = scratch.join("src");
+    fs::create_dir_all(&source_dir).expect("cross-target source directory");
+    fs::copy(canary.join("main.omg"), source_dir.join("main.omg")).expect("copy named-FMA canary");
+    fs::write(source_dir.join("build.omg"), "target linux_arm64 {\n}\n")
+        .expect("write cross-target build manifest");
+    compile(CompileOptions {
+        root_path: source_dir.join("main.omg"),
+        build_dir: Some(scratch.join("out")),
+        target_name: Some("linux_arm64".to_owned()),
+        write_output: true,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("named FMA provider calls should compile for linux_arm64: {diagnostics:#?}")
+    });
+    let _ = fs::remove_dir_all(&scratch);
 }
 
 #[test]
@@ -40119,6 +40274,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/named_provider_classification_predicates_exit",
     "float/named_provider_classify_exit",
     "float/named_provider_multiply_then_add_exit",
+    "float/named_provider_fused_multiply_add_exit",
     "float/runtime_named_format_conversion_exit",
     "float/runtime_named_integer_to_float_conversion_exit",
     "float/runtime_named_float_to_integer_conversion_exit",
@@ -41220,6 +41376,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/named_float_classification_intrinsic_mismatch_rejected",
     "providers/named_float_classify_intrinsic_mismatch_rejected",
     "providers/named_float_multiply_then_add_intrinsic_mismatch_rejected",
+    "providers/named_float_fused_multiply_add_intrinsic_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/cauchy_zero_precision_rejected",

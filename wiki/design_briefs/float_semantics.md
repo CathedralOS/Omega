@@ -283,8 +283,18 @@ a separate multiply followed by add, and applies result policy only after both
 roundings. Binary32/binary64 cancellation edges prove native and interpreter
 execution remain unfused; a finite-overflow canary pins operand-aware
 Saturating behavior.
-Primitive spellings and these twenty-two named slots are migrated, not all of
-rung 3: FMA, directed-rounding families, checked software fallbacks, canonical
+Nearest-even F32/F64 FMA now has exact provider slots on `linux_arm64` and
+`macos_arm64`. Its distinct unnameable ternary compiler call preserves all
+three operands and the authored format; the interpreter calls
+`FloatSemantics::fused_multiply_add`, while AArch64 emits one scalar `FMADD`
+before applying the final result policy. Binary32/binary64 cancellation edges
+pin the positive fused residual, and intrinsic-label rejection keeps the FMA
+slot distinct from multiply-then-add. The generic x86-64 targets intentionally
+remain SSE2-baseline: selecting FMA3 there without a target feature claim would
+be unsound, so they await a feature-qualified or checked software provider.
+Primitive spellings, the twenty-two cross-target named slots above, and two
+AArch64 FMA slots are migrated, not all of rung 3: x86-64 FMA,
+directed-rounding families, checked software fallbacks, canonical
 floating-control-state proof/restoration, and admitted-hardware differential
 evidence remain.
 

@@ -5078,7 +5078,10 @@ impl<'program> Evaluator<'program> {
         }
         if matches!(
             target,
-            "float#multiply_then_add_f32" | "float#multiply_then_add_f64"
+            "float#multiply_then_add_f32"
+                | "float#multiply_then_add_f64"
+                | "float#fused_multiply_add_f32"
+                | "float#fused_multiply_add_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
             let args = self
@@ -5092,7 +5095,8 @@ impl<'program> Evaluator<'program> {
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return self.eval_rewritten_multiply_then_add(&args, format, frame);
+                let fused = target.contains("#fused_");
+                return self.eval_rewritten_ternary_float(&args, format, fused, frame);
             }
         }
         // Builtin: sqrt over a single float operand. The interpreter consumes
@@ -8207,13 +8211,14 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Execute the unnameable provider builtin for the explicitly two-rounding
-    /// operation. The named contract adapts only the final semantic result
-    /// using all three original operands.
-    fn eval_rewritten_multiply_then_add(
+    /// Execute an unnameable provider builtin for a selected ternary float
+    /// operation. The named contract chooses fused versus separately rounded
+    /// semantics and adapts only the final result using all original operands.
+    fn eval_rewritten_ternary_float(
         &mut self,
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
+        fused: bool,
         frame: &Frame,
     ) -> EvalResult<Value> {
         let scalar_type = arguments
@@ -8229,7 +8234,7 @@ impl<'program> Evaluator<'program> {
         let mut operands = Vec::with_capacity(3);
         for operand in arguments {
             let Value::Float(value) = self.eval_expression(*operand, frame)? else {
-                return unsupported("selected multiply_then_add operand is not a float");
+                return unsupported("selected ternary float operand is not a float");
             };
             operands.push(if format == SemanticFloatFormat::BINARY32 {
                 FloatMeaning::from_f32(value as f32)
@@ -8237,8 +8242,16 @@ impl<'program> Evaluator<'program> {
                 FloatMeaning::from_f64(value)
             });
         }
-        let meaning =
-            FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2]);
+        let meaning = if fused {
+            FloatSemantics::fused_multiply_add(format, &operands[0], &operands[1], &operands[2])
+        } else {
+            FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2])
+        };
+        let operation = if fused {
+            "fused_multiply_add"
+        } else {
+            "multiply_then_add"
+        };
         let meaning = match scalar_type.map(|(_, domain)| domain) {
             Some(ArithmeticDomain::Saturating) => {
                 let operand_refs = operands.iter().collect::<Vec<_>>();
@@ -8247,7 +8260,7 @@ impl<'program> Evaluator<'program> {
             Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
-                        "named float operation `multiply_then_add` produced {} in Trapping domain",
+                        "named float operation `{operation}` produced {} in Trapping domain",
                         match trap_class {
                             FloatPolicyTrap::NaNResult => "NaN",
                             FloatPolicyTrap::InfinityResult => "infinity",

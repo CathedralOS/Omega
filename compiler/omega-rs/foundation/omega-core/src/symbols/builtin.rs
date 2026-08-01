@@ -89,6 +89,8 @@ pub enum BuiltinFunction {
     /// the checked call into state-local lowering tables.
     FloatMultiplyThenAddF32,
     FloatMultiplyThenAddF64,
+    FloatFusedMultiplyAddF32,
+    FloatFusedMultiplyAddF64,
     FloatIsFinite,
     FloatIsInfinite,
     FloatIsNormal,
@@ -98,7 +100,7 @@ pub enum BuiltinFunction {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 31;
+    pub const COUNT: usize = 33;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -127,6 +129,8 @@ impl BuiltinFunction {
             Self::FloatIsNan => "float#is_nan",
             Self::FloatMultiplyThenAddF32 => "float#multiply_then_add_f32",
             Self::FloatMultiplyThenAddF64 => "float#multiply_then_add_f64",
+            Self::FloatFusedMultiplyAddF32 => "float#fused_multiply_add_f32",
+            Self::FloatFusedMultiplyAddF64 => "float#fused_multiply_add_f64",
             Self::FloatIsFinite => "float#is_finite",
             Self::FloatIsInfinite => "float#is_infinite",
             Self::FloatIsNormal => "float#is_normal",
@@ -163,12 +167,14 @@ impl BuiltinFunction {
             Self::FloatIsNan => 22,
             Self::FloatMultiplyThenAddF32 => 23,
             Self::FloatMultiplyThenAddF64 => 24,
-            Self::FloatIsFinite => 25,
-            Self::FloatIsInfinite => 26,
-            Self::FloatIsNormal => 27,
-            Self::FloatIsSubnormal => 28,
-            Self::FloatClassifyF32 => 29,
-            Self::FloatClassifyF64 => 30,
+            Self::FloatFusedMultiplyAddF32 => 25,
+            Self::FloatFusedMultiplyAddF64 => 26,
+            Self::FloatIsFinite => 27,
+            Self::FloatIsInfinite => 28,
+            Self::FloatIsNormal => 29,
+            Self::FloatIsSubnormal => 30,
+            Self::FloatClassifyF32 => 31,
+            Self::FloatClassifyF64 => 32,
         }
     }
 
@@ -198,6 +204,8 @@ impl BuiltinFunction {
             | Self::FloatIsNan
             | Self::FloatMultiplyThenAddF32
             | Self::FloatMultiplyThenAddF64
+            | Self::FloatFusedMultiplyAddF32
+            | Self::FloatFusedMultiplyAddF64
             | Self::FloatIsFinite
             | Self::FloatIsInfinite
             | Self::FloatIsNormal
@@ -410,6 +418,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         ),
         (
             SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatFusedMultiplyAddF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatIsFinite.name()),
         ),
         (
@@ -487,6 +503,8 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatIsNan,
             BuiltinFunction::FloatMultiplyThenAddF32,
             BuiltinFunction::FloatMultiplyThenAddF64,
+            BuiltinFunction::FloatFusedMultiplyAddF32,
+            BuiltinFunction::FloatFusedMultiplyAddF64,
             BuiltinFunction::FloatIsFinite,
             BuiltinFunction::FloatIsInfinite,
             BuiltinFunction::FloatIsNormal,

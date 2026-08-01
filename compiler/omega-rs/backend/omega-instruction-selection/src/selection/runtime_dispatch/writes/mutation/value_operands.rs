@@ -138,7 +138,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
         );
     }
 
-    if let Some(operand) = resolve_selected_multiply_then_add_operand_in_table_with_root(
+    if let Some(operand) = resolve_selected_ternary_float_operand_in_table_with_root(
         input,
         dispatch_index,
         source_key,
@@ -625,13 +625,14 @@ fn resolve_runtime_value_operand_in_table_with_root(
     }))
 }
 
-/// Reify a selected named `multiply_then_add` compiler call as one ternary
-/// runtime operand. Its unnameable, format-specific builtin symbol survives
+/// Reify a selected named multiply-then-add or fused-multiply-add compiler call
+/// as one ternary runtime operand. Its unnameable, format-specific builtin
+/// symbol survives
 /// state-local expression copying; flattening its three authored operands here
 /// lets native policy adaptation inspect all of them without evaluating any
 /// operand twice.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn resolve_selected_multiply_then_add_operand_in_table_with_root(
+pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -649,14 +650,14 @@ pub(super) fn resolve_selected_multiply_then_add_operand_in_table_with_root(
     if call.receiver.is_valid() || call.arguments.count() != 3 {
         return None;
     }
-    let byte_width = match Some(call.target_symbol) {
+    let (byte_width, ternary_operator) = match Some(call.target_symbol) {
         symbol
             if symbol
                 == input.program.symbols.builtin_function_symbol(
                     omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF32,
                 ) =>
         {
-            4
+            (4, StateGuardOperator::MultiplyThenAdd)
         }
         symbol
             if symbol
@@ -664,7 +665,23 @@ pub(super) fn resolve_selected_multiply_then_add_operand_in_table_with_root(
                     omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF64,
                 ) =>
         {
-            8
+            (8, StateGuardOperator::MultiplyThenAdd)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF32,
+                ) =>
+        {
+            (4, StateGuardOperator::FusedMultiplyAdd)
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF64,
+                ) =>
+        {
+            (8, StateGuardOperator::FusedMultiplyAdd)
         }
         _ => return None,
     };
@@ -743,7 +760,7 @@ pub(super) fn resolve_selected_multiply_then_add_operand_in_table_with_root(
     });
     Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
         left: first,
-        operator: StateGuardOperator::MultiplyThenAdd,
+        operator: ternary_operator,
         right: pair,
         is_float: true,
         byte_width,

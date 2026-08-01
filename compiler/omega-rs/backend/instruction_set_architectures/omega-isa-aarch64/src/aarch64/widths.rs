@@ -763,6 +763,10 @@ fn runtime_float_binary_operation_width_with_domain(
         // fmov a + fmov b + fmul + fmov c + fadd + fmov result.
         return 24 + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     }
+    if operator == StateGuardOperator::FusedMultiplyAdd {
+        // fmov a + fmov b + fmov c + fmadd + fmov result.
+        return 20 + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
+    }
     if matches!(
         operator,
         StateGuardOperator::IsFinite

@@ -1,0 +1,1 @@
+requires exact intrinsic `F32::fused_multiply_add.f32`
