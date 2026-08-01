@@ -102,6 +102,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
         &program,
         &TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated("Utf8"),
+            arguments: Vec::new(),
             symbol,
             semantic_id,
             predicate_body: omega_core::semantics::DomainPredicateBody::Present,
@@ -122,6 +123,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
         snapshot,
         TypeConstraintSnapshot::Domain {
             name,
+            arguments,
             symbol: 31,
             semantic_id: 7,
             predicate_body: "present",
@@ -131,6 +133,7 @@ fn snapshots_normalized_domain_constraint_identity_and_roles() {
             },
             establishment_routes,
         } if name == "Utf8"
+            && arguments.is_empty()
             && establishment_routes == vec![super::DomainEstablishmentRouteSnapshot {
                 kind: "boundary_requirement",
                 source_symbol: 32,

@@ -150,7 +150,7 @@ fn return_type_domain_symbols(
         for matching in program
             .domain_definitions
             .iter()
-            .filter(|domain| same_semantic_name(domain.name.as_str(), name.as_str()))
+            .filter(|domain| same_semantic_name(domain.name.as_str(), name.name.as_str()))
         {
             for atom in atomic_domain_symbols(program, matching.symbol) {
                 if !domains.contains(&atom) {

@@ -73,7 +73,9 @@ pub enum ItemSnapshot {
     },
     Domain {
         name: IdentifierSnapshot,
+        type_parameters: Vec<TypeParameterSnapshot>,
         target_type: TypeReferenceSnapshot,
+        index_arguments: Vec<TypeReferenceSnapshot>,
         is_public: bool,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         alias: Vec<Vec<IdentifierSnapshot>>,
@@ -487,6 +489,10 @@ pub enum TypeConstraintSnapshot {
     ArithmeticDomain {
         domain: String,
     },
+    Domain {
+        name: IdentifierSnapshot,
+        arguments: Vec<TypeReferenceSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -666,7 +672,19 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(&value.name),
+            type_parameters: syntax_trees
+                .items
+                .type_parameters(value.type_parameters)
+                .iter()
+                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
+                .collect(),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
+            index_arguments: syntax_trees
+                .type_references
+                .type_reference_handles(value.index_arguments)
+                .iter()
+                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                .collect(),
             is_public: value.is_public,
             alias: value
                 .alias
@@ -1454,11 +1472,18 @@ fn snapshot_type_constraint(
     constraint: &TypeConstraintNode,
 ) -> TypeConstraintSnapshot {
     match constraint {
-        TypeConstraintNode::Named(name) | TypeConstraintNode::Domain(name) => {
-            TypeConstraintSnapshot::Named {
-                name: snapshot_identifier(name),
-            }
-        }
+        TypeConstraintNode::Named(name) => TypeConstraintSnapshot::Named {
+            name: snapshot_identifier(name),
+        },
+        TypeConstraintNode::Domain(domain) => TypeConstraintSnapshot::Domain {
+            name: snapshot_identifier(&domain.name),
+            arguments: syntax_trees
+                .type_references
+                .type_reference_handles(domain.arguments)
+                .iter()
+                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                .collect(),
+        },
         TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: snapshot_expression_handle(syntax_trees, *minimum),
             maximum: snapshot_expression_handle(syntax_trees, *maximum),

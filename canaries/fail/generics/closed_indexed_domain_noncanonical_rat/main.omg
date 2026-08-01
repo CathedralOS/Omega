@@ -1,0 +1,27 @@
+use omega::language::core::rat;
+
+data Ratios {
+}
+
+const Ratios::TWO_FOURTHS: Rat = Rat {
+    num: IntPair {
+        neg: Nat::Zero,
+        pos: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+    },
+    den: Nat::Succ {
+        prev: Nat::Succ {
+            prev: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
+        }
+    }
+};
+
+domain<T, const R: Rat> T::Ratio<R>;
+
+machine wrong(value: i64 in Ratio<Ratios::TWO_FOURTHS>) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -23,9 +23,24 @@ pub(super) fn lower_type_constraint_node_span_from_table(
             resolved::types::TypeConstraintNode::Named(name) => {
                 typed::types::TypeConstraintNode::Named(crate::name::lower_name(name))
             }
-            resolved::types::TypeConstraintNode::Domain(name) => {
+            resolved::types::TypeConstraintNode::Domain(domain) => {
+                let arguments = source_trees
+                    .tables
+                    .types
+                    .references
+                    .type_reference_handles(domain.arguments)
+                    .iter()
+                    .map(|argument| {
+                        super::table::lower_type_reference_handle_from_table_with_context(
+                            source_trees,
+                            typed_trees,
+                            *argument,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
-                    name: crate::name::lower_name(name),
+                    name: crate::name::lower_name(&domain.name),
+                    arguments,
                     ..Default::default()
                 })
             }
@@ -149,12 +164,29 @@ fn lower_type_constraint_node_with_context(
         resolved::types::TypeConstraint::Named(name) => Ok(
             typed::types::TypeConstraintNode::Named(crate::name::lower_name(name)),
         ),
-        resolved::types::TypeConstraint::Domain(name) => Ok(
-            typed::types::TypeConstraintNode::Domain(typed::types::DomainConstraint {
-                name: crate::name::lower_name(name),
-                ..Default::default()
-            }),
-        ),
+        resolved::types::TypeConstraint::Domain(domain) => {
+            let arguments = source_trees
+                .tables
+                .declarations
+                .child_type_references
+                .span_or_empty(domain.arguments)
+                .iter()
+                .map(|argument| {
+                    crate::type_reference::lower_type_reference_into_trees(
+                        source_trees,
+                        typed_trees,
+                        argument,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(typed::types::TypeConstraintNode::Domain(
+                typed::types::DomainConstraint {
+                    name: crate::name::lower_name(&domain.name),
+                    arguments,
+                    ..Default::default()
+                },
+            ))
+        }
         resolved::types::TypeConstraint::Range { minimum, maximum } => {
             Ok(typed::types::TypeConstraintNode::Range {
                 minimum: lower_expression_handle_from_table(

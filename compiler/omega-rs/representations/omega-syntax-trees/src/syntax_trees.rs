@@ -205,7 +205,10 @@ impl SyntaxTrees {
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
+                type_parameters: self.copy_type_parameter_span(other, domain.type_parameters),
                 target_type: self.copy_type_reference_handle(other, domain.target_type),
+                index_arguments: self
+                    .copy_type_reference_handle_span(other, domain.index_arguments),
                 is_public: domain.is_public,
                 alias: domain
                     .alias
@@ -1019,7 +1022,12 @@ impl SyntaxTrees {
             other.type_references.constraints(span),
             |this, constraint| match constraint {
                 TypeConstraintNode::Named(name) => TypeConstraintNode::Named(name.clone()),
-                TypeConstraintNode::Domain(name) => TypeConstraintNode::Domain(name.clone()),
+                TypeConstraintNode::Domain(domain) => {
+                    TypeConstraintNode::Domain(crate::types::DomainConstraint {
+                        name: domain.name.clone(),
+                        arguments: this.copy_type_reference_handle_span(other, domain.arguments),
+                    })
+                }
                 TypeConstraintNode::Range { minimum, maximum } => TypeConstraintNode::Range {
                     minimum: this.copy_expression_handle(other, *minimum),
                     maximum: this.copy_expression_handle(other, *maximum),

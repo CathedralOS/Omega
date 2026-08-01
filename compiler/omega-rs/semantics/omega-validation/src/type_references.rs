@@ -254,31 +254,6 @@ impl fmt::Display for TypeReferenceOwner<'_> {
     }
 }
 
-pub(crate) fn validate_type_reference_handle(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    symbols: &TopLevelSymbols<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-    owner: TypeReferenceOwner<'_>,
-) {
-    // Q9 ruling: see the twin call in the with_type_parameters entry.
-    crate::arithmetic_domains::check_range_under_non_exact_domain(
-        program,
-        type_reference,
-        owner,
-        diagnostics,
-    );
-    validate_type_reference_handle_with_context(
-        program,
-        type_reference,
-        symbols,
-        diagnostics,
-        owner,
-        false,
-        TypeParameterScope::empty(),
-    );
-}
-
 pub(crate) fn validate_type_reference_handle_with_type_parameters(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -355,7 +330,14 @@ fn validate_type_reference_handle_with_context(
                 allow_bare_str,
                 type_parameter_scope,
             );
-            validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
+            validate_type_constraints_node(
+                program,
+                *base_type,
+                *constraints,
+                diagnostics,
+                owner,
+                type_parameter_scope,
+            );
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -957,13 +939,6 @@ struct TypeParameterScope<'program> {
 }
 
 impl<'program> TypeParameterScope<'program> {
-    fn empty() -> Self {
-        Self {
-            type_parameters: &[],
-            lifetime_parameters: &[],
-        }
-    }
-
     fn contains(self, name: &str) -> bool {
         self.type_parameters
             .iter()
@@ -1002,11 +977,21 @@ fn domain_is_declared(
     constraint.symbol.is_valid()
         && program.domain_definitions().iter().any(|domain| {
             domain.symbol == constraint.symbol
-                && domain.semantic_id == constraint.semantic_id
                 && domain.predicate_body == constraint.predicate_body
-                && domain.semantic_roles == constraint.semantic_roles
+                && domain.semantic_roles.denotation_dimension.is_some()
+                    == constraint.semantic_roles.denotation_dimension.is_some()
+                && domain.semantic_roles.arithmetic_policy.is_some()
+                    == constraint.semantic_roles.arithmetic_policy.is_some()
                 && domain.establishment_routes == constraint.establishment_routes
-                && type_references_match(program, base_type, domain.target_type)
+                && if program.domain_type_parameters(domain).is_empty() {
+                    type_references_match(program, base_type, domain.target_type)
+                } else {
+                    constraint.arguments.len()
+                        == program
+                            .domain_type_parameters(domain)
+                            .len()
+                            .saturating_sub(1)
+                }
         })
 }
 
@@ -1017,12 +1002,135 @@ fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferen
     )
 }
 
+fn validate_indexed_domain_arguments(
+    program: &TypedTrees,
+    constraint: &omega_typed_trees::types::DomainConstraint,
+    scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: &TypeReferenceOwner<'_>,
+) {
+    let Some(definition) = program
+        .domain_definitions()
+        .iter()
+        .find(|definition| definition.symbol == constraint.symbol)
+    else {
+        return;
+    };
+    let parameters = program.domain_type_parameters(definition);
+    if parameters.is_empty() {
+        return;
+    }
+    for (parameter, argument) in parameters[1..].iter().zip(&constraint.arguments) {
+        let TypeParameterKind::Const {
+            type_reference: expected,
+        } = parameter.kind
+        else {
+            continue;
+        };
+        let TypeReferenceNode::Named { symbol, name } =
+            program.type_reference_table.type_reference(*argument)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} supplies a noncanonical argument for indexed domain `{}`",
+                constraint.name
+            )));
+            continue;
+        };
+        if let Some(value) = omega_core::const_value::CanonicalConstValue::from_atom(name.as_str())
+        {
+            let expected_name = const_index_type_label(program, expected);
+            if value.type_name != expected_name {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} supplies indexed-domain argument type `{}`, but `{}` requires `{expected_name}`",
+                    value.type_name, parameter.name
+                )));
+            }
+            continue;
+        }
+        if let Ok(value) = name.as_str().parse::<i128>() {
+            if !integer_const_fits_type(program, expected, value) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} supplies integer index `{value}` outside the declared `{}` type",
+                    const_index_type_label(program, expected)
+                )));
+            }
+            continue;
+        }
+        let binder = scope.type_parameters.iter().find(|candidate| {
+            matches!(candidate.kind, TypeParameterKind::Const { .. })
+                && ((symbol.is_valid() && candidate.symbol == *symbol)
+                    || candidate.name.as_str() == name.as_str())
+        });
+        let Some(binder) = binder else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} supplies `{name}` as an index for `{}`, but it is neither a canonical named const nor a direct in-scope const binder",
+                constraint.name
+            )));
+            continue;
+        };
+        let TypeParameterKind::Const {
+            type_reference: actual,
+        } = binder.kind
+        else {
+            unreachable!();
+        };
+        if !type_references_match(program, actual, expected) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} forwards const binder `{}` of type `{}` into `{}`, which requires `{}`",
+                binder.name,
+                type_reference_label(program, actual),
+                constraint.name,
+                type_reference_label(program, expected)
+            )));
+        }
+    }
+}
+
+fn const_index_type_label(program: &TypedTrees, type_reference: TypeReferenceHandle) -> String {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => name.as_str().to_owned(),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            const_index_type_label(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
+        } => format!(
+            "[{}; {length}]",
+            const_index_type_label(program, *element_type)
+        ),
+        TypeReferenceNode::Unit => "()".to_owned(),
+        _ => type_reference_label(program, type_reference),
+    }
+}
+
+fn integer_const_fits_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    value: i128,
+) -> bool {
+    let label = const_index_type_label(program, type_reference);
+    let (minimum, maximum) = match label.as_str() {
+        "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
+        "i16" => (i128::from(i16::MIN), i128::from(i16::MAX)),
+        "i32" => (i128::from(i32::MIN), i128::from(i32::MAX)),
+        "i64" => (i128::from(i64::MIN), i128::from(i64::MAX)),
+        "u8" => (0, i128::from(u8::MAX)),
+        "u16" => (0, i128::from(u16::MAX)),
+        "u32" => (0, i128::from(u32::MAX)),
+        "u64" | "addr" => (0, i128::from(u64::MAX)),
+        _ => return false,
+    };
+    value >= minimum && value <= maximum
+}
+
 fn validate_type_constraints_node(
     program: &TypedTrees,
     base_type: TypeReferenceHandle,
     constraints: omega_core::arena::HandleSpan<TypeConstraintNode>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
+    type_parameter_scope: TypeParameterScope<'_>,
 ) {
     let primitive_type = program.type_reference_table.primitive_type(base_type);
     let constraints = program.type_reference_table.constraints(constraints);
@@ -1105,6 +1213,14 @@ fn validate_type_constraints_node(
                          for `{}` (domains are bound to their storage type)",
                         type_reference_label(program, base_type)
                     )));
+                } else {
+                    validate_indexed_domain_arguments(
+                        program,
+                        domain,
+                        type_parameter_scope,
+                        diagnostics,
+                        &owner,
+                    );
                 }
             }
             TypeConstraintNode::Range { minimum, maximum } => {

@@ -207,7 +207,12 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     }
 
     for (_, constraint) in program.tables.types.constraints.iter() {
-        count_type_constraint(constraint, expression_table, &mut counts);
+        count_type_constraint(
+            constraint,
+            &program.tables.declarations.child_type_references,
+            expression_table,
+            &mut counts,
+        );
     }
 
     for operator in &program.operators {
@@ -646,11 +651,18 @@ fn count_type_reference(
 
 fn count_type_constraint(
     constraint: &TypeConstraint,
+    type_references: &omega_core::arena::Arena<TypeReference>,
     expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
     match constraint {
-        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => count_type_name(name, counts),
+        TypeConstraint::Named(name) => count_type_name(name, counts),
+        TypeConstraint::Domain(domain) => {
+            count_type_name(&domain.name, counts);
+            for argument in type_references.span_or_empty(domain.arguments) {
+                count_type_reference(argument, type_references, expression_table, counts);
+            }
+        }
         TypeConstraint::Range { minimum, maximum } => {
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);

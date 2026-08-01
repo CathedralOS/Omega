@@ -25,7 +25,9 @@ fn domain_definition_carries_independent_domain_theory_records() {
         let DomainDefinition {
             symbol: _,
             name: _,
+            type_parameters: _,
             target_type: _,
+            index_arguments: _,
             is_public: _,
             // Transparent alias theory is retained independently from facts,
             // so aliases cannot masquerade as bodyless establishment.
@@ -50,6 +52,7 @@ fn domain_constraint_carries_carrier_resolved_identity_and_roles() {
     fn witness(constraint: DomainConstraint) {
         let DomainConstraint {
             name: _,
+            arguments: _,
             symbol: _,
             semantic_id: _,
             predicate_body: _,

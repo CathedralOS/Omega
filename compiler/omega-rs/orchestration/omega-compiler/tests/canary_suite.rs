@@ -22386,6 +22386,45 @@ fn structured_const_identity_and_rat_canonicality_canaries() {
 }
 
 #[test]
+fn closed_indexed_domain_canaries() {
+    let pass = pass_canary("generics/closed_indexed_quantity");
+    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+        panic!(
+            "closed indexed domain package should compile:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    for path in [
+        "generics/closed_indexed_domain_mismatch",
+        "generics/closed_indexed_domain_noncanonical_rat",
+        "generics/closed_indexed_domain_unknown_const",
+        "generics/closed_indexed_domain_wrong_arity",
+        "generics/closed_indexed_domain_wrong_type",
+    ] {
+        let canary = fail_canary(path);
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .expect("closed indexed domain fail canary should carry expected.txt");
+        let diagnostics = compile_canary_without_output(&canary)
+            .expect_err("invalid closed indexed domain should reject");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected.trim()),
+            "closed indexed domain fail canary `{path}` should contain {:?}:\n{combined}",
+            expected.trim()
+        );
+    }
+}
+
+#[test]
 fn runtime_const_data_expression_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_data_expression_exit");
     let build_dir = std::env::temp_dir().join(format!(
@@ -41220,6 +41259,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_machine_fact_false",
     "generics/const_data_where_machine_fact_nested_false",
     "generics/const_data_where_domain_membership_false",
+    "generics/closed_indexed_domain_mismatch",
+    "generics/closed_indexed_domain_noncanonical_rat",
+    "generics/closed_indexed_domain_unknown_const",
+    "generics/closed_indexed_domain_wrong_arity",
+    "generics/closed_indexed_domain_wrong_type",
     "core/task_core_scope_loss",
     "core/task_parked_continuation_projection_rejected",
     "core/task_parked_continuation_recast_rejected",

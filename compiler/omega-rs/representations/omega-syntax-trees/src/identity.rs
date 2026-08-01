@@ -616,9 +616,15 @@ fn count_type_reference_handle(
             count_type_reference_handle(syntax_trees, *base_type, counts);
             for constraint in syntax_trees.type_references.constraints(*constraints) {
                 match constraint {
-                    crate::types::TypeConstraintNode::Named(name)
-                    | crate::types::TypeConstraintNode::Domain(name) => {
-                        count_identifier(name, counts)
+                    crate::types::TypeConstraintNode::Named(name) => count_identifier(name, counts),
+                    crate::types::TypeConstraintNode::Domain(domain) => {
+                        count_identifier(&domain.name, counts);
+                        for argument in syntax_trees
+                            .type_references
+                            .type_reference_handles(domain.arguments)
+                        {
+                            count_type_reference_handle(syntax_trees, *argument, counts);
+                        }
                     }
                     crate::types::TypeConstraintNode::Range { minimum, maximum } => {
                         count_expression_handle(syntax_trees, *minimum, counts);
@@ -694,8 +700,16 @@ fn count_type_constraint_handle(
     counts: &mut AstIdentityStorageCounts,
 ) {
     match constraint {
-        crate::types::TypeConstraintNode::Named(name)
-        | crate::types::TypeConstraintNode::Domain(name) => count_identifier(name, counts),
+        crate::types::TypeConstraintNode::Named(name) => count_identifier(name, counts),
+        crate::types::TypeConstraintNode::Domain(domain) => {
+            count_identifier(&domain.name, counts);
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(domain.arguments)
+            {
+                count_type_reference_handle(syntax_trees, *argument, counts);
+            }
+        }
         crate::types::TypeConstraintNode::Range { minimum, maximum } => {
             count_expression_handle(syntax_trees, *minimum, counts);
             count_expression_handle(syntax_trees, *maximum, counts);

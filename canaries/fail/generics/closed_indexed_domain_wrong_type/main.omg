@@ -1,0 +1,19 @@
+data Unit {
+    exponent: i32;
+}
+
+data Values {
+}
+
+const Values::FLAG: bool = true;
+
+domain<T, const U: Unit> T::Quantity<U>;
+
+machine wrong(value: i64 in Quantity<Values::FLAG>) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

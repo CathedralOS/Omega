@@ -383,6 +383,7 @@ impl TypeReferenceTable {
         &mut self,
         constraints: HandleSpan<TypeConstraint>,
         expressions: &mut crate::expression::ExpressionTable,
+        source_type_references: &Arena<TypeReference>,
         source_constraints: &Arena<TypeConstraint>,
         source_expressions: &crate::expression::ExpressionTable,
     ) -> HandleSpan<TypeConstraintNode> {
@@ -395,12 +396,20 @@ impl TypeReferenceTable {
         );
 
         for (offset, constraint) in source.iter().enumerate() {
+            let constraint = TypeConstraintNode::from_tree(
+                constraint,
+                self,
+                expressions,
+                source_type_references,
+                source_constraints,
+                source_expressions,
+            );
             self.set_constraint_at_offset(
                 span,
                 offset
                     .try_into()
                     .expect("type constraint span count overflow"),
-                TypeConstraintNode::from_tree(constraint, expressions, source_expressions),
+                constraint,
             );
         }
 
@@ -464,6 +473,7 @@ impl TypeReferenceTable {
                 let constraints = self.insert_constraint_span_from_tree(
                     constrained.constraints,
                     expressions,
+                    source_generic_arguments,
                     source_constraints,
                     source_expressions,
                 );
@@ -587,8 +597,14 @@ pub enum TypeConstraint {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
-    /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
-    Domain(DiagnosticName),
+    /// A declared domain or closed indexed-domain family application.
+    Domain(DomainConstraint),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DomainConstraint {
+    pub name: DiagnosticName,
+    pub arguments: HandleSpan<TypeReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -599,14 +615,23 @@ pub enum TypeConstraintNode {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
-    /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
-    Domain(DiagnosticName),
+    /// A declared domain or closed indexed-domain family application.
+    Domain(DomainConstraintNode),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DomainConstraintNode {
+    pub name: DiagnosticName,
+    pub arguments: HandleSpan<TypeReferenceHandle>,
 }
 
 impl TypeConstraintNode {
     fn from_tree(
         constraint: &TypeConstraint,
+        type_references: &mut TypeReferenceTable,
         expressions: &mut crate::expression::ExpressionTable,
+        source_type_references: &Arena<TypeReference>,
+        source_constraints: &Arena<TypeConstraint>,
         source_expressions: &crate::expression::ExpressionTable,
     ) -> Self {
         match constraint {
@@ -616,7 +641,16 @@ impl TypeConstraintNode {
                 maximum: expressions.copy_from(source_expressions, *maximum),
             },
             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
-            TypeConstraint::Domain(name) => Self::Domain(name.clone()),
+            TypeConstraint::Domain(domain) => Self::Domain(DomainConstraintNode {
+                name: domain.name.clone(),
+                arguments: type_references.insert_type_reference_handle_span_from_trees(
+                    source_type_references.span_or_empty(domain.arguments),
+                    expressions,
+                    source_type_references,
+                    source_constraints,
+                    source_expressions,
+                ),
+            }),
         }
     }
 }

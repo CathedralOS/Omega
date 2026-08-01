@@ -15,6 +15,21 @@ pub(crate) fn lower_domain_definition(
     syntax_trees: &SyntaxTrees,
     domain: &syntax::item::DomainDefinition,
 ) -> Result<DomainDefinition, Diagnostic> {
+    let type_parameters =
+        crate::data::lower_type_parameters(lowerer, syntax_trees, domain.type_parameters)?;
+    let mut index_arguments = omega_core::arena::HandleSpan::empty();
+    for argument in syntax_trees
+        .type_references
+        .type_reference_handles(domain.index_arguments)
+    {
+        let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .child_type_references
+            .append_to_span(&mut index_arguments, argument);
+    }
     let alias = domain
         .alias
         .as_ref()
@@ -45,7 +60,9 @@ pub(crate) fn lower_domain_definition(
     Ok(DomainDefinition {
         symbol: SymbolHandle::invalid(),
         name: lower_name(&domain.name),
+        type_parameters,
         target_type: lower_type_reference_handle(lowerer, syntax_trees, domain.target_type)?,
+        index_arguments,
         is_public: domain.is_public,
         alias,
         authored_routes,

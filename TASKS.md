@@ -708,10 +708,15 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   weakening/explicit erasure, operator ownership, predicate `requires`, and
   exact route bodies are complete. Keep unit conversion in ordinary library
   machines and operators.
-- **PDI2:** implement closed indexed erased domains using
-  `domain<T, const U: Unit> T::Quantity<U>;`. The first units package uses named
-  combinations, spans carriers from one declaration, supports a destination
-  index parameter in generic conversion, and uses ordinary per-pair operators.
+- **PDI2:** closed indexed erased domain declarations and binding constraints
+  now accept `domain<T, const U: Unit> T::Quantity<U>;`. Canonical closed values
+  distinguish semantic instances while reordered structural values coincide;
+  one family spans carriers, direct const binders survive generic signatures,
+  ordinary per-pair operators attach to the family, implicit cross-index flow
+  rejects, and the index remains absent from carrier layout. Finish indexed
+  explicit qualification so an executable generic conversion can select its
+  destination binder, then publish the first units package with named
+  combinations and its conversion/operator canaries.
 - **PDI3:** only after PDI2, add computed open result indices, exact selected
   algebra-instance normalization, established-local-fact compatibility, and
   retained verification-condition evidence. Do not add a special citation

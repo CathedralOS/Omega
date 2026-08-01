@@ -15,11 +15,45 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 enum DomainAtom {
-    Declared(SymbolHandle),
+    Declared {
+        family: SymbolHandle,
+        instance: omega_core::semantics::SemanticDomainId,
+        indexed: bool,
+        label: String,
+    },
     Arithmetic(ArithmeticDomain),
 }
+
+impl PartialEq for DomainAtom {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Arithmetic(left), Self::Arithmetic(right)) => left == right,
+            (
+                Self::Declared {
+                    family: left_family,
+                    instance: left_instance,
+                    indexed: left_indexed,
+                    ..
+                },
+                Self::Declared {
+                    family: right_family,
+                    instance: right_instance,
+                    indexed: right_indexed,
+                    ..
+                },
+            ) => {
+                left_family == right_family
+                    && left_instance == right_instance
+                    && left_indexed == right_indexed
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for DomainAtom {}
 
 /// Reject an ordinary store/call/return flow that silently removes a static
 /// semantic, routed-provenance, or arithmetic-policy atom. A value cast is a
@@ -102,13 +136,13 @@ fn validate_implicit_domain_weakening_with_policy_retention(
     let dropped = source
         .into_iter()
         .filter(|atom| !(retain_arithmetic_policy && matches!(atom, DomainAtom::Arithmetic(_))))
-        .filter(|atom| atom_requires_explicit_removal(program, *atom))
+        .filter(|atom| atom_requires_explicit_removal(program, atom))
         .filter(|atom| {
             !target
                 .iter()
-                .any(|candidate| atoms_equivalent(program, *atom, *candidate))
+                .any(|candidate| atoms_equivalent(program, atom, candidate))
         })
-        .map(|atom| atom_label(program, atom))
+        .map(|atom| atom_label(&atom))
         .collect::<Vec<_>>();
     if dropped.is_empty() {
         return;
@@ -146,6 +180,9 @@ fn expression_atoms(
                 append_declared_atom(
                     program,
                     cast.semantic_domain_symbol,
+                    omega_core::semantics::SemanticDomainId::NULL,
+                    false,
+                    None,
                     &mut atoms,
                     &mut Vec::new(),
                 );
@@ -195,7 +232,15 @@ fn append_type_atoms(
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
                     TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                        append_declared_atom(program, domain.symbol, atoms, stack);
+                        append_declared_atom(
+                            program,
+                            domain.symbol,
+                            domain.semantic_id,
+                            !domain.arguments.is_empty(),
+                            Some(domain_constraint_label(program, domain)),
+                            atoms,
+                            stack,
+                        );
                     }
                     TypeConstraintNode::ArithmeticDomain(domain)
                         if *domain != ArithmeticDomain::Exact =>
@@ -213,6 +258,9 @@ fn append_type_atoms(
 fn append_declared_atom(
     program: &TypedTrees,
     symbol: SymbolHandle,
+    instance: omega_core::semantics::SemanticDomainId,
+    indexed: bool,
+    label: Option<String>,
     atoms: &mut Vec<DomainAtom>,
     stack: &mut Vec<SymbolHandle>,
 ) {
@@ -229,11 +277,27 @@ fn append_declared_atom(
     if let Some(alias) = domain.alias.as_ref() {
         stack.push(symbol);
         for constituent in &alias.constituents {
-            append_declared_atom(program, constituent.domain_symbol, atoms, stack);
+            append_declared_atom(
+                program,
+                constituent.domain_symbol,
+                omega_core::semantics::SemanticDomainId::NULL,
+                false,
+                None,
+                atoms,
+                stack,
+            );
         }
         stack.pop();
     } else {
-        push_unique(atoms, DomainAtom::Declared(symbol));
+        push_unique(
+            atoms,
+            DomainAtom::Declared {
+                family: symbol,
+                instance,
+                indexed,
+                label: label.unwrap_or_else(|| domain.name.to_string()),
+            },
+        );
     }
 }
 
@@ -243,24 +307,45 @@ fn push_unique(atoms: &mut Vec<DomainAtom>, atom: DomainAtom) {
     }
 }
 
-fn atom_requires_explicit_removal(program: &TypedTrees, atom: DomainAtom) -> bool {
+fn atom_requires_explicit_removal(program: &TypedTrees, atom: &DomainAtom) -> bool {
     match atom {
         DomainAtom::Arithmetic(_) => true,
-        DomainAtom::Declared(symbol) => program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-            .is_some_and(|domain| {
-                !domain.semantic_roles.is_empty() || !domain.establishment_routes.is_empty()
-            }),
+        DomainAtom::Declared {
+            family: symbol,
+            indexed,
+            ..
+        } => {
+            *indexed
+                || program
+                    .domain_definitions()
+                    .iter()
+                    .find(|domain| domain.symbol == *symbol)
+                    .is_some_and(|domain| {
+                        !domain.semantic_roles.is_empty() || !domain.establishment_routes.is_empty()
+                    })
+        }
     }
 }
 
-fn atoms_equivalent(program: &TypedTrees, left: DomainAtom, right: DomainAtom) -> bool {
+fn atoms_equivalent(program: &TypedTrees, left: &DomainAtom, right: &DomainAtom) -> bool {
     match (left, right) {
         (DomainAtom::Arithmetic(left), DomainAtom::Arithmetic(right)) => left == right,
-        (DomainAtom::Declared(left), DomainAtom::Declared(right)) => {
-            if left == right {
+        (
+            DomainAtom::Declared {
+                family: left_family,
+                instance: left_instance,
+                ..
+            },
+            DomainAtom::Declared {
+                family: right_family,
+                instance: right_instance,
+                ..
+            },
+        ) => {
+            if left_instance.is_valid() && right_instance.is_valid() {
+                return left_instance == right_instance;
+            }
+            if left_family == right_family {
                 return true;
             }
             let semantic_id = |symbol| {
@@ -270,20 +355,40 @@ fn atoms_equivalent(program: &TypedTrees, left: DomainAtom, right: DomainAtom) -
                     .find(|domain| domain.symbol == symbol)
                     .map(|domain| domain.semantic_id)
             };
-            matches!((semantic_id(left), semantic_id(right)), (Some(left), Some(right)) if left.is_valid() && left == right)
+            matches!((semantic_id(*left_family), semantic_id(*right_family)), (Some(left), Some(right)) if left.is_valid() && left == right)
         }
         _ => false,
     }
 }
 
-fn atom_label(program: &TypedTrees, atom: DomainAtom) -> String {
+fn atom_label(atom: &DomainAtom) -> String {
     match atom {
         DomainAtom::Arithmetic(domain) => domain.name().to_owned(),
-        DomainAtom::Declared(symbol) => program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-            .map(|domain| domain.name.to_string())
-            .unwrap_or_else(|| "unknown domain".to_owned()),
+        DomainAtom::Declared { label, .. } => label.clone(),
     }
+}
+
+fn domain_constraint_label(
+    program: &TypedTrees,
+    domain: &omega_typed_trees::types::DomainConstraint,
+) -> String {
+    if domain.arguments.is_empty() {
+        return domain.name.to_string();
+    }
+
+    let arguments = domain
+        .arguments
+        .iter()
+        .map(
+            |argument| match program.type_reference_table.type_reference(*argument) {
+                TypeReferenceNode::Named { name, .. } => {
+                    omega_core::const_value::CanonicalConstValue::from_atom(name.as_str())
+                        .map_or_else(|| name.to_string(), |value| value.display)
+                }
+                _ => program.display_type_reference(*argument),
+            },
+        )
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{}<{arguments}>", domain.name)
 }

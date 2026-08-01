@@ -17,12 +17,19 @@ pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
         .collect::<Vec<_>>();
     let domain_children = builder.insert_children(
         domain_symbol,
-        operator_names
+        program
+            .data_type_parameters(domain.type_parameters)
             .iter()
-            .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .chain(
+                operator_names
+                    .iter()
+                    .map(|name| (SymbolKind::Operator, SymbolNameRef::Borrowed(name.as_str()))),
+            ),
     );
 
     for (operator_symbol, operator) in SymbolTableBuilder::child_handles(domain_children)
+        .skip(domain.type_parameters.len())
         .zip(program.operator_definitions(domain.operators).iter())
     {
         insert_operator_symbol_children(builder, program, operator_symbol, operator, has_sources);

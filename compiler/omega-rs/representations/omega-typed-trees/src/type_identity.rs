@@ -376,6 +376,7 @@ fn collect_declared_result_dispatch_terms(
                 };
                 let constituent_constraint = DomainConstraint {
                     name: constituent_definition.name.clone(),
+                    arguments: Vec::new(),
                     symbol: constituent_definition.symbol,
                     semantic_id: constituent_definition.semantic_id,
                     predicate_body: constituent_definition.predicate_body,
@@ -691,6 +692,7 @@ mod tests {
     fn declared(name: &str, semantic_id: SemanticDomainId) -> TypeConstraintNode {
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated(name),
+            arguments: Vec::new(),
             symbol: SymbolHandle::invalid(),
             semantic_id,
             predicate_body: DomainPredicateBody::Present,
@@ -709,6 +711,7 @@ mod tests {
     ) -> TypeConstraintNode {
         TypeConstraintNode::Domain(DomainConstraint {
             name: Identifier::generated(name),
+            arguments: Vec::new(),
             symbol,
             semantic_id,
             predicate_body,

@@ -1,7 +1,8 @@
 use crate::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
 use crate::symbols::TopLevelSymbols;
 use crate::type_references::{
-    TypeReferenceOwner, type_reference_label, type_references_match, validate_type_reference_handle,
+    TypeReferenceOwner, type_reference_label, type_references_match,
+    validate_type_reference_handle_with_type_parameters,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -18,7 +19,7 @@ pub(crate) fn validate_domain_definitions(
     validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
 
     for domain in program.domain_definitions() {
-        validate_type_reference_handle(
+        validate_type_reference_handle_with_type_parameters(
             program,
             domain.target_type,
             symbols,
@@ -27,6 +28,8 @@ pub(crate) fn validate_domain_definitions(
                 domain: domain.name.as_str(),
                 generic_depth: 0,
             },
+            program.domain_type_parameters(domain),
+            &[],
         );
         validate_domain_fact_payloads(
             program,

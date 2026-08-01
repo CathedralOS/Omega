@@ -244,6 +244,19 @@ impl TypeReferenceTable {
         self.constraints.span_or_empty(span)
     }
 
+    /// Snapshot every authored declared-domain application. The returned
+    /// argument handles remain stable while pre-resolution canonicalization
+    /// rewrites the pointed-to leaves in place.
+    pub fn domain_constraints(&self) -> Vec<DomainConstraint> {
+        self.constraints
+            .iter()
+            .filter_map(|(_, constraint)| match constraint {
+                TypeConstraintNode::Domain(domain) => Some(domain.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn type_reference_count(&self) -> usize {
         self.type_references.len()
     }
@@ -349,11 +362,23 @@ pub enum TypeConstraintNode {
     /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
     /// 17. A behaviour tag, not a value-range predicate.
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
-    /// A DECLARED domain on a carrier (`[u8] in Utf8`); ch8 "domains over
-    /// carriers". The name resolves to a `domain X::Y` declaration. Distinct from
-    /// `Named` (a structural property like `copy`) so it can be validated against
-    /// declared domains and carried as an encoding/validity fact.
-    Domain(Identifier),
+    /// A declared domain on a carrier (`[u8] in Utf8`) or a closed indexed
+    /// domain-family application (`f64 in Quantity<Unit::KM>`).
+    Domain(DomainConstraint),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DomainConstraint {
+    pub name: Identifier,
+    /// Proof-static arguments remain ordinary type-reference leaves until the
+    /// pre-resolution const pass replaces closed values with canonical atoms.
+    pub arguments: HandleSpan<TypeReferenceHandle>,
+}
+
+impl fmt::Display for DomainConstraint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(formatter)
+    }
 }
 
 impl Default for TypeConstraintNode {

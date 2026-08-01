@@ -7,7 +7,7 @@ use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::types::{
-    FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -471,40 +471,34 @@ fn apply_in_domain_suffix<'tokens, 'source>(
         } else {
             Identifier::generated(qualified_domain_name)
         };
-        // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars
-        // are layout policies") flattens to one instance name -- the same
-        // monomorphization-by-instantiation shape as generic data.
-        let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
-            let mut flat = String::from(domain_name.as_str());
-            flat.push('<');
-            let mut argument_cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
-            loop {
-                let (argument, next) = argument_cursor.take_identifier()?;
-                flat.push_str(argument.as_str());
-                if next.at_punctuation(PunctuationKind::Comma) {
-                    flat.push_str(", ");
-                    argument_cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
-                    continue;
-                }
-                argument_cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
-                break;
-            }
-            flat.push('>');
-            (Identifier::generated(flat), argument_cursor)
-        } else {
-            (domain_name, rest)
-        };
+        let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
         if domain_name.as_str() == "Carry::Portable" {
+            if !arguments.is_empty() {
+                return Err(rest.error_here("compiler carry domains do not take index arguments"));
+            }
             constraints.extend(
                 omega_core::semantics::CarryPermission::ALL.map(|permission| {
-                    TypeConstraintNode::Domain(Identifier::generated(permission.name()))
+                    TypeConstraintNode::Domain(DomainConstraint {
+                        name: Identifier::generated(permission.name()),
+                        arguments: HandleSpan::empty(),
+                    })
                 }),
             );
         } else {
             constraints.push(
                 match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
-                    Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
-                    None => TypeConstraintNode::Domain(domain_name),
+                    Some(domain) if arguments.is_empty() => {
+                        TypeConstraintNode::ArithmeticDomain(domain)
+                    }
+                    Some(_) => {
+                        return Err(rest.error_here(
+                            "compiler arithmetic domains do not take index arguments",
+                        ));
+                    }
+                    None => TypeConstraintNode::Domain(DomainConstraint {
+                        name: domain_name,
+                        arguments,
+                    }),
                 },
             );
         }
@@ -523,6 +517,64 @@ fn apply_in_domain_suffix<'tokens, 'source>(
             constraints,
         });
     Ok((type_reference, cursor))
+}
+
+/// Parse the proof-static argument pack used by a domain-family declaration or
+/// application. PDI2 accepts closed literals/named constants and direct const
+/// binders; PDI3 owns operator expressions over those binders.
+pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeReferenceHandle>> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok((HandleSpan::empty(), input));
+    }
+    let mut input = input.take_punctuation(PunctuationKind::Less, "<")?;
+    let mut arguments = Vec::new();
+    loop {
+        let argument = if input.at_integer() || input.at_punctuation(PunctuationKind::Minus) {
+            let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+            input = rest;
+            if const_expression_requires_declared_width(syntax_trees, expression) {
+                syntax_trees
+                    .type_references
+                    .insert(TypeReferenceNode::ConstExpression(expression))
+            } else {
+                let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
+                    .map_err(|reason| input.error_here(reason))?;
+                syntax_trees
+                    .type_references
+                    .insert_named(Identifier::generated(value.to_string()))
+            }
+        } else {
+            let (first, mut rest) = input.take_identifier()?;
+            let mut path = first.as_str().to_owned();
+            while rest.at_punctuation(PunctuationKind::ColonColon) {
+                rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let (member, next) = rest.take_identifier()?;
+                path.push_str("::");
+                path.push_str(member.as_str());
+                rest = next;
+            }
+            input = rest;
+            syntax_trees
+                .type_references
+                .insert_named(Identifier::generated(path))
+        };
+        arguments.push(argument);
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+        break;
+    }
+    Ok((
+        syntax_trees
+            .type_references
+            .insert_type_reference_handles(arguments),
+        input,
+    ))
 }
 
 pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(

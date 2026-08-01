@@ -136,7 +136,14 @@ pub(crate) fn lower_domain_definition(
     let mut typed_domain = typed::domain::DomainDefinition {
         symbol: domain.symbol,
         name: lower_name(&domain.name),
+        type_parameters: HandleSpan::empty(),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
+        index_arguments: lowerer
+            .source_trees
+            .child_type_references(domain.index_arguments)
+            .iter()
+            .map(|argument| lower_type_reference_into_table(lowerer, argument))
+            .collect::<Result<Vec<_>, _>>()?,
         is_public: domain.is_public,
         alias,
         predicate_body: domain.predicate_body,
@@ -148,6 +155,16 @@ pub(crate) fn lower_domain_definition(
         semantic_roles: domain.semantic_roles,
         establishment_routes: domain.establishment_routes.clone(),
     };
+
+    for parameter in lowerer
+        .source_trees
+        .data_type_parameters(domain.type_parameters)
+    {
+        let parameter = crate::data::lower_type_parameter(lowerer, parameter)?;
+        lowerer
+            .typed_trees
+            .push_domain_type_parameter(&mut typed_domain, parameter);
+    }
 
     for operator in lowerer.source_trees.operator_definitions(domain.operators) {
         let operator = lower_operator_definition(lowerer, operator)?;

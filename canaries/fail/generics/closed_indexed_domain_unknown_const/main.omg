@@ -1,0 +1,14 @@
+data Unit {
+    exponent: i32;
+}
+
+domain<T, const U: Unit> T::Quantity<U>;
+
+machine wrong(value: i64 in Quantity<MISSING>) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
