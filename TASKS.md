@@ -732,9 +732,12 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   proved associative/commutative algebra instance; that authority is retained
   in typed/checked snapshots, enters indexed-domain and generic-template
   identity, and licenses only same-authority flattening/sorting. Missing or
-  ambiguous authority rejects. Next add established-local-fact compatibility
-  and retained verification-condition evidence. Do not add a special citation
-  surface; unresolved equality rejects.
+  ambiguous authority rejects. Successful closed-evaluation and licensed-
+  normalization judgments now retain named verification conditions, exact
+  source/target expressions and instances, program points, and discharge
+  evidence in checked trees and a public JSON artifact without rewriting
+  semantic identity. Next add established-local-fact compatibility. Do not add
+  a special citation surface; unresolved equality rejects.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
