@@ -139,6 +139,22 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 &mut target_type,
             );
             *child_type_references.get_mut(cast.target_type) = target_type;
+            for offset in 0..cast.semantic_domain_arguments.count() {
+                let start = cast.semantic_domain_arguments.start();
+                let handle = omega_core::arena::Handle::from_parts(
+                    start.arena_index() + offset,
+                    start.generation(),
+                );
+                let mut argument = child_type_references.get(handle).clone();
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                    symbols,
+                    child_type_references,
+                    machine.type_parameters,
+                    machine.symbol,
+                    &mut argument,
+                );
+                *child_type_references.get_mut(handle) = argument;
+            }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {

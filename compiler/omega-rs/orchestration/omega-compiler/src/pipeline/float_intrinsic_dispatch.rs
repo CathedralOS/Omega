@@ -225,7 +225,9 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     target_label: omega_core::arena::HandleSpan::empty(),
                     domain,
                     semantic_domain: omega_core::arena::HandleSpan::empty(),
+                    semantic_domain_arguments: omega_core::arena::HandleSpan::empty(),
                     semantic_domain_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                    semantic_domain_id: omega_core::semantics::SemanticDomainId::NULL,
                     form: omega_core::cast_form::CastForm::Value,
                 })
             }

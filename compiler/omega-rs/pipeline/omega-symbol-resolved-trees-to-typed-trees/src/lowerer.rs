@@ -148,7 +148,7 @@ impl Lowerer<'_> {
         trees.service_reach_rows = service_reach_rows;
         trees.semantic_domains = semantic_domains;
         normalize_domain_constraints(self.source_trees, &mut trees)?;
-        normalize_qualification_casts(&mut trees);
+        normalize_qualification_casts(&mut trees)?;
         Ok(trees)
     }
 }

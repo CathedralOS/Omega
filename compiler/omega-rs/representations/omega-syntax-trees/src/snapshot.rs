@@ -517,6 +517,9 @@ pub enum ExpressionSnapshot {
     Cast {
         value: Box<ExpressionSnapshot>,
         target_type: Box<TypeReferenceSnapshot>,
+        semantic_domain: Vec<IdentifierSnapshot>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        semantic_domain_arguments: Vec<TypeReferenceSnapshot>,
     },
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
@@ -1531,6 +1534,17 @@ fn snapshot_expression_handle(
                 syntax_trees,
                 cast.target_type,
             )),
+            semantic_domain: snapshot_identifier_slice(
+                syntax_trees
+                    .expressions
+                    .identifier_path_members(cast.semantic_domain),
+            ),
+            semantic_domain_arguments: syntax_trees
+                .type_references
+                .type_reference_handles(cast.semantic_domain_arguments)
+                .iter()
+                .map(|argument| snapshot_type_reference_handle(syntax_trees, *argument))
+                .collect(),
         },
         ExpressionNode::Call(call) => snapshot_call_expression(syntax_trees, call),
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {

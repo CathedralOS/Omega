@@ -94,11 +94,13 @@ pub(crate) fn validate_callable_state_signatures(
                 trait_definition: trait_definition.name.as_str(),
             },
         );
-        validate_state_signature_types(
-            program
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .map(|machine| StateSignatureView {
+        for machine in program.trait_machine_signatures(trait_definition) {
+            let mut type_parameters = program.trait_type_parameters(trait_definition).to_vec();
+            type_parameters.extend_from_slice(program.state_signature_type_parameters(machine));
+            let mut lifetime_parameters = trait_definition.lifetime_parameters.clone();
+            lifetime_parameters.extend_from_slice(&machine.lifetime_parameters);
+            validate_state_signature_types(
+                std::iter::once(StateSignatureView {
                     name: machine.name.as_str(),
                     lifetime_parameters: &machine.lifetime_parameters,
                     parameters: program.state_signature_parameters(machine),
@@ -106,13 +108,14 @@ pub(crate) fn validate_callable_state_signatures(
                     service_reaches: program.state_signature_service_reaches(machine),
                     contracts: program.state_signature_contracts(machine),
                 }),
-            program,
-            symbols,
-            diagnostics,
-            StateSignatureOwner::Trait(trait_definition.name.as_str()),
-            program.trait_type_parameters(trait_definition),
-            &trait_definition.lifetime_parameters,
-        );
+                program,
+                symbols,
+                diagnostics,
+                StateSignatureOwner::Trait(trait_definition.name.as_str()),
+                &type_parameters,
+                &lifetime_parameters,
+            );
+        }
     }
 }
 

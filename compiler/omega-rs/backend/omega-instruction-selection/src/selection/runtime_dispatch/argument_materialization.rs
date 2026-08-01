@@ -1701,7 +1701,9 @@ fn resolve_prior_local_initializers_in_table(
                         target_label: cast.target_label,
                         domain: cast.domain,
                         semantic_domain: cast.semantic_domain,
+                        semantic_domain_arguments: cast.semantic_domain_arguments,
                         semantic_domain_symbol: cast.semantic_domain_symbol,
+                        semantic_domain_id: cast.semantic_domain_id,
                         form: cast.form,
                     },
                 ))

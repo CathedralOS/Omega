@@ -126,6 +126,21 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     self.target(),
                     cast.semantic_domain,
                 );
+                let semantic_domain_arguments = program
+                    .child_type_references(cast.semantic_domain_arguments)
+                    .iter()
+                    .map(|argument| {
+                        crate::type_reference::lower_type_reference_into_trees(
+                            program,
+                            self.target_trees,
+                            argument,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let semantic_domain_arguments = self
+                    .target_trees
+                    .type_reference_table
+                    .insert_type_reference_handles(semantic_domain_arguments);
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Cast(
@@ -135,7 +150,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             target_label,
                             domain: cast.domain,
                             semantic_domain,
+                            semantic_domain_arguments,
                             semantic_domain_symbol: cast.semantic_domain_symbol,
+                            semantic_domain_id: omega_core::semantics::SemanticDomainId::NULL,
                             form: cast.form,
                         },
                     )))

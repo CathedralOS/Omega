@@ -87,6 +87,15 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         if parameters.is_empty() {
             continue;
         }
+        // Const-machine specialization is a separate rung. Do not mistake an
+        // empty type/machine binding tuple for a complete specialization and
+        // consume the const binders before validation can check their body.
+        if parameters
+            .iter()
+            .any(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+        {
+            continue;
+        }
 
         let mut type_parameters = Vec::new();
         let mut parameter_bounds = Vec::new();
@@ -105,8 +114,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                     contract.clone(),
                 )),
                 TypeParameterKind::Const { .. } => {
-                    // Const-machine specialization is a separate rung. Keep
-                    // this template incomplete so validation/backend fences it.
+                    unreachable!("const-generic machines are fenced before machine specialization")
                 }
             }
         }

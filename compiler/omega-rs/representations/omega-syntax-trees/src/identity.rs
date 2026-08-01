@@ -516,6 +516,18 @@ fn count_expression_handle(
         crate::expression::ExpressionNode::Cast(cast) => {
             count_expression_handle(syntax_trees, cast.value, counts);
             count_type_reference_handle(syntax_trees, cast.target_type, counts);
+            for member in syntax_trees
+                .expressions
+                .identifier_path_members(cast.semantic_domain)
+            {
+                count_identifier(member, counts);
+            }
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(cast.semantic_domain_arguments)
+            {
+                count_type_reference_handle(syntax_trees, *argument, counts);
+            }
         }
         crate::expression::ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {

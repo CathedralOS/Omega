@@ -215,6 +215,7 @@ impl ExpressionTable {
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
                     form: cast.form,
                 }))
@@ -613,6 +614,7 @@ impl ExpressionTable {
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
                     semantic_domain_symbol: cast.semantic_domain_symbol,
                     form: cast.form,
                 }))
@@ -950,6 +952,8 @@ pub struct TableCastExpression {
     /// A NON-policy `in <Name>` suffix -- the semantic-domain qualification
     /// spelling (decision 19), judged at validation. EMPTY = no suffix.
     pub semantic_domain: HandleSpan<DiagnosticName>,
+    /// PDI2 proof-static family arguments in the declarations child-type arena.
+    pub semantic_domain_arguments: HandleSpan<crate::types::TypeReference>,
     /// Normalized declaration identity for `semantic_domain`. Populated in
     /// typed normalization after carrier-aware domain lookup.
     pub semantic_domain_symbol: SymbolHandle,

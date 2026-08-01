@@ -728,3 +728,119 @@ fn preserves_linear_multiplicity_through_typed_lowering() {
         omega_core::semantics::Multiplicity::Linear
     );
 }
+
+#[test]
+fn indexed_qualification_binder_keeps_machine_const_identity() {
+    let source = r#"
+        data Unit {}
+        domain<T, const U: Unit> T::Quantity<U>;
+
+        trait Conversion {
+            machine retag_requirement<const To: Unit>(value: i64) -> i64 in Quantity<To>;
+        }
+
+        machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
+            transition { _ -> (value as i64 in Quantity<To>) }
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved_program = lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
+    let typed_trees =
+        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+
+    let machine = typed_trees.machines().first().expect("retag machine");
+    let [parameter] = typed_trees.machine_type_parameters(machine) else {
+        panic!("retag should retain one const parameter");
+    };
+    assert_eq!(parameter.name.as_str(), "To");
+    assert!(matches!(
+        parameter.kind,
+        omega_typed_trees::data::TypeParameterKind::Const { .. }
+    ));
+    let state = &typed_trees.machine_states(machine)[0];
+    let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed_trees
+        .type_reference_table
+        .type_reference(state.return_type)
+    else {
+        panic!("return should retain Quantity<To>");
+    };
+    let [omega_typed_trees::types::TypeConstraintNode::Domain(return_domain)] =
+        typed_trees.type_reference_table.constraints(*constraints)
+    else {
+        panic!("return should carry one declared domain");
+    };
+    let omega_typed_trees::types::TypeReferenceNode::Named {
+        symbol: return_symbol,
+        name: return_name,
+    } = typed_trees
+        .type_reference_table
+        .type_reference(return_domain.arguments[0])
+    else {
+        panic!("return index should be a direct binder leaf");
+    };
+    assert_eq!(return_name.as_str(), "To");
+    assert_eq!(*return_symbol, parameter.symbol);
+
+    let cast = typed_trees
+        .expression_table
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            omega_typed_trees::expression::ExpressionNode::Cast(cast) => Some(cast),
+            _ => None,
+        })
+        .expect("retag body should retain its qualification cast");
+    let [cast_argument] = typed_trees
+        .type_reference_table
+        .type_reference_handles(cast.semantic_domain_arguments)
+    else {
+        panic!("cast should retain one index argument");
+    };
+    let omega_typed_trees::types::TypeReferenceNode::Named {
+        symbol: cast_symbol,
+        name: cast_name,
+    } = typed_trees
+        .type_reference_table
+        .type_reference(*cast_argument)
+    else {
+        panic!("cast index should be a direct binder leaf");
+    };
+    assert_eq!(cast_name.as_str(), "To");
+    assert_eq!(*cast_symbol, parameter.symbol);
+    assert_eq!(cast.semantic_domain_id, return_domain.semantic_id);
+
+    let conversion = typed_trees.traits().first().expect("Conversion trait");
+    let [requirement] = typed_trees.trait_machine_signatures(conversion) else {
+        panic!("Conversion should retain one requirement");
+    };
+    let [requirement_parameter] = typed_trees.state_signature_type_parameters(requirement) else {
+        panic!("generic requirement should retain its const binder");
+    };
+    let omega_typed_trees::types::TypeReferenceNode::Constrained {
+        constraints: requirement_constraints,
+        ..
+    } = typed_trees
+        .type_reference_table
+        .type_reference(requirement.return_type)
+    else {
+        panic!("generic requirement result should retain Quantity<To>");
+    };
+    let [omega_typed_trees::types::TypeConstraintNode::Domain(requirement_domain)] = typed_trees
+        .type_reference_table
+        .constraints(*requirement_constraints)
+    else {
+        panic!("generic requirement result should carry one domain");
+    };
+    let omega_typed_trees::types::TypeReferenceNode::Named {
+        symbol: requirement_symbol,
+        ..
+    } = typed_trees
+        .type_reference_table
+        .type_reference(requirement_domain.arguments[0])
+    else {
+        panic!("generic requirement index should be a direct binder");
+    };
+    assert_eq!(*requirement_symbol, requirement_parameter.symbol);
+}

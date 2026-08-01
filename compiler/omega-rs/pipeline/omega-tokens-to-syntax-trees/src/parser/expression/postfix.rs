@@ -396,6 +396,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             // mixed-domain rejection). `in` is the contextual membership keyword.
             let mut domain = omega_core::arithmetic::ArithmeticDomain::Exact;
             let mut semantic_domain = omega_core::arena::HandleSpan::empty();
+            let mut semantic_domain_arguments = omega_core::arena::HandleSpan::empty();
             if input.at_contextual("in") {
                 if form.is_recast() {
                     return Err(input.error_here(
@@ -417,9 +418,23 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                                 &mut semantic_domain,
                                 domain_name.clone(),
                             );
+                        let (arguments, rest) =
+                            crate::parser::type_reference::parse_domain_argument_handles(
+                                syntax_trees,
+                                rest,
+                            )?;
+                        semantic_domain_arguments = arguments;
+                        input = rest;
                     }
                 }
-                input = rest;
+                if semantic_domain.is_empty() {
+                    if rest.at_punctuation(PunctuationKind::Less) {
+                        return Err(rest.error_here(
+                            "compiler arithmetic domains do not take index arguments",
+                        ));
+                    }
+                    input = rest;
+                }
             }
             expression =
                 syntax_trees
@@ -430,6 +445,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                         target_label,
                         domain,
                         semantic_domain,
+                        semantic_domain_arguments,
                         form,
                     }));
             continue;

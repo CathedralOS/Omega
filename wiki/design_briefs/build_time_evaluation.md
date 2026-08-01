@@ -91,9 +91,10 @@ boundary-opaque data structurally. Current `Rat` admission performs the three
 checks above at the argument site. Quotients and default-domain-constrained
 records fail closed until the evaluator can prove their canonical
 representative or domain facts at that site. Closed erased domain families now
-consume the same canonical atoms for per-instance semantic identity; indexed
-explicit qualification remains PDI2, and open symbolic index evaluation
-remains PDI3.
+consume the same canonical atoms for per-instance semantic identity. Indexed
+explicit qualification now preserves a closed atom or direct const binder as
+that exact identity; const-machine call specialization remains PDI2, and open
+symbolic index evaluation remains PDI3.
 
 Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
 arithmetic evaluates the same executable `FloatSemantics` functions that define

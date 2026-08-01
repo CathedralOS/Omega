@@ -199,7 +199,7 @@ fn normalize_constraint_span(
     Ok(())
 }
 
-fn domain_accepts_carrier(
+pub(crate) fn domain_accepts_carrier(
     program: &TypedTrees,
     domain: &omega_typed_trees::domain::DomainDefinition,
     carrier: omega_typed_trees::types::TypeReferenceHandle,
@@ -225,7 +225,7 @@ fn domain_accepts_carrier(
     (*symbol == parameter.symbol || name == &parameter.name) && carrier.is_valid()
 }
 
-fn indexed_domain_instance_name(
+pub(crate) fn indexed_domain_instance_name(
     program: &TypedTrees,
     domain: &omega_typed_trees::domain::DomainDefinition,
     parameters: &[omega_typed_trees::data::TypeParameter],

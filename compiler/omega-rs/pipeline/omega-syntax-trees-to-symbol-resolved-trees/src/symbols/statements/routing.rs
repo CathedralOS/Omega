@@ -10,7 +10,7 @@ use crate::symbols::targets::{
     assign_transition_target_symbols, resolve_call_target_symbol,
     resolve_static_machine_argument_symbol,
 };
-use crate::symbols::type_references::assign_type_reference_symbol_with_self_type;
+use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
 
 pub(super) fn assign_statement_symbols(
     machine: &MachineScope<'_>,
@@ -20,6 +20,7 @@ pub(super) fn assign_statement_symbols(
     child_type_references: &mut omega_core::arena::Arena<
         omega_symbol_resolved_trees::types::TypeReference,
     >,
+    type_constraints: &omega_core::arena::Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     statement_path_members: &mut Arena<omega_symbol_resolved_trees::name::DiagnosticName>,
     statement: &mut omega_symbol_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
@@ -106,9 +107,11 @@ pub(super) fn assign_statement_symbols(
             );
         }
         omega_symbol_resolved_trees::statement::Statement::LocalData(local_data) => {
-            assign_type_reference_symbol_with_self_type(
+            assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                 symbols,
                 child_type_references,
+                type_constraints,
+                machine.type_parameters,
                 machine.symbol,
                 &mut local_data.type_reference,
             );

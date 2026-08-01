@@ -1016,11 +1016,72 @@ fn validate_indexed_domain_arguments(
     else {
         return;
     };
+    validate_indexed_domain_argument_pack(
+        program,
+        definition,
+        constraint.name.as_str(),
+        &constraint.arguments,
+        scope,
+        diagnostics,
+        &owner,
+    );
+}
+
+pub(crate) fn validate_indexed_qualification_arguments(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    cast: &omega_typed_trees::expression::TableCastExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !cast.semantic_domain_symbol.is_valid() {
+        return;
+    }
+    let Some(definition) = program
+        .domain_definitions()
+        .iter()
+        .find(|definition| definition.symbol == cast.semantic_domain_symbol)
+    else {
+        return;
+    };
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(cast.semantic_domain_arguments);
+    let domain_name = program
+        .expression_table
+        .name_path_members(cast.semantic_domain)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let owner = format!("machine `{}` indexed qualification", machine.name);
+    validate_indexed_domain_argument_pack(
+        program,
+        definition,
+        &domain_name,
+        arguments,
+        TypeParameterScope {
+            type_parameters: program.machine_type_parameters(machine),
+            lifetime_parameters: &machine.lifetime_parameters,
+        },
+        diagnostics,
+        &owner,
+    );
+}
+
+fn validate_indexed_domain_argument_pack(
+    program: &TypedTrees,
+    definition: &omega_typed_trees::domain::DomainDefinition,
+    domain_name: &str,
+    arguments: &[TypeReferenceHandle],
+    scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: &dyn fmt::Display,
+) {
     let parameters = program.domain_type_parameters(definition);
     if parameters.is_empty() {
         return;
     }
-    for (parameter, argument) in parameters[1..].iter().zip(&constraint.arguments) {
+    for (parameter, argument) in parameters[1..].iter().zip(arguments) {
         let TypeParameterKind::Const {
             type_reference: expected,
         } = parameter.kind
@@ -1032,7 +1093,7 @@ fn validate_indexed_domain_arguments(
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} supplies a noncanonical argument for indexed domain `{}`",
-                constraint.name
+                domain_name
             )));
             continue;
         };
@@ -1064,7 +1125,7 @@ fn validate_indexed_domain_arguments(
         let Some(binder) = binder else {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} supplies `{name}` as an index for `{}`, but it is neither a canonical named const nor a direct in-scope const binder",
-                constraint.name
+                domain_name
             )));
             continue;
         };
@@ -1079,7 +1140,7 @@ fn validate_indexed_domain_arguments(
                 "{owner} forwards const binder `{}` of type `{}` into `{}`, which requires `{}`",
                 binder.name,
                 type_reference_label(program, actual),
-                constraint.name,
+                domain_name,
                 type_reference_label(program, expected)
             )));
         }

@@ -464,8 +464,13 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                         .iter()
                         .find(|domain| domain.symbol == cast.semantic_domain_symbol)
                 {
-                    if domain.semantic_id.is_valid() {
-                        committed.push(domain.semantic_id);
+                    let semantic_id = if cast.semantic_domain_id.is_valid() {
+                        cast.semantic_domain_id
+                    } else {
+                        domain.semantic_id
+                    };
+                    if semantic_id.is_valid() {
+                        committed.push(semantic_id);
                     }
                     if domain_is_vacuous(program, domain.symbol, &mut Vec::new()) {
                         vacuous_uses.push(VacuousQualificationUse {
@@ -474,6 +479,7 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
                             statement_index,
                             expression,
                             domain: domain.symbol,
+                            semantic_domain: semantic_id,
                         });
                     }
                 }

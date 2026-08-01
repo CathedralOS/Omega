@@ -1099,7 +1099,7 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
             omega_syntax_trees::types::TypeConstraintNode::ArithmeticDomain(
                 omega_core::arithmetic::ArithmeticDomain::Saturating
             )
-        ] if name.as_str() == "Finite"
+        ] if name.name.as_str() == "Finite"
     ));
 }
 
@@ -1145,7 +1145,7 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
             .iter()
             .map(|constraint| match constraint {
                 omega_syntax_trees::types::TypeConstraintNode::Domain(name) => {
-                    name.as_str().to_owned()
+                    name.name.as_str().to_owned()
                 }
                 other => panic!("carry permission became {other:?}"),
             })

@@ -34,6 +34,9 @@ pub struct VacuousQualificationUse {
     /// The typed expression carrying the explicit qualification.
     pub expression: ExpressionHandle,
     pub domain: SymbolHandle,
+    /// Exact normalized instance selected by the cast. For indexed families
+    /// this differs from the declaration's family-level semantic identity.
+    pub semantic_domain: SemanticDomainId,
 }
 
 impl QualificationFacts {

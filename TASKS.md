@@ -713,10 +713,13 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   distinguish semantic instances while reordered structural values coincide;
   one family spans carriers, direct const binders survive generic signatures,
   ordinary per-pair operators attach to the family, implicit cross-index flow
-  rejects, and the index remains absent from carrier layout. Finish indexed
-  explicit qualification so an executable generic conversion can select its
-  destination binder, then publish the first units package with named
-  combinations and its conversion/operator canaries.
+  rejects, and the index remains absent from carrier layout. Indexed explicit
+  qualification now accepts both closed canonical values and a direct in-scope
+  const binder, retains the exact instance in typed/checked artifacts, and
+  rejects missing, mistyped, or unresolved index packs. Finish const-machine
+  specialization so a caller can execute a destination-parameterized generic
+  conversion, then publish the first units package with named combinations and
+  its conversion/operator canaries.
 - **PDI3:** only after PDI2, add computed open result indices, exact selected
   algebra-instance normalization, established-local-fact compatibility, and
   retained verification-condition evidence. Do not add a special citation

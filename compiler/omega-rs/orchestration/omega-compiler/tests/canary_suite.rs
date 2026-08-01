@@ -22398,6 +22398,44 @@ fn closed_indexed_domain_canaries() {
                 .join("\n")
         )
     });
+    let checked = compile_to_checked(&pass.join("main.omg"), None)
+        .expect("closed indexed qualifications should survive checked lowering");
+    let uses = &checked.facts.qualifications.vacuous_uses;
+    assert_eq!(
+        uses.len(),
+        2,
+        "both explicit indexed qualifications should be retained"
+    );
+    for use_fact in uses {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == use_fact.machine)
+            .expect("qualification owner machine");
+        let state = checked
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == use_fact.state)
+            .expect("qualification owner state");
+        let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = checked
+            .type_reference_table
+            .type_reference(state.return_type)
+        else {
+            panic!("indexed qualification canary result should remain constrained");
+        };
+        let [omega_typed_trees::types::TypeConstraintNode::Domain(result_domain)] =
+            checked.type_reference_table.constraints(*constraints)
+        else {
+            panic!("indexed qualification canary result should carry one domain");
+        };
+        assert_eq!(
+            use_fact.semantic_domain, result_domain.semantic_id,
+            "vacuous-use evidence must retain the exact indexed instance"
+        );
+    }
+    let evidence = omega_visualizations::qualification_evidence_manifest_json(&checked);
+    assert!(evidence.contains("\"semantic_domain_id\":"));
+    assert!(evidence.contains("\"semantic_domain\":"));
 
     for path in [
         "generics/closed_indexed_domain_mismatch",
@@ -22405,6 +22443,9 @@ fn closed_indexed_domain_canaries() {
         "generics/closed_indexed_domain_unknown_const",
         "generics/closed_indexed_domain_wrong_arity",
         "generics/closed_indexed_domain_wrong_type",
+        "generics/closed_indexed_qualification_unknown_const",
+        "generics/closed_indexed_qualification_wrong_arity",
+        "generics/closed_indexed_qualification_wrong_type",
     ] {
         let canary = fail_canary(path);
         let expected = fs::read_to_string(canary.join("expected.txt"))

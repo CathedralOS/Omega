@@ -511,6 +511,11 @@ pub enum ExpressionSnapshot {
     Cast {
         value: Box<ExpressionSnapshot>,
         target_type: Box<TypeReferenceSnapshot>,
+        semantic_domain: Vec<String>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        semantic_domain_arguments: Vec<TypeReferenceSnapshot>,
+        semantic_domain_symbol: u32,
+        semantic_domain_id: u32,
     },
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
@@ -1194,6 +1199,19 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
         ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
             value: Box::new(expression_snapshot(program, cast.value)),
             target_type: Box::new(type_reference_snapshot(program, cast.target_type)),
+            semantic_domain: path_snapshot(
+                program
+                    .expression_table
+                    .name_path_members(cast.semantic_domain),
+            ),
+            semantic_domain_arguments: program
+                .type_reference_table
+                .type_reference_handles(cast.semantic_domain_arguments)
+                .iter()
+                .map(|argument| type_reference_snapshot(program, *argument))
+                .collect(),
+            semantic_domain_symbol: cast.semantic_domain_symbol.arena_index(),
+            semantic_domain_id: cast.semantic_domain_id.0,
         },
         ExpressionNode::Call(call) => ExpressionSnapshot::Call {
             receiver: call

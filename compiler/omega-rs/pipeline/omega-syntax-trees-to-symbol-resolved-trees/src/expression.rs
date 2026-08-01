@@ -109,6 +109,11 @@ fn lower_expression_node_into_table(
                 expression_table(lowerer)
                     .push_name_path_member(&mut semantic_domain, lower_name(member));
             }
+            let semantic_domain_arguments = crate::type_reference::lower_child_type_references(
+                lowerer,
+                syntax_trees,
+                cast.semantic_domain_arguments,
+            )?;
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Cast(TableCastExpression {
                     value,
@@ -116,6 +121,7 @@ fn lower_expression_node_into_table(
                     target_label,
                     domain: cast.domain,
                     semantic_domain,
+                    semantic_domain_arguments,
                     semantic_domain_symbol: SymbolHandle::invalid(),
                     form: cast.form,
                 })),

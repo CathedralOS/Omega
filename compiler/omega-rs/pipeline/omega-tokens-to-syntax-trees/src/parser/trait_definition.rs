@@ -161,14 +161,15 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateSignature> {
     let (name, input) = parse_trait_machine_name(input)?;
+    let (generic_parameters, input) = parse_type_parameters(syntax_trees, input)?;
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
 
     Ok((
         StateSignature {
             name,
-            lifetime_parameters: Vec::new(),
-            type_parameters: HandleSpan::empty(),
+            lifetime_parameters: generic_parameters.lifetime_parameters,
+            type_parameters: generic_parameters.type_parameters,
             is_default: false,
             parameters,
             return_type,

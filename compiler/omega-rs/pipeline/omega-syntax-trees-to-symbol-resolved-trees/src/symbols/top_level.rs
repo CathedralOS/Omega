@@ -64,6 +64,7 @@ pub(super) fn assign_machine_parameter_signature_symbols(
     data_type_parameters: &mut Arena<omega_symbol_resolved_trees::data::TypeParameter>,
     state_parameters: &mut Arena<omega_symbol_resolved_trees::signature::StateParameter>,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<omega_symbol_resolved_trees::types::TypeConstraint>,
     contract: &mut omega_symbol_resolved_trees::signature::StateSignature,
     owner_symbol: SymbolHandle,
     inherited_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
@@ -95,9 +96,10 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         let resolved_kind = match kind {
             TypeParameterKind::Type => TypeParameterKind::Type,
             TypeParameterKind::Const { mut type_reference } => {
-                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     &local_type_parameters,
                     self_symbol,
                     &mut type_reference,
@@ -110,6 +112,7 @@ pub(super) fn assign_machine_parameter_signature_symbols(
                     data_type_parameters,
                     state_parameters,
                     child_type_references,
+                    type_constraints,
                     &mut contract,
                     parameter_symbol,
                     &local_type_parameters,
@@ -124,18 +127,20 @@ pub(super) fn assign_machine_parameter_signature_symbols(
 
     for parameter in state_parameters.span_mut_or_empty(contract.parameters) {
         parameter.symbol = next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
             symbols,
             child_type_references,
+            type_constraints,
             &local_type_parameters,
             self_symbol,
             &mut parameter.type_reference,
         );
     }
     if let Some(return_type) = &mut contract.return_type {
-        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+        crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
             symbols,
             child_type_references,
+            type_constraints,
             &local_type_parameters,
             self_symbol,
             return_type,

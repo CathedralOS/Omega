@@ -7,7 +7,8 @@ use crate::symbols::lookup::top_level_symbol;
 use crate::symbols::scope::MachineScope;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
 use crate::symbols::type_references::{
-    assign_type_reference_argument_symbols, assign_type_reference_symbol_with_locals_and_self_type,
+    assign_type_reference_argument_symbols_with_constraints,
+    assign_type_reference_symbol_with_locals_and_self_type_and_constraints,
 };
 
 pub(super) fn assign_machine_symbols(
@@ -16,6 +17,7 @@ pub(super) fn assign_machine_symbols(
     root_children: &mut impl Iterator<Item = SymbolHandle>,
 ) {
     let tables = &mut program.tables;
+    let type_constraints = &tables.types.constraints;
     let declarations = &mut tables.declarations;
     let expression_table = &mut tables.bodies.expressions;
     let data_type_parameters = &mut declarations.data_type_parameters;
@@ -75,6 +77,7 @@ pub(super) fn assign_machine_symbols(
                 data_type_parameters,
                 state_parameters,
                 child_type_references,
+                type_constraints,
                 &mut contract,
                 parameter_symbol,
                 &local_type_parameters,
@@ -91,9 +94,10 @@ pub(super) fn assign_machine_symbols(
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
-            assign_type_reference_symbol_with_locals_and_self_type(
+            assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                 symbols,
                 child_type_references,
+                type_constraints,
                 &local_type_parameters,
                 machine_symbol,
                 &mut owned_data.type_reference,
@@ -122,9 +126,10 @@ pub(super) fn assign_machine_symbols(
         for conformance in machine_trait_conformances.span_mut_or_empty(machine.satisfies) {
             conformance.symbol =
                 top_level_symbol(symbols, SymbolKind::Trait, conformance.name.as_str());
-            assign_type_reference_argument_symbols(
+            assign_type_reference_argument_symbols_with_constraints(
                 symbols,
                 child_type_references,
+                type_constraints,
                 &local_type_parameters,
                 machine_symbol,
                 conformance.arguments,
@@ -144,9 +149,10 @@ pub(super) fn assign_machine_symbols(
             for parameter in state_parameters.span_mut_or_empty(state.parameters) {
                 parameter.symbol =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
-                assign_type_reference_symbol_with_locals_and_self_type(
+                assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     &local_type_parameters,
                     machine_symbol,
                     &mut parameter.type_reference,
@@ -166,9 +172,10 @@ pub(super) fn assign_machine_symbols(
             }
 
             if let Some(return_type) = &mut state.return_type {
-                assign_type_reference_symbol_with_locals_and_self_type(
+                assign_type_reference_symbol_with_locals_and_self_type_and_constraints(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     &local_type_parameters,
                     machine_symbol,
                     return_type,

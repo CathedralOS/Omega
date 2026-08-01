@@ -169,10 +169,22 @@ fn judge_qualification_cast(
     let members = program
         .expression_table
         .name_path_members(cast.semantic_domain);
-    let name = members
-        .first()
-        .map(|member| member.as_str().to_owned())
-        .unwrap_or_default();
+    let base_name = members
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    let mut name = base_name.clone();
+    if !cast.semantic_domain_arguments.is_empty() {
+        let arguments = program
+            .type_reference_table
+            .type_reference_handles(cast.semantic_domain_arguments)
+            .iter()
+            .map(|argument| program.display_type_reference(*argument))
+            .collect::<Vec<_>>()
+            .join(", ");
+        name = format!("{name}<{arguments}>");
+    }
     let declared = program
         .domain_definitions()
         .iter()
@@ -233,8 +245,8 @@ fn judge_qualification_cast(
                 .domain_definitions()
                 .iter()
                 .filter(|domain| {
-                    domain.name.as_str() == name
-                        || domain.name.as_str().ends_with(&format!("::{name}"))
+                    domain.name.as_str() == base_name
+                        || domain.name.as_str().ends_with(&format!("::{base_name}"))
                 })
                 .count();
             diagnostics.push(Diagnostic::error(format!(

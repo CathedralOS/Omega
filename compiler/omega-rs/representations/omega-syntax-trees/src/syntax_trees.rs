@@ -1076,6 +1076,8 @@ impl SyntaxTrees {
                 target_label: self.copy_expression_identifier_span(other, cast.target_label),
                 domain: cast.domain,
                 semantic_domain: self.copy_expression_identifier_span(other, cast.semantic_domain),
+                semantic_domain_arguments: self
+                    .copy_type_reference_handle_span(other, cast.semantic_domain_arguments),
                 form: cast.form,
             }),
             ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
