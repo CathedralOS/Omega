@@ -22593,6 +22593,27 @@ fn open_computed_quantity_result_canary_runs() {
     let canary = pass_canary("generics/open_computed_quantity_result");
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("generic computed index result should check");
+    let selections = checked
+        .open_index_normalizations
+        .iter()
+        .flat_map(|normalization| &normalization.operations)
+        .collect::<Vec<_>>();
+    assert!(!selections.is_empty());
+    assert!(selections.iter().all(|selection| {
+        selection
+            .operation_contract_identity
+            .contains("IndexAlgebra::plus")
+            && selection.algebra_requirement == "add"
+            && selection.algebra_alias.as_deref() == Some("Canonical")
+            && selection.provider.is_valid()
+            && selection.algebra_trait.is_valid()
+    }));
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| specialization.template_contract_fingerprint != 0)
+    );
     let interpreted = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);

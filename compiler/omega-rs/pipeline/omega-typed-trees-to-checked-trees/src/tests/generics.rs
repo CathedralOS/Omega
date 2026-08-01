@@ -839,6 +839,66 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
 }
 
 #[test]
+fn generic_template_identity_pins_selected_open_index_operation_authority() {
+    fn fingerprint(operator_namespace: &str) -> u64 {
+        let source = format!(
+            r#"
+                domain<T, const I: u64> T::Indexed<I>;
+
+                trait IndexAdd {{
+                    machine add(a: Self, b: Self) -> Self;
+                    machine add_comm(a: Self, b: Self) -> Self
+                    ensures add(a, b) == add(b, a);
+                    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+                    ensures add(add(a, b), c) == add(a, add(b, c));
+                }}
+
+                operator {operator_namespace}::plus(left: u64, right: u64) -> u64 spelling +;
+
+                machine plus_index(a: u64, b: u64) -> u64
+                satisfies {operator_namespace}::plus, IndexAdd::add as Canonical
+                {{ 0 }}
+
+                machine plus_index_comm(a: u64, b: u64) -> u64
+                satisfies IndexAdd::add_comm as Canonical
+                ensures plus_index(a, b) == plus_index(b, a)
+                {{ 0 }}
+
+                machine plus_index_assoc(a: u64, b: u64, c: u64) -> u64
+                satisfies IndexAdd::add_assoc as Canonical
+                ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
+                {{ 0 }}
+
+                boundary machine admitted<const A: u64, const B: u64>()
+                    -> i64 in Indexed<A + B>;
+            "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+        let mut typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+        omega_validation::normalize_open_index_expressions(&mut typed)
+            .expect("exact proved index algebra should normalize");
+        crate::monomorphization::refresh_closed_domain_instance_identities(&mut typed)
+            .expect("selected authority should refresh indexed instance identity");
+        let admitted = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "admitted")
+            .expect("generic template should exist");
+        crate::monomorphization::generic_machine_template_fingerprint(&typed, admitted.symbol)
+            .expect("generic template should have an identity")
+    }
+
+    assert_ne!(
+        fingerprint("IndexAlgebra"),
+        fingerprint("AlternateIndexAlgebra")
+    );
+}
+
+#[test]
 fn generic_template_identity_pins_independent_operational_interfaces() {
     fn fingerprint(source: String) -> u64 {
         let tokens = Lexer::new(&source)

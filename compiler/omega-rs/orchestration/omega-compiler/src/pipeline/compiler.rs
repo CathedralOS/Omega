@@ -386,6 +386,11 @@ impl Compiler {
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
         crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(&mut typed)?;
+        // PDI3 selected operation/algebra authority is public type identity,
+        // including for generic trust receipts emitted before checked
+        // lowering. Bind it on the typed tree before snapshots and lockfile
+        // fingerprints consume the declaration graph.
+        omega_typed_trees_to_checked_trees::normalize_open_index_identities(&mut typed)?;
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source

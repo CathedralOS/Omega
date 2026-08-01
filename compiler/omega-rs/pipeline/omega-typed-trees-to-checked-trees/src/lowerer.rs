@@ -15,10 +15,13 @@ pub(crate) fn lower_typed_trees(
     // MP2b must judge the authored requirement -> selected implementation edge
     // before MP4 consumes the call-site selections and clears the template's
     // parameter list.
+    // PDI3 operation/algebra authority is part of the authored generic
+    // contract, so bind it before specialization captures the universal
+    // template fingerprint. Normalize again afterward to cover cloned
+    // expression handles and concrete substitutions.
+    crate::normalize_open_index_identities(&mut program)?;
     crate::specialize_static_machine_calls(&mut program)?;
-    omega_validation::normalize_open_index_expressions(&mut program)?;
-    crate::monomorphization::refresh_closed_domain_instance_identities(&mut program)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    crate::normalize_open_index_identities(&mut program)?;
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
     // and before both engines fork off it -- every downstream read (native

@@ -576,36 +576,41 @@ fn normalize_index_expression(
             )
         }
         ExpressionNode::Binary(binary) => {
-            let selection = program
-                .open_index_normalizations
-                .iter()
-                .flat_map(|normalization| &normalization.operations)
-                .find(|selection| selection.expression == expression);
+            let Some(selection) = open_index_operation_selection(program, expression) else {
+                return compound(
+                    index_binary_operator_name(binary.operator),
+                    [
+                        normalize_index_expression(program, binary.left, context),
+                        normalize_index_expression(program, binary.right, context),
+                    ],
+                );
+            };
+            let mut operands = Vec::new();
+            collect_licensed_ac_operands(
+                program,
+                binary.left,
+                binary.operator,
+                selection,
+                context,
+                &mut operands,
+            );
+            collect_licensed_ac_operands(
+                program,
+                binary.right,
+                binary.operator,
+                selection,
+                context,
+                &mut operands,
+            );
+            operands.sort();
             compound(
                 index_binary_operator_name(binary.operator),
-                selection
-                    .map(|selection| {
-                        vec![
-                            atom("operation", &selection.operation_contract_identity),
-                            atom(
-                                "algebra",
-                                &format!(
-                                    "{}::{} as {}",
-                                    program.symbols.display_path(selection.algebra_trait, "::"),
-                                    selection.algebra_requirement,
-                                    selection.algebra_alias.as_deref().unwrap_or("<default>")
-                                ),
-                            ),
-                            normalize_index_expression(program, binary.left, context),
-                            normalize_index_expression(program, binary.right, context),
-                        ]
-                    })
-                    .unwrap_or_else(|| {
-                        vec![
-                            normalize_index_expression(program, binary.left, context),
-                            normalize_index_expression(program, binary.right, context),
-                        ]
-                    }),
+                std::iter::once(atom("operation", &selection.operation_contract_identity))
+                    .chain(std::iter::once(atom(
+                        "algebra",
+                        &open_index_algebra_identity(program, selection),
+                    )))
+                    .chain(operands),
             )
         }
         ExpressionNode::Integer(value) => atom("integer", &value.to_string()),
@@ -630,6 +635,67 @@ fn normalize_index_expression(
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::ZeroValue(_) => "unsupported-index-expression".to_owned(),
+    }
+}
+
+fn open_index_operation_selection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<&crate::typed_trees::OpenIndexOperationSelection> {
+    program
+        .open_index_normalizations
+        .iter()
+        .flat_map(|normalization| &normalization.operations)
+        .find(|selection| selection.expression == expression)
+}
+
+fn open_index_algebra_identity(
+    program: &TypedTrees,
+    selection: &crate::typed_trees::OpenIndexOperationSelection,
+) -> String {
+    format!(
+        "{}::{} as {}",
+        program.symbols.display_path(selection.algebra_trait, "::"),
+        selection.algebra_requirement,
+        selection.algebra_alias.as_deref().unwrap_or("<default>")
+    )
+}
+
+fn same_open_index_ac_authority(
+    left: &crate::typed_trees::OpenIndexOperationSelection,
+    right: &crate::typed_trees::OpenIndexOperationSelection,
+) -> bool {
+    left.operator == right.operator
+        && left.operation_contract_identity == right.operation_contract_identity
+        && left.algebra_trait == right.algebra_trait
+        && left.algebra_requirement == right.algebra_requirement
+        && left.algebra_alias == right.algebra_alias
+}
+
+fn collect_licensed_ac_operands(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    authority: &crate::typed_trees::OpenIndexOperationSelection,
+    context: &TypeIdentityContext<'_>,
+    operands: &mut Vec<String>,
+) {
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        && binary.operator == operator
+        && open_index_operation_selection(program, expression)
+            .is_some_and(|selection| same_open_index_ac_authority(authority, selection))
+    {
+        collect_licensed_ac_operands(program, binary.left, operator, authority, context, operands);
+        collect_licensed_ac_operands(
+            program,
+            binary.right,
+            operator,
+            authority,
+            context,
+            operands,
+        );
+    } else {
+        operands.push(normalize_index_expression(program, expression, context));
     }
 }
 
@@ -800,9 +866,13 @@ mod tests {
     use super::{NormalizedDomainTerm, NormalizedTypeIdentity};
     use crate::TypedTrees;
     use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
-    use crate::expression::{BinaryExpression, BinaryOperator, Expression, NamePath};
+    use crate::expression::{
+        BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode, NamePath,
+    };
     use crate::name::Identifier;
+    use crate::typed_trees::{OpenIndexNormalization, OpenIndexOperationSelection};
     use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
+    use omega_core::operator_spelling::OperatorSpelling;
     use omega_core::semantics::{
         DomainEstablishmentRoute, DomainPredicateBody, DomainSemanticRoles, SemanticDomainId,
     };
@@ -1001,6 +1071,92 @@ mod tests {
         assert_ne!(
             program.normalized_type_identity(a_over_b),
             program.normalized_type_identity(b_over_a)
+        );
+    }
+
+    #[test]
+    fn licensed_open_index_identity_flattens_and_sorts_exact_ac_operation() {
+        fn name(value: &str) -> Expression {
+            Expression::Name(NamePath::unresolved_from_iter([Identifier::generated(
+                value,
+            )]))
+        }
+        fn add(left: Expression, right: Expression) -> Expression {
+            Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator: BinaryOperator::Add,
+                right,
+            }))
+        }
+        fn binary_nodes(
+            program: &TypedTrees,
+            expression: ExpressionHandle,
+            output: &mut Vec<ExpressionHandle>,
+        ) {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+            else {
+                return;
+            };
+            output.push(expression);
+            binary_nodes(program, binary.left, output);
+            binary_nodes(program, binary.right, output);
+        }
+        fn license(program: &mut TypedTrees, expression: ExpressionHandle, contract: &str) {
+            let mut nodes = Vec::new();
+            binary_nodes(program, expression, &mut nodes);
+            let operations = nodes
+                .into_iter()
+                .map(|expression| OpenIndexOperationSelection {
+                    expression,
+                    spelling: OperatorSpelling::Add,
+                    operator: SymbolHandle::from_arena_index(71),
+                    operation_contract_identity: contract.to_owned(),
+                    provider: SymbolHandle::from_arena_index(72),
+                    algebra_trait: SymbolHandle::from_arena_index(73),
+                    algebra_requirement: "add".to_owned(),
+                    algebra_alias: Some("Canonical".to_owned()),
+                })
+                .collect();
+            program
+                .open_index_normalizations
+                .push(OpenIndexNormalization {
+                    expression,
+                    index_type: omega_core::arena::Handle::invalid(),
+                    operations,
+                    normalizer_version: 1,
+                });
+        }
+
+        let mut program = TypedTrees::default();
+        let left_associated = program
+            .expression_table
+            .insert_tree(&add(add(name("A"), name("B")), name("C")));
+        let reordered = program
+            .expression_table
+            .insert_tree(&add(name("C"), add(name("B"), name("A"))));
+        let different_authority = program
+            .expression_table
+            .insert_tree(&add(add(name("A"), name("B")), name("C")));
+        license(&mut program, left_associated, "IndexAlgebra::plus");
+        license(&mut program, reordered, "IndexAlgebra::plus");
+        license(&mut program, different_authority, "OtherIndexAlgebra::plus");
+        let left_associated = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(left_associated));
+        let reordered = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(reordered));
+        let different_authority = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(different_authority));
+
+        assert_eq!(
+            program.normalized_type_identity(left_associated),
+            program.normalized_type_identity(reordered)
+        );
+        assert_ne!(
+            program.normalized_type_identity(left_associated),
+            program.normalized_type_identity(different_authority)
         );
     }
 

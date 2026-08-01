@@ -2352,7 +2352,7 @@ fn rewrite_cloned_calls(
 /// semantic ID is derived data, so refresh every affected constraint and cast
 /// before validation or checked-fact construction observes the specialized
 /// graph.
-pub(crate) fn refresh_closed_domain_instance_identities(
+pub fn refresh_closed_domain_instance_identities(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
     let mut constraint_updates = Vec::new();
