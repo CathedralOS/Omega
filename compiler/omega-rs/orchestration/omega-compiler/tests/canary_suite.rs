@@ -22330,6 +22330,62 @@ fn runtime_const_data_named_value_exit_canary_runs() {
 }
 
 #[test]
+fn structured_const_identity_and_rat_canonicality_canaries() {
+    for path in [
+        "generics/structured_const_canonical_identity",
+        "generics/structured_const_canonical_rat",
+    ] {
+        let canary = pass_canary(path);
+        compile_canary_without_output(&canary).unwrap_or_else(|diagnostics| {
+            panic!(
+                "structured const pass canary `{path}` should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+
+    for (path, expected) in [
+        (
+            "generics/structured_const_default_domain_unproved",
+            "default-domain facts whose index-site proof is not implemented",
+        ),
+        (
+            "generics/structured_const_ineligible_float_field",
+            "not eligible as a const index",
+        ),
+        (
+            "generics/structured_const_rat_zero_denominator",
+            "denominator must be positive",
+        ),
+        (
+            "generics/structured_const_rat_uncancelled",
+            "signed coordinates must be cancelled",
+        ),
+        (
+            "generics/structured_const_rat_unreduced",
+            "must be gcd-reduced",
+        ),
+    ] {
+        let canary = fail_canary(path);
+        let diagnostics = compile_canary_without_output(&canary)
+            .expect_err("noncanonical structured const index should reject");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            combined.contains(expected),
+            "structured const fail canary `{path}` should contain `{expected}`:\n{combined}"
+        );
+    }
+}
+
+#[test]
 fn runtime_const_data_expression_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_data_expression_exit");
     let build_dir = std::env::temp_dir().join(format!(

@@ -81,6 +81,18 @@ also prove at that site that its denominator is positive, its signed
 coordinates are cancelled, and its numerator magnitude and denominator are
 gcd-reduced.
 
+Implementation status (PDI1, 2026-08-01): generic `const` arguments now retain
+one compiler-generated canonical value atom across monomorphized and structural
+generic identity. Named literal constants over eligible integers, booleans,
+fixed arrays, records, and cases normalize recursively; record and payload
+fields use declaration order, not authored literal order. Eligibility rejects
+floating/text values, references, slices, dynamic identities, and
+boundary-opaque data structurally. Current `Rat` admission performs the three
+checks above at the argument site. Quotients and default-domain-constrained
+records fail closed until the evaluator can prove their canonical
+representative or domain facts at that site. Closed erased domain families
+remain PDI2; open symbolic index evaluation remains PDI3.
+
 Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
 arithmetic evaluates the same executable `FloatSemantics` functions that define
 the target operation contracts. Constant/runtime twin canaries cover rounding

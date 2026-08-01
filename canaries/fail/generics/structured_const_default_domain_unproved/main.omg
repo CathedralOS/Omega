@@ -1,0 +1,21 @@
+data PositiveIndex
+where
+    value > 0,
+{
+    value: u64;
+}
+
+data Indices {}
+
+const Indices::ONE: PositiveIndex = PositiveIndex { value: 1 };
+
+data Indexed<const I: PositiveIndex> {
+    marker: u8;
+}
+
+data Main {
+    invalid: Indexed<Indices::ONE>;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,18 @@
+data FloatingIndex {
+    value: f64;
+}
+
+data FloatingIndices {}
+
+const FloatingIndices::ONE: FloatingIndex = FloatingIndex { value: 1.0 };
+
+data Indexed<const I: FloatingIndex> {
+    marker: u8;
+}
+
+data Main {
+    invalid: Indexed<FloatingIndices::ONE>;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,19 @@
+use omega::language::core::rat;
+
+data RatIndices {}
+
+const RatIndices::INVALID: Rat = Rat {
+    num: IntPair { neg: Nat::Zero, pos: Nat::Zero },
+    den: Nat::Zero
+};
+
+data RatIndexed<const R: Rat> {
+    marker: u8;
+}
+
+data Main {
+    invalid: RatIndexed<RatIndices::INVALID>;
+}
+
+machine Main::main(&mut self) {
+}
