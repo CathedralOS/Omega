@@ -756,6 +756,13 @@ fn runtime_float_binary_operation_width_with_domain(
     byte_size: usize,
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> usize {
+    if operator == StateGuardOperator::FloatPair {
+        return 8;
+    }
+    if operator == StateGuardOperator::MultiplyThenAdd {
+        // fmov a + fmov b + fmul + fmov c + fadd + fmov result.
+        return 24 + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
+    }
     let guard = super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     guard + runtime_float_binary_operation_width_base(operator)
 }

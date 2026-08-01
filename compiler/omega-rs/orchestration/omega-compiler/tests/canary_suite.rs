@@ -34580,6 +34580,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::square_root",
         "F32::is_nan",
         "F64::is_nan",
+        "F32::multiply_then_add",
+        "F64::multiply_then_add",
     ];
     let canary = pass_canary("operators/float_operator_identities");
     for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
@@ -34712,8 +34714,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count, 30,
-            "the 20 overloaded primitive slots and ten named-operation slots must all select"
+            selected_count, 32,
+            "the 20 overloaded primitive slots and twelve named-operation slots must all select"
         );
     }
 }
@@ -34988,6 +34990,127 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "named negate/is_nan provider calls should compile for {target}: {diagnostics:#?}"
+            )
+        });
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+#[test]
+fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
+    let canary = pass_canary("float/named_provider_multiply_then_add_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("named multiply-then-add provider calls should compile to checked trees");
+
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    for operator_use in checked.facts.operators.named_uses() {
+        if operator_use.provider_plan_identity == 0 {
+            continue;
+        }
+        let plan = checked
+            .selected_provider_plans()
+            .plan_by_identity(operator_use.provider_plan_identity)
+            .expect("named operator evidence must resolve to its retained plan");
+        let [row] = plan.rows.as_slice() else {
+            panic!("named float plan must contain exactly one row");
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+            &row.binding
+        else {
+            panic!("named float plan must select a compiler intrinsic");
+        };
+        selected_intrinsics.insert(name.clone());
+
+        let omega_typed_trees::expression::ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("`{name}` must preserve its selected root as a compiler call");
+        };
+        assert_eq!(call.arguments.count(), 3);
+        assert!(!call.receiver.is_valid());
+        let expected_builtin = match name.as_str() {
+            "F32::multiply_then_add.f32" => {
+                omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF32
+            }
+            "F64::multiply_then_add.f64" => {
+                omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF64
+            }
+            _ => panic!("unexpected multiply-then-add intrinsic `{name}`"),
+        };
+        assert_eq!(
+            Some(call.target_symbol),
+            checked
+                .typed
+                .symbols
+                .builtin_function_symbol(expected_builtin)
+        );
+    }
+
+    assert_eq!(
+        selected_intrinsics,
+        [
+            "F32::multiply_then_add.f32".to_owned(),
+            "F64::multiply_then_add.f64".to_owned(),
+        ]
+        .into_iter()
+        .collect()
+    );
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "selected multiply-then-add must keep its two-rounding semantics in the interpreter"
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-named-float-multiply-then-add-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("named multiply-then-add provider calls should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("named multiply-then-add provider canary should run");
+    let _ = fs::remove_dir_all(&build_dir);
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "selected multiply-then-add must execute natively; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    for target in ["linux_x64", "linux_arm64"] {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-named-float-multiply-then-add-{target}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&scratch);
+        let source_dir = scratch.join("src");
+        fs::create_dir_all(&source_dir).expect("cross-target source directory");
+        fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+            .expect("copy named-float canary");
+        fs::write(
+            source_dir.join("build.omg"),
+            format!("target {target} {{\n}}\n"),
+        )
+        .expect("write cross-target build manifest");
+        compile(CompileOptions {
+            root_path: source_dir.join("main.omg"),
+            build_dir: Some(scratch.join("out")),
+            target_name: Some(target.to_owned()),
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "named multiply-then-add provider calls should compile for {target}: {diagnostics:#?}"
             )
         });
         let _ = fs::remove_dir_all(&scratch);
@@ -39230,6 +39353,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/f32_chain_per_op_rounding_exit",
     "float/named_provider_min_max_sqrt_exit",
     "float/named_provider_negate_is_nan_exit",
+    "float/named_provider_multiply_then_add_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
@@ -40316,6 +40440,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/float_operator_intrinsic_mismatch_rejected",
     "providers/named_float_intrinsic_mismatch_rejected",
     "providers/named_float_negate_intrinsic_mismatch_rejected",
+    "providers/named_float_multiply_then_add_intrinsic_mismatch_rejected",
     "host/terminal_host_call_value",
     "calls/guarded_value_call_terminal_rejected",
     "proofs/cauchy_zero_precision_rejected",

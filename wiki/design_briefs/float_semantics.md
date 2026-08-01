@@ -212,8 +212,9 @@ instruction selection resolves it back through the retained selected-plan set
 and rejects zero, missing, or contradictory evidence. Cross-target canaries pin
 all twenty exact slots per target, every used primitive operation family, and a
 native pipeline compile. The named-operation cohort adds exact F32/F64
-`minimum`, `maximum`, `square_root`, `negate`, and `is_nan` slots on every
-native target. Their checked named-use plan identity authorizes an
+`minimum`, `maximum`, `square_root`, `negate`, `is_nan`, and
+`multiply_then_add` slots on every native target. Their checked named-use plan
+identity authorizes an
 execution-only rewrite in both engine pipelines; proof evidence still names
 the source boundary requirement. Negate rewrites the same expression root to
 multiplication by a landed negative one. `is_nan` rewrites that root to an
@@ -222,9 +223,16 @@ unnameable unary compiler builtin rather than duplicating its operand as
 width through nested lowering. NaN operand order, equal signed-zero selection,
 exact-square roots, signed-zero/infinity negation, and NaN/non-NaN predicates
 in both formats run in interpreter/native canaries; x86-64/AArch64 cross-target
-output and exact binding rejection pin the new realization paths. Primitive
-spellings and these ten named slots are migrated, not all of rung 3:
-multiply-then-add/FMA, the other classification/predicates,
+output and exact binding rejection pin the new realization paths.
+Multiply-then-add rewrites the selected root to an unnameable format-specific
+ternary compiler call so its realization identity survives state-local
+expression copying. Native lowering retains the three authored operands, emits
+a separate multiply followed by add, and applies result policy only after both
+roundings. Binary32/binary64 cancellation edges prove native and interpreter
+execution remain unfused; a finite-overflow canary pins operand-aware
+Saturating behavior.
+Primitive spellings and these twelve named slots are migrated, not all of rung
+3: FMA, the other classification/predicates,
 directed-rounding families, checked software fallbacks, canonical
 floating-control-state proof/restoration, and admitted-hardware differential
 evidence remain.

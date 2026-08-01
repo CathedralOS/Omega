@@ -513,6 +513,47 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             expressions.display_name(value)
         );
     }
+    if let Some(ternary) =
+        super::value_operands::resolve_selected_multiply_then_add_operand_in_table_with_root(
+            input,
+            dispatch_index,
+            value_source_key,
+            statement_index,
+            expressions,
+            value,
+            value,
+            None,
+            static_values,
+            runtime_value_operands,
+        )
+    {
+        let RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+            is_float,
+            arithmetic_domain,
+            ..
+        } = runtime_value_operands.get(ternary).clone()
+        else {
+            return None;
+        };
+        invalidate_runtime_static_value_in_table(static_values, expressions, target);
+        let target_place = target_place?;
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_direct(
+                target_place.region,
+                target_place.byte_offset,
+                target_place.byte_count,
+                left,
+                operator,
+                right,
+                is_float,
+                arithmetic_domain,
+                false,
+            ),
+        );
+    }
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (
@@ -1013,6 +1054,45 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(ternary) =
+        super::value_operands::resolve_selected_multiply_then_add_operand_in_table_with_root(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            value,
+            value,
+            minimum_call_ordinal,
+            static_values,
+            runtime_value_operands,
+        )
+    {
+        let RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+            is_float,
+            arithmetic_domain,
+            ..
+        } = runtime_value_operands.get(ternary).clone()
+        else {
+            return None;
+        };
+        return Some(
+            crate::selection::runtime_dispatch::write_place_binary_direct(
+                target_region,
+                target_offset,
+                byte_size,
+                left,
+                operator,
+                right,
+                is_float,
+                arithmetic_domain,
+                false,
+            ),
+        );
+    }
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (

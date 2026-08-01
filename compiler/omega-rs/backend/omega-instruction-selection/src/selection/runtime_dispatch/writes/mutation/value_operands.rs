@@ -138,6 +138,21 @@ fn resolve_runtime_value_operand_in_table_with_root(
         );
     }
 
+    if let Some(operand) = resolve_selected_multiply_then_add_operand_in_table_with_root(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        root_expression,
+        expression,
+        minimum_call_ordinal,
+        static_values,
+        runtime_value_operands,
+    ) {
+        return Some(operand);
+    }
+
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
         // String `==` is CONTENT equality (length AND bytes), not a scalar
         // compare of descriptor words: when both sides are String-typed
@@ -604,6 +619,133 @@ fn resolve_runtime_value_operand_in_table_with_root(
         region: place.region,
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
+    }))
+}
+
+/// Reify a selected named `multiply_then_add` compiler call as one ternary
+/// runtime operand. Its unnameable, format-specific builtin symbol survives
+/// state-local expression copying; flattening its three authored operands here
+/// lets native policy adaptation inspect all of them without evaluating any
+/// operand twice.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn resolve_selected_multiply_then_add_operand_in_table_with_root(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    root_expression: ExpressionHandle,
+    expression: ExpressionHandle,
+    minimum_call_ordinal: Option<usize>,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return None;
+    };
+    if call.receiver.is_valid() || call.arguments.count() != 3 {
+        return None;
+    }
+    let byte_width = match Some(call.target_symbol) {
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF32,
+                ) =>
+        {
+            4
+        }
+        symbol
+            if symbol
+                == input.program.symbols.builtin_function_symbol(
+                    omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF64,
+                ) =>
+        {
+            8
+        }
+        _ => return None,
+    };
+    let [first_expression, second_expression, third_expression] =
+        [0, 1, 2].map(|offset| expressions.expression_handle_at_offset(call.arguments, offset));
+    let first = resolve_runtime_value_operand_in_table_with_root(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        root_expression,
+        first_expression,
+        minimum_call_ordinal,
+        static_values,
+        runtime_value_operands,
+    )?;
+    let second = resolve_runtime_value_operand_in_table_with_root(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        root_expression,
+        second_expression,
+        minimum_call_ordinal,
+        static_values,
+        runtime_value_operands,
+    )?;
+    let third = resolve_runtime_value_operand_in_table_with_root(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        root_expression,
+        third_expression,
+        minimum_call_ordinal,
+        static_values,
+        runtime_value_operands,
+    )?;
+    if byte_width == 4 {
+        for (expression, operand) in [
+            (first_expression, first),
+            (second_expression, second),
+            (third_expression, third),
+        ] {
+            super::binary_table_writes::narrow_f32_literal_operands(
+                runtime_value_operands,
+                expressions,
+                expression,
+                operand,
+            );
+        }
+    }
+    let domain = resolve_binary_operation_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        expression,
+        first_expression,
+        third_expression,
+        true,
+        byte_width,
+    )?;
+    let pair = runtime_value_operands.insert(RuntimeValueOperand::Binary {
+        left: second,
+        operator: StateGuardOperator::FloatPair,
+        right: third,
+        is_float: true,
+        byte_width,
+        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        operands_signed: true,
+    });
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+        left: first,
+        operator: StateGuardOperator::MultiplyThenAdd,
+        right: pair,
+        is_float: true,
+        byte_width,
+        arithmetic_domain: domain,
+        operands_signed: true,
     }))
 }
 

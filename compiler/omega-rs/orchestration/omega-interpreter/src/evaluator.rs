@@ -5076,6 +5076,25 @@ impl<'program> Evaluator<'program> {
                 return self.eval_min_max(target, left, right, unsigned);
             }
         }
+        if matches!(
+            target,
+            "float#multiply_then_add_f32" | "float#multiply_then_add_f64"
+        ) && call.receiver == ExpressionHandle::invalid()
+        {
+            let args = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if args.len() == 3 {
+                let format = if target.ends_with("_f32") {
+                    SemanticFloatFormat::BINARY32
+                } else {
+                    SemanticFloatFormat::BINARY64
+                };
+                return self.eval_rewritten_multiply_then_add(&args, format, frame);
+            }
+        }
         // Builtin: sqrt over a single float operand. The interpreter consumes
         // the same exact semantic function used as the native
         // sqrtsd/sqrtss contract oracle.
@@ -8101,6 +8120,58 @@ impl<'program> Evaluator<'program> {
             "F32" | "F64" => members.last().map(|member| member.as_str()),
             _ => None,
         }
+    }
+
+    /// Execute the unnameable provider builtin for the explicitly two-rounding
+    /// operation. The named contract adapts only the final semantic result
+    /// using all three original operands.
+    fn eval_rewritten_multiply_then_add(
+        &mut self,
+        arguments: &[ExpressionHandle],
+        format: SemanticFloatFormat,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let scalar_type = arguments
+            .iter()
+            .filter_map(|argument| self.expression_scalar_type(*argument, frame))
+            .reduce(|left, right| {
+                if left.1 != ArithmeticDomain::Exact {
+                    left
+                } else {
+                    right
+                }
+            });
+        let mut operands = Vec::with_capacity(3);
+        for operand in arguments {
+            let Value::Float(value) = self.eval_expression(*operand, frame)? else {
+                return unsupported("selected multiply_then_add operand is not a float");
+            };
+            operands.push(if format == SemanticFloatFormat::BINARY32 {
+                FloatMeaning::from_f32(value as f32)
+            } else {
+                FloatMeaning::from_f64(value)
+            });
+        }
+        let meaning =
+            FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2]);
+        let meaning = match scalar_type.map(|(_, domain)| domain) {
+            Some(ArithmeticDomain::Saturating) => {
+                let operand_refs = operands.iter().collect::<Vec<_>>();
+                FloatSemantics::apply_saturating_policy(format, &operand_refs, meaning)
+            }
+            Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
+                .map_err(|trap_class| {
+                    Halt::Trap(format!(
+                        "named float operation `multiply_then_add` produced {} in Trapping domain",
+                        match trap_class {
+                            FloatPolicyTrap::NaNResult => "NaN",
+                            FloatPolicyTrap::InfinityResult => "infinity",
+                        }
+                    ))
+                })?,
+            Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
+        };
+        Ok(Value::Float(meaning.to_interpreter_value(format)))
     }
 
     fn eval_binary(
