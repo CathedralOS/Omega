@@ -1,0 +1,8 @@
+// A non-unit boundary-operator result cannot be discarded accidentally.
+use omega::language::core::float_operations;
+
+data Main { }
+
+machine Main::main(&mut self) {
+    I32::from_f64(1.0);
+}

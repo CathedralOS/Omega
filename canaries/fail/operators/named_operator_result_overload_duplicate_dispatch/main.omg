@@ -1,0 +1,11 @@
+// Named boundary requirements may overload on distinct result dispatch sets,
+// but two declarations with the same set are one duplicate requirement.
+data Convert { }
+
+boundary operator Convert::value(input: i32) -> i32;
+boundary operator Convert::value(input: i32) -> i32 in Trapping;
+boundary operator Convert::value(input: i32) -> i32 in Saturating;
+boundary operator Convert::value(input: i32) -> i32 in Trapping;
+
+data Main { }
+machine Main::main(&mut self) { }

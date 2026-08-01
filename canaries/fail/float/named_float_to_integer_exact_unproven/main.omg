@@ -1,0 +1,10 @@
+// An unqualified public conversion carries the same Exact proof obligation as
+// the corresponding `as` conversion.
+use omega::language::core::float_operations;
+
+data Main { value: f64; out: i32; }
+
+machine Main::main(&mut self) {
+    self.value = 100000000000000000000.0;
+    self.out = I32::from_f64(self.value);
+}

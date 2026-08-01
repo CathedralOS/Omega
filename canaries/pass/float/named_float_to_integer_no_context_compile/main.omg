@@ -1,0 +1,10 @@
+// No expected result selects the empty-dispatch overload. The explicit discard
+// makes this a legal statement-position call while retaining Exact proof.
+use omega::language::core::float_operations;
+
+data Main { }
+
+machine Main::main(&mut self) {
+    _ = I32::from_f64(1.75);
+    let marker: i32 = 0;
+}

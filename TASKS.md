@@ -487,7 +487,12 @@ ceilings, and publication-before-ledger-record all reject.
   canaries pin execution. The complete `F32`/`F64` integer-source matrix is
   also published for signed and unsigned 8/16/32/64-bit carriers, with exact
   provider selection on all targets and dual-engine nearest-even/signedness/
-  upper-half-`u64` canaries. The float-to-integer policy families remain.
+  upper-half-`u64` canaries. The complete float-to-integer matrix is now
+  published for both float sources and every signed/unsigned 8/16/32/64-bit
+  destination. Unqualified calls reuse the established finite/range proof,
+  while same-path `Trapping` and `Saturating` result overloads select distinct
+  exact provider plans on all four targets. Dual-engine matrix, NaN/clamp,
+  trapping, unproven-Exact, and absent-Wrapping canaries pin the family.
 - Generalize named-machine/requirement overload identity beyond the current
   path-and-parameter rule: normalize the result's dispatch-bearing domain set,
   reject duplicate sets at declaration, select the empty set without an
@@ -967,10 +972,14 @@ and allocation handles expose no compiler-owned stack/control storage.
   settled. Result-domain overload resolution and provider/artifact lowering are
   now live. The public float-format pair is published and pinned across all
   native target plans plus both execution engines. The integer-to-float matrix
-  is likewise published and pinned. Remaining work is the float-to-integer
-  unqualified/`Trapping`/`Saturating` source/core family and canaries. The
-  checked-result operation remains separately design-blocked on its public
-  result carrier.
+  is likewise published and pinned. The float-to-integer matrix now publishes
+  `from_f32`/`from_f64` on every signed and unsigned fixed-width destination,
+  with unqualified, `Trapping`, and `Saturating` result-overload slots selected
+  independently on every native target. Exact proof reuse, toward-zero runtime
+  results, target-width saturation and NaN-to-zero, NaN/overflow traps, no
+  `Wrapping` candidate, and named-requirement duplicate dispatch rejection are
+  pinned. The checked-result operation remains separately design-blocked on
+  its public result carrier.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.

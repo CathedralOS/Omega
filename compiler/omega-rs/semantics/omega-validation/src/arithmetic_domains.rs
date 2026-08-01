@@ -1412,7 +1412,7 @@ fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<
     }
 }
 
-fn float_source_proves_int_cast(
+pub(crate) fn float_source_proves_int_cast(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,

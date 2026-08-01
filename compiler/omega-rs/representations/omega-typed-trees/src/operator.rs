@@ -66,6 +66,29 @@ pub fn resolve_named_expression_call<'program>(
     program: &'program TypedTrees,
     call: &crate::expression::TableCallExpression,
 ) -> Option<&'program OperatorDefinition> {
+    if call.target_symbol.is_valid()
+        && let Some(operator) = program
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == call.target_symbol)
+    {
+        return Some(operator);
+    }
+    let candidates = named_expression_call_candidates(program, call);
+    let [selected] = candidates.as_slice() else {
+        return None;
+    };
+    Some(*selected)
+}
+
+/// Return every named operator matching an expression call's retained path and
+/// arity. Result-overload normalization uses this before one exact result
+/// dispatch has been selected, when ordinary single-candidate resolution must
+/// deliberately report ambiguity.
+pub fn named_expression_call_candidates<'program>(
+    program: &'program TypedTrees,
+    call: &crate::expression::TableCallExpression,
+) -> Vec<&'program OperatorDefinition> {
     let mut static_segments = Vec::new();
     let has_value_receiver = if !call.receiver.is_valid() {
         false
@@ -104,17 +127,83 @@ pub fn resolve_named_expression_call<'program>(
     };
     let static_receiver_segments =
         (!static_segments.is_empty()).then_some(static_segments.as_slice());
-    resolve_named_call(
-        program,
-        call.target_symbol,
-        static_receiver_segments,
-        call.target.as_str(),
-        program
-            .expression_table
-            .expression_handles(call.arguments)
-            .len(),
-        has_value_receiver,
-    )
+    let argument_count = program
+        .expression_table
+        .expression_handles(call.arguments)
+        .len();
+    program
+        .operators()
+        .iter()
+        .filter(|operator| {
+            named_operator_path_matches_call(
+                program,
+                operator,
+                static_receiver_segments,
+                call.target.as_str(),
+            ) && named_operator_arity_fits_call(
+                program,
+                operator,
+                argument_count,
+                has_value_receiver,
+            )
+        })
+        .collect()
+}
+
+/// Statement-position counterpart to [`named_expression_call_candidates`].
+/// Statement calls retain their receiver path in the statement table rather
+/// than as an expression node, but static namespaces and value receivers obey
+/// the same path/arity rule.
+pub fn named_statement_call_candidates<'program>(
+    program: &'program TypedTrees,
+    call: &crate::statement::TableCall,
+) -> Vec<&'program OperatorDefinition> {
+    let receiver = program.statement_table.name_path_members(call.receiver);
+    let is_static_namespace = call.receiver_symbol.is_valid()
+        && (program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.symbol == call.receiver_symbol)
+            || program
+                .domain_definitions()
+                .iter()
+                .any(|definition| definition.symbol == call.receiver_symbol)
+            || program
+                .machines()
+                .iter()
+                .any(|definition| definition.symbol == call.receiver_symbol)
+            || program
+                .traits()
+                .iter()
+                .any(|definition| definition.symbol == call.receiver_symbol));
+    let static_segments = is_static_namespace.then(|| {
+        receiver
+            .iter()
+            .map(|segment| segment.as_str())
+            .collect::<Vec<_>>()
+    });
+    let has_value_receiver = !receiver.is_empty() && !is_static_namespace;
+    let argument_count = program
+        .statement_table
+        .expression_handles(call.arguments)
+        .len();
+    program
+        .operators()
+        .iter()
+        .filter(|operator| {
+            named_operator_path_matches_call(
+                program,
+                operator,
+                static_segments.as_deref(),
+                call.target.as_str(),
+            ) && named_operator_arity_fits_call(
+                program,
+                operator,
+                argument_count,
+                has_value_receiver,
+            )
+        })
+        .collect()
 }
 
 /// Resolve one machine's explicit `satisfies Namespace::requirement` edge to

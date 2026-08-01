@@ -92,6 +92,26 @@ operator FloatSemantics::from_integer(format: FloatFormat, value: u16) -> FloatM
 operator FloatSemantics::from_integer(format: FloatFormat, value: u32) -> FloatMeaning;
 operator FloatSemantics::from_integer(format: FloatFormat, value: u64) -> FloatMeaning;
 
+// Normal-return meanings for toward-zero float-to-integer conversion. The
+// unqualified and Trapping requirements share the exact semantic value on
+// successful return; Saturating owns its total clamp/NaN-to-zero meaning.
+operator FloatSemantics::to_i8(value: FloatMeaning) -> i8;
+operator FloatSemantics::to_i16(value: FloatMeaning) -> i16;
+operator FloatSemantics::to_i32(value: FloatMeaning) -> i32;
+operator FloatSemantics::to_i64(value: FloatMeaning) -> i64;
+operator FloatSemantics::to_u8(value: FloatMeaning) -> u8;
+operator FloatSemantics::to_u16(value: FloatMeaning) -> u16;
+operator FloatSemantics::to_u32(value: FloatMeaning) -> u32;
+operator FloatSemantics::to_u64(value: FloatMeaning) -> u64;
+operator FloatSemantics::to_i8_saturating(value: FloatMeaning) -> i8;
+operator FloatSemantics::to_i16_saturating(value: FloatMeaning) -> i16;
+operator FloatSemantics::to_i32_saturating(value: FloatMeaning) -> i32;
+operator FloatSemantics::to_i64_saturating(value: FloatMeaning) -> i64;
+operator FloatSemantics::to_u8_saturating(value: FloatMeaning) -> u8;
+operator FloatSemantics::to_u16_saturating(value: FloatMeaning) -> u16;
+operator FloatSemantics::to_u32_saturating(value: FloatMeaning) -> u32;
+operator FloatSemantics::to_u64_saturating(value: FloatMeaning) -> u64;
+
 operator FloatSemantics::multiply_then_add(
     format: FloatFormat,
     left: FloatMeaning,
@@ -564,6 +584,235 @@ boundary operator F64::from_u32(value: u32) -> f64
 ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
 boundary operator F64::from_u64(value: u64) -> f64
 ensures Float::meaning64(result) == FloatSemantics::from_integer(FloatFormat::BINARY64, value);
+
+// Destination-owned float-to-integer conversion. Unqualified results require
+// proof that the finite toward-zero result fits; Trapping and Saturating are
+// exact result-domain overloads. Wrapping deliberately has no declaration.
+
+boundary operator I8::from_f32(value: f32) -> i8
+requires
+    value == value && value > -129.0f32 && value < 128.0f32
+ensures
+    result == FloatSemantics::to_i8(Float::meaning32(value));
+
+boundary operator I8::from_f32(value: f32) -> i8 in Trapping
+ensures
+    result == FloatSemantics::to_i8(Float::meaning32(value));
+
+boundary operator I8::from_f32(value: f32) -> i8 in Saturating
+ensures
+    result == FloatSemantics::to_i8_saturating(Float::meaning32(value));
+
+boundary operator I8::from_f64(value: f64) -> i8
+requires
+    value == value && value > -129.0 && value < 128.0
+ensures
+    result == FloatSemantics::to_i8(Float::meaning64(value));
+
+boundary operator I8::from_f64(value: f64) -> i8 in Trapping
+ensures
+    result == FloatSemantics::to_i8(Float::meaning64(value));
+
+boundary operator I8::from_f64(value: f64) -> i8 in Saturating
+ensures
+    result == FloatSemantics::to_i8_saturating(Float::meaning64(value));
+
+boundary operator I16::from_f32(value: f32) -> i16
+requires
+    value == value && value > -32769.0f32 && value < 32768.0f32
+ensures
+    result == FloatSemantics::to_i16(Float::meaning32(value));
+
+boundary operator I16::from_f32(value: f32) -> i16 in Trapping
+ensures
+    result == FloatSemantics::to_i16(Float::meaning32(value));
+
+boundary operator I16::from_f32(value: f32) -> i16 in Saturating
+ensures
+    result == FloatSemantics::to_i16_saturating(Float::meaning32(value));
+
+boundary operator I16::from_f64(value: f64) -> i16
+requires
+    value == value && value > -32769.0 && value < 32768.0
+ensures
+    result == FloatSemantics::to_i16(Float::meaning64(value));
+
+boundary operator I16::from_f64(value: f64) -> i16 in Trapping
+ensures
+    result == FloatSemantics::to_i16(Float::meaning64(value));
+
+boundary operator I16::from_f64(value: f64) -> i16 in Saturating
+ensures
+    result == FloatSemantics::to_i16_saturating(Float::meaning64(value));
+
+boundary operator I32::from_f32(value: f32) -> i32
+requires
+    value == value && value >= -2147483648.0f32 && value < 2147483648.0f32
+ensures
+    result == FloatSemantics::to_i32(Float::meaning32(value));
+
+boundary operator I32::from_f32(value: f32) -> i32 in Trapping
+ensures
+    result == FloatSemantics::to_i32(Float::meaning32(value));
+
+boundary operator I32::from_f32(value: f32) -> i32 in Saturating
+ensures
+    result == FloatSemantics::to_i32_saturating(Float::meaning32(value));
+
+boundary operator I32::from_f64(value: f64) -> i32
+requires
+    value == value && value > -2147483649.0 && value < 2147483648.0
+ensures
+    result == FloatSemantics::to_i32(Float::meaning64(value));
+
+boundary operator I32::from_f64(value: f64) -> i32 in Trapping
+ensures
+    result == FloatSemantics::to_i32(Float::meaning64(value));
+
+boundary operator I32::from_f64(value: f64) -> i32 in Saturating
+ensures
+    result == FloatSemantics::to_i32_saturating(Float::meaning64(value));
+
+boundary operator I64::from_f32(value: f32) -> i64
+requires
+    value == value && value >= -9223372036854775808.0f32 && value < 9223372036854775808.0f32
+ensures
+    result == FloatSemantics::to_i64(Float::meaning32(value));
+
+boundary operator I64::from_f32(value: f32) -> i64 in Trapping
+ensures
+    result == FloatSemantics::to_i64(Float::meaning32(value));
+
+boundary operator I64::from_f32(value: f32) -> i64 in Saturating
+ensures
+    result == FloatSemantics::to_i64_saturating(Float::meaning32(value));
+
+boundary operator I64::from_f64(value: f64) -> i64
+requires
+    value == value && value >= -9223372036854775808.0 && value < 9223372036854775808.0
+ensures
+    result == FloatSemantics::to_i64(Float::meaning64(value));
+
+boundary operator I64::from_f64(value: f64) -> i64 in Trapping
+ensures
+    result == FloatSemantics::to_i64(Float::meaning64(value));
+
+boundary operator I64::from_f64(value: f64) -> i64 in Saturating
+ensures
+    result == FloatSemantics::to_i64_saturating(Float::meaning64(value));
+
+boundary operator U8::from_f32(value: f32) -> u8
+requires
+    value == value && value > -1.0f32 && value < 256.0f32
+ensures
+    result == FloatSemantics::to_u8(Float::meaning32(value));
+
+boundary operator U8::from_f32(value: f32) -> u8 in Trapping
+ensures
+    result == FloatSemantics::to_u8(Float::meaning32(value));
+
+boundary operator U8::from_f32(value: f32) -> u8 in Saturating
+ensures
+    result == FloatSemantics::to_u8_saturating(Float::meaning32(value));
+
+boundary operator U8::from_f64(value: f64) -> u8
+requires
+    value == value && value > -1.0 && value < 256.0
+ensures
+    result == FloatSemantics::to_u8(Float::meaning64(value));
+
+boundary operator U8::from_f64(value: f64) -> u8 in Trapping
+ensures
+    result == FloatSemantics::to_u8(Float::meaning64(value));
+
+boundary operator U8::from_f64(value: f64) -> u8 in Saturating
+ensures
+    result == FloatSemantics::to_u8_saturating(Float::meaning64(value));
+
+boundary operator U16::from_f32(value: f32) -> u16
+requires
+    value == value && value > -1.0f32 && value < 65536.0f32
+ensures
+    result == FloatSemantics::to_u16(Float::meaning32(value));
+
+boundary operator U16::from_f32(value: f32) -> u16 in Trapping
+ensures
+    result == FloatSemantics::to_u16(Float::meaning32(value));
+
+boundary operator U16::from_f32(value: f32) -> u16 in Saturating
+ensures
+    result == FloatSemantics::to_u16_saturating(Float::meaning32(value));
+
+boundary operator U16::from_f64(value: f64) -> u16
+requires
+    value == value && value > -1.0 && value < 65536.0
+ensures
+    result == FloatSemantics::to_u16(Float::meaning64(value));
+
+boundary operator U16::from_f64(value: f64) -> u16 in Trapping
+ensures
+    result == FloatSemantics::to_u16(Float::meaning64(value));
+
+boundary operator U16::from_f64(value: f64) -> u16 in Saturating
+ensures
+    result == FloatSemantics::to_u16_saturating(Float::meaning64(value));
+
+boundary operator U32::from_f32(value: f32) -> u32
+requires
+    value == value && value > -1.0f32 && value < 4294967296.0f32
+ensures
+    result == FloatSemantics::to_u32(Float::meaning32(value));
+
+boundary operator U32::from_f32(value: f32) -> u32 in Trapping
+ensures
+    result == FloatSemantics::to_u32(Float::meaning32(value));
+
+boundary operator U32::from_f32(value: f32) -> u32 in Saturating
+ensures
+    result == FloatSemantics::to_u32_saturating(Float::meaning32(value));
+
+boundary operator U32::from_f64(value: f64) -> u32
+requires
+    value == value && value > -1.0 && value < 4294967296.0
+ensures
+    result == FloatSemantics::to_u32(Float::meaning64(value));
+
+boundary operator U32::from_f64(value: f64) -> u32 in Trapping
+ensures
+    result == FloatSemantics::to_u32(Float::meaning64(value));
+
+boundary operator U32::from_f64(value: f64) -> u32 in Saturating
+ensures
+    result == FloatSemantics::to_u32_saturating(Float::meaning64(value));
+
+boundary operator U64::from_f32(value: f32) -> u64
+requires
+    value == value && value > -1.0f32 && value < 18446744073709551616.0f32
+ensures
+    result == FloatSemantics::to_u64(Float::meaning32(value));
+
+boundary operator U64::from_f32(value: f32) -> u64 in Trapping
+ensures
+    result == FloatSemantics::to_u64(Float::meaning32(value));
+
+boundary operator U64::from_f32(value: f32) -> u64 in Saturating
+ensures
+    result == FloatSemantics::to_u64_saturating(Float::meaning32(value));
+
+boundary operator U64::from_f64(value: f64) -> u64
+requires
+    value == value && value > -1.0 && value < 18446744073709551616.0
+ensures
+    result == FloatSemantics::to_u64(Float::meaning64(value));
+
+boundary operator U64::from_f64(value: f64) -> u64 in Trapping
+ensures
+    result == FloatSemantics::to_u64(Float::meaning64(value));
+
+boundary operator U64::from_f64(value: f64) -> u64 in Saturating
+ensures
+    result == FloatSemantics::to_u64_saturating(Float::meaning64(value));
+
 
 boundary operator F32::classify(value: f32) -> FloatClass
 ensures
