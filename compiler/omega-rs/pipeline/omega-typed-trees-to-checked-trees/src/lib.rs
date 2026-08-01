@@ -21,6 +21,18 @@ pub fn lower_typed_trees(
     lowerer::lower_typed_trees(program)
 }
 
+/// Bind exact PDI3 operation/algebra authority and refresh every enclosing
+/// indexed-domain semantic ID. Orchestration calls this before typed
+/// snapshots and trust receipts; checked lowering calls it before capturing
+/// generic template fingerprints and again after specialization.
+pub fn normalize_open_index_identities(
+    program: &mut omega_typed_trees::TypedTrees,
+) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    omega_validation::normalize_open_index_expressions(program)?;
+    monomorphization::refresh_closed_domain_instance_identities(program)
+        .map_err(|diagnostic| vec![diagnostic])
+}
+
 /// Validate and consume compile-time machine-symbol selections, rewriting
 /// every complete generic call tuple to direct concrete calls. The ordinary
 /// checked-tree path invokes this before validation; orchestration also uses
@@ -34,7 +46,9 @@ pub fn specialize_static_machine_calls(
     monomorphization::monomorphize_generic_machine_value_calls(program)
 }
 
-pub use monomorphization::generic_machine_template_fingerprint;
+pub use monomorphization::{
+    generic_machine_template_fingerprint, refresh_closed_domain_instance_identities,
+};
 /// The v0 asm-intrinsic discharge gate (asm requires a freestanding boundary
 /// root) -- re-exported for the ORCHESTRATION layer, which owns the
 /// BuildConfig fact the gate consumes; the other validations run inside

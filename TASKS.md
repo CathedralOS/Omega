@@ -726,9 +726,14 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   per-pair addition/division operators execute in both engines. Imported
   cross-index calls reject, and initialized qualified locals retain their
   checked fact across later call/operator boundaries.
-- **PDI3:** next add computed open result indices, exact selected
-  algebra-instance normalization, established-local-fact compatibility, and
-  retained verification-condition evidence. Do not add a special citation
+- **PDI3:** computed open result indices now survive parsing, resolution,
+  specialization, indexed qualification, and checked lowering. Each operator
+  node requires one exact public operator, one checked provider, and one exact
+  proved associative/commutative algebra instance; that authority is retained
+  in typed/checked snapshots, enters indexed-domain and generic-template
+  identity, and licenses only same-authority flattening/sorting. Missing or
+  ambiguous authority rejects. Next add established-local-fact compatibility
+  and retained verification-condition evidence. Do not add a special citation
   surface; unresolved equality rejects.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
