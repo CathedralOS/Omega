@@ -24,6 +24,7 @@ enum NamedFloatRealization {
     },
     Negate(FloatFormat),
     MultiplyThenAdd(FloatFormat),
+    Convert(FloatFormat),
 }
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
@@ -88,6 +89,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             NamedFloatRealization::Builtin { arity, .. } => arity,
             NamedFloatRealization::Negate(_) => 1,
             NamedFloatRealization::MultiplyThenAdd(_) => 3,
+            NamedFloatRealization::Convert(_) => 1,
         };
         if arguments.len() != expected_arity {
             diagnostics.push(Diagnostic::error(format!(
@@ -181,6 +183,27 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
+            NamedFloatRealization::Convert(_format) => {
+                let Some(target_type) = omega_typed_trees::operator::resolve_named_expression_call(
+                    &checked.typed,
+                    &call,
+                )
+                .map(|operator| operator.return_type) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "selected named conversion intrinsic at expression {expression:?} no longer resolves its return type"
+                    )));
+                    continue;
+                };
+                ExpressionNode::Cast(omega_typed_trees::expression::TableCastExpression {
+                    value: arguments[0],
+                    target_type,
+                    target_label: omega_core::arena::HandleSpan::empty(),
+                    domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+                    semantic_domain: omega_core::arena::HandleSpan::empty(),
+                    semantic_domain_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                    form: omega_core::cast_form::CastForm::Value,
+                })
+            }
         };
         *checked.typed.expression_table.expression_mut(expression) = replacement;
     }
@@ -242,6 +265,8 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
             function: BuiltinFunction::FloatClassifyF64,
             arity: 1,
         }),
+        "F32::from_f64.f64" => Some(NamedFloatRealization::Convert(FloatFormat::F32)),
+        "F64::from_f32.f32" => Some(NamedFloatRealization::Convert(FloatFormat::F64)),
         _ => None,
     }
 }
@@ -302,6 +327,14 @@ mod tests {
                 function: BuiltinFunction::FloatIsSubnormal,
                 arity: 1,
             })
+        );
+        assert_eq!(
+            named_float_realization("F32::from_f64.f64"),
+            Some(NamedFloatRealization::Convert(FloatFormat::F32))
+        );
+        assert_eq!(
+            named_float_realization("F64::from_f32.f32"),
+            Some(NamedFloatRealization::Convert(FloatFormat::F64))
         );
         assert_eq!(
             named_float_realization("F32::square_root_toward_positive.f32"),

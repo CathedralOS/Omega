@@ -249,6 +249,35 @@ fn expected_float_intrinsic(
             (operation, primitive, expected_result)
         }
         "F32" | "F64" => {
+            if matches!(requirement.as_str(), "from_f64" | "from_f32") {
+                let (expected_source, expected_result, source_name) =
+                    match (namespace.as_str(), requirement.as_str()) {
+                        ("F32", "from_f64") => (
+                            omega_typed_trees::types::PrimitiveType::F64,
+                            omega_typed_trees::types::PrimitiveType::F32,
+                            "f64",
+                        ),
+                        ("F64", "from_f32") => (
+                            omega_typed_trees::types::PrimitiveType::F32,
+                            omega_typed_trees::types::PrimitiveType::F64,
+                            "f32",
+                        ),
+                        _ => return None,
+                    };
+                let [value] = parameters else {
+                    return None;
+                };
+                if typed.primitive_type_reference(value.type_reference) != Some(expected_source)
+                    || typed.primitive_type_reference(operator.return_type) != Some(expected_result)
+                {
+                    return None;
+                }
+                return Some(format!(
+                    "{}::{}.{source_name}",
+                    namespace.as_str(),
+                    requirement.as_str()
+                ));
+            }
             let operation = match requirement.as_str() {
                 "minimum" | "maximum" => requirement.as_str(),
                 "negate" | "square_root" | "classify" | "is_nan" | "is_finite" | "is_infinite"

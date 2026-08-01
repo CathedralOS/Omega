@@ -34658,6 +34658,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::classify",
         "F32::multiply_then_add",
         "F64::multiply_then_add",
+        "F32::from_f64",
+        "F64::from_f32",
     ];
     let canary = pass_canary("operators/float_operator_identities");
     for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
@@ -34790,10 +34792,84 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count, 42,
-            "the 20 overloaded primitive slots and twenty-two named-operation slots must all select"
+            selected_count, 44,
+            "the 20 overloaded primitive slots and twenty-four named-operation slots must all select"
         );
     }
+}
+
+#[test]
+fn named_float_format_conversion_requirements_execute_in_both_engines() {
+    let canary = pass_canary("float/runtime_named_format_conversion_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("public float-format conversion requirements should compile");
+
+    let selected = checked
+        .facts
+        .operators
+        .named_uses()
+        .filter_map(|operator_use| {
+            let plan = checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)?;
+            let [row] = plan.rows.as_slice() else {
+                return None;
+            };
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+                &row.binding
+            else {
+                return None;
+            };
+            name.contains("::from_f").then_some((operator_use, name))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(selected.len(), 5, "all five conversion calls retain a plan");
+    for (operator_use, intrinsic) in selected {
+        let omega_typed_trees::expression::ExpressionNode::Cast(cast) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("selected conversion `{intrinsic}` must rewrite to one typed cast");
+        };
+        let expected = if intrinsic == "F32::from_f64.f64" {
+            omega_typed_trees::types::PrimitiveType::F32
+        } else if intrinsic == "F64::from_f32.f32" {
+            omega_typed_trees::types::PrimitiveType::F64
+        } else {
+            panic!("unexpected conversion intrinsic `{intrinsic}`");
+        };
+        assert_eq!(
+            checked.typed.primitive_type_reference(cast.target_type),
+            Some(expected)
+        );
+    }
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must execute nearest-even format conversion; error: {:?}",
+        outcome.error
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-named-format-conversion-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("public float-format conversions should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("public float-format conversion canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
@@ -39720,6 +39796,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/named_provider_classification_predicates_exit",
     "float/named_provider_classify_exit",
     "float/named_provider_multiply_then_add_exit",
+    "float/runtime_named_format_conversion_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
