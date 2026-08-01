@@ -240,7 +240,8 @@ Still required:
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
 - volatile/MMIO types and ordering contracts;
-- and the modular environment-premise surface in `OWNER_QUESTIONS.md` #1.
+- and the deferred compiler-issued composition model when a concrete protocol
+  or deployment profile requires whole-system proof.
 
 ## Proof model
 
@@ -270,16 +271,26 @@ The first useful transition obligations are:
 - every external wait is modeled, accepted at a boundary, or rejected by the
   selected build policy.
 
-Positive progress is conditional on declared environment/provider hypotheses.
-The checker must not claim fairness for an OS primitive whose contract does not
-provide it.
+Positive progress is conditional on selected provider evidence. The checker
+must not claim fairness for an OS primitive whose contract does not provide it.
 
-Finite exploration retains its activation bound and counterexample trace as
-evidence. It becomes an unbounded theorem only through an authored cutoff,
-inductive invariant, ranking argument, or equivalent proof. A separately
-compiled protocol publishes its guarantee under a normalized environment
-premise; consumers discharge that premise during composition. The source and
-composition rules for those premises remain owner question #1.
+There is no ambient environment-premise language and no stronger, graph-shaped
+`reaches`. Ownership, access, receiver polarity, handle multiplicity, claims,
+and `invokes` define the topologies a package admits. When a concrete customer
+requires whole-composition properties, the compiler will assemble those facts
+with activation creation, concrete resource identity, wait/wake edges,
+priorities, core placement, and selected provider evidence into a sealed erased
+composition model. Ordinary proof machines check that model at composition or
+deployment time. Implementation properties travel with the selected
+conformance; deadlock, starvation, memory, and response properties belong to
+the composed artifact and are revalidated after topology or provider changes.
+
+Dynamic spawning remains legal. Quantitative guarantees require fixed
+topology, conserved creation permits, enforced admission bounds, or a proof
+quantified over the dynamic structure. Bounded exploration is only a testing
+technique and produces no language contract or artifact property. A theorem
+whose statement itself includes a participant bound remains an ordinary proved
+property.
 
 ## Device and interrupt direction
 
@@ -342,8 +353,9 @@ guarantee. Blocking creates no safe point.
     target-refinement evidence for the normalized event.
 16. `Atomic::interruption_fence` rejects without installed-root evidence for
     the same-context asynchronous-entry relationship.
-17. Finite protocol exploration reports its activation bound and never
-    publishes an unbounded theorem without authored connecting evidence.
+17. A bounded search publishes no protocol property; a theorem deliberately
+    quantified over a bounded participant set retains that bound in its
+    statement.
 
 ## Implementation and deferred design work
 
@@ -362,4 +374,5 @@ guarantee. Blocking creates no safe point.
 - Atomic remainder and formally checked target lowerings.
 - Lock-free reclamation/resource algebra frontier.
 - MMIO/volatile and interrupt-entry source surfaces.
-- Concurrent protocol extraction, modular premises, and proof modes.
+- Deferred sealed composition-model extraction and proof-machine consumption,
+  only after a concrete protocol or deployment profile requires them.

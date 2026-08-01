@@ -464,7 +464,7 @@ not another root grant.
 
 The normalized behavior below is settled, but the exact source operations that
 borrow a qualified `Extent` and bind a provider's sealed range-specific
-`ResourceProfile` receipt are not. `OWNER_QUESTIONS.md` #3 owns that public
+`ResourceProfile` receipt are not. `OWNER_QUESTIONS.md` #2 owns that public
 surface; the following signatures describe the admission judgment after those
 values exist.
 

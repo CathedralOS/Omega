@@ -50,7 +50,10 @@ Working the *transmissibility* question end-to-end (a published library shipping
 - **Small certs (inductive proofs; compact resolution/SMT *while small*) are the only transmissible currency.** They ship in the content-addressed closure (or a small `Proofs.lock` manifest — the storage-form bikeshed dissolves at small scale, both work) and a consumer **re-checks them locally and cheaply** (de Bruijn). This is the *only* configuration where trust-by-checking genuinely holds: you, locally, verified it, trusting nobody.
 - **Large certs collapse into attestation-with-extra-steps.** A TB-scale proof (the Pythagorean-triples proof was ~200 TB) cannot be held, transferred, or linearly re-checked inside a build, so you offload to a checking *server* — and then you trust the server's verdict *and* that it bound the cert to your code-hash. Same trust as the prover, more infrastructure. **Second-class: an attestation, never sold as "checked."**
 - **Brute-force witnesses are pure attestation** — you trust the witness ran the search; no cert at all.
-- **So: no proof-by-exhaustion as a shippable verification.** Exhaustion (and TLC-style enumeration) stays a *local* bug-finder / confidence tool — its result does not transmit as a checkable artifact (Cathedral `testing_and_simulation.md`).
+- **So: no proof-by-exhaustion as a shippable verification.** A bounded search
+  is ordinary testing and publishes no language contract or artifact
+  guarantee. A deliberately bounded theorem is different: its bound is part
+  of the proved statement.
 - **The escape hatch is the budget/bound measure** (`totality_and_bounded_computation.md`): re-express a would-be-exhaustion as a **bounded** computation — the bound *is* the decreasing measure, so totality/termination is **cheap and decidable by construction**, a small cert that ships. That is the preferred way to answer "does this halt / stay in bounds" without exhausting. *But cost scales with greed*: modest bounds verify cheaply and ship; crank the bound (or try to exhaust a large domain) and **build times suffer** — and a genuine large-domain *universal* still won't transmit anyway.
 
 This resolves the open **storage-form** question (small certs → in-store content-addressed *or* a small `Proofs.lock`, both fine) and **trust-boundary** question (re-check-locally for small certs) by **restricting the design to the regime where the cheap-re-check guarantee actually holds.** Contingent on Omega's proof-emitting + de-Bruijn-recheck integration being built.
@@ -59,7 +62,10 @@ This resolves the open **storage-form** question (small certs → in-store conte
 
 The strong-form claims above were partly wrong; the honest version is a **soundness/succinctness trilemma** — and *the axis that matters is the soundness basis, not succinct-vs-not.* For an arbitrary unstructured exhaustion you cannot have all of {unconditionally sound, succinct, build-shippable}; pick a regime:
 
-- **Small inductive cert** (invariant / IC3-PDR / TLAPS / short SMT) — **unconditionally** sound (kernel only), succinct, cheap, build-shippable. Wins all axes; the default. *(Institutionalized: the Hardware Model Checking Competition made certificates mandatory in 2024.)*
+- **Small inductive cert** (invariant, compact reachability proof, or short
+  solver proof) — **unconditionally** sound (kernel only), succinct, cheap,
+  build-shippable. Wins all axes; the default. *(Institutionalized: the
+  Hardware Model Checking Competition made certificates mandatory in 2024.)*
 - **Large exhaustion proof** (verified SAT / DRAT→LRAT) — **RETRACT "collapses into trusting a server."** It is **unconditionally sound and trust-free**: checked by a checker verified down to machine code (cake_lpr; Tan–Heule–Myreen, TACAS'21), re-checkable by anyone with no server. It loses on **size** (the ~200 TB Boolean-Pythagorean-triples proof is "mirror-and-stream-verify-overnight," not build-fetch), **not on trust**.
 - **Cryptographic argument** (zkVM / STARK / Nova-IVC) — succinct + cheap + build-shippable, but only **cryptographically** sound: Fiat–Shamir/ROM (a *practical* 2025 attack proves false statements for GKR — Khovratovich–Rothblum–Soukhanov, CRYPTO'25), FRI proximity conjectures (capacity conjecture *disproven* 2025), trusted setup for Groth16, at **~10⁶× native prover cost** (Thaler/a16z 2025), and it certifies "the circuit ran," not "the circuit is your spec" (≈96% of real ZK soundness bugs are in that encoding gap, USENIX Sec'24). Second-class for a security kernel.
 - **Bare brute-force run** — exactly an attestation (trust the prover ran it).

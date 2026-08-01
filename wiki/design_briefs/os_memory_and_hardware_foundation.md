@@ -663,7 +663,7 @@ that subset; atomic mutation follows the atomic rule through a shared view
 borrow, and a bare accessor cannot become an ordinary scalar. Binding-private
 access is now restricted to machines authored in the nominal placement
 policy's canonical package for both value- and statement-position calls.
-Generic atomic-family helper contracts are blocked on `OWNER_QUESTIONS.md` #4,
+Generic atomic-family helper contracts are blocked on `OWNER_QUESTIONS.md` #3,
 and the source-visible loan/profile admission surface is blocked on #4.
 Target-specific external/atomic emission remains implementation work.
 
@@ -1438,12 +1438,13 @@ reserve semantic cancellation, migration, and replacement for explicit
 safe points. Its activation stacks remain fixed and stable by construction;
 there is no provider-selectable continuation-storage mode.
 
-Local checking, runtime admission, and future temporal verification are three
+Local checking, runtime admission, and future composition proofs are three
 consumers of the same facts. Local checking combines canonical liveness with
 carry policy at each transition. Admission joins accumulated demands with the
-selected runtime. A future TLA-style layer adds interleavings, protocol state,
-and liveness hypotheses; it consumes normalized policy and provenance rather
-than re-reading source attributes.
+selected runtime. The deferred compiler-issued composition model adds
+interleavings, protocol state, and selected liveness evidence; ordinary proof
+machines consume normalized policy and provenance rather than re-reading source
+attributes.
 
 ## Implementation status and ownership
 

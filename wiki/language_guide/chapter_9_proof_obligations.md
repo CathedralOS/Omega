@@ -206,7 +206,7 @@ The assignment back into `self.health` creates obligations: prove the arithmetic
 
 If those obligations are discharged, the operation contributes guarantees: `self.health` is initialized and has the proven resulting facts. If not, the compiler carries the debt as an invariant window closed at the next consumption point, requires a different arithmetic mode, or requires an explicit checked/boundary construct — and rejects the code when the window cannot close.
 
-This maps well onto TLA+ style action checking:
+This maps directly onto transition-system induction:
 
 - Machine fields are variables.
 - State parameters are action inputs.
