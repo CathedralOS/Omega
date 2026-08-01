@@ -1,12 +1,15 @@
 use omega_checked_trees::{
-    CheckedOperatorFacts, FlowFacts, IndexCompatibilityDischarge, IndexCompatibilityFact,
-    IndexCompatibilityFacts,
+    CheckedOperatorFacts, FlowFacts, FlowSemanticContextRef, IndexCompatibilityDischarge,
+    IndexCompatibilityFact, IndexCompatibilityFacts,
 };
+use omega_core::arena::HandleSpan;
+use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::SemanticDomainId;
 use omega_core::symbols::SymbolHandle;
-use omega_facts::ProgramPoint;
+use omega_facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::data::DataMember;
+use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -22,12 +25,25 @@ struct IndexedInstance {
     label: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CompatibilityKey {
+    point: ProgramPoint,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    family: SymbolHandle,
+    actual: SemanticDomainId,
+    expected: SemanticDomainId,
+}
+
 pub(super) fn build_index_compatibility_facts(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
+    semantic: &FactPlan,
     flow: &FlowFacts,
-) -> IndexCompatibilityFacts {
+) -> Result<IndexCompatibilityFacts, Vec<Diagnostic>> {
     let mut conditions = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut unresolved = Vec::new();
 
     for (_, state_flow) in flow.control.states.iter() {
         let Some(machine) = program
@@ -73,36 +89,60 @@ pub(super) fn build_index_compatibility_facts(
                 append_expression_compatibilities(
                     program,
                     operators,
+                    semantic,
+                    flow,
                     machine,
                     state,
                     call.statement_index,
                     *argument,
                     parameter.type_reference,
                     point,
+                    call.entry_semantic_contexts,
                     &mut conditions,
+                    &mut diagnostics,
+                    &mut unresolved,
                 );
             }
         }
 
         let statements = program.statement_table.statements(state.statement_nodes);
         for (statement_index, statement) in statements.iter().enumerate() {
+            let statement_contexts = flow
+                .state_statement(state_flow, statement_index)
+                .map(|statement| statement.entry_semantic_contexts)
+                .unwrap_or(state_flow.entry_semantic_contexts);
             let statement_point = ProgramPoint::Statement {
                 machine_symbol: machine.symbol,
                 state_symbol: state.symbol,
                 statement_index,
             };
             match statement {
-                StatementNode::LocalData(local) => append_expression_compatibilities(
-                    program,
-                    operators,
-                    machine,
-                    state,
-                    statement_index,
-                    local.initial_value,
-                    local.type_reference,
-                    statement_point,
-                    &mut conditions,
-                ),
+                StatementNode::LocalData(local) => {
+                    let contexts = contexts_after_value(
+                        program,
+                        flow,
+                        state_flow,
+                        statement_index,
+                        local.initial_value,
+                        statement_contexts,
+                    );
+                    append_expression_compatibilities(
+                        program,
+                        operators,
+                        semantic,
+                        flow,
+                        machine,
+                        state,
+                        statement_index,
+                        local.initial_value,
+                        local.type_reference,
+                        statement_point,
+                        contexts,
+                        &mut conditions,
+                        &mut diagnostics,
+                        &mut unresolved,
+                    );
+                }
                 StatementNode::Assignment(assignment) => {
                     if let Some(target_type) = crate::flow::expression_type_reference_in_state(
                         program,
@@ -113,13 +153,25 @@ pub(super) fn build_index_compatibility_facts(
                         append_expression_compatibilities(
                             program,
                             operators,
+                            semantic,
+                            flow,
                             machine,
                             state,
                             statement_index,
                             assignment.value,
                             target_type,
                             statement_point,
+                            contexts_after_value(
+                                program,
+                                flow,
+                                state_flow,
+                                statement_index,
+                                assignment.value,
+                                statement_contexts,
+                            ),
                             &mut conditions,
+                            &mut diagnostics,
+                            &mut unresolved,
                         );
                     }
                 }
@@ -129,6 +181,8 @@ pub(super) fn build_index_compatibility_facts(
                     append_expression_compatibilities(
                         program,
                         operators,
+                        semantic,
+                        flow,
                         machine,
                         state,
                         statement_index,
@@ -139,7 +193,17 @@ pub(super) fn build_index_compatibility_facts(
                             state_symbol: state.symbol,
                             statement_index,
                         },
+                        contexts_after_value(
+                            program,
+                            flow,
+                            state_flow,
+                            statement_index,
+                            *expression,
+                            statement_contexts,
+                        ),
                         &mut conditions,
+                        &mut diagnostics,
+                        &mut unresolved,
                     );
                 }
                 StatementNode::Transition(transition) => {
@@ -155,6 +219,8 @@ pub(super) fn build_index_compatibility_facts(
                         append_expression_compatibilities(
                             program,
                             operators,
+                            semantic,
+                            flow,
                             machine,
                             state,
                             statement_index,
@@ -165,7 +231,17 @@ pub(super) fn build_index_compatibility_facts(
                                 state_symbol: state.symbol,
                                 statement_index,
                             },
+                            contexts_after_value(
+                                program,
+                                flow,
+                                state_flow,
+                                statement_index,
+                                *value,
+                                statement_contexts,
+                            ),
                             &mut conditions,
+                            &mut diagnostics,
+                            &mut unresolved,
                         );
                     }
                 }
@@ -176,24 +252,79 @@ pub(super) fn build_index_compatibility_facts(
         }
     }
 
-    IndexCompatibilityFacts { conditions }
+    if diagnostics.is_empty() {
+        Ok(IndexCompatibilityFacts { conditions })
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn contexts_after_value(
+    program: &TypedTrees,
+    flow: &FlowFacts,
+    state_flow: &omega_checked_trees::FlowStateFact,
+    statement_index: usize,
+    value: ExpressionHandle,
+    fallback: HandleSpan<FlowSemanticContextRef>,
+) -> HandleSpan<FlowSemanticContextRef> {
+    for call in flow
+        .control
+        .calls
+        .span_or_empty(state_flow.calls)
+        .iter()
+        .filter(|call| call.statement_index == statement_index)
+    {
+        let Some(crate::CallSite::Expression { expression, .. }) = crate::find_call_site(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            statement_index,
+            call.call_ordinal,
+        ) else {
+            continue;
+        };
+        if expression == value {
+            return call.exit_semantic_contexts;
+        }
+    }
+    fallback
 }
 
 #[allow(clippy::too_many_arguments)]
 fn append_expression_compatibilities(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
+    semantic: &FactPlan,
+    flow: &FlowFacts,
     machine: &Machine,
     state: &State,
     statement_index: usize,
     value: ExpressionHandle,
     target_type: TypeReferenceHandle,
     point: ProgramPoint,
+    contexts: HandleSpan<FlowSemanticContextRef>,
     conditions: &mut Vec<IndexCompatibilityFact>,
+    diagnostics: &mut Vec<Diagnostic>,
+    unresolved: &mut Vec<CompatibilityKey>,
 ) {
     if !value.is_valid() || !target_type.is_valid() {
         return;
     }
+    // A value-position call's result is checked after that call has completed,
+    // so its own established `ensures` are part of the exact local context at
+    // this boundary. Recompute this for recursive literal members as well as
+    // top-level stores/returns.
+    let contexts = flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state_flow)| {
+            (state_flow.machine_symbol == machine.symbol && state_flow.state_symbol == state.symbol)
+                .then_some(state_flow)
+        })
+        .map_or(contexts, |state_flow| {
+            contexts_after_value(program, flow, state_flow, statement_index, value, contexts)
+        });
     let actual =
         expression_indexed_instances(program, operators, machine, state, statement_index, value);
     let mut expected = Vec::new();
@@ -204,34 +335,59 @@ fn append_expression_compatibilities(
             .filter(|expected| expected.family == actual.family)
         {
             if !actual.semantic_id.is_valid()
-                || actual.semantic_id != expected.semantic_id
+                || !expected.semantic_id.is_valid()
                 || actual.arguments.is_empty()
                 || expected.arguments.is_empty()
             {
                 continue;
             }
-            let discharge = if actual
-                .arguments
-                .iter()
-                .chain(&expected.arguments)
-                .all(|argument| is_closed_index_argument(program, *argument))
-            {
-                IndexCompatibilityDischarge::ClosedEvaluation
-            } else {
-                IndexCompatibilityDischarge::LicensedNormalization {
-                    operation_count: selected_operation_count(
-                        program,
-                        actual.arguments.iter().chain(&expected.arguments).copied(),
-                    ),
+            let discharge = if actual.semantic_id == expected.semantic_id {
+                if actual
+                    .arguments
+                    .iter()
+                    .chain(&expected.arguments)
+                    .all(|argument| is_closed_index_argument(program, *argument))
+                {
+                    IndexCompatibilityDischarge::ClosedEvaluation
+                } else {
+                    IndexCompatibilityDischarge::LicensedNormalization {
+                        operation_count: selected_operation_count(
+                            program,
+                            actual.arguments.iter().chain(&expected.arguments).copied(),
+                        ),
+                    }
                 }
+            } else if let Some(facts) = established_index_equalities(
+                program,
+                semantic,
+                flow,
+                contexts,
+                &actual.arguments,
+                &expected.arguments,
+            ) {
+                IndexCompatibilityDischarge::EstablishedLocalFacts { facts }
+            } else {
+                let key = CompatibilityKey {
+                    point,
+                    value,
+                    target_type,
+                    family: actual.family,
+                    actual: actual.semantic_id,
+                    expected: expected.semantic_id,
+                };
+                if !unresolved.contains(&key) {
+                    unresolved.push(key);
+                    let name = compatibility_name(program, actual, expected, point);
+                    diagnostics.push(Diagnostic::error(format!(
+                        "index compatibility condition `{name}` is not established: actual `{}` \
+                         and expected `{}` are distinct normalized instances; closed evaluation, \
+                         licensed normalization, or an exact local equality fact is required",
+                        actual.label, expected.label,
+                    )));
+                }
+                continue;
             };
-            let name = format!(
-                "index-equality:{}:{}:{}=={}",
-                program.symbols.display_path(actual.family, "::"),
-                point_label(program, point),
-                actual.label,
-                expected.label,
-            );
+            let name = compatibility_name(program, actual, expected, point);
             let candidate = IndexCompatibilityFact {
                 name,
                 point,
@@ -258,6 +414,578 @@ fn append_expression_compatibilities(
             }
         }
     }
+
+    match program.expression_table.expression(value) {
+        ExpressionNode::StructLiteral(literal) => {
+            if let Some(definition) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+                .filter(|definition| definition.type_parameters.is_empty())
+            {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let Some(field_type) = construction_field_type(
+                        program,
+                        definition,
+                        literal.case_name.as_ref().map(|name| name.as_str()),
+                        field.name.as_str(),
+                    ) else {
+                        continue;
+                    };
+                    append_expression_compatibilities(
+                        program,
+                        operators,
+                        semantic,
+                        flow,
+                        machine,
+                        state,
+                        statement_index,
+                        field.value,
+                        field_type,
+                        point,
+                        contexts,
+                        conditions,
+                        diagnostics,
+                        unresolved,
+                    );
+                }
+            }
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            if let Some(element_type) = literal_element_type(program, target_type) {
+                for element in program.expression_table.expression_handles(*elements) {
+                    append_expression_compatibilities(
+                        program,
+                        operators,
+                        semantic,
+                        flow,
+                        machine,
+                        state,
+                        statement_index,
+                        *element,
+                        element_type,
+                        point,
+                        contexts,
+                        conditions,
+                        diagnostics,
+                        unresolved,
+                    );
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn construction_field_type(
+    program: &TypedTrees,
+    definition: &omega_typed_trees::data::DataDefinition,
+    case_name: Option<&str>,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
+    if let Some(case_name) = case_name
+        && let Some(variant) =
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.name.as_str() == case_name => {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
+    {
+        for field in program.data_payload_fields(variant) {
+            if field.name.as_str() == field_name && field.type_reference.is_valid() {
+                return Some(field.type_reference);
+            }
+        }
+    }
+    program.data_members(definition).iter().find_map(|member| {
+        let DataMember::Field(field) = member else {
+            return None;
+        };
+        (field.name.as_str() == field_name && field.type_reference.is_valid())
+            .then_some(field.type_reference)
+    })
+}
+
+fn literal_element_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => literal_element_type(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            literal_element_type(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        _ => None,
+    }
+}
+
+fn compatibility_name(
+    program: &TypedTrees,
+    actual: &IndexedInstance,
+    expected: &IndexedInstance,
+    point: ProgramPoint,
+) -> String {
+    format!(
+        "index-equality:{}:{}:{}=={}",
+        program.symbols.display_path(actual.family, "::"),
+        point_label(program, point),
+        actual.label,
+        expected.label,
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ExpressionSubstitution<'program> {
+    symbol: SymbolHandle,
+    name: &'program str,
+    value: ExpressionHandle,
+}
+
+fn established_index_equalities(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    flow: &FlowFacts,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+    actual: &[TypeReferenceHandle],
+    expected: &[TypeReferenceHandle],
+) -> Option<Vec<FactHandle>> {
+    if actual.len() != expected.len() {
+        return None;
+    }
+    let differing = actual
+        .iter()
+        .zip(expected)
+        .filter(|(left, right)| !index_arguments_structurally_equal(program, **left, **right))
+        .collect::<Vec<_>>();
+    if differing.is_empty() {
+        return None;
+    }
+
+    let mut evidence = Vec::new();
+    for (actual, expected) in differing {
+        let fact = established_index_equality_for_argument(
+            program, semantic, flow, contexts, *actual, *expected,
+        )?;
+        if !evidence.contains(&fact) {
+            evidence.push(fact);
+        }
+    }
+    Some(evidence)
+}
+
+fn established_index_equality_for_argument(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    flow: &FlowFacts,
+    contexts: HandleSpan<FlowSemanticContextRef>,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+) -> Option<FactHandle> {
+    for context_ref in flow.contexts.semantic_context_refs.span_or_empty(contexts) {
+        let context = semantic.contexts.get(context_ref.context);
+        for fact_ref in semantic.refs.span_or_empty(context.facts) {
+            let fact = semantic.facts.get(fact_ref.fact);
+            let expression = match fact.payload {
+                FactPayload::BooleanExpression(expression) => expression,
+                FactPayload::ContractBooleanExpression { expression, .. } => expression,
+                _ => continue,
+            };
+            let substitutions = fact_substitutions(program, flow, fact.point);
+            if expression_proves_index_equality(
+                program,
+                expression,
+                &substitutions,
+                actual,
+                expected,
+            ) {
+                return Some(fact_ref.fact);
+            }
+        }
+    }
+    None
+}
+
+fn expression_proves_index_equality(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &[ExpressionSubstitution<'_>],
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if binary.operator == BinaryOperator::And {
+        // Conjunction introduction establishes each authored conjunct. This is
+        // still an exact local lookup: do not derive transitive equalities or
+        // search for any theorem outside the active fact context.
+        return expression_proves_index_equality(
+            program,
+            binary.left,
+            substitutions,
+            actual,
+            expected,
+        ) || expression_proves_index_equality(
+            program,
+            binary.right,
+            substitutions,
+            actual,
+            expected,
+        );
+    }
+    if binary.operator != BinaryOperator::Equal {
+        return false;
+    }
+    let direct =
+        substituted_expression_matches_index_argument(program, binary.left, substitutions, actual)
+            && substituted_expression_matches_index_argument(
+                program,
+                binary.right,
+                substitutions,
+                expected,
+            );
+    let symmetric = substituted_expression_matches_index_argument(
+        program,
+        binary.left,
+        substitutions,
+        expected,
+    ) && substituted_expression_matches_index_argument(
+        program,
+        binary.right,
+        substitutions,
+        actual,
+    );
+    direct || symmetric
+}
+
+fn fact_substitutions<'program>(
+    program: &'program TypedTrees,
+    flow: &FlowFacts,
+    point: ProgramPoint,
+) -> Vec<ExpressionSubstitution<'program>> {
+    let ProgramPoint::CallEnsures {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        call_ordinal,
+    } = point
+    else {
+        return Vec::new();
+    };
+    let Some(call_site) = crate::find_call_site(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        call_ordinal,
+    ) else {
+        return Vec::new();
+    };
+    let target_symbol = match &call_site {
+        crate::CallSite::Statement(call) => call.target_symbol,
+        crate::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::CallSite::TransitionNamed(_) => call_flow_at_point(flow, point)
+            .map_or_else(SymbolHandle::invalid, |call| call.target_symbol),
+    };
+    let Some(parameters) = crate::call_target_parameters(program, target_symbol) else {
+        return Vec::new();
+    };
+    let arguments = crate::call_site_argument_expressions(program, &call_site);
+    parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(arguments)
+        .map(|(parameter, value)| ExpressionSubstitution {
+            symbol: parameter.symbol,
+            name: parameter.name.as_str(),
+            value: *value,
+        })
+        .collect()
+}
+
+fn call_flow_at_point(
+    flow: &FlowFacts,
+    point: ProgramPoint,
+) -> Option<&omega_checked_trees::FlowCallFact> {
+    let (machine_symbol, state_symbol, statement_index, call_ordinal) = match point {
+        ProgramPoint::Call {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+        }
+        | ProgramPoint::CallRequires {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+        }
+        | ProgramPoint::CallEnsures {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call_ordinal,
+        } => (machine_symbol, state_symbol, statement_index, call_ordinal),
+        _ => return None,
+    };
+    let state = flow.control.states.iter().find_map(|(_, state)| {
+        (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
+            .then_some(state)
+    })?;
+    flow.control
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .find(|call| call.statement_index == statement_index && call.call_ordinal == call_ordinal)
+}
+
+fn index_arguments_structurally_equal(
+    program: &TypedTrees,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    if left == right {
+        return true;
+    }
+    match (
+        program.type_reference_table.type_reference(left),
+        program.type_reference_table.type_reference(right),
+    ) {
+        (TypeReferenceNode::ConstExpression(left), TypeReferenceNode::ConstExpression(right)) => {
+            program
+                .expression_table
+                .expressions_structurally_equal(*left, *right)
+        }
+        (
+            TypeReferenceNode::Named {
+                symbol: left_symbol,
+                name: left_name,
+            },
+            TypeReferenceNode::Named {
+                symbol: right_symbol,
+                name: right_name,
+            },
+        ) => left_symbol == right_symbol && left_name.as_str() == right_name.as_str(),
+        _ => false,
+    }
+}
+
+fn substituted_expression_matches_index_argument(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &[ExpressionSubstitution<'_>],
+    argument: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(argument) {
+        TypeReferenceNode::ConstExpression(expected) => {
+            substituted_expressions_equal(program, expression, substitutions, *expected)
+        }
+        TypeReferenceNode::Named { symbol, name } => {
+            let expression =
+                substituted_root(program, expression, substitutions).unwrap_or(expression);
+            match program.expression_table.expression(expression) {
+                ExpressionNode::Name(path) => {
+                    if symbol.is_valid() && (path.symbol.is_valid() || path.head_symbol.is_valid())
+                    {
+                        path.symbol == *symbol || path.head_symbol == *symbol
+                    } else {
+                        matches!(
+                            program.expression_table.name_path_members(path.members),
+                            [only] if only.as_str() == name.as_str()
+                        )
+                    }
+                }
+                ExpressionNode::Integer(literal) => named_integer_value(name.as_str())
+                    .is_some_and(|expected| literal.value_bignum() == Some(expected)),
+                ExpressionNode::Boolean(value) => match name.as_str() {
+                    "true" => *value,
+                    "false" => !*value,
+                    _ => false,
+                },
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+fn substituted_root(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &[ExpressionSubstitution<'_>],
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    let [only] = members else {
+        return None;
+    };
+    substitutions
+        .iter()
+        .find(|substitution| {
+            if substitution.symbol.is_valid()
+                && (path.symbol.is_valid() || path.head_symbol.is_valid())
+            {
+                path.symbol == substitution.symbol || path.head_symbol == substitution.symbol
+            } else {
+                only.as_str() == substitution.name
+            }
+        })
+        .map(|substitution| substitution.value)
+}
+
+fn substituted_expressions_equal(
+    program: &TypedTrees,
+    authored: ExpressionHandle,
+    substitutions: &[ExpressionSubstitution<'_>],
+    local: ExpressionHandle,
+) -> bool {
+    if authored == local {
+        return true;
+    }
+    if !authored.is_valid() || !local.is_valid() {
+        return false;
+    }
+    if let Some(substituted) = substituted_root(program, authored, substitutions) {
+        return substituted_expressions_equal(program, substituted, &[], local);
+    }
+    if substitutions.is_empty()
+        && program
+            .expression_table
+            .expressions_structurally_equal(authored, local)
+    {
+        return true;
+    }
+    match (
+        program.expression_table.expression(authored),
+        program.expression_table.expression(local),
+    ) {
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
+        (ExpressionNode::Integer(left), ExpressionNode::Name(right))
+        | (ExpressionNode::Name(right), ExpressionNode::Integer(left)) => {
+            expression_name_atom(program, right)
+                .and_then(named_integer_value)
+                .is_some_and(|right| left.value_bignum() == Some(right))
+        }
+        (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
+        (ExpressionNode::Boolean(left), ExpressionNode::Name(right))
+        | (ExpressionNode::Name(right), ExpressionNode::Boolean(left)) => {
+            matches!(expression_name_atom(program, right), Some("true") if *left)
+                || matches!(expression_name_atom(program, right), Some("false") if !*left)
+        }
+        (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
+        (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
+        (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
+            left.head_symbol == right.head_symbol
+                && left.symbol == right.symbol
+                && program
+                    .expression_table
+                    .name_path_members(left.members)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(program
+                        .expression_table
+                        .name_path_members(right.members)
+                        .iter()
+                        .map(|member| member.as_str()))
+        }
+        (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
+            substituted_expressions_equal(program, *left, substitutions, *right)
+        }
+        (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
+            left.operator == right.operator
+                && substituted_expressions_equal(
+                    program,
+                    left.operand,
+                    substitutions,
+                    right.operand,
+                )
+        }
+        (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
+            left.operator == right.operator
+                && substituted_expressions_equal(program, left.left, substitutions, right.left)
+                && substituted_expressions_equal(program, left.right, substitutions, right.right)
+        }
+        (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
+            substituted_expressions_equal(program, left.collection, substitutions, right.collection)
+                && substituted_expressions_equal(program, left.index, substitutions, right.index)
+        }
+        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+            left.member_symbol == right.member_symbol
+                && left.member.as_str() == right.member.as_str()
+                && substituted_expressions_equal(
+                    program,
+                    left.receiver,
+                    substitutions,
+                    right.receiver,
+                )
+        }
+        (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
+            let left_arguments = program.expression_table.expression_handles(left.arguments);
+            let right_arguments = program.expression_table.expression_handles(right.arguments);
+            left.target_symbol == right.target_symbol
+                && left.target.as_str() == right.target.as_str()
+                && substituted_expressions_equal(
+                    program,
+                    left.receiver,
+                    substitutions,
+                    right.receiver,
+                )
+                && left_arguments.len() == right_arguments.len()
+                && left_arguments
+                    .iter()
+                    .zip(right_arguments)
+                    .all(|(left, right)| {
+                        substituted_expressions_equal(program, *left, substitutions, *right)
+                    })
+        }
+        (ExpressionNode::ArrayLiteral(left), ExpressionNode::ArrayLiteral(right)) => {
+            let left = program.expression_table.expression_handles(*left);
+            let right = program.expression_table.expression_handles(*right);
+            left.len() == right.len()
+                && left.iter().zip(right).all(|(left, right)| {
+                    substituted_expressions_equal(program, *left, substitutions, *right)
+                })
+        }
+        (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
+            let left_fields = program.expression_table.struct_fields(left.fields);
+            let right_fields = program.expression_table.struct_fields(right.fields);
+            left.type_name.as_str() == right.type_name.as_str()
+                && left.case_name.as_ref().map(|name| name.as_str())
+                    == right.case_name.as_ref().map(|name| name.as_str())
+                && left_fields.len() == right_fields.len()
+                && left_fields.iter().zip(right_fields).all(|(left, right)| {
+                    left.name.as_str() == right.name.as_str()
+                        && substituted_expressions_equal(
+                            program,
+                            left.value,
+                            substitutions,
+                            right.value,
+                        )
+                })
+        }
+        _ => false,
+    }
+}
+
+fn expression_name_atom<'program>(
+    program: &'program TypedTrees,
+    path: &omega_typed_trees::expression::TableNamePath,
+) -> Option<&'program str> {
+    let [only] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    Some(only.as_str())
 }
 
 fn expression_indexed_instances(
@@ -470,6 +1198,9 @@ fn index_argument_label(program: &TypedTrees, argument: TypeReferenceHandle) -> 
             omega_core::const_value::CanonicalConstValue::from_atom(name.as_str())
                 .map_or_else(|| name.to_string(), |value| value.display)
         }
+        TypeReferenceNode::ConstExpression(expression) => {
+            program.expression_table.display_name(*expression)
+        }
         _ => program.display_type_reference(argument),
     }
 }
@@ -482,6 +1213,29 @@ fn is_closed_index_argument(program: &TypedTrees, argument: TypeReferenceHandle)
         }
         _ => false,
     }
+}
+
+fn named_integer_value(name: &str) -> Option<omega_core::bignum::BigInt> {
+    let display = omega_core::const_value::CanonicalConstValue::from_atom(name)
+        .map_or_else(|| name.to_owned(), |value| value.display);
+    let (negative, unsigned) = display
+        .strip_prefix('-')
+        .map_or((false, display.as_str()), |unsigned| (true, unsigned));
+    let (base, digits) = if let Some(digits) = unsigned.strip_prefix("0b") {
+        (2, digits)
+    } else if let Some(digits) = unsigned.strip_prefix("0o") {
+        (8, digits)
+    } else if let Some(digits) = unsigned.strip_prefix("0x") {
+        (16, digits)
+    } else {
+        (10, unsigned)
+    };
+    let digits = if negative {
+        format!("-{digits}")
+    } else {
+        digits.to_owned()
+    };
+    omega_core::bignum::BigInt::from_str_radix(&digits, base)
 }
 
 fn selected_operation_count(

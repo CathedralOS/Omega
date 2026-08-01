@@ -1,0 +1,55 @@
+// FAIL: the exact theorem exists, but it is neither a requires fact nor the
+// ensures of a call at this site. PDI3 performs no ambient theorem search.
+domain<T, const I: u64> T::Indexed<I>;
+
+trait IndexAdd {
+    machine add(a: Self, b: Self) -> Self;
+    machine add_comm(a: Self, b: Self) -> Self
+    ensures add(a, b) == add(b, a);
+    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    ensures add(add(a, b), c) == add(a, add(b, c));
+}
+
+operator IndexAlgebra::plus(left: u64, right: u64) -> u64 spelling +;
+
+machine plus_index(a: u64, b: u64) -> u64
+satisfies IndexAlgebra::plus, IndexAdd::add as Canonical
+ensures result == 0
+{
+    transition { _ -> 0 }
+}
+
+machine plus_index_comm(a: u64, b: u64) -> u64
+satisfies IndexAdd::add_comm as Canonical
+ensures plus_index(a, b) == plus_index(b, a)
+{
+    _ = plus_index(a, b);
+    _ = plus_index(b, a);
+    transition { _ -> 0 }
+}
+
+machine plus_index_assoc(a: u64, b: u64, c: u64) -> u64
+satisfies IndexAdd::add_assoc as Canonical
+ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
+{
+    _ = plus_index(plus_index(a, b), c);
+    _ = plus_index(a, plus_index(b, c));
+    transition { _ -> 0 }
+}
+
+machine establish_zero(a: u64) -> u64
+ensures a + 0 == 0
+{
+    _ = plus_index(a, 0);
+    transition { _ -> 0 }
+}
+
+machine retain_uncited_zero<const A: u64>(
+    value: i64 in Indexed<A + 0>
+) -> i64 in Indexed<0>
+{
+    value
+}
+
+data Main {}
+machine Main::main(&mut self) {}

@@ -434,9 +434,10 @@ conversion for canonical result/parameter evidence, including distinct cloned
 instances. The shipped `omega::language::std::units` package now exercises
 named closed combinations, explicit conversion/scaling policy, and ordinary
 per-pair operators across imports in both engines; implicit cross-index calls
-reject. PDI2 is complete. Next add computed open result indices, licensed
-normalization, and retained compatibility evidence. They extend the facts a
-domain may carry without changing this qualification model.
+reject. PDI2 is complete. PDI3 now carries computed open result indices, exact
+licensed normalization authority, named compatibility conditions, and retained
+closed/normalization/local-fact evidence. These extend the facts a domain may
+carry without changing this qualification model or indexed-domain syntax.
 
 ## Cross-references
 

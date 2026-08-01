@@ -22493,6 +22493,8 @@ fn closed_indexed_domain_canaries() {
 
     for path in [
         "generics/closed_indexed_domain_mismatch",
+        "generics/closed_indexed_struct_field_mismatch",
+        "generics/closed_indexed_array_element_mismatch",
         "generics/closed_indexed_domain_noncanonical_rat",
         "generics/closed_indexed_domain_unknown_const",
         "generics/closed_indexed_domain_wrong_arity",
@@ -22552,7 +22554,7 @@ fn std_units_package_conversion_and_operator_canaries() {
             .conditions
             .iter()
             .any(|condition| matches!(
-                condition.discharge,
+                &condition.discharge,
                 omega_checked_trees::IndexCompatibilityDischarge::ClosedEvaluation
             )),
         "closed unit flows should retain their closed-evaluation verification condition"
@@ -22635,13 +22637,14 @@ fn open_computed_quantity_result_canary_runs() {
             .any(|condition| {
                 condition.name.starts_with("index-equality:")
                     && matches!(
-                        condition.discharge,
+                        &condition.discharge,
                         omega_checked_trees::IndexCompatibilityDischarge::LicensedNormalization {
                             operation_count
-                        } if operation_count > 0
+                        } if *operation_count > 0
                     )
             }),
-        "computed result flow should retain its licensed-normalization verification condition"
+        "computed result flow should retain its licensed-normalization verification condition: {:#?}",
+        checked.facts.index_compatibility.conditions
     );
     let compatibility = omega_visualizations::index_compatibility_manifest_json(&checked);
     assert!(compatibility.contains("\"name\": \"index-equality:"));
@@ -22662,6 +22665,92 @@ fn open_computed_quantity_result_canary_runs() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(combined.contains(expected.trim()), "{combined}");
+}
+
+#[test]
+fn open_index_exact_local_fact_canary_runs() {
+    let canary = pass_canary("generics/open_index_local_fact");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("an exact active equality should discharge open index compatibility");
+    let conditions = checked
+        .facts
+        .index_compatibility
+        .conditions
+        .iter()
+        .filter(|condition| {
+            matches!(
+                &condition.discharge,
+                omega_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        conditions.len() >= 2,
+        "both requires and call-ensures routes should retain evidence"
+    );
+    assert!(
+        conditions
+            .iter()
+            .all(|condition| condition.actual_instance != condition.expected_instance)
+    );
+    assert!(
+        conditions.iter().any(|condition| matches!(
+            &condition.discharge,
+            omega_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts }
+                if facts.len() == 2
+        )),
+        "a two-member index pack should retain both exact equality facts"
+    );
+    let evidence = conditions
+        .iter()
+        .map(|condition| {
+            let omega_checked_trees::IndexCompatibilityDischarge::EstablishedLocalFacts { facts } =
+                &condition.discharge
+            else {
+                unreachable!();
+            };
+            assert!(!facts.is_empty());
+            facts
+                .iter()
+                .map(|fact| {
+                    assert!(fact.is_valid());
+                    checked.facts.semantic.facts.get(*fact)
+                })
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    assert!(
+        evidence
+            .iter()
+            .any(|fact| matches!(fact.point, omega_facts::ProgramPoint::CallEnsures { .. }))
+    );
+    assert!(evidence.iter().any(|fact| !matches!(
+        fact.point,
+        omega_facts::ProgramPoint::CallEnsures { .. } | omega_facts::ProgramPoint::Global
+    )));
+    let compatibility = omega_visualizations::index_compatibility_manifest_json(&checked);
+    assert!(compatibility.contains("\"discharge\": \"established_local_fact\""));
+    assert!(compatibility.contains("\"evidence_facts\": ["));
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let fail = fail_canary("generics/open_index_unestablished_equality");
+    let expected = fs::read_to_string(fail.join("expected.txt"))
+        .expect("unestablished index equality canary should carry expected.txt");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("an ambient but inactive theorem must not discharge index compatibility");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim())
+            && combined.contains("exact local equality fact is required"),
+        "unestablished equality diagnostic should be named and fail closed:\n{combined}"
+    );
 }
 
 #[test]
@@ -41500,10 +41589,13 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "generics/const_data_where_machine_fact_nested_false",
     "generics/const_data_where_domain_membership_false",
     "generics/closed_indexed_domain_mismatch",
+    "generics/closed_indexed_struct_field_mismatch",
+    "generics/closed_indexed_array_element_mismatch",
     "generics/closed_indexed_domain_noncanonical_rat",
     "generics/closed_indexed_domain_unknown_const",
     "generics/closed_indexed_domain_wrong_arity",
     "generics/closed_indexed_domain_wrong_type",
+    "generics/open_index_unestablished_equality",
     "core/task_core_scope_loss",
     "core/task_parked_continuation_projection_rejected",
     "core/task_parked_continuation_recast_rejected",

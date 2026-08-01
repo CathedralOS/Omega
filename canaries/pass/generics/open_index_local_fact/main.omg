@@ -1,0 +1,104 @@
+// PDI3: an exact state-local equality may discharge an otherwise distinct
+// open indexed-domain result. The equality stays evidence; it does not merge
+// the two normalized domain identities.
+use omega::language::std::console;
+
+domain<T, const I: u64> T::Indexed<I>;
+domain<T, const I: u64, const J: u64> T::PairIndexed<I, J>;
+
+data ZeroHolder {
+    value: i64 in Indexed<0>;
+}
+
+trait IndexAdd {
+    machine add(a: Self, b: Self) -> Self;
+    machine add_comm(a: Self, b: Self) -> Self
+    ensures add(a, b) == add(b, a);
+    machine add_assoc(a: Self, b: Self, c: Self) -> Self
+    ensures add(add(a, b), c) == add(a, add(b, c));
+}
+
+operator IndexAlgebra::plus(left: u64, right: u64) -> u64 spelling +;
+
+machine plus_index(a: u64, b: u64) -> u64
+satisfies IndexAlgebra::plus, IndexAdd::add as Canonical
+ensures result == 0
+{
+    transition { _ -> 0 }
+}
+
+machine plus_index_comm(a: u64, b: u64) -> u64
+satisfies IndexAdd::add_comm as Canonical
+ensures plus_index(a, b) == plus_index(b, a)
+{
+    _ = plus_index(a, b);
+    _ = plus_index(b, a);
+    transition { _ -> 0 }
+}
+
+machine plus_index_assoc(a: u64, b: u64, c: u64) -> u64
+satisfies IndexAdd::add_assoc as Canonical
+ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
+{
+    _ = plus_index(plus_index(a, b), c);
+    _ = plus_index(a, plus_index(b, c));
+    transition { _ -> 0 }
+}
+
+machine retain_identity<const A: u64>(
+    value: i64 in Indexed<A>
+) -> i64 in Indexed<A + 0>
+requires A == A + 0
+{
+    value
+}
+
+machine establish_zero(a: u64) -> u64
+ensures a == a && a + 0 == 0
+{
+    _ = plus_index(a, 0);
+    transition { _ -> 0 }
+}
+
+machine retain_cited_zero<const A: u64>(
+    value: i64 in Indexed<A + 0>
+) -> i64 in Indexed<0>
+{
+    _ = establish_zero(A);
+    value
+}
+
+machine retain_cited_pair<const A: u64, const B: u64>(
+    value: i64 in PairIndexed<A + 0, B + 0>
+) -> i64 in PairIndexed<0, 0>
+{
+    _ = establish_zero(A);
+    _ = establish_zero(B);
+    value
+}
+
+machine return_cited_zero<const A: u64>(
+    a: u64,
+    value: i64 in Indexed<A + 0>
+) -> i64 in Indexed<A + 0>
+ensures a + 0 == 0
+{
+    _ = establish_zero(a);
+    transition { _ -> (0 as i64 in Indexed<A + 0>) }
+}
+
+// The result call's own `ensures` enters the post-call context before its
+// value is checked against the enclosing field. No prior ambient fact exists.
+machine retain_nested_result_fact<const A: u64>(
+    value: i64 in Indexed<A + 0>
+) -> ZeroHolder {
+    ZeroHolder { value: return_cited_zero(A, value) }
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

@@ -1,0 +1,20 @@
+data Unit {
+    exponent: i32;
+}
+
+data Units {}
+const Units::METER: Unit = Unit { exponent: 1 };
+const Units::SECOND: Unit = Unit { exponent: 0 };
+
+domain<T, const U: Unit> T::Quantity<U>;
+
+data Holder {
+    value: i64 in Quantity<Units::METER>;
+}
+
+machine mismatch(value: i64 in Quantity<Units::SECOND>) {
+    let holder: Holder = Holder { value: value };
+}
+
+data Main {}
+machine Main::main(&mut self) {}

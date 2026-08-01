@@ -193,8 +193,10 @@ The binder is erased, distinct canonical destinations receive distinct
 machine instances, and an incomplete tuple rejects before code generation. The
 shipped `omega::language::std::units` package exercises named closed
 combinations, destination-typed conversions, and per-pair operators across
-imports in both engines. Computed open result expressions remain the third
-stage.
+imports in both engines. Computed open result expressions, licensed canonical
+normalization, named compatibility conditions, and exact active local-fact
+discharge now complete the third stage. Successful judgments retain evidence
+without changing identity; unresolved equality rejects.
 
 ## Machine Parameters
 

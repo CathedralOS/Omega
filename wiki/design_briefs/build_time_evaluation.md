@@ -95,7 +95,9 @@ consume the same canonical atoms for per-instance semantic identity. Indexed
 explicit qualification now preserves a closed atom or direct const binder as
 that exact identity. Constrained parameter/result evidence now specializes
 const-generic calls to canonical tuples and refreshes their exact domain
-identity before checking; open symbolic index evaluation remains PDI3.
+identity before checking. PDI3's licensed symbolic index normalization and
+exact local-fact compatibility are implemented; arbitrary machine evaluation
+in type equality remains forbidden.
 
 Target equivalence is an acceptance requirement. Build-time `f32`/`f64`
 arithmetic evaluates the same executable `FloatSemantics` functions that define

@@ -726,7 +726,7 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   per-pair addition/division operators execute in both engines. Imported
   cross-index calls reject, and initialized qualified locals retain their
   checked fact across later call/operator boundaries.
-- **PDI3:** computed open result indices now survive parsing, resolution,
+- **PDI3 — COMPLETE:** computed open result indices now survive parsing, resolution,
   specialization, indexed qualification, and checked lowering. Each operator
   node requires one exact public operator, one checked provider, and one exact
   proved associative/commutative algebra instance; that authority is retained
@@ -736,8 +736,13 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   normalization judgments now retain named verification conditions, exact
   source/target expressions and instances, program points, and discharge
   evidence in checked trees and a public JSON artifact without rewriting
-  semantic identity. Next add established-local-fact compatibility. Do not add
-  a special citation surface; unresolved equality rejects.
+  semantic identity. Exact active `requires` facts and prior or result-call
+  `ensures` now discharge remaining equality obligations, including every
+  unequal member of a multi-index pack and nested literal boundaries. Checked
+  evidence retains the exact local fact handles; conjunctions expose only their
+  authored equality conjuncts, no ambient theorem search occurs, and unresolved
+  equality rejects without inventing a public generic precondition or adding a
+  special citation surface.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
