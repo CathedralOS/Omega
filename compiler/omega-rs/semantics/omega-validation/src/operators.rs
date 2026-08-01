@@ -110,20 +110,51 @@ fn validate_duplicate_operator_signatures(
 ) {
     for (operator_index, operator) in operators.iter().enumerate() {
         let signature = operator_signature_key(program, operator);
-        if operators[..operator_index]
+        let previous = operators[..operator_index]
             .iter()
-            .any(|previous| operator_signature_key(program, previous) == signature)
+            .filter(|previous| operator_signature_key(program, previous) == signature)
+            .collect::<Vec<_>>();
+        if previous.is_empty() {
+            continue;
+        }
+        // Explicitly named requirements may differ by their normalized
+        // dispatch-bearing result set. Fixed spellings never do: their
+        // separate ambiguity rule remains operand-directed.
+        if operator.is_boundary
+            && operator.spelling.is_none()
+            && previous
+                .iter()
+                .all(|item| item.is_boundary && item.spelling.is_none())
         {
-            let name = operator_name(program, operator);
-            if owner == "root" {
+            let identity = program.normalized_operator_overload_identity(operator);
+            if previous.iter().any(|previous| {
+                program
+                    .normalized_operator_overload_identity(previous)
+                    .result_dispatch()
+                    == identity.result_dispatch()
+            }) {
+                let dispatch = if identity.result_dispatch().is_empty() {
+                    "<empty>".to_owned()
+                } else {
+                    identity.result_dispatch().identity()
+                };
                 diagnostics.push(Diagnostic::error(format!(
-                    "duplicate operator declaration `{name}`"
-                )));
-            } else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "domain `{owner}` has duplicate operator `{name}`"
+                    "duplicate named requirement overload `{}` with parameter signature `{}` and result dispatch set `{dispatch}`; predicate-only result refinements do not distinguish overloads",
+                    identity.path(),
+                    identity.parameters(),
                 )));
             }
+            continue;
+        }
+        let name = operator_name(program, operator);
+        if owner == "root" {
+            diagnostics.push(Diagnostic::error(format!(
+                "duplicate operator declaration `{name}`"
+            )));
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain `{owner}` has duplicate operator `{name}`"
+            )));
         }
     }
 }

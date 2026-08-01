@@ -1,0 +1,12 @@
+// The named Trapping overload must reject a finite value whose toward-zero
+// result is outside the destination interval.
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main { console: Console; value: f64; }
+
+machine Main::main(&mut self) {
+    self.value = 256.0;
+    let trapped: u8 in Trapping = U8::from_f64(self.value);
+    self.console.exit_process(trapped as i32);
+}

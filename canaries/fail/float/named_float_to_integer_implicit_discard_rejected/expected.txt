@@ -1,0 +1,1 @@
+discards its non-unit `i32` result

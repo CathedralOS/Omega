@@ -1,15 +1,17 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
-use omega_typed_trees::statement::StatementNode;
-use omega_typed_trees::types::TypeReferenceHandle;
+use omega_typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+};
+use omega_typed_trees::statement::{StatementNode, TableLocalData};
+use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Bind concrete named-machine calls after type/domain normalization, when the
-/// expected result qualification is available. Early symbol resolution keeps
-/// binding same-named declarations to the first symbol; this pass replaces
-/// that provisional symbol with the exact result-domain overload before any
-/// checker or backend consumer sees the call.
+/// Bind concrete named callable calls after type/domain normalization, when
+/// the expected result qualification is available. Early symbol resolution
+/// keeps binding same-named declarations to the first symbol; this pass
+/// replaces that provisional symbol with the exact machine, trait-requirement,
+/// or unspelled boundary-operator result overload before downstream consumers.
 pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let expected_calls = collect_expected_expression_calls(program);
     let mut diagnostics = Vec::new();
@@ -24,12 +26,13 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             let expected = expected_calls
                 .iter()
                 .find_map(|(candidate, expected)| (*candidate == handle).then_some(*expected));
-            selected_named_callable_symbol(program, call.target_symbol, expected, &mut diagnostics)
+            selected_named_expression_callable_symbol(program, call, expected, &mut diagnostics)
                 .map(|selected| (handle, selected))
         })
         .collect::<Vec<_>>();
 
     let mut statement_updates = Vec::new();
+    let mut operator_statement_updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (index, statement) in program
@@ -41,13 +44,46 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 let StatementNode::Call(call) = statement else {
                     continue;
                 };
-                if let Some(selected) = selected_named_callable_symbol(
-                    program,
-                    call.target_symbol,
-                    None,
-                    &mut diagnostics,
-                ) {
-                    statement_updates.push((state.statement_nodes, index, selected));
+                if let Some(selected) =
+                    selected_named_statement_callable_symbol(program, call, None, &mut diagnostics)
+                {
+                    if let Some(operator) = program
+                        .operators()
+                        .iter()
+                        .find(|operator| operator.symbol == selected)
+                    {
+                        if !operator.return_type.is_valid() {
+                            statement_updates.push((state.statement_nodes, index, selected));
+                            continue;
+                        }
+                        let returns_non_unit = !matches!(
+                            program
+                                .type_reference_table
+                                .type_reference(operator.return_type),
+                            TypeReferenceNode::Unit
+                        );
+                        if returns_non_unit && !call.discards_result {
+                            let path = program
+                                .operator_path_members(operator.name)
+                                .iter()
+                                .map(|member| member.as_str())
+                                .collect::<Vec<_>>()
+                                .join("::");
+                            diagnostics.push(Diagnostic::error(format!(
+                                "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
+                                program.display_type_reference_with_constraints(operator.return_type)
+                            )));
+                        } else {
+                            operator_statement_updates.push((
+                                state.statement_nodes,
+                                index,
+                                call.clone(),
+                                selected,
+                            ));
+                        }
+                    } else {
+                        statement_updates.push((state.statement_nodes, index, selected));
+                    }
                 }
             }
         }
@@ -70,7 +106,225 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
         };
         call.target_symbol = selected;
     }
+    for (statements, index, call, selected) in operator_statement_updates {
+        let receiver_members = program
+            .statement_table
+            .name_path_members(call.receiver)
+            .to_vec();
+        let arguments = program
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        let receiver = if receiver_members.is_empty() {
+            ExpressionHandle::invalid()
+        } else {
+            let mut members = omega_core::arena::HandleSpan::empty();
+            for member in receiver_members {
+                program
+                    .expression_table
+                    .push_name_path_member(&mut members, member);
+            }
+            program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    member_symbols: omega_core::arena::HandleSpan::empty(),
+                    head_symbol: call.receiver_symbol,
+                    symbol: call.receiver_symbol,
+                }))
+        };
+        let arguments = program
+            .expression_table
+            .insert_expression_handles(arguments);
+        let expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver,
+                    target_symbol: selected,
+                    target: call.target,
+                    machine_arguments: call.machine_arguments,
+                    arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
+                }));
+        let type_reference = program
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == selected)
+            .expect("selected statement operator disappeared")
+            .return_type;
+        let generated_name = format!(
+            "__discarded_named_requirement#{}#{index}",
+            statements.start().arena_index()
+        );
+        let symbol = program
+            .symbols
+            .insert_generated_root(SymbolKind::Local, &generated_name);
+        program.statement_table.statements_mut(statements)[index] =
+            StatementNode::LocalData(TableLocalData {
+                symbol,
+                name: omega_typed_trees::name::Identifier::generated(generated_name),
+                type_reference,
+                initial_value: expression,
+                is_mutable: false,
+            });
+    }
     Ok(())
+}
+
+fn selected_named_statement_callable_symbol(
+    program: &TypedTrees,
+    call: &omega_typed_trees::statement::TableCall,
+    expected_result: Option<TypeReferenceHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<SymbolHandle> {
+    if provisional_target_is_named_non_operator_callable(program, call.target_symbol) {
+        return selected_named_callable_symbol(
+            program,
+            call.target_symbol,
+            expected_result,
+            diagnostics,
+        );
+    }
+    if let Some(provisional) = program.operators().iter().find(|operator| {
+        operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
+    }) {
+        let provisional_identity = program.normalized_operator_overload_identity(provisional);
+        let overloads = program
+            .operators()
+            .iter()
+            .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+            .filter_map(|operator| {
+                let identity = program.normalized_operator_overload_identity(operator);
+                (identity.path() == provisional_identity.path()
+                    && identity.parameters() == provisional_identity.parameters())
+                .then_some((operator.symbol, identity))
+            })
+            .collect::<Vec<_>>();
+        if overloads.len() == 1 {
+            return Some(provisional.symbol);
+        }
+        return select_overload_symbol(
+            program,
+            &provisional_identity,
+            &overloads,
+            expected_result,
+            diagnostics,
+            "requirement",
+        );
+    }
+
+    let candidates = omega_typed_trees::operator::named_statement_call_candidates(program, call);
+    if let Some(provisional) = candidates.first() {
+        let provisional_identity = program.normalized_operator_overload_identity(provisional);
+        let overloads = candidates
+            .iter()
+            .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+            .filter_map(|operator| {
+                let identity = program.normalized_operator_overload_identity(operator);
+                (identity.path() == provisional_identity.path()
+                    && identity.parameters() == provisional_identity.parameters())
+                .then_some((operator.symbol, identity))
+            })
+            .collect::<Vec<_>>();
+        if overloads.len() == candidates.len() {
+            if let [(symbol, _)] = overloads.as_slice() {
+                return Some(*symbol);
+            }
+            return select_overload_symbol(
+                program,
+                &provisional_identity,
+                &overloads,
+                expected_result,
+                diagnostics,
+                "requirement",
+            );
+        }
+    }
+
+    selected_named_callable_symbol(program, call.target_symbol, expected_result, diagnostics)
+}
+
+fn selected_named_expression_callable_symbol(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    expected_result: Option<TypeReferenceHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<SymbolHandle> {
+    if provisional_target_is_named_non_operator_callable(program, call.target_symbol) {
+        return selected_named_callable_symbol(
+            program,
+            call.target_symbol,
+            expected_result,
+            diagnostics,
+        );
+    }
+    if program.operators().iter().any(|operator| {
+        operator.symbol == call.target_symbol && operator.is_boundary && operator.spelling.is_none()
+    }) {
+        return selected_named_callable_symbol(
+            program,
+            call.target_symbol,
+            expected_result,
+            diagnostics,
+        );
+    }
+
+    let candidates = omega_typed_trees::operator::named_expression_call_candidates(program, call);
+    let Some(provisional) = candidates.first() else {
+        return selected_named_callable_symbol(
+            program,
+            call.target_symbol,
+            expected_result,
+            diagnostics,
+        );
+    };
+    let provisional_identity = program.normalized_operator_overload_identity(provisional);
+    let overloads = candidates
+        .iter()
+        .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+        .filter_map(|operator| {
+            let identity = program.normalized_operator_overload_identity(operator);
+            (identity.path() == provisional_identity.path()
+                && identity.parameters() == provisional_identity.parameters())
+            .then_some((operator.symbol, identity))
+        })
+        .collect::<Vec<_>>();
+    if overloads.len() != candidates.len() {
+        // Path/arity alone still spans distinct parameter overload groups.
+        // Leave those calls to ordinary operand-directed resolution.
+        return selected_named_callable_symbol(
+            program,
+            call.target_symbol,
+            expected_result,
+            diagnostics,
+        );
+    }
+    select_overload_symbol(
+        program,
+        &provisional_identity,
+        &overloads,
+        expected_result,
+        diagnostics,
+        "requirement",
+    )
+}
+
+fn provisional_target_is_named_non_operator_callable(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> bool {
+    program.machines().iter().any(|machine| {
+        program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|entry| entry.symbol == target)
+    }) || program.traits().iter().any(|trait_definition| {
+        program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .any(|requirement| requirement.symbol == target)
+    })
 }
 
 fn selected_named_callable_symbol(
@@ -110,6 +364,32 @@ fn selected_named_callable_symbol(
             expected_result,
             diagnostics,
             "machine",
+        );
+    }
+
+    if let Some(provisional_operator) = program.operators().iter().find(|operator| {
+        operator.symbol == provisional_target && operator.is_boundary && operator.spelling.is_none()
+    }) {
+        let provisional_identity =
+            program.normalized_operator_overload_identity(provisional_operator);
+        let overloads = program
+            .operators()
+            .iter()
+            .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+            .filter_map(|operator| {
+                let identity = program.normalized_operator_overload_identity(operator);
+                (identity.path() == provisional_identity.path()
+                    && identity.parameters() == provisional_identity.parameters())
+                .then_some((operator.symbol, identity))
+            })
+            .collect::<Vec<_>>();
+        return select_overload_symbol(
+            program,
+            &provisional_identity,
+            &overloads,
+            expected_result,
+            diagnostics,
+            "requirement",
         );
     }
 

@@ -34676,6 +34676,22 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "F64::from_u16",
         "F64::from_u32",
         "F64::from_u64",
+        "I8::from_f32",
+        "I8::from_f64",
+        "I16::from_f32",
+        "I16::from_f64",
+        "I32::from_f32",
+        "I32::from_f64",
+        "I64::from_f32",
+        "I64::from_f64",
+        "U8::from_f32",
+        "U8::from_f64",
+        "U16::from_f32",
+        "U16::from_f64",
+        "U32::from_f32",
+        "U32::from_f64",
+        "U64::from_f32",
+        "U64::from_f64",
     ];
     let canary = pass_canary("operators/float_operator_identities");
     for target in ["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"] {
@@ -34714,7 +34730,26 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 omega_typed_trees::types::PrimitiveType::U64 => "u64",
                 _ => return None,
             };
-            Some(format!("{path}.{format}"))
+            let is_integer_destination = [
+                "I8::", "I16::", "I32::", "I64::", "U8::", "U16::", "U32::", "U64::",
+            ]
+            .iter()
+            .any(|prefix| path.starts_with(prefix));
+            if is_integer_destination {
+                let policy = match checked
+                    .typed
+                    .type_reference_table
+                    .arithmetic_domain(operator.return_type)
+                {
+                    omega_core::arithmetic::ArithmeticDomain::Exact => "exact",
+                    omega_core::arithmetic::ArithmeticDomain::Trapping => "trapping",
+                    omega_core::arithmetic::ArithmeticDomain::Saturating => "saturating",
+                    omega_core::arithmetic::ArithmeticDomain::Wrapping => return None,
+                };
+                Some(format!("{path}.{format}.{policy}"))
+            } else {
+                Some(format!("{path}.{format}"))
+            }
         };
         let mut used_intrinsics = std::collections::BTreeSet::new();
 
@@ -34816,8 +34851,8 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
             );
         }
         assert_eq!(
-            selected_count, 60,
-            "the 20 overloaded primitive slots and forty named-operation slots must all select"
+            selected_count, 108,
+            "the 20 overloaded primitive slots and 88 named-operation slots must all select"
         );
     }
 }
@@ -34971,6 +35006,193 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         .expect("public integer-to-float canary should run");
     assert_eq!(output.status.code(), Some(70));
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn named_float_to_integer_requirements_execute_in_both_engines() {
+    let canary = pass_canary("float/runtime_named_float_to_integer_conversion_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("public float-to-integer requirements should compile");
+
+    let selected = checked
+        .facts
+        .operators
+        .named_uses()
+        .filter_map(|operator_use| {
+            let plan = checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)?;
+            let [row] = plan.rows.as_slice() else {
+                return None;
+            };
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+                &row.binding
+            else {
+                return None;
+            };
+            [
+                "I8::", "I16::", "I32::", "I64::", "U8::", "U16::", "U32::", "U64::",
+            ]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+            .then_some((operator_use, name.clone()))
+        })
+        .collect::<Vec<_>>();
+    let selected_intrinsics = selected
+        .iter()
+        .map(|(_, intrinsic)| intrinsic.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected_intrinsics = [
+        "I8::from_f32.f32.exact",
+        "I8::from_f64.f64.exact",
+        "I8::from_f64.f64.saturating",
+        "I16::from_f32.f32.exact",
+        "I16::from_f64.f64.exact",
+        "I32::from_f32.f32.exact",
+        "I32::from_f64.f64.exact",
+        "I32::from_f64.f64.trapping",
+        "I32::from_f64.f64.saturating",
+        "I64::from_f32.f32.exact",
+        "I64::from_f64.f64.exact",
+        "U8::from_f32.f32.exact",
+        "U8::from_f64.f64.exact",
+        "U16::from_f32.f32.exact",
+        "U16::from_f64.f64.exact",
+        "U32::from_f32.f32.exact",
+        "U32::from_f64.f64.exact",
+        "U64::from_f32.f32.exact",
+        "U64::from_f64.f64.exact",
+        "U64::from_f64.f64.saturating",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(selected_intrinsics, expected_intrinsics);
+
+    for (operator_use, intrinsic) in selected {
+        let omega_typed_trees::expression::ExpressionNode::Cast(cast) = checked
+            .typed
+            .expression_table
+            .expression(operator_use.expression)
+        else {
+            panic!("selected conversion `{intrinsic}` must rewrite to one typed cast");
+        };
+        let expected_domain = if intrinsic.ends_with(".trapping") {
+            omega_core::arithmetic::ArithmeticDomain::Trapping
+        } else if intrinsic.ends_with(".saturating") {
+            omega_core::arithmetic::ArithmeticDomain::Saturating
+        } else {
+            omega_core::arithmetic::ArithmeticDomain::Exact
+        };
+        assert_eq!(
+            cast.domain, expected_domain,
+            "wrong rewrite for `{intrinsic}`"
+        );
+    }
+
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter must execute the complete float-to-integer matrix; error: {:?}",
+        outcome.error
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-named-float-to-integer-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("public float-to-integer requirements should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("public float-to-integer canary should run");
+    assert_eq!(output.status.code(), Some(70));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn named_float_to_integer_rejections_are_explicit() {
+    for (name, expected) in [
+        (
+            "float/named_float_to_integer_exact_unproven",
+            "cannot prove unqualified `I32::from_f64` operand",
+        ),
+        (
+            "float/named_float_to_integer_wrapping_rejected",
+            "has no overload for result dispatch set `arithmetic:Wrapping`",
+        ),
+        (
+            "float/named_float_to_integer_no_context_unproven",
+            "cannot prove unqualified `I32::from_f64` operand",
+        ),
+        (
+            "float/named_float_to_integer_implicit_discard_rejected",
+            "discards its non-unit `i32` result",
+        ),
+        (
+            "operators/named_operator_result_overload_duplicate_dispatch",
+            "duplicate named requirement overload `Convert::value`",
+        ),
+    ] {
+        let diagnostics = compile_canary_without_output(&fail_canary(name))
+            .expect_err("invalid public float-to-integer call unexpectedly compiled");
+        let rendered = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            rendered.contains(expected),
+            "{name} should report `{expected}`, got:\n{rendered}"
+        );
+    }
+}
+
+#[test]
+fn named_float_to_integer_trapping_requirements_trap_in_both_engines() {
+    for name in [
+        "float/runtime_named_float_to_integer_trapping_nan_traps",
+        "float/runtime_named_float_to_integer_trapping_overflow_traps",
+    ] {
+        let canary = pass_canary(name);
+        let main_path = canary.join("main.omg");
+        let checked = omega_compiler::compile_to_checked(&main_path, None)
+            .expect("named Trapping float-to-integer requirement should compile");
+        let interpreted = omega_interpreter::interpret(&checked, &[]);
+        assert!(
+            interpreted.error.is_some(),
+            "{name} reached its post-conversion sentinel in the interpreter"
+        );
+
+        let leaf = name.rsplit('/').next().unwrap_or("trap");
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-named-float-int-{leaf}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: main_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .expect("named Trapping float-to-integer requirement should compile natively");
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .expect("named Trapping float-to-integer canary should start");
+        assert!(
+            !output.status.success(),
+            "{name} reached its post-conversion sentinel natively"
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
 }
 
 #[test]
@@ -39899,6 +40121,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "float/named_provider_multiply_then_add_exit",
     "float/runtime_named_format_conversion_exit",
     "float/runtime_named_integer_to_float_conversion_exit",
+    "float/runtime_named_float_to_integer_conversion_exit",
+    "float/named_float_to_integer_no_context_compile",
+    "float/runtime_named_float_to_integer_trapping_nan_traps",
+    "float/runtime_named_float_to_integer_trapping_overflow_traps",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
@@ -40859,6 +41085,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "constraints/multiple_policy_domain_chain",
     "arithmetic/float_to_int_exact_unproven",
     "arithmetic/float_to_int_wrapping_rejected",
+    "float/named_float_to_integer_exact_unproven",
+    "float/named_float_to_integer_wrapping_rejected",
+    "float/named_float_to_integer_no_context_unproven",
+    "float/named_float_to_integer_implicit_discard_rejected",
     "arithmetic/exact_integer_cast_unproven",
     "arithmetic/exact_shift_count_out_of_range",
     "arithmetic/exact_shift_count_unproven",
@@ -41373,6 +41603,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "operators/root_operator_reordered_generic_duplicate",
     "operators/root_operator_return_only_overload",
     "operators/root_operator_duplicate",
+    "operators/named_operator_result_overload_duplicate_dispatch",
     "operators/duplicate_spelling_binding",
     "operators/app_package_provider_rejected",
     "operators/unregistered_provider_binding",

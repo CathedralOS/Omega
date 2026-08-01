@@ -175,6 +175,199 @@ windows_x64 machine FloatNativeProvider::from_u64_to_f64(value: u64) -> f64
     satisfies F64::from_u64
     via Binding::CompilerIntrinsic("F64::from_u64.u64");
 
+windows_x64 machine FloatNativeProvider::from_f32_to_i8_exact(value: f32) -> i8
+    satisfies I8::from_f32
+    via Binding::CompilerIntrinsic("I8::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i8_trapping(value: f32) -> i8 in Trapping
+    satisfies I8::from_f32
+    via Binding::CompilerIntrinsic("I8::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i8_saturating(value: f32) -> i8 in Saturating
+    satisfies I8::from_f32
+    via Binding::CompilerIntrinsic("I8::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i8_exact(value: f64) -> i8
+    satisfies I8::from_f64
+    via Binding::CompilerIntrinsic("I8::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i8_trapping(value: f64) -> i8 in Trapping
+    satisfies I8::from_f64
+    via Binding::CompilerIntrinsic("I8::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i8_saturating(value: f64) -> i8 in Saturating
+    satisfies I8::from_f64
+    via Binding::CompilerIntrinsic("I8::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i16_exact(value: f32) -> i16
+    satisfies I16::from_f32
+    via Binding::CompilerIntrinsic("I16::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i16_trapping(value: f32) -> i16 in Trapping
+    satisfies I16::from_f32
+    via Binding::CompilerIntrinsic("I16::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i16_saturating(value: f32) -> i16 in Saturating
+    satisfies I16::from_f32
+    via Binding::CompilerIntrinsic("I16::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i16_exact(value: f64) -> i16
+    satisfies I16::from_f64
+    via Binding::CompilerIntrinsic("I16::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i16_trapping(value: f64) -> i16 in Trapping
+    satisfies I16::from_f64
+    via Binding::CompilerIntrinsic("I16::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i16_saturating(value: f64) -> i16 in Saturating
+    satisfies I16::from_f64
+    via Binding::CompilerIntrinsic("I16::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i32_exact(value: f32) -> i32
+    satisfies I32::from_f32
+    via Binding::CompilerIntrinsic("I32::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i32_trapping(value: f32) -> i32 in Trapping
+    satisfies I32::from_f32
+    via Binding::CompilerIntrinsic("I32::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i32_saturating(value: f32) -> i32 in Saturating
+    satisfies I32::from_f32
+    via Binding::CompilerIntrinsic("I32::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i32_exact(value: f64) -> i32
+    satisfies I32::from_f64
+    via Binding::CompilerIntrinsic("I32::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i32_trapping(value: f64) -> i32 in Trapping
+    satisfies I32::from_f64
+    via Binding::CompilerIntrinsic("I32::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i32_saturating(value: f64) -> i32 in Saturating
+    satisfies I32::from_f64
+    via Binding::CompilerIntrinsic("I32::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i64_exact(value: f32) -> i64
+    satisfies I64::from_f32
+    via Binding::CompilerIntrinsic("I64::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i64_trapping(value: f32) -> i64 in Trapping
+    satisfies I64::from_f32
+    via Binding::CompilerIntrinsic("I64::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_i64_saturating(value: f32) -> i64 in Saturating
+    satisfies I64::from_f32
+    via Binding::CompilerIntrinsic("I64::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i64_exact(value: f64) -> i64
+    satisfies I64::from_f64
+    via Binding::CompilerIntrinsic("I64::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i64_trapping(value: f64) -> i64 in Trapping
+    satisfies I64::from_f64
+    via Binding::CompilerIntrinsic("I64::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_i64_saturating(value: f64) -> i64 in Saturating
+    satisfies I64::from_f64
+    via Binding::CompilerIntrinsic("I64::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u8_exact(value: f32) -> u8
+    satisfies U8::from_f32
+    via Binding::CompilerIntrinsic("U8::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u8_trapping(value: f32) -> u8 in Trapping
+    satisfies U8::from_f32
+    via Binding::CompilerIntrinsic("U8::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u8_saturating(value: f32) -> u8 in Saturating
+    satisfies U8::from_f32
+    via Binding::CompilerIntrinsic("U8::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u8_exact(value: f64) -> u8
+    satisfies U8::from_f64
+    via Binding::CompilerIntrinsic("U8::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u8_trapping(value: f64) -> u8 in Trapping
+    satisfies U8::from_f64
+    via Binding::CompilerIntrinsic("U8::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u8_saturating(value: f64) -> u8 in Saturating
+    satisfies U8::from_f64
+    via Binding::CompilerIntrinsic("U8::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u16_exact(value: f32) -> u16
+    satisfies U16::from_f32
+    via Binding::CompilerIntrinsic("U16::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u16_trapping(value: f32) -> u16 in Trapping
+    satisfies U16::from_f32
+    via Binding::CompilerIntrinsic("U16::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u16_saturating(value: f32) -> u16 in Saturating
+    satisfies U16::from_f32
+    via Binding::CompilerIntrinsic("U16::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u16_exact(value: f64) -> u16
+    satisfies U16::from_f64
+    via Binding::CompilerIntrinsic("U16::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u16_trapping(value: f64) -> u16 in Trapping
+    satisfies U16::from_f64
+    via Binding::CompilerIntrinsic("U16::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u16_saturating(value: f64) -> u16 in Saturating
+    satisfies U16::from_f64
+    via Binding::CompilerIntrinsic("U16::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u32_exact(value: f32) -> u32
+    satisfies U32::from_f32
+    via Binding::CompilerIntrinsic("U32::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u32_trapping(value: f32) -> u32 in Trapping
+    satisfies U32::from_f32
+    via Binding::CompilerIntrinsic("U32::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u32_saturating(value: f32) -> u32 in Saturating
+    satisfies U32::from_f32
+    via Binding::CompilerIntrinsic("U32::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u32_exact(value: f64) -> u32
+    satisfies U32::from_f64
+    via Binding::CompilerIntrinsic("U32::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u32_trapping(value: f64) -> u32 in Trapping
+    satisfies U32::from_f64
+    via Binding::CompilerIntrinsic("U32::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u32_saturating(value: f64) -> u32 in Saturating
+    satisfies U32::from_f64
+    via Binding::CompilerIntrinsic("U32::from_f64.f64.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u64_exact(value: f32) -> u64
+    satisfies U64::from_f32
+    via Binding::CompilerIntrinsic("U64::from_f32.f32.exact");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u64_trapping(value: f32) -> u64 in Trapping
+    satisfies U64::from_f32
+    via Binding::CompilerIntrinsic("U64::from_f32.f32.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f32_to_u64_saturating(value: f32) -> u64 in Saturating
+    satisfies U64::from_f32
+    via Binding::CompilerIntrinsic("U64::from_f32.f32.saturating");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u64_exact(value: f64) -> u64
+    satisfies U64::from_f64
+    via Binding::CompilerIntrinsic("U64::from_f64.f64.exact");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u64_trapping(value: f64) -> u64 in Trapping
+    satisfies U64::from_f64
+    via Binding::CompilerIntrinsic("U64::from_f64.f64.trapping");
+
+windows_x64 machine FloatNativeProvider::from_f64_to_u64_saturating(value: f64) -> u64 in Saturating
+    satisfies U64::from_f64
+    via Binding::CompilerIntrinsic("U64::from_f64.f64.saturating");
+
+
 
 windows_x64 machine FloatNativeProvider::negate32(value: f32) -> f32
     satisfies F32::negate

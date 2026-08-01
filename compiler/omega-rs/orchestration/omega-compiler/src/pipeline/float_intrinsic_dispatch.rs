@@ -9,6 +9,7 @@
 
 use omega_checked_trees::CheckedTrees;
 use omega_core::{
+    arithmetic::ArithmeticDomain,
     diagnostics::Diagnostic,
     literals::{FloatFormat, FloatLiteral},
     symbols::BuiltinFunction,
@@ -24,7 +25,7 @@ enum NamedFloatRealization {
     },
     Negate(FloatFormat),
     MultiplyThenAdd(FloatFormat),
-    Convert(FloatFormat),
+    Convert(ArithmeticDomain),
 }
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
@@ -183,7 +184,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
-            NamedFloatRealization::Convert(_format) => {
+            NamedFloatRealization::Convert(domain) => {
                 let Some(target_type) = omega_typed_trees::operator::resolve_named_expression_call(
                     &checked.typed,
                     &call,
@@ -198,7 +199,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                     value: arguments[0],
                     target_type,
                     target_label: omega_core::arena::HandleSpan::empty(),
-                    domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+                    domain,
                     semantic_domain: omega_core::arena::HandleSpan::empty(),
                     semantic_domain_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     form: omega_core::cast_form::CastForm::Value,
@@ -216,8 +217,11 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
 }
 
 fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
-    if let Some(target) = integer_to_float_intrinsic_target(intrinsic) {
-        return Some(NamedFloatRealization::Convert(target));
+    if let Some(domain) = float_to_integer_intrinsic_domain(intrinsic) {
+        return Some(NamedFloatRealization::Convert(domain));
+    }
+    if integer_to_float_intrinsic(intrinsic) {
+        return Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact));
     }
     match intrinsic {
         "F32::minimum.f32" | "F64::minimum.f64" => Some(NamedFloatRealization::Builtin {
@@ -268,27 +272,57 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
             function: BuiltinFunction::FloatClassifyF64,
             arity: 1,
         }),
-        "F32::from_f64.f64" => Some(NamedFloatRealization::Convert(FloatFormat::F32)),
-        "F64::from_f32.f32" => Some(NamedFloatRealization::Convert(FloatFormat::F64)),
+        "F32::from_f64.f64" | "F64::from_f32.f32" => {
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
+        }
         _ => None,
     }
 }
 
-fn integer_to_float_intrinsic_target(intrinsic: &str) -> Option<FloatFormat> {
-    let (namespace, operation) = intrinsic.split_once("::")?;
-    let (requirement, source_suffix) = operation.rsplit_once('.')?;
-    let source = requirement.strip_prefix("from_")?;
+fn integer_to_float_intrinsic(intrinsic: &str) -> bool {
+    let Some((namespace, operation)) = intrinsic.split_once("::") else {
+        return false;
+    };
+    let Some((requirement, source_suffix)) = operation.rsplit_once('.') else {
+        return false;
+    };
+    let Some(source) = requirement.strip_prefix("from_") else {
+        return false;
+    };
     if source != source_suffix
         || !matches!(
             source,
             "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
         )
     {
+        return false;
+    }
+    matches!(namespace, "F32" | "F64")
+}
+
+fn float_to_integer_intrinsic_domain(intrinsic: &str) -> Option<ArithmeticDomain> {
+    let (namespace, operation) = intrinsic.split_once("::")?;
+    if !matches!(
+        namespace,
+        "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
+    ) {
         return None;
     }
-    match namespace {
-        "F32" => Some(FloatFormat::F32),
-        "F64" => Some(FloatFormat::F64),
+    let mut parts = operation.split('.');
+    let requirement = parts.next()?;
+    let source_suffix = parts.next()?;
+    let policy = parts.next()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let source = requirement.strip_prefix("from_")?;
+    if source != source_suffix || !matches!(source, "f32" | "f64") {
+        return None;
+    }
+    match policy {
+        "exact" => Some(ArithmeticDomain::Exact),
+        "trapping" => Some(ArithmeticDomain::Trapping),
+        "saturating" => Some(ArithmeticDomain::Saturating),
         _ => None,
     }
 }
@@ -352,21 +386,34 @@ mod tests {
         );
         assert_eq!(
             named_float_realization("F32::from_f64.f64"),
-            Some(NamedFloatRealization::Convert(FloatFormat::F32))
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
         );
         assert_eq!(
             named_float_realization("F64::from_f32.f32"),
-            Some(NamedFloatRealization::Convert(FloatFormat::F64))
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
         );
         assert_eq!(
             named_float_realization("F32::from_i8.i8"),
-            Some(NamedFloatRealization::Convert(FloatFormat::F32))
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
         );
         assert_eq!(
             named_float_realization("F64::from_u64.u64"),
-            Some(NamedFloatRealization::Convert(FloatFormat::F64))
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
         );
         assert_eq!(named_float_realization("F32::from_u64.i64"), None);
+        assert_eq!(
+            named_float_realization("I32::from_f64.f64.trapping"),
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Trapping))
+        );
+        assert_eq!(
+            named_float_realization("I32::from_f64.f64.exact"),
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact))
+        );
+        assert_eq!(
+            named_float_realization("U8::from_f32.f32.saturating"),
+            Some(NamedFloatRealization::Convert(ArithmeticDomain::Saturating))
+        );
+        assert_eq!(named_float_realization("U8::from_f32.f32.wrapping"), None);
         assert_eq!(
             named_float_realization("F32::square_root_toward_positive.f32"),
             None

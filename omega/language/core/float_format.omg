@@ -34,6 +34,18 @@ data FloatFormat [copy] {
 data F32 { }
 data F64 { }
 
+// Stable namespaces for destination-owned integer conversion requirements.
+// These are operation owners only; primitive i8..u64 values remain the
+// runtime carriers.
+data I8 { }
+data I16 { }
+data I32 { }
+data I64 { }
+data U8 { }
+data U16 { }
+data U32 { }
+data U64 { }
+
 // Permanent semantic identities for the language's f32 and f64 carriers.
 // Targets may realize these records in hardware or software; they may not
 // reinterpret the names as a different format.

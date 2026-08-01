@@ -225,6 +225,44 @@ impl TypedTrees {
         )
     }
 
+    /// Canonical identity of one explicitly named operator requirement.
+    /// Unspelled boundary operators participate in the same result-domain
+    /// lookup as other named requirements; fixed spellings remain
+    /// operand-directed and use this only for declaration diagnostics.
+    pub fn normalized_operator_overload_identity(
+        &self,
+        operator: &crate::operator::OperatorDefinition,
+    ) -> NormalizedNamedCallableIdentity {
+        let path = self
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        let flags = self
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| {
+                format!(
+                    "self={};mutable={};const={}",
+                    parameter.is_self, parameter.is_mutable, parameter.is_const
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        NormalizedNamedCallableIdentity {
+            path,
+            // Operator operand identity already normalizes generic binders by
+            // first structural occurrence, including declarations whose type
+            // parameter lists are reordered. Retain parameter modes beside it.
+            parameters: format!(
+                "operands({});flags({flags})",
+                crate::operator::operator_operand_signature(self, operator)
+            ),
+            result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
+        }
+    }
+
     fn normalized_named_callable_identity(
         &self,
         path: &str,

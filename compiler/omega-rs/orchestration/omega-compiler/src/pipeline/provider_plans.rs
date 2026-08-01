@@ -384,6 +384,46 @@ fn expected_float_intrinsic(
             };
             (operation, expected_primitive, expected_result)
         }
+        "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64" => {
+            let expected_result = match namespace.as_str() {
+                "I8" => omega_typed_trees::types::PrimitiveType::I8,
+                "I16" => omega_typed_trees::types::PrimitiveType::I16,
+                "I32" => omega_typed_trees::types::PrimitiveType::I32,
+                "I64" => omega_typed_trees::types::PrimitiveType::I64,
+                "U8" => omega_typed_trees::types::PrimitiveType::U8,
+                "U16" => omega_typed_trees::types::PrimitiveType::U16,
+                "U32" => omega_typed_trees::types::PrimitiveType::U32,
+                "U64" => omega_typed_trees::types::PrimitiveType::U64,
+                _ => unreachable!(),
+            };
+            let (expected_source, source_name) = match requirement.as_str() {
+                "from_f32" => (omega_typed_trees::types::PrimitiveType::F32, "f32"),
+                "from_f64" => (omega_typed_trees::types::PrimitiveType::F64, "f64"),
+                _ => return None,
+            };
+            let [value] = parameters else {
+                return None;
+            };
+            if typed.primitive_type_reference(value.type_reference) != Some(expected_source)
+                || typed.primitive_type_reference(operator.return_type) != Some(expected_result)
+            {
+                return None;
+            }
+            let policy = match typed
+                .type_reference_table
+                .arithmetic_domain(operator.return_type)
+            {
+                omega_core::arithmetic::ArithmeticDomain::Exact => "exact",
+                omega_core::arithmetic::ArithmeticDomain::Trapping => "trapping",
+                omega_core::arithmetic::ArithmeticDomain::Saturating => "saturating",
+                omega_core::arithmetic::ArithmeticDomain::Wrapping => return None,
+            };
+            return Some(format!(
+                "{}::{}.{source_name}.{policy}",
+                namespace.as_str(),
+                requirement.as_str()
+            ));
+        }
         _ => return None,
     };
     if typed.primitive_type_reference(operator.return_type) != Some(expected_result) {

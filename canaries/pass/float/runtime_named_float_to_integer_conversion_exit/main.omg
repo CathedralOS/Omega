@@ -1,0 +1,57 @@
+// Public destination-owned float-to-integer matrix. Exact calls prove their
+// source values locally and truncate toward zero. Result-domain context picks
+// the Trapping and Saturating overloads without changing the requirement path.
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let i8_32: i8 = I8::from_f32(-8.75f32);
+    let i8_64: i8 = I8::from_f64(-9.75);
+    let i16_32: i16 = I16::from_f32(-160.25f32);
+    let i16_64: i16 = I16::from_f64(-161.25);
+    let i32_32: i32 = I32::from_f32(-320.75f32);
+    let i32_64: i32 = I32::from_f64(-321.75);
+    let i64_32: i64 = I64::from_f32(-640.5f32);
+    let i64_64: i64 = I64::from_f64(-641.5);
+    let u8_32: u8 = U8::from_f32(8.75f32);
+    let u8_64: u8 = U8::from_f64(9.75);
+    let u16_32: u16 = U16::from_f32(160.25f32);
+    let u16_64: u16 = U16::from_f64(161.25);
+    let u32_32: u32 = U32::from_f32(320.75f32);
+    let u32_64: u32 = U32::from_f64(321.75);
+    let u64_32: u64 = U64::from_f32(640.5f32);
+    let u64_64: u64 = U64::from_f64(641.5);
+
+    let trapped: i32 in Trapping = I32::from_f64(70.75);
+    let trapped_value: i32 = trapped as i32;
+    let huge: f64 = 100000000000000000000.0;
+    let saturated_i8: i8 in Saturating = I8::from_f64(huge);
+    let saturated_i8_value: i8 = saturated_i8 as i8;
+    let negative: f64 = 0.0 - huge;
+    let saturated_u64: u64 in Saturating = U64::from_f64(negative);
+    let saturated_u64_value: u64 = saturated_u64 as u64;
+    let nan: f64 = 0.0 / 0.0;
+    let saturated_nan: i32 in Saturating = I32::from_f64(nan);
+    let saturated_nan_value: i32 = saturated_nan as i32;
+
+    transition {
+        i8_32 == -8 && i8_64 == -9
+            && i16_32 == -160 && i16_64 == -161
+            && i32_32 == -320 && i32_64 == -321
+            && i64_32 == -640 && i64_64 == -641
+            && u8_32 == 8 && u8_64 == 9
+            && u16_32 == 160 && u16_64 == 161
+            && u32_32 == 320 && u32_64 == 321
+            && u64_32 == 640 && u64_64 == 641
+            && trapped_value == 70
+            && saturated_i8_value == 127
+            && saturated_u64_value == 0
+            && saturated_nan_value == 0 -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

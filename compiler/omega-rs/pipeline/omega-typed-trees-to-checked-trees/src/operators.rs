@@ -239,9 +239,10 @@ fn collect_expression_operator_use(
     }
 }
 
-/// Retain the selected identity of one normalized F32/F64 named call. Policy
-/// adaptation is operand-driven for float-returning operations; classification
-/// calls are still recorded but carry no float result adapter.
+/// Retain the selected identity of one normalized numeric boundary call.
+/// Policy adaptation is operand-driven for float-returning F32/F64 operations;
+/// classification and destination-owned float-to-integer conversions carry no
+/// float result adapter.
 fn named_float_operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -249,27 +250,34 @@ fn named_float_operator_use_fact(
     call: &TableCallExpression,
 ) -> Option<CheckedNamedOperatorUseFact> {
     let operator = omega_typed_trees::operator::resolve_named_expression_call(program, call)?;
-    let format = match program
-        .operator_path_members(operator.name)
-        .first()?
-        .as_str()
-    {
-        "F32" => FloatFormat::BINARY32,
-        "F64" => FloatFormat::BINARY64,
+    let path = program.operator_path_members(operator.name);
+    let [namespace, requirement] = path else {
+        return None;
+    };
+    let format = match namespace.as_str() {
+        "F32" => Some(FloatFormat::BINARY32),
+        "F64" => Some(FloatFormat::BINARY64),
+        "I8" | "I16" | "I32" | "I64" | "U8" | "U16" | "U32" | "U64"
+            if matches!(requirement.as_str(), "from_f32" | "from_f64") =>
+        {
+            None
+        }
         _ => return None,
     };
-    let returns_matching_float = matches!(
-        (
-            format,
-            program.primitive_type_reference(operator.return_type)
-        ),
-        (FloatFormat::BINARY32, Some(PrimitiveType::F32))
-            | (FloatFormat::BINARY64, Some(PrimitiveType::F64))
-    );
-    let policy_adapter = if returns_matching_float {
-        named_float_policy_adapter(program, call, origin, format)
-    } else {
-        CheckedArithmeticPolicyAdapter::None
+    let policy_adapter = match format {
+        Some(format)
+            if matches!(
+                (
+                    format,
+                    program.primitive_type_reference(operator.return_type)
+                ),
+                (FloatFormat::BINARY32, Some(PrimitiveType::F32))
+                    | (FloatFormat::BINARY64, Some(PrimitiveType::F64))
+            ) =>
+        {
+            named_float_policy_adapter(program, call, origin, format)
+        }
+        _ => CheckedArithmeticPolicyAdapter::None,
     };
 
     Some(CheckedNamedOperatorUseFact {

@@ -4202,6 +4202,15 @@ fn validate_expression_call_bounds(
             retains_arithmetic_policy,
             diagnostics,
         );
+        validate_named_float_to_integer_call(
+            program,
+            current_machine,
+            current_state,
+            value_env,
+            operator,
+            explicit_arguments,
+            diagnostics,
+        );
         return;
     }
 
@@ -4663,6 +4672,64 @@ fn validate_expression_call_bounds(
     );
 
     let _ = writable_roots;
+}
+
+fn validate_named_float_to_integer_call(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    value_env: &ValueEnv,
+    operator: &omega_typed_trees::operator::OperatorDefinition,
+    arguments: &[ExpressionHandle],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let path = program.operator_path_members(operator.name);
+    let [namespace, requirement] = path else {
+        return;
+    };
+    if !matches!(requirement.as_str(), "from_f32" | "from_f64")
+        || program
+            .type_reference_table
+            .arithmetic_domain(operator.return_type)
+            != omega_core::arithmetic::ArithmeticDomain::Exact
+    {
+        return;
+    }
+    let target = match namespace.as_str() {
+        "I8" => PrimitiveType::I8,
+        "I16" => PrimitiveType::I16,
+        "I32" => PrimitiveType::I32,
+        "I64" => PrimitiveType::I64,
+        "U8" => PrimitiveType::U8,
+        "U16" => PrimitiveType::U16,
+        "U32" => PrimitiveType::U32,
+        "U64" => PrimitiveType::U64,
+        _ => return,
+    };
+    let [value] = arguments else {
+        return;
+    };
+    if arithmetic_domains::float_source_proves_int_cast(
+        program,
+        current_machine,
+        Some(current_state),
+        value_env,
+        *value,
+        target,
+    ) {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` cannot prove unqualified `{}::{}` operand `{}` is finite and truncates into `{}`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `{} in Trapping` or `{} in Saturating`",
+        current_machine.name,
+        current_state.name,
+        namespace,
+        requirement,
+        program.expression_table.display_name(*value),
+        target.name(),
+        target.name(),
+        target.name(),
+    )));
 }
 
 /// A value call on a LET-BOUND LOCAL receiver (`let p: Pair = ..; p.total()`)
