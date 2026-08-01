@@ -163,6 +163,9 @@ ordering may not publish and may not be stronger than the success ordering.
 The implemented first slice carries its ordering through normalized
 load/store/fetch-add/fetch-sub/fetch-xor/fetch-or/fetch-and/swap/
 compare-exchange operations and exact x86-64/AArch64 instruction selection.
+The source parser, access-plan records, diagnostics, canaries, and sample
+corpus use the settled vocabulary above; conventional literature spellings
+reject instead of becoming aliases.
 It does not yet constitute the formal memory model: the language relations,
 their global-order axioms, and proofs that each target mapping refines them
 remain required.

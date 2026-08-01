@@ -620,8 +620,8 @@ fn placed_view_exposes_admitted_atomic_operations() {
         "data Main {}",
         r#"
 machine inspect(view: &Placed<UartPlacement, Registers>) {
-    let observed: u64 = view.counter.load(Relaxed);
-    let prior: u64 = view.counter.fetch_add(1, Relaxed);
+    let observed: u64 = view.counter.load(NoOrdering);
+    let prior: u64 = view.counter.fetch_add(1, NoOrdering);
 }
 
 data Main {}
@@ -659,15 +659,15 @@ fn placed_view_exposes_each_individually_admitted_atomic_family() {
             "data Main {}",
             r#"
 machine inspect(view: &Placed<UartPlacement, Registers>) {
-    let observed: u64 = view.counter.load(Relaxed);
-    view.counter.store(observed, Relaxed);
-    let added: u64 = view.counter.fetch_add(1, Relaxed);
-    let subtracted: u64 = view.counter.fetch_sub(1, Relaxed);
-    let xored: u64 = view.counter.fetch_xor(1, Relaxed);
-    let ored: u64 = view.counter.fetch_or(1, Relaxed);
-    let anded: u64 = view.counter.fetch_and(1, Relaxed);
-    let swapped: u64 = view.counter.swap(1, Relaxed);
-    let exchanged: u64 = view.counter.compare_exchange(1, 2, Relaxed, Relaxed);
+    let observed: u64 = view.counter.load(NoOrdering);
+    view.counter.store(observed, NoOrdering);
+    let added: u64 = view.counter.fetch_add(1, NoOrdering);
+    let subtracted: u64 = view.counter.fetch_sub(1, NoOrdering);
+    let xored: u64 = view.counter.fetch_xor(1, NoOrdering);
+    let ored: u64 = view.counter.fetch_or(1, NoOrdering);
+    let anded: u64 = view.counter.fetch_and(1, NoOrdering);
+    let swapped: u64 = view.counter.swap(1, NoOrdering);
+    let exchanged: u64 = view.counter.compare_exchange(1, 2, NoOrdering, NoOrdering);
 }
 
 data Main {}
@@ -710,13 +710,13 @@ fn placed_view_rejects_atomic_operations_outside_the_plan() {
         "data Main {}",
         r#"
 machine inspect(view: &mut Placed<UartPlacement, Registers>) {
-    view.counter.store(1, Relaxed);
-    let subtracted: u64 = view.counter.fetch_sub(1, Relaxed);
-    let xored: u64 = view.counter.fetch_xor(1, Relaxed);
-    let ored: u64 = view.counter.fetch_or(1, Relaxed);
-    let anded: u64 = view.counter.fetch_and(1, Relaxed);
-    let swapped: u64 = view.counter.swap(1, Relaxed);
-    let exchanged: u64 = view.counter.compare_exchange(1, 2, Relaxed, Relaxed);
+    view.counter.store(1, NoOrdering);
+    let subtracted: u64 = view.counter.fetch_sub(1, NoOrdering);
+    let xored: u64 = view.counter.fetch_xor(1, NoOrdering);
+    let ored: u64 = view.counter.fetch_or(1, NoOrdering);
+    let anded: u64 = view.counter.fetch_and(1, NoOrdering);
+    let swapped: u64 = view.counter.swap(1, NoOrdering);
+    let exchanged: u64 = view.counter.compare_exchange(1, 2, NoOrdering, NoOrdering);
 }
 
 data Main {}

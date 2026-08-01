@@ -350,7 +350,7 @@ pub fn encode_atomic_store_from_operand(
             target_offset,
             byte_size,
             value,
-            ordering == omega_core::atomic::MemoryOrdering::SeqCst,
+            ordering == omega_core::atomic::MemoryOrdering::GlobalOrder,
         ),
     }
 }

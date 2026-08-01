@@ -12245,7 +12245,7 @@ pub fn encode_atomic_store_from_operand(
     target_offset: usize,
     byte_size: usize,
     value: RuntimeValueOperandHandle,
-    seq_cst: bool,
+    global_order: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_atomic_store_from_operand_width(
         runtime_value_operands,
@@ -12254,7 +12254,7 @@ pub fn encode_atomic_store_from_operand(
     ));
     append_mov_r14_imm64(&mut bytes, 0);
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, value)?;
-    if seq_cst {
+    if global_order {
         append_xchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     } else {
         append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
@@ -17615,14 +17615,14 @@ mod atomic_tests {
     }
 
     #[test]
-    fn seq_cst_store_uses_implicitly_locked_xchg() {
+    fn global_order_store_uses_implicitly_locked_xchg() {
         let operands = operands(&[42]);
         let value = RuntimeValueOperandHandle::from_parts(0, 1);
-        let relaxed = encode_atomic_store_from_operand(&operands, 8, 4, value, false).unwrap();
-        let seq_cst = encode_atomic_store_from_operand(&operands, 8, 4, value, true).unwrap();
-        assert_eq!(&relaxed[20..23], &[0x45, 0x89, 0x96]);
-        assert_eq!(&seq_cst[20..23], &[0x45, 0x87, 0x96]);
-        assert_eq!(relaxed.len(), seq_cst.len());
+        let no_ordering = encode_atomic_store_from_operand(&operands, 8, 4, value, false).unwrap();
+        let global_order = encode_atomic_store_from_operand(&operands, 8, 4, value, true).unwrap();
+        assert_eq!(&no_ordering[20..23], &[0x45, 0x89, 0x96]);
+        assert_eq!(&global_order[20..23], &[0x45, 0x87, 0x96]);
+        assert_eq!(no_ordering.len(), global_order.len());
     }
 
     #[test]

@@ -806,8 +806,8 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
 // Atomics end-to-end across architectures. The host (windows_x64) RUNS the
 // program (fetch_add + compare_exchange, exit 70). aarch64 cannot execute on
 // this box, so the linux_arm64 build is verified by the emitted ELF carrying the
-// real, ordering-selected LSE atomic instructions: LDADD (Relaxed fetch_add)
-// and CASAL (AcqRel compare_exchange), both returning the instruction-observed
+// real, ordering-selected LSE atomic instructions: LDADD (NoOrdering fetch_add)
+// and CASAL (ReceivePublish compare_exchange), both returning the instruction-observed
 // prior value in the result register.
 #[test]
 fn atomics_cross_platform_emits_real_atomics() {
@@ -835,8 +835,8 @@ fn atomics_cross_platform_emits_real_atomics() {
         assert_eq!(
             output.status.code(),
             Some(70),
-            "expected fetch_add(5) old==10/counter==15 then compare_exchange(15,99) \
-             prior==15/counter==99 (exit 70); got {:?}\n{}",
+            "expected RMW and every legal load/store ordering family to round-trip \
+             (exit 70); got {:?}\n{}",
             output.status.code(),
             String::from_utf8_lossy(&output.stderr)
         );
@@ -860,10 +860,10 @@ fn atomics_cross_platform_emits_real_atomics() {
         183,
         "e_machine should be EM_AARCH64"
     );
-    // LDADD w17, w26, [x16] = 0xB831021A (Relaxed fetch_add; prior in W26).
+    // LDADD w17, w26, [x16] = 0xB831021A (NoOrdering fetch_add; prior in W26).
     assert!(
         elf.windows(4).any(|w| w == [0x1a, 0x02, 0x31, 0xb8]),
-        "linux_arm64 ELF should contain LDADD w17,w26,[x16] for Relaxed fetch_add"
+        "linux_arm64 ELF should contain LDADD w17,w26,[x16] for NoOrdering fetch_add"
     );
     // CASAL w26, w17, [x16] = 0x88FAFE11 (compare_exchange).
     assert!(
@@ -40497,10 +40497,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/native_vector_external_leaf_rejected",
     "calls/runtime_two_state_tail_cycle_forwarding_rejected",
     "termination/joint_machine_call_cycle_forwarding_rejected",
-    "atomics/atomic_load_release_ordering_rejected",
-    "atomics/atomic_store_acquire_ordering_rejected",
-    "atomics/atomic_compare_exchange_failure_release_rejected",
+    "atomics/atomic_load_publish_ordering_rejected",
+    "atomics/atomic_store_receive_ordering_rejected",
+    "atomics/atomic_compare_exchange_failure_publish_rejected",
     "atomics/atomic_compare_exchange_failure_stronger_rejected",
+    "atomics/atomic_legacy_ordering_rejected",
     "atomics/atomic_unknown_ordering_rejected",
     "domains/routed_domain_as_rejected",
     "domains/implicit_semantic_domain_local_weakening",
@@ -41312,9 +41313,9 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
 // ch17 Atomics (concurrency stage 1) RUN canaries
 // =============================================================================
 
-/// M2 -- AtomicU32 load/store round-trip.  `store(42, Relaxed)` writes then
-/// `load(Relaxed)` reads back.  On x86_64 both lower to plain aligned `mov`
-/// (TSO gives acquire-release for free; SeqCst store frontier documented).
+/// M2 -- AtomicU32 load/store round-trip for NoOrdering,
+/// Publish-to-Receive, and GlobalOrder. The last pair pins the exact
+/// target-specific global-order store realization rather than only parser legality.
 #[test]
 fn runtime_atomic_load_store_exit_canary_runs() {
     let canary = pass_canary("atomics/runtime_atomic_load_store_exit");
@@ -41338,8 +41339,8 @@ fn runtime_atomic_load_store_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected atomic store(42)+load to read back 42 and exit 70; \
-         exit 71 = value mismatch; got {:?}\nstderr:\n{}",
+        "expected every legal atomic load/store ordering pair to round-trip and exit 70; \
+         exits 71..73 identify the mismatched pair; got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );

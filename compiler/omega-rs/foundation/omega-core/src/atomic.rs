@@ -7,11 +7,11 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryOrdering {
-    Relaxed,
-    Acquire,
-    Release,
-    AcqRel,
-    SeqCst,
+    NoOrdering,
+    Receive,
+    Publish,
+    ReceivePublish,
+    GlobalOrder,
 }
 
 /// The operation-specific ordering commitment attached to an atomic source
@@ -51,42 +51,44 @@ impl AtomicOrderingPlan {
 impl MemoryOrdering {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
-            "Relaxed" => Some(Self::Relaxed),
-            "Acquire" => Some(Self::Acquire),
-            "Release" => Some(Self::Release),
-            "AcqRel" => Some(Self::AcqRel),
-            "SeqCst" => Some(Self::SeqCst),
+            "NoOrdering" => Some(Self::NoOrdering),
+            "Receive" => Some(Self::Receive),
+            "Publish" => Some(Self::Publish),
+            "ReceivePublish" => Some(Self::ReceivePublish),
+            "GlobalOrder" => Some(Self::GlobalOrder),
             _ => None,
         }
     }
 
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Relaxed => "Relaxed",
-            Self::Acquire => "Acquire",
-            Self::Release => "Release",
-            Self::AcqRel => "AcqRel",
-            Self::SeqCst => "SeqCst",
+            Self::NoOrdering => "NoOrdering",
+            Self::Receive => "Receive",
+            Self::Publish => "Publish",
+            Self::ReceivePublish => "ReceivePublish",
+            Self::GlobalOrder => "GlobalOrder",
         }
     }
 
     pub const fn valid_for_load(self) -> bool {
-        matches!(self, Self::Relaxed | Self::Acquire | Self::SeqCst)
+        matches!(self, Self::NoOrdering | Self::Receive | Self::GlobalOrder)
     }
 
     pub const fn valid_for_store(self) -> bool {
-        matches!(self, Self::Relaxed | Self::Release | Self::SeqCst)
+        matches!(self, Self::NoOrdering | Self::Publish | Self::GlobalOrder)
     }
 
-    /// Compare-exchange failure performs only a load: it cannot release, and
+    /// Compare-exchange failure performs only a load: it cannot publish, and
     /// it cannot demand synchronization stronger than the success ordering.
     pub const fn valid_compare_exchange_failure(self, success: Self) -> bool {
         match success {
-            Self::Relaxed => matches!(self, Self::Relaxed),
-            Self::Acquire => matches!(self, Self::Relaxed | Self::Acquire),
-            Self::Release => matches!(self, Self::Relaxed),
-            Self::AcqRel => matches!(self, Self::Relaxed | Self::Acquire),
-            Self::SeqCst => matches!(self, Self::Relaxed | Self::Acquire | Self::SeqCst),
+            Self::NoOrdering => matches!(self, Self::NoOrdering),
+            Self::Receive => matches!(self, Self::NoOrdering | Self::Receive),
+            Self::Publish => matches!(self, Self::NoOrdering),
+            Self::ReceivePublish => matches!(self, Self::NoOrdering | Self::Receive),
+            Self::GlobalOrder => {
+                matches!(self, Self::NoOrdering | Self::Receive | Self::GlobalOrder)
+            }
         }
     }
 }
@@ -97,33 +99,36 @@ mod tests {
 
     #[test]
     fn operation_legality_matches_the_c11_matrix() {
-        assert!(O::Relaxed.valid_for_load());
-        assert!(O::Acquire.valid_for_load());
-        assert!(O::SeqCst.valid_for_load());
-        assert!(!O::Release.valid_for_load());
-        assert!(!O::AcqRel.valid_for_load());
+        assert!(O::NoOrdering.valid_for_load());
+        assert!(O::Receive.valid_for_load());
+        assert!(O::GlobalOrder.valid_for_load());
+        assert!(!O::Publish.valid_for_load());
+        assert!(!O::ReceivePublish.valid_for_load());
 
-        assert!(O::Relaxed.valid_for_store());
-        assert!(O::Release.valid_for_store());
-        assert!(O::SeqCst.valid_for_store());
-        assert!(!O::Acquire.valid_for_store());
-        assert!(!O::AcqRel.valid_for_store());
+        assert!(O::NoOrdering.valid_for_store());
+        assert!(O::Publish.valid_for_store());
+        assert!(O::GlobalOrder.valid_for_store());
+        assert!(!O::Receive.valid_for_store());
+        assert!(!O::ReceivePublish.valid_for_store());
 
-        assert!(O::Acquire.valid_compare_exchange_failure(O::AcqRel));
-        assert!(O::SeqCst.valid_compare_exchange_failure(O::SeqCst));
-        assert!(!O::Release.valid_compare_exchange_failure(O::SeqCst));
-        assert!(!O::SeqCst.valid_compare_exchange_failure(O::Acquire));
-        assert!(!O::Acquire.valid_compare_exchange_failure(O::Release));
+        assert!(O::Receive.valid_compare_exchange_failure(O::ReceivePublish));
+        assert!(O::GlobalOrder.valid_compare_exchange_failure(O::GlobalOrder));
+        assert!(!O::Publish.valid_compare_exchange_failure(O::GlobalOrder));
+        assert!(!O::GlobalOrder.valid_compare_exchange_failure(O::Receive));
+        assert!(!O::Receive.valid_compare_exchange_failure(O::Publish));
     }
 
     #[test]
     fn operation_plan_keeps_compare_exchange_axes_separate() {
         let plan = super::AtomicOrderingPlan::CompareExchange {
-            success: O::AcqRel,
-            failure: O::Acquire,
+            success: O::ReceivePublish,
+            failure: O::Receive,
         };
-        assert_eq!(plan.success(), O::AcqRel);
-        assert_eq!(plan.failure(), Some(O::Acquire));
-        assert_eq!(super::AtomicOrderingPlan::Load(O::SeqCst).failure(), None);
+        assert_eq!(plan.success(), O::ReceivePublish);
+        assert_eq!(plan.failure(), Some(O::Receive));
+        assert_eq!(
+            super::AtomicOrderingPlan::Load(O::GlobalOrder).failure(),
+            None
+        );
     }
 }

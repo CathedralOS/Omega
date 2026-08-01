@@ -11,8 +11,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.counter.store(10, Relaxed);
-    let prior: u32 = self.counter.swap(42, AcqRel);
+    self.counter.store(10, NoOrdering);
+    let prior: u32 = self.counter.swap(42, ReceivePublish);
     transition prior == 10 {
         true -> check_value()
         false -> bad_prior()

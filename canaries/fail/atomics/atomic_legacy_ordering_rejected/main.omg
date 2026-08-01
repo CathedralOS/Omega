@@ -1,0 +1,7 @@
+// The conventional literature names are not Omega source vocabulary.
+
+data Main { counter: AtomicU32; }
+
+machine Main::main(&mut self) {
+    self.counter.store(1, Relaxed);
+}

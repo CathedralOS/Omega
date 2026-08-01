@@ -11,8 +11,8 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.counter.store(42, Relaxed);
-    let prior: u32 in Wrapping = self.counter.fetch_sub(12, AcqRel);
+    self.counter.store(42, NoOrdering);
+    let prior: u32 in Wrapping = self.counter.fetch_sub(12, ReceivePublish);
     transition prior == 42 {
         true -> check_value()
         false -> bad_prior()
@@ -26,7 +26,7 @@ machine Main::main(&mut self) {
     }
 
     state do_wrapping_subtract(&mut self) {
-        let prior2: u32 in Wrapping = self.counter.fetch_sub(31, Relaxed);
+        let prior2: u32 in Wrapping = self.counter.fetch_sub(31, NoOrdering);
         transition prior2 == 30 {
             true -> check_wrapped_value()
             false -> bad_wrapping_prior()

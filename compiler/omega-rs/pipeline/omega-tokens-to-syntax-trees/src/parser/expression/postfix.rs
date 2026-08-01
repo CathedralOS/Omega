@@ -302,8 +302,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the
             // IDENTITY on the place (reads the value). The closed ordering
             // vocabulary is validated before this stage-one desugar erases its
-            // syntax; loads admit Relaxed/Acquire/SeqCst and reject the
-            // release-bearing orderings. Target-specific instruction strength
+            // syntax; loads admit NoOrdering/Receive/GlobalOrder and reject the
+            // publish-bearing orderings. Target-specific instruction strength
             // remains a downstream lowering obligation. `load` is not reserved at data/machine
             // definition sites so this rewrite only fires for the exact
             // one-argument call form; `x.load` stays an ordinary member read.
@@ -318,7 +318,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                                 .map_err(|reason| after_open.error_here(reason))?;
                         if !ordering.valid_for_load() {
                             return Err(after_open.error_here(format!(
-                                "atomic load cannot use `{}` ordering; use `Relaxed`, `Acquire`, or `SeqCst`",
+                                "atomic load cannot use `{}` ordering; use `NoOrdering`, `Receive`, or `GlobalOrder`",
                                 ordering.name()
                             )));
                         }
@@ -334,7 +334,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     }
                 }
                 return Err(after_open.error_here(
-                    "`load` takes exactly one ordering argument: e.g. `self.counter.load(Relaxed)`",
+                    "`load` takes exactly one ordering argument: e.g. `self.counter.load(NoOrdering)`",
                 ));
             }
 
@@ -602,20 +602,20 @@ pub(in crate::parser) fn memory_ordering_from_expression(
 ) -> Result<omega_core::atomic::MemoryOrdering, String> {
     let ExpressionNode::Name(path) = syntax_trees.expressions.expression(expression) else {
         return Err(
-            "atomic ordering must be one of `Relaxed`, `Acquire`, `Release`, `AcqRel`, or `SeqCst`"
+            "atomic ordering must be one of `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
                 .to_owned(),
         );
     };
     let members = syntax_trees.expressions.identifier_path_members(*path);
     if members.len() != 1 {
         return Err(
-            "atomic ordering must be an unqualified built-in name: `Relaxed`, `Acquire`, `Release`, `AcqRel`, or `SeqCst`"
+            "atomic ordering must be an unqualified built-in name: `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
                 .to_owned(),
         );
     }
     omega_core::atomic::MemoryOrdering::from_name(members[0].as_str()).ok_or_else(|| {
         format!(
-            "unknown atomic ordering `{}`; expected `Relaxed`, `Acquire`, `Release`, `AcqRel`, or `SeqCst`",
+            "unknown atomic ordering `{}`; expected `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`",
             members[0].as_str()
         )
     })
@@ -640,7 +640,7 @@ fn validate_atomic_call_orderings(
                 .map_err(ParseError::new)?;
             if !ordering.valid_for_store() {
                 return Err(ParseError::new(format!(
-                    "atomic store cannot use `{}` ordering; use `Relaxed`, `Release`, or `SeqCst`",
+                    "atomic store cannot use `{}` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`",
                     ordering.name()
                 )));
             }
@@ -659,7 +659,7 @@ fn validate_atomic_call_orderings(
                 memory_ordering_from_expression(syntax_trees, *failure).map_err(ParseError::new)?;
             if !failure.valid_compare_exchange_failure(success) {
                 return Err(ParseError::new(format!(
-                    "atomic compare_exchange failure ordering `{}` is invalid for success ordering `{}`; failure cannot release or be stronger than success",
+                    "atomic compare_exchange failure ordering `{}` is invalid for success ordering `{}`; failure cannot publish or be stronger than success",
                     failure.name(),
                     success.name()
                 )));

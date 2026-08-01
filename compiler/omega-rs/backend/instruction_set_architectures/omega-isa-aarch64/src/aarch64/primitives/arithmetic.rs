@@ -225,12 +225,11 @@ pub(in crate::aarch64) fn encode_ldadd(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::Relaxed => 0,
-        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
-            0x00C0_0000
-        }
+        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
+        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::ReceivePublish
+        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_0000
@@ -263,12 +262,11 @@ pub(in crate::aarch64) fn encode_ldeor(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::Relaxed => 0,
-        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
-            0x00C0_0000
-        }
+        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
+        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::ReceivePublish
+        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_2000
@@ -301,12 +299,11 @@ pub(in crate::aarch64) fn encode_ldset(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::Relaxed => 0,
-        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
-            0x00C0_0000
-        }
+        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
+        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::ReceivePublish
+        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_3000
@@ -339,12 +336,11 @@ pub(in crate::aarch64) fn encode_ldclr(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::Relaxed => 0,
-        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
-            0x00C0_0000
-        }
+        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
+        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::ReceivePublish
+        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_1000
@@ -397,12 +393,11 @@ pub(in crate::aarch64) fn encode_swp(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::Relaxed => 0,
-        omega_core::atomic::MemoryOrdering::Acquire => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Release => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
-            0x00C0_0000
-        }
+        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
+        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
+        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::ReceivePublish
+        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_8000
@@ -436,12 +431,11 @@ pub(in crate::aarch64) fn encode_cas(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::Relaxed => 0,
-        omega_core::atomic::MemoryOrdering::Acquire => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::Release => 0x0000_8000,
-        omega_core::atomic::MemoryOrdering::AcqRel | omega_core::atomic::MemoryOrdering::SeqCst => {
-            0x0040_8000
-        }
+        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
+        omega_core::atomic::MemoryOrdering::Receive => 0x0040_0000,
+        omega_core::atomic::MemoryOrdering::Publish => 0x0000_8000,
+        omega_core::atomic::MemoryOrdering::ReceivePublish
+        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x0040_8000,
     };
     Ok(encode_instruction(
         0x08A0_7C00

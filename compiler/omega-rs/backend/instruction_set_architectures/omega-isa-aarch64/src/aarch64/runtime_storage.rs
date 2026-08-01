@@ -6926,7 +6926,7 @@ mod tests {
                 17,
                 26,
                 16,
-                omega_core::atomic::MemoryOrdering::AcqRel,
+                omega_core::atomic::MemoryOrdering::ReceivePublish,
             )
             .expect("encode");
             assert_eq!(bytes.len(), 4, "atomic add is a single instruction");
@@ -6940,15 +6940,22 @@ mod tests {
             assert_eq!(word & 0x1F, 26, "Rt = prior-value result register");
         }
         assert!(
-            encode_ldadd(3, 17, 26, 16, omega_core::atomic::MemoryOrdering::Relaxed,).is_err(),
+            encode_ldadd(
+                3,
+                17,
+                26,
+                16,
+                omega_core::atomic::MemoryOrdering::NoOrdering,
+            )
+            .is_err(),
             "non-power-of-two width must error, not miscompile"
         );
         let words = [
-            omega_core::atomic::MemoryOrdering::Relaxed,
-            omega_core::atomic::MemoryOrdering::Acquire,
-            omega_core::atomic::MemoryOrdering::Release,
-            omega_core::atomic::MemoryOrdering::AcqRel,
-            omega_core::atomic::MemoryOrdering::SeqCst,
+            omega_core::atomic::MemoryOrdering::NoOrdering,
+            omega_core::atomic::MemoryOrdering::Receive,
+            omega_core::atomic::MemoryOrdering::Publish,
+            omega_core::atomic::MemoryOrdering::ReceivePublish,
+            omega_core::atomic::MemoryOrdering::GlobalOrder,
         ]
         .map(|ordering| u32::from_le_bytes(encode_ldadd(4, 17, 26, 16, ordering).unwrap()));
         assert_eq!(
@@ -6966,11 +6973,11 @@ mod tests {
     #[test]
     fn swp_encodes_per_width_and_ordering() {
         let words = [
-            omega_core::atomic::MemoryOrdering::Relaxed,
-            omega_core::atomic::MemoryOrdering::Acquire,
-            omega_core::atomic::MemoryOrdering::Release,
-            omega_core::atomic::MemoryOrdering::AcqRel,
-            omega_core::atomic::MemoryOrdering::SeqCst,
+            omega_core::atomic::MemoryOrdering::NoOrdering,
+            omega_core::atomic::MemoryOrdering::Receive,
+            omega_core::atomic::MemoryOrdering::Publish,
+            omega_core::atomic::MemoryOrdering::ReceivePublish,
+            omega_core::atomic::MemoryOrdering::GlobalOrder,
         ]
         .map(|ordering| u32::from_le_bytes(encode_swp(4, 17, 26, 16, ordering).unwrap()));
         assert_eq!(
@@ -6990,36 +6997,45 @@ mod tests {
                     17,
                     26,
                     16,
-                    omega_core::atomic::MemoryOrdering::AcqRel,
+                    omega_core::atomic::MemoryOrdering::ReceivePublish,
                 )
                 .is_ok()
             );
         }
-        assert!(encode_swp(3, 17, 26, 16, omega_core::atomic::MemoryOrdering::Relaxed).is_err());
+        assert!(
+            encode_swp(
+                3,
+                17,
+                26,
+                16,
+                omega_core::atomic::MemoryOrdering::NoOrdering
+            )
+            .is_err()
+        );
     }
 
     #[test]
-    fn atomic_load_store_select_relaxed_and_ordered_encodings() {
+    fn atomic_load_store_select_no_ordering_and_ordered_encodings() {
         use omega_core::atomic::MemoryOrdering as O;
 
         assert_eq!(
-            u32::from_le_bytes(encode_atomic_load(17, 16, 4, O::Relaxed).unwrap()),
+            u32::from_le_bytes(encode_atomic_load(17, 16, 4, O::NoOrdering).unwrap()),
             0xB940_0211
         );
         assert_eq!(
-            u32::from_le_bytes(encode_atomic_load(17, 16, 4, O::Acquire).unwrap()),
+            u32::from_le_bytes(encode_atomic_load(17, 16, 4, O::Receive).unwrap()),
             0x88DF_FE11
         );
         assert_eq!(
-            u32::from_le_bytes(encode_atomic_store(17, 16, 4, O::Relaxed).unwrap()),
+            u32::from_le_bytes(encode_atomic_store(17, 16, 4, O::NoOrdering).unwrap()),
             0xB900_0211
         );
         assert_eq!(
-            u32::from_le_bytes(encode_atomic_store(17, 16, 4, O::Release).unwrap()),
+            u32::from_le_bytes(encode_atomic_store(17, 16, 4, O::Publish).unwrap()),
             0x889F_FE11
         );
-        assert!(encode_atomic_load(17, 16, 4, O::Release).is_err());
-        assert!(encode_atomic_store(17, 16, 4, O::Acquire).is_err());
+        assert!(encode_atomic_load(17, 16, 4, O::Publish).is_err());
+        assert!(encode_atomic_store(17, 16, 4, O::Receive).is_err());
     }
 
     /// The full `encode_atomic_fetch_add` path: the emitted length must equal
@@ -7041,7 +7057,7 @@ mod tests {
                 4,
                 result_offset,
                 delta,
-                omega_core::atomic::MemoryOrdering::AcqRel,
+                omega_core::atomic::MemoryOrdering::ReceivePublish,
             )
             .expect("encode");
             assert_eq!(
@@ -7068,7 +7084,7 @@ mod tests {
                 4,
                 0,
                 delta,
-                omega_core::atomic::MemoryOrdering::Relaxed,
+                omega_core::atomic::MemoryOrdering::NoOrdering,
             )
             .is_err()
         );
@@ -7087,7 +7103,7 @@ mod tests {
             4,
             24,
             delta,
-            omega_core::atomic::MemoryOrdering::AcqRel,
+            omega_core::atomic::MemoryOrdering::ReceivePublish,
         )
         .expect("encode");
         assert_eq!(
@@ -7120,7 +7136,7 @@ mod tests {
             4,
             24,
             value,
-            omega_core::atomic::MemoryOrdering::AcqRel,
+            omega_core::atomic::MemoryOrdering::ReceivePublish,
         )
         .expect("encode");
         assert_eq!(
@@ -7148,7 +7164,7 @@ mod tests {
             4,
             24,
             value,
-            omega_core::atomic::MemoryOrdering::AcqRel,
+            omega_core::atomic::MemoryOrdering::ReceivePublish,
         )
         .expect("encode");
         assert_eq!(
@@ -7176,7 +7192,7 @@ mod tests {
                     26,
                     17,
                     16,
-                    omega_core::atomic::MemoryOrdering::AcqRel,
+                    omega_core::atomic::MemoryOrdering::ReceivePublish,
                 )
                 .expect("encode")[..]
                     .try_into()
@@ -7191,15 +7207,22 @@ mod tests {
             assert_eq!((word >> 10) & 0x1F, 0x1F, "Rt2 fixed 11111");
         }
         assert!(
-            encode_cas(3, 26, 17, 16, omega_core::atomic::MemoryOrdering::Relaxed,).is_err(),
+            encode_cas(
+                3,
+                26,
+                17,
+                16,
+                omega_core::atomic::MemoryOrdering::NoOrdering,
+            )
+            .is_err(),
             "non-power-of-two errors"
         );
         let words = [
-            omega_core::atomic::MemoryOrdering::Relaxed,
-            omega_core::atomic::MemoryOrdering::Acquire,
-            omega_core::atomic::MemoryOrdering::Release,
-            omega_core::atomic::MemoryOrdering::AcqRel,
-            omega_core::atomic::MemoryOrdering::SeqCst,
+            omega_core::atomic::MemoryOrdering::NoOrdering,
+            omega_core::atomic::MemoryOrdering::Receive,
+            omega_core::atomic::MemoryOrdering::Publish,
+            omega_core::atomic::MemoryOrdering::ReceivePublish,
+            omega_core::atomic::MemoryOrdering::GlobalOrder,
         ]
         .map(|ordering| u32::from_le_bytes(encode_cas(4, 26, 17, 16, ordering).unwrap()));
         assert_eq!(
@@ -7233,7 +7256,7 @@ mod tests {
                 result_offset,
                 expected,
                 new_value,
-                omega_core::atomic::MemoryOrdering::AcqRel,
+                omega_core::atomic::MemoryOrdering::ReceivePublish,
             )
             .expect("encode");
             assert_eq!(
@@ -7272,7 +7295,7 @@ mod tests {
                 0,
                 expected,
                 new_value,
-                omega_core::atomic::MemoryOrdering::Relaxed,
+                omega_core::atomic::MemoryOrdering::NoOrdering,
             )
             .is_err()
         );

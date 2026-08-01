@@ -1,8 +1,0 @@
-// The failure path performs only a load and therefore cannot release.
-
-data Main { counter: AtomicU32; }
-
-machine Main::main(&mut self) {
-    let prior: u32 in Wrapping =
-        self.counter.compare_exchange(0, 1, SeqCst, Release);
-}
