@@ -32,8 +32,8 @@ use super::super::static_values::{
 };
 use super::operators::{
     builtin_runtime_call_operator, builtin_runtime_call_operator_in_table,
-    builtin_runtime_unary_call_operator_in_table, runtime_binary_operator,
-    supports_runtime_value_operand,
+    builtin_runtime_unary_call_operator_in_table, is_float_classification_predicate,
+    runtime_binary_operator, supports_runtime_value_operand,
 };
 use super::{
     resolve_runtime_table_call_result_source_place,
@@ -333,8 +333,19 @@ fn resolve_runtime_value_operand_in_table_with_root(
                 static_values,
                 runtime_value_operands,
             )?;
-            let right = if operator == StateGuardOperator::IsNan {
-                runtime_value_operands.insert(RuntimeValueOperand::Immediate(0))
+            let byte_width = binary_value_operand_byte_width(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                operand_expression,
+                operand_expression,
+            );
+            let right = if is_float_classification_predicate(operator) {
+                // Static metadata carrier, not another evaluation: direct
+                // bool-target writes need the source float width even when
+                // the authored operand folds to an untyped immediate.
+                runtime_value_operands.insert(RuntimeValueOperand::Immediate(byte_width as i64))
             } else {
                 // Existing sqrt representation; the encoder reads its right
                 // float register. IsNan deliberately does not duplicate this.
@@ -359,15 +370,7 @@ fn resolve_runtime_value_operand_in_table_with_root(
                 operand_expression,
                 operand_expression,
             );
-            let byte_width = binary_value_operand_byte_width(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                operand_expression,
-                operand_expression,
-            );
-            if operator == StateGuardOperator::IsNan && byte_width == 4 {
+            if is_float_classification_predicate(operator) && byte_width == 4 {
                 super::binary_table_writes::narrow_f32_literal_operands(
                     runtime_value_operands,
                     expressions,

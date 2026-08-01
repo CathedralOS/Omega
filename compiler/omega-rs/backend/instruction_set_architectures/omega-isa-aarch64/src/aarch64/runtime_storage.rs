@@ -5970,6 +5970,10 @@ fn is_comparison_operator(operator: StateGuardOperator) -> bool {
         StateGuardOperator::Equal
             | StateGuardOperator::NotEqual
             | StateGuardOperator::IsNan
+            | StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
             | StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
@@ -6045,6 +6049,17 @@ pub(in crate::aarch64) fn runtime_binary_operation_byte_size(
     right: RuntimeValueOperandHandle,
     target_byte_size: usize,
 ) -> usize {
+    if matches!(
+        operator,
+        StateGuardOperator::IsNan
+            | StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    ) && let Some(width @ (4 | 8)) = operands.immediate_integer(right)
+    {
+        return width as usize;
+    }
     if is_comparison_operator(operator) {
         runtime_binary_compare_byte_size(operands, left, right)
     } else if matches!(
@@ -6101,6 +6116,138 @@ fn append_wrapping_operand_truncation(
     }
 }
 
+fn is_integer_float_classification_predicate(operator: StateGuardOperator) -> bool {
+    matches!(
+        operator,
+        StateGuardOperator::IsFinite
+            | StateGuardOperator::IsInfinite
+            | StateGuardOperator::IsNormal
+            | StateGuardOperator::IsSubnormal
+    )
+}
+
+fn append_float_classification_threshold(
+    bytes: &mut Vec<u8>,
+    end_branches: &mut Vec<(usize, u8)>,
+    value_register: u8,
+    threshold_register: u8,
+    threshold_bits: u64,
+    condition: u8,
+) {
+    append_unsigned_immediate_padded(bytes, threshold_register, threshold_bits);
+    bytes.extend(encode_compare_x_register(
+        value_register,
+        threshold_register,
+    ));
+    let branch = bytes.len();
+    bytes.extend([0; 4]);
+    end_branches.push((branch, condition));
+}
+
+/// Classify the raw IEEE bits without touching FP control state. Entry and
+/// result share `destination_register`; both scratches are dead on exit.
+fn float_classification_predicate_bytes(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    destination_register: u8,
+    scratches: [u8; 2],
+) -> Result<Vec<u8>, Diagnostic> {
+    let (infinity, minimum_normal) = if byte_size > 4 {
+        (0x7ff0_0000_0000_0000_u64, 0x0010_0000_0000_0000_u64)
+    } else {
+        (0x7f80_0000_u64, 0x0080_0000_u64)
+    };
+    let value = scratches[0];
+    let threshold = scratches[1];
+    let mut bytes = Vec::new();
+    if byte_size > 4 {
+        bytes.extend(encode_move_x_register(value, destination_register));
+        bytes.extend(encode_and_x_low_ones(value, value, 63));
+    } else {
+        bytes.extend(encode_move_w_register(value, destination_register));
+        bytes.extend(encode_and_w_low_ones(value, value, 31));
+    }
+    bytes.extend(encode_movz_w(destination_register, 0));
+
+    // Record branch sites and patch them once the common end is known.
+    // Conditions use AArch64's unsigned integer flags over |bits|.
+    let mut end_branches: Vec<(usize, u8)> = Vec::new();
+    match operator {
+        StateGuardOperator::IsFinite => append_float_classification_threshold(
+            &mut bytes,
+            &mut end_branches,
+            value,
+            threshold,
+            infinity,
+            0,
+        ),
+        StateGuardOperator::IsInfinite => append_float_classification_threshold(
+            &mut bytes,
+            &mut end_branches,
+            value,
+            threshold,
+            infinity,
+            1,
+        ),
+        StateGuardOperator::IsNormal => {
+            append_float_classification_threshold(
+                &mut bytes,
+                &mut end_branches,
+                value,
+                threshold,
+                minimum_normal,
+                2,
+            );
+            append_float_classification_threshold(
+                &mut bytes,
+                &mut end_branches,
+                value,
+                threshold,
+                infinity,
+                0,
+            );
+        }
+        StateGuardOperator::IsSubnormal => {
+            bytes.extend(encode_compare_x_immediate(value, 0)?);
+            let branch = bytes.len();
+            bytes.extend([0; 4]);
+            end_branches.push((branch, 3));
+            append_float_classification_threshold(
+                &mut bytes,
+                &mut end_branches,
+                value,
+                threshold,
+                minimum_normal,
+                0,
+            );
+        }
+        _ => unreachable!("classification helper is predicate-only"),
+    }
+    bytes.extend(encode_movz_w(destination_register, 1));
+    let end = bytes.len();
+    for (branch, condition) in end_branches {
+        let distance = end as isize - branch as isize;
+        let instruction = match condition {
+            0 => encode_conditional_branch_higher_or_same(distance)?,
+            1 => encode_conditional_branch_not_equal(distance)?,
+            2 => encode_conditional_branch_lower(distance)?,
+            3 => encode_conditional_branch_equal(distance)?,
+            _ => unreachable!(),
+        };
+        bytes[branch..branch + 4].copy_from_slice(&instruction);
+    }
+    Ok(bytes)
+}
+
+pub(in crate::aarch64) fn float_classification_predicate_width(
+    operator: StateGuardOperator,
+    byte_size: usize,
+) -> usize {
+    float_classification_predicate_bytes(operator, byte_size, 17, [15, 14])
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
 fn append_runtime_float_binary_operation(
     bytes: &mut Vec<u8>,
     byte_size: usize,
@@ -6136,6 +6283,15 @@ fn append_runtime_float_binary_operation(
             guard_scratches[1],
         )?);
         bytes.extend(encode_float_move_to_gpr(byte_size, left_register, 0)?);
+        return Ok(());
+    }
+    if is_integer_float_classification_predicate(operator) {
+        bytes.extend(float_classification_predicate_bytes(
+            operator,
+            byte_size,
+            left_register,
+            guard_scratches,
+        )?);
         return Ok(());
     }
     bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
@@ -6588,6 +6744,36 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
 mod tests {
     use super::super::widths;
     use super::*;
+
+    #[test]
+    fn float_classification_sequences_stay_in_width_lockstep() {
+        for byte_size in [4usize, 8] {
+            for operator in [
+                StateGuardOperator::IsFinite,
+                StateGuardOperator::IsInfinite,
+                StateGuardOperator::IsNormal,
+                StateGuardOperator::IsSubnormal,
+            ] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    byte_size,
+                    17,
+                    operator,
+                    26,
+                    omega_core::arithmetic::ArithmeticDomain::Exact,
+                    [15, 14],
+                )
+                .expect("encode float classification");
+                assert_eq!(
+                    bytes.len(),
+                    float_classification_predicate_width(operator, byte_size),
+                    "f{} {operator:?} width",
+                    byte_size * 8,
+                );
+            }
+        }
+    }
 
     /// `LDADDAL <Ws/Xs>, <Wt/Xt>, [<Xn>]` per width: the size field selects the
     /// access size, the acquire+release bits are set, and Rt receives the prior.

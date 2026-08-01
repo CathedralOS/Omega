@@ -608,6 +608,10 @@ fn computed_host_builtin_operands(
     let is_unary_float = [
         omega_core::symbols::BuiltinFunction::Sqrt,
         omega_core::symbols::BuiltinFunction::FloatIsNan,
+        omega_core::symbols::BuiltinFunction::FloatIsFinite,
+        omega_core::symbols::BuiltinFunction::FloatIsInfinite,
+        omega_core::symbols::BuiltinFunction::FloatIsNormal,
+        omega_core::symbols::BuiltinFunction::FloatIsSubnormal,
     ]
     .into_iter()
     .any(|builtin| symbols.builtin_function_symbol(builtin) == Some(call.target_symbol));

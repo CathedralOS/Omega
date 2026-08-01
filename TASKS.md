@@ -896,8 +896,8 @@ and allocation handles expose no compiler-owned stack/control storage.
   backend fail-closed, malformed-binding, and native pipeline canaries pin the
   slice. Primitive spellings have completed target-plan migration. The first
   named-operation cohort now adds exact F32/F64 `minimum`, `maximum`,
-  `square_root`, `negate`, `is_nan`, and `multiply_then_add` satisfiers on all
-  four native targets.
+  `square_root`, `negate`, `is_nan`, `is_finite`, `is_infinite`, `is_normal`,
+  `is_subnormal`, and `multiply_then_add` satisfiers on all four native targets.
   Checked named-use evidence authorizes an execution-only rewrite in both
   engine pipelines while source proof identity remains attached to the
   boundary requirement. Negate becomes a root-preserving multiply by a landed
@@ -906,15 +906,20 @@ and allocation handles expose no compiler-owned stack/control storage.
   nested lowering. Native/interpreter canaries cover NaN operand order, equal
   signed-zero choice, exact-square roots, signed-zero/infinity negation, and
   NaN/non-NaN predicates in both widths; x86-64/AArch64 cross-target output and
-  exact-binding rejection pin the new paths. Multiply-then-add preserves its
+  exact-binding rejection pin the new paths. The remaining bool-valued
+  classification predicates share that exactly-once unary path. Interpreter
+  execution uses `FloatSemantics`; both native backends classify raw signless
+  IEEE patterns, with an internal 4/8 metadata marker retaining the source
+  format across direct bool writes whose operand folds to an immediate. Zero,
+  normal, subnormal, infinity, and NaN edges plus native width-lockstep tests
+  pin both formats. Multiply-then-add preserves its
   distinct two-rounding contract through an unnameable format-specific ternary
   compiler call that survives state-local expression copying. Both native
   backends retain all three authored operands, emit a separate multiply and
   add, and adapt policy only at the final result; cancellation and finite-
   overflow canaries prove unfused and operand-aware Saturating behavior in both
   engines. Remaining rung-3 work includes FMA, the other
-  classification/predicates,
-  directed-rounding families, checked software
+  enum-valued `classify` requirement, directed-rounding families, checked software
   fallbacks, canonical floating-control-state preconditions/restoration, and
   rung-4 differential evidence.
   **Language-design blocked:** the public float/integer and

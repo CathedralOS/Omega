@@ -218,6 +218,22 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
             function: BuiltinFunction::FloatIsNan,
             arity: 1,
         }),
+        "F32::is_finite.f32" | "F64::is_finite.f64" => Some(NamedFloatRealization::Builtin {
+            function: BuiltinFunction::FloatIsFinite,
+            arity: 1,
+        }),
+        "F32::is_infinite.f32" | "F64::is_infinite.f64" => Some(NamedFloatRealization::Builtin {
+            function: BuiltinFunction::FloatIsInfinite,
+            arity: 1,
+        }),
+        "F32::is_normal.f32" | "F64::is_normal.f64" => Some(NamedFloatRealization::Builtin {
+            function: BuiltinFunction::FloatIsNormal,
+            arity: 1,
+        }),
+        "F32::is_subnormal.f32" | "F64::is_subnormal.f64" => Some(NamedFloatRealization::Builtin {
+            function: BuiltinFunction::FloatIsSubnormal,
+            arity: 1,
+        }),
         _ => None,
     }
 }
@@ -265,6 +281,13 @@ mod tests {
             Some(NamedFloatRealization::MultiplyThenAdd(FloatFormat::F32))
         );
         assert_eq!(named_float_realization("F32::fused_multiply_add.f32"), None);
+        assert_eq!(
+            named_float_realization("F64::is_subnormal.f64"),
+            Some(NamedFloatRealization::Builtin {
+                function: BuiltinFunction::FloatIsSubnormal,
+                arity: 1,
+            })
+        );
         assert_eq!(
             named_float_realization("F32::square_root_toward_positive.f32"),
             None

@@ -5131,21 +5131,50 @@ impl<'program> Evaluator<'program> {
                 };
             }
         }
-        // Internal unary predicate selected only by exact named-float plans.
-        // Evaluate the argument once; duplicating `x` into a synthetic `x != x`
-        // tree after checking would duplicate nontrivial argument evaluation.
-        if target == "float#is_nan" && call.receiver == ExpressionHandle::invalid() {
+        // Internal unary predicates selected only by exact named-float plans.
+        // Evaluate the argument once; lowering a predicate to a duplicated
+        // expression would repeat nontrivial argument evaluation.
+        if matches!(
+            target,
+            "float#is_nan"
+                | "float#is_finite"
+                | "float#is_infinite"
+                | "float#is_normal"
+                | "float#is_subnormal"
+        ) && call.receiver == ExpressionHandle::invalid()
+        {
             let args = self
                 .program
                 .expression_table
                 .expression_handles(call.arguments)
                 .to_vec();
             if args.len() == 1 {
+                let format = if matches!(
+                    self.expression_scalar_type(args[0], frame),
+                    Some((PrimitiveType::F32, _))
+                ) {
+                    SemanticFloatFormat::BINARY32
+                } else {
+                    SemanticFloatFormat::BINARY64
+                };
                 return match self.eval_expression(args[0], frame)? {
-                    Value::Float(value) => Ok(Value::Bool(FloatSemantics::is_nan(
-                        &FloatMeaning::from_f64(value),
-                    ))),
-                    _ => unsupported("float#is_nan argument is not a float"),
+                    Value::Float(value) => {
+                        let meaning = if format == SemanticFloatFormat::BINARY32 {
+                            FloatMeaning::from_f32(value as f32)
+                        } else {
+                            FloatMeaning::from_f64(value)
+                        };
+                        let result = match target {
+                            "float#is_nan" => FloatSemantics::is_nan(&meaning),
+                            "float#is_finite" => FloatSemantics::is_finite(&meaning),
+                            "float#is_infinite" => FloatSemantics::is_infinite(&meaning),
+                            "float#is_normal" => FloatSemantics::is_normal(format, &meaning),
+                            "float#is_subnormal" => FloatSemantics::is_subnormal(format, &meaning),
+                            _ => unreachable!(),
+                        };
+                        Ok(Value::Bool(result))
+                    }
+                    _ => unsupported("float classification argument is not a float"),
                 };
             }
         }
