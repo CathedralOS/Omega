@@ -133,6 +133,18 @@ its value kind lacks an ordinary runtime representation. Current `Rat` is
 eligible only after the index site verifies its positive denominator, cancelled
 signed coordinates, and gcd-reduced numerator magnitude and denominator.
 
+This first stage is implemented. A named literal `const` over eligible
+integers, booleans, fixed arrays, records, or cases may instantiate a `const`
+parameter. The compiler recursively checks the declared value kind, orders
+fields by their declaration, and records the canonical value rather than the
+source initializer. Thus two record literals that differ only in field order
+have one generic identity. Floating/text values, references, slices, dynamic
+identities, and boundary-opaque data are ineligible. A noncanonical `Rat`
+rejects at the generic argument site. Quotient data and records with
+default-domain facts also reject until their canonical-representative or
+index-site proof path is implemented. Closed indexed domain families described
+next remain staged work.
+
 Second, an erased domain family may take a closed static index. The generic
 carrier is bound and then used in the ordinary position:
 

@@ -109,6 +109,13 @@ cannot assert
 eligibility. Open symbolic expressions normalize only under an exact selected
 algebraic conformance whose laws were checked, not admitted.
 
+PDI1 implementation status (2026-08-01): this structural eligibility judgment
+and canonical closed-value identity are live for generic `const` arguments over
+eligible literal integers, booleans, fixed arrays, records, and cases. Field
+order is declaration-canonical, and current structural `Rat` values are checked
+for positivity, cancellation, and gcd reduction at the argument site. The
+closed erased domain-family surface and its index field remain PDI2.
+
 ### The proof-side proposition-family fragment
 
 The systems verdict above remains unchanged for runtime data. The

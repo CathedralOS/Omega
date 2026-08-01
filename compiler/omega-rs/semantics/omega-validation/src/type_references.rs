@@ -1,11 +1,13 @@
 use crate::StateSignatureOwner;
 use crate::symbols::TopLevelSymbols;
+use omega_core::const_value::CanonicalConstValue;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::data::{TypeParameter, TypeParameterKind};
+use omega_typed_trees::data::{DataMember, TypeParameter, TypeParameterKind};
 use omega_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+use std::collections::HashSet;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
@@ -695,33 +697,55 @@ fn validate_const_data_argument(
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(primitive) = program.type_reference_table.primitive_type(parameter_type) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` must declare an integer primitive type",
-            parameter.name
-        )));
-        return;
-    };
-    if !primitive.accepts_integer_literal() {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` has non-integer type `{}`",
-            parameter.name,
-            primitive.name()
-        )));
-        return;
-    }
-
+    let primitive = program.type_reference_table.primitive_type(parameter_type);
+    let is_integer_parameter = primitive.is_some_and(PrimitiveType::accepts_integer_literal);
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
     else {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` requires an integer literal argument",
-            parameter.name
-        )));
+        diagnostics.push(Diagnostic::error(if is_integer_parameter {
+            format!(
+                "const parameter `{}` of `{base_name}` requires an integer literal argument",
+                parameter.name
+            )
+        } else {
+            format!(
+                "const parameter `{}` of `{base_name}` requires a canonical const value",
+                parameter.name
+            )
+        }));
         return;
     };
 
+    if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+        if let Err(reason) =
+            validate_typed_const_index_type(program, parameter_type, &mut HashSet::new())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` has an ineligible index type: {reason}",
+                parameter.name
+            )));
+            return;
+        }
+        let required_type = type_reference_label(program, parameter_type);
+        if value.type_name != required_type {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` has type `{required_type}`, but its canonical value has type `{}`",
+                parameter.name, value.type_name
+            )));
+        }
+        return;
+    }
+
     if let Ok(value) = name.as_str().parse::<i128>() {
+        let Some(primitive) = primitive.filter(|primitive| primitive.accepts_integer_literal())
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "const parameter `{}` of `{base_name}` requires a `{}` value, not integer `{value}`",
+                parameter.name,
+                type_reference_label(program, parameter_type),
+            )));
+            return;
+        };
         validate_const_integer_range(base_name, parameter, primitive, value, diagnostics);
         return;
     }
@@ -737,10 +761,17 @@ fn validate_const_data_argument(
             }
         });
     let Some(forwarded) = forwarded else {
-        diagnostics.push(Diagnostic::error(format!(
-            "const parameter `{}` of `{base_name}` requires an integer literal argument or an in-scope const parameter, got `{name}`",
-            parameter.name
-        )));
+        diagnostics.push(Diagnostic::error(if is_integer_parameter {
+            format!(
+                "const parameter `{}` of `{base_name}` requires an integer literal argument or an in-scope const parameter, got `{name}`",
+                parameter.name,
+            )
+        } else {
+            format!(
+                "const parameter `{}` of `{base_name}` requires a canonical const value or an in-scope const parameter, got `{name}`",
+                parameter.name,
+            )
+        }));
         return;
     };
     let TypeParameterKind::Const {
@@ -761,6 +792,86 @@ fn validate_const_data_argument(
             forwarded.name,
             type_reference_label(program, forwarded_type),
         )));
+    }
+}
+
+fn validate_typed_const_index_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut HashSet<String>,
+) -> Result<(), String> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => {
+            if matches!(
+                name.as_str(),
+                "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+                    | "addr"
+            ) {
+                return Ok(());
+            }
+            if matches!(name.as_str(), "f32" | "f64" | "string") {
+                return Err(format!(
+                    "`{name}` does not have canonical structural index identity"
+                ));
+            }
+            if !visiting.insert(name.as_str().to_owned()) {
+                return Ok(());
+            }
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == name.as_str())
+                .ok_or_else(|| format!("`{name}` is not declared data"))?;
+            if definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+                return Err(format!("boundary-opaque data `{name}` is not structural"));
+            }
+            if definition.quotient.is_some() {
+                return Err(format!(
+                    "quotient data `{name}` has no compiler-verified canonical representative"
+                ));
+            }
+            if !definition.where_facts.is_empty() {
+                return Err(format!(
+                    "data `{name}` has default-domain facts whose index-site proof is not implemented"
+                ));
+            }
+            for member in program.data_members(definition) {
+                match member {
+                    DataMember::Field(field) => validate_typed_const_index_type(
+                        program,
+                        field.type_reference,
+                        visiting,
+                    )?,
+                    DataMember::Variant(variant) => {
+                        for field in program.data_payload_fields(variant) {
+                            validate_typed_const_index_type(
+                                program,
+                                field.type_reference,
+                                visiting,
+                            )?;
+                        }
+                    }
+                }
+            }
+            visiting.remove(name.as_str());
+            Ok(())
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(_),
+        } => validate_typed_const_index_type(program, *element_type, visiting),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            validate_typed_const_index_type(program, *base_type, visiting)
+        }
+        TypeReferenceNode::Unit => Ok(()),
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::FixedArray { .. } => Err(
+            "indices require finite structural values with decidable equality and one canonical form"
+                .to_owned(),
+        ),
     }
 }
 

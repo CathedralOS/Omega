@@ -154,6 +154,19 @@ fingerprint input. Index eligibility is structural and cannot be supplied by
 an ordinary conformance. Because indices and domains erase, neither field
 changes carrier layout or SIMD shape.
 
+Implementation status (PDI1, 2026-08-01): the pre-resolution generic pass
+canonicalizes eligible structured literal constants recursively and replaces
+their source reference with a reserved length-delimited value atom. The atom's
+type plus canonical structural encoding is generic/monomorphization identity;
+its canonical display is diagnostic data. Declaration-aware validation accepts
+the atom only at a matching `const` parameter, including generic shapes the
+record monomorphizer intentionally leaves structural. Field order normalizes to
+declaration order. Current structural `Rat` values additionally reject a zero
+denominator, uncancelled signed coordinates, or a non-unit gcd. Closed domain
+index fields and open index-expression/evidence records remain the next two
+stages; quotient and default-domain-constrained value kinds fail closed until
+their canonical-representative/proof admission path exists.
+
 Implementation status (DOM1/STR2 semantic roles, 2026-07-31): core,
 symbol-resolved, and typed layers carry `DomainPredicateBody` and the closed
 `DomainSemanticRoles` record independently. An ordinary top-level operator's
@@ -796,8 +809,8 @@ service reach.
 3. **Tree propagation.** Carry the representations through symbol-resolved and
    typed trees, snapshots, cloning/substitution, and diagnostics. Eliminate
    re-derivation from body shape/keyword presence.
-   Stage structured canonical const values and closed indexed domains before
-   carrying open computed index expressions or their equality evidence.
+   Structured canonical const values are landed; stage closed indexed domains
+   before carrying open computed index expressions or their equality evidence.
 4. **Checked plans.** Split predicate facts, static semantic roles, and
   establishment evidence; add
   the place-keyed permission plan, service-reach plan, suspension plan,

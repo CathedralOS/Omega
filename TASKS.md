@@ -708,11 +708,6 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   weakening/explicit erasure, operator ownership, predicate `requires`, and
   exact route bodies are complete. Keep unit conversion in ordinary library
   machines and operators.
-- **PDI1:** generalize `const` parameters to structured values with decidable
-  structural equality and one canonical form. Reject noncanonical index values
-  at the index site; current `Rat` values must have a positive denominator,
-  cancelled signed coordinates, and gcd-reduced numerator magnitude and
-  denominator.
 - **PDI2:** implement closed indexed erased domains using
   `domain<T, const U: Unit> T::Quantity<U>;`. The first units package uses named
   combinations, spans carriers from one declaration, supports a destination
@@ -1118,8 +1113,8 @@ blocked work.
   termination, mutation, and trust normalize independently. Candidate resource
   demand and installed provision admit separately; a fixed resource ceiling is
   contract identity only when policy deliberately publishes one.
-- **Indexed domains, rung 2:** implement structured const parameters plus one
-  erased domain family over closed named unit indices. Prove one declaration
+- **Indexed domains, rung 2:** build on canonical structured const parameters
+  with one erased domain family over closed named unit indices. Prove one declaration
   spans `f64` and `i64` carriers, carrier layout and SIMD shape remain unchanged,
   arithmetic-policy composition stays independent, and predicate facts derive
   through `ensures`. Computed `A / B` result indices belong to rung 3.

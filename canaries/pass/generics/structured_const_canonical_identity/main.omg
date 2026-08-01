@@ -1,0 +1,41 @@
+// PDI1: structured const values normalize by declared field order. The two
+// source constants below are structurally equal despite opposite authored
+// field order, so both applications share one canonical generic identity.
+
+data UnitIndex {
+    scale: u64;
+    exponent: i32;
+}
+
+data UnitIndices {}
+
+const UnitIndices::METER: UnitIndex = UnitIndex {
+    scale: 1,
+    exponent: 1
+};
+
+const UnitIndices::METER_REORDERED: UnitIndex = UnitIndex {
+    exponent: 1,
+    scale: 1
+};
+
+data Indexed<const U: UnitIndex> {
+    marker: u8;
+}
+
+// Case data is intentionally not rewritten into a synthesized plain record.
+// Its canonical value atom therefore survives through resolved/typed generic
+// identity and exercises that declaration-aware validation path too.
+data ProofIndexed<const U: UnitIndex> {
+    case Only;
+}
+
+data Main {
+    first: Indexed<UnitIndices::METER>;
+    second: Indexed<UnitIndices::METER_REORDERED>;
+    proof_first: ProofIndexed<UnitIndices::METER>;
+    proof_second: ProofIndexed<UnitIndices::METER_REORDERED>;
+}
+
+machine Main::main(&mut self) {
+}

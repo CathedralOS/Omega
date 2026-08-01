@@ -15,8 +15,8 @@
 //!   cannot collide with locals. Free-floating arrives with a proper
 //!   shadowing walk.
 //! - LITERAL-ONLY initializers (scalars, negated scalars -- already folded by
-//!   the parser -- and struct/array literals of those). Richer const
-//!   expressions are the build-time-evaluation arc.
+//!   the parser -- payloadless cases, and struct/array literals of those).
+//!   Richer const expressions are the build-time-evaluation arc.
 //! - A const may not collide with a case of its scope type: `Type::NAME` must
 //!   stay unambiguous against case-constructor paths, which substitution
 //!   would otherwise shadow.
@@ -207,8 +207,9 @@ pub(crate) fn try_lower_const_reference(
     ))
 }
 
-/// v0 initializers are literals all the way down. The parser already folds
-/// `-5` into a single literal, so no operator node is legitimate here.
+/// v0 initializers are literals all the way down. Payloadless case names are
+/// nullary structural literals. The parser already folds `-5` into a single
+/// literal, so no operator node is legitimate here.
 fn validate_literal_initializer(
     syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
@@ -232,13 +233,53 @@ fn validate_literal_initializer(
             }
             Ok(())
         }
-        other => Err(Diagnostic::error(format!(
-            "const `{}::{}` initializer must be a literal (a scalar, or a \
-             struct/array literal of literals) in const-v0; `{}` is not -- \
-             richer const expressions arrive with build-time evaluation",
-            definition.scope.as_str(),
-            definition.name.as_str(),
-            other.display_name(&syntax_trees.expressions),
-        ))),
+        ExpressionNode::Name(path) => {
+            let members = syntax_trees.expressions.identifier_path_members(*path);
+            let [type_name, case_name] = members else {
+                return invalid_literal_initializer(syntax_trees, definition, value);
+            };
+            let is_payloadless_case = syntax_trees.root_items().any(|item| {
+                let Item::Data(data) = item else {
+                    return false;
+                };
+                data.name.as_str() == type_name.as_str()
+                    && syntax_trees
+                        .items
+                        .data_members(data.members)
+                        .iter()
+                        .any(|member| {
+                            matches!(
+                                member,
+                                DataMember::Variant(variant)
+                                    if variant.name.as_str() == case_name.as_str()
+                                        && variant.payload.is_empty()
+                            )
+                        })
+            });
+            if is_payloadless_case {
+                Ok(())
+            } else {
+                invalid_literal_initializer(syntax_trees, definition, value)
+            }
+        }
+        _ => invalid_literal_initializer(syntax_trees, definition, value),
     }
+}
+
+fn invalid_literal_initializer(
+    syntax_trees: &SyntaxTrees,
+    definition: &ConstDefinition,
+    value: omega_syntax_trees::expression::ExpressionHandle,
+) -> Result<(), Diagnostic> {
+    Err(Diagnostic::error(format!(
+        "const `{}::{}` initializer must be a literal (a scalar, a payloadless \
+         case, or a struct/array literal of literals) in const-v0; `{}` is not \
+         -- richer const expressions arrive with build-time evaluation",
+        definition.scope.as_str(),
+        definition.name.as_str(),
+        syntax_trees
+            .expressions
+            .expression(value)
+            .display_name(&syntax_trees.expressions),
+    )))
 }
