@@ -313,7 +313,7 @@ fn expected_float_intrinsic(
                 "minimum" | "maximum" => requirement.as_str(),
                 "negate" | "square_root" | "classify" | "is_nan" | "is_finite" | "is_infinite"
                 | "is_normal" | "is_subnormal" => requirement.as_str(),
-                "multiply_then_add" => requirement.as_str(),
+                "multiply_then_add" | "fused_multiply_add" => requirement.as_str(),
                 _ => return None,
             };
             let expected_primitive = if namespace.as_str() == "F32" {
@@ -350,7 +350,9 @@ fn expected_float_intrinsic(
                         return None;
                     }
                 }
-                [left, right, addend] if operation == "multiply_then_add" => {
+                [left, right, addend]
+                    if matches!(operation, "multiply_then_add" | "fused_multiply_add") =>
+                {
                     if typed.primitive_type_reference(left.type_reference)
                         != Some(expected_primitive)
                         || typed.primitive_type_reference(right.type_reference)
@@ -530,6 +532,14 @@ pub(crate) fn derive_satisfies_plans(
         let omega_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
+        // Target filtering clears the selected implementation's marker and
+        // deliberately leaves every foreign target machine marked/inert.
+        // Provider derivation must obey the same boundary as symbol lowering;
+        // otherwise a target-specific satisfier leaks into unrelated targets
+        // as an empty or invalid plan.
+        if machine.target.is_some() {
+            continue;
+        }
         if machine.boundary {
             continue;
         }
@@ -677,6 +687,9 @@ fn derive_boundary_operator_plans(
         let omega_syntax_trees::item::Item::Machine(machine) = item else {
             continue;
         };
+        if machine.target.is_some() {
+            continue;
+        }
         let Some(typed_machine) = typed
             .machines()
             .iter()

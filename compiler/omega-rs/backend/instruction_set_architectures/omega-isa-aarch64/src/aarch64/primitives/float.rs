@@ -101,6 +101,24 @@ pub(in crate::aarch64) fn encode_float_multiply(
     )
 }
 
+/// `FMADD Vd, Vn, Vm, Va` — scalar fused multiply-add. The multiplication
+/// and addition round only once, as required by the named FMA contract.
+pub(in crate::aarch64) fn encode_float_fused_multiply_add(
+    byte_size: usize,
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+    addend_register: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let base = 0x1F00_0000 | float_type_field(byte_size)?;
+    Ok(encode_instruction(
+        base | (u32::from(right_register) << 16)
+            | (u32::from(addend_register) << 10)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    ))
+}
+
 /// `FDIV Vd, Vn, Vm` — scalar floating-point divide.
 pub(in crate::aarch64) fn encode_float_divide(
     byte_size: usize,
@@ -366,6 +384,19 @@ mod tests {
         assert_eq!(word(encode_float_add(8, 0, 1, 2).unwrap()), 0x1e62_2820);
         // FDIV d0, d1, d2
         assert_eq!(word(encode_float_divide(8, 0, 1, 2).unwrap()), 0x1e62_1820);
+    }
+
+    #[test]
+    fn fused_multiply_add_matches_arm_arm() {
+        // FMADD s0, s1, s2, s3 / FMADD d0, d1, d2, d3.
+        assert_eq!(
+            word(encode_float_fused_multiply_add(4, 0, 1, 2, 3).unwrap()),
+            0x1f02_0c20
+        );
+        assert_eq!(
+            word(encode_float_fused_multiply_add(8, 0, 1, 2, 3).unwrap()),
+            0x1f42_0c20
+        );
     }
 
     #[test]

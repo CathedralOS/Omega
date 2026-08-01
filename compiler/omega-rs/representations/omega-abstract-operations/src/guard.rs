@@ -55,11 +55,15 @@ pub enum StateGuardOperator {
     FloatClassify,
     /// Internal structural carrier for the second and third operands of a
     /// ternary float realization. It returns the third operand while keeping
-    /// the second in the architecture's pinned MTA scratch register.
+    /// the second in the architecture's pinned ternary-float scratch register.
     FloatPair,
     /// `round(round(a * b) + c)`, with all three original operands retained
     /// for exactly-once evaluation and final-result policy adaptation.
     MultiplyThenAdd,
+    /// `round(a * b + c)`, with one target fused operation and all three
+    /// original operands retained for exactly-once evaluation and final-result
+    /// policy adaptation.
+    FusedMultiplyAdd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

@@ -517,7 +517,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         );
     }
     if let Some(ternary) =
-        super::value_operands::resolve_selected_multiply_then_add_operand_in_table_with_root(
+        super::value_operands::resolve_selected_ternary_float_operand_in_table_with_root(
             input,
             dispatch_index,
             value_source_key,
@@ -1061,7 +1061,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_storage_binary_writ
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     if let Some(ternary) =
-        super::value_operands::resolve_selected_multiply_then_add_operand_in_table_with_root(
+        super::value_operands::resolve_selected_ternary_float_operand_in_table_with_root(
             input,
             dispatch_index,
             source_key,

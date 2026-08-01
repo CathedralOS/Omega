@@ -21,16 +21,16 @@ use super::primitives::{
     encode_conditional_branch_plus, encode_csel_x, encode_csinv_x, encode_eor_x_register,
     encode_float_add, encode_float_compare, encode_float_conditional_select,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
-    encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
-    encode_float_multiply, encode_float_sqrt, encode_float_subtract, encode_float_to_signed_int,
-    encode_float_to_unsigned_int, encode_ldadd, encode_ldclr, encode_ldeor, encode_ldset,
-    encode_load_byte_w_from_x, encode_load_byte_w_post_increment, encode_load_w_from_x,
-    encode_load_x_from_x, encode_lsl_x_immediate, encode_lslv_w_register, encode_lslv_x_register,
-    encode_lsr_x_immediate, encode_lsrv_w_register, encode_lsrv_x_register, encode_move_w_register,
-    encode_move_x_register, encode_movz, encode_movz_w, encode_msub_w_register,
-    encode_msub_x_register, encode_mul_x_register, encode_mvn_register, encode_orr_x_register,
-    encode_sdiv_w_register, encode_sdiv_x_register, encode_sign_extend_byte_to_w,
-    encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
+    encode_float_divide, encode_float_fused_multiply_add, encode_float_move_from_gpr,
+    encode_float_move_to_gpr, encode_float_multiply, encode_float_sqrt, encode_float_subtract,
+    encode_float_to_signed_int, encode_float_to_unsigned_int, encode_ldadd, encode_ldclr,
+    encode_ldeor, encode_ldset, encode_load_byte_w_from_x, encode_load_byte_w_post_increment,
+    encode_load_w_from_x, encode_load_x_from_x, encode_lsl_x_immediate, encode_lslv_w_register,
+    encode_lslv_x_register, encode_lsr_x_immediate, encode_lsrv_w_register, encode_lsrv_x_register,
+    encode_move_w_register, encode_move_x_register, encode_movz, encode_movz_w,
+    encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_mvn_register,
+    encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
+    encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
@@ -5388,7 +5388,11 @@ pub(in crate::aarch64) fn float_policy_guard_width(
         byte_size,
         17,
         26,
-        (operator == StateGuardOperator::MultiplyThenAdd).then_some(9),
+        matches!(
+            operator,
+            StateGuardOperator::MultiplyThenAdd | StateGuardOperator::FusedMultiplyAdd
+        )
+        .then_some(9),
         15,
         14,
     )
@@ -5434,6 +5438,7 @@ fn float_policy_guard_bytes(
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
             | StateGuardOperator::MultiplyThenAdd
+            | StateGuardOperator::FusedMultiplyAdd
             | StateGuardOperator::Divide
             | StateGuardOperator::Min
             | StateGuardOperator::Max
@@ -6387,6 +6392,27 @@ fn append_runtime_float_binary_operation(
         bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?);
         bytes.extend(encode_float_move_from_gpr(byte_size, 1, right_register)?);
         bytes.extend(encode_float_add(byte_size, 0, 0, 1)?);
+        bytes.extend(float_policy_guard_bytes(
+            domain,
+            operator,
+            byte_size,
+            left_register,
+            right_register,
+            Some(9),
+            guard_scratches[0],
+            guard_scratches[1],
+        )?);
+        bytes.extend(encode_float_move_to_gpr(byte_size, left_register, 0)?);
+        return Ok(());
+    }
+    if operator == StateGuardOperator::FusedMultiplyAdd {
+        // x9 was populated by the structural FloatPair. FMADD performs the
+        // multiply and add with one final rounding; do not split this into
+        // FMUL/FADD or reuse the distinct multiply-then-add arm.
+        bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 1, 9)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 2, right_register)?);
+        bytes.extend(encode_float_fused_multiply_add(byte_size, 0, 0, 1, 2)?);
         bytes.extend(float_policy_guard_bytes(
             domain,
             operator,
@@ -8065,6 +8091,67 @@ mod tests {
                         encode_float_add(byte_size, 0, 0, 1).expect("encode scalar add"),
                     )),
                     "f{} must contain a separate scalar add",
+                    byte_size * 8,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fused_multiply_add_emission_keeps_one_fmadd_and_width_lockstep() {
+        use omega_core::arithmetic::ArithmeticDomain;
+
+        for byte_size in [4usize, 8] {
+            for domain in [
+                ArithmeticDomain::Exact,
+                ArithmeticDomain::Saturating,
+                ArithmeticDomain::Trapping,
+            ] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    byte_size,
+                    17,
+                    StateGuardOperator::FusedMultiplyAdd,
+                    26,
+                    domain,
+                    [15, 14],
+                )
+                .expect("encode fused multiply-add");
+                assert_eq!(
+                    bytes.len(),
+                    20 + float_policy_guard_width(
+                        StateGuardOperator::FusedMultiplyAdd,
+                        byte_size,
+                        domain,
+                    ),
+                    "f{} {domain:?} width",
+                    byte_size * 8,
+                );
+                let instructions = bytes
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+                    .collect::<Vec<_>>();
+                assert!(
+                    instructions.contains(&u32::from_le_bytes(
+                        encode_float_fused_multiply_add(byte_size, 0, 0, 1, 2)
+                            .expect("encode scalar FMADD"),
+                    )),
+                    "f{} must contain one scalar FMADD",
+                    byte_size * 8,
+                );
+                assert!(
+                    !instructions.contains(&u32::from_le_bytes(
+                        encode_float_multiply(byte_size, 0, 0, 1).expect("encode scalar multiply"),
+                    )),
+                    "f{} FMA must not contain a separately rounded multiply",
+                    byte_size * 8,
+                );
+                assert!(
+                    !instructions.contains(&u32::from_le_bytes(
+                        encode_float_add(byte_size, 0, 0, 1).expect("encode scalar add"),
+                    )),
+                    "f{} FMA must not contain a separate add",
                     byte_size * 8,
                 );
             }

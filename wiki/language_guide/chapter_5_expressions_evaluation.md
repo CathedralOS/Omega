@@ -605,9 +605,13 @@ and zero cases. Multiply-then-add rewrites to an unnameable, format-specific
 ternary compiler operation that survives state-local expression copying. Both
 engines execute a separate multiply followed by add, preserve all three
 authored operands for final result-policy adaptation, and never contract it
-into the separately named fused operation. Other named operation
-families remain on bootstrap target lowering until their own satisfiers and
-execution paths replace it.
+into the separately named fused operation. Nearest-even F32/F64 FMA selects
+explicit AArch64 satisfiers and lowers to one scalar `FMADD`; its interpreter
+path consumes the same `FloatSemantics::fused_multiply_add` identity. Generic
+x86-64 remains SSE2-baseline and therefore does not claim FMA3: that target
+requires a feature-qualified or checked software satisfier. Other named
+operation families remain on bootstrap target lowering until their own
+satisfiers and execution paths replace it.
 
 ### Value domains — wellness facts
 

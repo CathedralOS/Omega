@@ -965,8 +965,17 @@ and allocation handles expose no compiler-owned stack/control storage.
   backends retain all three authored operands, emit a separate multiply and
   add, and adapt policy only at the final result; cancellation and finite-
   overflow canaries prove unfused and operand-aware Saturating behavior in both
-  engines. Remaining rung-3 work includes FMA, directed-rounding families,
-  checked software fallbacks, canonical floating-control-state
+  engines. The nearest-even F32/F64 FMA pair now selects exact provider slots
+  on both AArch64 targets. A distinct unnameable ternary compiler call retains
+  all three operands and their format; the interpreter consumes
+  `FloatSemantics::fused_multiply_add`, while native AArch64 emits one scalar
+  `FMADD` and applies result policy only after the fused result. Cancellation
+  edges prove the positive residual in both formats and reject substitution of
+  the two-rounding provider. Generic x86-64 remains an SSE2 baseline, so its
+  FMA slot deliberately remains unselected until a feature-qualified or checked
+  software realization exists. Remaining rung-3 work includes that x86-64 FMA
+  realization, directed-rounding families, checked software fallbacks,
+  canonical floating-control-state
   preconditions/restoration, and rung-4 differential evidence.
   The public float/integer and float-format conversion requirement family is
   settled. Result-domain overload resolution and provider/artifact lowering are
