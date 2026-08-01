@@ -488,7 +488,10 @@ ceilings, and publication-before-ledger-record all reject.
   refinements after selection. Include the set in checked/artifact/symbol
   identity. Replace the current return-only-overload rejection canaries with
   positive result-domain cases plus duplicate-predicate and semantic-weakening
-  rejection canaries. Fixed operator spellings remain operand-directed.
+  rejection canaries. Fixed operator spellings remain operand-directed. The
+  shared typed-tree result-set normalizer is now live with alias expansion and
+  the settled predicate/semantic/routed/empty partition; declaration, lookup,
+  and downstream identity integration remain.
 - All fixed-width integer pairs are now available from
   `core::numeric_conversion`. Widening is named only where the complete source
   range fits; every other pair—including a signed-to-wider-unsigned conversion
