@@ -103,6 +103,14 @@ macos_arm64 machine FloatNativeProvider::square_root64(value: f64) -> f64
     satisfies F64::square_root
     via Binding::CompilerIntrinsic("F64::square_root.f64");
 
+macos_arm64 machine FloatNativeProvider::from_f64_to_f32(value: f64) -> f32
+    satisfies F32::from_f64
+    via Binding::CompilerIntrinsic("F32::from_f64.f64");
+
+macos_arm64 machine FloatNativeProvider::from_f32_to_f64(value: f32) -> f64
+    satisfies F64::from_f32
+    via Binding::CompilerIntrinsic("F64::from_f32.f32");
+
 macos_arm64 machine FloatNativeProvider::negate32(value: f32) -> f32
     satisfies F32::negate
     via Binding::CompilerIntrinsic("F32::negate.f32");

@@ -1,0 +1,32 @@
+// Public destination-owned format conversion. The f64 halfway value ties to
+// even at 1.0f32; the value just above it rounds to the next binary32 number.
+// Widening back to binary64 is exact, and infinity remains ordinary and total.
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let halfway: f64 = 1.000000059604644775390625;
+    let above_halfway: f64 = 1.0000000596046449;
+    let down: f32 = F32::from_f64(halfway);
+    let up: f32 = F32::from_f64(above_halfway);
+    let widened_down: f64 = F64::from_f32(down);
+    let widened_up: f64 = F64::from_f32(up);
+    let maximum64: f64 = 1.7976931348623157e308;
+    let infinity64: f64 = maximum64 + maximum64;
+    let infinity32: f32 = F32::from_f64(infinity64);
+    let infinity_ok: bool = F32::is_infinite(infinity32);
+
+    transition {
+        down == 1.0f32
+            && up == 1.00000011920928955078125f32
+            && widened_down == 1.0
+            && widened_up == 1.00000011920928955078125
+            && infinity_ok -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

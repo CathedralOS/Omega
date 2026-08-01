@@ -76,6 +76,11 @@ operator FloatSemantics::square_root(
     value: FloatMeaning
 ) -> FloatMeaning;
 
+operator FloatSemantics::convert(
+    format: FloatFormat,
+    value: FloatMeaning
+) -> FloatMeaning;
+
 operator FloatSemantics::multiply_then_add(
     format: FloatFormat,
     left: FloatMeaning,
@@ -496,6 +501,21 @@ ensures
     Float::meaning64(result) == FloatSemantics::maximum(
         Float::meaning64(left),
         Float::meaning64(right)
+    );
+
+// Destination-owned ordinary format conversions. These are total (including
+// infinities) and round nearest-even; same-format qualification remains `as`.
+boundary operator F32::from_f64(value: f64) -> f32
+ensures
+    Float::meaning32(result) == FloatSemantics::convert(
+        FloatFormat::BINARY32,
+        Float::meaning64(value)
+    );
+boundary operator F64::from_f32(value: f32) -> f64
+ensures
+    Float::meaning64(result) == FloatSemantics::convert(
+        FloatFormat::BINARY64,
+        Float::meaning32(value)
     );
 
 boundary operator F32::classify(value: f32) -> FloatClass

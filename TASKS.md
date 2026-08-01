@@ -480,7 +480,11 @@ ceilings, and publication-before-ledger-record all reject.
   unqualified, `Trapping`, and `Saturating` same-shape results. Exact
   denotation-preserving coercions remain the ordinary `as` surface; directed
   one-step rounding remains separately named. Keep the failure-returning
-  operation blocked only on the checked-result arithmetic carrier.
+  operation blocked only on the checked-result arithmetic carrier. The
+  float-format slice is now published as total nearest-even
+  `F32::from_f64`/`F64::from_f32` requirements with exact provider selection on
+  all four native targets; interpreter/native rounding-boundary and infinity
+  canaries pin execution. Integer-to-float and float-to-integer families remain.
 - Generalize named-machine/requirement overload identity beyond the current
   path-and-parameter rule: normalize the result's dispatch-bearing domain set,
   reject duplicate sets at declaration, select the empty set without an
@@ -958,9 +962,11 @@ and allocation handles expose no compiler-owned stack/control storage.
   preconditions/restoration, and rung-4 differential evidence.
   The public float/integer and float-format conversion requirement family is
   settled. Result-domain overload resolution and provider/artifact lowering are
-  now live. Remaining work is source/core publication and conversion-family
-  canaries. The checked-result operation remains separately design-blocked on
-  its public result carrier.
+  now live. The public float-format pair is published and pinned across all
+  native target plans plus both execution engines. Remaining work is the
+  integer-to-float and float-to-integer source/core families and canaries. The
+  checked-result operation remains separately design-blocked on its public
+  result carrier.
 
 Keep `Real` proof-only and core-level. Do not lower it as a runtime float or
 move it to a convenience library.
