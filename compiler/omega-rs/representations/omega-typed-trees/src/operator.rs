@@ -416,9 +416,83 @@ fn operator_matches_operands(
                     expected.type_reference,
                     type_parameters,
                     &mut bindings,
-                )
+                ) && declared_domain_constraints_match(program, actual, expected.type_reference)
             })
         })
+}
+
+/// Operator operand matching is structurally permissive about refinements, but
+/// a declared semantic domain named by the operator parameter is part of that
+/// meaning's dispatch key. In particular, `Quantity<METER>` and
+/// `Quantity<KILOMETER>` share one family symbol while carrying different
+/// normalized instance identities; stripping both constrained shells would
+/// make ordinary per-unit overloads ambiguous.
+fn declared_domain_constraints_match(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    let expected_domains = declared_domain_constraints(program, expected);
+    if expected_domains.is_empty() {
+        return true;
+    }
+    let actual_domains = declared_domain_constraints(program, actual);
+    expected_domains.iter().all(|expected| {
+        actual_domains
+            .iter()
+            .any(|actual| declared_domain_constraint_matches(program, actual, expected))
+    })
+}
+
+fn declared_domain_constraints(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<&crate::types::DomainConstraint> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            declared_domain_constraints(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let mut domains = declared_domain_constraints(program, *base_type);
+            domains.extend(
+                program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .filter_map(|constraint| match constraint {
+                        crate::types::TypeConstraintNode::Domain(domain) => Some(domain),
+                        _ => None,
+                    }),
+            );
+            domains
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn declared_domain_constraint_matches(
+    program: &TypedTrees,
+    actual: &crate::types::DomainConstraint,
+    expected: &crate::types::DomainConstraint,
+) -> bool {
+    if actual.semantic_id.is_valid() && expected.semantic_id.is_valid() {
+        return actual.semantic_id == expected.semantic_id;
+    }
+    if !actual.symbol.is_valid() || actual.symbol != expected.symbol {
+        return false;
+    }
+    actual.arguments.len() == expected.arguments.len()
+        && actual
+            .arguments
+            .iter()
+            .zip(&expected.arguments)
+            .all(|(actual, expected)| {
+                program.normalized_type_identity(*actual)
+                    == program.normalized_type_identity(*expected)
+            })
 }
 
 /// Whether the operator's first parameter (its receiver) accepts a value of

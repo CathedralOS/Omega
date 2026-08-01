@@ -610,7 +610,7 @@ machine Main::main(&mut self) {
     let a: i32 in Wrapping = self.dispatch(&mut self.c);
     let b: i32 in Wrapping = self.dispatch(&mut self.q);
     let n: i32 in Wrapping = a * 10 + b;
-    self.console.exit_process(n);
+    self.console.exit_process(n as i32);
 }
 
 machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
@@ -678,7 +678,7 @@ machine Main::main(&mut self) {
     let a: i32 in Wrapping = self.dispatch(&mut self.q);
     let b: i32 in Wrapping = self.dispatch(&mut self.c);
     let n: i32 in Wrapping = a * 10 + b;
-    self.console.exit_process(n);
+    self.console.exit_process(n as i32);
 }
 
 machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
@@ -4411,7 +4411,7 @@ machine Main::main(&mut self) {
     }
 
     state fin(&mut self) {
-        self.console.exit_process(self.sum);
+        self.console.exit_process(self.sum as i32);
     }
 }
 "#,

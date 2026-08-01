@@ -1,0 +1,81 @@
+// The first shipped units package: closed named indices, explicit scaling and
+// truncation, and per-pair domain-selected operators execute in both engines.
+
+use omega::language::std::console;
+use omega::language::std::units;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let kilometers: i64 in Quantity<Units::KILOMETER> = kilometers_i64(2);
+    let meters: i64 in Quantity<Units::METER> =
+        kilometers_to_meters_trapping_i64(kilometers);
+    let rounded: i64 in Quantity<Units::KILOMETER> =
+        meters_to_kilometers_truncating_i64(meters);
+
+    let kilometers_f: f64 in Quantity<Units::KILOMETER> = kilometers_f64(1.5);
+    let meters_f: f64 in Quantity<Units::METER> = kilometers_to_meters_f64(kilometers_f);
+    let extra_f: f64 in Quantity<Units::METER> = meters_f64(0.5);
+    let total_f: f64 in Quantity<Units::METER> = meters_f + extra_f;
+    let duration_f: f64 in Quantity<Units::SECOND> = seconds_f64(3.0);
+    let speed_f: f64 in Quantity<Units::METER_PER_SECOND> = total_f / duration_f;
+    let road_distance: f64 in Quantity<Units::KILOMETER> = kilometers_f64(180.0);
+    let road_time: f64 in Quantity<Units::HOUR> = hours_f64(2.0);
+    let road_speed: f64 in Quantity<Units::KILOMETER_PER_HOUR> = road_distance / road_time;
+    let road_speed_si: f64 in Quantity<Units::METER_PER_SECOND> =
+        kilometers_per_hour_to_meters_per_second_f64(road_speed);
+
+    let meters_ok: bool = (meters as i64) == 2000;
+    let rounded_ok: bool = (rounded as i64) == 2;
+    let total_ok: bool = (total_f as f64) == 1500.5;
+    let speed_ok: bool = (speed_f as f64) > 500.0;
+    let named_combination_ok: bool = (road_speed_si as f64) == 25.0;
+    transition meters_ok {
+        true -> check_rounded(rounded_ok, total_ok, speed_ok, named_combination_ok)
+        false -> bad()
+    }
+
+    state check_rounded(
+        &mut self,
+        rounded_ok: bool,
+        total_ok: bool,
+        speed_ok: bool,
+        named_combination_ok: bool
+    ) {
+        transition rounded_ok {
+            true -> check_total(total_ok, speed_ok, named_combination_ok)
+            false -> bad()
+        }
+    }
+
+    state check_total(
+        &mut self,
+        total_ok: bool,
+        speed_ok: bool,
+        named_combination_ok: bool
+    ) {
+        transition total_ok {
+            true -> check_speed(speed_ok, named_combination_ok)
+            false -> bad()
+        }
+    }
+
+    state check_speed(&mut self, speed_ok: bool, named_combination_ok: bool) {
+        transition speed_ok {
+            true -> check_named_combination(named_combination_ok)
+            false -> bad()
+        }
+    }
+
+    state check_named_combination(&mut self, named_combination_ok: bool) {
+        transition named_combination_ok {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

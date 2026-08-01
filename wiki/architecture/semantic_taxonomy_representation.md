@@ -168,10 +168,12 @@ per-instance semantic identities through typed snapshots and copying while
 preserving carrier ABI. Explicit qualification now selects a closed value or
 direct const binder and publishes that exact instance through checked evidence.
 Const-generic machine specialization infers canonical values from constrained
-parameter/result positions, clones distinct tuples, and re-interns copied
-constraints/casts before validation; the destination-generic path executes in
-both engines. Open index-expression/evidence records remain PDI3. Quotient and
-default-domain-constrained value kinds fail closed until their
+parameter and result positions, refreshes exact identities after substitution,
+and runs distinct tuples in both engines. The shipped units module now closes
+PDI2 with named combinations, visible conversion policy, cross-module
+operators, and an imported cross-index rejection rail. Computed open index
+expressions and their retained compatibility evidence remain PDI3.
+Quotient and default-domain-constrained value kinds fail closed until their
 canonical-representative/proof admission path exists.
 
 Implementation status (DOM1/STR2 semantic roles, 2026-07-31): core,
@@ -818,8 +820,9 @@ service reach.
    re-derivation from body shape/keyword presence.
    Structured canonical const values and the closed indexed-domain family
    representation, explicit indexed qualification, and constrained-position
-   const-machine specialization are landed. Publish the first units package
-   before carrying open computed index expressions or their equality evidence.
+   const-machine specialization are landed. The first units package and its
+   imported conversion/operator canaries are also landed; carry open computed
+   index expressions or their equality evidence only as the next PDI3 step.
 4. **Checked plans.** Split predicate facts, static semantic roles, and
   establishment evidence; add
   the place-keyed permission plan, service-reach plan, suspension plan,

@@ -98,6 +98,60 @@ fn denotation_role_on_bodyless_declared_type_selects_domain_operator() {
 }
 
 #[test]
+fn closed_index_instances_select_distinct_same_carrier_operators() {
+    let source = r#"
+        domain<T, const U: i32> T::Quantity<U>;
+
+        operator Quantity::meters_per_second(
+            distance: f64 in Quantity<1>,
+            duration: f64 in Quantity<2>
+        ) -> f64 in Quantity<3> spelling /;
+
+        operator Quantity::kilometers_per_hour(
+            distance: f64 in Quantity<4>,
+            duration: f64 in Quantity<5>
+        ) -> f64 in Quantity<6> spelling /;
+
+        machine rates(
+            meters: f64 in Quantity<1>,
+            seconds: f64 in Quantity<2>,
+            kilometers: f64 in Quantity<4>,
+            hours: f64 in Quantity<5>
+        ) {
+            let metric: f64 in Quantity<3> = meters / seconds;
+            let road: f64 in Quantity<6> = kilometers / hours;
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked_program_from_source(source);
+    let selected = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .filter(|operator_use| operator_use.spelling == OperatorSpelling::Divide)
+        .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
+        .map(|candidate| candidate.operator_symbol)
+        .collect::<Vec<_>>();
+    let expected = checked
+        .operators()
+        .iter()
+        .filter(|operator| {
+            let path = checked.operator_path_members(operator.name);
+            path.last().is_some_and(|name| {
+                matches!(name.as_str(), "meters_per_second" | "kilometers_per_hour")
+            })
+        })
+        .map(|operator| operator.symbol)
+        .collect::<Vec<_>>();
+
+    assert_eq!(selected.len(), 2);
+    assert!(expected.iter().all(|symbol| selected.contains(symbol)));
+}
+
+#[test]
 fn explicit_mint_initializer_selects_domain_operator() {
     let source = r#"
         domain i32::Degrees

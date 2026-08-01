@@ -190,8 +190,11 @@ let meters: i64 in Quantity<Units::METER> = retag_i64(70);
 ```
 
 The binder is erased, distinct canonical destinations receive distinct
-machine instances, and an incomplete tuple rejects before code generation.
-Computed open result expressions remain the third stage.
+machine instances, and an incomplete tuple rejects before code generation. The
+shipped `omega::language::std::units` package exercises named closed
+combinations, destination-typed conversions, and per-pair operators across
+imports in both engines. Computed open result expressions remain the third
+stage.
 
 ## Machine Parameters
 

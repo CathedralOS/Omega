@@ -708,8 +708,8 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   weakening/explicit erasure, operator ownership, predicate `requires`, and
   exact route bodies are complete. Keep unit conversion in ordinary library
   machines and operators.
-- **PDI2:** closed indexed erased domain declarations and binding constraints
-  now accept `domain<T, const U: Unit> T::Quantity<U>;`. Canonical closed values
+- **PDI2 — COMPLETE:** closed indexed erased domain declarations and binding
+  constraints now accept `domain<T, const U: Unit> T::Quantity<U>;`. Canonical closed values
   distinguish semantic instances while reordered structural values coincide;
   one family spans carriers, direct const binders survive generic signatures,
   ordinary per-pair operators attach to the family, implicit cross-index flow
@@ -720,9 +720,13 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   evidence now specializes const-generic machine calls, clones distinct
   canonical tuples, refreshes exact indexed identities, and executes a
   destination-parameterized conversion in both engines; incomplete inference
-  rejects. Publish the first units package with named combinations and its
-  conversion/operator canaries.
-- **PDI3:** only after PDI2, add computed open result indices, exact selected
+  rejects. The first shipped library customer now lives in
+  `omega/language/std/units.omg`: named length/time/speed indices, explicit
+  trapping and truncating integer conversions, IEEE floating conversions, and
+  per-pair addition/division operators execute in both engines. Imported
+  cross-index calls reject, and initialized qualified locals retain their
+  checked fact across later call/operator boundaries.
+- **PDI3:** next add computed open result indices, exact selected
   algebra-instance normalization, established-local-fact compatibility, and
   retained verification-condition evidence. Do not add a special citation
   surface; unresolved equality rejects.

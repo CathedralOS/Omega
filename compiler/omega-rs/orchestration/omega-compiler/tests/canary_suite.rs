@@ -22521,6 +22521,74 @@ fn closed_indexed_domain_canaries() {
 }
 
 #[test]
+fn std_units_package_conversion_and_operator_canaries() {
+    let source = fs::read_to_string(repo_root().join("omega/language/std/units.omg"))
+        .expect("read shipped units package");
+    for published_name in [
+        "Units::METER",
+        "Units::KILOMETER",
+        "Units::SECOND",
+        "Units::METER_PER_SECOND",
+        "Units::KILOMETER_PER_HOUR",
+        "kilometers_to_meters_trapping_i64",
+        "meters_to_kilometers_truncating_i64",
+        "divide_f64_meters_by_seconds",
+        "divide_f64_kilometers_by_hours",
+        "kilometers_per_hour_to_meters_per_second_f64",
+    ] {
+        assert!(
+            source.contains(published_name),
+            "units package should publish `{published_name}`"
+        );
+    }
+
+    let pass = pass_canary("generics/runtime_std_units_exit");
+    let checked = compile_to_checked(&pass.join("main.omg"), None)
+        .expect("shipped named units, conversions, and operators should check");
+    let interpreted = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-std-units-package-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: pass.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shipped units package should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shipped units canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected units conversion/operator canary to exit 70, got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let fail = fail_canary("generics/std_units_implicit_cross_index");
+    let expected = fs::read_to_string(fail.join("expected.txt"))
+        .expect("imported cross-index fail canary should carry expected.txt");
+    let diagnostics = compile_canary_without_output(&fail)
+        .expect_err("kilometers must not flow into a meters parameter implicitly");
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(expected.trim()),
+        "imported cross-index diagnostic should contain {:?}:\n{combined}",
+        expected.trim()
+    );
+}
+
+#[test]
 fn runtime_const_data_expression_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_const_data_expression_exit");
     let build_dir = std::env::temp_dir().join(format!(

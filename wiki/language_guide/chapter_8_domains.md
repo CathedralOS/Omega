@@ -113,7 +113,12 @@ machine retag<const To: Unit>(value: i64) -> i64 in Quantity<To> {
 
 Concrete constrained parameter/result evidence specializes calls to such a
 machine, so a destination annotation can select and execute the closed binder.
-Computed index expressions remain staged for the next proof-static rung.
+The shipped `omega::language::std::units` module is the first complete library
+customer: it publishes named length, time, and speed indices, ordinary visible
+conversion machines, and per-pair carrier operators. Integer conversion names
+state their trapping or truncating behavior; `as` still only qualifies or
+erases. Computed index expressions remain staged for the next proof-static
+rung.
 
 ## Domains In Contracts
 
