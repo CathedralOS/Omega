@@ -103,9 +103,12 @@ domain Reservation::Issued {
 ```
 
 A machine satisfying `Issues::issue` may establish `Reservation::Issued` at
-that requirement's qualified return position. It must also prove every
-predicate in the domain's `requires` clause. A look-alike trait establishes
-nothing because the domain does not name it.
+that requirement's exact qualified result. An exact qualified non-`self`
+parameter is also an authorized subject, but is introduced only when the
+requirement is invoked as an installed external root; at an ordinary call it
+remains a caller precondition. It must also prove every predicate in the
+domain's `requires` clause. A look-alike trait establishes nothing because the
+domain does not name it.
 
 Trait visibility controls who may conform, and machine visibility controls
 who may invoke a conformer. A boundary requirement additionally needs selected

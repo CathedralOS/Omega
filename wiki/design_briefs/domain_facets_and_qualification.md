@@ -67,10 +67,12 @@ predicate must hold. The body contains exact trait-requirement identities;
 each entry is an alternative authorized origin for the domain.
 
 The domain body does not invoke those requirements. It licenses their selected
-conformances to establish membership at the qualified return position. A
-checked conformer proves every predicate there. A boundary conformer also
-requires selection and admission, whose receipt remains attached to the
-result.
+conformances to establish membership at exact qualified subject positions. A
+result is established by the selected call. A non-`self` parameter is
+established only at an installed external-root invocation and remains a
+precondition at an ordinary call. A checked conformer proves every predicate at
+the subject. A boundary conformer also requires selection and admission, whose
+evidence remains attached to the subject.
 
 The domain owner has no ambient minting privilege. A bare qualified result or
 `ensures` clause supplies an obligation, not evidence. Owner code and
@@ -136,13 +138,15 @@ source:
 | checked transformation | inherited or conserved evidence |
 | admitted boundary conformance | routed provenance under its selected provider receipt |
 
-An admitted membership assertion is valid only on the qualified result of an
-exact boundary requirement named in the domain body. A direct
-accepted-machine membership guarantee is not authorization. Checked proof
-facts retain the boundary trait and exact requirement signature, and the
-artifact records that signature, the public origin class, and the selected
-provider receipt where applicable. Private proof steps and implementation
-witnesses remain private evidence.
+An admitted membership assertion is valid only on an exact qualified subject
+of a boundary requirement named in the domain body. A result establishes at
+the selected call; a non-`self` parameter establishes only at an installed
+external-root occurrence and remains a precondition at an ordinary call. A
+direct accepted-machine membership guarantee is not authorization. Checked
+proof facts retain the boundary trait, exact requirement signature, and
+semantic subject position, and the artifact records them with the public
+origin class and selected provider evidence where applicable. Private proof
+steps and implementation witnesses remain private evidence.
 
 Reconstructing equal carrier fields does not reproduce qualification. Existing
 qualified values retain their facts through ordinary assignment, move, and
@@ -186,9 +190,10 @@ domain Extent::Granted
 }
 ```
 
-Every authorized route proves the predicate at its return. The content
-projection then embeds `base` and `length` into proof-level natural arithmetic;
-it never relies on wrapping runtime address addition.
+Every authorized route proves the predicate at its exact established subject.
+Here that subject is the result. The content projection then embeds `base` and
+`length` into proof-level natural arithmetic; it never relies on wrapping
+runtime address addition.
 
 Carry is independent. Mobility demands attach to the established value or
 resource provenance and survive qualification forgetting until the underlying
@@ -412,7 +417,8 @@ Migration should:
    establishment;
 3. remove the legacy core qualification relationship from domain
    establishment;
-4. make an authorized route's return position establish provenance only after
+4. make an authorized route's exact result, or an exact non-`self` parameter at
+   an installed external-root invocation, establish provenance only after
    every domain predicate is proved;
 5. keep exact `as` limited to compiler-derived carrier coercion, direct
    qualification, and explicit erasure; domain-specific conversions remain

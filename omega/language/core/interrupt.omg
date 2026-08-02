@@ -8,8 +8,9 @@
 //
 // Both obligations are ordinary linear data. Their fields carry the runtime
 // identities needed by the selected provider. Active guards use an exact
-// routed result; acknowledgement entry receipts are bound at runtime while the
-// source spelling for an owner-authorized inbound parameter route is settled.
+// routed result; acknowledgement entry occurrence evidence is bound at runtime.
+// Pending will name one stable core-owned entry requirement using the ordinary
+// domain-route spelling; installation makes its matching parameter inbound.
 // Reconstructing the same fields therefore does not recreate either runtime
 // obligation.
 
@@ -51,10 +52,10 @@ data InterruptAcknowledgement [linear] {
     acknowledgement: u64;
 }
 
-// The selected external-root schema and invocation receipt bind this accepted
-// claim today. Unlike Active's result route, the domain language cannot yet
-// name an exact inbound requirement parameter; OWNER_QUESTIONS #6 owns that
-// source authorization rather than treating this empty declaration as final.
+// The selected external-root schema and invocation evidence bind this accepted
+// claim today. The empty declaration is transitional until the core-owned entry
+// requirement and parameter-position route are implemented; it is not the final
+// authorization surface and must not be treated as vacuous minting authority.
 pub domain InterruptAcknowledgement::Pending;
 
 boundary machine InterruptAcknowledgement::complete(self)

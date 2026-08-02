@@ -107,6 +107,12 @@ provider plan, obtains one `Granted` root after `ExitBootServices`, and carries
 that linear value into owned idle. The remaining authority migrations and
 composite claim-frontier work remain.
 
+- Add entry-provisioned content roots for the loaded image and initial
+  stack/storage to the typed boot handoff. Derive sections and statics as
+  subextents; allocate later frames and task stacks from existing roots. The
+  startup provider admits only the handful of mappings it actually supplies,
+  not each object independently.
+
 - `Task<T>` plus the interrupt mask guard and acknowledgement token are now
   ordinary linear data. The interrupt carriers expose the compact
   root/invocation/control-or-policy identities needed for exact settlement and
@@ -134,13 +140,19 @@ composite claim-frontier work remain.
   transition receipt mints subject/invocation-bound `Active` evidence; explicit
   qualification, missing contracts, claim drift, and receipt substitution
   reject.
-- **LANGUAGE-DESIGN BLOCKED (OWNER_QUESTIONS #1):** connect concrete inbound
-  invocation evidence to the checked `Pending` source-parameter fact and
-  backend entry lowering without weakening the exact owner-authorized route
-  rule. Current routes name only qualified results; `Pending` originates at an
-  exact accepted requirement parameter, and core cannot name an open-ended
-  target-owned handler requirement. Do not bless the current empty domain or
-  arbitrary boundary parameters as issuance authority.
+- **INBOUND-ROUTE-ESTABLISHMENT — DESIGN CLEAR:** extend existing exact domain
+  routes to matching non-`self` parameter positions. At an ordinary checked
+  call those qualifications remain caller preconditions; only installation as
+  an external root turns the matching accepted positions into introductions.
+  Add one core-owned acknowledgement-entry requirement, have target interrupt
+  roots inherit that exact semantic requirement, and let `Calling<C>` refine
+  its plan without replacing the identity. Normalize source parameter
+  positions internally, preserve the semantic parameter list through
+  inheritance and specialization, and map it to physical operands only during
+  ABI lowering. Do not add an `[entry]`/`[accepted]` marker, source selector,
+  public receipt, or new trust category. Connect the existing installed-root
+  occurrence evidence to the checked `Pending` parameter fact and make the
+  transitional empty core domain routed before treating the feature complete.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
   `try_start<M>` activation fact binds the exact retained selected-provider
   plan and exact operation requirement, rejecting a missing provider or a
@@ -160,7 +172,9 @@ memory provider without split, merge, or an array of checked claims.
 **DESIGN SETTLED; IMPLEMENTATION IN PROGRESS.** Move predicate propositions from
 domain bodies to ordinary `requires`. Domain bodies enumerate exact
 trait-requirement identities authorized to establish provenance; every
-predicate is proved at an authorized route's qualified return. An empty domain
+predicate is proved at an authorized route's exact established subject. A
+matching parameter subject is introduced only at an installed external-root
+occurrence and remains a precondition at ordinary calls. An empty domain
 has no establishment obligations and permits explicit qualification from its
 bare carrier. Remove ambient package-owner minting and retire the legacy core
 qualification relationship from domain establishment.
@@ -398,7 +412,15 @@ those rows remain absent until their actual checked proofs exist.
   checked wrappers compose it. Insert sealed introduction and exact terminal
   custody-exit rows from the claim frontier. For a bodyless partial boundary,
   derive the residual from entry and result content and admit only provider
-  custody acceptance. Retain normalized obligations in semantic identity and
+  custody acceptance. Add a closed, fingerprinted namespace-origin policy:
+  `ProgramLocal` roots may be provisioned only by owner-authorized sealed
+  declarations, while `ProviderBacked` roots require selected admitted
+  issuance. Retain an internal canonical algebra account for every content-
+  capable root even when no source projection is exposed. Report the policy
+  and declaring package; treat correspondence from a local logical namespace
+  to device reality as admitted evidence, and require all pools spending one
+  hardware capacity to split or lease from one provider-issued root. Retain
+  normalized obligations in semantic identity and
   replaceable proofs in proof/debug artifacts. Quantity-only projections never
   supply unit identity; report modeled identity coverage and require an
   identity-bearing or joint algebra when an operation uses such authority;
@@ -587,9 +609,14 @@ After P0/P1/P2:
   plus one shared non-nesting maskable-IRQ stack class;
 - keep final handler code transitively SIMD/x87-free under its `StatePlan`;
 - use linear mask/restore and acknowledgement values;
-- program PIT+PIC first, with LAPIC as the production provider; and
+- program PIT+PIC first, with LAPIC as the production provider;
 - keep the hard root fixed-work: acknowledge, capture time, set a coalescing
-  wake state, return. Timer fan-out belongs in an ordinary scheduled task.
+  wake state, return. Timer fan-out belongs in an ordinary scheduled task; and
+- treat a deferred acknowledgement as a lease on the interrupt root and its
+  controller configuration. Reconfiguration, shutdown, CPU removal, relevant
+  power transitions, and root retirement drain outstanding acknowledgements
+  before proceeding; carry policy decides whether a bottom-half transfer is
+  legal. Do not add revocation or a breakable pin.
 
 Acceptance: QEMU boots, installs Cathedral-owned exception/IRQ structures,
 reports timer ticks over owned serial output, and halts between ticks. Missing
@@ -1499,12 +1526,7 @@ ordinary code never receives a raw executable address.
 
 ## Owner-blocked index
 
-The question document owns the context and alternatives. This table only routes
-blocked work.
-
-| Question | Unblocks |
-|---|---|
-| #1 admitted inbound parameters | exact parameter-position establishment routes and invocation-bound evidence |
+There is currently no owner-blocked implementation work.
 
 ## Vertical acceptance slices
 

@@ -47,15 +47,16 @@ pub domain Extent::Granted
 ```
 
 The body does not call `grant`; it authorizes that exact requirement to
-originate the domain at its qualified return position. A selected provider
-satisfies the requirement, and admission records its receipt. A third party
-cannot create a look-alike trait or machine to establish `Granted`.
+originate the domain at its exact qualified subjects. Here the subject is the
+result. A selected provider satisfies the requirement, and admission records
+its evidence. A third party cannot create a look-alike trait or machine to
+establish `Granted`.
 
 Predicate-only membership is established by proof, including proof guaranteed
 by a checked validator or accepted under an admitted receipt. Routed
 membership is established by an authorized checked conformance, propagation,
 checked transformation, or admitted boundary conformance. When one domain has
-both forms, its predicates are proved at the authorized route's return.
+both forms, its predicates are proved at the exact established subject.
 
 Core's first live authority root uses this exact shape:
 
@@ -75,10 +76,13 @@ rewrite the selected trait slot to that adapter.
 The compiler therefore does not treat an unlisted `boundary machine` guarantee
 as domain evidence merely because the machine is accepted. An admitted
 membership guarantee must be inherited from a boundary requirement, must spell
-the bare `result` as its subject, and must return the carrier targeted by the
-domain. Checked proof facts retain both the authorizing boundary trait and the
-exact requirement signature; the qualification-evidence artifact publishes
-that signature with the selected provider-plan receipt.
+the bare `result` or an exact non-`self` parameter as its subject, and that
+subject's carrier must match the domain target. A parameter route originates
+only at an installed external-root occurrence; the same signature at an
+ordinary call remains a precondition. Checked proof facts retain the
+authorizing boundary trait, exact requirement signature, subject position, and
+installation evidence; the qualification-evidence artifact publishes them
+with the selected provider-plan evidence.
 
 This keeps crossing semantics on machines and requirements. Internal checked
 operations may still transfer the same fact, subject to resource-frontier
@@ -334,10 +338,35 @@ One projection is load-bearing in four places:
 Only an authorized establishment route introduces new content, and only an
 ordinary terminal claim consumer authorized by its contract transfers content
 out of the checked custody frontier.
-An owner-originated resource may expose machines that establish fresh claims
-under the owner's policy. An externally rooted conduit may establish roots
-only through admitted backing identity, fresh issuance, and custody evidence;
-its ordinary checked machines must conserve existing content.
+
+Root origination is a property of the content namespace, not of a constructor
+name. The normalized coordinate-space or unit identity carries one closed
+origin policy:
+
+- `ProgramLocal` permits owner-authorized sealed declarations to provision a
+  fresh logical root. Parser budgets, protocol sessions, and other fictions the
+  program itself maintains use this form.
+- `ProviderBacked` permits roots only through selected admitted provider
+  issuance. Physical memory, device slots, and other externally owned spaces
+  use this form.
+
+The policy is fingerprinted semantic identity and the artifact reports the
+declaring package. `ProgramLocal` is not itself an admitted fact: a package
+owns the meaning of its distinct logical namespace. Relating that namespace to
+external reality is a separate admitted correspondence. That correspondence
+states the unit mapping, while the compiler checks known capacity arithmetic.
+Multiple pools that spend one hardware capacity must be derived by separated
+split or lease from the same provider-issued external root; independently
+generated local pools cannot each discharge the hardware bound.
+
+Every content-capable root has one internal canonical algebra account even
+when source exposes no `Content<A>` projection for it. Checked establishment
+may qualify or project content only by charging an existing account for the
+duration of a transfer or lease. It never creates a fresh runtime root.
+Fresh roots arise either from a `ProgramLocal` declaration or from admitted
+provider issuance. Thus checked sub-allocators transform existing content,
+while externally rooted conduits require admitted backing identity, fresh
+issuance, and custody evidence.
 
 The admitted root is a scoped hypothesis import, not a proof that external
 reality equals the compiler model. A selected provider states the exact
@@ -419,12 +448,13 @@ not the semantic limit; the frontier theorem is general n-to-m conservation.
 
 Introduction and custody exit are claim-frontier rows, not freely authored
 algebra terms. A structural introduction requires all of: no consumed content
-source, an exact sealed establishment route, a content-bearing result, and the
-matching selected provider invocation. A checked machine cannot mint content
-by constructing equal geometry or writing a postcondition. Whole-claim custody
-exit follows a visible exact terminal call. Checked partial transformations
-compose the authored theorem of the partitioning primitive with the visible
-terminal call on the residual claim.
+source, an exact sealed establishment route, a content-bearing subject, and the
+matching selected provider invocation. The subject may be a result of an
+outbound boundary call or a parameter of an installed external-root entry. A
+checked machine cannot mint content by constructing equal geometry or writing
+a postcondition. Whole-claim custody exit follows a visible exact terminal
+call. Checked partial transformations compose the authored theorem of the
+partitioning primitive with the visible terminal call on the residual claim.
 
 A bodyless partial boundary cannot assert its own partition. The compiler
 derives `kept` from result projections, proves `kept` is contained in entry
@@ -540,6 +570,15 @@ Direction comes from supply and use: a checked body, requirement, selected
 provider, accepted declaration, parameter, or result. The keyword does not
 encode inbound versus outbound traffic.
 
+For routed parameters, the installed external-root occurrence is what changes
+an ordinary precondition into an introduced fact. The requirement and domain
+use their existing syntax; no `[entry]` or `[accepted]` declaration is needed.
+An obligation is considered derivable only from evidence and operations already
+present in the program. The compiler does not insert an MMIO read or other
+validation merely because one could confirm an admitted arrival premise; that
+would change work, reach, and device effects and therefore define a different
+program.
+
 Evidence crosses in the contracts of boundary machines and requirements. A
 receipt records the exact qualified subject and the owner-authorized
 requirement that licensed the accepted assertion.
@@ -588,12 +627,23 @@ root separately retains that mask-provider contract. The exact transition
 receipt then qualifies the concrete guard subject for that invocation. A raw
 guard or explicit `as ... in Active` cannot reproduce the route.
 
-Inbound acknowledgement establishment still needs one language ruling. Domain
-routes currently authorize only exact qualified results, while `Pending`
-arrives at an exact external-entry parameter and the core domain cannot name an
-open-ended target-owned handler requirement. OWNER_QUESTIONS #1 must select an
-owner-authorized parameter-route shape before checked entry lowering treats the
-runtime receipt as source membership evidence.
+Inbound acknowledgement establishment uses the same route spelling as a
+routed result. Core owns one stable acknowledgement-entry requirement, and
+`Pending` names that requirement in its domain body. Target interrupt roots
+inherit the exact requirement; `Calling<C>` and target policy may refine its
+plan and ABI without replacing its semantic identity. Installation supplies
+the direction: an installed external-root occurrence introduces every exact
+matching qualified non-`self` parameter, while an ordinary direct call still
+requires caller evidence.
+
+There is no source-authored parameter selector, `[entry]`/`[accepted]` marker,
+or separate receipt value. The compiler derives semantic source positions and
+retains them in normalized `accepts` rows and occurrence evidence. Inheritance,
+schema normalization, and specialization preserve the semantic parameter list;
+changing it creates a different requirement identity. ABI lowering alone maps
+those positions to physical operands. Existing installed-root and claim-
+frontier evidence rejects uninstalled entries, look-alikes, missing bindings,
+and replay without adding a second trust category.
 
 ## Carry of resource claims
 
@@ -621,8 +671,11 @@ The implementation requires:
 1. Migrate the domain surface to predicate `requires` plus exact requirement
    routes, remove ambient package-owner establishment, and retain route-backed
    claims in selected boundary-entry `accepts` rows and qualification
-   artifacts. Concrete invocation receipts must remain connected throughout
-   source qualification and the remaining authority-flow consumers.
+   artifacts. Add one stable core acknowledgement-entry requirement, retain
+   compiler-derived semantic parameter positions, and connect concrete
+   installed-root occurrence evidence throughout source qualification and the
+   remaining authority-flow consumers. Ordinary calls to the same requirement
+   must continue to require caller evidence.
 2. The permission checker must preserve path-indexed claim frontiers and
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.
