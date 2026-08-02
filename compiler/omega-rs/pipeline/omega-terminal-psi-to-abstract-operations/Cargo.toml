@@ -1,0 +1,15 @@
+[package]
+name = "omega-terminal-psi-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_psi_to_abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+psi-core = { path = "../../../psi-rs/foundation/psi-core" }
+psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
+psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }

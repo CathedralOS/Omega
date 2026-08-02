@@ -30,7 +30,10 @@ emits the semantic module and proof bundle separately, and fails closed on all
 other shapes. Its canary drops the frontend trees before terminal verification
 and interpretation. This adapter does not change the target ownership rule:
 the current Omega-branded frontend still needs to migrate under Psi. This
-checkpoint still has no Omega abstract-operation/native consumer, canonical
+checkpoint also has a source-independent Omega abstract-operation consumer: it
+accepts only the verified module and emits owned integer-materialization,
+jump-binding, and return requirements with stable Psi provenance and no source
+handles. It still has no target/native realization of that stream, canonical
 serialization/fingerprint, branching/arithmetic operation, or fuel schedule.
 
 ## Context

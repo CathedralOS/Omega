@@ -599,6 +599,8 @@ dependencies = [
  "omega-checked-trees-to-terminal-psi",
  "omega-compiler",
  "omega-core",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-psi-to-abstract-operations",
  "omega-typed-trees",
  "psi-core",
  "psi-proof-kernel",
@@ -1030,6 +1032,23 @@ dependencies = [
 [[package]]
 name = "omega-task-plans"
 version = "0.1.0"
+
+[[package]]
+name = "omega-terminal-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+]
+
+[[package]]
+name = "omega-terminal-psi-to-abstract-operations"
+version = "0.1.0"
+dependencies = [
+ "omega-terminal-abstract-operations",
+ "psi-core",
+ "psi-terminal",
+ "psi-terminal-verifier",
+]
 
 [[package]]
 name = "omega-tokens"

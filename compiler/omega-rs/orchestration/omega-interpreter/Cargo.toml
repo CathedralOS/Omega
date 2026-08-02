@@ -19,4 +19,6 @@ psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifie
 
 [dev-dependencies]
 omega-compiler = { path = "../omega-compiler" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
