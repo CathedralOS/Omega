@@ -361,7 +361,8 @@ fn emit_x86_64_expression_node(
         }
         TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
-        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. } => {
+        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. } => {
             emit_x86_64_expression_node(bytes, scalar_type, left, stack_depth)?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
@@ -383,6 +384,9 @@ fn emit_x86_64_expression_node(
                     bytes.extend_from_slice(&[0x49, 0x29, 0xc2]); // sub r10, rax
                     bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
+                }
+                TerminalTargetIntegerExpression::SaturatingSubtract { .. } => {
+                    emit_x86_64_saturating_subtract(bytes, scalar_type);
                 }
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
             }
@@ -428,6 +432,36 @@ fn emit_x86_64_saturating_add(bytes: &mut Vec<u8>, scalar_type: IntegerType) {
         }
         (IntegerSign::Signed, _) => {
             bytes.extend_from_slice(&[0x4c, 0x01, 0xd0]); // add rax, r10
+            emit_x86_64_mov_r10(bytes, maximum);
+            bytes.extend_from_slice(&[0x4c, 0x39, 0xd0]); // cmp rax, r10
+            bytes.extend_from_slice(&[0x49, 0x0f, 0x4f, 0xc2]); // cmovg rax, r10
+            emit_x86_64_mov_r10(bytes, minimum);
+            bytes.extend_from_slice(&[0x4c, 0x39, 0xd0]); // cmp rax, r10
+            bytes.extend_from_slice(&[0x49, 0x0f, 0x4c, 0xc2]); // cmovl rax, r10
+        }
+    }
+}
+
+fn emit_x86_64_saturating_subtract(bytes: &mut Vec<u8>, scalar_type: IntegerType) {
+    let (minimum, maximum) = native_integer_bounds(scalar_type);
+    match (scalar_type.sign(), scalar_type.bits()) {
+        (IntegerSign::Unsigned, _) => {
+            bytes.extend_from_slice(&[0x49, 0x29, 0xc2]); // sub r10, rax
+            bytes.extend_from_slice(&[0xb8, 0, 0, 0, 0]); // mov eax, 0 (flags unchanged)
+            bytes.extend_from_slice(&[0x49, 0x0f, 0x43, 0xc2]); // cmovae rax, r10
+        }
+        (IntegerSign::Signed, 64) => {
+            bytes.extend_from_slice(&[0x4d, 0x89, 0xd3]); // mov r11, r10
+            bytes.extend_from_slice(&[0x49, 0xc1, 0xfb, 0x3f]); // sar r11, 63
+            bytes.extend_from_slice(&[0x49, 0xf7, 0xd3]); // not r11
+            bytes.extend_from_slice(&[0x49, 0x0f, 0xba, 0xfb, 0x3f]); // btc r11, 63
+            bytes.extend_from_slice(&[0x49, 0x29, 0xc2]); // sub r10, rax
+            bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
+            bytes.extend_from_slice(&[0x49, 0x0f, 0x40, 0xc3]); // cmovo rax, r11
+        }
+        (IntegerSign::Signed, _) => {
+            bytes.extend_from_slice(&[0x49, 0x29, 0xc2]); // sub r10, rax
+            bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
             emit_x86_64_mov_r10(bytes, maximum);
             bytes.extend_from_slice(&[0x4c, 0x39, 0xd0]); // cmp rax, r10
             bytes.extend_from_slice(&[0x49, 0x0f, 0x4f, 0xc2]); // cmovg rax, r10
@@ -595,7 +629,8 @@ fn emit_aarch64_expression_node(
         }
         TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
-        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. } => {
+        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. } => {
             emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
@@ -628,6 +663,9 @@ fn emit_aarch64_expression_node(
                 TerminalTargetIntegerExpression::WrappingSubtract { .. } => {
                     instructions.push(0xcb00_0120); // sub x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
+                }
+                TerminalTargetIntegerExpression::SaturatingSubtract { .. } => {
+                    emit_aarch64_saturating_subtract(instructions, scalar_type);
                 }
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
             }
@@ -670,6 +708,32 @@ fn emit_aarch64_saturating_add(instructions: &mut Vec<u32>, scalar_type: Integer
         }
         (IntegerSign::Signed, _) => {
             instructions.push(0x8b00_0120); // add x0, x9, x0
+            emit_aarch64_mov_immediate(instructions, 10, maximum);
+            instructions.push(0xeb0a_001f); // cmp x0, x10
+            instructions.push(aarch64_csel(0, 0, 10, 13)); // csel x0, x0, x10, le
+            emit_aarch64_mov_immediate(instructions, 10, minimum);
+            instructions.push(0xeb0a_001f); // cmp x0, x10
+            instructions.push(aarch64_csel(0, 0, 10, 10)); // csel x0, x0, x10, ge
+        }
+    }
+}
+
+fn emit_aarch64_saturating_subtract(instructions: &mut Vec<u32>, scalar_type: IntegerType) {
+    let (minimum, maximum) = native_integer_bounds(scalar_type);
+    match (scalar_type.sign(), scalar_type.bits()) {
+        (IntegerSign::Unsigned, _) => {
+            instructions.push(0xeb00_0129); // subs x9, x9, x0
+            instructions.push(aarch64_csel(0, 9, 31, 2)); // csel x0, x9, xzr, cs
+        }
+        (IntegerSign::Signed, 64) => {
+            instructions.push(0x937f_fd2a); // asr x10, x9, 63
+            emit_aarch64_mov_immediate(instructions, 11, maximum);
+            instructions.push(0xca0b_014a); // eor x10, x10, x11
+            instructions.push(0xeb00_0120); // subs x0, x9, x0
+            instructions.push(aarch64_csel(0, 0, 10, 7)); // csel x0, x0, x10, vc
+        }
+        (IntegerSign::Signed, _) => {
+            instructions.push(0xcb00_0120); // sub x0, x9, x0
             emit_aarch64_mov_immediate(instructions, 10, maximum);
             instructions.push(0xeb0a_001f); // cmp x0, x10
             instructions.push(aarch64_csel(0, 0, 10, 13)); // csel x0, x0, x10, le
@@ -754,7 +818,8 @@ fn expression_parameter_locations(
             }
             TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
-            | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. } => {
+            | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
+            | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. } => {
                 collect(left, locations)?;
                 collect(right, locations)?;
             }
@@ -773,7 +838,10 @@ fn expression_source(expression: &TerminalTargetIntegerExpression) -> ValueId {
         | TerminalTargetIntegerExpression::Parameter { source_value, .. } => *source_value,
         TerminalTargetIntegerExpression::WrappingAdd { left, .. }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, .. }
-        | TerminalTargetIntegerExpression::WrappingSubtract { left, .. } => expression_source(left),
+        | TerminalTargetIntegerExpression::WrappingSubtract { left, .. }
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, .. } => {
+            expression_source(left)
+        }
     }
 }
 
@@ -1159,6 +1227,81 @@ mod tests {
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
         assert!(instructions.contains(&0xcb00_0120)); // sub x0, x9, x0
         assert_eq!(instructions.last(), Some(&0xd65f_03c0));
+    }
+
+    #[test]
+    fn emits_parameter_fed_saturating_subtract_for_both_architectures() {
+        let expression = |left, right| TerminalTargetIntegerExpression::SaturatingSubtract {
+            psi_operation: OperationId::new(3).expect("operation"),
+            left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(1).expect("left"),
+                parameter_index: 0,
+                location: left,
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(2).expect("right"),
+                parameter_index: 1,
+                location: right,
+            }),
+        };
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let x86 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_x64(),
+            u8_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            ),
+        ))
+        .unwrap();
+        assert!(
+            x86.functions[0].bytes.windows(12).any(
+                |window| window == [0x49, 0x29, 0xc2, 0xb8, 0, 0, 0, 0, 0x49, 0x0f, 0x43, 0xc2]
+            )
+        );
+
+        let aarch64 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_arm64(),
+            u8_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ),
+        ))
+        .unwrap();
+        let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+        assert!(instructions.contains(&0xeb00_0129)); // subs x9, x9, x0
+        assert!(instructions.contains(&aarch64_csel(0, 9, 31, 2))); // cs
+
+        let i64_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        let x86 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_x64(),
+            i64_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            ),
+        ))
+        .unwrap();
+        assert!(
+            x86.functions[0]
+                .bytes
+                .windows(4)
+                .any(|window| window == [0x49, 0x0f, 0x40, 0xc3])
+        ); // cmovo
+
+        let aarch64 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_arm64(),
+            i64_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ),
+        ))
+        .unwrap();
+        let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+        assert!(instructions.contains(&0xeb00_0120)); // subs x0, x9, x0
+        assert!(instructions.contains(&aarch64_csel(0, 0, 10, 7))); // vc
     }
 
     #[test]

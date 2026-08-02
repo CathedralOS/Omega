@@ -10,8 +10,9 @@ use psi_core::{
 /// Version 1 has canonical bytes and a semantic fingerprint defined by
 /// `psi-terminal-codec`. Version 2 adds `BooleanConstant`; version 3 adds
 /// width-relative `WrappingIntegerAdd`; version 4 adds
-/// `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`. Older
-/// bytes retain their original meaning and identity.
+/// `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
+/// adds `SaturatingIntegerSubtract`. Older bytes retain their original meaning
+/// and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
@@ -21,7 +22,8 @@ impl SemanticVersion {
     pub const V3: Self = Self(NonZeroU16::new(3).expect("three is nonzero"));
     pub const V4: Self = Self(NonZeroU16::new(4).expect("four is nonzero"));
     pub const V5: Self = Self(NonZeroU16::new(5).expect("five is nonzero"));
-    pub const CURRENT: Self = Self::V5;
+    pub const V6: Self = Self(NonZeroU16::new(6).expect("six is nonzero"));
+    pub const CURRENT: Self = Self::V6;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -84,7 +86,7 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Closed operation vocabulary through semantic version 5.
+/// Closed operation vocabulary through semantic version 6.
 ///
 /// `IntegerConstant` writes the declared integer value to its result and
 /// establishes the semantic axiom `result == literal`. It cannot trap and
@@ -99,6 +101,11 @@ pub struct Operation {
 /// width. Signed values interpret the reduced bits as two's complement. It is
 /// total and therefore generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
+///
+/// `SaturatingIntegerSubtract` was added in semantic version 6. It reads two
+/// values of the result's exact integer type and clamps `left - right` at that
+/// type's representable bounds. It is total and generates no overflow
+/// obligation; the verifier reconstructs its exact result-term axiom.
 ///
 /// `SaturatingIntegerAdd` was added in semantic version 4. It reads two values
 /// of the result's exact integer type and clamps their sum at that type's
@@ -117,6 +124,7 @@ pub enum OperationKind {
     WrappingIntegerAdd { left: ValueId, right: ValueId },
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },
+    SaturatingIntegerSubtract { left: ValueId, right: ValueId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

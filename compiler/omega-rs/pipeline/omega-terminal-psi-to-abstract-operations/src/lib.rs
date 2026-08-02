@@ -119,6 +119,20 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::SaturatingIntegerSubtract { left, right } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedSaturatingSubtractMalformed(
+                            operation.id,
+                        ));
+                    };
+                    operations.push(TerminalAbstractOperation::SaturatingIntegerSubtract {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        left,
+                        right,
+                    });
+                }
             }
         }
         match &block.terminator {
@@ -195,6 +209,7 @@ pub enum LoweringError {
     VerifiedWrappingAddMalformed(psi_core::OperationId),
     VerifiedSaturatingAddMalformed(psi_core::OperationId),
     VerifiedWrappingSubtractMalformed(psi_core::OperationId),
+    VerifiedSaturatingSubtractMalformed(psi_core::OperationId),
 }
 
 impl std::fmt::Display for LoweringError {

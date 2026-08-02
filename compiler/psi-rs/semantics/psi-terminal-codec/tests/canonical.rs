@@ -25,7 +25,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "5caabab4d824fb6211975a89a6eefeb24fbadfbde05db64f50b0f2697406f30d"
+        "883755aeb504645926adbf12f3696bbe087e48b87fd324ea766198c824f409df"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -295,6 +295,77 @@ fn v5_wrapping_subtract_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "3ea582aeca24f9003ec33687bdc5ae403de933ede6005e33141a024ff069f965"
+    );
+}
+
+#[test]
+fn archived_v5_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let archived = wrapping_subtract_fixture(SemanticVersion::V5);
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "3ea582aeca24f9003ec33687bdc5ae403de933ede6005e33141a024ff069f965"
+    );
+    let migrated = migrate_module_to_current(&archived).expect("v5 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn v5_cannot_claim_the_v6_saturating_subtract_operation() {
+    let module = saturating_subtract_fixture(SemanticVersion::V5);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V6,
+                actual: SemanticVersion::V5,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v5_cannot_claim_the_v6_saturating_subtract_proposition_term() {
+    let mut module = wrapping_subtract_fixture(SemanticVersion::V5);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let difference =
+        ScalarTerm::saturating_integer_subtract(integer, literal(5), literal(10)).unwrap();
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(literal(0), difference));
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionRequiresSemanticVersion {
+                required: SemanticVersion::V6,
+                actual: SemanticVersion::V5,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v6_saturating_subtract_has_stable_canonical_bytes() {
+    let module = saturating_subtract_fixture(SemanticVersion::V6);
+    let bytes = encode_module(&module).expect("v6 saturating-subtract module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "c7eb235760b941c502c19090b929482d149a35db3b723396dbe0f9d0a534c9a0"
     );
 }
 
@@ -637,6 +708,15 @@ fn wrapping_subtract_fixture(semantic_version: SemanticVersion) -> TerminalModul
         value: IntegerValue::Unsigned(10),
     };
     module.machines[0].blocks[0].operations[2].kind = OperationKind::WrappingIntegerSubtract {
+        left: value_id(20),
+        right: value_id(21),
+    };
+    module
+}
+
+fn saturating_subtract_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let mut module = wrapping_subtract_fixture(semantic_version);
+    module.machines[0].blocks[0].operations[2].kind = OperationKind::SaturatingIntegerSubtract {
         left: value_id(20),
         right: value_id(21),
     };
