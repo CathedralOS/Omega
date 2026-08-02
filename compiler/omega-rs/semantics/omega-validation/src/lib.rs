@@ -679,8 +679,9 @@ fn validate_state_statement_node(
             );
             // R5 frame seed: a resolved acyclic INTERNAL call preserves facts
             // outside its conservatively instantiated may-write set. Unknown,
-            // transitioning, static-machine, cyclic, and boundary calls still
-            // invalidate everything; later R5 rungs add authored `stores`.
+            // unsummarized, and overlapping implementations remain
+            // conservative. Authored `stores` clauses are retired; exactness
+            // grows through inferred implementation summaries.
             let written = crate::calls::known_call_written_paths(
                 program,
                 call,

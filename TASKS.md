@@ -704,6 +704,16 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Keep these summaries as inferred implementation metadata. Published
   `ensures` may state exact preservation when an interface needs it; prefer
   signatures exposing only the places a callee actually mutates.
+  Relational loop-head inference now composes a finite, cycle-safe chain of
+  authored machine-arrival upper bounds from the guarded counter to a
+  collection length. At least one link must be strict, and every intermediate
+  place plus the collection must remain stable across the whole machine;
+  overlapping sibling-call frames reject the candidate. Direct/nested/indexed
+  invariant-window consumption and dependent-loan witness pinning already
+  close the known escaping-mutation paths. The 2026-07-30 ruling retired an
+  authored boundary write clause: do not reintroduce `stores`; remaining R5
+  work is further relational candidates, finer read-consumption precision, and
+  broader exact inferred summaries for currently opaque implementations.
 - **DOM1/DOM2/DOM3/DOM5:** exact integer `as`, per-atom
   weakening/explicit erasure, operator ownership, predicate `requires`, and
   exact route bodies are complete. Keep unit conversion in ordinary library
