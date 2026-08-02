@@ -147,8 +147,8 @@ fn lower_statement_node(
             let mut hoisted = Vec::new();
             let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
             let expression = hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, false);
-            // A free value-machine call as the trailing return
-            // (`state go(..) -> f64 { ..; sin(x) }`) hoists into the
+            // A free or direct-self value-machine call as the trailing return
+            // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
             // let-bound spelling, exactly as the transition-value face.
             // Trailing returns are unconditional, so no guard gate applies.
             let expression = hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
@@ -194,8 +194,8 @@ fn lower_statement_node(
                 transition.target,
                 &mut hoisted,
             )?;
-            // A free value-machine call as the TERMINAL value of an
-            // ALWAYS-guard arm (`transition { _ -> (sin(x + k)) }`) hoists
+            // A free or direct-self value-machine call as the TERMINAL value
+            // of an ALWAYS-guard arm (`transition { _ -> (self.sin(x + k)) }`) hoists
             // into the let-bound spelling -- the only served route. Guarded
             // arms keep the honest fence: their hoist would run the callee
             // even when the arm is not taken.
@@ -243,17 +243,16 @@ fn lower_statement_node(
             // the guard ROOT, which `hoist_operand_indexed_reads` leaves whole -- so match
             // exhaustiveness (which needs a single shared subject across arms) is unaffected.
             if let TransitionGuard::When(expression) = guard {
-                // A USER value-machine call compared to an INTEGER literal
-                // (`transition self.dbl(5) == 11`) is hoisted into a `let`
+                // A USER value-machine call on one side of a comparison
+                // (`transition self.next() == expected`) is hoisted into a `let`
                 // temp FIRST -- the direct shape has no guard lowering (the
                 // callee body is never spliced for guard-role calls; the
                 // emission blocker rejects it), while the let-bound call is
                 // the fully working assignment path. The rewritten guard
-                // (`__hoist == 11`) then flows through the match-subject /
-                // operand hoists below unchanged. Scoped to integer-literal
-                // comparisons: string/view call guards work via the
-                // TextEquals path, and bare/bool call guards (the effectful
-                // single-evaluation canaries) are untouched.
+                // (`__hoist == expected`) then flows through the match-subject /
+                // operand hoists below unchanged. A comparison with user calls
+                // on both sides stays explicit until both evaluation results
+                // can be materialized without reordering them.
                 hoist_scalar_value_call_comparison(
                     lowerer,
                     syntax_trees,
@@ -692,12 +691,13 @@ fn hoist_child(
     child
 }
 
-/// Hoists a USER value-machine call out of a guard's integer comparison:
-/// `self.dbl(5) == 11` becomes `let __hoist_N = self.dbl(5); __hoist_N == 11`.
-/// Fires only when the guard ROOT is a comparison with a Call on one side and
-/// an INTEGER literal on the other (builtin min/max/sqrt calls keep their own
-/// dedicated hoist below). The temp's type is resolved from the callee's
-/// DECLARED return by the symbol-resolved -> typed lowering
+/// Hoists a USER value-machine call out of a guard comparison:
+/// `self.next() == expected` becomes
+/// `let __hoist_N = self.next(); __hoist_N == expected`. Fires only when the
+/// guard ROOT is a comparison with one user Call side and one non-user-Call
+/// side (builtin min/max/sqrt calls keep their own dedicated hoist below). The
+/// temp's type is resolved from the callee's DECLARED return by the
+/// symbol-resolved -> typed lowering
 /// (`infer_hoist_temp_type`); an inferred-return callee gets a clear
 /// annotate-or-bind diagnostic there.
 fn hoist_scalar_value_call_comparison(
@@ -765,11 +765,8 @@ fn hoist_scalar_value_call_comparison(
         ExpressionNode::Call(call) => !matches!(call.target.as_str(), "min" | "max" | "sqrt"),
         _ => false,
     };
-    let side_is_integer = |handle: ExpressionHandle| {
-        matches!(expressions.expression(handle), ExpressionNode::Integer(_))
-    };
-    let call_is_left = side_is_user_call(binary.left) && side_is_integer(binary.right);
-    let call_is_right = side_is_user_call(binary.right) && side_is_integer(binary.left);
+    let call_is_left = side_is_user_call(binary.left) && !side_is_user_call(binary.right);
+    let call_is_right = side_is_user_call(binary.right) && !side_is_user_call(binary.left);
     if !call_is_left && !call_is_right {
         return;
     }
@@ -854,9 +851,9 @@ fn hoist_scalar_value_call_comparison(
     set_expression(lowerer, resolved_cmp, ExpressionNode::Binary(rewritten));
 }
 
-/// A FREE user value-machine call (`sin(x)` -- no receiver, not a pure
-/// builtin) as a transition's TERMINAL VALUE (or a state's trailing implicit
-/// return) has no dispatch return route: an acyclic callee poisons at the
+/// A free or direct-self value-machine call (`sin(x)` or `self.finish()`; not a
+/// pure builtin) as a transition's TERMINAL VALUE (or a state's trailing
+/// implicit return) has no dispatch return route: an acyclic callee poisons at the
 /// unlowered-terminal fence and a cyclic one refuses at the
 /// binding-substitution depth cap (neither ever lowered -- probed 2026-07-11,
 /// so this rewrite cannot regress a served shape). The let-bound spelling is
@@ -876,8 +873,21 @@ fn hoist_terminal_value_machine_call(
     let ExpressionNode::Call(call) = expressions.expression(expression) else {
         return expression;
     };
-    if call.receiver.is_valid() || matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+    if matches!(call.target.as_str(), "min" | "max" | "sqrt") {
         return expression;
+    }
+    if call.receiver.is_valid() {
+        let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
+            return expression;
+        };
+        if !matches!(expressions.name_path_members(path.members), [member] if member.as_str() == "self")
+        {
+            // Contained/dynamic/proof receivers already have their own return
+            // routes, and their selected requirement is not a concrete state
+            // whose declared result `infer_hoist_temp_type` can copy. Only a
+            // direct `self.machine()` sibling call uses this normalization.
+            return expression;
+        }
     }
     let name = DiagnosticName::generated(lowerer.next_hoist_name());
     hoisted.push(Statement::LocalData(LocalData {
