@@ -219,13 +219,13 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
     let checked = compile_to_checked(&canary, None)
         .expect("task-start canary should compile with unmarked immediate start calls");
     let start_symbols = checked
-        .typed
-        .machines()
+        .facts
+        .contract_plans
+        .task_activations
         .iter()
-        .flat_map(|machine| checked.typed.machine_states(machine))
-        .filter(|state| matches!(state.name.as_str(), "start" | "try_start"))
-        .map(|state| state.symbol)
+        .map(|activation| activation.start_requirement)
         .collect::<Vec<_>>();
+    assert_eq!(start_symbols.len(), 2);
     let start_calls = checked
         .facts
         .flow
