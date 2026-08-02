@@ -401,6 +401,14 @@ the selected-plan receipt. A concrete source membership fact still requires the
 matching installed-root invocation receipt; reconstructing the parameter's
 ordinary fields or merely naming the selected plan establishes nothing.
 
+The provider-neutral external-root ledger now retains those rows beside the
+exact selected requirement and includes them in normalized root identity. On a
+concrete interrupt entry, it binds the acknowledgement subject to the selected
+provider plan and invocation receipt and carries the accepted domain and strict
+carry policy into invocation-specific qualification evidence. Compiler entry
+lowering still must require that runtime evidence before admitting the checked
+source-parameter fact; the selected schema alone remains insufficient.
+
 ## Carry of resource claims
 
 Accepted resource claims originate with a strict four-axis carry policy. Their

@@ -131,7 +131,9 @@ boundary trait TimerRoot: Calling<X86InterruptPolicy> {
     reaches PortIo;
 }
 
-machine timer_leaf(acknowledgement: InterruptAcknowledgement in Pending)
+data TimerProvider { }
+
+machine TimerProvider::timer_leaf(acknowledgement: InterruptAcknowledgement in Pending)
     satisfies TimerRoot::tick
     reaches PortIo
 {
@@ -189,7 +191,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     );
     let selected = checked
         .selected_provider_plans()
-        .plan_by_name("satisfies::TimerRoot")
+        .plan_by_name("TimerProvider::satisfies::TimerRoot")
         .expect("selected TimerRoot provider plan");
     assert_eq!(selected.rows.len(), 1);
     let [tick] = selected.schema.methods.as_slice() else {
@@ -241,6 +243,18 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(
         root_selection.schema.methods[0].entry_claims, selected.schema.methods[0].entry_claims,
         "the root bridge must carry the structured accepted claim and strict carry policy beside its receipt identity"
+    );
+    let runtime_claims = root_selection
+        .entry_claims(&tick.requirement_identity)
+        .expect("exact timer entry claims should lower into the runtime ledger");
+    let [runtime_pending] = runtime_claims.as_slice() else {
+        panic!("runtime root bridge must retain one Pending claim");
+    };
+    assert_eq!(runtime_pending.parameter_index, 0);
+    assert_eq!(runtime_pending.domain, "InterruptAcknowledgement::Pending");
+    assert_eq!(
+        runtime_pending.effective_carry,
+        omega_core::semantics::CarryPolicy::STRICT
     );
     assert_eq!(
         selected_external_root_provider_plan_id(&checked, "TimerRoot")

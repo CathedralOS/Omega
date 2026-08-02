@@ -20,6 +20,54 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
+impl SelectedExternalRootProviderPlan {
+    /// Lower the compiler-owned accepted claims for one exact requirement into
+    /// the provider-neutral runtime-ledger representation. External-root
+    /// construction must use this retained selection rather than restating
+    /// domains or carry policy from source display text.
+    pub fn entry_claims(
+        &self,
+        requirement_identity: &str,
+    ) -> Result<
+        Vec<omega_external_roots::ExternalRootEntryClaim>,
+        omega_external_roots::ExternalRootDiagnostic,
+    > {
+        let matches = self
+            .schema
+            .methods
+            .iter()
+            .filter(|method| method.requirement_identity == requirement_identity)
+            .collect::<Vec<_>>();
+        let [method] = matches.as_slice() else {
+            return Err(omega_external_roots::ExternalRootDiagnostic(
+                match matches.len() {
+                    0 => format!(
+                        "selected external-root provider plan has no requirement `{requirement_identity}`"
+                    ),
+                    count => format!(
+                        "selected external-root provider plan has {count} copies of requirement `{requirement_identity}`"
+                    ),
+                },
+            ));
+        };
+        let mut claims = method
+            .entry_claims
+            .iter()
+            .map(|claim| omega_external_roots::ExternalRootEntryClaim {
+                parameter_index: claim.parameter_index,
+                domain: claim.domain.clone(),
+                effective_carry: claim.effective_carry,
+            })
+            .collect::<Vec<_>>();
+        claims.sort_by(|left, right| {
+            left.parameter_index
+                .cmp(&right.parameter_index)
+                .then_with(|| left.domain.cmp(&right.domain))
+        });
+        Ok(claims)
+    }
+}
+
 /// Retain the exact validated selection on the checked program. Provider
 /// execution and compiler-generated helper machines consume this carrier;
 /// neither may reconstruct a plan by scanning authored `satisfies` rows.

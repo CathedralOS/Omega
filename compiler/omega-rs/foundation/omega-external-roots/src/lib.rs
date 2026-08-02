@@ -809,6 +809,38 @@ pub struct MachineStateResourceColumn {
     pub validation_receipt: StateValidationReceiptId,
 }
 
+/// One source qualification accepted by the exact external-root requirement.
+///
+/// The compiler constructs these rows from the selected provider schema. The
+/// runtime ledger retains them structurally so an invocation receipt can bind
+/// a concrete parameter subject without parsing a type-display string or
+/// trusting the provider to restate the admitted contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalRootEntryClaim {
+    pub parameter_index: usize,
+    pub domain: String,
+    pub effective_carry: omega_core::semantics::CarryPolicy,
+}
+
+/// Invocation-specific evidence that one runtime subject entered through an
+/// accepted source qualification on the installed root's exact requirement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedEntryQualification {
+    pub provider_plan: ProviderPlanId,
+    pub requirement_identity: String,
+    pub parameter_index: usize,
+    pub domain: String,
+    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub entry_receipt: InterruptEntryReceiptId,
+    pub invocation: InterruptInvocationId,
+    pub subject: AdmittedEntrySubject,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedEntrySubject {
+    InterruptAcknowledgement(InterruptAcknowledgementId),
+}
+
 /// Provider-independent facts required for one externally invoked entry.
 ///
 /// Effects and receipts are normalized open sets. The concrete interrupt,
@@ -823,6 +855,15 @@ pub struct ExternalRootCandidate {
     /// root. Validation binds it into the root identity before execution or
     /// slot admission can be constructed.
     pub provider_plan: ProviderPlanId,
+    /// Stable identity of the exact boundary requirement implemented by this
+    /// entry stub, not merely the containing provider schema.
+    pub requirement_identity: String,
+    /// Compiler-owned accepted qualification rows for that one requirement.
+    /// Validation requires canonical ordering and rejects duplicate claims.
+    pub entry_claims: Vec<ExternalRootEntryClaim>,
+    /// Parameter whose concrete subject is the provider-minted interrupt
+    /// acknowledgement. `None` is valid for roots without that obligation.
+    pub acknowledgement_parameter_index: Option<usize>,
     pub effects: BTreeSet<RootEffectId>,
     pub trust_receipts: BTreeSet<TrustReceiptId>,
     /// Identity of the artifact-wide relation that names which other roots may
@@ -1059,6 +1100,36 @@ pub fn validate_external_root(
     candidate: ExternalRootCandidate,
     boundary: &ValidatedBoundaryEntryPlan,
 ) -> Result<ValidatedExternalRoot, ExternalRootDiagnostic> {
+    if candidate.requirement_identity.is_empty() {
+        return Err(ExternalRootDiagnostic(
+            "external-root requirement identity cannot be empty".into(),
+        ));
+    }
+    let mut prior_claim: Option<(usize, &str)> = None;
+    for claim in &candidate.entry_claims {
+        if claim.domain.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "external-root entry claim domain identity cannot be empty".into(),
+            ));
+        }
+        let key = (claim.parameter_index, claim.domain.as_str());
+        if prior_claim.is_some_and(|prior| prior >= key) {
+            return Err(ExternalRootDiagnostic(
+                "external-root entry claims must be uniquely sorted by parameter and domain".into(),
+            ));
+        }
+        prior_claim = Some(key);
+    }
+    if let Some(parameter_index) = candidate.acknowledgement_parameter_index
+        && !candidate
+            .entry_claims
+            .iter()
+            .any(|claim| claim.parameter_index == parameter_index)
+    {
+        return Err(ExternalRootDiagnostic(
+            "external-root acknowledgement parameter has no accepted qualification claim".into(),
+        ));
+    }
     if candidate.stack.ceiling_bytes == 0 {
         return Err(ExternalRootDiagnostic(
             "external-root stack ceiling must be nonzero".into(),
@@ -1236,6 +1307,9 @@ pub struct InstalledRootRecord {
     pub provider_exit_assurance: OpaqueProviderExitAssurance,
     pub provider_exit_assurance_fingerprint: u64,
     pub provider_plan: ProviderPlanId,
+    pub requirement_identity: String,
+    pub entry_claims: Vec<ExternalRootEntryClaim>,
+    pub acknowledgement_parameter_index: Option<usize>,
     pub boundary_contract_fingerprint: u64,
     pub boundary: BoundaryEntryPlan,
     pub provider: RootProviderId,
@@ -1580,11 +1654,18 @@ pub struct InterruptAcknowledgement {
     provider_execution: ProviderExecutionId,
     invocation: InterruptInvocationId,
     policy: AcknowledgementPolicyId,
+    qualifications: Vec<AdmittedEntryQualification>,
 }
 
 impl InterruptAcknowledgement {
     pub const fn identity(&self) -> InterruptAcknowledgementId {
         self.identity
+    }
+
+    /// Exact admitted source qualifications established for this concrete
+    /// acknowledgement subject by the installed-root invocation receipt.
+    pub fn qualifications(&self) -> &[AdmittedEntryQualification] {
+        &self.qualifications
     }
 
     pub fn complete(
@@ -1726,6 +1807,8 @@ impl InstalledRootLedger {
             && receipt.installed_code == record.installed_code
             && receipt.provider_execution == record.provider_execution
             && acknowledgement_shape_matches
+            && (receipt.acknowledgement.is_none()
+                || record.acknowledgement_parameter_index.is_some())
             && record.boundary.call.entry_control == EntryControl::InterruptReturn;
         if !exact_root {
             return Err(InterruptEntryStartError {
@@ -1759,9 +1842,26 @@ impl InstalledRootLedger {
             .insert((record.root, receipt.invocation));
 
         let invocation_evidence = InterruptInvocationEvidence::from_entry_receipt(&receipt);
-        let acknowledgement = receipt
-            .acknowledgement
-            .map(|identity| InterruptAcknowledgement {
+        let acknowledgement = receipt.acknowledgement.map(|identity| {
+            let parameter_index = record
+                .acknowledgement_parameter_index
+                .expect("exact interrupt root validated the acknowledgement parameter");
+            let qualifications = record
+                .entry_claims
+                .iter()
+                .filter(|claim| claim.parameter_index == parameter_index)
+                .map(|claim| AdmittedEntryQualification {
+                    provider_plan: record.provider_plan,
+                    requirement_identity: record.requirement_identity.clone(),
+                    parameter_index,
+                    domain: claim.domain.clone(),
+                    effective_carry: claim.effective_carry,
+                    entry_receipt: receipt.identity,
+                    invocation: receipt.invocation,
+                    subject: AdmittedEntrySubject::InterruptAcknowledgement(identity),
+                })
+                .collect::<Vec<_>>();
+            InterruptAcknowledgement {
                 invocation_evidence: invocation_evidence.clone(),
                 identity,
                 root: record.root,
@@ -1770,7 +1870,9 @@ impl InstalledRootLedger {
                 policy: record
                     .acknowledgement_policy
                     .expect("validated acknowledgement shape has a policy"),
-            });
+                qualifications,
+            }
+        });
         Ok(InterruptEntryObligations {
             pending_exit: PendingInterruptExit {
                 entry_receipt: receipt.identity,
@@ -2004,6 +2106,9 @@ impl InstalledRootLedger {
             provider_exit_assurance: admission.provider_exit_assurance,
             provider_exit_assurance_fingerprint: admission.provider_exit_assurance_fingerprint,
             provider_plan: admission.provider_plan,
+            requirement_identity: root.candidate.requirement_identity,
+            entry_claims: root.candidate.entry_claims,
+            acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,
             boundary_contract_fingerprint: root.boundary_contract_fingerprint,
             boundary: root.boundary,
             provider: root.candidate.provider,
@@ -2245,6 +2350,19 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     hash.u64(candidate.entry.normalized_identity());
     hash.u64(candidate.provider.normalized_identity());
     hash.u64(candidate.provider_plan.normalized_identity());
+    hash.string(&candidate.requirement_identity);
+    hash.u64(candidate.entry_claims.len() as u64);
+    for claim in &candidate.entry_claims {
+        hash.u64(claim.parameter_index as u64);
+        hash.string(&claim.domain);
+        fingerprint_carry_policy(&mut hash, claim.effective_carry);
+    }
+    hash.u64(
+        candidate
+            .acknowledgement_parameter_index
+            .map(|index| index as u64 + 1)
+            .unwrap_or_default(),
+    );
     hash.u64(boundary);
     hash.u64(candidate.nesting_relation.normalized_identity());
     hash.u64(
@@ -2385,9 +2503,38 @@ impl Fnv1a {
         }
     }
 
+    fn string(&mut self, value: &str) {
+        self.u64(value.len() as u64);
+        for byte in value.bytes() {
+            self.0 ^= u64::from(byte);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
     const fn finish(self) -> u64 {
         self.0
     }
+}
+
+fn fingerprint_carry_policy(hash: &mut Fnv1a, policy: omega_core::semantics::CarryPolicy) {
+    use omega_core::semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
+
+    hash.u64(match policy.suspension {
+        CarrySuspension::Forbidden => 0,
+        CarrySuspension::Allowed => 1,
+    });
+    hash.u64(match policy.cpu {
+        CarryCpu::Origin => 0,
+        CarryCpu::Any => 1,
+    });
+    hash.u64(match policy.host_thread {
+        CarryHostThread::Origin => 0,
+        CarryHostThread::Any => 1,
+    });
+    hash.u64(match policy.address {
+        CarryAddress::Stable => 0,
+        CarryAddress::Movable => 1,
+    });
 }
 
 #[cfg(test)]
@@ -2629,6 +2776,9 @@ mod tests {
             entry,
             provider,
             provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
+            requirement_identity: "TestRoot::entry".into(),
+            entry_claims: Vec::new(),
+            acknowledgement_parameter_index: None,
             effects: [root_id(3, RootEffectId::from_normalized_identity)]
                 .into_iter()
                 .collect(),
@@ -2755,6 +2905,13 @@ mod tests {
 
     fn interrupt_candidate(entry: EntryStubId) -> ExternalRootCandidate {
         let mut candidate = candidate(entry);
+        candidate.requirement_identity = "TimerRoot::tick".into();
+        candidate.entry_claims = vec![ExternalRootEntryClaim {
+            parameter_index: 0,
+            domain: "InterruptAcknowledgement::Pending".into(),
+            effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+        }];
+        candidate.acknowledgement_parameter_index = Some(0);
         candidate.stack.realization = stack_demand(
             candidate.identity,
             candidate.provider,
@@ -2910,6 +3067,37 @@ mod tests {
 
         let acknowledgement =
             acknowledgement.expect("policy-bearing interrupt mints acknowledgement");
+        let [pending_qualification] = acknowledgement.qualifications() else {
+            panic!("acknowledgement must retain its exact Pending entry qualification");
+        };
+        assert_eq!(
+            pending_qualification.provider_plan,
+            root_id(55, ProviderPlanId::from_normalized_identity)
+        );
+        assert_eq!(
+            pending_qualification.requirement_identity,
+            "TimerRoot::tick"
+        );
+        assert_eq!(pending_qualification.parameter_index, 0);
+        assert_eq!(
+            pending_qualification.domain,
+            "InterruptAcknowledgement::Pending"
+        );
+        assert_eq!(
+            pending_qualification.effective_carry,
+            omega_core::semantics::CarryPolicy::STRICT
+        );
+        assert_eq!(
+            pending_qualification.entry_receipt,
+            root_id(150, InterruptEntryReceiptId::from_normalized_identity)
+        );
+        assert_eq!(
+            pending_qualification.subject,
+            AdmittedEntrySubject::InterruptAcknowledgement(root_id(
+                91,
+                InterruptAcknowledgementId::from_normalized_identity
+            ))
+        );
         let acknowledgement_receipt = InterruptAcknowledgementReceipt::from_provider(
             root_id(
                 99,
@@ -3314,6 +3502,9 @@ mod tests {
         assert_eq!(record.installed_code, code.identity());
         assert_eq!(record.provider_execution, execution.identity());
         assert_eq!(record.provider_plan, execution.provider_plan());
+        assert_eq!(record.requirement_identity, "TestRoot::entry");
+        assert!(record.entry_claims.is_empty());
+        assert_eq!(record.acknowledgement_parameter_index, None);
         assert_eq!(
             record.provider_execution_fingerprint,
             execution.normalized_identity()
@@ -3346,6 +3537,37 @@ mod tests {
         assert_eq!(returned.slot(), root_slot);
         assert!(ledger.record(root_identity).is_none());
         assert_ne!(ledger.report_fingerprint(), installed_report_fingerprint);
+    }
+
+    #[test]
+    fn external_root_identity_binds_canonical_entry_claims() {
+        let entry = entry_id(1001);
+        let boundary = interrupt_boundary();
+        let baseline = validate_external_root(interrupt_candidate(entry), &boundary)
+            .expect("canonical interrupt entry contract");
+
+        let mut drifted = interrupt_candidate(entry);
+        drifted.entry_claims[0].domain = "InterruptAcknowledgement::Forged".into();
+        let drifted = validate_external_root(drifted, &boundary)
+            .expect("a different admitted domain remains a structurally valid root");
+        assert_ne!(
+            baseline.normalized_identity(),
+            drifted.normalized_identity()
+        );
+
+        let mut duplicate = interrupt_candidate(entry);
+        duplicate
+            .entry_claims
+            .push(duplicate.entry_claims[0].clone());
+        let duplicate = validate_external_root(duplicate, &boundary)
+            .expect_err("duplicate accepted claims must fail closed");
+        assert!(duplicate.0.contains("uniquely sorted"));
+
+        let mut missing = interrupt_candidate(entry);
+        missing.entry_claims.clear();
+        let missing = validate_external_root(missing, &boundary)
+            .expect_err("the acknowledgement parameter must name an admitted claim");
+        assert!(missing.0.contains("acknowledgement parameter"));
     }
 
     #[test]
