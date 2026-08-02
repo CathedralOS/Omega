@@ -8,16 +8,25 @@ semantic and evidence contract is owned by
 [`canonical_ir_fuel_and_resource_provisioning.md`](../../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
 Implementation status (2026-08-02): `compiler/psi-rs` is the Psi-owned
-workspace root. `psi-core` provides nonzero stable value/place/operation/edge,
-proposition/contract/obligation, admission, evidence, and profile identities
-plus the initial typed scalar proposition vocabulary and a module-owned value
-typing context. `psi-proof-kernel` provides total truth, reflexive-equality,
-and closed-integer judgments, structural proof checking, versioned certificate
-envelopes, and exact profile-authorized admission validation. Admission cannot
-replace a primitive derivation, and architecture tests reject any Psi crate
-dependency on Omega. No executable operation or terminal module is claimed by
-this foundation checkpoint; the first integer/control/contract vertical slice
-remains next.
+workspace root. `psi-core` provides nonzero stable semantic identities, the
+typed scalar proposition vocabulary, and a module-owned value-typing context.
+`psi-proof-kernel` provides total primitive judgments, structural proof
+checking (including semantic-axiom citation and typed equality transitivity),
+versioned certificate envelopes, and exact profile-authorized admission
+validation. Admission cannot replace a primitive derivation, and architecture
+tests reject any Psi dependency on Omega.
+
+The first in-memory executable slice is also live. `psi-terminal` defines a
+versioned module with stable machines, blocks, values, operations, edges, and
+bodyful contracts; its closed vocabulary currently contains representable
+integer constants plus unconditional jump and return edges.
+`psi-terminal-verifier` rejects malformed identities, types, contract scopes,
+cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
+exact operation/edge/return axioms, and checks every `ensures` from a separate
+proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
+this path. Source-to-terminal lowering, branching and arithmetic-policy
+operations, an Omega abstract-operation consumer, canonical bytes,
+fingerprints, and fuel remain next; none is claimed by this checkpoint.
 
 ## Boundary
 
@@ -144,8 +153,11 @@ identities. One execution verifies and runs one complete Psi semantic version.
    remains on an Omega-to-Psi path.
 2. Extend the live stable Psi value, proposition, proof, and place identities
    into the first terminal semantic module without changing the current backend.
-3. Lower a minimal integer/control/contract slice from checked trees into a
-   terminal-Psi module and interpret it.
+   **Initial scalar subset complete:** in-memory constant/jump/return module,
+   verifier, and direct interpreter. Structural places remain a later slice.
+3. Lower the live integer/control/contract slice from the transitional checked
+   frontend into terminal Psi, add its Omega abstract-operation consumer, and
+   compare interpreted/native behavior before broadening the vocabulary.
 4. Add calls, continuations, cleanup, conservation, boundary operations,
    suspension, and scoped ordering as reviewed vertical slices.
 5. Move binding substitution and concrete instantiation above terminal Psi so

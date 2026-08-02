@@ -586,6 +586,10 @@ dependencies = [
  "omega-compiler",
  "omega-core",
  "omega-typed-trees",
+ "psi-core",
+ "psi-proof-kernel",
+ "psi-terminal",
+ "psi-terminal-verifier",
 ]
 
 [[package]]
@@ -1125,6 +1129,22 @@ name = "psi-proof-kernel"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+]
+
+[[package]]
+name = "psi-terminal"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+]
+
+[[package]]
+name = "psi-terminal-verifier"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+ "psi-proof-kernel",
+ "psi-terminal",
 ]
 
 [[package]]

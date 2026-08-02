@@ -884,9 +884,18 @@ improvements do not change public identity.
   small structural proof kernel, versioned certificate envelope, total truth /
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
+  The first in-memory executable slice is also live: stable machine/block
+  topology, representable integer constants, unconditional jump/return edges,
+  bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
+  bundle checking, and direct execution of the verified module in
+  `omega-interpreter`. Its validator rejects unreachable axiom sources and
+  entry/postcondition references to internal values.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
-  Omega-to-Psi path. Next add operations in vertical slices containing execution
+  Omega-to-Psi path. Next lower this constant/control/contract slice from the
+  transitional frontend, add the source-independent Omega abstract-operation
+  consumer, and compare interpreted/native results. Then add operations in
+  vertical slices containing execution
   semantics, generated obligations, sound proof rules, interpreter behavior,
   Omega lowering requirements, and canonical encoding. Merge the useful
   `StateGraph`/`ControlFlowPlan` topology, replace every `ExpressionHandle` with

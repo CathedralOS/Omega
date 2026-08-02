@@ -12,9 +12,21 @@ carry stable semantic identities, typed scalar propositions checked against a
 module value table, total primitive judgments, explicit structural proof
 certificates, and sealed admission evidence bound to an exact authorized site,
 authority identity, evidence identity, and installation-profile decision. The
-kernel rejects admission for a primitively derivable proposition. This is the
-prerequisite evidence substrate, not yet a terminal semantic module, operation
-vocabulary, serialization, interpreter, or fuel schedule.
+kernel rejects admission for a primitively derivable proposition. That
+foundation was the prerequisite evidence substrate; the executable checkpoint
+below extends it, while serialization and fuel remain absent.
+
+Executable checkpoint (2026-08-02): the first in-memory terminal semantic
+module now carries stable machine/block/value/operation/edge identities,
+representable integer constants, unconditional jump/return control, and
+bodyful contracts. The verifier reconstructs constant, edge-binding, and
+return-binding axioms from the executable path, rejects unreachable fact
+sources and out-of-scope contract values, and requires evidence for every
+`ensures`; the proof kernel checks semantic-axiom citations and equality
+composition. Omega's interpreter executes the same verified module object.
+This checkpoint still has no source lowering, Omega abstract-operation/native
+consumer, canonical serialization/fingerprint, branching/arithmetic operation,
+or fuel schedule.
 
 ## Context
 

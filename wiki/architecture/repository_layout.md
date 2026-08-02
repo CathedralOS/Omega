@@ -38,7 +38,8 @@ current packages.
 > **TRANSITIONAL TREE (2026-08-02).** Existing bootstrap crates drawn below live
 > under **`compiler/omega-rs/`**. New target-neutral terminal foundations live
 > under **`compiler/psi-rs/`**, beginning with
-> `foundation/psi-core` and `semantics/psi-proof-kernel`; parsing-through-
+> `foundation/psi-core`, `representations/psi-terminal`,
+> `semantics/psi-proof-kernel`, and `semantics/psi-terminal-verifier`; parsing-through-
 > lowering crates move there incrementally with compatibility adapters. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
 > `compiler/` also holds the bootstrap lattice rungs documented in
@@ -55,8 +56,11 @@ Omega/
 |   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
+|   |   |-- representations/
+|   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   `-- semantics/
-|   |       `-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
+|   |       |-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
+|   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |
 |   |-- foundation/
 |   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.

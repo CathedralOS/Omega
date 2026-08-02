@@ -1,0 +1,14 @@
+[package]
+name = "psi-terminal-verifier"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_terminal_verifier"
+path = "src/lib.rs"
+
+[dependencies]
+psi-core = { path = "../../foundation/psi-core" }
+psi-proof-kernel = { path = "../psi-proof-kernel" }
+psi-terminal = { path = "../../representations/psi-terminal" }

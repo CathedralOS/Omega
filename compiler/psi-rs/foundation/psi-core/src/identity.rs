@@ -42,6 +42,8 @@ macro_rules! semantic_id {
 }
 
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
+semantic_id!(MachineId, "Stable identity of one terminal-Psi machine.");
+semantic_id!(BlockId, "Stable identity of one terminal-Psi block.");
 semantic_id!(
     PlaceId,
     "Stable identity of one terminal-Psi structural place."

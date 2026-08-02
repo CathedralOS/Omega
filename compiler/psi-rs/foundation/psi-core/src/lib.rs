@@ -12,8 +12,8 @@ mod identity;
 mod proposition;
 
 pub use identity::{
-    AdmissionSiteId, ContractId, EdgeId, EvidenceIdentity, ObligationId, OperationId, PlaceId,
-    ProfileDecisionId, PropositionId, PsiSemanticId, ValueId,
+    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId,
+    OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ValueId,
 };
 pub use proposition::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,

@@ -1,6 +1,11 @@
 //! A reference INTERPRETER for the Omega checked/typed trees, used as a DIFFERENTIAL
 //! ORACLE for the native backend.
 //!
+//! The separate [`interpret_terminal`] entry now executes the first verified
+//! terminal-Psi integer/control/contract slice directly. The legacy
+//! [`interpret`] entry remains rooted on checked trees while source lowering
+//! and the broader operation vocabulary migrate.
+//!
 //! The interpreter evaluates the program at the level of the typed/checked trees
 //! (`omega_checked_trees::CheckedTrees`, which derefs to `omega_typed_trees::TypedTrees`)
 //! -- the source-of-truth semantics, ABOVE all backend lowering. It is therefore
@@ -79,9 +84,11 @@
 
 mod build_time;
 mod evaluator;
+mod terminal_psi;
 mod value;
 
 pub use build_time::BuildTimeValue;
+pub use terminal_psi::{TerminalInterpretError, TerminalScalarValue, interpret_terminal};
 
 pub use value::{Cell, Value};
 
