@@ -841,6 +841,34 @@ pub enum AdmittedEntrySubject {
     InterruptAcknowledgement(InterruptAcknowledgementId),
 }
 
+/// One routed result qualification supplied by an independently selected
+/// boundary provider used during an external-root invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalRootResultClaim {
+    pub provider_plan: ProviderPlanId,
+    pub requirement_identity: String,
+    pub domain: String,
+    pub effective_carry: omega_core::semantics::CarryPolicy,
+}
+
+/// Concrete result evidence minted only after the provider's exact transition
+/// receipt has changed the interrupt-mask state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedResultQualification {
+    pub provider_plan: ProviderPlanId,
+    pub requirement_identity: String,
+    pub domain: String,
+    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub transition_receipt: InterruptMaskTransitionReceiptId,
+    pub invocation: InterruptInvocationId,
+    pub subject: AdmittedResultSubject,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedResultSubject {
+    InterruptMaskGuard(InterruptMaskGuardId),
+}
+
 /// Provider-independent facts required for one externally invoked entry.
 ///
 /// Effects and receipts are normalized open sets. The concrete interrupt,
@@ -864,6 +892,10 @@ pub struct ExternalRootCandidate {
     /// Parameter whose concrete subject is the provider-minted interrupt
     /// acknowledgement. `None` is valid for roots without that obligation.
     pub acknowledgement_parameter_index: Option<usize>,
+    /// Exact routed result contract used when this root's mask control saves
+    /// and masks the current invocation. It belongs to the independently
+    /// selected mask-control provider, not implicitly to the root provider.
+    pub interrupt_mask_guard_claim: Option<ExternalRootResultClaim>,
     pub effects: BTreeSet<RootEffectId>,
     pub trust_receipts: BTreeSet<TrustReceiptId>,
     /// Identity of the artifact-wide relation that names which other roots may
@@ -1130,6 +1162,15 @@ pub fn validate_external_root(
             "external-root acknowledgement parameter has no accepted qualification claim".into(),
         ));
     }
+    if candidate
+        .interrupt_mask_guard_claim
+        .as_ref()
+        .is_some_and(|claim| claim.requirement_identity.is_empty() || claim.domain.is_empty())
+    {
+        return Err(ExternalRootDiagnostic(
+            "interrupt-mask guard claim requires exact requirement and domain identities".into(),
+        ));
+    }
     if candidate.stack.ceiling_bytes == 0 {
         return Err(ExternalRootDiagnostic(
             "external-root stack ceiling must be nonzero".into(),
@@ -1310,6 +1351,7 @@ pub struct InstalledRootRecord {
     pub requirement_identity: String,
     pub entry_claims: Vec<ExternalRootEntryClaim>,
     pub acknowledgement_parameter_index: Option<usize>,
+    pub interrupt_mask_guard_claim: Option<ExternalRootResultClaim>,
     pub boundary_contract_fingerprint: u64,
     pub boundary: BoundaryEntryPlan,
     pub provider: RootProviderId,
@@ -1481,6 +1523,7 @@ pub struct InterruptMaskControl {
     current_state: InterruptMaskStateId,
     live_guards: Vec<InterruptMaskGuardId>,
     used_guards: BTreeSet<InterruptMaskGuardId>,
+    mask_guard_claim: Option<ExternalRootResultClaim>,
 }
 
 impl InterruptMaskControl {
@@ -1496,6 +1539,14 @@ impl InterruptMaskControl {
         &mut self,
         receipt: InterruptMaskSaveReceipt,
     ) -> Result<InterruptMaskGuard, InterruptMaskSaveError> {
+        let Some(mask_guard_claim) = self.mask_guard_claim.as_ref() else {
+            return Err(InterruptMaskSaveError {
+                receipt,
+                diagnostic: ExternalRootDiagnostic(
+                    "interrupt-mask save has no admitted routed result contract".into(),
+                ),
+            });
+        };
         let matches = receipt.root == self.root
             && receipt.invocation_evidence == self.invocation_evidence
             && receipt.invocation == self.invocation
@@ -1523,6 +1574,15 @@ impl InterruptMaskControl {
             control: self.identity,
             prior_state: receipt.prior_state,
             masked_state: receipt.masked_state,
+            qualification: AdmittedResultQualification {
+                provider_plan: mask_guard_claim.provider_plan,
+                requirement_identity: mask_guard_claim.requirement_identity.clone(),
+                domain: mask_guard_claim.domain.clone(),
+                effective_carry: mask_guard_claim.effective_carry,
+                transition_receipt: receipt.identity,
+                invocation: self.invocation,
+                subject: AdmittedResultSubject::InterruptMaskGuard(receipt.guard),
+            },
         })
     }
 }
@@ -1572,11 +1632,16 @@ pub struct InterruptMaskGuard {
     control: InterruptMaskControlId,
     prior_state: InterruptMaskStateId,
     masked_state: InterruptMaskStateId,
+    qualification: AdmittedResultQualification,
 }
 
 impl InterruptMaskGuard {
     pub const fn identity(&self) -> InterruptMaskGuardId {
         self.identity
+    }
+
+    pub const fn qualification(&self) -> &AdmittedResultQualification {
+        &self.qualification
     }
 
     pub fn restore(
@@ -1895,6 +1960,7 @@ impl InstalledRootLedger {
                 current_state: receipt.initial_mask_state,
                 live_guards: Vec::new(),
                 used_guards: BTreeSet::new(),
+                mask_guard_claim: record.interrupt_mask_guard_claim.clone(),
             },
             acknowledgement,
         })
@@ -2109,6 +2175,7 @@ impl InstalledRootLedger {
             requirement_identity: root.candidate.requirement_identity,
             entry_claims: root.candidate.entry_claims,
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,
+            interrupt_mask_guard_claim: root.candidate.interrupt_mask_guard_claim,
             boundary_contract_fingerprint: root.boundary_contract_fingerprint,
             boundary: root.boundary,
             provider: root.candidate.provider,
@@ -2363,6 +2430,16 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
             .map(|index| index as u64 + 1)
             .unwrap_or_default(),
     );
+    match &candidate.interrupt_mask_guard_claim {
+        Some(claim) => {
+            hash.u64(1);
+            hash.u64(claim.provider_plan.normalized_identity());
+            hash.string(&claim.requirement_identity);
+            hash.string(&claim.domain);
+            fingerprint_carry_policy(&mut hash, claim.effective_carry);
+        }
+        None => hash.u64(0),
+    }
     hash.u64(boundary);
     hash.u64(candidate.nesting_relation.normalized_identity());
     hash.u64(
@@ -2779,6 +2856,7 @@ mod tests {
             requirement_identity: "TestRoot::entry".into(),
             entry_claims: Vec::new(),
             acknowledgement_parameter_index: None,
+            interrupt_mask_guard_claim: None,
             effects: [root_id(3, RootEffectId::from_normalized_identity)]
                 .into_iter()
                 .collect(),
@@ -2912,6 +2990,12 @@ mod tests {
             effective_carry: omega_core::semantics::CarryPolicy::STRICT,
         }];
         candidate.acknowledgement_parameter_index = Some(0);
+        candidate.interrupt_mask_guard_claim = Some(ExternalRootResultClaim {
+            provider_plan: root_id(56, ProviderPlanId::from_normalized_identity),
+            requirement_identity: "InterruptMaskControl::save_and_mask".into(),
+            domain: "InterruptMaskGuard::Active".into(),
+            effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+        });
         candidate.stack.realization = stack_demand(
             candidate.identity,
             candidate.provider,
@@ -2998,6 +3082,21 @@ mod tests {
                 true,
             ))
             .expect("first exact mask save");
+        assert_eq!(
+            first.qualification(),
+            &AdmittedResultQualification {
+                provider_plan: root_id(56, ProviderPlanId::from_normalized_identity),
+                requirement_identity: "InterruptMaskControl::save_and_mask".into(),
+                domain: "InterruptMaskGuard::Active".into(),
+                effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+                transition_receipt: root_id(
+                    94,
+                    InterruptMaskTransitionReceiptId::from_normalized_identity
+                ),
+                invocation: root_id(90, InterruptInvocationId::from_normalized_identity),
+                subject: AdmittedResultSubject::InterruptMaskGuard(first_guard_id),
+            }
+        );
         let second = control
             .save_and_mask(InterruptMaskSaveReceipt::from_provider(
                 root_id(
@@ -3238,6 +3337,7 @@ mod tests {
         let boundary = interrupt_boundary();
         let mut candidate = interrupt_candidate(entry);
         candidate.acknowledgement_policy = None;
+        candidate.interrupt_mask_guard_claim = None;
         let validated = validate_external_root(candidate, &boundary).expect("exception root plan");
         let authority = slot();
         let execution = provider_execution(&validated);
@@ -3261,8 +3361,26 @@ mod tests {
                 interrupt_entry_receipt(&installed, 110, None, None),
             )
             .expect("entry without an acknowledgement protocol");
-        let (pending, control, acknowledgement) = obligations.into_parts();
+        let (pending, mut control, acknowledgement) = obligations.into_parts();
         assert!(acknowledgement.is_none());
+        let rejected_mask = control
+            .save_and_mask(InterruptMaskSaveReceipt::from_provider(
+                root_id(
+                    112,
+                    InterruptMaskTransitionReceiptId::from_normalized_identity,
+                ),
+                &control,
+                root_id(113, InterruptMaskGuardId::from_normalized_identity),
+                root_id(114, InterruptMaskStateId::from_normalized_identity),
+                true,
+            ))
+            .expect_err("a mask transition without a routed result contract must reject");
+        assert!(
+            rejected_mask
+                .diagnostic()
+                .0
+                .contains("no admitted routed result contract")
+        );
         ledger
             .finish_interrupt_entry(pending, control, None)
             .expect("exception exit with restored mask and no acknowledgement debt");
@@ -3505,6 +3623,7 @@ mod tests {
         assert_eq!(record.requirement_identity, "TestRoot::entry");
         assert!(record.entry_claims.is_empty());
         assert_eq!(record.acknowledgement_parameter_index, None);
+        assert!(record.interrupt_mask_guard_claim.is_none());
         assert_eq!(
             record.provider_execution_fingerprint,
             execution.normalized_identity()

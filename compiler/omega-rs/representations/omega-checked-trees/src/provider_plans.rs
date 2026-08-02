@@ -146,6 +146,7 @@ mod tests {
                     entry_claims: Vec::new(),
                     has_result: false,
                     result_type_identity: None,
+                    result_claims: Vec::new(),
                     service_reach: vec![format!("{name}Service")],
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,

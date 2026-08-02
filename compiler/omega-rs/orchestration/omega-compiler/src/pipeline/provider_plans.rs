@@ -66,6 +66,47 @@ impl SelectedExternalRootProviderPlan {
         });
         Ok(claims)
     }
+
+    /// Lower routed result qualifications for one exact selected requirement
+    /// into the runtime receipt contract used by interrupt-mask transitions.
+    pub fn result_claims(
+        &self,
+        requirement_identity: &str,
+    ) -> Result<
+        Vec<omega_external_roots::ExternalRootResultClaim>,
+        omega_external_roots::ExternalRootDiagnostic,
+    > {
+        let matches = self
+            .schema
+            .methods
+            .iter()
+            .filter(|method| method.requirement_identity == requirement_identity)
+            .collect::<Vec<_>>();
+        let [method] = matches.as_slice() else {
+            return Err(omega_external_roots::ExternalRootDiagnostic(
+                match matches.len() {
+                    0 => format!(
+                        "selected external-root provider plan has no requirement `{requirement_identity}`"
+                    ),
+                    count => format!(
+                        "selected external-root provider plan has {count} copies of requirement `{requirement_identity}`"
+                    ),
+                },
+            ));
+        };
+        let mut claims = method
+            .result_claims
+            .iter()
+            .map(|claim| omega_external_roots::ExternalRootResultClaim {
+                provider_plan: self.identity,
+                requirement_identity: requirement_identity.to_owned(),
+                domain: claim.domain.clone(),
+                effective_carry: claim.effective_carry,
+            })
+            .collect::<Vec<_>>();
+        claims.sort_by(|left, right| left.domain.cmp(&right.domain));
+        Ok(claims)
+    }
 }
 
 /// Retain the exact validated selection on the checked program. Provider
@@ -1525,6 +1566,7 @@ mod tests {
                         entry_claims: Vec::new(),
                         has_result: false,
                         result_type_identity: None,
+                        result_claims: Vec::new(),
                         service_reach: vec!["Pair".to_owned()],
                         synchronous_invocations: Vec::new(),
                         may_suspend: false,

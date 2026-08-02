@@ -123,10 +123,22 @@ composite claim-frontier work remain.
   for the exact acknowledgement subject, retaining provider-plan, requirement,
   parameter, semantic-domain, carry-policy, invocation, and receipt identity;
   missing, duplicate, drifted, or replayed bindings fail closed.
-- connect that invocation evidence to the checked source-parameter fact and
-  backend entry lowering; connect mask-transition receipts to source `Active`
-  establishment; carry those receipt identities into the resulting checked
-  facts; and migrate the
+- Core `InterruptMaskGuard::Active` now names the exact exclusive-receiver
+  `InterruptMaskControl::save_and_mask` boundary requirement. Selected service
+  schemas retain routed linear result claims structurally and include them in
+  provider identity and `returns` authority-flow artifacts. The external-root
+  ledger separately binds that selected mask-provider claim, and an exact mask
+  transition receipt mints subject/invocation-bound `Active` evidence; explicit
+  qualification, missing contracts, claim drift, and receipt substitution
+  reject.
+- **LANGUAGE-DESIGN BLOCKED (OWNER_QUESTIONS #6):** connect concrete inbound
+  invocation evidence to the checked `Pending` source-parameter fact and
+  backend entry lowering without weakening the exact owner-authorized route
+  rule. Current routes name only qualified results; `Pending` originates at an
+  exact accepted requirement parameter, and core cannot name an open-ended
+  target-owned handler requirement. Do not bless the current empty domain or
+  arbitrary boundary parameters as issuance authority.
+- migrate the
   `TaskRuntime` handle through the ordinary selected-provider behavior evidence,
   stack-resource, and custody work tracked under TR3–TR8.
 

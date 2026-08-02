@@ -126,6 +126,24 @@ machine X86InterruptPolicy::plan(
     }
 }
 
+data MaskProvider { }
+MaskProvider satisfies InterruptMaskControl;
+
+machine MaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
+    satisfies InterruptMaskControl::save_and_mask
+    via Binding::CompilerIntrinsic("InterruptMaskControl::save_and_mask");
+
+boundary trait LookalikeMaskControl {
+    machine save(&mut self) -> InterruptMaskGuard in Active;
+}
+
+data LookalikeMaskProvider { }
+LookalikeMaskProvider satisfies LookalikeMaskControl;
+
+machine LookalikeMaskProvider::save(&mut self) -> InterruptMaskGuard in Active
+    satisfies LookalikeMaskControl::save
+    via Binding::CompilerIntrinsic("LookalikeMaskControl::save");
+
 boundary trait TimerRoot: Calling<X86InterruptPolicy> {
     machine tick(acknowledgement: InterruptAcknowledgement in Pending)
     reaches PortIo;
@@ -193,6 +211,53 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .selected_provider_plans()
         .plan_by_name("TimerProvider::satisfies::TimerRoot")
         .expect("selected TimerRoot provider plan");
+    let mask_plan = checked
+        .selected_provider_plans()
+        .plan_by_name("MaskProvider::satisfies::InterruptMaskControl")
+        .expect("selected interrupt-mask provider plan");
+    let [mask_save] = mask_plan.schema.methods.as_slice() else {
+        panic!("mask provider must publish one save-and-mask requirement");
+    };
+    let [active] = mask_save.result_claims.as_slice() else {
+        panic!("mask transition must publish one structured Active result claim");
+    };
+    assert_eq!(active.domain, "InterruptMaskGuard::Active");
+    assert_eq!(
+        active.effective_carry,
+        omega_core::semantics::CarryPolicy::STRICT
+    );
+    let mut missing_active = mask_plan.clone();
+    missing_active.schema.methods[0].result_claims.clear();
+    assert_ne!(
+        mask_plan.identity_fingerprint(),
+        missing_active.identity_fingerprint(),
+        "the mask provider receipt must bind its routed Active result claim"
+    );
+    let mask_selection = selected_external_root_provider_plan(&checked, "InterruptMaskControl")
+        .expect("mask transition bridge should retain its selected provider plan");
+    let runtime_active = mask_selection
+        .result_claims(&mask_save.requirement_identity)
+        .expect("exact Active result claim should lower into the runtime receipt contract");
+    let [runtime_active] = runtime_active.as_slice() else {
+        panic!("runtime mask bridge must retain one Active claim");
+    };
+    assert_eq!(runtime_active.provider_plan, mask_selection.identity);
+    assert_eq!(
+        runtime_active.requirement_identity,
+        mask_save.requirement_identity
+    );
+    assert_eq!(runtime_active.domain, "InterruptMaskGuard::Active");
+    let lookalike_plan = checked
+        .selected_provider_plans()
+        .plan_by_name("LookalikeMaskProvider::satisfies::LookalikeMaskControl")
+        .expect("look-alike mask provider plan");
+    let [lookalike_save] = lookalike_plan.schema.methods.as_slice() else {
+        panic!("look-alike provider must publish one requirement");
+    };
+    assert!(
+        lookalike_save.result_claims.is_empty(),
+        "a requirement not named by the domain route must not publish Active issuance authority"
+    );
     assert_eq!(selected.rows.len(), 1);
     let [tick] = selected.schema.methods.as_slice() else {
         panic!("TimerRoot must publish one tick requirement");
@@ -265,10 +330,12 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let qualification = omega_visualizations::qualification_evidence_manifest_json(&checked);
     assert!(qualification.contains("\"boundary_authority_flow\": ["));
     assert!(qualification.contains("\"flow\": \"accepts\""));
+    assert!(qualification.contains("\"flow\": \"returns\""));
     assert!(qualification.contains("\"boundary\": \"TimerRoot\""));
     assert!(qualification.contains("\"requirement\": \"TimerRoot::tick\""));
     assert!(qualification.contains("\"parameter_index\": 0"));
     assert!(qualification.contains("\"domain\": \"InterruptAcknowledgement::Pending\""));
+    assert!(qualification.contains("\"domain\": \"InterruptMaskGuard::Active\""));
     assert!(qualification.contains(
         "\"effective_carry\": {\"suspension\": \"forbidden\", \"cpu\": \"same\", \"thread\": \"same\", \"address\": \"stable\"}"
     ));

@@ -7,8 +7,10 @@
 // interrupt provider and must be completed exactly once.
 //
 // Both obligations are ordinary linear data. Their fields carry the runtime
-// identities needed by the selected provider; bodyless domains record valid
-// issuance. Reconstructing the same fields therefore does not recreate either
+// identities needed by the selected provider. Active guards use an exact
+// routed result; acknowledgement entry receipts are bound at runtime while the
+// source spelling for an owner-authorized inbound parameter route is settled.
+// Reconstructing the same fields therefore does not recreate either runtime
 // obligation.
 
 use omega::language::core::assembly;
@@ -22,15 +24,18 @@ data InterruptMaskGuard [linear] {
     masked_state: u64;
 }
 
-pub domain InterruptMaskGuard::Active;
+pub domain InterruptMaskGuard::Active {
+    InterruptMaskControl::save_and_mask;
+}
 
 // The capability that may change the current activation's interrupt mask.
 // Saving returns the only authority that can restore that exact prior state.
-boundary data InterruptMaskControl;
-
-boundary machine InterruptMaskControl::save_and_mask(&mut self) -> InterruptMaskGuard
-reaches MachineControl
-ensures true;
+pub boundary trait InterruptMaskControl {
+    machine save_and_mask(&mut self) -> InterruptMaskGuard in Active
+    reaches MachineControl
+    ensures
+        result in InterruptMaskGuard::Active;
+}
 
 boundary machine InterruptMaskGuard::restore(self)
 reaches MachineControl
@@ -46,6 +51,10 @@ data InterruptAcknowledgement [linear] {
     acknowledgement: u64;
 }
 
+// The selected external-root schema and invocation receipt bind this accepted
+// claim today. Unlike Active's result route, the domain language cannot yet
+// name an exact inbound requirement parameter; OWNER_QUESTIONS #6 owns that
+// source authorization rather than treating this empty declaration as final.
 pub domain InterruptAcknowledgement::Pending;
 
 boundary machine InterruptAcknowledgement::complete(self)

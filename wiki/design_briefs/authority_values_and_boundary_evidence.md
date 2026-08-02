@@ -409,6 +409,21 @@ carry policy into invocation-specific qualification evidence. Compiler entry
 lowering still must require that runtime evidence before admitting the checked
 source-parameter fact; the selected schema alone remains insufficient.
 
+Mask transitions use the ordinary routed-result path. Core's `Active` domain
+names the exact exclusive-receiver `InterruptMaskControl::save_and_mask`
+boundary requirement. Selected schemas retain its linear result claim as a
+structured `returns` row, provider identity binds the row, and the installed
+root separately retains that mask-provider contract. The exact transition
+receipt then qualifies the concrete guard subject for that invocation. A raw
+guard or explicit `as ... in Active` cannot reproduce the route.
+
+Inbound acknowledgement establishment still needs one language ruling. Domain
+routes currently authorize only exact qualified results, while `Pending`
+arrives at an exact external-entry parameter and the core domain cannot name an
+open-ended target-owned handler requirement. OWNER_QUESTIONS #6 must select an
+owner-authorized parameter-route shape before checked entry lowering treats the
+runtime receipt as source membership evidence.
+
 ## Carry of resource claims
 
 Accepted resource claims originate with a strict four-axis carry policy. Their

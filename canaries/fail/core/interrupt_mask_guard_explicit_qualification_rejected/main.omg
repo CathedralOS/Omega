@@ -1,0 +1,19 @@
+use omega::language::core::interrupt;
+
+data Main {}
+
+machine Main::main(&mut self)
+reaches MachineControl
+{
+    let raw: InterruptMaskGuard = InterruptMaskGuard {
+        root: 1,
+        invocation: 2,
+        control: 3,
+        guard: 4,
+        prior_state: 5,
+        masked_state: 6,
+    };
+    let forged: InterruptMaskGuard in Active =
+        raw as InterruptMaskGuard in Active;
+    forged.restore();
+}

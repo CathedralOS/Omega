@@ -336,9 +336,12 @@ boundary machine BootMemory::take(entry: FirmwareRange)
 A partially relaxed result names only the transitions it permits:
 
 ```omega
-boundary machine InterruptMaskControl::save_and_mask(&mut self)
-    -> InterruptMaskGuard::Active
-                            & Carry::MovableAddress;
+pub boundary trait InterruptMaskControl {
+    machine save_and_mask(&mut self)
+        -> InterruptMaskGuard in Active & Carry::MovableAddress
+    ensures
+        result in InterruptMaskGuard::Active;
+}
 ```
 
 The missing permissions leave that admitted claim no-suspend, same-CPU, and
