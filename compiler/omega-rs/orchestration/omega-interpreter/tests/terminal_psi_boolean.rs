@@ -495,6 +495,125 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
     assert_eq!(run_host_executable_image(&image.output().bytes), 255);
 }
 
+#[cfg(unix)]
+#[test]
+fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
+    let machine = MachineId::new(50).expect("machine");
+    let edge = EdgeId::new(50).expect("edge");
+    let result = ValueId::new(59).expect("result");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let parameters = (0..9)
+        .map(|index| ValueDeclaration {
+            id: ValueId::new(50 + index).expect("parameter"),
+            scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let returned = parameters[8].id;
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V1,
+        entry: machine,
+        machines: vec![TerminalMachine {
+            id: machine,
+            parameters,
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            entry: BlockId::new(50).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(50).expect("block"),
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Return {
+                    edge,
+                    value: returned,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(50).expect("contract"),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let original_identity = terminal_psi_identity(&module).expect("v1 identity");
+    let canonical_bytes = encode_module(&module).expect("v1 canonical bytes");
+    drop(module);
+    let module = decode_module(&canonical_bytes).expect("decode v1 after producer drop");
+    assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
+
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free parameter module verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed parameter fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+    assert_eq!(fixed.terminal_psi(), original_identity);
+    assert_eq!(fixed.ceiling_units(), 1);
+
+    let mut arguments = (1..=8)
+        .map(|value| TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(value),
+        })
+        .collect::<Vec<_>>();
+    arguments.push(TerminalScalarValue::Integer {
+        scalar_type: integer,
+        value: IntegerValue::Unsigned(77),
+    });
+    let measured =
+        interpret_terminal_measured(&verified, &arguments).expect("interpret parameter return");
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(77),
+        }
+    );
+    assert_eq!(measured.usage().total_units(), 1);
+    assert_eq!(
+        measured
+            .usage()
+            .at(FuelChargeSite::Edge(edge))
+            .unwrap()
+            .units(),
+        1
+    );
+
+    let abstract_plan = lower_verified_module(&verified).expect("lower parameter requirements");
+    assert_eq!(abstract_plan.functions[0].parameters.len(), 9);
+    assert_eq!(abstract_plan.functions[0].parameters[8].value, returned);
+    assert!(matches!(
+        abstract_plan.functions[0].operations[0],
+        TerminalAbstractOperation::Return { value, .. } if value == returned
+    ));
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select host parameter ABI location");
+    let machine_code = emit_machine_code(&target_plan).expect("emit parameter-return machine code");
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build owned parameter-return object artifact");
+    assert!(artifact.entry_function().provenance.operations.is_empty());
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    let object = emit_terminal_object_container(&artifact);
+    assert_eq!(object.terminal_psi, original_identity);
+    assert_eq!(&object.output.bytes[..8], b"OMGOBJ\0\0");
+    assert_eq!(
+        run_host_machine_code_with_u8_arguments(&entry_bytes, &[1, 2, 3, 4, 5, 6, 7, 8, 77]),
+        77
+    );
+}
+
 #[cfg(target_os = "macos")]
 fn run_host_executable_image(bytes: &[u8]) -> i32 {
     use std::os::unix::fs::PermissionsExt;
@@ -569,6 +688,71 @@ fn run_host_machine_code(bytes: &[u8]) -> i32 {
         .expect("execute terminal native canary")
         .code()
         .expect("terminal native canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_machine_code_with_u8_arguments(bytes: &[u8], arguments: &[u8]) -> i32 {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let sequence = SCRATCH_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!(
+        "omega-terminal-parameter-native-{}-{nonce}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create parameter native test directory");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let harness_path = directory.join("harness.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let symbol = if cfg!(target_os = "macos") {
+        "_omega_entry"
+    } else {
+        "omega_entry"
+    };
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl {symbol}\n.p2align 2\n{symbol}:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl {symbol}\n.type {symbol},@function\n{symbol}:\n.byte {bytes}\n.size {symbol}, .-{symbol}\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let parameter_types = std::iter::repeat_n("unsigned char", arguments.len())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let argument_values = arguments
+        .iter()
+        .map(u8::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let harness = format!(
+        "extern unsigned char omega_entry({parameter_types});\nint main(void) {{ return omega_entry({argument_values}); }}\n"
+    );
+    std::fs::write(&assembly_path, assembly).expect("write parameter native assembly");
+    std::fs::write(&harness_path, harness).expect("write parameter native harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&harness_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected parameter terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute parameter terminal native canary")
+        .code()
+        .expect("parameter terminal native canary exited normally")
 }
 
 #[cfg(unix)]

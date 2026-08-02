@@ -48,8 +48,13 @@ handles. The clean
 target continuation resolves the current compile-known stream to a
 provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
 and executes the emitted host entry in a linker harness with the same result as
-terminal interpretation. Runtime terminal-parameter ABI/register lowering
-remains separate implementation work.
+terminal interpretation. The first runtime-parameter continuation now retains
+declared parameter/result types, selects their AAPCS64, System V AMD64, or
+Microsoft x64 register/incoming-stack locations through the established call
+planner, and emits direct scalar parameter returns on both architectures. A
+nine-`u8` canary forces a stack argument and agrees with interpretation at 77.
+Parameter-fed operations and general register assignment remain separate
+implementation work.
 
 The vocabulary has canonical semantic bytes and a domain-separated semantic
 fingerprint; the source, wrapping, and saturating canaries round-trip after

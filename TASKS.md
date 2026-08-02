@@ -936,6 +936,17 @@ improvements do not change public identity.
   canonical `u8` 200+100 canary verifies, costs four units, lowers with retained
   provenance, emits, and executes as 255 through the host linker harness and
   standalone Mach-O image after semantic/lowering state is dropped. The
+  first runtime-parameter realization slice is live without a semantic-version
+  change: machine parameters were already part of terminal Psi. The clean
+  abstract function now retains declared parameter/result identities and
+  scalar types; target lowering uses the established AAPCS64, System V AMD64,
+  or Microsoft x64 call planner; and machine emission returns supported Boolean
+  or 8/16/32/64-bit integer parameters from either their selected register or
+  incoming stack slot. A frozen-v1 nine-`u8` canary forces the ninth argument
+  through the host stack ABI, costs only its one return edge, and returns 77 in
+  both the verified interpreter and a real C-linker invocation after semantic
+  and lowering state are dropped. Parameter-fed runtime arithmetic still
+  refuses explicitly until its target instruction slice exists. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
@@ -971,9 +982,9 @@ improvements do not change public identity.
   manifest after producer and intermediate lowering state is dropped. The
   current scalar slice honestly records an empty provider closure; later
   call/boundary slices must populate it from their selected plans. A typed
-  debug/source-map payload schema, runtime terminal-parameter ABI/register
-  lowering, further closed arithmetic variants, and migration of the legacy
-  backend remain.
+  debug/source-map payload schema, parameter-fed runtime operations and general
+  register assignment, further closed arithmetic variants, and migration of
+  the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and

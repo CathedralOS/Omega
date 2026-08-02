@@ -23,8 +23,23 @@ pub struct TerminalAbstractOperationPlan {
 pub struct TerminalAbstractFunction {
     pub machine: MachineId,
     pub entry: BlockId,
+    /// Runtime values supplied by the caller, in declared terminal-Psi order.
+    pub parameters: Vec<TerminalAbstractParameter>,
+    pub result: TerminalAbstractResult,
     /// Operations in the verified terminal machine's executable order.
     pub operations: Vec<TerminalAbstractOperation>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalAbstractParameter {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalAbstractResult {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
