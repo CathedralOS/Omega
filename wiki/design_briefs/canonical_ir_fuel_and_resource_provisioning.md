@@ -33,8 +33,13 @@ the current Omega-branded frontend still needs to migrate under Psi. This
 checkpoint also has a source-independent Omega abstract-operation consumer: it
 accepts only the verified module and emits owned integer-materialization,
 jump-binding, and return requirements with stable Psi provenance and no source
-handles. It still has no target/native realization of that stream, canonical
-serialization/fingerprint, branching/arithmetic operation, or fuel schedule.
+handles. The clean target continuation now resolves that stream to a
+provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
+and executes the emitted host entry in a linker harness with the same result as
+terminal interpretation. Standalone object/image integration and general
+register assignment remain on the legacy backend. This checkpoint still has no
+canonical serialization/fingerprint, branching/arithmetic operation, or fuel
+schedule.
 
 ## Context
 

@@ -303,3 +303,55 @@ fn psi_does_not_depend_on_omega() {
         violations.join("\n")
     );
 }
+
+#[test]
+fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
+    let graph = load_graph();
+    let roots = [
+        "omega-terminal-abstract-operations",
+        "omega-terminal-psi-to-abstract-operations",
+        "omega-terminal-abstract-operations-to-target-operations",
+        "omega-terminal-target-operations",
+        "omega-terminal-machine-emission",
+        "omega-terminal-machine-code",
+    ];
+    let forbidden = BTreeSet::from([
+        "omega-tokens",
+        "omega-syntax-trees",
+        "omega-symbol-resolved-trees",
+        "omega-typed-trees",
+        "omega-checked-trees",
+        "omega-state-graph",
+        "omega-control-flow",
+        "omega-abstract-operations",
+        "omega-target-operations",
+    ]);
+    let mut pending = roots.iter().map(ToString::to_string).collect::<Vec<_>>();
+    let mut visited = BTreeSet::new();
+    let mut violations = Vec::new();
+
+    while let Some(name) = pending.pop() {
+        assert!(
+            graph.contains_key(&name),
+            "clean terminal crate missing: {name}"
+        );
+        if !visited.insert(name.clone()) {
+            continue;
+        }
+        let krate = &graph[&name];
+        for dependency in &krate.deps {
+            if forbidden.contains(dependency.as_str()) {
+                violations.push(format!("{name} -> {dependency}"));
+            }
+            if graph.contains_key(dependency) {
+                pending.push(dependency.clone());
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "the terminal-Psi realization lane must not recover source-shaped or legacy lowering state:\n{}",
+        violations.join("\n")
+    );
+}

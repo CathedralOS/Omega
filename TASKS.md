@@ -901,11 +901,18 @@ improvements do not change public identity.
   live too: it accepts only `VerifiedTerminalModule` and emits an owned stream
   of integer materializations, explicit jump bindings, and return requirements
   with stable Psi provenance. Its representation and lowering crate contain no
-  checked/typed-tree, `ExpressionHandle`, or legacy `StateKey` dependency.
+  checked/typed-tree, `ExpressionHandle`, or legacy `StateKey` dependency. The
+  first clean target/native continuation is live as well: it resolves the
+  verified constant/jump chain to a provenance-retaining target
+  return-immediate, emits AArch64 and x86-64 scalar-return bytes, rejects
+  unsupported widths, and a linker-harness canary proves host execution matches
+  terminal interpretation after producer/intermediate state is dropped. This
+  does not yet provide standalone object/image emission or migrate the legacy
+  backend.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
-  Omega-to-Psi path. Next lower the source-independent requirement stream into
-  target/native realization and compare interpreted/native results. Then add
+  Omega-to-Psi path. With the initial interpreter and lowering customers live,
+  next freeze its canonical serialization and semantic fingerprint, then add
   operations in vertical slices containing execution
   semantics, generated obligations, sound proof rules, interpreter behavior,
   Omega lowering requirements, and canonical encoding. Merge the useful

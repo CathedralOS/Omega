@@ -1,0 +1,15 @@
+[package]
+name = "omega-terminal-machine-emission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_machine_emission"
+path = "src/lib.rs"
+
+[dependencies]
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+psi-core = { path = "../../../psi-rs/foundation/psi-core" }
