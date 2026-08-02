@@ -21,6 +21,7 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
+use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_verifier::verify_module;
 use std::path::{Path, PathBuf};
@@ -72,12 +73,18 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         &AdmissionProfile::default(),
     )
     .expect("source-produced terminal Psi and its proof should verify");
+    let fixed_fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("straight-line source module should have a fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed_fuel)
+        .expect("source-independent consumer should recompute the certificate");
+    assert_eq!(fixed_fuel.terminal_psi(), original_identity);
+    assert_eq!(fixed_fuel.ceiling_units(), 4);
     let abstract_operations = lower_verified_module(&verified)
         .expect("verified terminal Psi should lower without source state");
     let measured = interpret_terminal_measured(&verified, &[])
         .expect("verified source-produced terminal Psi should execute with fuel");
     assert_eq!(measured.usage().schedule().schedule_version(), 1);
-    assert_eq!(measured.usage().total_units(), 4);
+    assert_eq!(measured.usage().total_units(), fixed_fuel.ceiling_units());
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
         original_identity,
@@ -177,6 +184,12 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         &AdmissionProfile::default(),
     )
     .expect("source-produced terminal Psi and its proof should verify");
+    let fixed_fuel = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("straight-line source module should have a fixed-fuel certificate");
+    validate_fixed_entry_fuel(&verified, &fixed_fuel)
+        .expect("source-independent consumer should recompute the certificate");
+    assert_eq!(fixed_fuel.terminal_psi(), original_identity);
+    assert_eq!(fixed_fuel.ceiling_units(), 4);
     let mut execution = TerminalExecution::start(&verified, &[])
         .expect("verified source-produced terminal Psi should start");
     let mut meter = TerminalFuelMeter::with_allowance(3);
@@ -197,7 +210,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         }
     };
     assert_eq!(meter.usage().schedule().schedule_version(), 1);
-    assert_eq!(meter.usage().total_units(), 4);
+    assert_eq!(meter.usage().total_units(), fixed_fuel.ceiling_units());
     assert_eq!(
         meter
             .usage()

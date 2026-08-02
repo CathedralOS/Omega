@@ -959,9 +959,13 @@ improvements do not change public identity.
   four units without changing its semantic fingerprint. Explicit in-memory
   execution state preserves the exact cursor and values across exhaustion;
   checked allowance replenishment resumes at the unpaid edge without replaying
-  or double-charging earlier work. Build-time migration, restricted
-  entry/segment certificates, response outcomes, provider-summary migration,
-  and trusted native metering remain.
+  or double-charging earlier work. The first restricted checker now derives an
+  exact, producer-independent entry-to-return certificate for the current
+  acyclic single path, keyed by canonical semantic identity, entry, return
+  edge, and schedule; validation recomputes every field, and the source
+  canary's four-unit certificate equals measured usage. Build-time migration,
+  branch/loop and safe-point segment certificates, response outcomes,
+  provider-summary migration, and trusted native metering remain.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
   through content-algebra facts. The provider-independent executor-selection
