@@ -71,7 +71,7 @@ machine Main::main(&mut self) {
         transition self.ci >= 0 && self.ci < 4 { true -> store_w() _ -> bad() }
     }
     state store_w(&mut self) {
-        self.c[self.ci] = self.acc;
+        self.c[self.ci] = self.acc as i32;
         self.j = self.j + 1;
         transition { _ -> loop_j() }
     }
@@ -90,7 +90,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.c[0]); // surface the wrong top-left on regression
+        self.console.exit_process(self.c[0] as i32); // surface the wrong top-left on regression
     }
     state bad(&mut self) {
         self.console.exit_process(1);

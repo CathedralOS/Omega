@@ -1016,6 +1016,26 @@ pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
     .is_some_and(|descriptor| descriptor_is_bounded_byte_buffer(&descriptor))
 }
 
+/// Whether a storage place is a raw fixed `[u8; N]` array. Unlike a bounded
+/// text carrier, this shape has no leading length word; `read_line` may use it
+/// as disposable scratch and writes bytes starting at the place itself.
+pub(super) fn resolve_runtime_storage_place_is_fixed_byte_array_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .is_some_and(|descriptor| descriptor_is_fixed_byte_array(&descriptor))
+}
+
 /// Whether a storage PLACE is an owned `[u8; N]` bounded byte carrier
 /// (`BoundedByteBuffer`, `{len, bytes}` inline). Unlike a fat-slice descriptor,
 /// the carrier owns its bytes; a literal write into it must store `len` + copy
@@ -1048,6 +1068,19 @@ pub(super) fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescripto
             descriptor_is_bounded_byte_buffer(referee)
         }
         TypeLayoutDescriptor::BoundedByteBuffer { .. } => true,
+        _ => false,
+    }
+}
+
+fn descriptor_is_fixed_byte_array(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. }
+        | TypeLayoutDescriptor::Reference {
+            referee: base_type, ..
+        } => descriptor_is_fixed_byte_array(base_type),
+        TypeLayoutDescriptor::FixedArray { element_type, .. } => {
+            descriptor_primitive_type(element_type) == Some(PrimitiveType::U8)
+        }
         _ => false,
     }
 }

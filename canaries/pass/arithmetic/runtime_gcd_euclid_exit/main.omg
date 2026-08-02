@@ -32,6 +32,6 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.a); // surface the wrong gcd if it ever regresses
+        self.console.exit_process(self.a as i32); // explicitly erase Wrapping at the host boundary
     }
 }

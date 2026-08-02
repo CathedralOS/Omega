@@ -1368,7 +1368,8 @@ fn append_syscall_operands(
                 bytes.extend(encode_adrp_placeholder(register));
                 bytes.extend(encode_add_page_offset_placeholder(register));
                 if is_bounded_buffer {
-                    bytes.extend(encode_add_x_immediate(register, register, byte_offset + 8)?);
+                    let scratch = if register == 9 { 10 } else { 9 };
+                    append_add_x_constant(bytes, register, register, byte_offset + 8, scratch)?;
                 } else {
                     bytes.extend(encode_load_x_from_x(register, register, byte_offset)?);
                 }
@@ -1493,6 +1494,32 @@ mod syscall_plan_register_tests {
                 .windows(4)
                 .any(|window| window == 0x8b0c_000cu32.to_le_bytes()),
             "the address add must remain in plan-selected x12"
+        );
+    }
+
+    #[test]
+    fn large_bounded_text_pointer_offsets_materialize_before_syscall() {
+        let bytes = encode_syscall_sequence(
+            &[Aarch64CallOperand::RuntimeStringPointer {
+                byte_offset: 5648,
+                is_bounded_buffer: true,
+            }],
+            64,
+            &[MachineRegister::Aarch64X(1)],
+            MachineRegister::Aarch64X(12),
+            0,
+        )
+        .expect("large carrier content address");
+
+        assert_eq!(
+            bytes.len(),
+            syscall_sequence_width(
+                &[Aarch64CallOperand::RuntimeStringPointer {
+                    byte_offset: 5648,
+                    is_bounded_buffer: true,
+                }],
+                64,
+            )
         );
     }
 
@@ -2919,7 +2946,8 @@ fn append_register_call_operand(
                 // Owned carrier: the content pointer is the COMPUTED
                 // inline-bytes address `base + offset + 8`, not a stored
                 // descriptor pointer. Same width as the load (12 total).
-                bytes.extend(encode_add_x_immediate(register, register, byte_offset + 8)?);
+                let scratch = if register == 9 { 10 } else { 9 };
+                append_add_x_constant(bytes, register, register, byte_offset + 8, scratch)?;
             } else {
                 bytes.extend(encode_load_x_from_x(register, register, *byte_offset)?);
             }

@@ -87,7 +87,12 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/float_saturating_overflow_exit", 70),
     ("providers/runtime_adapter_dispatch_exit", 70),
     ("providers/runtime_adapter_forwarding_exit", 70),
+    ("providers/checked_boundary_operator_dispatch_exit", 70),
     ("providers/provider_type_slot_selected", 70),
+    (
+        "providers/runtime_result_domain_requirement_overload_exit",
+        70,
+    ),
     (
         "providers/runtime_boundary_capability_state_forwarding_exit",
         70,
@@ -323,6 +328,14 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_dispatch_result_multi_arm_exit", 70),
     ("calls/runtime_dispatch_result_transition_arg_exit", 70),
     ("calls/runtime_dispatched_effectful_reentrant_exit", 70),
+    (
+        "calls/runtime_effectful_guard_local_and_self_terminal_exit",
+        70,
+    ),
+    (
+        "calls/runtime_guarded_effectful_transition_argument_exit",
+        70,
+    ),
     ("collections/runtime_dutch_flag_partition_exit", 70),
     ("calls/runtime_exit_code_exit", 70),
     ("host/runtime_sleep_exit", 70),
@@ -650,6 +663,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         215,
     ),
     ("domains/bodyless_domain_declarations_exit", 70),
+    ("domains/runtime_result_domain_machine_overload_exit", 70),
     ("domains/user_domain_literal_grant", 70),
     ("domains/utf8_equals_literal_exit", 70),
     ("domains/utf8_equals_view_exit", 70),
@@ -1490,6 +1504,7 @@ fn interpreter_executes_runtime_cast_into_indexed_carrier() {
 fn interpreter_matches_native_on_supported_canaries() {
     let mut matched: Vec<String> = Vec::new();
     let mut skipped: Vec<(String, String)> = Vec::new();
+    let mut frontend_blocked: Vec<(String, String)> = Vec::new();
     let mut native_blocked: Vec<(String, String)> = Vec::new();
     let mut mismatches: Vec<String> = Vec::new();
 
@@ -1501,10 +1516,10 @@ fn interpreter_matches_native_on_supported_canaries() {
 
         let checked = match compile_to_checked(&main_path, None) {
             Ok(checked) => checked,
-            Err(diagnostics) => panic!(
-                "{name}: frontend compile to checked failed:\n{}",
-                join_diagnostics(&diagnostics)
-            ),
+            Err(diagnostics) => {
+                frontend_blocked.push((name.to_string(), join_diagnostics(&diagnostics)));
+                continue;
+            }
         };
 
         let outcome = interpret(&checked, b"");
@@ -1570,13 +1585,20 @@ fn interpreter_matches_native_on_supported_canaries() {
     }
 
     eprintln!(
-        "\ndifferential oracle over {} RUN canaries:\n  {} matched (interp==native)\n  {} skipped (interpreter unsupported)\n  {} native-blocked (host compile failure; the canary suite owns these)\n  {} MISMATCH",
+        "\ndifferential oracle over {} RUN canaries:\n  {} matched (interp==native)\n  {} skipped (interpreter unsupported)\n  {} frontend-blocked\n  {} native-blocked (host compile failure; the canary suite owns these)\n  {} MISMATCH",
         RUN_CANARIES.len(),
         matched.len(),
         skipped.len(),
+        frontend_blocked.len(),
         native_blocked.len(),
         mismatches.len(),
     );
+    if !frontend_blocked.is_empty() {
+        eprintln!("\nfrontend-blocked RUN canaries:");
+        for (name, reason) in &frontend_blocked {
+            eprintln!("  {name}:\n    {}", reason.replace('\n', "\n    "));
+        }
+    }
     if !native_blocked.is_empty() {
         eprintln!("\nnative-blocked members (no oracle comparison possible on this host):");
         for (name, reason) in &native_blocked {
@@ -1598,10 +1620,53 @@ fn interpreter_matches_native_on_supported_canaries() {
     );
 
     assert!(
+        frontend_blocked.is_empty(),
+        "{} RUN canaries failed frontend compilation:\n\n{}",
+        frontend_blocked.len(),
+        frontend_blocked
+            .iter()
+            .map(|(name, reason)| format!("{name}:\n{reason}"))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    );
+
+    assert!(
         mismatches.is_empty(),
         "interpreter disagreed with native on {} passing RUN canaries (these are INTERPRETER bugs -- native is correct on a passing canary):\n\n{}",
         mismatches.len(),
         mismatches.join("\n\n")
+    );
+}
+
+/// Fast migration aid for frontend-wide rule changes: unlike the full differential
+/// oracle, this compiles every registered RUN canary without interpreting it or
+/// producing a native image, and reports every rejection in one pass.
+#[test]
+#[ignore = "developer triage helper; the full differential oracle already covers this"]
+fn registered_run_canaries_pass_frontend() {
+    let mut rejected: Vec<(String, String)> = Vec::new();
+
+    for (name, _) in RUN_CANARIES {
+        let main_path = pass_canary(name).join("main.omg");
+        if let Err(diagnostics) = compile_to_checked(&main_path, None) {
+            rejected.push((name.to_string(), join_diagnostics(&diagnostics)));
+        }
+    }
+
+    if !rejected.is_empty() {
+        eprintln!(
+            "frontend rejected {} registered RUN canaries:",
+            rejected.len()
+        );
+        for (name, reason) in &rejected {
+            eprintln!("{name}:\n{}\n", reason);
+        }
+    }
+
+    assert!(
+        rejected.is_empty(),
+        "frontend rejected {} registered RUN canaries",
+        rejected.len()
     );
 }
 

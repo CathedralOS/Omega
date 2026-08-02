@@ -47,8 +47,8 @@ machine Main::main(&mut self) {
         transition self.vj > self.vk { true -> swap() _ -> inner_next() }
     }
     state swap(&mut self) {
-        self.arr[self.j] = self.vk;
-        self.arr[self.jp] = self.vj;
+        self.arr[self.j] = self.vk as i32;
+        self.arr[self.jp] = self.vj as i32;
         transition { _ -> inner_next() }
     }
     state inner_next(&mut self) {

@@ -34,11 +34,12 @@ machine Main::main(&mut self) {
         self.n = self.n + 1;
         let b: i32 in Wrapping = value as i32 in Wrapping;
         let rotated: i32 in Wrapping = b + 1;
-        self.console.write_byte(rotated);
+        let output: i32 = rotated as i32;
+        self.console.write_byte(output);
         transition { _ -> rd() }
     }
 
     state fin(&mut self) {
-        self.console.exit_process(self.n);
+        self.console.exit_process(self.n as i32);
     }
 }

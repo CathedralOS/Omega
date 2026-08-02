@@ -18,16 +18,16 @@ data Main {
 
 machine Main::main(&mut self) {
     self.x = 0 - 1;
-    self.y8 = narrow_i32_to_i8_wrapping(self.x) as i8 in Wrapping;
-    self.z = widen_i8_to_i32(self.y8) as i32 in Wrapping;
+    self.y8 = narrow_i32_to_i8_wrapping(self.x as i32) as i8 in Wrapping;
+    self.z = widen_i8_to_i32(self.y8 as i8) as i32 in Wrapping;
     transition self.z == 0 - 1 {
         true -> zero_ext()
         _ -> bad()
     }
     state zero_ext(&mut self) {
         self.x = 0 - 1;
-        self.yu8 = narrow_i32_to_u8_wrapping(self.x) as u8 in Wrapping;
-        self.z = widen_u8_to_i32(self.yu8) as i32 in Wrapping;
+        self.yu8 = narrow_i32_to_u8_wrapping(self.x as i32) as u8 in Wrapping;
+        self.z = widen_u8_to_i32(self.yu8 as u8) as i32 in Wrapping;
         transition self.z == 255 {
             true -> trunc()
             _ -> bad()
@@ -35,13 +35,13 @@ machine Main::main(&mut self) {
     }
     state trunc(&mut self) {
         self.x = 200;
-        self.y8 = narrow_i32_to_i8_wrapping(self.x) as i8 in Wrapping;
-        self.z = widen_i8_to_i32(self.y8) as i32 in Wrapping;
+        self.y8 = narrow_i32_to_i8_wrapping(self.x as i32) as i8 in Wrapping;
+        self.z = widen_i8_to_i32(self.y8 as i8) as i32 in Wrapping;
         transition self.z == 0 - 56 {
             true -> ok()
             _ -> bad()
         }
     }
     state ok(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(self.z); }
+    state bad(&mut self) { self.console.exit_process(self.z as i32); }
 }

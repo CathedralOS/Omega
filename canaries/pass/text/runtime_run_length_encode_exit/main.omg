@@ -7,6 +7,7 @@
 // count digit is computed into a field before the carrier write (a computed value can't be
 // the inline write source). Six output bytes checked -> exit 70.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8
 requires
@@ -61,7 +62,7 @@ machine Main::main(&mut self) {
     }
     state emit_guard(&mut self) {
         self.p1 = self.pos + 1;
-        self.cc = (self.count + 48) as u8; // run count as a digit char
+        self.cc = narrow_i32_to_u8_trapping((self.count + 48) as i32); // run count as a digit char
         transition self.pos >= 0 && self.pos < 16 && self.p1 >= 0 && self.p1 < 16 {
             true -> emit_write()
             _ -> bad()

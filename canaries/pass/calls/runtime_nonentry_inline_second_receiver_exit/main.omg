@@ -10,7 +10,7 @@ use omega::language::std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }
-    state done(&mut self, value: i32) -> i32 { value }
+    state done(&mut self, value: i32 in Wrapping) -> i32 in Wrapping { value }
 }
 data Holder { first: Tally; second: Tally; }
 machine Holder::run(&mut self) -> i32 in Wrapping {
@@ -18,12 +18,12 @@ machine Holder::run(&mut self) -> i32 in Wrapping {
     self.second.count = 7;
     let total: i32 in Wrapping = self.second.get();
     transition true { true -> done(total) }
-    state done(&mut self, total: i32) -> i32 { total }
+    state done(&mut self, total: i32 in Wrapping) -> i32 in Wrapping { total }
 }
 data Main { console: Console; holder: Holder; }
 machine Main::main(&mut self) {
     let total: i32 in Wrapping = self.holder.run();
     transition total == 7 { true -> good() _ -> bad(total) }
     state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+    state bad(&mut self, total: i32 in Wrapping) { self.console.exit_process(71); }
 }

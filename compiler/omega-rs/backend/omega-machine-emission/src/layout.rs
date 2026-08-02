@@ -797,7 +797,7 @@ fn machine_instruction_width(
                 input.target.architecture,
                 read.byte_capacity,
                 &binding.mechanism,
-                read.is_bounded_buffer,
+                read.target,
                 read.target_offset,
             )
         }
@@ -813,7 +813,11 @@ fn machine_instruction_width(
             };
             runtime_byte_read_width(input.target.architecture, &binding.mechanism)
         }
-        SelectedInstructionKind::WriteRuntimeByte { source, .. } => {
+        SelectedInstructionKind::WriteRuntimeByte {
+            source,
+            source_offset,
+            ..
+        } => {
             let RuntimeTextReadSource::HostOperation { operation_key } = source;
             let Some(binding) = input
                 .assigned_target_operations
@@ -823,7 +827,11 @@ fn machine_instruction_width(
                     "missing host binding for runtime byte write",
                 ));
             };
-            runtime_byte_write_width(input.target.architecture, &binding.mechanism)
+            runtime_byte_write_width(
+                input.target.architecture,
+                &binding.mechanism,
+                *source_offset,
+            )
         }
         SelectedInstructionKind::CopyPlaces {
             source,

@@ -44,14 +44,14 @@ machine Main::main(&mut self) {
     state cast_or(&mut self) {
         // conversion comparison OR a comparison: wrap-i32-to-i8(x) < 0 || y > 0.
         // x=4 converts to 4 (>= 0), y=5 > 0 true -> true via the right leaf.
-        transition narrow_i32_to_i8_wrapping(self.x) < 0 || self.y > 0 { true -> cast_or_high() _ -> bad() }
+        transition narrow_i32_to_i8_wrapping(self.x as i32) < 0 || self.y > 0 { true -> cast_or_high() _ -> bad() }
     }
     state cast_or_high(&mut self) {
         // Make the high bit set so the conversion leaf itself is true: x=200 -> -56
         // < 0, so the disjunction is true via the LEFT leaf.
         self.x = 200;
         self.y = 0 - 1;
-        transition narrow_i32_to_i8_wrapping(self.x) < 0 || self.y > 0 { true -> nested() _ -> bad() }
+        transition narrow_i32_to_i8_wrapping(self.x as i32) < 0 || self.y > 0 { true -> nested() _ -> bad() }
     }
     state nested(&mut self) {
         // a shift comparison nested in an Or inside an And:

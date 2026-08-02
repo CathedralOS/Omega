@@ -1,9 +1,9 @@
 use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
-    append_unsigned_immediate, encode_add_page_offset_placeholder, encode_add_x_immediate,
-    encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbz_x, encode_movz,
-    encode_store_w_to_x, encode_svc,
+    append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
+    encode_add_x_immediate, encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbz_x,
+    encode_movz, encode_store_w_to_x, encode_svc,
 };
 use super::super::widths::{
     runtime_byte_read_import_width, runtime_byte_read_syscall_width,
@@ -153,8 +153,10 @@ fn encode_runtime_byte_write(
     call: RuntimeByteCall,
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_width = match call {
-        RuntimeByteCall::Import => runtime_byte_write_import_width(),
-        RuntimeByteCall::Syscall { number, .. } => runtime_byte_write_syscall_width(number),
+        RuntimeByteCall::Import => runtime_byte_write_import_width(source_offset),
+        RuntimeByteCall::Syscall { number, .. } => {
+            runtime_byte_write_syscall_width(number, source_offset)
+        }
     };
     let mut bytes = Vec::with_capacity(expected_width);
     bytes.extend(encode_adrp_placeholder(20));
@@ -164,11 +166,7 @@ fn encode_runtime_byte_write(
         RuntimeByteCall::Syscall { registers, .. } => registers.parameters,
     };
     bytes.extend(encode_movz(argument_registers[0], 1));
-    bytes.extend(encode_add_x_immediate(
-        argument_registers[1],
-        20,
-        source_offset,
-    )?);
+    append_add_x_constant(&mut bytes, argument_registers[1], 20, source_offset, 9)?;
     bytes.extend(encode_movz(argument_registers[2], 1));
     match call {
         RuntimeByteCall::Import => bytes.extend(encode_branch_link_placeholder()),
@@ -230,9 +228,9 @@ mod tests {
 
     #[test]
     fn byte_write_widths_match_emission() {
-        for source_offset in [0usize, 8, 48] {
+        for source_offset in [0usize, 8, 48, 4129] {
             let import = encode_runtime_byte_write_import(source_offset).unwrap();
-            assert_eq!(import.len(), runtime_byte_write_import_width());
+            assert_eq!(import.len(), runtime_byte_write_import_width(source_offset));
             for number in [4u32, 64] {
                 let syscall = encode_runtime_byte_write_syscall(
                     source_offset,
@@ -243,10 +241,15 @@ mod tests {
                     0x80,
                 )
                 .unwrap();
-                assert_eq!(syscall.len(), runtime_byte_write_syscall_width(number));
+                assert_eq!(
+                    syscall.len(),
+                    runtime_byte_write_syscall_width(number, source_offset)
+                );
             }
         }
-        assert!(runtime_byte_write_import_call_offset() < runtime_byte_write_import_width());
+        assert!(
+            runtime_byte_write_import_call_offset(4129) < runtime_byte_write_import_width(4129)
+        );
     }
 
     #[test]

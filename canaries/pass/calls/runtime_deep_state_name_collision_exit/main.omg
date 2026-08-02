@@ -17,7 +17,7 @@ machine Holder::deep(&mut self) -> i32 in Wrapping {
         let v: i32 in Wrapping = self.pad * 3;
         transition true { true -> done(v) }
     }
-    state done(&mut self, out: i32) -> i32 { out }
+    state done(&mut self, out: i32 in Wrapping) -> i32 in Wrapping { out }
 }
 data Main { console: Console; holder: Holder; got: i32 in Wrapping; }
 machine Main::main(&mut self) {

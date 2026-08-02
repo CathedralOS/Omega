@@ -45,7 +45,7 @@ data Main {
 }
 
 // Recursive: sum all elements (linear accumulator: acc + s[0]).
-machine Recursor::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine Recursor::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -55,7 +55,7 @@ terminates by s -> Slice::Length;
 }
 
 // Recursive: sum of squares (quadratic accumulator: acc + s[0]*s[0]).
-machine Recursor::sum_sq(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine Recursor::sum_sq(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -75,11 +75,11 @@ machine Main::main(&mut self) {
 
     // First recursive value-returning call: compute sum.
     let s: &[i32 in Wrapping] = self.data.as_slice();
-    let sum_result: i32 = self.r.sum(s, 0);
+    let sum_result: i32 in Wrapping = self.r.sum(s, 0);
 
     // Second recursive value-returning call: compute sum of squares.
     let s2: &[i32 in Wrapping] = self.data.as_slice();
-    let sum_sq_result: i32 = self.r.sum_sq(s2, 0);
+    let sum_sq_result: i32 in Wrapping = self.r.sum_sq(s2, 0);
 
     // Verify sum = 15.
     transition sum_result == 15 {
@@ -143,7 +143,7 @@ machine Main::main(&mut self) {
         // total = sum_result + sum_sq_result = 15 + 55 = 70.
         // MISCOMPILE: both values pass individual guards above yet their
         // binary sum yields the wrong result here.
-        let total: i32 = sum_result + sum_sq_result;
+        let total: i32 in Wrapping = sum_result + sum_sq_result;
         transition total == 70 {
             true -> good()
             _ -> bad_final()

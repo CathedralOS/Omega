@@ -78,6 +78,6 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.acc); // surface the sum on regression
+        self.console.exit_process(self.acc as i32); // surface the sum on regression
     }
 }

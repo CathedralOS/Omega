@@ -37,7 +37,7 @@ machine Main::main(&mut self) {
         transition { _ -> accumulate() }
     }
     state accumulate(&mut self) {
-        self.dval = widen_u8_to_u32(self.byte) as u32 in Wrapping;
+        self.dval = widen_u8_to_u32(self.byte as u8) as u32 in Wrapping;
         self.dval = self.dval - 48;
         self.n = self.n * 10 + self.dval;
         self.i = self.i + 1;

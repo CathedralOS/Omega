@@ -10,21 +10,21 @@ use omega::language::std::console;
 data Main { console: Console; f: f64; z: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 100000000000000000000.0;
-    self.r = self.f as i32 in Saturating;
+    self.r = (self.f as i32 in Saturating) as i32;
     transition self.r == 2147483647 { true -> neg() _ -> bad(71) }
     state neg(&mut self) {
         self.f = 0.0 - 100000000000000000000.0;
-        self.r = self.f as i32 in Saturating;
+        self.r = (self.f as i32 in Saturating) as i32;
         transition self.r == (0 as i32 in Wrapping) - 2147483647 - 1 { true -> nan() _ -> bad(72) }
     }
     state nan(&mut self) {
         self.f = self.z / self.z; // 0.0/0.0 constructs NaN portably at runtime
-        self.r = self.f as i32 in Saturating;
+        self.r = (self.f as i32 in Saturating) as i32;
         transition self.r == 0 { true -> inrange() _ -> bad(73) }
     }
     state inrange(&mut self) {
         self.f = 0.0 - 3.7;
-        self.r = self.f as i32 in Saturating;
+        self.r = (self.f as i32 in Saturating) as i32;
         transition self.r == (0 as i32 in Wrapping) - 3 { true -> good() _ -> bad(74) }
     }
     state good(&mut self) { self.console.exit_process(70); }

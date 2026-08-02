@@ -57,7 +57,7 @@ machine Main::main(&mut self) {
         transition self.tail >= 0 && self.tail < 4 { true -> enq_write() _ -> bad() }
     }
     state enq_write(&mut self) {
-        self.buf[self.tail] = self.nv;
+        self.buf[self.tail] = self.nv as i32;
         self.tail = self.tail + 1;
         self.count = self.count + 1;
         self.nv = self.nv + 1;
@@ -106,7 +106,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.expect); // surface where FIFO order broke
+        self.console.exit_process(self.expect as i32); // surface where FIFO order broke
     }
     state bad(&mut self) {
         self.console.exit_process(1);

@@ -36,6 +36,7 @@ enum RuntimeTextReadCall {
 enum RuntimeTextReadTarget {
     StringDescriptor,
     BoundedByteCarrier,
+    RawFixedArray,
 }
 
 pub fn encode_runtime_text_line_read_import(
@@ -108,6 +109,41 @@ pub fn encode_runtime_text_line_read_carrier_syscall(
     )
 }
 
+pub fn encode_runtime_text_line_read_fixed_array_import(
+    target_offset: usize,
+    byte_capacity: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_text_line_read(
+        target_offset,
+        byte_capacity,
+        RuntimeTextReadCall::Import,
+        RuntimeTextReadTarget::RawFixedArray,
+    )
+}
+
+pub fn encode_runtime_text_line_read_fixed_array_syscall(
+    target_offset: usize,
+    byte_capacity: usize,
+    number: u32,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
+) -> Result<Vec<u8>, Diagnostic> {
+    let registers =
+        aarch64_syscall_registers(parameter_registers, result_register, number_register)?;
+    encode_runtime_text_line_read(
+        target_offset,
+        byte_capacity,
+        RuntimeTextReadCall::Syscall {
+            number,
+            registers,
+            supervisor_call,
+        },
+        RuntimeTextReadTarget::RawFixedArray,
+    )
+}
+
 fn encode_runtime_text_line_read(
     target_offset: usize,
     byte_capacity: usize,
@@ -119,7 +155,9 @@ fn encode_runtime_text_line_read(
     // like the x86_64 carrier flavor), so all N bytes hold content.
     let max_payload_bytes = match target {
         RuntimeTextReadTarget::StringDescriptor => byte_capacity.saturating_sub(1),
-        RuntimeTextReadTarget::BoundedByteCarrier => byte_capacity,
+        RuntimeTextReadTarget::BoundedByteCarrier | RuntimeTextReadTarget::RawFixedArray => {
+            byte_capacity
+        }
     };
     let capacity = u32::try_from(max_payload_bytes).map_err(|_| {
         Diagnostic::error(format!(
@@ -139,12 +177,21 @@ fn encode_runtime_text_line_read(
             runtime_text_line_read_syscall_width(byte_capacity, number, target_offset)
         }
         (RuntimeTextReadTarget::BoundedByteCarrier, RuntimeTextReadCall::Import) => {
-            runtime_text_line_read_carrier_import_width()
+            runtime_text_line_read_carrier_import_width(target_offset)
         }
         (
             RuntimeTextReadTarget::BoundedByteCarrier,
             RuntimeTextReadCall::Syscall { number, .. },
-        ) => runtime_text_line_read_carrier_syscall_width(number),
+        ) => runtime_text_line_read_carrier_syscall_width(number, target_offset),
+        (RuntimeTextReadTarget::RawFixedArray, RuntimeTextReadCall::Import) => {
+            super::super::widths::runtime_text_line_read_fixed_array_import_width(target_offset)
+        }
+        (RuntimeTextReadTarget::RawFixedArray, RuntimeTextReadCall::Syscall { number, .. }) => {
+            super::super::widths::runtime_text_line_read_fixed_array_syscall_width(
+                number,
+                target_offset,
+            )
+        }
     };
     let mut bytes = Vec::with_capacity(encoded_capacity);
     // x20 = the read destination base. Descriptor: the relocated line-buffer
@@ -154,8 +201,14 @@ fn encode_runtime_text_line_read(
     // a constant (the planner has no target_offset to hand).
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    if target == RuntimeTextReadTarget::BoundedByteCarrier {
-        bytes.extend(encode_add_x_immediate(20, 20, target_offset + 8)?);
+    match target {
+        RuntimeTextReadTarget::StringDescriptor => {}
+        RuntimeTextReadTarget::BoundedByteCarrier => {
+            append_add_x_constant(&mut bytes, 20, 20, target_offset + 8, 19)?;
+        }
+        RuntimeTextReadTarget::RawFixedArray => {
+            append_add_x_constant(&mut bytes, 20, 20, target_offset, 19)?;
+        }
     }
     bytes.extend(encode_move_x_register(21, 20));
     bytes.extend(encode_movz(22, 0));
@@ -238,6 +291,10 @@ fn encode_runtime_text_line_read(
             bytes.extend(encode_subs_x_immediate(20, 20, 8)?);
             bytes.extend(encode_store_x_to_x(22, 20, 0)?);
         }
+        RuntimeTextReadTarget::RawFixedArray => {
+            // The input is disposable scratch. Bytes already landed directly
+            // in the array and there is no descriptor or length word to store.
+        }
     }
 
     let expected_width = match (target, call) {
@@ -248,12 +305,21 @@ fn encode_runtime_text_line_read(
             runtime_text_line_read_syscall_width(byte_capacity, number, target_offset)
         }
         (RuntimeTextReadTarget::BoundedByteCarrier, RuntimeTextReadCall::Import) => {
-            runtime_text_line_read_carrier_import_width()
+            runtime_text_line_read_carrier_import_width(target_offset)
         }
         (
             RuntimeTextReadTarget::BoundedByteCarrier,
             RuntimeTextReadCall::Syscall { number, .. },
-        ) => runtime_text_line_read_carrier_syscall_width(number),
+        ) => runtime_text_line_read_carrier_syscall_width(number, target_offset),
+        (RuntimeTextReadTarget::RawFixedArray, RuntimeTextReadCall::Import) => {
+            super::super::widths::runtime_text_line_read_fixed_array_import_width(target_offset)
+        }
+        (RuntimeTextReadTarget::RawFixedArray, RuntimeTextReadCall::Syscall { number, .. }) => {
+            super::super::widths::runtime_text_line_read_fixed_array_syscall_width(
+                number,
+                target_offset,
+            )
+        }
     };
     debug_assert_eq!(bytes.len(), expected_width);
     Ok(bytes)

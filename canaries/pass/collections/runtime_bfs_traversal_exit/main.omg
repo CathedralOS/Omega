@@ -87,9 +87,9 @@ machine Main::main(&mut self) {
     }
     state do_visit(&mut self) {
         self.visited[self.v] = 1;
-        self.order[self.oc] = self.v;
+        self.order[self.oc] = self.v as i32;
         self.oc = self.oc + 1;
-        self.queue[self.tail] = self.v;
+        self.queue[self.tail] = self.v as i32;
         self.tail = self.tail + 1;
         self.count = self.count + 1;
         transition { _ -> next_v() }
@@ -113,7 +113,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.oc); // surface the count on regression
+        self.console.exit_process(self.oc as i32); // surface the count on regression
     }
     state bad(&mut self) {
         self.console.exit_process(1);

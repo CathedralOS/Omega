@@ -43,6 +43,7 @@ pub(super) fn collect_runtime_byte_io_relocations(
         }
         SelectedInstructionKind::WriteRuntimeByte {
             source_region,
+            source_offset,
             literal,
             source_is_place,
             source: RuntimeTextReadSource::HostOperation { operation_key },
@@ -66,6 +67,7 @@ pub(super) fn collect_runtime_byte_io_relocations(
                 *operation_key,
                 omega_instruction_selection::runtime_byte_write_import_call_offset(
                     context.input.target.architecture,
+                    *source_offset,
                 ),
             );
             true

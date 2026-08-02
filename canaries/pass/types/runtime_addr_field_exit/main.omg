@@ -11,6 +11,6 @@ data Main { console: Console; h: EfiHandle; c: ConsolePtr; r: i32; }
 machine Main::main(&mut self) {
     self.h = EfiHandle { raw: 4096 };
     self.c = ConsolePtr { raw: 88 };
-    self.r = self.c.raw as i32;
+    self.r = (self.c.raw as i32 in Trapping) as i32;
     self.console.exit_process(self.r);
 }

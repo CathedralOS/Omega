@@ -8496,10 +8496,17 @@ pub struct RuntimeTextLineReadLayout {
     pub width: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuntimeTextReadTarget {
+    StringDescriptor,
+    BoundedByteCarrier,
+    RawFixedArray,
+}
+
 fn build_runtime_text_line_read(
     target_offset: usize,
     capacity: u32,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
 ) -> Result<(Vec<u8>, RuntimeTextLineReadLayout), Diagnostic> {
     validate_normalized_win64_get_std_handle_plan()?;
     let file_layout = normalized_win64_file_io_layout()?;
@@ -8508,17 +8515,22 @@ fn build_runtime_text_line_read(
     // Owned carrier: r14 must point at the inline bytes (`region + target_offset +
     // pointer_size`), so the imm64 relocates to the carrier's own region and an
     // `add` advances past the leading 8-byte length word.
-    let carrier_bytes_disp = disp32(target_offset + 8)?;
+    let direct_bytes_disp = disp32(match target {
+        RuntimeTextReadTarget::BoundedByteCarrier => target_offset + 8,
+        RuntimeTextReadTarget::RawFixedArray => target_offset,
+        RuntimeTextReadTarget::StringDescriptor => 0,
+    })?;
     let mut bytes = Vec::with_capacity(128);
 
     // r14 = read buffer (imm64 at +2 relocated to the buffer data symbol, OR to
     // the carrier's own region for an owned `[u8; N]` target).
     bytes.extend([0x49, 0xbe]);
     bytes.extend(0u64.to_le_bytes());
-    if is_bounded_buffer {
-        // add r14, target_offset + pointer_size -> r14 = carrier inline bytes.
+    if target != RuntimeTextReadTarget::StringDescriptor {
+        // Add the inline destination offset. A carrier skips its length word;
+        // a raw fixed array starts at the place itself.
         bytes.extend([0x49, 0x81, 0xc6]);
-        bytes.extend(carrier_bytes_disp.to_le_bytes());
+        bytes.extend(direct_bytes_disp.to_le_bytes());
     }
     append_sub_rsp(&mut bytes, file_layout.reserve);
     // mov ecx, -10 (STD_INPUT_HANDLE).
@@ -8608,12 +8620,16 @@ fn build_runtime_text_line_read(
     }
     append_add_rsp(&mut bytes, file_layout.reserve);
 
-    let target_mov_offset = if is_bounded_buffer {
+    let target_mov_offset = if target == RuntimeTextReadTarget::BoundedByteCarrier {
         // Owned carrier: the bytes are already in place (r14 read straight into the
         // inline storage). Write only the length at `[r14 - 8]` (= region +
         // target_offset, the leading len word). No `{ptr, len}` descriptor, hence
         // no second relocation.
         bytes.extend([0x4d, 0x89, 0x7e, 0xf8]); // mov [r14-8], r15
+        0
+    } else if target == RuntimeTextReadTarget::RawFixedArray {
+        // Bytes already landed in disposable scratch. No descriptor or length
+        // word exists, so no epilogue store or second relocation is needed.
         0
     } else {
         // r13 = target descriptor base (imm64 relocated). The relocation planner
@@ -8643,16 +8659,16 @@ fn build_runtime_text_line_read(
     ))
 }
 
-fn runtime_text_line_read_layout_for(is_bounded_buffer: bool) -> RuntimeTextLineReadLayout {
+fn runtime_text_line_read_layout_for(target: RuntimeTextReadTarget) -> RuntimeTextLineReadLayout {
     // Capacity/target do not affect the layout (all immediates are fixed width),
     // so encode once with placeholders to recover the authoritative offsets.
-    build_runtime_text_line_read(0, 1, is_bounded_buffer)
+    build_runtime_text_line_read(0, 1, target)
         .expect("runtime text line read layout encodes")
         .1
 }
 
 fn runtime_text_line_read_layout() -> RuntimeTextLineReadLayout {
-    runtime_text_line_read_layout_for(false)
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::StringDescriptor)
 }
 
 pub fn runtime_text_line_read_width(_byte_capacity: usize) -> usize {
@@ -8675,15 +8691,30 @@ pub fn runtime_text_line_read_target_imm_offset() -> usize {
 /// length word) and a shorter epilogue (a single `len` store, no `{ptr, len}`
 /// descriptor), so its import-call offsets and width differ from the String path.
 pub fn runtime_text_line_read_carrier_width(_byte_capacity: usize) -> usize {
-    runtime_text_line_read_layout_for(true).width
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::BoundedByteCarrier).width
 }
 
 pub fn runtime_text_line_read_carrier_get_std_handle_call_offset() -> usize {
-    runtime_text_line_read_layout_for(true).get_std_handle_call_offset
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::BoundedByteCarrier)
+        .get_std_handle_call_offset
 }
 
 pub fn runtime_text_line_read_carrier_read_file_call_offset() -> usize {
-    runtime_text_line_read_layout_for(true).read_file_call_offset
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::BoundedByteCarrier)
+        .read_file_call_offset
+}
+
+pub fn runtime_text_line_read_fixed_array_width(_byte_capacity: usize) -> usize {
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::RawFixedArray).width
+}
+
+pub fn runtime_text_line_read_fixed_array_get_std_handle_call_offset() -> usize {
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::RawFixedArray)
+        .get_std_handle_call_offset
+}
+
+pub fn runtime_text_line_read_fixed_array_read_file_call_offset() -> usize {
+    runtime_text_line_read_layout_for(RuntimeTextReadTarget::RawFixedArray).read_file_call_offset
 }
 
 /// x86_64 Linux line read via the `read(2)` syscall (no GetStdHandle/ReadFile imports).
@@ -8710,7 +8741,13 @@ pub fn encode_runtime_text_line_read_syscall(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number, false)?.0)
+    Ok(build_runtime_text_line_read_syscall(
+        target_offset,
+        capacity,
+        number,
+        RuntimeTextReadTarget::StringDescriptor,
+    )?
+    .0)
 }
 
 /// Linux `read(2)` line read into an owned `[u8; N]` carrier: stdin bytes land in
@@ -8736,28 +8773,67 @@ pub fn encode_runtime_text_line_read_syscall_carrier(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number, true)?.0)
+    Ok(build_runtime_text_line_read_syscall(
+        target_offset,
+        capacity,
+        number,
+        RuntimeTextReadTarget::BoundedByteCarrier,
+    )?
+    .0)
+}
+
+pub fn encode_runtime_text_line_read_syscall_fixed_array(
+    target_offset: usize,
+    byte_capacity: usize,
+    number: u32,
+    parameter_registers: &[omega_calling_conventions::MachineRegister],
+    result_register: omega_calling_conventions::MachineRegister,
+    number_register: omega_calling_conventions::MachineRegister,
+    supervisor_call: u16,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_composite_linux_syscall_plan(
+        parameter_registers,
+        result_register,
+        number_register,
+        supervisor_call,
+    )?;
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read_syscall(
+        target_offset,
+        capacity,
+        number,
+        RuntimeTextReadTarget::RawFixedArray,
+    )?
+    .0)
 }
 
 fn build_runtime_text_line_read_syscall(
     target_offset: usize,
     capacity: u32,
     number: u32,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
-    let carrier_bytes_disp = disp32(target_offset + 8)?;
+    let direct_bytes_disp = disp32(match target {
+        RuntimeTextReadTarget::BoundedByteCarrier => target_offset + 8,
+        RuntimeTextReadTarget::RawFixedArray => target_offset,
+        RuntimeTextReadTarget::StringDescriptor => 0,
+    })?;
     let mut bytes = Vec::with_capacity(128);
 
     // r14 = read buffer (imm64 at +2 relocated to the buffer data symbol, OR to the
     // carrier's own region for an owned `[u8; N]` target); r15 = length.
     bytes.extend([0x49, 0xbe]);
     bytes.extend(0u64.to_le_bytes());
-    if is_bounded_buffer {
+    if target != RuntimeTextReadTarget::StringDescriptor {
         // add r14, target_offset + pointer_size -> r14 = carrier inline bytes.
         bytes.extend([0x49, 0x81, 0xc6]);
-        bytes.extend(carrier_bytes_disp.to_le_bytes());
+        bytes.extend(direct_bytes_disp.to_le_bytes());
     }
     bytes.extend([0x4d, 0x31, 0xff]); // xor r15, r15
 
@@ -8817,10 +8893,12 @@ fn build_runtime_text_line_read_syscall(
         let rel = done as isize - (fixup as isize + 4);
         bytes[fixup..fixup + 4].copy_from_slice(&(rel as i32).to_le_bytes());
     }
-    let target_mov_offset = if is_bounded_buffer {
+    let target_mov_offset = if target == RuntimeTextReadTarget::BoundedByteCarrier {
         // Owned carrier: the bytes are already in place; write only the length at
         // `[r14 - 8]` (the leading len word). No `{ptr, len}` descriptor.
         bytes.extend([0x4d, 0x89, 0x7e, 0xf8]); // mov [r14-8], r15
+        0
+    } else if target == RuntimeTextReadTarget::RawFixedArray {
         0
     } else {
         // mov r13, imm64(target) (relocated at +2); store the descriptor.
@@ -8837,17 +8915,16 @@ fn build_runtime_text_line_read_syscall(
     Ok((bytes, target_mov_offset))
 }
 
-fn runtime_text_line_read_syscall_layout_for(is_bounded_buffer: bool) -> (usize, usize) {
+fn runtime_text_line_read_syscall_layout_for(target: RuntimeTextReadTarget) -> (usize, usize) {
     // Capacity/number/target are all fixed-width immediates, so they do not affect the
     // layout; encode once with placeholders to recover the width + target imm offset.
-    let (bytes, target_mov_offset) =
-        build_runtime_text_line_read_syscall(0, 1, 0, is_bounded_buffer)
-            .expect("runtime text line read syscall layout encodes");
+    let (bytes, target_mov_offset) = build_runtime_text_line_read_syscall(0, 1, 0, target)
+        .expect("runtime text line read syscall layout encodes");
     (bytes.len(), target_mov_offset)
 }
 
 fn runtime_text_line_read_syscall_layout() -> (usize, usize) {
-    runtime_text_line_read_syscall_layout_for(false)
+    runtime_text_line_read_syscall_layout_for(RuntimeTextReadTarget::StringDescriptor)
 }
 
 pub fn runtime_text_line_read_syscall_width() -> usize {
@@ -8861,7 +8938,11 @@ pub fn runtime_text_line_read_syscall_target_imm_offset() -> usize {
 /// Owned carrier syscall read: wider prologue (`add r14`), shorter epilogue (a
 /// single `len` store), so its width differs from the String descriptor path.
 pub fn runtime_text_line_read_syscall_carrier_width() -> usize {
-    runtime_text_line_read_syscall_layout_for(true).0
+    runtime_text_line_read_syscall_layout_for(RuntimeTextReadTarget::BoundedByteCarrier).0
+}
+
+pub fn runtime_text_line_read_syscall_fixed_array_width() -> usize {
+    runtime_text_line_read_syscall_layout_for(RuntimeTextReadTarget::RawFixedArray).0
 }
 
 pub fn encode_runtime_text_line_read(
@@ -8873,7 +8954,12 @@ pub fn encode_runtime_text_line_read(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read(target_offset, capacity, false)?.0)
+    Ok(build_runtime_text_line_read(
+        target_offset,
+        capacity,
+        RuntimeTextReadTarget::StringDescriptor,
+    )?
+    .0)
 }
 
 /// Read a stdin line into an owned `[u8; N]` carrier: stdin bytes land directly in
@@ -8888,7 +8974,29 @@ pub fn encode_runtime_text_line_read_carrier(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read(target_offset, capacity, true)?.0)
+    Ok(build_runtime_text_line_read(
+        target_offset,
+        capacity,
+        RuntimeTextReadTarget::BoundedByteCarrier,
+    )?
+    .0)
+}
+
+pub fn encode_runtime_text_line_read_fixed_array(
+    target_offset: usize,
+    byte_capacity: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read(
+        target_offset,
+        capacity,
+        RuntimeTextReadTarget::RawFixedArray,
+    )?
+    .0)
 }
 
 // ---- compact_binary v0 wire-encode appends (chapter 20, decision 10) ----

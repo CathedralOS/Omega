@@ -10,7 +10,7 @@ data Main { console: Console; clock: Clock; delay: u32 in Wrapping; }
 machine Main::main(&mut self) {
     self.clock.sleep(2);
     self.delay = 1;
-    self.clock.sleep(self.delay);
+    self.clock.sleep(self.delay as u32);
     transition { _ -> done() }
     state done(&mut self) { self.console.exit_process(70); }
 }

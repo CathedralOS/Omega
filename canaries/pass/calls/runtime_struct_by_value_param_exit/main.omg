@@ -34,7 +34,7 @@ machine Main::decode(&self, k: Coeffs) -> i32 {
     let t2: i32 in Wrapping = k.b * 10;
     let s: i32 in Wrapping = t1 + t2;
     let s2: i32 in Wrapping = s + k.c;
-    transition { _ -> s2 }
+    transition { _ -> (s2 as i32) }
 }
 
 machine Main::main(&mut self) {
@@ -46,6 +46,6 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(r); // surface the decoded value on regression
+        self.console.exit_process(r as i32); // surface the decoded value on regression
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     AbstractDataObjectHandle, AbstractValueOperandHandle, InstructionOperand, Place,
-    RuntimeStorageRegion, StateGuardLowering, StateGuardOperator,
+    RuntimeStorageRegion, RuntimeTextReadTarget, StateGuardLowering, StateGuardOperator,
 };
 use omega_calling_conventions::HostCapability;
 use omega_core::arena::HandleSpan;
@@ -549,12 +549,9 @@ pub enum AbstractOperationKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,
-        /// The target is an owned `[u8; N]` carrier (`{len, bytes}` inline): read
-        /// stdin straight into the carrier's inline bytes (`region + target_offset
-        /// + pointer_size`) and write only `len` at `target_offset`, rather than
-        /// filling `buffer` and writing a `{ptr, len}` descriptor. `buffer` is
-        /// unused in this case.
-        is_bounded_buffer: bool,
+        /// Storage representation receiving the bytes. `buffer` is used only
+        /// for [`RuntimeTextReadTarget::StringDescriptor`].
+        target: RuntimeTextReadTarget,
     },
     /// One stdin byte into a `ByteRead` sum slot (std console `read_byte()`,
     /// no scratch object -- ZII-driven): zero the tag word AND the payload

@@ -84,7 +84,7 @@ machine Main::main(&mut self) {
     }
     state solution_w(&mut self) {
         self.nc = self.cr + 1; // try the next column in this (last) row
-        self.cols[self.r] = self.nc;
+        self.cols[self.r] = self.nc as i32;
         transition { _ -> step() }
     }
     state advance_row(&mut self) {
@@ -101,7 +101,7 @@ machine Main::main(&mut self) {
     }
     state place_bad_w(&mut self) {
         self.nc = self.cr + 1;
-        self.cols[self.r] = self.nc;
+        self.cols[self.r] = self.nc as i32;
         transition { _ -> step() }
     }
 
@@ -116,7 +116,7 @@ machine Main::main(&mut self) {
     state bt_adv(&mut self) {
         self.ci = self.cols[self.r];
         self.nc = self.ci + 1; // advance the previous row's queen
-        self.cols[self.r] = self.nc;
+        self.cols[self.r] = self.nc as i32;
         transition { _ -> step() }
     }
 
@@ -127,7 +127,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.count); // surface the wrong count
+        self.console.exit_process(self.count as i32); // surface the wrong count
     }
     state bad(&mut self) {
         self.console.exit_process(1);

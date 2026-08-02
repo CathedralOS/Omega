@@ -36,7 +36,7 @@ machine Main::main(&mut self) {
         transition self.top >= 0 && self.top < 8 { true -> do_push() _ -> bad() }
     }
     state do_push(&mut self) {
-        self.stk[self.top] = self.t;
+        self.stk[self.top] = self.t as i32;
         self.top = self.top + 1;
         self.i = self.i + 1;
         transition { _ -> scan() }
@@ -68,7 +68,7 @@ machine Main::main(&mut self) {
         transition self.top >= 0 && self.top < 8 { true -> do_push_result() _ -> bad() }
     }
     state do_push_result(&mut self) {
-        self.stk[self.top] = self.r;
+        self.stk[self.top] = self.r as i32;
         self.top = self.top + 1;
         self.i = self.i + 1;
         transition { _ -> scan() }
@@ -82,7 +82,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.r); // surface the wrong result if it regresses
+        self.console.exit_process(self.r as i32); // surface the wrong result if it regresses
     }
     state bad(&mut self) {
         self.console.exit_process(1);

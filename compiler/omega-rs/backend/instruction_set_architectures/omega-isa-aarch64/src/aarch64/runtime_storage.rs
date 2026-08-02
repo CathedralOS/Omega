@@ -2098,14 +2098,14 @@ pub fn encode_runtime_machine_string_write(
     byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_string_write_width(byte_length));
+    let mut bytes = Vec::with_capacity(runtime_machine_string_write_width(byte_length) + 40);
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+    append_store_data_to_x_offset(&mut bytes, 17, 16, byte_offset, 8, 15)?;
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
-    bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    append_store_data_to_x_offset(&mut bytes, 17, 16, byte_offset + 8, 8, 15)?;
     Ok(bytes)
 }
 
@@ -2143,18 +2143,25 @@ pub fn encode_runtime_machine_bounded_buffer_write(
     byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(literal));
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(
+        byte_offset,
+        literal,
+    ));
     bytes.extend(encode_adrp_placeholder(16)); // x16 = machine storage base (reloc @ start)
     bytes.extend(encode_add_page_offset_placeholder(16));
+    // Materialize the carrier address once. STRB's unsigned immediate tops out
+    // at 4095 bytes, while large machines routinely place text carriers later
+    // in storage; rebasing also keeps every per-byte store small.
+    append_add_x_constant(&mut bytes, 16, 16, byte_offset, 15)?;
     append_unsigned_immediate(&mut bytes, 17, literal.len() as u64);
-    bytes.extend(encode_store_x_to_x(17, 16, byte_offset)?); // [base + off] = len word
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?); // [carrier] = len word
     for (index, byte) in literal.as_bytes().iter().enumerate() {
         append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
-        bytes.extend(encode_store_byte_w_to_x(17, 16, byte_offset + 8 + index)?);
+        bytes.extend(encode_store_byte_w_to_x(17, 16, 8 + index)?);
     }
     debug_assert_eq!(
         bytes.len(),
-        runtime_machine_bounded_buffer_write_width(literal)
+        runtime_machine_bounded_buffer_write_width(byte_offset, literal)
     );
     Ok(bytes)
 }
@@ -6893,6 +6900,22 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
 mod tests {
     use super::super::widths;
     use super::*;
+
+    #[test]
+    fn bounded_buffer_literal_write_rebases_large_machine_offsets() {
+        let bytes = encode_runtime_machine_bounded_buffer_write(5072, "torch")
+            .expect("large carrier offset encodes");
+        assert_eq!(
+            bytes.len(),
+            widths::runtime_machine_bounded_buffer_write_width(5072, "torch")
+        );
+    }
+
+    #[test]
+    fn string_descriptor_write_materializes_large_machine_offsets() {
+        encode_runtime_machine_string_write(37_024, 12)
+            .expect("large String descriptor offset encodes");
+    }
 
     #[test]
     fn float_classification_sequences_stay_in_width_lockstep() {

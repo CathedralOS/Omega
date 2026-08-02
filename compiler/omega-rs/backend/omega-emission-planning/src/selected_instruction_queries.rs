@@ -48,8 +48,8 @@ mod tests {
     use omega_calling_conventions::HostOperationKey;
     use omega_core::arena::HandleSpan;
     use omega_target_operations::{
-        RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstructionKind,
-        TargetDataObjectHandle,
+        RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget,
+        SelectedInstructionKind, TargetDataObjectHandle,
     };
 
     #[test]
@@ -60,7 +60,7 @@ mod tests {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: 0,
             byte_capacity: 64,
-            is_bounded_buffer: false,
+            target: RuntimeTextReadTarget::StringDescriptor,
             source: RuntimeTextReadSource::HostOperation { operation_key },
         };
 

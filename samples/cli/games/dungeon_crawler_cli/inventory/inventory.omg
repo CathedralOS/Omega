@@ -166,7 +166,7 @@ machine InventorySystem::find_item_at(
         let next_index: u64 in Wrapping = index + 1;
 
         match found {
-            true -> index
+            true -> (index as u64)
             false -> scan_next(items, kind, next_index)
         }
     }

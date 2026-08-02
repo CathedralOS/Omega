@@ -34,7 +34,7 @@ machine Main::main(&mut self) {
         transition self.oidx >= 0 && self.oidx < 6 { true -> place() _ -> bad() }
     }
     state place(&mut self) {
-        self.out[self.oidx] = self.v;
+        self.out[self.oidx] = self.v as i32;
         self.idx = self.idx + 1;
         transition { _ -> walk() }
     }

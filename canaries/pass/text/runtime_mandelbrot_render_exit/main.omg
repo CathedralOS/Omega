@@ -89,7 +89,7 @@ machine Main::main(&mut self) {
     }
     state write_pixel(&mut self) {
         self.ch = self.palette[self.idx] as u8 in Wrapping;
-        self.row[self.x] = self.ch;
+        self.row[self.x] = self.ch as u8;
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }

@@ -1,18 +1,17 @@
 use omega_calling_conventions::HostOperationKey;
 use omega_core::arena::HandleSpan;
 use omega_target_operations::{
-    InstructionOperand, RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstructionKind,
-    TargetDataObjectHandle,
+    InstructionOperand, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget,
+    SelectedInstructionKind, TargetDataObjectHandle,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SelectedHostTextRead {
     pub buffer: TargetDataObjectHandle,
     pub target_region: RuntimeStorageRegion,
+    pub target_offset: usize,
     pub operation_key: HostOperationKey,
-    /// Owned `[u8; N]` carrier target: r14 relocates to the carrier's own region
-    /// (not a separate buffer) and there is no `{ptr, len}` descriptor write.
-    pub is_bounded_buffer: bool,
+    pub target: RuntimeTextReadTarget,
 }
 
 pub(super) fn selected_host_operation(
@@ -43,8 +42,9 @@ pub(super) fn selected_host_text_read(
     let SelectedInstructionKind::ReadRuntimeTextLine {
         buffer,
         target_region,
+        target_offset,
         source: RuntimeTextReadSource::HostOperation { operation_key },
-        is_bounded_buffer,
+        target,
         ..
     } = instruction
     else {
@@ -54,8 +54,9 @@ pub(super) fn selected_host_text_read(
     Some(SelectedHostTextRead {
         buffer: *buffer,
         target_region: *target_region,
+        target_offset: *target_offset,
         operation_key: *operation_key,
-        is_bounded_buffer: *is_bounded_buffer,
+        target: *target,
     })
 }
 
@@ -65,8 +66,8 @@ mod tests {
     use omega_calling_conventions::HostOperationKey;
     use omega_core::arena::HandleSpan;
     use omega_target_operations::{
-        RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstructionKind,
-        TargetDataObjectHandle,
+        RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget,
+        SelectedInstructionKind, TargetDataObjectHandle,
     };
 
     #[test]
@@ -77,7 +78,7 @@ mod tests {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: 0,
             byte_capacity: 64,
-            is_bounded_buffer: false,
+            target: RuntimeTextReadTarget::StringDescriptor,
             source: RuntimeTextReadSource::HostOperation { operation_key },
         };
 

@@ -1002,8 +1002,9 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
 /// instruction, so the total is inherently 4-aligned -- unlike the x86_64 width
 /// (variable-length instructions with inline immediate bytes) it previously
 /// borrowed, which produced non-instruction-aligned branch distances.
-pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
-    8 + unsigned_immediate_width(literal.len() as u64)
+pub fn runtime_machine_bounded_buffer_write_width(byte_offset: usize, literal: &str) -> usize {
+    8 + add_constant_width(byte_offset)
+        + unsigned_immediate_width(literal.len() as u64)
         + 4
         + bounded_buffer_literal_bytes_width(literal)
 }
@@ -1539,21 +1540,43 @@ pub fn runtime_text_line_read_syscall_width(
 /// + the `subs` + len-word store epilogue (8). Every element is fixed width,
 /// so the total is a constant -- which keeps the import-call relocation offset
 /// constant too (the planner has no target_offset to hand).
-pub fn runtime_text_line_read_carrier_import_width() -> usize {
-    108
+pub fn runtime_text_line_read_carrier_import_width(target_offset: usize) -> usize {
+    104 + add_constant_width(target_offset + 8)
 }
 
 /// The syscall flavor swaps the 4-byte `bl` for the syscall-number immediate
 /// plus `svc` (4), so it grows by exactly the immediate's width.
-pub fn runtime_text_line_read_carrier_syscall_width(syscall_number: u32) -> usize {
-    104 + unsigned_immediate_width(u64::from(syscall_number)) + 4
+pub fn runtime_text_line_read_carrier_syscall_width(
+    syscall_number: u32,
+    target_offset: usize,
+) -> usize {
+    100 + add_constant_width(target_offset + 8)
+        + unsigned_immediate_width(u64::from(syscall_number))
+        + 4
+}
+
+/// Raw `[u8; N]` scratch has the carrier's direct-target prologue but no
+/// descriptor/length epilogue.
+pub fn runtime_text_line_read_fixed_array_import_width(target_offset: usize) -> usize {
+    96 + add_constant_width(target_offset)
+}
+
+pub fn runtime_text_line_read_fixed_array_syscall_width(
+    syscall_number: u32,
+    target_offset: usize,
+) -> usize {
+    92 + add_constant_width(target_offset) + unsigned_immediate_width(u64::from(syscall_number)) + 4
 }
 
 /// Offset of the import `bl` inside the carrier line read: the 12-byte
 /// prologue (adrp + add + bytes-base add) + cursor setup (8) + the three
 /// syscall-argument moves (12).
-pub fn runtime_text_line_read_carrier_import_call_offset() -> usize {
-    32
+pub fn runtime_text_line_read_carrier_import_call_offset(target_offset: usize) -> usize {
+    28 + add_constant_width(target_offset + 8)
+}
+
+pub fn runtime_text_line_read_fixed_array_import_call_offset(target_offset: usize) -> usize {
+    28 + add_constant_width(target_offset)
 }
 
 /// Width of the ByteRead stdin read (import binding): the relocated region
@@ -1579,20 +1602,22 @@ pub fn runtime_byte_read_import_call_offset() -> usize {
 
 /// Width of the stdout byte write (import binding): the relocated source
 /// `adrp`+`add` (8) + the three call-argument moves (12) + `bl` (4).
-pub fn runtime_byte_write_import_width() -> usize {
-    24
+pub fn runtime_byte_write_import_width(source_offset: usize) -> usize {
+    runtime_byte_write_import_call_offset(source_offset) + 4
 }
 
 /// The syscall flavor swaps the 4-byte `bl` for the syscall-number
 /// immediate plus `svc` (4).
-pub fn runtime_byte_write_syscall_width(syscall_number: u32) -> usize {
-    20 + unsigned_immediate_width(u64::from(syscall_number)) + 4
+pub fn runtime_byte_write_syscall_width(syscall_number: u32, source_offset: usize) -> usize {
+    16 + add_constant_width(source_offset).max(4)
+        + unsigned_immediate_width(u64::from(syscall_number))
+        + 4
 }
 
 /// Offset of the import `bl` inside the byte write: adrp + add (8) + the
 /// three call-argument moves (12).
-pub fn runtime_byte_write_import_call_offset() -> usize {
-    20
+pub fn runtime_byte_write_import_call_offset(source_offset: usize) -> usize {
+    16 + add_constant_width(source_offset).max(4)
 }
 
 pub fn runtime_text_line_read_import_target_address_offset() -> usize {
@@ -1838,6 +1863,10 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
         // (`append_add_x_constant`; `add_constant_width` == 0 for offset 0, 4 when
         // <=4095, else movz/movk + add-register). Matches the emission in lockstep.
         RuntimeStorageAddress { byte_offset } => 8 + add_constant_width(*byte_offset),
+        RuntimeStringPointer {
+            byte_offset,
+            is_bounded_buffer: true,
+        } => 8 + add_constant_width(*byte_offset + 8),
         RuntimeStringPointer { .. } | RuntimeStringLength { .. } => 12,
         RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
         // adrp + add + load + fmov (into a v-register) = 16.

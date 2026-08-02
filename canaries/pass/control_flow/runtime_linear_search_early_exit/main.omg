@@ -4,6 +4,7 @@
 // indexed comparison). arr = [3,7,12,18,5], target = 12 -> found at index 2; exits 70 iff the
 // search stops there. A wrong index, or failing to stop, would miss 2.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -35,7 +36,7 @@ machine Main::main(&mut self) {
         }
     }
     state got_it(&mut self) {
-        self.found = self.i as i32;
+        self.found = narrow_u32_to_i32_trapping(self.i as u32) as i32 in Wrapping;
         transition { _ -> done() }
     }
     state next(&mut self) {
