@@ -1,13 +1,17 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
+    ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm, ScalarType,
+    StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemVersion,
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemVersion,
 };
 use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, ModuleError, ObligationEvidence, ProofBundle, VerificationError,
@@ -60,6 +64,7 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
                 id: result,
                 scalar_type: ScalarType::Boolean,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(10).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(10).expect("block"),
@@ -113,6 +118,156 @@ fn v2_boolean_constant_axiom_proves_the_return_contract() {
 
     verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("v2 Boolean semantics should reconstruct both axioms");
+}
+
+#[test]
+fn v9_content_conservation_accepts_a_replaceable_certificate() {
+    let (module, goal, obligation) = reflexive_content_module();
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(80).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                },
+            }),
+        }],
+    };
+
+    let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v9 content proposition and certificate");
+    assert_eq!(verified.accepted_facts().len(), 1);
+}
+
+#[test]
+fn content_conservation_is_v9_ensures_only_and_entry_cannot_name_result() {
+    let (mut old_module, _, _) = reflexive_content_module();
+    old_module.semantic_version = SemanticVersion::V8;
+    old_module.machines[0].structural_places.clear();
+    assert_eq!(
+        validate_module(&old_module).expect_err("content propositions require v9"),
+        ModuleError::PropositionRequiresSemanticVersion {
+            contract: ContractId::new(80).expect("contract"),
+            clause: ContractClauseKind::Ensures,
+            required: SemanticVersion::V9,
+            actual: SemanticVersion::V8,
+        }
+    );
+
+    let (mut requires_module, goal, _) = reflexive_content_module();
+    requires_module.machines[0].contract.ensures.clear();
+    requires_module.machines[0].contract.requires.push(goal);
+    assert_eq!(
+        validate_module(&requires_module).expect_err("content is post-state only"),
+        ModuleError::ContentConservationRequiresEnsures {
+            contract: ContractId::new(80).expect("contract"),
+        }
+    );
+
+    let (mut result_entry_module, _, _) = reflexive_content_module();
+    result_entry_module.machines[0].structural_places[0].kind = StructuralPlaceKind::Result;
+    assert_eq!(
+        validate_module(&result_entry_module).expect_err("result has no entry version"),
+        ModuleError::MalformedProposition(PropositionError::EntryResultStructuralPlace(
+            PlaceId::new(80).expect("place")
+        ))
+    );
+
+    let (mut duplicate_parameter, _, _) = reflexive_content_module();
+    duplicate_parameter.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: PlaceId::new(81).expect("second place"),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: true,
+            },
+        });
+    assert_eq!(
+        validate_module(&duplicate_parameter)
+            .expect_err("one parameter position has one structural root"),
+        ModuleError::DuplicateStructuralPlaceRoot {
+            machine: MachineId::new(80).expect("machine"),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: true,
+            },
+        }
+    );
+}
+
+fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
+    let parameter = ValueId::new(80).expect("parameter");
+    let result = ValueId::new(81).expect("result");
+    let place = PlaceId::new(80).expect("place");
+    let subject = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(80).expect("content domain"),
+            projection_fingerprint: 0x8055,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: place,
+            segments: Vec::new(),
+        },
+    };
+    let goal = Proposition::ContentConservation(ContentConservation::new(
+        ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: "Byte".to_owned(),
+        },
+        subject.clone(),
+        subject,
+    ));
+    let obligation = ObligationId::new(80).expect("obligation");
+    let machine = TerminalMachine {
+        id: MachineId::new(80).expect("machine"),
+        parameters: vec![ValueDeclaration {
+            id: parameter,
+            scalar_type: ScalarType::Boolean,
+        }],
+        result: ValueDeclaration {
+            id: result,
+            scalar_type: ScalarType::Boolean,
+        },
+        structural_places: vec![StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }],
+        entry: BlockId::new(80).expect("block"),
+        blocks: vec![Block {
+            id: BlockId::new(80).expect("block"),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: EdgeId::new(80).expect("edge"),
+                value: parameter,
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(80).expect("contract"),
+            requires: Vec::new(),
+            ensures: vec![ContractClause {
+                obligation,
+                proposition: goal.clone(),
+            }],
+        },
+    };
+    (
+        TerminalModule {
+            semantic_version: SemanticVersion::V9,
+            entry: machine.id,
+            machines: vec![machine],
+        },
+        goal,
+        obligation,
+    )
 }
 
 #[test]
@@ -620,6 +775,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(20).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(20).expect("block"),
@@ -686,6 +842,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(30).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(30).expect("block"),
@@ -752,6 +909,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(40).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(40).expect("block"),
@@ -818,6 +976,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(50).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(50).expect("block"),
@@ -884,6 +1043,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(60).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(60).expect("block"),
@@ -950,6 +1110,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(70).expect("block"),
         blocks: vec![Block {
             id: BlockId::new(70).expect("block"),
@@ -1014,6 +1175,7 @@ impl Fixture {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(1).expect("entry block"),
             blocks: vec![
                 Block {

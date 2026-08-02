@@ -92,6 +92,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                 id: value_id(3),
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: block_id(1),
             blocks: vec![
                 Block {

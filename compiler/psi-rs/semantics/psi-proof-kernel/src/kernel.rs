@@ -18,6 +18,9 @@ pub fn decide_primitive(
     let accepted = match (judgment, proposition) {
         (PrimitiveJudgment::Truth, Proposition::Truth) => true,
         (PrimitiveJudgment::ReflexiveEquality, Proposition::Equal(left, right)) => left == right,
+        (PrimitiveJudgment::ReflexiveEquality, Proposition::ContentConservation(conservation)) => {
+            conservation.left() == conservation.right()
+        }
         (PrimitiveJudgment::ClosedIntegerRelation, Proposition::Equal(left, right)) => {
             compare_integer_literals(left, right).is_some_and(|ordering| ordering.is_eq())
         }

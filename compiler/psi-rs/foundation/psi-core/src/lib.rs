@@ -8,12 +8,18 @@
 
 #![forbid(unsafe_code)]
 
+mod content;
 mod identity;
 mod proposition;
 
+pub use content::{
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
+    StructuralPlaceKind,
+};
 pub use identity::{
-    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, MachineId, ObligationId,
-    OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ValueId,
+    AdmissionSiteId, BlockId, ContentDomainId, ContractId, EdgeId, EvidenceIdentity, MachineId,
+    ObligationId, OperationId, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId, ValueId,
 };
 pub use proposition::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, PropositionError,

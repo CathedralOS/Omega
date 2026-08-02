@@ -20,12 +20,14 @@ pub use proof_bundle::{
 pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 
 use psi_core::{
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
-    PsiSemanticId, ScalarTerm, ScalarType,
+    PsiSemanticId, ScalarTerm, ScalarType, StructuralPlaceKind,
 };
 use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 use sha2::{Digest, Sha256};
@@ -35,6 +37,8 @@ const FORMAT_VERSION: u16 = 1;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
+const MAX_CONTENT_TERM_DEPTH: usize = 256;
+const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     validate_canonical_order(module)?;
@@ -108,6 +112,11 @@ fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
         if !strictly_increasing(machine.blocks.iter().map(|block| block.id)) {
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
         }
+        if !strictly_increasing(machine.structural_places.iter().map(|place| place.id)) {
+            return Err(CodecError::NonCanonicalOrder(
+                "structural places by PlaceId",
+            ));
+        }
         if !strictly_increasing(
             machine
                 .contract
@@ -172,6 +181,10 @@ fn validate_canonical_proposition(
             validate_canonical_proposition(premise, depth + 1)?;
             validate_canonical_proposition(conclusion, depth + 1)
         }
+        Proposition::ContentConservation(conservation) => {
+            validate_content_term_depth(conservation.left(), 0)?;
+            validate_content_term_depth(conservation.right(), 0)
+        }
     }
 }
 
@@ -201,6 +214,18 @@ fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError>
     Ok(writer.finish())
 }
 
+fn validate_content_term_depth(term: &ContentTerm, depth: usize) -> Result<(), CodecError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(CodecError::ContentTermNestingTooDeep);
+    }
+    if let ContentTerm::Separate(terms) = term {
+        for term in terms {
+            validate_content_term_depth(term, depth + 1)?;
+        }
+    }
+    Ok(())
+}
+
 fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
     let mut previous = None;
     for value in values {
@@ -220,15 +245,26 @@ fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     writer.id(module.entry);
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
-        encode_machine(&mut writer, machine)?;
+        encode_machine(&mut writer, module.semantic_version, machine)?;
     }
     Ok(writer.finish())
 }
 
-fn encode_machine(writer: &mut Writer, machine: &TerminalMachine) -> Result<(), CodecError> {
+fn encode_machine(
+    writer: &mut Writer,
+    semantic_version: SemanticVersion,
+    machine: &TerminalMachine,
+) -> Result<(), CodecError> {
     writer.id(machine.id);
     encode_declarations(writer, "machine parameters", &machine.parameters)?;
     encode_declaration(writer, machine.result);
+    if semantic_version >= SemanticVersion::V9 {
+        writer.len("structural places", machine.structural_places.len())?;
+        for place in &machine.structural_places {
+            writer.id(place.id);
+            encode_structural_place_kind(writer, place.kind);
+        }
+    }
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
@@ -384,6 +420,77 @@ fn encode_proposition(
             encode_proposition(writer, premise, depth + 1)?;
             encode_proposition(writer, conclusion, depth + 1)?;
         }
+        Proposition::ContentConservation(conservation) => {
+            writer.u8(9);
+            encode_content_algebra(writer, conservation.algebra())?;
+            encode_content_term(writer, conservation.left(), 0)?;
+            encode_content_term(writer, conservation.right(), 0)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) {
+    match kind {
+        StructuralPlaceKind::Parameter { position, is_self } => {
+            writer.u8(1);
+            writer.u32(position);
+            writer.u8(u8::from(is_self));
+        }
+        StructuralPlaceKind::Result => writer.u8(2),
+    }
+}
+
+fn encode_content_algebra(writer: &mut Writer, algebra: &ContentAlgebra) -> Result<(), CodecError> {
+    writer.u8(match algebra.kind {
+        ContentAlgebraKind::IntervalSet => 1,
+        ContentAlgebraKind::CountedQuantity => 2,
+    });
+    writer.string("content algebra parameter", &algebra.parameter)
+}
+
+fn encode_content_term(
+    writer: &mut Writer,
+    term: &ContentTerm,
+    depth: usize,
+) -> Result<(), CodecError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(CodecError::ContentTermNestingTooDeep);
+    }
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => {
+            writer.u8(1);
+            writer.id(projection.domain);
+            writer.u64(projection.projection_fingerprint);
+            writer.u8(match subject.version {
+                ContentPlaceVersion::Entry => 1,
+                ContentPlaceVersion::Current => 2,
+            });
+            writer.id(subject.root);
+            writer.len("content place segments", subject.segments.len())?;
+            for segment in &subject.segments {
+                match segment {
+                    ContentPlaceSegment::Field(name) => {
+                        writer.u8(1);
+                        writer.string("content field", name)?;
+                    }
+                    ContentPlaceSegment::FixedIndex(index) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                }
+            }
+        }
+        ContentTerm::Separate(terms) => {
+            writer.u8(2);
+            writer.len("separated content terms", terms.len())?;
+            for term in terms {
+                encode_content_term(writer, term, depth + 1)?;
+            }
+        }
     }
     Ok(())
 }
@@ -514,7 +621,7 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
-        machines.push(decode_machine(reader)?);
+        machines.push(decode_machine(reader, semantic_version)?);
     }
     Ok(TerminalModule {
         semantic_version,
@@ -523,10 +630,26 @@ fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecEr
     })
 }
 
-fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
+fn decode_machine(
+    reader: &mut Reader<'_>,
+    semantic_version: SemanticVersion,
+) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let parameters = decode_declarations(reader)?;
     let result = decode_declaration(reader)?;
+    let structural_places = if semantic_version >= SemanticVersion::V9 {
+        let count = reader.count()?;
+        let mut places = Vec::new();
+        for _ in 0..count {
+            places.push(StructuralPlaceDeclaration {
+                id: reader.id("PlaceId")?,
+                kind: decode_structural_place_kind(reader)?,
+            });
+        }
+        places
+    } else {
+        Vec::new()
+    };
     let entry = reader.id("BlockId")?;
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
@@ -538,6 +661,7 @@ fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError
         id,
         parameters,
         result,
+        structural_places,
         entry,
         blocks,
         contract,
@@ -690,7 +814,84 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
             premise: Box::new(decode_proposition(reader, depth + 1)?),
             conclusion: Box::new(decode_proposition(reader, depth + 1)?),
         },
+        9 => {
+            let algebra = decode_content_algebra(reader)?;
+            let left = decode_content_term(reader, 0)?;
+            let right = decode_content_term(reader, 0)?;
+            Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
+        }
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
+    })
+}
+
+fn decode_structural_place_kind(
+    reader: &mut Reader<'_>,
+) -> Result<StructuralPlaceKind, CodecError> {
+    Ok(match reader.u8()? {
+        1 => StructuralPlaceKind::Parameter {
+            position: reader.u32()?,
+            is_self: reader.boolean()?,
+        },
+        2 => StructuralPlaceKind::Result,
+        tag => return Err(CodecError::InvalidTag("StructuralPlaceKind", tag)),
+    })
+}
+
+fn decode_content_algebra(reader: &mut Reader<'_>) -> Result<ContentAlgebra, CodecError> {
+    let kind = match reader.u8()? {
+        1 => ContentAlgebraKind::IntervalSet,
+        2 => ContentAlgebraKind::CountedQuantity,
+        tag => return Err(CodecError::InvalidTag("ContentAlgebraKind", tag)),
+    };
+    Ok(ContentAlgebra {
+        kind,
+        parameter: reader.string("content algebra parameter")?,
+    })
+}
+
+fn decode_content_term(reader: &mut Reader<'_>, depth: usize) -> Result<ContentTerm, CodecError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(CodecError::ContentTermNestingTooDeep);
+    }
+    Ok(match reader.u8()? {
+        1 => {
+            let projection = ContentProjectionIdentity {
+                domain: reader.id::<ContentDomainId>("ContentDomainId")?,
+                projection_fingerprint: reader.u64()?,
+            };
+            let version = match reader.u8()? {
+                1 => ContentPlaceVersion::Entry,
+                2 => ContentPlaceVersion::Current,
+                tag => return Err(CodecError::InvalidTag("ContentPlaceVersion", tag)),
+            };
+            let root = reader.id("PlaceId")?;
+            let count = reader.count()?;
+            let mut segments = Vec::new();
+            for _ in 0..count {
+                segments.push(match reader.u8()? {
+                    1 => ContentPlaceSegment::Field(reader.string("content field")?),
+                    2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
+                    tag => return Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
+                });
+            }
+            ContentTerm::Projection {
+                projection,
+                subject: ContentStructuralPlace {
+                    version,
+                    root,
+                    segments,
+                },
+            }
+        }
+        2 => {
+            let count = reader.count()?;
+            let mut terms = Vec::new();
+            for _ in 0..count {
+                terms.push(decode_content_term(reader, depth + 1)?);
+            }
+            ContentTerm::separate(terms).map_err(CodecError::MalformedProposition)?
+        }
+        tag => return Err(CodecError::InvalidTag("ContentTerm", tag)),
     })
 }
 
@@ -803,12 +1004,25 @@ impl Writer {
         self.bytes(&value.to_le_bytes());
     }
 
+    fn u64(&mut self, value: u64) {
+        self.bytes(&value.to_le_bytes());
+    }
+
     fn id(&mut self, id: impl PsiSemanticId) {
         self.bytes(&id.get().to_le_bytes());
     }
 
     fn len(&mut self, label: &'static str, len: usize) -> Result<(), CodecError> {
         self.u32(u32::try_from(len).map_err(|_| CodecError::CollectionTooLong(label))?);
+        Ok(())
+    }
+
+    fn string(&mut self, label: &'static str, value: &str) -> Result<(), CodecError> {
+        if value.len() > MAX_CONTENT_IDENTITY_BYTES {
+            return Err(CodecError::StringTooLong(label));
+        }
+        self.len(label, value.len())?;
+        self.bytes(value.as_bytes());
         Ok(())
     }
 }
@@ -874,6 +1088,17 @@ impl<'bytes> Reader<'bytes> {
         }
     }
 
+    fn string(&mut self, label: &'static str) -> Result<String, CodecError> {
+        let len = usize::try_from(self.count()?).map_err(|_| CodecError::StringTooLong(label))?;
+        if len > MAX_CONTENT_IDENTITY_BYTES {
+            return Err(CodecError::StringTooLong(label));
+        }
+        let bytes = self.take(len)?;
+        std::str::from_utf8(bytes)
+            .map(str::to_owned)
+            .map_err(|_| CodecError::InvalidUtf8(label))
+    }
+
     fn id<T: PsiSemanticId>(&mut self, label: &'static str) -> Result<T, CodecError> {
         let raw = self.u64()?;
         T::new(raw).ok_or(CodecError::ZeroIdentity(label))
@@ -896,6 +1121,9 @@ pub enum CodecError {
     NestedConjunction,
     PropositionNestingTooDeep,
     ScalarTermNestingTooDeep,
+    ContentTermNestingTooDeep,
+    StringTooLong(&'static str),
+    InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),
     InvalidModule(ModuleError),
 }

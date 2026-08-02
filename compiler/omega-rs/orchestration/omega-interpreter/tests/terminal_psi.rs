@@ -37,6 +37,7 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(1).expect("entry"),
         blocks: vec![
             Block {
@@ -219,6 +220,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
             id: result,
             scalar_type,
         },
+        structural_places: Vec::new(),
         entry: BlockId::new(10).expect("entry"),
         blocks: vec![Block {
             id: BlockId::new(10).expect("entry"),

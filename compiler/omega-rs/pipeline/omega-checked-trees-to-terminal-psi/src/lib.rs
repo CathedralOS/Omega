@@ -8,6 +8,8 @@
 //! surface is deliberately tiny and exact; unsupported source constructs fail
 //! closed instead of being dropped.
 
+use std::collections::BTreeMap;
+
 use omega_checked_trees::{
     CheckedTrees,
     expression::{BinaryOperator, ExpressionNode},
@@ -15,15 +17,25 @@ use omega_checked_trees::{
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
     types::PrimitiveType,
 };
+use omega_core::content::{
+    ContentAlgebraIdentity as OmegaContentAlgebraIdentity, ContentConservationPlan,
+    ContentConservationTerm as OmegaContentConservationTerm,
+    ContentPlaceRoot as OmegaContentPlaceRoot, ContentPlaceSegment as OmegaContentPlaceSegment,
+    ContentPlaceVersion as OmegaContentPlaceVersion,
+    ContentStructuralPlace as OmegaContentStructuralPlace, conservation_fingerprint,
+};
 use omega_typed_trees::domain::ProofFact;
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    ContentTerm, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
+    ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
-    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -33,6 +45,156 @@ use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 pub struct LoweredTerminalPsi {
     pub semantic_module: TerminalModule,
     pub proof_bundle: ProofBundle,
+}
+
+/// One checked content equation translated into terminal-Psi identities.
+/// Arena-local domain, projection-machine, and field symbols are deliberately
+/// absent; only normalized semantic identities and stable spellings survive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredContentConservation {
+    pub source_fingerprint: u64,
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
+    pub proposition: Proposition,
+}
+
+/// Lower a validated checked-tree content equation into the terminal-Psi v9
+/// proposition vocabulary. This translation is independent of the temporary
+/// executable source slice so later frontend migration can reuse it directly.
+pub fn lower_content_conservation_plan(
+    plan: &ContentConservationPlan,
+) -> Result<LoweredContentConservation, LoweringError> {
+    let expected_fingerprint = conservation_fingerprint(&plan.algebra, &plan.equation);
+    if plan.fingerprint != expected_fingerprint {
+        return Err(LoweringError::ContentConservationFingerprintMismatch {
+            expected: expected_fingerprint,
+            actual: plan.fingerprint,
+        });
+    }
+
+    let algebra = match &plan.algebra {
+        OmegaContentAlgebraIdentity::IntervalSet { coordinate_space } => ContentAlgebra {
+            kind: ContentAlgebraKind::IntervalSet,
+            parameter: coordinate_space.clone(),
+        },
+        OmegaContentAlgebraIdentity::CountedQuantity { unit } => ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: unit.clone(),
+        },
+    };
+    let mut structural_places = BTreeMap::new();
+    let left = lower_content_term(plan.equation.left(), &mut structural_places, 0)?;
+    let right = lower_content_term(plan.equation.right(), &mut structural_places, 0)?;
+    let proposition =
+        Proposition::ContentConservation(ContentConservation::new(algebra, left, right));
+    let context = PropositionContext::from_value_types_and_places(
+        [],
+        structural_places.iter().map(|(id, kind)| (*id, *kind)),
+    )
+    .map_err(LoweringError::InvalidContentProposition)?;
+    context
+        .validate(&proposition)
+        .map_err(LoweringError::InvalidContentProposition)?;
+
+    Ok(LoweredContentConservation {
+        source_fingerprint: plan.fingerprint,
+        structural_places: structural_places
+            .into_iter()
+            .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+            .collect(),
+        proposition,
+    })
+}
+
+const MAX_CONTENT_TERM_DEPTH: usize = 256;
+/// First identity after the complete `parameter position + 1` range.
+const RESULT_STRUCTURAL_PLACE_ID: u64 = 4_294_967_297;
+
+fn lower_content_term(
+    term: &OmegaContentConservationTerm,
+    structural_places: &mut BTreeMap<PlaceId, StructuralPlaceKind>,
+    depth: usize,
+) -> Result<ContentTerm, LoweringError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(LoweringError::ContentTermNestingTooDeep);
+    }
+    match term {
+        OmegaContentConservationTerm::Projection {
+            semantic_domain,
+            projection_fingerprint,
+            subject,
+            ..
+        } => {
+            let domain = ContentDomainId::new(u64::from(semantic_domain.0))
+                .ok_or(LoweringError::InvalidContentDomainIdentity)?;
+            if *projection_fingerprint == 0 {
+                return Err(LoweringError::ZeroContentProjectionFingerprint);
+            }
+            Ok(ContentTerm::Projection {
+                projection: ContentProjectionIdentity {
+                    domain,
+                    projection_fingerprint: *projection_fingerprint,
+                },
+                subject: lower_content_place(subject, structural_places)?,
+            })
+        }
+        OmegaContentConservationTerm::Separate(terms) => ContentTerm::separate(
+            terms
+                .iter()
+                .map(|term| lower_content_term(term, structural_places, depth + 1))
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+        .map_err(LoweringError::InvalidContentProposition),
+    }
+}
+
+fn lower_content_place(
+    place: &OmegaContentStructuralPlace,
+    structural_places: &mut BTreeMap<PlaceId, StructuralPlaceKind>,
+) -> Result<ContentStructuralPlace, LoweringError> {
+    let version = match place.version {
+        OmegaContentPlaceVersion::Entry => ContentPlaceVersion::Entry,
+        OmegaContentPlaceVersion::Current => ContentPlaceVersion::Current,
+    };
+    let (root, kind) = match &place.root {
+        OmegaContentPlaceRoot::Parameter {
+            position, is_self, ..
+        } => (
+            PlaceId::new(u64::from(*position) + 1)
+                .expect("a parameter position plus one is nonzero"),
+            StructuralPlaceKind::Parameter {
+                position: *position,
+                is_self: *is_self,
+            },
+        ),
+        OmegaContentPlaceRoot::Result => (
+            PlaceId::new(RESULT_STRUCTURAL_PLACE_ID).expect("the reserved result place is nonzero"),
+            StructuralPlaceKind::Result,
+        ),
+    };
+    if let Some(previous) = structural_places.insert(root, kind)
+        && previous != kind
+    {
+        return Err(LoweringError::ConflictingContentPlaceRoot {
+            id: root,
+            first: previous,
+            second: kind,
+        });
+    }
+    let segments = place
+        .segments
+        .iter()
+        .map(|segment| match segment {
+            OmegaContentPlaceSegment::Field(field) => {
+                ContentPlaceSegment::Field(field.name.clone())
+            }
+            OmegaContentPlaceSegment::FixedIndex(index) => ContentPlaceSegment::FixedIndex(*index),
+        })
+        .collect();
+    Ok(ContentStructuralPlace {
+        version,
+        root,
+        segments,
+    })
 }
 
 /// Lower one named checked free machine through the first terminal-Psi slice.
@@ -297,6 +459,7 @@ fn build_module(result_type: ScalarType, value: IntegerValue) -> LoweredTerminal
                     id: result_id,
                     scalar_type: result_type,
                 },
+                structural_places: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![
                     Block {
@@ -385,6 +548,19 @@ pub enum LoweringError {
     IntegerLandingMismatch,
     IntegerLiteralOutsideSupportedMagnitude,
     IntegerLiteralOutsidePsiType,
+    ContentConservationFingerprintMismatch {
+        expected: u64,
+        actual: u64,
+    },
+    InvalidContentDomainIdentity,
+    ZeroContentProjectionFingerprint,
+    ContentTermNestingTooDeep,
+    ConflictingContentPlaceRoot {
+        id: PlaceId,
+        first: StructuralPlaceKind,
+        second: StructuralPlaceKind,
+    },
+    InvalidContentProposition(PropositionError),
 }
 
 impl std::fmt::Display for LoweringError {
@@ -394,3 +570,163 @@ impl std::fmt::Display for LoweringError {
 }
 
 impl std::error::Error for LoweringError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_core::{
+        content::{ContentConservationEquation, ContentConservationOwnerKind, ContentFieldSegment},
+        semantics::SemanticDomainId,
+        symbols::SymbolHandle,
+    };
+
+    fn source_projection(
+        version: OmegaContentPlaceVersion,
+        root: OmegaContentPlaceRoot,
+        fields: &[(&str, u32)],
+        semantic_domain: SemanticDomainId,
+    ) -> OmegaContentConservationTerm {
+        OmegaContentConservationTerm::Projection {
+            domain: SymbolHandle::from_arena_index(70),
+            semantic_domain,
+            projection_machine: SymbolHandle::from_arena_index(71),
+            projection_fingerprint: 0xfeed,
+            subject: OmegaContentStructuralPlace {
+                version,
+                root,
+                segments: fields
+                    .iter()
+                    .map(|(name, symbol)| {
+                        OmegaContentPlaceSegment::Field(ContentFieldSegment {
+                            symbol: SymbolHandle::from_arena_index(*symbol),
+                            name: (*name).to_owned(),
+                        })
+                    })
+                    .collect(),
+            },
+        }
+    }
+
+    fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConservationPlan {
+        let entry = source_projection(
+            OmegaContentPlaceVersion::Entry,
+            OmegaContentPlaceRoot::Parameter {
+                position: 0,
+                symbol: SymbolHandle::from_arena_index(10),
+                name: "extent".to_owned(),
+                is_self: false,
+            },
+            &[],
+            semantic_domain,
+        );
+        let left = source_projection(
+            OmegaContentPlaceVersion::Current,
+            OmegaContentPlaceRoot::Result,
+            &[("left", 11)],
+            semantic_domain,
+        );
+        let right = source_projection(
+            OmegaContentPlaceVersion::Current,
+            OmegaContentPlaceRoot::Result,
+            &[("right", 12)],
+            semantic_domain,
+        );
+        let algebra = OmegaContentAlgebraIdentity::IntervalSet {
+            coordinate_space: "Address".to_owned(),
+        };
+        let equation = ContentConservationEquation::new(
+            entry,
+            OmegaContentConservationTerm::separate([right, left]),
+        );
+        let fingerprint = conservation_fingerprint(&algebra, &equation);
+        ContentConservationPlan {
+            owner_kind: ContentConservationOwnerKind::Machine,
+            owner: SymbolHandle::from_arena_index(20),
+            callable: SymbolHandle::from_arena_index(21),
+            algebra,
+            equation,
+            fingerprint,
+        }
+    }
+
+    fn source_plan() -> ContentConservationPlan {
+        source_plan_with_domain(SemanticDomainId(9))
+    }
+
+    #[test]
+    fn checked_content_plan_lowers_without_arena_local_identity() {
+        let plan = source_plan();
+        let lowered = lower_content_conservation_plan(&plan).expect("lowered conservation");
+
+        assert_eq!(lowered.source_fingerprint, plan.fingerprint);
+        assert_eq!(
+            lowered.structural_places,
+            vec![
+                StructuralPlaceDeclaration {
+                    id: PlaceId::new(1).expect("parameter place"),
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                },
+                StructuralPlaceDeclaration {
+                    id: PlaceId::new(RESULT_STRUCTURAL_PLACE_ID).expect("result place"),
+                    kind: StructuralPlaceKind::Result,
+                },
+            ]
+        );
+
+        let Proposition::ContentConservation(conservation) = lowered.proposition else {
+            panic!("content proposition")
+        };
+        assert_eq!(
+            conservation.algebra(),
+            &ContentAlgebra {
+                kind: ContentAlgebraKind::IntervalSet,
+                parameter: "Address".to_owned(),
+            }
+        );
+        let ContentTerm::Projection {
+            projection,
+            subject,
+        } = conservation.left()
+        else {
+            panic!("entry projection")
+        };
+        assert_eq!(projection.domain.get(), 9);
+        assert_eq!(projection.projection_fingerprint, 0xfeed);
+        assert_eq!(subject.version, ContentPlaceVersion::Entry);
+        assert_eq!(subject.root.get(), 1);
+        assert!(subject.segments.is_empty());
+        let ContentTerm::Separate(parts) = conservation.right() else {
+            panic!("separated result")
+        };
+        assert_eq!(parts.len(), 2);
+        assert!(matches!(
+            &parts[0],
+            ContentTerm::Projection { subject, .. }
+                if subject.segments == [ContentPlaceSegment::Field("left".to_owned())]
+        ));
+        assert!(matches!(
+            &parts[1],
+            ContentTerm::Projection { subject, .. }
+                if subject.segments == [ContentPlaceSegment::Field("right".to_owned())]
+        ));
+    }
+
+    #[test]
+    fn checked_content_plan_fails_closed_on_corrupt_identity() {
+        let mut plan = source_plan();
+        plan.fingerprint ^= 1;
+        assert!(matches!(
+            lower_content_conservation_plan(&plan),
+            Err(LoweringError::ContentConservationFingerprintMismatch { .. })
+        ));
+
+        let plan = source_plan_with_domain(SemanticDomainId::NULL);
+        assert_eq!(
+            lower_content_conservation_plan(&plan),
+            Err(LoweringError::InvalidContentDomainIdentity)
+        );
+    }
+}

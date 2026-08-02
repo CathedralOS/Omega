@@ -49,6 +49,10 @@ semantic_id!(
     "Stable identity of one terminal-Psi structural place."
 );
 semantic_id!(
+    ContentDomainId,
+    "Stable identity of one exact content-bearing semantic domain."
+);
+semantic_id!(
     OperationId,
     "Stable identity of one terminal-Psi operation."
 );

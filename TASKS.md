@@ -381,9 +381,15 @@ those rows remain absent until their actual checked proofs exist.
   projection identity, and a stable fingerprint; checked facts, machine
   contract identity, and `05_claim_outcomes.json` retain the result. Runtime
   use, algebra mixing, duplicate equations, arbitrary projection lookalikes,
-  and unqualified subjects reject. Remaining work is to lower this proposition
-  into terminal Psi, compose inferred identity-preserving reshuffles, insert
-  sealed introduction and custody-exit rows, and discharge or admit the exact
+  and unqualified subjects reject. Terminal Psi v9 now carries canonical
+  structural-place declarations and exact content-conservation equalities; the
+  checked-plan adapter verifies the source fingerprint, removes arena-local
+  symbols, and lowers stable domains, projection fingerprints, entry/current
+  places, fields, fixed indices, and flattened separation. Semantic format v1
+  and proof format v8 encode the proposition canonically, while the verifier
+  restricts it to `ensures` and checks replaceable certificates. Remaining
+  work is to compose inferred identity-preserving reshuffles, insert sealed
+  introduction and custody-exit rows, and discharge or admit the exact
   frontier theorem. Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
@@ -936,7 +942,8 @@ improvements do not change public identity.
   exact-width wrapping integer addition, v4 exact-width saturating integer
   addition, v5 exact-width wrapping integer subtraction, v6 exact-width
   saturating integer subtraction, v7 exact-width wrapping integer
-  multiplication, and current-v8 exact-width saturating integer multiplication,
+  multiplication, v8 exact-width saturating integer multiplication, and
+  current-v9 proof-only structural-place/content-conservation propositions,
   unconditional jump/return edges,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
@@ -1049,7 +1056,8 @@ improvements do not change public identity.
   v4 adds recursive wrapping-subtract scalar terms; minimal format v5 adds
   recursive saturating-subtract scalar terms; minimal format v6 adds recursive
   wrapping-multiply scalar terms; minimal format v7 adds recursive
-  saturating-multiply scalar terms; all reject over-deep or
+  saturating-multiply scalar terms; minimal format v8 adds content-conservation
+  propositions and their structural-place terms; all reject over-deep or
   unnecessarily newer encodings. A role-domain-separated
   manifest binds semantic,
   proof, optional installation, and optional debug section identities; proof,
@@ -1060,10 +1068,11 @@ improvements do not change public identity.
   remains decodable, verifiable, executable, and frozen to its integer
   vocabulary; v2 adds `BooleanConstant`; v3 adds `WrappingIntegerAdd`; v4 adds
   `SaturatingIntegerAdd`; v5 adds `WrappingIntegerSubtract`; v6 adds
-  `SaturatingIntegerSubtract`; v7 adds `WrappingIntegerMultiply`; current v8
-  adds `SaturatingIntegerMultiply`; and explicit
+  `SaturatingIntegerSubtract`; v7 adds `WrappingIntegerMultiply`; v8 adds
+  `SaturatingIntegerMultiply`; current v9 adds proof-only structural places and
+  content-conservation propositions; and explicit
   validated migration preserves an older semantic graph while producing a new
-  v8 fingerprint. Archived v1 through v7 identities remain frozen. The clean
+  v9 fingerprint. Archived v1 through v8 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
@@ -1113,7 +1122,7 @@ improvements do not change public identity.
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
   provider-authored precursor as a Psi proof. The terminal-Psi
-  v1/v2/v3/v4/v5/v6/v7/v8
+  v1/v2/v3/v4/v5/v6/v7/v8/v9
   schemas, serialization, migration, and verifier/lowering boundary are owned
   by PSIIR.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic

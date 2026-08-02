@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
-use crate::{PropositionId, ValueId};
+use crate::{
+    ContentConservation, ContentPlaceVersion, ContentTerm, PlaceId, PropositionId,
+    StructuralPlaceKind, ValueId,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntegerSign {
@@ -674,6 +677,10 @@ pub enum Proposition {
         premise: Box<Proposition>,
         conclusion: Box<Proposition>,
     },
+    /// Exact equality in one compiler-owned content algebra. Structural-place
+    /// roots and projection identities are terminal semantic identities, not
+    /// source handles.
+    ContentConservation(ContentConservation),
 }
 
 impl Proposition {
@@ -703,6 +710,7 @@ impl Proposition {
                 premise.validate()?;
                 conclusion.validate()
             }
+            Self::ContentConservation(conservation) => conservation.validate(),
         }
     }
 }
@@ -716,11 +724,19 @@ impl Proposition {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PropositionContext {
     value_types: BTreeMap<ValueId, ScalarType>,
+    structural_places: BTreeMap<PlaceId, StructuralPlaceKind>,
 }
 
 impl PropositionContext {
     pub fn from_value_types(
         value_types: impl IntoIterator<Item = (ValueId, ScalarType)>,
+    ) -> Result<Self, PropositionError> {
+        Self::from_value_types_and_places(value_types, [])
+    }
+
+    pub fn from_value_types_and_places(
+        value_types: impl IntoIterator<Item = (ValueId, ScalarType)>,
+        structural_places: impl IntoIterator<Item = (PlaceId, StructuralPlaceKind)>,
     ) -> Result<Self, PropositionError> {
         let mut context = Self::default();
         for (id, scalar_type) in value_types {
@@ -731,6 +747,17 @@ impl PropositionContext {
                     id,
                     first: previous,
                     second: scalar_type,
+                });
+            }
+        }
+        for (id, kind) in structural_places {
+            if let Some(previous) = context.structural_places.insert(id, kind)
+                && previous != kind
+            {
+                return Err(PropositionError::ConflictingStructuralPlaceKind {
+                    id,
+                    first: previous,
+                    second: kind,
                 });
             }
         }
@@ -763,6 +790,32 @@ impl PropositionContext {
             } => {
                 self.validate_value_terms(premise)?;
                 self.validate_value_terms(conclusion)
+            }
+            Proposition::ContentConservation(conservation) => {
+                self.validate_content_term(conservation.left())?;
+                self.validate_content_term(conservation.right())
+            }
+        }
+    }
+
+    fn validate_content_term(&self, term: &ContentTerm) -> Result<(), PropositionError> {
+        match term {
+            ContentTerm::Projection { subject, .. } => {
+                let Some(kind) = self.structural_places.get(&subject.root) else {
+                    return Err(PropositionError::UnknownStructuralPlace(subject.root));
+                };
+                if subject.version == ContentPlaceVersion::Entry
+                    && *kind == StructuralPlaceKind::Result
+                {
+                    return Err(PropositionError::EntryResultStructuralPlace(subject.root));
+                }
+                Ok(())
+            }
+            ContentTerm::Separate(terms) => {
+                for term in terms {
+                    self.validate_content_term(term)?;
+                }
+                Ok(())
             }
         }
     }
@@ -864,7 +917,17 @@ pub enum PropositionError {
     },
     OrderedComparisonRequiresIntegers(ScalarType),
     NonCanonicalConjunctionArity(usize),
+    EmptyContentAlgebraParameter,
+    EmptyContentFieldName,
+    ZeroContentProjectionFingerprint,
+    NonCanonicalContentEquationOrder,
+    NonCanonicalContentSeparationArity(usize),
+    NonCanonicalContentSeparationOrder,
+    NestedContentSeparation,
+    ContentTermNestingTooDeep,
     UnknownValue(ValueId),
+    UnknownStructuralPlace(PlaceId),
+    EntryResultStructuralPlace(PlaceId),
     ConflictingValueType {
         id: ValueId,
         first: ScalarType,
@@ -874,6 +937,11 @@ pub enum PropositionError {
         id: ValueId,
         expected: ScalarType,
         actual: ScalarType,
+    },
+    ConflictingStructuralPlaceKind {
+        id: PlaceId,
+        first: StructuralPlaceKind,
+        second: StructuralPlaceKind,
     },
 }
 

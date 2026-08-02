@@ -231,8 +231,13 @@ under a schema-distinct stable fingerprint. Source-visible proof-only
 owner-projection equations over entry/current structural places. Their stable
 semantic fingerprints survive checked facts, machine contract identity, and
 the claim-outcome artifact; runtime use and malformed, mixed-algebra,
-duplicate, or unqualified equations reject. The terminal-Psi proposition,
-sealed introduction/custody-exit rows, and frontier discharge remain
+duplicate, or unqualified equations reject. Terminal Psi v9 now carries the
+canonical equation over declared structural roots, stable semantic-domain and
+projection identities, entry/current paths, fields, fixed indices, and flat
+separation. The checked-plan adapter rechecks the source fingerprint and drops
+arena-local symbols; canonical semantic/proof bytes and verifier-checked
+replaceable certificates pin the boundary. Identity-preserving reshuffle
+inference, sealed introduction/custody-exit rows, and frontier discharge remain
 subsequent work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
