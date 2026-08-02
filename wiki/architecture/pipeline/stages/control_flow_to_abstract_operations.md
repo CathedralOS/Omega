@@ -114,7 +114,10 @@ do state-call selection sites; runtime/direct state calls and statement-position
 host calls retain their exact call ordinal. Named transition targets reserve
 their canonical ordinal before nested argument calls, and transition-edge joins
 also require the target symbol, so nested calls in one transition statement no
-longer collide. A live obligation also remains available after a dispatched
+longer collide. Inline-branching state calls whose source operation defers code
+selection join the eventual leaf-expansion span to the exact caller call event,
+the called state's entry establishment, and the callee terminal event together.
+A live obligation also remains available after a dispatched
 call returns through its synthesized continuation; that edge preserves the
 caller's place/provenance rather than creating a new permission event. The
 same-target transition-call canary also proves that ordinal identity separates

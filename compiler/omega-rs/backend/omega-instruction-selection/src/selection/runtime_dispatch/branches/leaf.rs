@@ -265,6 +265,17 @@ fn select_runtime_leaf_branch_expansion(
         None,
         None,
     );
+    // Inline-branching calls defer concrete selection from the caller's
+    // StateCall operation to this expansion. Join the emitted span back to
+    // the exact caller call ordinal and to the called state's entry, while
+    // retaining the callee terminal site's events installed above.
+    selected_instructions.include_permission_events_for_site(
+        expansion.source_key,
+        expansion.statement_index,
+        Some(Some(expansion.call_ordinal)),
+        Some(expansion.branch_key.state),
+    );
+    selected_instructions.include_state_entry_permission_events(expansion.branch_key);
     let guards = select_runtime_leaf_branch_guards(input, expansion, runtime_value_operands);
     // The static summary runs on the BINDING-RESOLVED guard: an inline arm
     // guard over a substituted literal (`"a/b/c".len > 0`) is statically

@@ -229,12 +229,6 @@ retain exact claim identity and provenance across multi-hop wrappers. Bodyless
 or ambiguous targets remain fail-closed. The checked proof/debug surface retains
 the structured maps in `05_claim_outcomes.json`.
 
-Regression to restore: backend permission-event realization linking currently
-reports every event as `UNLINKED` in the nested and repeated linear transition
-call-ordinal canaries, even though canonical call ordinals and runtime call
-planning remain correct. This reproduces on pristine `origin/main`; restore the
-complete selected-instruction ledger without weakening the fail-closed report.
-
 Carry policy now follows the exact claim identity independently of the
 carrier's structural policy. Each qualification-evidence origin begins strict,
 its own positive permissions relax only that origin, and distinct origins and
