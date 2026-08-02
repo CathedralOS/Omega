@@ -58,7 +58,8 @@ impl TerminalFuelSchedule {
             | OperationKind::SaturatingIntegerAdd { .. }
             | OperationKind::WrappingIntegerSubtract { .. }
             | OperationKind::SaturatingIntegerSubtract { .. }
-            | OperationKind::WrappingIntegerMultiply { .. } => 1,
+            | OperationKind::WrappingIntegerMultiply { .. }
+            | OperationKind::SaturatingIntegerMultiply { .. } => 1,
         }
     }
 

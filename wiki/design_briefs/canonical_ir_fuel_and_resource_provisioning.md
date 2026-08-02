@@ -24,18 +24,20 @@ carries stable machine/block/value/operation/edge identities, representable
 integer constants, v2 Boolean constants, v3 exact-width wrapping integer
 addition, v4 exact-width saturating integer addition, v5 exact-width
 wrapping integer subtraction, v6 exact-width saturating integer subtraction,
-and current-v7 exact-width wrapping integer multiplication, unconditional
+v7 exact-width wrapping integer multiplication, and current-v8 exact-width
+saturating integer multiplication, unconditional
 jump/return control, and bodyful contracts. The
 verifier reconstructs operation, edge-binding, and return-binding axioms from
 the executable path, rejects unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
 semantic-axiom citations, equality composition, and closed integer relations
-over all four arithmetic terms. Wrapping addition reduces modulo the declared
+over all six arithmetic terms. Wrapping addition reduces modulo the declared
 1–128-bit width and interprets signed reduced bits as two's complement;
 saturating addition clamps at the declared signed or unsigned bounds. Wrapping
 and saturating subtraction apply the same policies to `left - right`;
-wrapping multiplication reduces the product at the declared width. All five
-are total and create no overflow obligation. Omega's interpreter executes the same
+wrapping multiplication reduces the product at the declared width, while
+saturating multiplication clamps it at the declared bounds. All six are total
+and create no overflow obligation. Omega's interpreter executes the same
 verified module object and rejects out-of-range integer arguments before
 execution.
 
@@ -47,7 +49,8 @@ and interpretation. This adapter does not change the target ownership rule:
 the current Omega-branded frontend still needs to migrate under Psi. A
 source-independent Omega abstract-operation consumer accepts only the verified
 module and emits owned scalar-materialization, wrapping-add, saturating-add,
-wrapping-subtract, saturating-subtract, wrapping-multiply, jump-binding, and return requirements
+wrapping-subtract, saturating-subtract, wrapping-multiply,
+saturating-multiply, jump-binding, and return requirements
 with stable Psi provenance and no source
 handles. The clean
 target continuation resolves the current compile-known stream to a
@@ -67,11 +70,14 @@ terminal slice uses bounded scratch registers and an aligned AArch64 argument
 spill frame.
 Semantic v5 and proof format v4 add recursive wrapping-subtract vocabulary;
 semantic v6 and proof format v5 add recursive saturating-subtract vocabulary;
-current semantic v7 and proof format v6 add recursive wrapping-multiply
+semantic v7 and proof format v6 add recursive wrapping-multiply vocabulary;
+current semantic v8 and proof format v7 add recursive saturating-multiply
 vocabulary without changing fuel schedule v1. Parameter-fed canaries
 round-trip, verify, cost two units, and agree with native execution: wrapping
 `u8` computes 5-10 = 251, while signed `i64` saturating subtraction reaches
 both bounds and wrapping `u8` multiplication computes 20*13 = 4.
+The signed `i64` saturating-multiply canary reaches both bounds and covers the
+`MIN * -1` edge plus an ordinary negative product.
 
 The vocabulary has canonical semantic bytes and a domain-separated semantic
 fingerprint; the source, wrapping, and saturating canaries round-trip after
@@ -79,7 +85,8 @@ discarding producer state. Proof format v1 retains its frozen original bytes,
 minimal format v2 adds recursive wrapping-add terms, minimal format v3 adds
 recursive saturating-add terms, minimal format v4 adds recursive wrapping-subtract
 terms, minimal format v5 adds recursive saturating-subtract terms, and minimal
-format v6 adds recursive wrapping-multiply terms. The proof section has its own
+format v6 adds recursive wrapping-multiply terms, while minimal format v7 adds
+recursive saturating-multiply terms. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -97,9 +104,10 @@ debug/source maps remain. General register assignment remains on the legacy
 backend.
 
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
-wrapping-subtract, and v6 saturating-subtract modules retain their frozen bytes
-and execution semantics; explicit migration produces a new current-v7
-fingerprint. The v3 wrapping slice round-trips, verifies, meters, lowers, emits,
+wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply modules
+retain their frozen bytes and execution semantics; explicit migration produces
+a new current-v8 fingerprint. The v3 wrapping slice round-trips, verifies,
+meters, lowers, emits,
 and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
 same path and clamps that sum to 255. The checkpoint still has no branching.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal

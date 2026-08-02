@@ -208,6 +208,43 @@ impl IntegerType {
             _ => None,
         }
     }
+
+    /// Multiply two admitted values and clamp the result to this exact integer
+    /// type's representable bounds.
+    ///
+    /// A sign/value mismatch or out-of-range input is rejected rather than
+    /// silently reinterpreted.
+    pub fn saturating_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => {
+                let maximum = if self.bits == 128 {
+                    u128::MAX
+                } else {
+                    (1_u128 << self.bits) - 1
+                };
+                Some(IntegerValue::Unsigned(
+                    left.saturating_mul(right).min(maximum),
+                ))
+            }
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                let value = if self.bits == 128 {
+                    left.saturating_mul(right)
+                } else {
+                    let limit = 1_i128 << (self.bits - 1);
+                    left.saturating_mul(right).clamp(-limit, limit - 1)
+                };
+                Some(IntegerValue::Signed(value))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -254,6 +291,11 @@ pub enum ScalarTerm {
         right: Box<ScalarTerm>,
     },
     WrappingIntegerMultiply {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
+    SaturatingIntegerMultiply {
         scalar_type: IntegerType,
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
@@ -379,6 +421,26 @@ impl ScalarTerm {
         })
     }
 
+    pub fn saturating_integer_multiply(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        let expected = ScalarType::Integer(scalar_type);
+        if left.scalar_type() != expected || right.scalar_type() != expected {
+            return Err(PropositionError::SaturatingIntegerMultiplyTypeMismatch {
+                expected,
+                left: left.scalar_type(),
+                right: right.scalar_type(),
+            });
+        }
+        Ok(Self::SaturatingIntegerMultiply {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
@@ -388,7 +450,8 @@ impl ScalarTerm {
             | Self::SaturatingIntegerAdd { scalar_type, .. }
             | Self::WrappingIntegerSubtract { scalar_type, .. }
             | Self::SaturatingIntegerSubtract { scalar_type, .. }
-            | Self::WrappingIntegerMultiply { scalar_type, .. } => {
+            | Self::WrappingIntegerMultiply { scalar_type, .. }
+            | Self::SaturatingIntegerMultiply { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
             }
         }
@@ -456,6 +519,18 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.wrapping_mul(left, right)?))
+            }
+            Self::SaturatingIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.saturating_mul(left, right)?))
             }
             _ => None,
         }
@@ -552,6 +627,23 @@ impl ScalarTerm {
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::WrappingIntegerMultiplyTypeMismatch {
+                        expected,
+                        left: left.scalar_type(),
+                        right: right.scalar_type(),
+                    });
+                }
+                Ok(())
+            }
+            Self::SaturatingIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                let expected = ScalarType::Integer(*scalar_type);
+                if left.scalar_type() != expected || right.scalar_type() != expected {
+                    return Err(PropositionError::SaturatingIntegerMultiplyTypeMismatch {
                         expected,
                         left: left.scalar_type(),
                         right: right.scalar_type(),
@@ -693,7 +785,8 @@ impl PropositionContext {
             | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
             | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
             | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
@@ -760,6 +853,11 @@ pub enum PropositionError {
         right: ScalarType,
     },
     WrappingIntegerMultiplyTypeMismatch {
+        expected: ScalarType,
+        left: ScalarType,
+        right: ScalarType,
+    },
+    SaturatingIntegerMultiplyTypeMismatch {
         expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
@@ -970,6 +1068,34 @@ mod tests {
         assert_eq!(
             i128_type.wrapping_mul(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1)),
             Some(IntegerValue::Signed(i128::MIN))
+        );
+    }
+
+    #[test]
+    fn saturating_multiply_clamps_at_declared_signed_and_unsigned_bounds() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert_eq!(
+            u8_type.saturating_mul(IntegerValue::Unsigned(20), IntegerValue::Unsigned(13)),
+            Some(IntegerValue::Unsigned(255))
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        assert_eq!(
+            i8_type.saturating_mul(IntegerValue::Signed(20), IntegerValue::Signed(7)),
+            Some(IntegerValue::Signed(127))
+        );
+        assert_eq!(
+            i8_type.saturating_mul(IntegerValue::Signed(-20), IntegerValue::Signed(7)),
+            Some(IntegerValue::Signed(-128))
+        );
+        let u128_type = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+        assert_eq!(
+            u128_type.saturating_mul(IntegerValue::Unsigned(u128::MAX), IntegerValue::Unsigned(2),),
+            Some(IntegerValue::Unsigned(u128::MAX))
+        );
+        let i128_type = IntegerType::new(IntegerSign::Signed, 128).unwrap();
+        assert_eq!(
+            i128_type.saturating_mul(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1),),
+            Some(IntegerValue::Signed(i128::MAX))
         );
     }
 }

@@ -12,8 +12,8 @@ use psi_core::{
 /// width-relative `WrappingIntegerAdd`; version 4 adds
 /// `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
 /// adds `SaturatingIntegerSubtract`; version 7 adds
-/// `WrappingIntegerMultiply`. Older bytes retain their original meaning and
-/// identity.
+/// `WrappingIntegerMultiply`; version 8 adds `SaturatingIntegerMultiply`.
+/// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
@@ -25,7 +25,8 @@ impl SemanticVersion {
     pub const V5: Self = Self(NonZeroU16::new(5).expect("five is nonzero"));
     pub const V6: Self = Self(NonZeroU16::new(6).expect("six is nonzero"));
     pub const V7: Self = Self(NonZeroU16::new(7).expect("seven is nonzero"));
-    pub const CURRENT: Self = Self::V7;
+    pub const V8: Self = Self(NonZeroU16::new(8).expect("eight is nonzero"));
+    pub const CURRENT: Self = Self::V8;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -88,7 +89,7 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Closed operation vocabulary through semantic version 7.
+/// Closed operation vocabulary through semantic version 8.
 ///
 /// `IntegerConstant` writes the declared integer value to its result and
 /// establishes the semantic axiom `result == literal`. It cannot trap and
@@ -103,6 +104,11 @@ pub struct Operation {
 /// width. Signed values interpret the reduced bits as two's complement. It is
 /// total and therefore generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
+///
+/// `SaturatingIntegerMultiply` was added in semantic version 8. It reads two
+/// values of the result's exact integer type and clamps their product at that
+/// type's representable bounds. It is total and generates no overflow
+/// obligation; the verifier reconstructs its exact result-term axiom.
 ///
 /// `WrappingIntegerMultiply` was added in semantic version 7. It reads two
 /// values of the result's exact integer type and reduces their product modulo
@@ -134,6 +140,7 @@ pub enum OperationKind {
     WrappingIntegerSubtract { left: ValueId, right: ValueId },
     SaturatingIntegerSubtract { left: ValueId, right: ValueId },
     WrappingIntegerMultiply { left: ValueId, right: ValueId },
+    SaturatingIntegerMultiply { left: ValueId, right: ValueId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
