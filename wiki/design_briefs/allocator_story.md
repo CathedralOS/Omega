@@ -60,8 +60,9 @@ cleanup of debt-bearing elements.
 `CountedQuantity<Bytes>` may summarize residual magnitude for a capacity proof,
 but a scalar byte count does not identify where storage lies. The residual tail
 extent supplies placement for the bump canary. The source spelling for the
-n-to-m split, retirement, and recomposition theorem remains blocked on
-`OWNER_QUESTIONS.md` #1.
+n-to-m split, custody exit, and recomposition theorem is settled in
+[`authority_values_and_boundary_evidence.md`](authority_values_and_boundary_evidence.md);
+implementation remains staged in `TASKS.md`.
 
 ## Failure and provisioning
 
@@ -98,8 +99,7 @@ before that customer is implemented.
 
 ## Implementation staging
 
-1. Finish the source-visible content-conservation contract in owner question
-   #1.
+1. Implement the settled source-visible content-conservation contract.
 2. Implement the bump-allocation canary as ordinary package code over `Extent`,
    placement, and conservation.
 3. Require canaries for coexisting allocations, failed reset with a live claim,

@@ -134,7 +134,7 @@ composite claim-frontier work remain.
   transition receipt mints subject/invocation-bound `Active` evidence; explicit
   qualification, missing contracts, claim drift, and receipt substitution
   reject.
-- **LANGUAGE-DESIGN BLOCKED (OWNER_QUESTIONS #2):** connect concrete inbound
+- **LANGUAGE-DESIGN BLOCKED (OWNER_QUESTIONS #1):** connect concrete inbound
   invocation evidence to the checked `Pending` source-parameter fact and
   backend entry lowering without weakening the exact owner-authorized route
   rule. Current routes name only qualified results; `Pending` originates at an
@@ -289,8 +289,12 @@ This is not full P1c: backing and conservation witnesses remain implementation
 work. Symbol-keyed substitutions already retain
 contained claims through nested generic transparent records.
 
-Implementation checkpoint (2026-07-31): core now publishes `Content<A>`,
-`Interval<CoordinateSpace>`, and `CountedQuantity<Unit>`. A projection must be
+Implementation checkpoint (2026-07-31): core now publishes `Content<A>`, the
+transitional single-interval `Interval<CoordinateSpace>`, and
+`CountedQuantity<Unit>`. The settled algebra carrier is now the canonical
+`IntervalSet<CoordinateSpace>` because separated composition and residual
+difference are not closed over one interval; migrate the implementation and
+fingerprint before landing conservation consumers. A projection must be
 one bodyful checked machine explicitly satisfying `Content<A>::project`,
 attached to the exact atomic qualification whose carrier it reads. Foreign
 homes, alias homes, and a second projection for the same exact qualification
@@ -321,9 +325,9 @@ those retained algebra identities for the first custody-conservation gate. A
 content-bearing result rejects when it has compatible content-bearing inputs
 but every compatible source is a shared or exclusive borrow; a by-value linear
 input remains an eligible consumed source. This establishes the documented
-`submit(&buffer) -> PendingWrite` rejection without recognizing carrier,
-domain, parameter, or operation names. Full n-to-m equality, separation,
-backing, retirement, and ambiguity proofs remain outstanding.
+  `submit(&buffer) -> PendingWrite` rejection without recognizing carrier,
+  domain, parameter, or operation names. Full n-to-m equality, separation,
+  backing, custody-exit, and ambiguity proofs remain outstanding.
 
 Implementation checkpoint (2026-07-31): `05_claim_outcomes.json` now retains
 every checked content projection beside the path-indexed outcome maps. Each row
@@ -333,17 +337,25 @@ embeddings and arithmetic), semantic-domain identity, and the stable projection
 fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
-- **BUMP-ALLOCATOR-CANARY — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #1:** implement an ordinary package-level bump strategy
-  over a consumed `Extent` once source content-conservation contracts can state
+- **INTERVAL-SET-CONTENT — DESIGN CLEAR:** replace the transitional
+  `Interval<CoordinateSpace>` content algebra with canonical
+  `IntervalSet<CoordinateSpace>`. Normalize sorted disjoint half-open members,
+  remove empty members, merge adjacency, define one empty representation,
+  reject overlap in `separate(...)`, and derive canonical residual difference
+  after containment. Migrate core declarations, projection normalization,
+  fingerprints, checked/debug artifacts, and rejection canaries before any
+  terminal Psi conservation vocabulary freezes the old name;
+- **BUMP-ALLOCATOR-CANARY — BLOCKED on `CONSERVATION-CONTRACT`:** implement an
+  ordinary package-level bump strategy over a consumed `Extent` once source
+  content-conservation contracts can state
   its split, retirement, reset recomposition, and backing return. Keep
   allocatable tail, live extents, and retired extents distinct: release cleans
   `T` and returns authority but restores bump capacity only at reset. Exercise
   RAM and non-RAM placed access without adding an Arena primitive, interior
   mutability, or a new borrowing rule;
-- **BOUNDARY-ISSUANCE — DESIGN CLEAR; source theorem spelling shares
-  `OWNER_QUESTIONS.md` #1:** lower per-invocation geometry from ordinary
-  postconditions over parameters, entry snapshots, and result paths; do not add
+- **BOUNDARY-ISSUANCE — DESIGN CLEAR; depends on `CONSERVATION-CONTRACT`:**
+  lower per-invocation geometry from ordinary
+  postconditions over parameters, entry-version places, and result paths; do not add
   a receipt binder. Bound every newly established result claim through one
   n-ary relation, keep transferred input content in conservation, and reject
   algebra mismatch. Retain admitted external ownership and fresh issuance
@@ -356,15 +368,20 @@ those rows remain absent until their actual checked proofs exist.
   violation. Proof/debug artifacts
   retain geometry, issuer, custody lineage, alias class, succession history,
   and trust provenance;
-- **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #1:** prove all consumed content equals the separated
-  composition of produced content plus any remainder retired through an
-  authorized route. The equation and closed algebras are settled, but the
-  documented `content(...)`/`old(...)` forms remain schematic: no source or IR
-  surface binds projection selection, entry snapshots, separated composition,
-  or route-authorized retirement. The same decision must conserve every
-  independent content-bearing claim kind and require one joint projection when
-  correspondence between quantities carries authority meaning;
+- **CONSERVATION-CONTRACT — DESIGN CLEAR:** add proof-only `entry(place)` as an
+  entry/current version on structural-place terms and compiler-owned variadic
+  `separate(...)` over the closed content algebras. Contracts call the exact
+  owner-unique `Content<A>::project` conformance machine; do not add
+  `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
+  equation per content algebra and outcome row. Infer only claim-identity-
+  preserving reshuffles; partition-changing primitives author the theorem and
+  checked wrappers compose it. Insert sealed introduction and exact terminal
+  custody-exit rows from the claim frontier. For a bodyless partial boundary,
+  derive the residual from entry and result content and admit only provider
+  custody acceptance. Retain normalized obligations in semantic identity and
+  replaceable proofs in proof/debug artifacts. Quantity-only projections never
+  supply unit identity; report modeled identity coverage and require an
+  identity-bearing or joint algebra when an operation uses such authority;
 - keep domain facets, permission attenuation, carry, and root lineage as
   independent axes; recoverable or scarce authority uses a claim or loan rather
   than a discardable permission; and
@@ -383,7 +400,7 @@ unique moved element.
 
 Acceptance: partial moves preserve sibling obligations; duplicated or
 overlapping children reject even when every child is individually contained and
-their scalar measures add up; gaps reject unless an authorized retirement
+their scalar measures add up; gaps reject unless an authorized custody exit
 accounts for them; admitted backing and projected content normalize in the same
 algebra; unrelated roots cannot merge merely because their intervals are
 adjacent; mapped outputs inherit carry from their actual origins; related
@@ -1138,7 +1155,7 @@ improvements do not change public identity.
   killed safely, an orphan pins its worker/storage/provider era, and bounded
   recovery from a hung call requires process isolation.
 - Build the package-level bump-allocation canary after
-  `OWNER_QUESTIONS.md` #1. Core supplies qualified `Extent`, placement, and
+  `CONSERVATION-CONTRACT`. Core supplies qualified `Extent`, placement, and
   conservation; it does not bless Arena, bump, slab, pool, buddy, or heap
   strategy semantics.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
@@ -1452,8 +1469,7 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 content-conservation contracts | normalized n-to-m content equations, boundary geometry, correspondence, allocator canaries, inference, and retained proof evidence |
-| #2 admitted inbound parameters | exact parameter-position establishment routes and invocation-bound evidence |
+| #1 admitted inbound parameters | exact parameter-position establishment routes and invocation-bound evidence |
 
 ## Vertical acceptance slices
 

@@ -206,6 +206,27 @@ certificate envelope, and admission taxonomy land before an operation depends
 on them. Concrete proposition and operation vocabularies are then co-designed
 in vertical slices; the proof language is not speculated in isolation.
 
+### Content-conservation proposition slice
+
+The content slice extends structural-place terms with an entry/current version;
+it does not add a general historical-expression modality. It carries the exact
+owner-unique content-projection identity, canonical
+`IntervalSet<CoordinateSpace>` and `CountedQuantity<Unit>` terms, variadic
+partial `separate(...)`, containment and equality, and canonical interval-set
+residual difference. Sealed claim-frontier rows record content introduced into
+or transferred out of checked custody.
+
+The verifier infers identity-preserving reshuffles. A primitive that changes a
+partition carries an authored theorem, and checked wrappers compose those
+theorems. At a bodyless partial boundary, Psi derives the kept content and
+residual and permits the provider to admit only acceptance of custody for that
+exact residual—not the partition arithmetic. External root correspondence and
+fresh issuance remain scoped admitted hypotheses with provenance; downstream
+conservation remains derived.
+
+These normalized obligations are semantic and fingerprinted. Their proof
+derivations remain replaceable proof-bundle material.
+
 ## Verification boundary
 
 The verifier derives structural obligations from terminal Psi and checks the

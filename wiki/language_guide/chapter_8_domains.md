@@ -357,6 +357,16 @@ derived facts: a result-selected base may prove the returned size while saying
 nothing about whether the range was issued before. Artifacts retain both the
 derived geometry and the admitted supply/custody provenance.
 
+That admitted provider fact is a scoped hypothesis import, not a general proof
+escape hatch. It establishes only the correspondence the checked system cannot
+derive from external reality: this runtime geometry belongs to this backing
+root and was freshly issued into this custody chain. The compiler proves all
+downstream splitting, recomposition, containment, and nonduplication facts
+conditionally on that premise; proof-carrying artifacts recheck the derived
+half and disclose the admitted root and provenance. A checked root carved from
+already-owned storage needs no such admission, and admission cannot replace an
+obligation the verifier can derive.
+
 ### Transparent predicate aliases
 
 A predicate alias gives a public name to a nonempty conjunction of compatible

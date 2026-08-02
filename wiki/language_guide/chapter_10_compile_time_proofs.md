@@ -312,6 +312,18 @@ ensures
 The `before` value is explicit. There is no implicit `old` keyword here. A
 caller that wants to prove preservation can make or carry a snapshot itself.
 
+Contracts also have one narrower, proof-only entry-state form:
+`entry(place)`. It selects the machine-entry version of a structural place so a
+postcondition can relate the entry and current content of an owned claim. It is
+not a runtime snapshot, does not duplicate the place or its value, and is not a
+general `old(expression)` modality. Ordinary value-preservation proofs still
+pass an explicit value such as `before` above.
+
+The distinction is deliberate: `entry(&extent)` gives a content projection a
+stable entry-state subject, while arbitrary computed expressions do not acquire
+implicit history. Terminal Psi represents this as an entry/current version on
+the structural-place term itself.
+
 ## Helper Machines
 
 Large proofs should be decomposed through helper machines with small contracts.

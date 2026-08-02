@@ -8,49 +8,7 @@ reference in the same change.
 
 Last pruned: 2026-08-02.
 
-## 1. How are content-conservation theorems authored in contracts?
-
-The n-ary law and its closed algebras are settled, and checked claim outcome
-maps already identify which input claim feeds each result path. The design
-briefs say that ordinary postconditions relate projections, but their
-`content(result)` and `content(old(buffer))` examples are schematic. Core
-declares neither operation, typed proof expressions have no distinguished
-pre-state snapshot, and no source form identifies an authorized retirement as
-the remainder of the same separated equation. Inferring equality from field
-names, constructor shape, or the outcome map alone would silently authorize
-content duplication.
-
-Decide:
-
-- the proof-only source expression that applies the owner-selected
-  `Content<A>` projection to a qualified claim, including how an author selects
-  one exact qualification when a carrier has multiple independent claims;
-- the spelling and binding rules for pre-state content of consumed or mutated
-  parameters, and whether snapshots apply to arbitrary values or only
-  compiler-normalized proof projections;
-- the source representation of partial separated composition, exact equality,
-  and an authorized-retirement term in one n-to-m theorem;
-- how result field/case/index paths and input paths in the checked outcome map
-  bind to theorem subjects without relying on parameter order or presentation
-  names;
-- which unambiguous transformations the compiler may infer directly and which
-  require an authored postcondition, especially direct constructors, one-to-one
-  returns, splits, merges, and consuming failure outcomes; and
-- how independently conserved algebras produce distinct witnesses while a
-  joint correspondence algebra prevents an author from splitting related
-  authority into unrelated equations.
-
-Recommendation: add compiler-resolved proof intrinsics for exact-qualified
-`content(value)` and its entry snapshot, plus one closed `separate(...)`
-relation whose terms are output claims or route-authorized retirement. Require
-an explicit qualification selector whenever projection choice is not unique.
-Permit inference only when normalized input and output projections are
-definitionally identical after the checked outcome-map substitution; require
-an authored theorem for every other n-to-m transformation. Erase the intrinsics
-after checking while retaining the normalized equation and its proof result in
-checked/debug artifacts.
-
-## 2. How does a domain authorize an admitted inbound parameter?
+## 1. How does a domain authorize an admitted inbound parameter?
 
 The exact-route rule is settled for results: a domain names one owner-approved
 checked or boundary requirement, and only that requirement's qualified result

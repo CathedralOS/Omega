@@ -124,15 +124,17 @@ and DMA completions have no content composition operator: the whole-claim
 frontier already accounts for each exactly once. A content-bearing exact
 qualification may additionally publish one owner-unique conformance to the
 core `Content<A>` requirement and project into a compiler-owned partial
-composition algebra. The initial closed algebras are intervals and counted
-quantities over proof-level natural arithmetic. Ordinary linearity never
+composition algebra. The initial closed algebras are canonical disjoint
+interval sets and counted quantities over proof-level natural arithmetic.
+Ordinary linearity never
 implies a content projection.
 
-Owned decomposition proves one n-ary theorem: the separated composition of all
-consumed content equals all produced content plus any remainder retired through
-an authorized route. Per-output containment and scalar measures cannot prove
-this because individually plausible children may overlap. Split and merge are
-the same equation in opposite dataflow directions.
+Owned decomposition proves one n-ary theorem: entry content plus sealed
+introductions equals the separated composition of all produced content plus
+any content that left checked custody. “Retired” in frontier reports names that
+custody exit, not destruction or reclamation. Per-output containment and scalar
+measures cannot prove this because individually plausible children may overlap.
+Split and merge are the same equation in opposite dataflow directions.
 
 This refines rather than duplicates the edge-cleanup witness. Edge cleanup
 accounts for every incoming whole claim exactly once; a content-bearing

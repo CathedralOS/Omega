@@ -691,8 +691,11 @@ admitted external supply, stable backing identity, fresh-issuance premise,
 custody/alias lineage, root-lineage mapping, and exact separated-conservation
 witness. Provider succession appends classified predecessor/successor custody
 edges rather than rewriting claim origins. The initial
-closed vocabulary contains intervals and counted quantities over proof-level
-natural arithmetic. A qualification with no owner-unique `Content<A>`
+closed vocabulary contains canonical disjoint interval sets and counted
+quantities over proof-level natural arithmetic. Entry/current versions belong
+to structural-place terms; separated composition, derived residuals, sealed
+introduction, and custody-exit rows remain distinct proposition facts. A
+qualification with no owner-unique `Content<A>`
 conformance participates only in whole-claim frontier accounting.
 Correspondence-bearing symbolic mappings and runtime-indexed extraction remain
 fail-closed extensions.

@@ -95,10 +95,11 @@ ordinary geometry; the selected provider and its admission receipt establish
 `Granted` on the returned carrier. A direct call to the checked adapter is not
 that crossing and does not establish the fact. An ordinary fingerprinted
 postcondition bounds per-invocation geometry in the same compiler-owned
-interval algebra as `Granted`'s normalized content projection. No proof-only
-receipt binder exists. The provider evidence separately admits stable backing
-identity, ownership, and fresh nonduplicating issuance; a result-selected base
-can prove returned size but cannot prove that the interval is new.
+canonical interval-set algebra as `Granted`'s normalized content projection. No
+proof-only receipt binder exists. The provider evidence separately admits
+stable backing identity, ownership, and fresh nonduplicating issuance; a
+result-selected base can prove returned size but cannot prove that the interval
+is new.
 
 The live source declaration is in `omega::language::core::extent` together
 with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
