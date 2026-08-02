@@ -118,7 +118,7 @@ pub(crate) fn desugar_generic_data_instances(
         // Keep their generic argument structurally visible so checked content
         // plans retain a normalized coordinate-space/unit identity instead of
         // collapsing it into a synthesized diagnostic spelling.
-        if matches!(definition.name.as_str(), "Interval" | "CountedQuantity") {
+        if matches!(definition.name.as_str(), "IntervalSet" | "CountedQuantity") {
             continue;
         }
         let definition_parameters = syntax

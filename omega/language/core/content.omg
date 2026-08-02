@@ -7,7 +7,10 @@
 // material and adds no runtime metadata to the qualified carrier.
 use omega::language::core::nat;
 
-data Interval<CoordinateSpace> {
+// A struct literal introduces one half-open member. Compiler normalization
+// lifts it into the canonical finite interval-set term used by `separate` and
+// residual difference; this proof-only carrier never acquires runtime layout.
+data IntervalSet<CoordinateSpace> {
     start: Nat;
     end: Nat;
 }

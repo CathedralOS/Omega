@@ -2,7 +2,8 @@
 
 Status: semantic direction updated 2026-08-02. The core `Extent` declaration,
 owner-authored root requirement, state-local constrained-parameter evidence
-boundary, Cathedral's first admitted `Granted` root, and ordinary interrupt
+boundary, canonical compiler-owned `IntervalSet` content algebra, Cathedral's
+first admitted `Granted` root, and ordinary interrupt
 obligation carriers are live; further provider, carry, resource-frontier, and
 artifact work remains staged in `TASKS.md`.
 
@@ -219,6 +220,15 @@ members, merges adjacency, and stores one representation of the empty set.
 `residual(whole, kept)` requires `kept` contained in `whole` and produces the
 canonical set difference, which may contain several intervals. Equality is
 structural equality of those canonical forms.
+
+Implementation checkpoint (2026-08-02): this exact algebra is live in
+`omega-core`, including canonical construction, partial n-ary separation,
+containment, and fragmented residuals over exact proof naturals. Content
+projection plans lift the core singleton spelling into an interval-set term;
+the set identity and member vector survive checked facts and debug artifacts
+under a schema-distinct stable fingerprint. The terminal-Psi conservation
+proposition and source-visible `entry`/`separate` consumers remain subsequent
+work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound

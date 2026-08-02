@@ -126,7 +126,7 @@ fn content_projection_rejects_user_defined_algebra() {
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("must select compiler-owned `Interval<CoordinateSpace>`")
+            .contains("must select compiler-owned `IntervalSet<CoordinateSpace>`")
     }));
 }
 

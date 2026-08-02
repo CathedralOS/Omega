@@ -1,0 +1,30 @@
+use omega::language::core::content;
+
+data CoordinateSpace {}
+
+// User code cannot preserve the retired transitional algebra by recreating
+// its spelling. Content projections select the compiler-owned IntervalSet.
+data Interval<Space> {
+    start: Nat;
+    end: Nat;
+}
+
+data Region [linear] {
+    start: u64;
+    end: u64;
+}
+
+domain Region::Owned;
+
+machine Owned::content(region: &Region) -> Interval<CoordinateSpace>
+satisfies Content<Interval<CoordinateSpace>>::project
+{
+    Interval {
+        start: embed(region.start),
+        end: embed(region.end)
+    }
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

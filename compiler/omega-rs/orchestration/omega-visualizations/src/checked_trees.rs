@@ -503,8 +503,8 @@ fn push_content_algebra_json(
     use omega_core::content::ContentAlgebraIdentity;
 
     match algebra {
-        ContentAlgebraIdentity::Interval { coordinate_space } => {
-            json.push_str("{\"kind\": \"interval\", \"coordinate_space\": ");
+        ContentAlgebraIdentity::IntervalSet { coordinate_space } => {
+            json.push_str("{\"kind\": \"interval_set\", \"coordinate_space\": ");
             push_json_string(json, coordinate_space);
             json.push('}');
         }
@@ -523,12 +523,19 @@ fn push_content_projection_json(
     use omega_core::content::ContentProjectionExpression;
 
     match projection {
-        ContentProjectionExpression::Interval { start, end } => {
-            json.push_str("{\"kind\": \"interval\", \"start\": ");
-            push_content_scalar_json(json, start);
-            json.push_str(", \"end\": ");
-            push_content_scalar_json(json, end);
-            json.push('}');
+        ContentProjectionExpression::IntervalSet { members } => {
+            json.push_str("{\"kind\": \"interval_set\", \"members\": [");
+            for (index, member) in members.iter().enumerate() {
+                if index > 0 {
+                    json.push_str(", ");
+                }
+                json.push_str("{\"start\": ");
+                push_content_scalar_json(json, member.start());
+                json.push_str(", \"end\": ");
+                push_content_scalar_json(json, member.end());
+                json.push('}');
+            }
+            json.push_str("]}");
         }
         ContentProjectionExpression::CountedQuantity { magnitude } => {
             json.push_str("{\"kind\": \"counted_quantity\", \"magnitude\": ");

@@ -36,10 +36,10 @@ requires
 // `Granted` owns one canonical half-open address interval. Runtime address
 // arithmetic must not define the one-past end: proof-level naturals retain an
 // end equal to the address-space bound even when `addr` cannot represent it.
-machine Granted::content(extent: &Extent) -> Interval<Nat>
-satisfies Content<Interval<Nat>>::project
+machine Granted::content(extent: &Extent) -> IntervalSet<Nat>
+satisfies Content<IntervalSet<Nat>>::project
 {
-    Interval {
+    IntervalSet {
         start: embed(extent.base),
         end: embed(extent.base) + embed(extent.length)
     }

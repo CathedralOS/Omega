@@ -337,14 +337,16 @@ embeddings and arithmetic), semantic-domain identity, and the stable projection
 fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
-- **INTERVAL-SET-CONTENT — DESIGN CLEAR:** replace the transitional
-  `Interval<CoordinateSpace>` content algebra with canonical
-  `IntervalSet<CoordinateSpace>`. Normalize sorted disjoint half-open members,
-  remove empty members, merge adjacency, define one empty representation,
-  reject overlap in `separate(...)`, and derive canonical residual difference
-  after containment. Migrate core declarations, projection normalization,
-  fingerprints, checked/debug artifacts, and rejection canaries before any
-  terminal Psi conservation vocabulary freezes the old name;
+- **INTERVAL-SET-CONTENT — COMPLETE (2026-08-02):** the transitional
+  `Interval<CoordinateSpace>` content algebra is retired in favor of canonical
+  `IntervalSet<CoordinateSpace>`. The compiler-owned exact-natural engine sorts
+  disjoint half-open members, removes empty members, merges adjacency, retains
+  one empty representation, rejects overlap in partial `separate(...)`, proves
+  containment, and derives canonical fragmented residual difference. Core's
+  proof-only declaration and `Extent::Granted` projection, closed-fragment
+  normalization, schema-distinct stable fingerprints, checked facts, debug JSON,
+  generic proof-carrier handling, and canaries all use the set vocabulary. A
+  fail canary rejects a user-authored lookalike of the retired `Interval` name;
 - **BUMP-ALLOCATOR-CANARY — BLOCKED on `CONSERVATION-CONTRACT`:** implement an
   ordinary package-level bump strategy over a consumed `Extent` once source
   content-conservation contracts can state
