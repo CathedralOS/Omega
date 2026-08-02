@@ -191,9 +191,35 @@ domain Reservation::Confirmed
 ```
 
 The body does not execute those requirements. It authorizes their selected
-conformances to establish the domain at the requirement's qualified return
-position. Every predicate obligation is checked there once; callers consume
-the resulting guarantee rather than re-proving it.
+conformances to establish the domain at exact qualified subject positions.
+Normally that subject is the requirement's result. A matching non-`self`
+parameter may instead be introduced when the requirement is invoked as an
+installed external root. Every predicate obligation is checked at the
+established subject once; later uses consume the resulting guarantee rather
+than re-proving it.
+
+The same parameter remains an ordinary precondition when checked code calls
+the requirement directly. Direction comes from the installed external-root
+occurrence, not from `boundary` and not from another source marker:
+
+```omega
+pub boundary trait InterruptEntry {
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending);
+}
+
+pub domain InterruptAcknowledgement::Pending {
+    InterruptEntry::enter;
+}
+```
+
+The route names the authorized requirement; it does not select an authored
+parameter index. The compiler finds every exact matching qualified subject and
+retains its semantic source position internally. Trait inheritance, selected
+schema normalization, and `Calling<C>` specialization preserve that semantic
+parameter list; a transformation that changes it creates a different
+requirement identity. ABI lowering alone maps semantic positions to physical
+operands. Existing internal claims belong in installed state rather than as
+additional routed input parameters.
 
 An empty declaration has neither predicate nor provenance obligations:
 
@@ -216,7 +242,9 @@ deliberately publishes an open checked route.
 Membership may also propagate from an existing qualified value or through a
 checked evidence-preserving transformation. A qualified result type or
 `ensures` clause is an implementation obligation rather than evidence by
-itself unless it is the return of an authorized route.
+itself unless it is the result of an authorized route. Likewise, a qualified
+parameter is normally a caller obligation; it becomes introduced evidence only
+at an installed external-root occurrence of its authorized route.
 
 A parameter declared `value: T::D` imposes an implicit
 `requires value in T::D` at every call boundary. Predicate-only `D` discharges
@@ -325,17 +353,20 @@ of a route. A non-owning historical fact may be explicitly forgotten; a live
 
 An admitted boundary may establish a routed qualification when it satisfies
 one of the exact requirements named in the domain declaration. Provider
-selection and admission produce the receipt. The receipt records external
+selection and admission produce the evidence. That evidence records external
 trust; `boundary` remains on the machine or requirement where the crossing
 occurs. Any predicate requirements on the same domain are proved at the
-route's return position.
+exact established subject.
 
-For admitted qualification, “exact subject” means the requirement spells the
-bare `result`, and the result's unqualified carrier matches the domain target.
-A membership `ensures` written directly on an accepted machine is not an
-establishment route; the provider inherits the guarantee by satisfying the
-boundary requirement. Checked artifacts retain the authorizing trait,
-requirement signature, and provider receipt independently.
+For admitted qualification, an exact subject is either the bare `result` or a
+bare non-`self` parameter whose unqualified carrier matches the domain target.
+Results establish through the selected call. Parameters establish only on an
+installed external-root invocation; an ordinary call requires the caller to
+supply the qualification. A membership `ensures` written directly on an
+accepted machine is not an establishment route; the provider inherits the
+guarantee by satisfying the boundary requirement. Checked artifacts retain the
+authorizing trait, requirement signature, subject position, installation, and
+provider evidence independently.
 
 A checked adapter satisfying such a requirement is executable provider code,
 not a second establishment route. Calling it directly exposes only what its
@@ -1258,7 +1289,10 @@ Working interpretation:
 > been retired. Predicate `requires` and exact `Trait::requirement` body routes
 > now have independent syntax/IR records; authored routes resolve to checked or
 > boundary requirement identities, and mixed routed/predicate results must
-> prove the predicates. Predicate-in-body syntax is retired with directed
+> prove the predicates. Parameter-position establishment at installed external
+> roots remains implementation work; it reuses the same route spelling and
+> retains compiler-derived semantic positions rather than adding syntax.
+> Predicate-in-body syntax is retired with directed
 > `requires` migration guidance, and the source, sample, and embedded-test
 > corpora use the settled clause. Domain operators use ordinary top-level
 > declarations with exact or uniquely inferred semantic homes; nested

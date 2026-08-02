@@ -47,6 +47,14 @@ checker cannot derive. Accepted facts appear in receipts and the boundary
 report. The old `boundary(<Plan>)` syntax is retired; plan identity belongs to
 the satisfied requirement through `Calling<C>`.
 
+Program storage begins from a small number of entry-provisioned content roots.
+The loader, firmware, or OS admits the image mapping and initial stack/storage
+roots as part of the typed entry handoff. The compiler derives statics and
+sections as subextents of the image root; later frames and task stacks are
+checked allocations from an existing root. It does not admit every object
+individually, and a static array cannot originate physical-memory content merely
+because its size is known.
+
 ## Facts, authority, reach, and trust remain separate
 
 - domains and contracts carry value/layout propositions;
@@ -170,6 +178,12 @@ all obligations selected by the admitted plan to be settled. The concrete
 types, PIC/LAPIC protocol, timer source, vector policy, and transition machines
 belong to Cathedral.
 
+If Cathedral defers acknowledgement to a bottom half, the linear token leases
+the interrupt root and controller configuration until completion. Shutdown,
+controller reconfiguration, CPU removal, relevant power transitions, and root
+retirement drain those tokens first; carry policy must authorize the transfer.
+The lease is not asynchronously revocable.
+
 The selected provider plan may keep entry identity private for static tables;
 the program does not need a source-visible function pointer or numeric code
 address. Installation records the handler as an external root. The root ledger
@@ -237,8 +251,9 @@ until the complete exception floor is installed.
 The boot image can perform this work because firmware authenticated and entered
 the initially admitted artifact. That is the explicit trust base, not an
 ordinary package granting itself authority. The platform provider attenuates
-that initial authority into exact placements, the sealed artifact resolver,
-and Cathedral's CPU-scoped publication authority.
+that initial authority into exact placements, the compiler-derived static
+subextents, the sealed artifact resolver, and Cathedral's CPU-scoped
+publication authority.
 
 ## Admitted executable installation and AP bringup
 

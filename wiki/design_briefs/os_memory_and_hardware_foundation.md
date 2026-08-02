@@ -1470,9 +1470,20 @@ routed entry qualification such as `InterruptAcknowledgement::Pending` as a
 structured `accepts` row with born-strict carry. The provider-plan receipt
 identity binds that row, the external-root selection bridge preserves it, and
 the qualification artifact reports it. This closes the static admitted-entry
-contract; wiring the concrete invocation and mask-transition receipts into
-source `Pending`/`Active` facts remains, as does the concrete Cathedral
-PIC/LAPIC entry implementation that executes the admitted transitions.
+contract. The `Pending` domain names one stable core-owned acknowledgement-entry
+requirement; target roots inherit that exact semantic requirement and refine
+only its plan and ABI. Installation makes its exact qualified parameter an
+introduction, while an ordinary checked call treats the same parameter as a
+precondition. No entry marker or authored parameter selector is added. Wiring
+the concrete invocation and mask-transition evidence into source
+`Pending`/`Active` facts remains, as does the concrete Cathedral PIC/LAPIC entry
+implementation that executes the admitted transitions.
+
+A deferred acknowledgement leases the installed interrupt root and controller
+configuration until completion. Reconfiguration, shutdown, CPU removal,
+relevant power transitions, and root retirement therefore drain outstanding
+acknowledgements first. Carry policy decides whether the linear value may move
+to a bottom half. There is no breakable pin or asynchronous revocation path.
 
 ### OS interrupt policies are consumer-owned
 

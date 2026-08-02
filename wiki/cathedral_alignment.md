@@ -240,7 +240,10 @@ None block current compiler development; all should stay visible.
 - **DECIDED, engineering pending: interrupt entry** — an ordinary boundary
   machine satisfies a target requirement carrying evaluated `CallPlan +
   StatePlan`; build/provider selection retains sealed entry identity;
-  materialization fills the IDT; installation records an external root.
+  materialization fills the IDT; installation records an external root. Target
+  roots inherit one stable core acknowledgement-entry requirement, and the
+  `Pending` domain routes through that identity; installation, not a new source
+  marker, makes its matching parameter an introduced fact.
 - **TBD: allocator story** — `Vec` has no runtime. Decision 22 rejects ambient
   legacy `alloc` as the resource model: a kernel wants explicit allocator/arena
   capabilities and dependent bounds. Content-bearing claim conservation is
