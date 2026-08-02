@@ -60,11 +60,11 @@ backend.
 Canonical semantic serialization and identity are now live for this initial
 vocabulary in `psi-terminal-codec`. The real-source canary encodes the semantic
 module, records its identity, discards the source and producing module, decodes
-a fresh module, verifies it against the separately retained proof bundle, and
-then drives both interpretation and native realization. Branching,
-arithmetic-policy operations, artifact section manifests/version migration,
-general safe-point/branch fixed-work checking, build-time fuel migration, and
-native fuel metering remain next.
+a fresh module and proof bundle, validates their section manifest, and then
+drives verification, interpretation, and native realization. Branching,
+arithmetic-policy operations, typed installation/debug payload schemas, version
+migration, general safe-point/branch fixed-work checking, build-time fuel
+migration, and native fuel metering remain next.
 
 ## Boundary
 
@@ -208,9 +208,25 @@ bytes must match exactly; the decoder never normalizes an alternate encoding.
 The semantic fingerprint is SHA-256 over a v1 domain separator, the canonical
 byte length, and those exact bytes. `TerminalPsiIdentity` contains only the
 semantic version and this fingerprint: proof bundles, installation records,
-and debug maps are deliberately absent and remain replaceable. Container
-section manifests and cross-version translation are not part of this first
-semantic-codec checkpoint.
+and debug maps are deliberately absent and remain replaceable.
+
+The same codec now gives proof bundles their own `PSIPRF` v1 bytes and golden
+fingerprint. Evidence entries are strictly ordered by `ObligationId`; the
+closed encoding covers kernel judgments, separately versioned recursive proof
+trees, and exact admission site/authority/evidence/profile identities. Unknown
+tags, zero identities or proof versions, alternate evidence ordering,
+truncation/trailing data, malformed propositions, and proof/proposition nesting
+beyond the v1 bounds reject. Proof-tree propositions retain their exact rule
+direction rather than being normalized as semantic contracts, because a proof
+section is replaceable evidence and its cited axiom direction is significant.
+
+`TerminalArtifactManifest` binds the canonical semantic and proof identities
+plus optional installation and debug section hashes. Each role has a separate
+SHA-256 domain, and absent differs from a present empty section. Replacing a
+valid proof, installation record, or debug map changes that section and the
+container identity while preserving `TerminalPsiIdentity`; validation
+recomputes the complete manifest from attached bytes. Installation/debug
+payload schemas and cross-version translation remain later artifact slices.
 
 ## Logical-fuel v1
 
@@ -279,8 +295,10 @@ migration remain later slices.
 8. Freeze canonical serialization and semantic fingerprints only after the
    in-memory vocabulary has passed interpreter and lowering canaries.
    **Initial vocabulary complete:** canonical semantic bytes and identity now
-   round-trip through the real-source interpreter/native canary. Proof/install
-   section manifests and version migration remain later artifact slices.
+   round-trip through the real-source interpreter/native canary. Canonical
+   proof bytes and role-separated semantic/proof/install/debug manifest hashes
+   are also live. Typed installation/debug payload schemas and version
+   migration remain later artifact slices.
 
 The migration may keep old and new paths temporarily for comparison. That is a
 testing bridge, not a permanent two-semantics architecture.

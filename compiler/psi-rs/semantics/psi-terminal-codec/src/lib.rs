@@ -6,6 +6,18 @@
 //! records, and debug/source maps have separate identities and can be replaced
 //! without changing [`TerminalPsiIdentity`].
 
+mod artifact_manifest;
+mod proof_bundle;
+
+pub use artifact_manifest::{
+    ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
+    build_artifact_manifest, validate_artifact_manifest,
+};
+pub use proof_bundle::{
+    ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,
+    proof_bundle_fingerprint,
+};
+
 use psi_core::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
     PsiSemanticId, ScalarTerm, ScalarType,

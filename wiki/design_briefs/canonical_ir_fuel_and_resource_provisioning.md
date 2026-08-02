@@ -41,11 +41,13 @@ provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
 and executes the emitted host entry in a linker harness with the same result as
 terminal interpretation. The initial vocabulary now also has canonical
 semantic bytes and a domain-separated semantic fingerprint; the source canary
-round-trips those bytes after discarding producer state while retaining the
-proof bundle as a separate artifact. Standalone object/image integration and
-general register assignment remain on the legacy backend. This checkpoint
-still has no branching/arithmetic operation, proof/install container manifest,
-or version migration. `psi-terminal-fuel` now defines schedule v1 as one unit
+round-trips both semantic and proof-bundle bytes after discarding producer
+state. The proof section has its own golden fingerprint, and a role-separated
+manifest binds semantic, proof, installation, and debug sections without
+folding replaceable evidence into program identity. Standalone object/image
+integration and general register assignment remain on the legacy backend. This
+checkpoint still has no branching/arithmetic operation or version migration.
+`psi-terminal-fuel` now defines schedule v1 as one unit
 per executed terminal operation and one unit per taken terminal edge. The
 verified interpreter returns exact schedule-keyed usage attributed to stable
 operation/edge identities; a finite sponsor allowance fails atomically before
