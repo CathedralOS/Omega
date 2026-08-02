@@ -218,7 +218,7 @@ suspending poll as an ordinary optimization. A blocking call creates no safe
 point; without a finite wait contract, semantic response through that call is
 unbounded and tooling reports the responsible path.
 
-WCSU bounds stack space, not work. The restricted canonical-IR fixed-work
+WCSU bounds stack space, not work. The restricted terminal-Psi fixed-work
 checker may analyze the segment to the next semantic safe point. Its report is
 `Bounded(K, evidence)`, `Unknown(reason)`, or
 `NoFiniteGuarantee(edge)` when a reachable wait or foreign edge supplies no
@@ -539,8 +539,10 @@ Working rules:
   both backends. The parser accepts exactly the vocabulary above and rejects
   the conventional literature spellings as source names. Instruction selection
   is not by itself a formal memory-model or target-refinement proof.
-  Fetch/swap/CAS return the prior observed by that
-  instruction, not by a preceding load. Swap uses a first-class carrier and
+  Fetch and swap return the prior observed by that instruction, not by a
+  preceding load. Compare-exchange reports success without repeating the
+  expected value and carries the instruction observation on failure. Swap uses
+  a first-class carrier and
   therefore does not manufacture an arithmetic-domain proof obligation.
   `fetch_sub` performs exact-width two's-complement subtraction through one
   locked `XADD`/ordered `LDADD`. `fetch_xor` lowers to an ordering-selected
@@ -555,6 +557,31 @@ Working rules:
   checker escape used elsewhere.
 - A zeroed atomic is the value zero, consistent with zero initialization
   ([Memory Layout And ABI](chapter_20_memory_layout_abi.md)).
+
+Generic helpers use one sealed `omega::core` requirement per atomic operation,
+not one universal atomic trait. Ordinary core atomics and placed accessors
+conform to the same requirements. A helper may therefore require load and
+compare-exchange without claiming that its argument also supports fetch-add,
+and a placed accessor exposes exactly the subset admitted by its selected
+provider. Requirement receivers are shared, ordering remains explicit
+proof-static operation data, and a lookalike user trait grants no atomic
+semantics.
+
+Every atomic operation requires a fixed representation that fits one
+target/provider-supported atomic width and alignment. Further eligibility is
+operation-specific: load requires duplication, store requires the displaced
+resident to be discardable, and swap conserves the incoming and outgoing
+values and may therefore transfer an affine resident owned by a Stable
+initialized placement. Scalar compare-exchange initially remains copyable.
+Cross-activation sharing is checked separately and requires the resident type
+to be transferable.
+
+Decisive compare-exchange reports `Exchanged` or `Mismatched(observed)` and may
+carry target-relative retry work. Its single-attempt sibling additionally
+reports `Uncommitted(observed)` when the comparison matched but the target did
+not commit that attempt. `Mismatched` and `Uncommitted` both use the
+read-compatible failure ordering; `Exchanged` uses the success ordering.
+Comparison is over the stored representation, not user-defined equality.
 
 `Receive` uses the strong portable baseline. A target may select a weaker
 acquire instruction only when a protocol proof establishes that every
@@ -573,6 +600,21 @@ execution and an asynchronously entered handler on that same execution
 context. Installed-root evidence must establish that relationship; source code
 cannot assert it. The operation provides neither cross-core synchronization
 nor device visibility.
+
+DMA publication, device acquisition, cache maintenance, MMIO notification,
+and posted-write completion are separate sealed provider operations. They are
+not stronger spellings of `Atomic::fence`: a CPU fence can correctly order CPU
+participants while establishing nothing for a device. Such an operation emits
+requirements naming its exact range, mapping, device instance, and ordering
+scope. All requirements must be discharged or the program rejects.
+
+Publication evidence is invalidated by any later write whose frame intersects
+the published range. Passing erased evidence to a doorbell does not itself
+create machine ordering; the publication operation contributes the scoped
+ordering event that terminal Psi and target lowering must preserve. Acquisition
+of device-written data consumes matching completion evidence. It establishes a
+Stable CPU view only when the protocol also returns custody; otherwise the
+storage remains External.
 
 Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
 IPC, so they sit below a concurrent task-runtime provider in the implementation

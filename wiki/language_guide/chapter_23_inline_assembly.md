@@ -246,6 +246,14 @@ an executable mapping from ordinary bytes: relevant instructions require the
 same admitted-artifact provenance, scoped installation authority, and reach as
 any other address-translation provider path.
 
+Assembly participates in contracts in two independent directions. Each
+instruction emits requirements on target features, authority, state, and
+surrounding placement; every requirement must be discharged or the assembly
+rejects. Separately, a checked block may provide a conformance to callers. That
+evidence is derived when the instruction model proves the conformance and may
+come from an admitted provider only when the selected profile permits that
+trust class. Admission never means leaving an emitted requirement open.
+
 ## Required initial catalogs
 
 The freestanding x86 vertical slice needs contracts for:
@@ -267,7 +275,8 @@ instruction family.
 ## Working rules
 
 - Assembly is parsed and target-checked; it is never an opaque byte block.
-- Every accepted instruction emits a complete normalized contract.
+- Every accepted instruction emits complete normalized requirements, all of
+  which must be discharged, plus its modeled effects and provided facts.
 - Effects, authority, and trust cannot be laundered through assembly helpers.
 - Hidden control flow and user-authored entry/exit protocol bypasses are invalid.
 - Memory operations preserve Omega provenance, permission, and invariant rules.

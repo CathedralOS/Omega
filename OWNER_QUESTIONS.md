@@ -6,137 +6,9 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-Last pruned: 2026-07-31.
+Last pruned: 2026-08-02.
 
-## 1. What is the source-visible placed-storage admission surface?
-
-The normalized semantics are settled: a qualified `Extent` yields a bounded
-shared or exclusive loan; a selected provider binds one offset-keyed
-`ResourceProfile` and receipt to the range; `admit<P, T>` consumes that exact
-loan and either returns it on rejection or produces a single-use
-`PlacementAdmission<P, T>`; and `place` consumes the accepted token into
-`Placed<P, T>`. The Rust foundation enforces this model. The source language
-does not yet define how any of the opaque evidence-bearing values are obtained.
-
-The missing surface is security-relevant. An ordinary public constructor would
-let source spell a lookalike profile or admission. Encoding shared/exclusive
-polarity as a runtime case would contradict the rule that a mutable reborrow
-cannot upgrade the source loan. Hiding the whole operation inside a
-package-specific provider would make normalized compiler admission and its
-diagnostics unavailable to generic code.
-
-Decide:
-
-- the exact operations that borrow a qualified `Extent` into a bounded shared
-  or exclusive `ExtentLoan`, including offset/length arguments, lifetime
-  linkage, failure shape, and whether the two polarities share one nominal
-  source type;
-- how an admitted provider publishes a `ResourceProfile` for one exact range
-  and binds address space, rights, provenance, mapping era, reach, and receipt
-  without allowing an ordinary record literal to become supply evidence;
-- whether `admit<P, T>` is a compiler-derived generic operation, a boundary
-  requirement implemented by the selected provider, or a composition of a
-  provider admission and a pure compiler check;
-- the source representation and multiplicity of `ExtentLoan`,
-  `PlacementAdmission<P, T>`, rejection diagnostics, and `Placed<P, T>`,
-  including which lifetime parameters are explicit or compiler-erased;
-- how a package-specific convenience operation can combine admission and
-  placement without hiding the exact provider receipt or weakening rejection's
-  return of the moved loan; and
-- which normalized admission facts survive calls, storage, component
-  crossings, and artifacts so target lowering consumes evidence rather than a
-  numeric base and author-supplied offset.
-
-Recommendation: keep the carriers opaque and compiler-known. Use distinct
-shared and exclusive borrow operations whose result lifetime is derived from
-the qualified `Extent`; let the selected provider establish a sealed
-range-specific profile receipt; keep the demand/profile compatibility check in
-one compiler-derived `admit<P, T>` that returns the exact loan on failure; and
-make `place` the sole consuming constructor for `Placed<P, T>`. Package
-wrappers may compose those operations but cannot mint or erase their evidence.
-
-## 2. What is the generic atomic accessor requirement family?
-
-Placed atomic fields already derive unique opaque accessors and direct atomic
-syntax is gated per load, store, swap, compare-exchange, and fetch operation.
-Chapter 20 requires helpers to accept one granular accessor without receiving
-the entire placed view, but it does not define public requirement identities or
-signatures for those atomic families. Guessing names would freeze a core API in
-the same way as the unresolved float-conversion family.
-
-Decide:
-
-- whether each exact operation is its own requirement (`AtomicLoad<T>`,
-  `AtomicFetchAdd<T>`, and so on) or operations are grouped into a smaller
-  family with associated capabilities;
-- whether ordering is an ordinary parameter to every requirement and which
-  settled source ordering type it uses while the current implementation still
-  carries transitional names;
-- the receiver polarity and return signatures for load, store, fetch, swap,
-  and compare-exchange, including the expected-value/update result shape;
-- whether integer-only fetch operations are unavailable by missing conformance
-  or expressed through an additional arithmetic carrier bound;
-- how a generic helper's requirement set preserves the exact normalized
-  operation subset when specialized to a placed accessor; and
-- whether ordinary core atomic types conform to the same requirements or the
-  family is specific to placed accessors.
-
-Recommendation: publish one requirement per primitive operation, with ordering
-as an explicit parameter and compare-exchange keeping separate success and
-failure orderings. Derive only the conformances admitted by the normalized
-placement, and let ordinary atomic types conform to the same operation
-requirements so generic protocol code does not need a placed-only abstraction.
-
-## 3. What is the v1 canonical portable IR contract?
-
-The architecture requires one versioned, distributable, interpreter-defined IR
-whose semantics are independent from mutable optimizer representations and
-whose identity is independent from its fuel schedule. No current document
-chooses the v1 representation. The reference interpreter executes TypedTrees
-today, while later compiler stages already have state graph, control-flow,
-abstract-operation, and target-operation forms. Declaring any one of those
-canonical would freeze an artifact and proof boundary that it was not designed
-to carry.
-
-This is not merely a serializer choice. The canonical form determines what a
-consumer verifies, what portable execution means, where ownership/effect facts
-become executable obligations, which operations receive stable fuel charges,
-and which future compiler changes preserve semantic identity.
-
-Decide:
-
-- the abstraction level and complete v1 type, value, operation, call, block,
-  transition, and terminal vocabulary;
-- where checked ownership, multiplicity, reach, trust, suspension/blocking,
-  failure, and termination obligations appear in the executable artifact
-  versus separately verified evidence;
-- how target-semantic primitives, selected conformances/providers, layouts,
-  boundary calls, and opaque admitted operations are represented without
-  embedding a particular native ABI or optimizer choice;
-- the canonical ordering, numbering, normalization, serialization, and
-  fingerprint rules, including which debug/source/proof material is excluded
-  from semantic identity;
-- the verifier boundary and the lowering that proves a checked Omega program
-  produced this IR, rather than accepting a hand-authored lookalike as checked;
-- how the reference interpreter, restricted fixed-work checker, native block
-  meter, and proof-carrying-code verifier consume the same instruction/block
-  identities; and
-- semantic-version compatibility: which changes require a new version, whether
-  artifacts may carry several versions, and how old versions remain
-  executable or explicitly retire.
-
-Recommendation: introduce a new immutable normalized execution IR after
-checked language semantics and before target-specific lowering. Use explicit
-typed values, basic blocks, calls, transitions, and closed semantic operations;
-keep target provider identities as explicit admitted operands rather than
-native encodings. Define a deterministic binary serialization and fingerprint
-over semantic content only, with debug maps and private proof evidence in
-separate sections. Make the reference interpreter execute this form, then
-derive the separately versioned fuel schedule over its stable operation/block
-identities. Do not canonize TypedTrees or a mutable backend representation by
-accident.
-
-## 4. How does a boundary requirement author algebra-denominated backing?
+## 1. How does a boundary requirement author algebra-denominated backing?
 
 The semantic rule is settled: an admitted content-bearing root must receive a
 per-invocation backing receipt in the same compiler-owned algebra as its
@@ -173,7 +45,7 @@ binder erases at runtime, cannot be constructed in ordinary source, and the
 normalized algebra expression plus containment theorem survive beside the
 receipt identity.
 
-## 5. How are content-conservation theorems authored in contracts?
+## 2. How are content-conservation theorems authored in contracts?
 
 The n-ary law and its closed algebras are settled, and checked claim outcome
 maps already identify which input claim feeds each result path. The design

@@ -327,8 +327,9 @@ nominal policies remain distinct even when their normalized plans happen to
 match: the policy name owns the binding and its binding-private projection
 surface.
 
-`Placed<P, T>` is a compiler-derived, borrow-carrying view, not ordinary record
-storage. Projection is pure and yields an accessor rather than an lvalue:
+`Placed<P, T>` is a compiler-derived placed view, not ordinary record storage.
+It retains either a source borrow or an owned split extent. Projection is pure
+and yields an accessor rather than an lvalue:
 
 ```omega
 let status = uart.status.read();
@@ -337,8 +338,8 @@ uart.transmit.write(byte);
 
 The projection performs no access. `read` or `write` performs the authorized
 event. The accessor carries the exact field identity, address, width,
-observation model, plan identity, source loan, and reach needed by lowering; it
-cannot outlive or exceed the placed view.
+observation model, plan identity, source borrow, and reach needed by lowering;
+it cannot outlive or exceed the placed view.
 
 ### Access plans
 
@@ -396,13 +397,19 @@ data FieldAccess {
 
 `Stable` permits ordinary observation of storage that does not change behind
 the active loan. With write permission and both an exclusive current borrow
-and an exclusive source loan, it derives ordinary compound mutation.
+and an exclusive source borrow, it derives ordinary mutation and compound
+updates. Stability describes observation behavior; it does not itself prove
+Omega-side exclusivity.
 
 `External` means each primitive transfer occurs exactly once at an admitted
-width and is neither elided nor combined with another transfer. A narrow read
-may read its whole transfer container once and then project bits from the
+width and is neither elided nor combined with another transfer. A readable
+logical field must be covered by one admitted transfer; the compiler never
+assembles one field from several device reads. A narrow non-consuming read may
+read its whole transfer container once and then project bits from the owned
 snapshot. A write must cover a complete admitted container; the compiler never
-synthesizes a read-modify-write for external storage.
+synthesizes a read-modify-write for external storage. External write permission
+comes from the access plan and provider rights, not from pretending that the
+device is excluded by an Omega `&mut` borrow.
 
 `Atomic` exposes only the individually admitted atomic operations and the
 ordinary atomic ordering vocabulary. Load, store, swap, compare-exchange, and
@@ -410,6 +417,26 @@ the fetch operation families remain distinct permissions. Stable access does
 not imply atomic access. An active atomic loan pins one transfer granularity for
 each overlapping location; simultaneously live atomic views of the same bytes
 cannot select different widths.
+
+Every generated operation has both a logical extent and an effect footprint.
+The logical extent names the field value; the effect footprint names every bit
+or transfer container the operation observes or changes. Borrow conflicts use
+the effect footprint:
+
+| Operation | Conflict rule |
+|---|---|
+| non-consuming read | shared over its transfer footprint |
+| destructive read | exclusive over its complete effect footprint |
+| stable read-modify-write | exclusive over its complete transfer container |
+| atomic operation | the exact admitted atomic operation and width |
+
+Therefore two disjoint bitfields in one word are not independently mutable by
+read-modify-write. A destructive container likewise exposes one `take` of the
+whole snapshot, followed by pure projection from the returned value; it never
+derives separately callable destructive accessors for fields consumed by the
+same transfer. Generated accessors are limited to effects confined to their
+declared footprint. Broader device side effects belong behind an authored
+package machine.
 
 The compiler derives small operation requirements from accepted fields:
 `Readable<T>`, `DestructiveRead<T>`, `Writable<T>`, and the atomic operation
@@ -424,22 +451,60 @@ where
 }
 ```
 
-The stable/external requirement identities above are settled. The public names
-and signatures for generic atomic operation requirements remain an owner
-question; direct atomic syntax and per-operation placement gating do not by
-themselves choose that reusable API.
+`Writable<T>` may take an exclusive borrow of the short-lived accessor value
+without implying an exclusive borrow of the underlying External range. Stable
+write derivation additionally requires the retained exclusive source borrow;
+External write derivation instead requires one permitted complete transfer.
+
+Atomic access uses one sealed `omega::core` requirement per primitive
+operation: `AtomicLoad<T>`, `AtomicStore<T>`, `AtomicSwap<T>`,
+`AtomicCompareExchange<T>`, `AtomicCompareExchangeOnce<T>`, and each
+`AtomicFetch*<T>` remain distinct. Ordinary core atomics and placed accessors
+conform to the same requirements. A normalized placement derives only its
+admitted subset; missing conformance makes the operation unavailable, and an
+arithmetic carrier bound cannot manufacture it. All receivers are shared and
+ordering is explicit proof-static operation data.
+
+Every operation requires a fixed representation fitting one admitted atomic
+width and alignment. Load requires a duplicable resident; store requires the
+displaced resident to be discardable; swap conserves ownership and may move an
+affine resident only when Stable initialization established that the placement
+owns it. An adopted External view never owns device contents and cannot derive
+that operation. Scalar compare-exchange initially remains copyable and compares
+representations, not user equality. Fetch conformance additionally proves the
+exact provider raw transition over every read-reachable representation; no
+External read/write pair synthesizes it.
 
 A destructive read derives `DestructiveRead<T>::take(&mut self)`, never
 `Readable<T>`. Whether that operation is exported or binding-private remains a
 separate policy choice: a FIFO pop may be public, while a read-to-clear status
 container may be wrapped by one package machine that reads once and returns an
-owned snapshot. A binding-private accessor is usable only from a machine
-authored in the nominal placement policy's package; importing or aliasing the
-policy from another package does not widen that surface.
+owned snapshot. Only the nominal placement package may directly name or issue
+a binding-private accessor. Possession is deliberate delegation: externally
+authored generic code may invoke the accessor's public operation requirements
+without naming its opaque type. Copyability controls durable duplication,
+cross-activation shareability controls concurrent delegation, and a counted
+permit is required when the number of delegated uses must be bounded.
 
 Device protocol meaning does not become an access-plan case. W1C,
 read-back-to-flush, FIFO, doorbell, lock, and coherent-snapshot behavior belong
 to authored package machines over the permitted primitives.
+
+DMA publication, device acquisition, MMIO notification, and posted-write
+completion are sealed semantic provider operations rather than fields added to
+every boundary signature or one universal fence. A hosted OS boundary may
+satisfy the complete submission operation; a checked driver may compose
+provider cache-maintenance, ordering, and doorbell primitives. Each operation
+emits requirements naming its exact range, mapping, device instance, and
+observer scope. Provider selection must discharge all of them or reject.
+
+Publication evidence is bound to the published place and invalidated by any
+intersecting write frame. Its erased value proves source composition but cannot
+order emitted code; the publication operation itself contributes the scoped IR
+ordering event. Device acquisition consumes completion evidence tied to the
+same request and instance. It restores Stable CPU observation only when that
+protocol also returns custody; otherwise later device writes keep the placement
+External.
 
 ### Admission and placement
 
@@ -454,37 +519,84 @@ data Extent [linear] {
 
 Anyone can spell the fields. That does not establish the provider-originated
 facts that make the range usable. Reconstructing the same numbers similarly
-does not copy authority. Useful operations require an admitted grant and an
-active loan carrying space, rights, provenance, range, mapping era, reach, and
-the effective `ResourceProfile`.
-
-`ExtentLoan` below is the borrow-carrying value produced from such a qualified
-Extent. It names the exact range and shared or exclusive source polarity; it is
-not another root grant.
-
-The normalized behavior below is settled, but the exact source operations that
-borrow a qualified `Extent` and bind a provider's sealed range-specific
-`ResourceProfile` receipt are not. `OWNER_QUESTIONS.md` #1 owns that public
-surface; the following signatures describe the admission judgment after those
-values exist.
-
-Placement checks consumer demand against provider supply once:
+does not copy authority. Useful operations require a borrow of an
+`Extent in Granted`. The qualification supplies the provider-originated
+authority; weakening it to `&Extent` leaves only geometry and cannot authorize
+placement. Source borrows the exact place directly:
 
 ```omega
-machine admit<P, T>(
-    loan: ExtentLoan
-) -> result: PlacementAdmissionResult<P, T>;
-
-machine place<P, T>(
-    admission: PlacementAdmission<P, T>
-) -> view: Placed<P, T>;
+let shared = Placement::admit<P, T>(&extent[0..64])?;
+let exclusive = Placement::admit<P, T>(&mut extent[64..128])?;
 ```
 
-The accepted token owns the exact loan and records the admitted provider
-receipt, normalized placement identity, range and mapping era, and discharged
-alignment constraint. It is consumed by `place`. Rejection returns the moved
-loan with a diagnostic. A forged lookalike token carries no receipt and
-establishes nothing.
+There is no source-visible `ExtentLoan`. The borrow and projected place already
+carry the range, lifetime, and shared or exclusive polarity. Compiler and
+foundation implementations may retain an internal loan record, but it is
+borrow-checker bookkeeping rather than a nominal value or authority root.
+Static subranges use place projection and its ordinary disjointness proof;
+runtime-owned subranges use conserved `Extent` split and merge.
+
+`ResourceProfile` is ordinary provider-authored data, not a capability. The
+same selected-provider grant that establishes `Granted` binds one normalized
+profile and sealed receipt to the exact range. `Placement::admit` finds that
+receipt through the qualification; callers never pass a profile, receipt, or
+admission value that a record literal could forge. Admission is a pure compiler
+check over the evaluated demand and bound supply. Its accepted result is an
+opaque, source-linked intermediate that may be inferred or immediately
+consumed; rejection ends a borrowed input and returns a diagnostic. An
+owned-input overload returns the moved extent with the diagnostic on failure.
+
+Admission grants permission to interpret storage; it does not establish that a
+`T` already lives there. One of three explicit routes consumes the accepted
+intermediate:
+
+| Backing | Routes | Requirement |
+|---|---|---|
+| `Stable` | adopt | existing contents are valid by structural total decoding or admitted provider evidence |
+| `Stable` | initialize | exclusive vacant storage, writable transfers, and an encodable initial value |
+| `Stable` | validate | a checked validator over contents that cannot change during validation |
+| `External` | adopt only | every readable field is total-decoding and single-transfer in v1 |
+
+For example, low-level generic code may spell the two semantic steps while a
+driver wrapper normally returns only the finished view:
+
+```omega
+let admitted = Placement::admit<UartMmio, UartRegisters>(&extent[0..64])?;
+let registers = Placement::adopt(move admitted);
+```
+
+Ordinary systems APIs expose `Extent in Granted`, its ordinary borrows, and
+`Placed<P, T>`. Binding authors additionally write placement plans,
+`ResourceProfile` data, and schema-correspondence evidence. The profile receipt,
+borrow record, and normalized admission witness remain compiler/artifact data;
+the opaque intermediate above is needed only by low-level generic placement
+code and is normally inferred.
+
+Generic initialization is never synthesized for `External`: programming a
+device is an authored protocol whose ordering and side effects are part of its
+machine contract. Asynchronously revocable mappings likewise use a future
+fallible protocol, not an era annotation that pretends access remains valid. A
+live mapping claim may instead guarantee that revocation cannot occur until the
+view retires.
+
+Borrowed initialization is a scoped establishment. The lender is vacant before
+the borrow and vacant again after it; while the `Placed` value exists the lender
+is inaccessible, and mandatory edge cleanup destroys `T` before the borrow can
+end. This depends on Omega having no `forget`-style escape from conservation.
+An owned initialization consumes a split vacant `Extent`; its explicit terminal
+operation destroys `T` and returns `Extent in Granted & Vacant`. Ordinary drop
+does not invent an allocator or release route. Borrowed adopt/validate retire by
+abandoning the view. An owned adoption additionally requires provider evidence
+that custody of the existing content transferred; owning its storage alone does
+not establish that fact.
+
+`Vacant` is erased place state meaning that the exact range contains no live
+established value. It does not mean zeroed, readable, never used, or newly
+allocated. Allocation/raw storage and authorized destruction or move-out may
+establish it. Merely dropping a borrowed view does not. The name here denotes
+the compiler's established-place judgment; ordinary callers normally inherit
+it from the storage producer or retirement route rather than spelling or
+minting it themselves.
 
 The compatibility check requires every requested field interval to fit an
 admitted region; every requested operation, transfer width, alignment, and
@@ -492,6 +604,22 @@ reach to be supplied; and the requested observation to be a safe use of that
 backing. Stable backing may be observed conservatively through `External`
 operations. External backing cannot be treated as stable. Atomic access is
 available only when explicitly supplied.
+
+Representation and transfer legality are checked independently, per field and
+per operation. On the read side, the compiler establishes whether the selected
+encoding maps every possible stored pattern to `T`; a one-time validator is
+permitted only for `Stable` storage. On the write side, it establishes whether
+every value admitted by the field type has an encoding, or requires proof that
+the concrete value fits. The compiler checks such a proof but never invents a
+qualification such as `Fits12`, silently truncates, or chooses an encoder.
+Encodability alone does not authorize a transfer: sub-unit mutation must also
+have a legal implementation. Stable exclusive storage may use one bounded
+read-patch-write sequence. External storage requires a whole-container or
+provider-supplied masked write. Shared atomic set/clear may use one admitted
+fetch operation; arbitrary sub-unit assignment cannot hide a compare-exchange
+retry loop and is unavailable without one bounded masked-replace operation.
+Diagnostics distinguish missing exclusivity, unavailable masked transfer, and
+unprovable value fit.
 
 Alignment has a build-time and an admission-time part. From every field offset
 and transfer alignment, plan validation derives a constraint on the base:
@@ -509,22 +637,38 @@ offsets, and transfer requirements before showing the congruence detail.
 After admission there is no per-access profile lookup. Lowering consumes the
 sealed accessor authorization. It may strengthen an atomic ordering for a
 target but may not weaken it or recover missing authority from a numeric
-address.
+address. A single compare-exchange attempt is a bounded primitive; a machine
+that retries until success carries its ordinary unknown or no-finite-guarantee
+work attribution. Generated `.write` accessors never conceal such a loop.
+
+Admission proves that `P` is supportable by the supplied range. It cannot prove
+that `P` assigns the correct meaning to the physical device. The binding
+therefore publishes a separate admitted schema-correspondence fact tied to the
+provider's device identity, with its datasheet or platform source retained in
+artifact provenance. Revision-sensitive bindings may condition that fact on a
+runtime identification read: the bootstrap ID placement is admitted, the
+observed value derives a revision predicate, and that predicate selects the
+full placement. The observation and full placement must remain bound to the
+same stable device instance and grant. This improves provenance without
+changing the admitted trust floor.
 
 ### Loans, aliases, and phases
 
-Write authorization is the conjunction of three facts:
+Stable ordinary mutation is the conjunction of plan permission, an exclusive
+current borrow, and an exclusive source borrow. Taking `&mut` to a view placed
+from a shared source does not upgrade it. External and atomic operations follow
+their declared operation permissions instead: an Omega borrow cannot exclude a
+device, and a shared external view may issue a permitted whole-container write.
+Borrow polarity governs aliasing among Omega views; the access plan and provider
+rights govern which transfers exist.
 
-1. the access plan permits the write;
-2. the current borrow of the placed view is exclusive; and
-3. the placed value retains an exclusive source loan.
-
-Taking `&mut` to a view placed from a shared loan does not upgrade the source.
-Loan polarity is compile-time provenance carried by the view, not a runtime
-flag. Multiple read-only views may coexist. Disjoint exclusive subrange views
-may coexist only when a validated layout certificate or checked interval proof
-establishes non-overlap. A child loan receives only the parent's profile
-restricted to the child interval and attenuated rights, reach, and operations.
+Multiple non-consuming reads may coexist. Destructive reads and stable
+read-modify-write operations reserve their entire effect footprint. Therefore
+logical bitfield disjointness is insufficient when two fields share one
+transfer container. Disjoint exclusive subrange views coexist only when both
+their place extents and operation footprints are nonconflicting. A child borrow
+receives only the parent's profile restricted to the child interval and
+attenuated rights, reach, and operations.
 
 Observation can change with an ownership phase. While a device owns a DMA
 buffer, CPU access may be absent or explicitly external. Consuming the
@@ -553,9 +697,11 @@ externally-truncatable mappings, disks, streams, RPC endpoints, and
 device-only GPU storage use fallible services or handles instead.
 
 Three parts of this model are mechanically enforced: projection is pure,
-operations are explicit, and the primitive vocabulary is compiler-owned. The
-provider's claim that the backing really behaves as its admitted profile says
-is trusted and recorded by a receipt.
+operations are explicit, and the primitive vocabulary is compiler-owned. Two
+physical claims remain admitted and separately attributed: that the backing
+behaves as its provider profile says, and that the selected nominal placement
+describes the identified device. Compatibility between those two declarations
+is derived; neither declaration proves the physical world.
 
 Hardware-shaped structures use the same programmable layout mechanism as
 Omega-native and protocol formats. Name-keyed fragmented bit placements are

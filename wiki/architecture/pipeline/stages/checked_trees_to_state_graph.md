@@ -4,6 +4,11 @@
 
 This stage turns checked machine/state structure into an explicit graph for scheduling, proof reasoning, and later control-flow lowering.
 
+This is a bootstrap stage, not the future public Psi boundary. Its machine,
+state, edge, and semantic-root structure is input to terminal Psi, but its copied
+`ExpressionTable`, source handles, and source-derived segmentation are not part
+of the terminal schema. See [Terminal Psi Architecture](../terminal_psi.md).
+
 ## Stage Contract
 
 Input: `CheckedTrees`.
@@ -122,6 +127,10 @@ preservation:
   expression-table sizing for those allocation estimates.
 
 ## Known Gaps
+
+- This stage still copies executable `TypedTrees` expressions rather than
+  lowering them. Terminal Psi replaces those handles with canonical values,
+  predicates, structural places, operations, and edge-local actions.
 
 - Value summaries preserve checked expression origins and normalized
   arithmetic-policy adapter evidence, but still need ownership kind, drop

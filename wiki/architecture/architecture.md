@@ -10,6 +10,9 @@ lowers?"
 
 - [Repository Layout](repository_layout.md): workspace/folder shape and placement rules.
 - [Pipeline Architecture](pipeline/pipeline.md): semantic spine, durable stages, and the normalized questions every stage should answer.
+- [Terminal Psi Architecture](pipeline/terminal_psi.md): the Psi-to-Omega
+  boundary, why no current representation is the portable form, and the
+  expression-lowering, verifier, interpreter, and backend migration.
 - [Codegen Representation Cleanup](codegen_representation_cleanup.md): standing plan to remove re-declared representations and annotation-only stages so the backend obeys the Architecture Rule below.
 - [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):
@@ -18,9 +21,10 @@ lowers?"
 - [Authority Values And Boundary Evidence](../design_briefs/authority_values_and_boundary_evidence.md):
   transparent runtime authority carriers, routed qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
-- [Canonical IR Fuel And Resource Provisioning](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md):
-  stable portable-IR identity, deterministic sponsor-owned fuel, restricted
-  fixed-work certificates, and capability-provisioned spatial resources.
+- [Terminal Psi, Fuel, And Resource Provisioning](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md):
+  terminal-Psi identity and evidence, deterministic sponsor-owned fuel,
+  restricted fixed-work certificates, and capability-provisioned spatial
+  resources.
 
 ## Architecture Rule
 

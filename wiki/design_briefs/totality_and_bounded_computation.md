@@ -59,7 +59,7 @@ An interpreter similarly returns `OutOfFuel`; a bounded search returns
 `Exhausted`. The bound makes that invocation total without pretending the
 unbounded mathematical process is known to terminate.
 
-This algorithm-visible budget is distinct from canonical-IR sponsor fuel.
+This algorithm-visible budget is distinct from terminal-Psi sponsor fuel.
 Sponsor fuel meters already-admitted execution, is not observable or catchable
 by the program, and may pause, cancel, or terminate the execution externally.
 See
@@ -87,7 +87,7 @@ likewise belong to the resource algebra rather than a single `budget` clause
 or qualitative reach-row member.
 
 Hard external roots expose the intermediate structural tier explicitly.
-Admission may require a fixed-work certificate denominated in canonical-IR
+Admission may require a fixed-work certificate denominated in terminal-Psi
 fuel and compare it with the sponsor provision, while `terminates by` rankings,
 acyclic control flow, callee summaries, and proof internals remain private
 evidence. The same restricted checker can analyze a segment ending at the next

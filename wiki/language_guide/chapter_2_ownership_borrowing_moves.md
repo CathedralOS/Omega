@@ -305,29 +305,35 @@ General outlives constraints, persistent-storage assignment across state
 transitions, and the remaining aggregate expression forms remain
 implementation work; they are not new language-design questions.
 
-## Loans Carried By Placed Views
+## Storage Carried By Placed Views
 
-`Placed<P, T>` carries the exact source loan from which placement was admitted.
-It does not turn special backing into an ordinary `&mut T`. Normal references
-remain unchanged:
+The borrowed form of `Placed<P, T>` carries the exact source borrow from which
+placement was admitted. The owned form instead carries a split `Extent` and
+must eventually return or release that conserved claim through an authorized
+terminal route. Neither form turns special backing into an ordinary `&mut T`.
+Normal references remain unchanged:
 
 ```omega
 machine inspect(uart: &Placed<UartMmio, UartRegisters>);
 machine configure(uart: &mut Placed<UartMmio, UartRegisters>);
 ```
 
-The current borrow of the view and the retained source loan answer different
+The current borrow of the view and the retained source borrow answer different
 questions. `&mut` proves exclusive use of the view value; it does not upgrade a
-view created from a shared source loan. An ordinary placed write is legal only
-when its `AccessPlan` permits the operation, the current view borrow is
-exclusive, and the retained source loan is exclusive. Atomic operations use
-their admitted atomic contract instead.
+view created from a shared source borrow. Stable ordinary mutation is legal
+only when its `AccessPlan` permits the operation, the current view borrow is
+exclusive, and the retained source borrow is exclusive. External and atomic
+operations instead follow their exact admitted operation contracts; an Omega
+`&mut` borrow cannot exclude a device.
 
-Field projection is pure and preserves the narrowed loan path. The resulting
+Field projection is pure and preserves the narrowed borrow path. The resulting
 accessor cannot outlive its view or name bytes outside its planned field.
 Disjoint subrange views may coexist when a validated layout certificate or a
-checked interval proof establishes non-overlap. Each child receives only the
-parent resource profile restricted to its interval and attenuated rights.
+checked interval proof establishes place non-overlap and their physical effect
+footprints do not conflict. Logical bitfields sharing one transfer word are not
+independently exclusive for destructive reads or read-modify-write. Each child
+receives only the parent resource profile restricted to its interval and
+attenuated rights.
 
 See [Chapter 20](chapter_20_memory_layout_abi.md#placed-and-externally-mutable-memory)
 for placement and access semantics.

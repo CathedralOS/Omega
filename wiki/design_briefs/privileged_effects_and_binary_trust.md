@@ -176,5 +176,5 @@ consumer's lifecycle types.
 - optional independent final-byte control-transfer certificates and
   target-hardware CFI hardening;
 - diverse compilation/trusting-trust defenses;
-- implementation of canonical portable-IR verification and distribution; and
+- implementation of terminal-Psi verification and distribution; and
 - any separate future proof-carrying chain from IR to supplied native bytes.

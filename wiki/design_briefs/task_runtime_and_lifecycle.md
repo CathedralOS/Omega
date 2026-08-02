@@ -385,7 +385,7 @@ next structured response remain unbounded through that call. Reports preserve
 the responsible call/path and the bounded computation around it rather than
 collapsing the result to an unattributed infinity.
 
-The restricted canonical-IR fixed-work checker may close a segment ending at
+The restricted terminal-Psi fixed-work checker may close a segment ending at
 the next safe point. Otherwise it reports `Unknown` or retains the exact
 blocking/foreign edge with no finite guarantee. WCSU proves space, not work or
 wall-clock latency. A target may convert checked work to time only through a
@@ -517,7 +517,7 @@ arguments remain TR3–TR8 work.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.
-9. Implement canonical-IR metering plus restricted fixed-work entry and
+9. Implement terminal-Psi metering plus restricted fixed-work entry and
    safe-point segment checking; keep logical work, response wait, and target
    timing conversion distinct.
 10. Implement registered callback lowering and the Windows acceptance slice

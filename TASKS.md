@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-07-31.
+Last pruned: 2026-08-02.
 
 This file is an execution queue, not a changelog. A task should contain only:
 
@@ -19,9 +19,12 @@ architecture decision belongs in `OWNER_QUESTIONS.md`.
 
 ## Ownership firewall
 
-Omega owns language semantics and general compiler machinery. Target backends
-own unavoidable ISA, ABI, object-format, and relocation encoding. Cathedral
-owns OS data structures, policies, protocols, and lifecycle.
+Psi operates on Omega files and owns parsing plus all target-neutral language
+semantics through terminal Psi. Omega consumes terminal Psi and owns provider
+installation, optimization, ABI/storage realization, native emission, and
+general execution machinery. Target backends own unavoidable ISA, ABI,
+object-format, and relocation encoding. Cathedral owns OS data structures,
+policies, protocols, and lifecycle.
 
 If Cathedral cannot express a subsystem, identify the missing general Omega
 primitive or mark the slice blocked. Do not implement the subsystem in Rust
@@ -37,13 +40,13 @@ scanners, or receipts.
 Designs may depend on an analysis listed here only by naming the dependency.
 They must not describe its result as something the checker already derives.
 
-- **Canonical IR fuel and restricted fixed-work checking:** define the
-  versioned portable IR; meter realized evaluation; and analyze whole hard-root
+- **Terminal-Psi fuel and restricted fixed-work checking:** define terminal
+  Psi; meter realized evaluation; and analyze whole hard-root
   or selected safe-point segments as `Bounded`, `Unknown`, or an attributed
   no-finite-guarantee result. The hard-root precursor is now denominated by an
   explicit, separately versioned fuel schedule: mixed schedules fail closed
   and the installed-root artifact publishes the schedule and provision. It is
-  not yet canonical-IR derivation, general parametric work, or WCET analysis.
+  not yet terminal-Psi derivation, general parametric work, or WCET analysis.
 - **Formal atomic-event model and target refinement:** define
   `sequenced_before`, `reads_from`, `modification_order`, `synchronizes_with`,
   `happens_before`, and `global_sequential_order`; mechanize the portable
@@ -322,20 +325,20 @@ fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
 - **BUMP-ALLOCATOR-CANARY — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #5:** implement an ordinary package-level bump strategy
+  `OWNER_QUESTIONS.md` #2:** implement an ordinary package-level bump strategy
   over a consumed `Extent` once source content-conservation contracts can state
   its split, retirement, reset recomposition, and backing return. Keep
   allocatable tail, live extents, and retired extents distinct: release cleans
   `T` and returns authority but restores bump capacity only at reset. Exercise
   RAM and non-RAM placed access without adding an Arena primitive, interior
   mutability, or a new borrowing rule;
-- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #4:**
+- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #1:**
   require admitted roots to carry backing receipts denominated in the same
   algebra and prove projected content is within that backing through ordinary
   postconditions. Provider selection and receipt identity are live, but no
   source/IR binder yet supplies the receipt's per-invocation algebra value;
 - **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #5:** prove all consumed content equals the separated
+  `OWNER_QUESTIONS.md` #2:** prove all consumed content equals the separated
   composition of produced content plus any remainder retired through an
   authorized route. The equation and closed algebras are settled, but the
   documented `content(...)`/`old(...)` forms remain schematic: no source or IR
@@ -393,25 +396,66 @@ establishment from raw bytes reject.
 
 #### L6b — `AccessPlan` and placed views
 
-**PARTIALLY DESIGN BLOCKED.** Chapter 20 and
+**IMPLEMENTATION WORK.** Chapter 20 and
 `wiki/design_briefs/os_memory_and_hardware_foundation.md` own the normalized
-model. The source-visible loan/profile admission surface is blocked on
-`OWNER_QUESTIONS.md` #1, and public generic atomic accessor requirements are
-blocked on #2. Target-specific lowering remains implementation work.
+model. Qualified-Extent admission, placed-content establishment, and public
+generic atomic operation requirements are settled. Target-specific lowering
+remains implementation work.
 
 - Derive `Placed<P, T>` projection and granular readable, destructive-read,
-  writable, and atomic accessors. Ordinary writes require plan permission,
-  exclusive current borrow, and exclusive source loan.
+  writable, and atomic accessors. Stable ordinary writes require plan
+  permission, exclusive current borrow, and exclusive source borrow; External
+  and atomic operations follow their admitted operation contracts.
 - Source derivation now retains the authoritative placement identity and exact
   per-field permissions in typed trees. Stable/external accessors expose only
   admitted trait methods; direct atomic syntax over `bool`, `u32`, and `u64`
   is checked per operation family, works through a shared view borrow, and
-  cannot materialize an accessor as an ordinary scalar. Binding-private
-  accessors are restricted to machines authored in the nominal placement
-  policy's canonical package, including statement-position calls whose
-  generated target symbol is absent. Generic atomic-family helper contracts
-  are blocked on owner question #2. Admitted source-loan construction is
-  blocked on owner question #1.
+  cannot materialize an accessor as an ordinary scalar. Only the nominal
+  placement package may directly name or issue a binding-private accessor;
+  possession delegates the public operation requirements it conforms to generic
+  code. Copyability, cross-activation sharing, and counted permits separately
+  control durable, concurrent, and bounded delegation. Qualified-borrow
+  admission, placed-content establishment/retirement, and transfer-footprint
+  conflict checking remain implementation work rather than language-design
+  blockers.
+- Publish one sealed `omega::core` requirement per atomic operation. Use shared
+  receivers, the settled proof-static ordering vocabulary, exact derived
+  conformance for core atomics and placed accessors, exact-forwarding wrapper
+  derivation, and checked or admitted evidence for every other realization.
+  Missing conformance makes an operation unavailable; arithmetic carrier
+  bounds never manufacture hardware capability.
+- Require one target/provider-supported atomic transfer at a fixed width and
+  alignment for every operation, then apply operation-specific eligibility.
+  Load duplicates, store discards the displaced value, swap conserves and may
+  transfer an affine resident owned through Stable initialization, scalar CAS
+  initially remains copyable, and each fetch operation proves its exact raw
+  representation law over every provider-reachable representation. A cell may
+  cross activations only when its resident type is transferable.
+- Implement decisive and single-attempt compare-exchange separately. The
+  single-attempt result distinguishes `Exchanged`, `Mismatched(observed)`, and
+  `Uncommitted(observed)`; both failure arms use the read-compatible failure
+  ordering, while success uses the read-modify-write ordering. Decisive CAS and
+  target retrying fetch lowerings retain target-relative work attribution.
+- Replace the bootstrap's source-facing `ExtentLoan` shape with ordinary
+  `&`/`&mut` projections of `Extent in Granted`; keep any exact-loan carrier
+  internal. Bind the selected provider's normalized profile receipt through
+  the qualification rather than accepting a caller profile. Implement borrowed
+  rejection by ending the loan and owned rejection by returning the moved
+  extent.
+- Implement `Stable` adopt/initialize/validate and `External` adopt, plus
+  borrowed cleanup and owned `destroy -> Extent in Granted & Vacant`.
+  Establishment must check read totality or stable validation, write encoding
+  and value fit, and legal transfer derivation per field and operation. Do not
+  synthesize fitting domains, External initialization, multi-transfer External
+  reads, External RMW, or retrying atomic writes.
+- Carry logical extents separately from physical effect footprints. Repeatable
+  reads share; destructive reads and stable RMW reserve the whole affected
+  transfer container; atomic operations retain their exact admitted conflict
+  rule. A destructive unit derives one whole-snapshot `take`, never independent
+  field takes.
+- Retain schema correspondence separately from resource compatibility. Record
+  its admitted source and optional runtime revision predicate, and bind the ID
+  observation and full placement to the same stable provider/device instance.
 - Connect target external/atomic emission. External transfers occur once at an
   admitted whole-container width; no generic external RMW or arbitrary-offset
   primitive is available.
@@ -423,6 +467,13 @@ misaligned/inconsistent transfer plans, an unplanned offset, narrow external
 write, destructive read through `Readable`, mixed-width overlapping atomics,
 source-loan polarity upgrade, simultaneous overlapping views, view recast
 escalation, and forged admission evidence all reject before code generation.
+A binding-private accessor can be deliberately passed to an external generic
+helper without exposing its nominal type; direct external projection still
+rejects. Missing atomic-operation conformance, unsupported width/alignment,
+affine swap over adopted contents, and cross-activation sharing of an
+activation-bound resident reject at their respective derivation or crossing
+sites. Single-attempt CAS distinguishes mismatch from an uncommitted attempt
+without a second load.
 
 #### L6c — symbolic materialization
 
@@ -818,20 +869,43 @@ improvements do not change public identity.
   independent plan schema, canonical crossings, activation-wide CPU/thread
   demands, and retirement of the generalized `TaskRuntimeContract` join are
   complete. Authority-value declarations follow P1a.
-- **IRFUEL — PARTIALLY ARCHITECTURE BLOCKED:** implement the settled
+- **PSIIR — IMPLEMENTATION WORK:** build the terminal Psi boundary settled in
+  `wiki/architecture/pipeline/terminal_psi.md`. Psi owns Omega-file parsing
+  through one concrete, post-instantiation semantic module; Omega starts at
+  abstract-operation lowering. Move or rename the current target-neutral
+  `omega-*` frontend crates under Psi ownership as each slice migrates; do not
+  leave parsing or checking on an Omega-to-Psi path. Establish the proposition
+  IR, small proof kernel, total primitive judgments, certificate envelope, and
+  sealed admission taxonomy first, then add operations in vertical slices containing execution
+  semantics, generated obligations, sound proof rules, interpreter behavior,
+  Omega lowering requirements, and canonical encoding. Merge the useful
+  `StateGraph`/`ControlFlowPlan` topology, replace every `ExpressionHandle` with
+  lowered values, predicates, structural places, operations, and edge actions,
+  and keep author-declared hardware geometry while excluding target-selected
+  ABI/storage realization. Re-root the interpreter and then abstract-operation
+  construction, moving binding substitution and concrete instantiation above
+  the boundary. Freeze serialization and fingerprints only after the in-memory
+  vocabulary passes both paths. Keep semantic module, proof bundle,
+  installation record, and debug/source maps separate; carry certificates for
+  any non-total search needed by portable verification. Acceptance: one
+  integer/control/contract canary serializes canonically, verifies after source
+  and producer state are discarded, and produces identical interpreted and
+  native behavior; no Omega-side lowering crate used by that path depends on
+  `TypedTrees` or `ExpressionHandle`.
+- **IRFUEL — IMPLEMENTATION WORK:** implement the settled
   `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md` sequence:
-  versioned canonical IR and fuel schedule, evaluator/interpreter metering,
+  versioned terminal Psi and fuel schedule, evaluator/interpreter metering,
   restricted fixed-work checking over entries and safe-point segments,
   attributed response outcomes, and trusted native block metering. Keep target
   WCET and wall-clock conversion separate. The external-root precursor already
   has schedule-keyed provider summaries and provisions, rejects mixed
   schedules, and reports logical fuel rather than structural work; continue
-  from canonical IR and its interpreter meter rather than treating that
-  provider-authored precursor as an IR proof. The v1 canonical IR schema,
-  serialization, and verifier/lowering boundary are blocked on
-  `OWNER_QUESTIONS.md` #3. The current TypedTrees evaluator now publishes an
-  explicitly versioned deterministic step-usage record for interpreted and
-  build-time outcomes; it is telemetry precursor evidence, not canonical-IR
+  from terminal Psi and its interpreter meter rather than treating that
+  provider-authored precursor as a Psi proof. The v1 terminal-Psi schema,
+  serialization, and verifier/lowering boundary are owned by PSIIR. The current
+  TypedTrees evaluator now publishes an explicitly versioned deterministic
+  step-usage record for interpreted and
+  build-time outcomes; it is telemetry precursor evidence, not terminal-Psi
   fuel.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
@@ -874,7 +948,7 @@ improvements do not change public identity.
   killed safely, an orphan pins its worker/storage/provider era, and bounded
   recovery from a hung call requires process isolation.
 - Build the package-level bump-allocation canary after
-  `OWNER_QUESTIONS.md` #5. Core supplies qualified `Extent`, placement, and
+  `OWNER_QUESTIONS.md` #2. Core supplies qualified `Extent`, placement, and
   conservation; it does not bless Arena, bump, slab, pool, buddy, or heap
   strategy semantics.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
@@ -1123,6 +1197,17 @@ move it to a convenience library.
   AArch64; a weaker acquire instruction requires protocol-scoped proof and
   measured justification. A global-order fence requires the completed global
   atomic semantics rather than a conservative backend guess.
+- Add sealed provider requirements for DMA publication/acquisition, cache
+  maintenance, MMIO notification, and posted-write completion without
+  strengthening `reaches` or adding boundary-signature clauses. A checked
+  driver may derive a complete submission contract from those primitives; an
+  opaque OS provider may satisfy it with admitted evidence when policy permits.
+  Every emitted requirement must be discharged or reject.
+- Tie publication evidence to exact range and write state so intersecting write
+  frames invalidate it. Require acquisition to consume request- and
+  instance-bound completion evidence, and restore Stable CPU observation only
+  when custody returns. Terminal Psi must retain scoped ordering events; erased
+  evidence and generic call effects are not lowering barriers.
 - Implement the settled retained-storage and provider-view canaries under
   ENT2c; keep `addr`/`Ptr<T>` inert and require protocol-correlated redemption.
 - Implement registered callback lowering and the Windows adapter canary under
@@ -1177,11 +1262,8 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 placed-storage admission surface | source Extent loans, profile receipts, placement admission, and Placed construction |
-| #2 generic atomic accessor requirements | generic helpers over exact placed/core atomic operation families |
-| #3 canonical portable IR contract | portable artifact schema, interpreter boundary, IR fuel schedule, and IR proof/PCC identity |
-| #4 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
-| #5 content-conservation contracts | normalized n-to-m content equations, correspondence, allocator canaries, inference, and retained proof evidence |
+| #1 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
+| #2 content-conservation contracts | normalized n-to-m content equations, correspondence, allocator canaries, inference, and retained proof evidence |
 
 ## Vertical acceptance slices
 

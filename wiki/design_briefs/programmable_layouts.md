@@ -111,7 +111,9 @@ external, or individually atomic operations plus exposure. A nominal
 `PlacementPlan` combines the selected layout and access plans with the
 boundary reach required by that interpretation. Provider supply remains
 separate as an admitted, offset-keyed `ResourceProfile`. Placement checks the
-pair against one exact Extent loan and derives `Placed<P, T>`.
+pair against one exact borrow of `Extent in Granted` and derives
+`Placed<P, T>`. `ResourceProfile` is ordinary data; only the selected
+provider's range-bound receipt gives one standing as supply.
 
 The access policy receives this validated `LayoutPlan`, so it can decide which
 laid fields admit primitive access without copying offsets or transfer widths
@@ -122,11 +124,28 @@ silently reassign permissions.
 
 Placed projection is pure and yields borrow-carrying accessors rather than
 lvalues. Stable access derives ordinary mutation only when both the active
-borrow and source loan are exclusive. External access is exactly once at an
+borrow and source borrow are exclusive. External access is exactly once at an
 admitted whole-container width and never synthesizes generic RMW. Atomic fields
-expose only admitted operation families and orderings. Boundary reach belongs
-to the placement, not individual fields, and runtime provenance proves that the
-selected reach may touch the supplied range.
+expose only admitted operation families and orderings. Each operation carries
+both its logical field extent and physical effect footprint; destructive reads
+and stable RMW conflict over the whole affected transfer container even when
+their logical bitfields are disjoint. Boundary reach belongs to the placement,
+not individual fields, and runtime provenance proves that the selected reach
+may touch the supplied range.
+
+Admission and content establishment are distinct. Admission proves that the
+backing supports the requested interpretation. Stable storage may then adopt,
+initialize vacant storage, or validate existing contents; External storage may
+only adopt in v1, with each readable field total-decoding in one admitted
+transfer. Encoding, decoding, representability, and legal transfer derivation
+are checked per field and operation. The compiler never invents a fitting
+domain, emits a generic External RMW, assembles an External field from several
+reads, or hides an unbounded atomic retry behind `.write`.
+
+Compatibility does not prove that a schema describes the physical device. A
+separate admitted, provenance-bearing correspondence ties the nominal policy to
+one provider/device identity and may be conditional on a runtime revision check
+bound to the same stable device instance.
 
 The ordinary source records now live in
 `omega::language::core::layout`; its existing `Plan` record remains the current
@@ -137,11 +156,13 @@ layout, derives transfer widths from that geometry, and evaluates
 `Placement::plan` into one normalized layout/access/reach identity. The
 `omega-access-plans` bootstrap validates geometry, exact widths,
 observation/operation compatibility, borrow polarity, atomic orderings, exact
-loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns
+internal loan facts, and sealed lowering requests. Its normalized `PlacementPlan` owns
 the complete layout/access pairing and one normalized boundary reach, which
-admission checks once and lowering retains. Admission consumes the exact
-Extent loan, rejection returns it, and `place` consumes the accepted token.
-Current view-borrow and retained source-loan polarity are checked independently.
+admission checks once and lowering retains. The Rust bootstrap consumes an
+internal exact-loan carrier; source instead admits ordinary `&`/`&mut`
+projections of `Extent in Granted`, with range, lifetime, and polarity supplied
+by the borrow checker. Current view-borrow and retained source-borrow polarity
+are checked independently.
 Exposure uses the settled `BindingPrivate` spelling; stable compound mutation
 is derived from read+write and exclusivity, destructive external reads remain
 distinct, external compound mutation is unavailable, and atomic permissions
@@ -160,8 +181,10 @@ model. Source compilation now derives unique opaque stable/external accessors
 for concrete `Placed<P, T>` spellings and omits inaccessible or unauthorized
 operations. Atomic fields now derive exact `bool`/`u32`/`u64` operation-family
 accessors, and binding-private operations are restricted to the nominal policy
-package. The source-visible loan/profile admission surface and public generic
-atomic requirements remain blocked on `OWNER_QUESTIONS.md` #1 and #2;
+package for direct naming and issuance; possession delegates their public
+operation requirements to generic code. Qualified-borrow admission is settled
+and remains implementation work. Generic atomics use the settled sealed
+per-operation requirement family shared with ordinary core atomics;
 target-specific lowering remains implementation work.
 
 ## Codecs are ordinary checked requirements
@@ -447,7 +470,7 @@ code rather than compiler types.
 - source-level symbolic relocation derivation and propagation of normalized
   placement constraints through linker/loader/provider artifacts;
 - finish `Placed<P, T>` projection (generic atomic-family helper contracts and
-  admitted-loan construction) and target-specific accessor lowering over the
+  qualified-borrow admission) and target-specific accessor lowering over the
   live normalized access/resource validator; direct atomic operation-family
   gating is live for exact `bool`/`u32`/`u64` placed accessors, and
   binding-private access is enforced against the nominal policy package;

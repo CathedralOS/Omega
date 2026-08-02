@@ -1,11 +1,11 @@
-# Design Brief: Canonical IR Fuel And Resource Provisioning
+# Design Brief: Terminal Psi, Fuel, And Resource Provisioning
 
-Status: architectural direction settled 2026-07-30. The hard-root accounting
-precursor is schedule-keyed and uses logical-fuel provisions; canonical portable
-IR, metering, and general fixed-work segment checking remain implementation
-work. The concrete v1 portable-IR contract is owner-blocked on
-`OWNER_QUESTIONS.md` #3; the current evaluator-step schedule is telemetry
-precursor evidence, not canonical-IR fuel.
+Status: canonical Psi architecture settled 2026-08-02. The hard-root accounting
+precursor is schedule-keyed and uses logical-fuel provisions; terminal Psi,
+metering, and general fixed-work segment checking remain implementation work.
+The current evaluator-step schedule is telemetry precursor evidence, not
+canonical-Psi fuel. The implementation cut and migration are detailed in
+[`terminal_psi.md`](../architecture/pipeline/terminal_psi.md).
 
 ## Context
 
@@ -19,17 +19,38 @@ of stack. Logical-work accounting has three distinct customers:
 General parametric work functions, arbitrary recurrence solving, and WCET are
 not prerequisites for those facilities.
 
-## Canonical portable IR
+## Terminal Psi
 
-Omega's distributable, interpreter-defined artifact is a versioned
-**canonical IR**. It is distinct from mutable compiler optimization
-representations. The reference oracle executes this IR; native code is an
-acceleration produced from it.
-
-IR semantics and accounting are independently versioned:
+Psi operates on Omega-branded source files and owns the complete target-neutral
+pipeline: parsing, resolution, typing, semantic checking, proof and obligation
+construction, expression lowering, and canonicalization. Its terminal product
+is the one versioned portable execution representation consumed by Omega.
+Omega begins with terminal Psi and owns provider installation, target
+realization, optimization, ABI lowering, native emission, and execution.
 
 ```text
-PortableIrIdentity {
+Omega files
+    -> Psi parse / resolve / type / check / lower / canonicalize
+    -> terminal Psi
+    -> Omega interpret or realize for a target
+```
+
+There is no Omega-to-Psi-to-Omega pipeline and no separate public source
+language called Psi. The names mark an implementation and trust boundary:
+Omega is the user-facing language and platform brand; Psi owns its checked
+portable semantics.
+
+Terminal Psi is distinct from mutable compiler optimization representations.
+The reference oracle executes it directly; native code is an acceleration
+lowered from the same module. Terminal artifacts are concrete and
+post-instantiation. Generic parsing, checking, and instantiation may occur in
+nonterminal Psi forms, but the interpreter, verifier, and Omega lowering do not
+need generic execution semantics.
+
+Psi semantics and accounting are independently versioned:
+
+```text
+TerminalPsiIdentity {
     semantic_version;
     program_fingerprint;
 }
@@ -40,12 +61,182 @@ FuelScheduleIdentity {
 ```
 
 Changing the fuel schedule changes accounting, not program meaning. Cached
-semantic results therefore key on IR semantics and program identity; cost
+semantic results therefore key on Psi semantics and program identity; cost
 records additionally key on the fuel schedule.
+
+### The representation cut
+
+No current representation is terminal Psi. `CheckedTrees`, `StateGraph`, and
+`ControlFlowPlan` all retain `TypedTrees` expression tables and
+`ExpressionHandle` as executable content. `StateGraph` and `ControlFlowPlan`
+provide useful machine, state, transition, contract, borrow, and ownership
+topology, but the latter is presently mostly a remap of the former rather than
+expression lowering. `AbstractOperations` is already an Omega representation:
+runtime storage regions, calling conventions, ABI aggregate classes, native
+offsets, and related target-realization choices are its job.
+
+Terminal Psi therefore replaces the hollow state-graph/control-flow pair with
+one self-contained form at that altitude. It keeps their semantic skeleton but
+replaces every source-tree reference with lowered values, operations,
+predicates, typed places, blocks, and obligation-carrying edges. Short-circuit
+evaluation, calls, guards, cleanup, suspension, and fallible operations may
+create blocks not present in today's source-derived state segmentation; the
+current arena topology is not the public schema.
+
+The boundary is based on provenance, not on whether a number resembles an
+offset. Author-declared device offsets, transfer widths, alignment demands,
+and placement schema are semantic and remain in Psi. Target-selected native
+field offsets, stack slots, register assignments, ABI classes, and concrete
+storage regions belong to Omega.
+
+### Semantic module
+
+The fingerprinted semantic module contains:
+
+- concrete machines, states, typed block parameters, values, calls,
+  transitions, and terminals;
+- a closed semantic operation vocabulary and statically visible variants for
+  choices that change execution or generated obligations;
+- structural places rooted in ordinary or provider-backed storage, including
+  field, index-by-value, dereference, and range/subextent projections;
+- contracts, author-declared premises, generated structural obligations,
+  cleanup/transfer actions, conservation equations, work attribution, trust
+  classes, and authorized admission sites;
+- target-neutral provider requirements and scoped ordering operations; and
+- stable identities shared by execution, propositions, proof evidence, fuel,
+  diagnostics, and lowering provenance.
+
+A choice that changes execution semantics or generated obligations must be
+distinguishable without constant propagation. For example, trapping,
+wrapping, and saturating integer addition are closed instruction variants, not
+an ordinary runtime policy value. Several sound proof lemmas of differing
+precision may describe one transition; lemma selection and later proof-library
+improvements do not change operation or program identity.
+
+The proposition vocabulary may differ from the executable vocabulary, but both
+refer to the same canonical values, places, operations, and edges. Each
+operation definition owns one normative execution transition and one generated
+obligation schema. Its logical rules must be proven sound with respect to that
+transition under those obligations. These per-operation proofs, plus the
+global soundness obligations for control-flow composition, place algebra,
+admission binding, canonical decoding, and ordering, form an enumerable Psi
+language-verification backlog rather than an amorphous trusted compiler.
+
+The normative Psi semantics is not whatever the current interpreter happens to
+do. The interpreter and native lowering implement the versioned operation
+semantics. Differential execution compares those two implementations; it does
+not replace the per-operation soundness work or prove that both implementations
+did not share a mistaken reading.
+
+### Obligations, evidence, and admission
+
+The verifier reconstructs the required obligation set from executable Psi and
+its fingerprinted contracts. A proof bundle cannot omit an inconvenient
+obligation, weaken a contract, or relabel a derivable fact as admitted.
+Admission is legal only at sealed positions whose truth cannot be structurally
+derived, such as a foreign boundary, provider fact, or checked assembly claim.
+The verifier validates each admission's kind, provider/evidence identity, and
+profile acceptance even though it cannot prove the admitted fact true.
+
+Every accepted fact follows exactly one route:
+
+```text
+kernel-derived       a specified total judgment re-decided by the verifier
+certificate-derived  explicit evidence checked by the proof kernel
+admitted             an authorized unverifiable assertion accepted by policy
+```
+
+`requires` and published guarantees are program semantics and remain in the
+module. Call sites must establish requirements. A bodyful guarantee must be
+derived; only a bodyless or foreign guarantee at an authorized site may depend
+on admission.
+
+Primitive kernel judgments are minimized. Each is a normative, total,
+specified decision procedure with its own soundness obligation. Other solvers
+remain outside the trusted base by producing certificates checked by the small
+kernel. A total, guaranteed certificate reconstruction may run locally in a
+consumer; any search that may time out, return unknown, or otherwise fail must
+ship its certificate when portable verification is required. An external
+non-certifying answer is admitted evidence, not derived proof.
+
+Terminal Psi plus its content-addressed semantic dependencies is sufficient to
+state and check replacement evidence without source or the producing compiler.
+That makes evidence replacement possible, not necessarily cheap: proprietary
+or expensive proof search may still be required to find a new certificate.
+
+### Artifact sections and identity
+
+One installed execution selects one complete semantic version. Translating an
+older module creates a new module and fingerprint; a verifier may not approve
+one representation and execute another. A distribution container may carry
+several separately fingerprinted variants, but selection occurs before
+verification and execution.
+
+The artifact separates four concerns:
+
+```text
+semantic module       executable Psi, contracts, obligations, admissions
+proof bundle          replaceable derivations and carried certificates
+installation record   selected providers, target facts, profile decisions
+debug/source maps      presentation and diagnostics
+```
+
+The semantic fingerprint covers only the semantic module. The containing
+artifact manifest hashes every attached section so evidence or installation
+records cannot be silently replaced. Improving a proof changes the proof-bundle
+and container identities, not the program's semantic identity. Supply-chain
+attestation may separately state which producer created a module; it grants no
+semantic authority to the verifier.
+
+Canonical decoding rejects alternate encodings rather than silently
+normalizing them. Numbering, ordering, algebraic normal forms, and serialization
+are deterministic, so byte identity and semantic-module identity coincide for
+one Psi version. Proof-system and evidence versions are separate from Psi
+semantics. A bug in a Psi operation definition requires a semantic-version
+response; a bug in a proof checker or trusted decision procedure revokes that
+evidence version and may allow a replacement proof bundle over the unchanged
+semantic module.
+
+### Vocabulary construction
+
+The proposition IR, proof kernel, and their extension/versioning discipline are
+established before operations depend on them, then vocabulary grows through
+vertical slices. For each operation class, specify together:
+
+1. canonical encoding and typed operands/results;
+2. execution transition;
+3. generated obligations and authorized admissions;
+4. proof rule plus its soundness obligation;
+5. interpreter behavior and Omega lowering requirement; and
+6. fuel identity under a separately versioned schedule.
+
+Two operations require distinct static identities when their execution
+semantics or generated obligations differ. Proof-lemma choice is not an
+operation distinction. Proposition expressiveness is not limited to automatic
+decidability: closed total fragments may discharge automatically, while richer
+claims require explicit checkable evidence. Unsupported entailment refuses; it
+never triggers unbounded proof search during verification.
+
+The canonical operation vocabulary must retain scoped ordering events rather
+than flattening them into opaque calls or one universal fence. CPU atomic
+fences, same-context compiler/interruption fences, DMA publication, device
+acquisition, MMIO completion, cache maintenance, and checked ISA barriers name
+different participants and guarantees. A cross-device event retains its exact
+range, mapping, observer/device instance, and ordering scope so the verifier can
+check composition and target lowering can discharge the same requirement.
+
+Erased proof evidence does not create runtime ordering. For example, a DMA
+publication result may authorize a later doorbell in source, but the
+publication operation itself must contribute the Psi event that forbids sinking
+covered writes past publication or hoisting notification before it. On a
+coherent target the verified realization may emit no instruction; on another
+target it may expand into bounded cache maintenance, barriers, or an admitted
+OS provider call. Those realizations retain distinct work and trust evidence
+while implementing the same scoped semantic event.
 
 ## Logical fuel
 
-The fuel schedule assigns deterministic logical cost to canonical IR
+The fuel schedule assigns deterministic logical cost to terminal Psi
 instructions or normalized blocks. Fuel is not native instruction count,
 cycles, energy, or wall-clock time.
 
@@ -57,17 +248,17 @@ according to installation policy.
 
 The same denomination serves:
 
-- build-time evaluation by executing canonical IR in the evaluator;
+- build-time evaluation by executing terminal Psi in the evaluator;
 - portable interpreted artifacts through direct metering; and
 - native realizations whose trusted lowering inserts counters that charge the
-  corresponding canonical IR blocks.
+  corresponding terminal-Psi blocks.
 
 Optimization may reduce physical work without reducing logical fuel. A
 compiler release may not silently change budget behavior merely because its
 native lowering improved.
 
 Build usage remains deterministic for the concrete invocation, target
-description, evaluator/IR semantics, and fuel schedule. It never depends on
+description, evaluator/Psi semantics, and fuel schedule. It never depends on
 host load or elapsed time. Long terminating builds remain legal; progress,
 warnings, cache accounting, and optional root-selected ceilings consume the
 meter without making the ceiling program semantics.
@@ -84,7 +275,7 @@ multiplicity, acyclic or explicitly measured call structure, and no unresolved
 blocking or foreign-completion edge. The checker applies to a whole hard-root
 entry or to a selected path segment ending at the next semantic safe point.
 
-The public certificate keys the canonical IR, entry, relevant preconditions,
+The public certificate keys terminal Psi, the entry, relevant preconditions,
 fuel schedule, and scalar ceiling. Private proof or optional diagnostic
 evidence may retain the maximizing path; it has no semantic identity and does
 not seed target WCET analysis. An edge without a finite response contract
@@ -95,18 +286,18 @@ premises are ordinary call obligations and must hold at each meter-free call.
 
 A sponsor may execute a fixed-work entry natively without runtime metering when
 trusted lowering and installation establish that the executing bytes came
-from the certified IR and the proved ceiling fits the granted fuel. IR without
-such a theorem remains safely executable under interpreter metering or trusted
-inserted native metering. A certificate that arbitrary native bytes refine the
-IR is a separate future proof-carrying-code chain.
+from the certified Psi module and the proved ceiling fits the granted fuel. Psi
+without such a theorem remains safely executable under interpreter metering or
+trusted inserted native metering. A certificate that arbitrary native bytes
+refine terminal Psi is a separate future proof-carrying-code chain.
 
 Provider-local `FixedFuelProviderSummary` and `LogicalFuelResourceColumn` are
 the current implementation precursor for hard roots. Each summary and
 provision names a nonzero `FuelScheduleIdentity`; composition rejects mixed
 schedules, and the external-root artifact publishes the schedule version,
 provision, ceiling, and composed units. These units are provider-authored
-logical-fuel summaries, not a derivation from canonical IR. The precursor still
-must migrate to IR-derived entry/segment certificates and does not grow into
+logical-fuel summaries, not a derivation from terminal Psi. The precursor still
+must migrate to Psi-derived entry/segment certificates and does not grow into
 general symbolic complexity analysis.
 
 ## Response and physical time
@@ -137,13 +328,13 @@ separate derived or admitted worst-case timing model.
 
 Fuel and target WCET optimize different cost functions, so their maximizing
 paths may differ. A future real-time analysis re-searches target paths. It may
-reuse structural enabling facts from the IR certificate, but lowering must
+reuse structural enabling facts from the Psi certificate, but lowering must
 also show that helper calls, expansions, and other target realization choices
 introduce no unbounded structure.
 
 A strict real-time profile needs analyzable evidence for every dependency:
-canonical IR, a separately verifiable native WCET certificate, or an admitted
-target-specific summary when policy permits one. Portable IR is the preferred
+terminal Psi, a separately verifiable native WCET certificate, or an admitted
+target-specific summary when policy permits one. Terminal Psi is the preferred
 distribution form, not the only mathematically possible evidence source.
 
 ## Spatial resources are provisioned
@@ -179,7 +370,7 @@ fuel or provision while remaining semantically compatible; installation
 rejects or reprovisions it. A deadline or fixed resource ceiling enters the
 interface contract only when an API deliberately promises it.
 
-The proof-carrying-code scope in this brief is canonical IR. Its verifier may
+The proof-carrying-code scope in this brief is terminal Psi. Its verifier may
 check memory safety, ownership and resource conservation, reach, termination,
 and fixed-fuel certificates without trusting the producing compiler. Native
 lowering/refinement certificates have a different subject and TCB and remain a
@@ -187,16 +378,30 @@ separate future lane.
 
 ## Implementation sequence
 
-1. Define and version the canonical portable IR independently from optimizer
-   representations.
-2. Define the separately versioned logical fuel schedule and interpreter meter.
-3. Feed build-time evaluation usage, progress, warnings, and optional policy
+1. Establish the proposition IR, small proof kernel, closed total judgments,
+   evidence envelope, and authorized admission taxonomy.
+2. Replace the current state-graph/control-flow remap with terminal Psi vertical
+   slices, lowering expressions and predicates together and retaining
+   structural places and edge obligations.
+3. Re-root the reference interpreter on terminal Psi. During migration, keep
+   the old interpreter only as comparison evidence; the established oracle
+   claim is rebuilt rather than assumed to survive the change.
+4. Re-root abstract-operation construction on terminal Psi and remove its
+   dependency on `CheckedTrees` expression substitution. This moves
+   monomorphization-shaped substitution above the boundary and unblocks generic
+   backend work on explicit instantiated values.
+5. Define deterministic serialization, semantic/module fingerprints, proof and
+   installation section hashes, and version migration tests.
+6. Define the separately versioned logical fuel schedule and interpreter meter.
+7. Feed build-time evaluation usage, progress, warnings, and optional policy
    from that meter.
-4. Migrate provider-local fixed-work summaries to IR fuel and generalize them
+8. Migrate provider-local fixed-work summaries to Psi fuel and generalize them
    to selected safe-point segments.
-5. Preserve `Bounded`, `Unknown`, and attributed no-finite-guarantee outcomes
+9. Preserve `Bounded`, `Unknown`, and attributed no-finite-guarantee outcomes
    in artifacts and diagnostics.
-6. Add trusted native block metering; defer a separate IR-to-native PCC chain.
-7. Add `CountedQuantity<Bytes>` with the package-level bump-allocation canary;
+10. Add trusted native block metering while preserving accounting provenance
+   through optimization; canonical block topology itself need not survive.
+   Defer a separate Psi-to-native PCC chain.
+11. Add `CountedQuantity<Bytes>` with the package-level bump-allocation canary;
    retain exact tail placement and keep general fragmented allocators fallible
    unless they supply placement/reservation evidence.

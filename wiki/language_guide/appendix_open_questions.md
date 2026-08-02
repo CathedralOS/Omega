@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-07-31.
+Last pruned: 2026-08-02.
 
 ## Reach, resources, and progress
 
@@ -24,10 +24,6 @@ Last pruned: 2026-07-31.
   conservative suspension-safe-loan subset. WCSU derives one fixed nonmoving
   `StackPlan` per lowered activation; settled `suspend` and `block` markers
   acknowledge the exact statically known call envelope.
-- Implement canonical-IR fuel metering and restricted fixed-work entry and
-  safe-point-segment checking, including `Bounded`, `Unknown`, and attributed
-  no-finite-guarantee reports. General parametric work and target WCET remain
-  deferred.
 - Define scheduler operation contracts in terms of decision 23's sealed
   profiles, including wake-one/wake-all and timed-wait placement.
 
@@ -40,8 +36,8 @@ Last pruned: 2026-07-31.
   for lock-free structures before requiring a mediated or accepted boundary.
 - Define the formal atomic-event model and prove the existing x86-64/AArch64
   mappings before implementing the settled portable fences and protocol
-  checker. Complete contention tests, migrate the source ordering vocabulary,
-  and keep checked ISA plus device/DMA barriers distinct.
+  checker. Complete contention tests and keep checked ISA, compiler-only
+  fences, and device/DMA ordering operations distinct.
 - Migrate the task-plan prototype away from generalized runtime supply.
   Suspension is checked locally; a fixed nonmoving `StackLease` satisfies
   WCSU-derived `StackPlan`; and only activations that may retain CPU/thread-

@@ -122,6 +122,8 @@ implementation work. Each one gets more expensive to retrofit every month.
    concrete-range `Extent` authority distinct from allocator `Arena`;
    `LayoutPlan` geometry, consumer `AccessPlan`, admitted offset-keyed
    `ResourceProfile`, and `Placed<P, T>` views;
+   sealed per-operation atomic requirements shared by core and placed accessors;
+   scoped DMA publication/acquisition and MMIO completion requirements;
    parsed checked asm; independent `CallPlan + StatePlan` (normalized compiler
    model and initial x86-64/AArch64 evaluators implemented); symbolic
    materialization; external-root reporting; DMA external loans; and carry /
@@ -246,7 +248,7 @@ None block current compiler development; all should stay visible.
   resource-algebra prerequisite for general `Vec` lowering.
 - **Engineering pending: hardware representation** — programmable
   `LayoutPlan` geometry, name-keyed fragments, consumer `AccessPlan`, provider
-  `ResourceProfile`, Extent-loan admission, and `Placed<P, T>` field access.
+  `ResourceProfile`, qualified-Extent borrow admission, and `Placed<P, T>` field access.
   The source model is in chapter 20 and the OS foundation brief;
   implementation is tracked in `TASKS.md`.
 - **DECIDED, engineering pending: registered callback entry** — a callback is
