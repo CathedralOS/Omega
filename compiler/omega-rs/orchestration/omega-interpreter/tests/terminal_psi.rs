@@ -202,3 +202,59 @@ fn verified_v1_integer_control_contract_slice_executes_directly() {
     );
     assert_eq!(resumable_meter.usage(), &completed_usage);
 }
+
+#[test]
+fn interpreter_rejects_an_out_of_range_integer_argument() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let parameter = ValueId::new(10).expect("parameter");
+    let result = ValueId::new(11).expect("result");
+    let machine = TerminalMachine {
+        id: MachineId::new(10).expect("machine"),
+        parameters: vec![ValueDeclaration {
+            id: parameter,
+            scalar_type,
+        }],
+        result: ValueDeclaration {
+            id: result,
+            scalar_type,
+        },
+        entry: BlockId::new(10).expect("entry"),
+        blocks: vec![Block {
+            id: BlockId::new(10).expect("entry"),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Return {
+                edge: EdgeId::new(10).expect("return"),
+                value: parameter,
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(10).expect("contract"),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+        },
+    };
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V1,
+        entry: machine.id,
+        machines: vec![machine],
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("parameter-return module verifies");
+
+    assert_eq!(
+        interpret_terminal(
+            &verified,
+            &[TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(300),
+            }],
+        ),
+        Err(TerminalInterpretError::ArgumentIntegerOutsideType { value: parameter })
+    );
+}

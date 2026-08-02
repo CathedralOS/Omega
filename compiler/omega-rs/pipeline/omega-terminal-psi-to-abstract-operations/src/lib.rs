@@ -9,7 +9,7 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
     TerminalValueBinding,
 };
-use psi_core::{BlockId, MachineId};
+use psi_core::{BlockId, MachineId, ScalarType};
 use psi_terminal::{OperationKind, TerminalMachine, Terminator};
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
@@ -81,6 +81,18 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         value,
                     });
                 }
+                OperationKind::WrappingIntegerAdd { left, right } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedWrappingAddMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::WrappingIntegerAdd {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        left,
+                        right,
+                    });
+                }
             }
         }
         match &block.terminator {
@@ -142,6 +154,7 @@ pub enum LoweringError {
     VerifiedBlockMissing { machine: MachineId, block: BlockId },
     VerifiedControlCycle { machine: MachineId, block: BlockId },
     VerifiedJumpArityMismatch { edge: psi_core::EdgeId },
+    VerifiedWrappingAddMalformed(psi_core::OperationId),
 }
 
 impl std::fmt::Display for LoweringError {

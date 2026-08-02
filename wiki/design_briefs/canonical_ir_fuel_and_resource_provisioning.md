@@ -21,57 +21,66 @@ below extend it.
 
 Executable checkpoint (2026-08-02): the in-memory terminal semantic module now
 carries stable machine/block/value/operation/edge identities, representable
-integer constants, v2 Boolean constants, unconditional jump/return control, and
-bodyful contracts. The verifier reconstructs constant, edge-binding, and
-return-binding axioms from the executable path, rejects unreachable fact
-sources and out-of-scope contract values, and requires evidence for every
-`ensures`; the proof kernel checks semantic-axiom citations and equality
-composition. Omega's interpreter executes the same verified module object.
-The first transitional checked-tree producer now lowers an exact typed
+integer constants, v2 Boolean constants, current-v3 exact-width wrapping
+integer addition, unconditional jump/return control, and bodyful contracts. The
+verifier reconstructs operation, edge-binding, and return-binding axioms from
+the executable path, rejects unreachable fact sources and out-of-scope contract
+values, and requires evidence for every `ensures`; the proof kernel checks
+semantic-axiom citations, equality composition, and closed wrapping-integer
+relations. Wrapping addition is total: it reduces modulo the declared 1–128-bit
+width and interprets signed reduced bits as two's complement, so it creates no
+overflow obligation. Omega's interpreter executes the same verified module
+object and rejects out-of-range integer arguments before execution.
+
+The first transitional checked-tree producer lowers an exact typed
 integer-constant/unconditional-jump/literal-return/closed-contract source slice,
 emits the semantic module and proof bundle separately, and fails closed on all
 other shapes. Its canary drops the frontend trees before terminal verification
 and interpretation. This adapter does not change the target ownership rule:
-the current Omega-branded frontend still needs to migrate under Psi. This
-checkpoint also has a source-independent Omega abstract-operation consumer: it
-accepts only the verified module and emits owned scalar-materialization,
-jump-binding, and return requirements with stable Psi provenance and no source
-handles. The clean target continuation now resolves that stream to a
+the current Omega-branded frontend still needs to migrate under Psi. A
+source-independent Omega abstract-operation consumer accepts only the verified
+module and emits owned scalar-materialization, wrapping-add, jump-binding, and
+return requirements with stable Psi provenance and no source handles. The clean
+target continuation resolves the current compile-known stream to a
 provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
 and executes the emitted host entry in a linker harness with the same result as
-terminal interpretation. The initial vocabulary now also has canonical
-semantic bytes and a domain-separated semantic fingerprint; the source canary
-round-trips both semantic and proof-bundle bytes after discarding producer
-state. The proof section has its own golden fingerprint, and a role-separated
-manifest binds semantic, proof, installation, and debug sections without
-folding replaceable evidence into program identity. The clean terminal lane now
-owns a semantic-identity-bound object artifact, emits the compatibility object
-container and standalone images for the four supported architecture/format
-pairs, and validates exact relocation-free text plus complete executable-region
-coverage. The macOS canaries execute the emitted Mach-O image directly after
-producer state is dropped. A canonical typed installation payload separately
-binds the terminal identity, exact target facts, PE subsystem, profile decision,
-selected provider-plan set, complete image digest, and compiler text-validation
-evidence; its exact bytes enter the installation role of the artifact manifest.
-The provider-free scalar canaries use an empty selected set. This metadata does
-not replace the native executable admission/placement state machine. Typed
+terminal interpretation. Runtime terminal-parameter ABI/register lowering
+remains separate implementation work.
+
+The vocabulary has canonical semantic bytes and a domain-separated semantic
+fingerprint; the source and wrapping canaries round-trip after discarding
+producer state. Proof format v1 retains its frozen original bytes, while minimal
+format v2 adds recursive wrapping-add terms. The proof section has its own
+golden fingerprint, and a role-separated manifest binds semantic, proof,
+installation, and debug sections without folding replaceable evidence into
+program identity. The clean terminal lane owns a semantic-identity-bound object
+artifact, emits the compatibility object container and standalone images for
+the four supported architecture/format pairs, and validates exact
+relocation-free text plus complete executable-region coverage. The macOS
+canaries execute the emitted Mach-O image directly after producer state is
+dropped. A canonical typed installation payload separately binds the terminal
+identity, exact target facts, PE subsystem, profile decision, selected
+provider-plan set, complete image digest, and compiler text-validation evidence;
+its exact bytes enter the installation role of the artifact manifest. The
+provider-free scalar canaries use an empty selected set. This metadata does not
+replace the native executable admission/placement state machine. Typed
 debug/source maps remain. General register assignment remains on the legacy
-backend. The first version transition is live: valid v1 integer modules retain
-their frozen
-bytes and execution semantics, explicit migration produces a new v2
-fingerprint, and the current v2 Boolean slice round-trips, verifies, meters,
-lowers, emits, and executes as a canonical zero/one native result. This
-checkpoint still has no branching or arithmetic operation.
-`psi-terminal-fuel` now defines schedule v1 as one unit
-per executed terminal operation and one unit per taken terminal edge. The
-verified interpreter returns exact schedule-keyed usage attributed to stable
-operation/edge identities; a finite sponsor allowance fails atomically before
-an unpaid site. Explicit in-memory execution state now resumes at that exact
-site after checked allowance replenishment without replaying prior work.
-The current acyclic single-path vocabulary also has an exact entry-to-return
-certificate keyed by semantic identity, entry, return edge, and fuel schedule;
-consumers recompute every field without trusting the producer. Build-time
-migration, branch/loop/safe-point certificates, and native metering remain.
+backend.
+
+Semantic v1 integer and v2 Boolean modules retain their frozen bytes and
+execution semantics; explicit migration produces a new v3 fingerprint. The
+current v3 wrapping slice round-trips, verifies, meters, lowers, emits, and
+executes `u8` 200+100 as 44. The checkpoint still has no branching.
+`psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
+operation and one unit per taken terminal edge. The verified interpreter returns
+exact schedule-keyed usage attributed to stable operation/edge identities; a
+finite sponsor allowance fails atomically before an unpaid site. Explicit
+in-memory execution state resumes at that exact site after checked allowance
+replenishment without replaying prior work. The current acyclic single-path
+vocabulary also has an exact entry-to-return certificate keyed by semantic
+identity, entry, return edge, and fuel schedule; consumers recompute every field
+without trusting the producer. Build-time migration, branch/loop/safe-point
+certificates, and native metering remain.
 
 ## Context
 

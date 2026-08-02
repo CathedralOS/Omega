@@ -52,7 +52,9 @@ impl TerminalFuelSchedule {
 
     pub const fn operation_units(self, kind: &OperationKind) -> u64 {
         match kind {
-            OperationKind::IntegerConstant { .. } | OperationKind::BooleanConstant { .. } => 1,
+            OperationKind::IntegerConstant { .. }
+            | OperationKind::BooleanConstant { .. }
+            | OperationKind::WrappingIntegerAdd { .. } => 1,
         }
     }
 

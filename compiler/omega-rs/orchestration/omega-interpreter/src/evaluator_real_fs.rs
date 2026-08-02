@@ -37,6 +37,7 @@ fn io_errno(error: &std::io::Error) -> i32 {
 /// ENOTSUP differs per OS (macOS 45, linux 95, windows maps EOPNOTSUPP=130);
 /// the wrapper only tests `rc < 0` + errno passthrough, so macOS's value is
 /// fine as the single modeled "this provider slice does not do that" code.
+#[cfg(not(unix))]
 const ENOTSUP: i32 = 45;
 const EBADF: i32 = 9;
 const EACCES: i32 = 13;
