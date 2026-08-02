@@ -346,6 +346,17 @@ until checking is complete, then redirects execution to the selected adapter.
 Predicate and authority evidence remains erased. Runtime data discovered at a
 boundary, such as a firmware range's base and length, remains in the carrier.
 
+For a content-bearing owned result, the boundary's ordinary postcondition
+states per-invocation geometry over parameters and result paths; there is no
+source-visible backing-receipt binder. The selected provider evidence separately
+admits external ownership and fresh nonduplicating issuance. Exclusive claims
+from different providers compose only through a common custody root over one
+stable backing identity, while intentional aliases carry explicit shared-view
+authority. Checked containment does not turn those external premises into
+derived facts: a result-selected base may prove the returned size while saying
+nothing about whether the range was issued before. Artifacts retain both the
+derived geometry and the admitted supply/custody provenance.
+
 ### Transparent predicate aliases
 
 A predicate alias gives a public name to a nonempty conjunction of compatible

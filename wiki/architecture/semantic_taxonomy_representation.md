@@ -113,7 +113,7 @@ Trust composes by the weakest supporting input, while provenance retains every
 input that caused the downgrade. A derived arithmetic or graph proof over one
 admitted environmental premise produces an admitted composite fact naming
 that premise; a dominant derived input never hides it. This one rule applies
-to content/backing receipts, provider facts, foreign stack/callback plans,
+to boundary-issuance evidence, provider facts, foreign stack/callback plans,
 timing conversion, and later normalized evidence products.
 
 See
@@ -686,8 +686,11 @@ checked output maps omit proven-inactive alternatives while propagating live
 case identities through opaque calls. Symbol-keyed substitutions already retain
 contained claims through nested generic transparent records.
 Content-bearing n-to-m transformations additionally retain the selected
-compiler-owned algebra, normalized claim projection and admitted backing,
-root-lineage mapping, and exact separated-conservation witness. The initial
+compiler-owned algebra, normalized claim projection, per-invocation geometry,
+admitted external supply, stable backing identity, fresh-issuance premise,
+custody/alias lineage, root-lineage mapping, and exact separated-conservation
+witness. Provider succession appends classified predecessor/successor custody
+edges rather than rewriting claim origins. The initial
 closed vocabulary contains intervals and counted quantities over proof-level
 natural arithmetic. A qualification with no owner-unique `Content<A>`
 conformance participates only in whole-claim frontier accounting.
