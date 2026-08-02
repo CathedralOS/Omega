@@ -31,6 +31,11 @@ pub enum TerminalAbstractOperation {
         scalar_type: ScalarType,
         value: IntegerValue,
     },
+    BooleanConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: bool,
+    },
     Jump {
         psi_edge: EdgeId,
         target: BlockId,

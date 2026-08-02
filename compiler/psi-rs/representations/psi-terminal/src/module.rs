@@ -8,13 +8,16 @@ use psi_core::{
 /// Version of the in-memory terminal-Psi semantic vocabulary.
 ///
 /// Version 1 has canonical bytes and a semantic fingerprint defined by
-/// `psi-terminal-codec`. Any meaning-changing vocabulary revision requires a
-/// new semantic version rather than reinterpretation of existing bytes.
+/// `psi-terminal-codec`. Version 2 adds `BooleanConstant` without changing the
+/// meaning of version-1 bytes. Any further meaning-changing vocabulary
+/// revision requires another semantic version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
 impl SemanticVersion {
-    pub const CURRENT: Self = Self(NonZeroU16::MIN);
+    pub const V1: Self = Self(NonZeroU16::MIN);
+    pub const V2: Self = Self(NonZeroU16::new(2).expect("two is nonzero"));
+    pub const CURRENT: Self = Self::V2;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -77,15 +80,19 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Initial closed operation vocabulary.
+/// Closed operation vocabulary through semantic version 2.
 ///
 /// `IntegerConstant` writes the declared integer value to its result and
 /// establishes the semantic axiom `result == literal`. It cannot trap and
 /// generates no additional obligation because construction verifies that the
 /// literal belongs to the declared terminal integer type.
+///
+/// `BooleanConstant` was added in semantic version 2. It writes the declared
+/// Boolean value to its result and establishes `result == literal`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationKind {
     IntegerConstant { value: IntegerValue },
+    BooleanConstant { value: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

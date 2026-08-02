@@ -48,12 +48,28 @@ fn emit_function(
                 Architecture::X86_64 => emit_x86_64_return(scalar_type, bits),
             }
         }
+        TerminalTargetOperation::ReturnBooleanImmediate { value, .. } => match architecture {
+            Architecture::Aarch64 => emit_aarch64_boolean_return(value),
+            Architecture::X86_64 => emit_x86_64_boolean_return(value),
+        },
     };
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
         provenance: function.provenance.clone(),
         bytes,
     })
+}
+
+fn emit_x86_64_boolean_return(value: bool) -> Vec<u8> {
+    vec![0xb8, u8::from(value), 0, 0, 0, 0xc3] // mov eax, 0/1; ret
+}
+
+fn emit_aarch64_boolean_return(value: bool) -> Vec<u8> {
+    let mov_w0 = 0x5280_0000_u32 | (u32::from(value) << 5);
+    [mov_w0, 0xd65f_03c0]
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect()
 }
 
 fn integer_bits(
@@ -177,11 +193,46 @@ mod tests {
     }
 
     #[test]
+    fn emits_canonical_boolean_returns_for_both_architectures() {
+        let boolean_plan = |target, value| TerminalTargetOperationPlan {
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnBooleanImmediate {
+                    psi_edge: EdgeId::new(1).expect("edge"),
+                    source_value: ValueId::new(1).expect("value"),
+                    value,
+                },
+            }],
+        };
+
+        assert_eq!(
+            emit_machine_code(&boolean_plan(NativeTarget::linux_x64(), true))
+                .unwrap()
+                .functions[0]
+                .bytes,
+            [0xb8, 1, 0, 0, 0, 0xc3]
+        );
+        assert_eq!(
+            emit_machine_code(&boolean_plan(NativeTarget::linux_arm64(), false))
+                .unwrap()
+                .functions[0]
+                .bytes,
+            [0x00, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+    }
+
+    #[test]
     fn rejects_integer_width_without_a_native_scalar_realization() {
         let mut plan = plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::ReturnIntegerImmediate {
             scalar_type, value, ..
-        } = &mut plan.functions[0].operation;
+        } = &mut plan.functions[0].operation
+        else {
+            panic!("integer fixture must contain an integer return")
+        };
         *scalar_type = IntegerType::new(IntegerSign::Signed, 128).expect("i128");
         *value = IntegerValue::Signed(7);
         assert!(matches!(

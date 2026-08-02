@@ -25,8 +25,8 @@ impl TerminalScalarValue {
 
 /// Execute the verified terminal-Psi entry machine directly.
 ///
-/// The initial executable vocabulary is a deterministic chain of integer
-/// constants and explicit jump/return edges. Taking a
+/// The executable vocabulary is a deterministic chain of scalar constants and
+/// explicit jump/return edges. Taking a
 /// [`VerifiedTerminalModule`] makes verification and execution refer to the
 /// same semantic module object.
 pub fn interpret_terminal(
@@ -151,6 +151,13 @@ impl<'module> TerminalExecution<'module> {
                             operation.result.id,
                             TerminalScalarValue::Integer { scalar_type, value },
                         );
+                    }
+                    OperationKind::BooleanConstant { value } => {
+                        if operation.result.scalar_type != ScalarType::Boolean {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.values
+                            .insert(operation.result.id, TerminalScalarValue::Boolean(value));
                     }
                 }
                 self.next_operation += 1;

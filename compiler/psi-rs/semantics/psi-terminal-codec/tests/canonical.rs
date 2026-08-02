@@ -7,7 +7,8 @@ use psi_terminal::{
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{
-    CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
+    CodecError, decode_module, encode_module, migrate_module_to_current, semantic_fingerprint,
+    terminal_psi_identity,
 };
 
 #[test]
@@ -24,11 +25,62 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "bcb56768a31b4ddde394676892c42d702f18bad3a563457cd36fe73912f7e26f"
+        "a23a71844c2a4729c8d5beb0f62e0e632a91c3a10095bc01f2f2eedcf3ffedaf"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
+    );
+}
+
+#[test]
+fn archived_v1_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let mut archived = fixture();
+    archived.semantic_version = SemanticVersion::V1;
+    let archived_bytes = encode_module(&archived).expect("v1 remains encodable");
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(decode_module(&archived_bytes), Ok(archived.clone()));
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "bcb56768a31b4ddde394676892c42d702f18bad3a563457cd36fe73912f7e26f"
+    );
+
+    let migrated = migrate_module_to_current(&archived).expect("v1 migrates to v2");
+    assert_eq!(migrated.semantic_version, SemanticVersion::V2);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn v1_cannot_claim_the_v2_boolean_operation() {
+    let module = boolean_fixture(SemanticVersion::V1);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V2,
+                actual: SemanticVersion::V1,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v2_boolean_operation_has_stable_canonical_bytes() {
+    let module = boolean_fixture(SemanticVersion::V2);
+    let bytes = encode_module(&module).expect("v2 Boolean module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "5a4b9e8eb4fc5e3a5c90c635ea0da2b9d312d65fddaaa022fda4e300ff5f6fde"
     );
 }
 
@@ -230,6 +282,43 @@ fn fixture() -> TerminalModule {
                         proposition: Proposition::Truth,
                     },
                 ],
+            },
+        }],
+    }
+}
+
+fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    TerminalModule {
+        semantic_version,
+        entry: machine_id(10),
+        machines: vec![TerminalMachine {
+            id: machine_id(10),
+            parameters: Vec::new(),
+            result: ValueDeclaration {
+                id: value_id(11),
+                scalar_type: ScalarType::Boolean,
+            },
+            entry: block_id(10),
+            blocks: vec![Block {
+                id: block_id(10),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation_id(10),
+                    result: ValueDeclaration {
+                        id: value_id(10),
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    kind: OperationKind::BooleanConstant { value: true },
+                }],
+                terminator: Terminator::Return {
+                    edge: edge_id(10),
+                    value: value_id(10),
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(10),
+                requires: Vec::new(),
+                ensures: Vec::new(),
             },
         }],
     }

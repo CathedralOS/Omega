@@ -2,7 +2,7 @@
 //! ORACLE for the native backend.
 //!
 //! The separate [`interpret_terminal`] entry now executes the first verified
-//! terminal-Psi integer/control/contract slice directly. The legacy
+//! terminal-Psi scalar/control/contract slice directly. The legacy
 //! [`interpret`] entry remains rooted on checked trees while source lowering
 //! and the broader operation vocabulary migrate.
 //!

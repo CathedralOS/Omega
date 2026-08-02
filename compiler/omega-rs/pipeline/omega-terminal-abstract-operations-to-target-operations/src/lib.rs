@@ -64,11 +64,19 @@ fn lower_function(
                 insert_value(
                     &mut values,
                     *result,
-                    KnownInteger {
+                    KnownScalar::Integer {
                         scalar_type: *integer_type,
                         value: *value,
                     },
                 )?;
+                provenance.operations.push(*psi_operation);
+            }
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation,
+                result,
+                value,
+            } => {
+                insert_value(&mut values, *result, KnownScalar::Boolean(*value))?;
                 provenance.operations.push(*psi_operation);
             }
             TerminalAbstractOperation::Jump {
@@ -81,7 +89,7 @@ fn lower_function(
                             .get(&binding.argument)
                             .copied()
                             .ok_or(LoweringError::UnknownValue(binding.argument))?;
-                        if binding.scalar_type != ScalarType::Integer(value.scalar_type) {
+                        if binding.scalar_type != value.scalar_type() {
                             return Err(LoweringError::ValueTypeMismatch(binding.parameter));
                         }
                         Ok((binding.parameter, value))
@@ -102,15 +110,27 @@ fn lower_function(
                     .get(value)
                     .copied()
                     .ok_or(LoweringError::UnknownValue(*value))?;
-                if *scalar_type != ScalarType::Integer(returned_value.scalar_type) {
+                if *scalar_type != returned_value.scalar_type() {
                     return Err(LoweringError::ValueTypeMismatch(*result));
                 }
                 provenance.edges.push(*psi_edge);
-                returned = Some(TerminalTargetOperation::ReturnIntegerImmediate {
-                    psi_edge: *psi_edge,
-                    source_value: *value,
-                    scalar_type: returned_value.scalar_type,
-                    value: returned_value.value,
+                returned = Some(match returned_value {
+                    KnownScalar::Boolean(boolean) => {
+                        TerminalTargetOperation::ReturnBooleanImmediate {
+                            psi_edge: *psi_edge,
+                            source_value: *value,
+                            value: boolean,
+                        }
+                    }
+                    KnownScalar::Integer {
+                        scalar_type,
+                        value: integer,
+                    } => TerminalTargetOperation::ReturnIntegerImmediate {
+                        psi_edge: *psi_edge,
+                        source_value: *value,
+                        scalar_type,
+                        value: integer,
+                    },
                 });
             }
         }
@@ -124,9 +144,9 @@ fn lower_function(
 }
 
 fn insert_value(
-    values: &mut BTreeMap<ValueId, KnownInteger>,
+    values: &mut BTreeMap<ValueId, KnownScalar>,
     id: ValueId,
-    value: KnownInteger,
+    value: KnownScalar,
 ) -> Result<(), LoweringError> {
     if values.insert(id, value).is_some() {
         return Err(LoweringError::DuplicateValue(id));
@@ -135,9 +155,21 @@ fn insert_value(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct KnownInteger {
-    scalar_type: IntegerType,
-    value: IntegerValue,
+enum KnownScalar {
+    Boolean(bool),
+    Integer {
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+}
+
+impl KnownScalar {
+    const fn scalar_type(self) -> ScalarType {
+        match self {
+            Self::Boolean(_) => ScalarType::Boolean,
+            Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

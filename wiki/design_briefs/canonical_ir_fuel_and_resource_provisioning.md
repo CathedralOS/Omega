@@ -19,9 +19,9 @@ kernel rejects admission for a primitively derivable proposition. That
 foundation was the prerequisite evidence substrate; the executable checkpoints
 below extend it.
 
-Executable checkpoint (2026-08-02): the first in-memory terminal semantic
-module now carries stable machine/block/value/operation/edge identities,
-representable integer constants, unconditional jump/return control, and
+Executable checkpoint (2026-08-02): the in-memory terminal semantic module now
+carries stable machine/block/value/operation/edge identities, representable
+integer constants, v2 Boolean constants, unconditional jump/return control, and
 bodyful contracts. The verifier reconstructs constant, edge-binding, and
 return-binding axioms from the executable path, rejects unreachable fact
 sources and out-of-scope contract values, and requires evidence for every
@@ -34,7 +34,7 @@ other shapes. Its canary drops the frontend trees before terminal verification
 and interpretation. This adapter does not change the target ownership rule:
 the current Omega-branded frontend still needs to migrate under Psi. This
 checkpoint also has a source-independent Omega abstract-operation consumer: it
-accepts only the verified module and emits owned integer-materialization,
+accepts only the verified module and emits owned scalar-materialization,
 jump-binding, and return requirements with stable Psi provenance and no source
 handles. The clean target continuation now resolves that stream to a
 provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
@@ -45,8 +45,12 @@ round-trips both semantic and proof-bundle bytes after discarding producer
 state. The proof section has its own golden fingerprint, and a role-separated
 manifest binds semantic, proof, installation, and debug sections without
 folding replaceable evidence into program identity. Standalone object/image
-integration and general register assignment remain on the legacy backend. This
-checkpoint still has no branching/arithmetic operation or version migration.
+integration and general register assignment remain on the legacy backend. The
+first version transition is live: valid v1 integer modules retain their frozen
+bytes and execution semantics, explicit migration produces a new v2
+fingerprint, and the current v2 Boolean slice round-trips, verifies, meters,
+lowers, emits, and executes as a canonical zero/one native result. This
+checkpoint still has no branching or arithmetic operation.
 `psi-terminal-fuel` now defines schedule v1 as one unit
 per executed terminal operation and one unit per taken terminal edge. The
 verified interpreter returns exact schedule-keyed usage attributed to stable

@@ -19,7 +19,7 @@ use psi_terminal_fuel::{
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
 #[test]
-fn verified_integer_control_contract_slice_executes_directly() {
+fn verified_v1_integer_control_contract_slice_executes_directly() {
     let integer = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let scalar_type = ScalarType::Integer(integer);
     let constant = ValueId::new(1).expect("constant");
@@ -81,7 +81,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         },
     };
     let module = TerminalModule {
-        semantic_version: SemanticVersion::CURRENT,
+        semantic_version: SemanticVersion::V1,
         entry: machine.id,
         machines: vec![machine],
     };

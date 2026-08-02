@@ -143,6 +143,12 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                         .expect("validator requires representable integer constant");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), literal));
                 }
+                OperationKind::BooleanConstant { value } => {
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.id),
+                        ScalarTerm::boolean(value),
+                    ));
+                }
             }
         }
         match &block.terminator {

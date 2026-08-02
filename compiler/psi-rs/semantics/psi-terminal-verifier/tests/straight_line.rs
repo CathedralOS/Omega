@@ -44,6 +44,78 @@ fn verifier_reconstructs_every_contract_obligation() {
 }
 
 #[test]
+fn v2_boolean_constant_axiom_proves_the_return_contract() {
+    let constant = ValueId::new(10).expect("constant");
+    let result = ValueId::new(11).expect("result");
+    let obligation = ObligationId::new(10).expect("obligation");
+    let term = |id| ScalarTerm::value(id, ScalarType::Boolean);
+    let goal = Proposition::Equal(term(result), ScalarTerm::boolean(true));
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V2,
+        entry: MachineId::new(10).expect("machine"),
+        machines: vec![TerminalMachine {
+            id: MachineId::new(10).expect("machine"),
+            parameters: Vec::new(),
+            result: ValueDeclaration {
+                id: result,
+                scalar_type: ScalarType::Boolean,
+            },
+            entry: BlockId::new(10).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(10).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(10).expect("operation"),
+                    result: ValueDeclaration {
+                        id: constant,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    kind: OperationKind::BooleanConstant { value: true },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(10).expect("edge"),
+                    value: constant,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(10).expect("contract"),
+                requires: Vec::new(),
+                ensures: vec![ContractClause {
+                    obligation,
+                    proposition: goal.clone(),
+                }],
+            },
+        }],
+    };
+    let proof = ProofNode {
+        conclusion: goal,
+        rule: ProofRule::EqualityTransitivity {
+            left_equals_middle: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(result), term(constant)),
+                rule: ProofRule::SemanticAxiom { index: 1 },
+            }),
+            middle_equals_right: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(constant), ScalarTerm::boolean(true)),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            }),
+        },
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(10).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof,
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v2 Boolean semantics should reconstruct both axioms");
+}
+
+#[test]
 fn initial_control_vocabulary_rejects_unreachable_semantic_axioms() {
     let mut fixture = Fixture::new();
     fixture.module.machines[0].blocks.push(Block {

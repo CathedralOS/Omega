@@ -103,6 +103,20 @@ pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdent
     })
 }
 
+/// Re-encode a valid older semantic module under the current vocabulary.
+///
+/// Migration is deliberately explicit: it preserves the semantic graph and
+/// proof obligations, but changes semantic version and therefore program
+/// fingerprint. Version-1 bytes are never silently reinterpreted as version 2.
+pub fn migrate_module_to_current(module: &TerminalModule) -> Result<TerminalModule, CodecError> {
+    validate_canonical_order(module)?;
+    validate_module(module).map_err(CodecError::InvalidModule)?;
+    let mut migrated = module.clone();
+    migrated.semantic_version = SemanticVersion::CURRENT;
+    validate_module(&migrated).map_err(CodecError::InvalidModule)?;
+    Ok(migrated)
+}
+
 fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     let mut digest = Sha256::new();
     digest.update(FINGERPRINT_DOMAIN);
@@ -278,6 +292,10 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
             OperationKind::IntegerConstant { value } => {
                 writer.u8(1);
                 encode_integer_value(writer, value);
+            }
+            OperationKind::BooleanConstant { value } => {
+                writer.u8(2);
+                writer.u8(u8::from(value));
             }
         }
     }
@@ -482,6 +500,9 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
         let kind = match reader.u8()? {
             1 => OperationKind::IntegerConstant {
                 value: decode_integer_value(reader)?,
+            },
+            2 => OperationKind::BooleanConstant {
+                value: reader.boolean()?,
             },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
