@@ -117,9 +117,16 @@ composite claim-frontier work remain.
   closes the static admitted-entry contract for `Pending`; it does not
   manufacture a source fact from fields or substitute for a concrete
   invocation receipt.
-- connect the concrete installed-root invocation and mask-transition receipts
-  to source `Pending`/`Active` establishment, carry those receipt identities
-  into the resulting checked facts, and migrate the
+- The installed-root ledger now binds the exact selected requirement and its
+  canonical accepted-claim rows into root identity and installation records.
+  A concrete interrupt-entry receipt mints `Pending` qualification evidence
+  for the exact acknowledgement subject, retaining provider-plan, requirement,
+  parameter, semantic-domain, carry-policy, invocation, and receipt identity;
+  missing, duplicate, drifted, or replayed bindings fail closed.
+- connect that invocation evidence to the checked source-parameter fact and
+  backend entry lowering; connect mask-transition receipts to source `Active`
+  establishment; carry those receipt identities into the resulting checked
+  facts; and migrate the
   `TaskRuntime` handle through the ordinary selected-provider behavior evidence,
   stack-resource, and custody work tracked under TR3–TR8.
 

@@ -477,6 +477,7 @@ name = "omega-external-roots"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-core",
  "omega-executable-installation",
  "omega-extents",
  "omega-layout-plans",
