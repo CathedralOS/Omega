@@ -20,6 +20,11 @@ fn schedule_identity_is_nonzero_and_independent() {
 
 #[test]
 fn current_vocabulary_has_explicit_v1_costs_and_attribution() {
+    assert_eq!(
+        TerminalFuelSchedule::V1.operation_units(&OperationKind::BooleanConstant { value: true }),
+        1,
+        "adding the v2 Boolean operation must not leave its v1-schedule cost implicit"
+    );
     let operation = operation();
     let jump = Terminator::Jump {
         edge: edge_id(1),

@@ -183,11 +183,11 @@ remain separate. Proof improvements do not change semantic identity; provider
 selection and attached evidence do change their own section and container
 identities. One execution verifies and runs one complete Psi semantic version.
 
-## Canonical v1 semantic bytes
+## Canonical semantic bytes (format v1)
 
-`psi-terminal-codec` owns the first canonical encoding of the current in-memory
-vocabulary. The format begins with `PSITERM\0`, a little-endian `u16` format
-version, and the terminal semantic version. Counts are fixed-width
+`psi-terminal-codec` owns the canonical encoding of the supported in-memory
+vocabularies. Wire format v1 begins with `PSITERM\0`, a little-endian `u16`
+format version, and the terminal semantic version. Counts are fixed-width
 little-endian `u32`, stable identities are nonzero little-endian `u64`, integer
 payloads occupy the full signed or unsigned 128-bit field, and every sum type
 uses a closed one-byte tag. This intentionally favors one simple auditable
@@ -210,6 +210,16 @@ byte length, and those exact bytes. `TerminalPsiIdentity` contains only the
 semantic version and this fingerprint: proof bundles, installation records,
 and debug maps are deliberately absent and remain replaceable.
 
+Semantic version 1 is frozen with `IntegerConstant`; semantic version 2 is
+current and adds `BooleanConstant`. Validation and execution continue to accept
+valid v1 modules under their original meaning, while a v1 module cannot use the
+v2 operation tag. `migrate_module_to_current` is an explicit validated v1-to-v2
+translation: it preserves the graph and obligations, changes the version field,
+and therefore creates new canonical bytes and a new semantic fingerprint. An
+unchanged proof bundle retains its separate bytes and identity but is verified
+again against the migrated module. Golden tests retain the archived v1
+fingerprint and independently freeze the current v2 fingerprint.
+
 The same codec now gives proof bundles their own `PSIPRF` v1 bytes and golden
 fingerprint. Evidence entries are strictly ordered by `ObligationId`; the
 closed encoding covers kernel judgments, separately versioned recursive proof
@@ -226,13 +236,14 @@ SHA-256 domain, and absent differs from a present empty section. Replacing a
 valid proof, installation record, or debug map changes that section and the
 container identity while preserving `TerminalPsiIdentity`; validation
 recomputes the complete manifest from attached bytes. Installation/debug
-payload schemas and cross-version translation remain later artifact slices.
+payload schemas remain later artifact slices.
 
 ## Logical-fuel v1
 
 `psi-terminal-fuel` owns the accounting identity independently from terminal
 semantic versioning. Schedule v1 charges one logical unit for each executed
-`IntegerConstant` and one for each taken `Jump` or `Return` edge. The cost table
+`IntegerConstant` or `BooleanConstant` and one for each taken `Jump` or `Return`
+edge. The cost table
 matches the closed operation/terminator enums exhaustively, so a new vocabulary
 variant cannot compile without making its schedule treatment explicit. A
 schedule revision changes accounting identity, never terminal semantic bytes or
@@ -253,9 +264,9 @@ migration, general fixed-work/segment certificates, attributed response
 outcomes, and trusted native block metering remain later IRFUEL slices.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. Because v1 validation currently permits one acyclic straight-line
-path, it derives an exact entry-to-return ceiling with no additional
-precondition assumptions. The certificate keys the canonical terminal-Psi
+schedule. Because the supported v1/v2 control vocabulary currently permits one
+acyclic straight-line path, it derives an exact entry-to-return ceiling with no
+additional precondition assumptions. The certificate keys the canonical terminal-Psi
 identity, entry machine, reached return edge, schedule identity, and ceiling.
 Validation recomputes every field from the verified decoded module; changing
 program semantics invalidates an old certificate even when the numeric cost is
@@ -273,8 +284,10 @@ migration remain later slices.
    remains on an Omega-to-Psi path.
 2. Extend the live stable Psi value, proposition, proof, and place identities
    into the first terminal semantic module without changing the current backend.
-   **Initial scalar subset complete:** in-memory constant/jump/return module,
-   verifier, and direct interpreter. Structural places remain a later slice.
+   **Initial scalar subsets complete:** the frozen v1 integer and current v2
+   Boolean constant/jump/return modules have verifier, direct-interpreter,
+   canonical-codec, fuel, Omega-lowering, and native-return coverage. Structural
+   places remain a later slice.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
@@ -297,8 +310,10 @@ migration remain later slices.
    **Initial vocabulary complete:** canonical semantic bytes and identity now
    round-trip through the real-source interpreter/native canary. Canonical
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
-   are also live. Typed installation/debug payload schemas and version
-   migration remain later artifact slices.
+   are also live. The first semantic migration is now exercised: archived v1
+   bytes retain their identity and migrate explicitly into separately
+   fingerprinted v2 modules. Typed installation/debug payload schemas remain a
+   later artifact slice.
 
 The migration may keep old and new paths temporarily for comparison. That is a
 testing bridge, not a permanent two-semantics architecture.

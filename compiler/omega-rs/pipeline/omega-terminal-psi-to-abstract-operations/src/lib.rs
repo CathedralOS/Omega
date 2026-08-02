@@ -72,6 +72,13 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         value,
                     });
                 }
+                OperationKind::BooleanConstant { value } => {
+                    operations.push(TerminalAbstractOperation::BooleanConstant {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        value,
+                    });
+                }
             }
         }
         match &block.terminator {

@@ -38,4 +38,11 @@ pub enum TerminalTargetOperation {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    /// Return a compile-time Boolean as the target ABI's canonical zero/one
+    /// scalar result.
+    ReturnBooleanImmediate {
+        psi_edge: EdgeId,
+        source_value: ValueId,
+        value: bool,
+    },
 }

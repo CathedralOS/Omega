@@ -32,7 +32,10 @@ impl<'module> ValidatedTerminalModule<'module> {
 pub fn validate_module(
     module: &TerminalModule,
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
-    if module.semantic_version != SemanticVersion::CURRENT {
+    if !matches!(
+        module.semantic_version,
+        SemanticVersion::V1 | SemanticVersion::V2
+    ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
         ));
@@ -53,7 +56,7 @@ pub fn validate_module(
             machine.contract.id,
             ModuleError::DuplicateContract,
         )?;
-        validate_machine(machine, &mut registry)?;
+        validate_machine(module.semantic_version, machine, &mut registry)?;
     }
     if !registry.machines.contains(&module.entry) {
         return Err(ModuleError::UnknownEntryMachine(module.entry));
@@ -74,6 +77,7 @@ struct IdRegistry {
 }
 
 fn validate_machine(
+    semantic_version: SemanticVersion,
     machine: &TerminalMachine,
     registry: &mut IdRegistry,
 ) -> Result<(), ModuleError> {
@@ -129,6 +133,20 @@ fn validate_machine(
                     };
                     if !integer_type.admits(value) {
                         return Err(ModuleError::IntegerConstantOutsideResultType(operation.id));
+                    }
+                }
+                OperationKind::BooleanConstant { .. } => {
+                    if semantic_version < SemanticVersion::V2 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V2,
+                            actual: semantic_version,
+                        });
+                    }
+                    if operation.result.scalar_type != ScalarType::Boolean {
+                        return Err(ModuleError::BooleanConstantRequiresBooleanResult(
+                            operation.id,
+                        ));
                     }
                 }
             }
@@ -410,6 +428,12 @@ pub enum ModuleError {
     ValueUsedBeforeDefinition(ValueId),
     IntegerConstantRequiresIntegerResult(OperationId),
     IntegerConstantOutsideResultType(OperationId),
+    BooleanConstantRequiresBooleanResult(OperationId),
+    OperationRequiresSemanticVersion {
+        operation: OperationId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
     JumpArityMismatch {
         edge: EdgeId,
         expected: usize,

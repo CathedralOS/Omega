@@ -885,7 +885,8 @@ improvements do not change public identity.
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
   The first in-memory executable slice is also live: stable machine/block
-  topology, representable integer constants, unconditional jump/return edges,
+  topology, representable integer constants, v2 Boolean constants,
+  unconditional jump/return edges,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
   `omega-interpreter`. Its validator rejects unreachable axiom sources and
@@ -899,15 +900,17 @@ improvements do not change public identity.
   asserts the returned `i32` independently; do not generalize that workaround
   into the target Psi frontend. The first source-independent Omega consumer is
   live too: it accepts only `VerifiedTerminalModule` and emits an owned stream
-  of integer materializations, explicit jump bindings, and return requirements
+  of scalar materializations, explicit jump bindings, and return requirements
   with stable Psi provenance. Its representation and lowering crate contain no
   checked/typed-tree, `ExpressionHandle`, or legacy `StateKey` dependency. The
   first clean target/native continuation is live as well: it resolves the
   verified constant/jump chain to a provenance-retaining target
   return-immediate, emits AArch64 and x86-64 scalar-return bytes, rejects
   unsupported widths, and a linker-harness canary proves host execution matches
-  terminal interpretation after producer/intermediate state is dropped. The
-  initial vocabulary now has canonical semantic bytes and a domain-separated
+  terminal interpretation after producer/intermediate state is dropped. A v2
+  Boolean canary now traverses that same verified/fueled/lowered path and
+  executes native zero/one return bytes on the host. The initial vocabulary now
+  has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
   Canonical proof-bundle bytes and a separate golden proof fingerprint are live
@@ -917,9 +920,12 @@ improvements do not change public identity.
   provider-record, or debug replacement changes container identity without
   changing semantic identity. The real-source canary encodes both semantic and
   proof sections, discards the complete producer output, decodes and validates
-  their manifest, and then compares interpreted/native behavior. This does not
-  yet provide standalone object/image emission, typed installation/debug
-  payload schemas, version migration, or migrate the legacy backend.
+  their manifest, and then compares interpreted/native behavior. Semantic v1
+  remains decodable, verifiable, executable, and frozen to its integer
+  vocabulary; v2 adds `BooleanConstant`, and explicit validated migration
+  preserves the semantic graph while producing a new v2 fingerprint. This does
+  not yet provide standalone object/image emission, typed installation/debug
+  payload schemas, or migrate the legacy backend.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and
@@ -951,9 +957,9 @@ improvements do not change public identity.
   has schedule-keyed provider summaries and provisions, rejects mixed
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
-  provider-authored precursor as a Psi proof. The v1 terminal-Psi schema,
-  serialization, and verifier/lowering boundary are owned by PSIIR. The current
-  TypedTrees evaluator now publishes an explicitly versioned deterministic
+  provider-authored precursor as a Psi proof. The terminal-Psi v1/v2 schemas,
+  serialization, migration, and verifier/lowering boundary are owned by PSIIR.
+  The current TypedTrees evaluator now publishes an explicitly versioned deterministic
   step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not terminal-Psi
   fuel. The first terminal-Psi fuel slice is now live: a Psi-owned nonzero
