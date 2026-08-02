@@ -34,7 +34,7 @@ pub fn validate_module(
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
     if !matches!(
         module.semantic_version,
-        SemanticVersion::V1 | SemanticVersion::V2 | SemanticVersion::V3
+        SemanticVersion::V1 | SemanticVersion::V2 | SemanticVersion::V3 | SemanticVersion::V4
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -159,6 +159,20 @@ fn validate_machine(
                     }
                     if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
                         return Err(ModuleError::WrappingIntegerAddRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
+                OperationKind::SaturatingIntegerAdd { .. } => {
+                    if semantic_version < SemanticVersion::V4 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V4,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::SaturatingIntegerAddRequiresIntegerResult(
                             operation.id,
                         ));
                     }
@@ -289,6 +303,18 @@ fn validate_term_semantic_version(
             validate_term_semantic_version(left, semantic_version, contract, clause)?;
             validate_term_semantic_version(right, semantic_version, contract, clause)
         }
+        ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
+            if semantic_version < SemanticVersion::V4 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V4,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(left, semantic_version, contract, clause)?;
+            validate_term_semantic_version(right, semantic_version, contract, clause)
+        }
         ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => Ok(()),
     }
 }
@@ -339,7 +365,8 @@ fn validate_term_scope(
                 });
             }
         }
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
             validate_term_scope(left, allowed, contract, clause)?;
             validate_term_scope(right, allowed, contract, clause)?;
         }
@@ -373,7 +400,13 @@ fn validate_straight_line_flow(
             defined.insert(parameter.id);
         }
         for operation in &block.operations {
-            if let OperationKind::WrappingIntegerAdd { left, right } = operation.kind {
+            if let Some((left, right, saturating)) = match operation.kind {
+                OperationKind::WrappingIntegerAdd { left, right } => Some((left, right, false)),
+                OperationKind::SaturatingIntegerAdd { left, right } => Some((left, right, true)),
+                OperationKind::IntegerConstant { .. } | OperationKind::BooleanConstant { .. } => {
+                    None
+                }
+            } {
                 let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
                     unreachable!("operation shape validation requires an integer result")
                 };
@@ -387,11 +420,20 @@ fn validate_straight_line_flow(
                         .ok_or(ModuleError::UnknownValue(operand))?;
                     let expected = ScalarType::Integer(integer_type);
                     if actual != expected {
-                        return Err(ModuleError::WrappingIntegerAddOperandTypeMismatch {
-                            operation: operation.id,
-                            operand,
-                            expected,
-                            actual,
+                        return Err(if saturating {
+                            ModuleError::SaturatingIntegerAddOperandTypeMismatch {
+                                operation: operation.id,
+                                operand,
+                                expected,
+                                actual,
+                            }
+                        } else {
+                            ModuleError::WrappingIntegerAddOperandTypeMismatch {
+                                operation: operation.id,
+                                operand,
+                                expected,
+                                actual,
+                            }
                         });
                     }
                 }
@@ -543,7 +585,14 @@ pub enum ModuleError {
     IntegerConstantOutsideResultType(OperationId),
     BooleanConstantRequiresBooleanResult(OperationId),
     WrappingIntegerAddRequiresIntegerResult(OperationId),
+    SaturatingIntegerAddRequiresIntegerResult(OperationId),
     WrappingIntegerAddOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    SaturatingIntegerAddOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,
         expected: ScalarType,

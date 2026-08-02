@@ -3,7 +3,14 @@
 use std::path::PathBuf;
 
 #[cfg(unix)]
-use std::{process::Command, time::SystemTime};
+use std::{
+    process::Command,
+    sync::atomic::{AtomicU64, Ordering},
+    time::SystemTime,
+};
+
+#[cfg(unix)]
+static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
 use omega_target::NativeTarget;
@@ -324,6 +331,170 @@ fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
     assert_eq!(run_host_executable_image(&image.output().bytes), 44);
 }
 
+#[cfg(unix)]
+#[test]
+fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
+    let machine = MachineId::new(40).expect("machine");
+    let left_operation = OperationId::new(40).expect("left operation");
+    let right_operation = OperationId::new(41).expect("right operation");
+    let add_operation = OperationId::new(42).expect("add operation");
+    let edge = EdgeId::new(40).expect("edge");
+    let left = ValueId::new(40).expect("left");
+    let right = ValueId::new(41).expect("right");
+    let sum = ValueId::new(42).expect("sum");
+    let result = ValueId::new(43).expect("result");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V4,
+        entry: machine,
+        machines: vec![TerminalMachine {
+            id: machine,
+            parameters: Vec::new(),
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            entry: BlockId::new(40).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(40).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: left_operation,
+                        result: ValueDeclaration {
+                            id: left,
+                            scalar_type,
+                        },
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(200),
+                        },
+                    },
+                    Operation {
+                        id: right_operation,
+                        result: ValueDeclaration {
+                            id: right,
+                            scalar_type,
+                        },
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(100),
+                        },
+                    },
+                    Operation {
+                        id: add_operation,
+                        result: ValueDeclaration {
+                            id: sum,
+                            scalar_type,
+                        },
+                        kind: OperationKind::SaturatingIntegerAdd { left, right },
+                    },
+                ],
+                terminator: Terminator::Return { edge, value: sum },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(40).expect("contract"),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let original_identity = terminal_psi_identity(&module).expect("v4 identity");
+    let canonical_bytes = encode_module(&module).expect("v4 canonical bytes");
+    drop(module);
+    let module = decode_module(&canonical_bytes).expect("decode v4 after producer drop");
+    assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
+
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free saturating-add module verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed saturating-add fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("fixed fuel recomputes");
+    assert_eq!(fixed.terminal_psi(), original_identity);
+    assert_eq!(fixed.schedule(), TerminalFuelSchedule::CURRENT.identity());
+    assert_eq!(fixed.ceiling_units(), 4);
+
+    let measured = interpret_terminal_measured(&verified, &[]).expect("interpret saturating add");
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(255),
+        }
+    );
+    assert_eq!(measured.usage().total_units(), 4);
+    assert_eq!(
+        measured
+            .usage()
+            .at(FuelChargeSite::Operation(add_operation))
+            .unwrap()
+            .units(),
+        1
+    );
+
+    let abstract_plan =
+        lower_verified_module(&verified).expect("lower saturating-add requirements");
+    assert!(matches!(
+        abstract_plan.functions[0].operations[2],
+        TerminalAbstractOperation::SaturatingIntegerAdd {
+            psi_operation,
+            scalar_type: operation_type,
+            left: operation_left,
+            right: operation_right,
+            ..
+        } if psi_operation == add_operation
+            && operation_type == integer
+            && operation_left == left
+            && operation_right == right
+    ));
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select saturating-add target operation");
+    let machine_code = emit_machine_code(&target_plan).expect("emit saturating-add machine code");
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build owned terminal object artifact");
+    assert_eq!(
+        artifact.entry_function().provenance.operations,
+        [left_operation, right_operation, add_operation]
+    );
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    let object = emit_terminal_object_container(&artifact);
+    assert_eq!(object.terminal_psi, original_identity);
+    assert_eq!(&object.output.bytes[..8], b"OMGOBJ\0\0");
+    let image = emit_terminal_executable_image(&artifact, 3)
+        .expect("emit standalone saturating-add image after semantic state is dropped");
+    assert_eq!(image.terminal_psi(), original_identity);
+    assert_eq!(image.output().final_text_bytes, artifact.text_bytes());
+    assert!(image.output().compiler_text_validation.is_some());
+    let installation = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(4).expect("saturating-add installation profile decision"),
+        [],
+    )
+    .expect("saturating-add image should produce an installation record");
+    validate_terminal_installation_record(&installation, &image)
+        .expect("saturating-add installation record should bind its exact image");
+    let installation_bytes =
+        encode_terminal_installation_record(&installation).expect("installation bytes");
+    assert_eq!(
+        decode_terminal_installation_record(&installation_bytes),
+        Ok(installation)
+    );
+
+    assert_eq!(run_host_machine_code(&entry_bytes), 255);
+    #[cfg(target_os = "macos")]
+    assert_eq!(run_host_executable_image(&image.output().bytes), 255);
+}
+
 #[cfg(target_os = "macos")]
 fn run_host_executable_image(bytes: &[u8]) -> i32 {
     use std::os::unix::fs::PermissionsExt;
@@ -332,8 +503,9 @@ fn run_host_executable_image(bytes: &[u8]) -> i32 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("wall clock after epoch")
         .as_nanos();
+    let sequence = SCRATCH_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-scalar-image-{}-{nonce}",
+        "omega-terminal-scalar-image-{}-{nonce}-{sequence}",
         std::process::id()
     ));
     std::fs::create_dir(&directory).expect("create image test directory");
@@ -359,8 +531,9 @@ fn run_host_machine_code(bytes: &[u8]) -> i32 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("wall clock after epoch")
         .as_nanos();
+    let sequence = SCRATCH_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-scalar-native-{}-{nonce}",
+        "omega-terminal-scalar-native-{}-{nonce}-{sequence}",
         std::process::id()
     ));
     std::fs::create_dir(&directory).expect("create native test directory");
