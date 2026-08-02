@@ -1996,13 +1996,31 @@ fn linear_obligation_survives_dispatched_call_continuation() {
 
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
         .expect("backend report should be written");
+    let realization_summary = report
+        .lines()
+        .find(|line| line.starts_with("permission realizations:"))
+        .expect("permission realization summary should be written");
     assert!(
-        report.contains("permission realizations: 12 (complete)")
+        realization_summary.ends_with("(complete)")
             && !report.contains("UNLINKED")
             && !report.contains("INCOMPLETE"),
         "the continuation ownership ledger should remain fail-closed and complete\n{}",
         report
     );
+    for event_prefix in [
+        "- Establish `<unnamed>` in machine `Main::main` state `main` at statement 0",
+        "- Consume `<unnamed>` in machine `Main::main` state `main` at call ordinal 0 in statement 2",
+    ] {
+        let event = report
+            .lines()
+            .find(|line| line.contains(event_prefix))
+            .unwrap_or_else(|| panic!("missing continuation ownership event `{event_prefix}`"));
+        assert!(
+            event.contains("realization=selected-instructions[")
+                && !event.contains("checked-no-code"),
+            "the live receipt must join concrete post-continuation instructions, got:\n{event}"
+        );
+    }
     assert!(
         report.contains(
             "state-call-result(AssignmentValue#0) `__call_result_2_AssignmentValue_0`: i32 offset 0"

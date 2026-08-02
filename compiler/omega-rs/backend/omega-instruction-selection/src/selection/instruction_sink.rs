@@ -98,6 +98,26 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
         self.active_empty_selection_reason =
             Some(CheckedNoCodePermissionReason::ExplicitZeroCodeConsume);
 
+        self.include_permission_events_for_site(
+            source_key,
+            statement_index,
+            call_ordinal,
+            call_target,
+        );
+    }
+
+    /// Add another semantic site to the currently selected instruction span.
+    /// Inline branching calls emit their caller handoff, callee entry, and
+    /// callee terminal action together, so all three canonical event sets must
+    /// join the same concrete selection rather than competing for one active
+    /// site slot.
+    pub(super) fn include_permission_events_for_site(
+        &mut self,
+        source_key: StateKey,
+        statement_index: usize,
+        call_ordinal: Option<Option<usize>>,
+        call_target: Option<SymbolHandle>,
+    ) {
         let mut matching_events = Vec::new();
         for (_, state) in self.control_flow.states.iter().filter(|(_, state)| {
             state.key == source_key
@@ -221,7 +241,9 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
         }
         matching_events.sort_unstable();
         matching_events.dedup();
-        self.active_permission_events = matching_events;
+        self.active_permission_events.extend(matching_events);
+        self.active_permission_events.sort_unstable();
+        self.active_permission_events.dedup();
     }
 
     pub(super) fn include_state_entry_permission_events(&mut self, target_key: StateKey) {
