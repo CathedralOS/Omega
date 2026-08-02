@@ -1,10 +1,12 @@
 # Design Brief: Terminal Psi, Fuel, And Resource Provisioning
 
 Status: canonical Psi architecture settled 2026-08-02. The hard-root accounting
-precursor is schedule-keyed and uses logical-fuel provisions; terminal Psi,
-metering, and general fixed-work segment checking remain implementation work.
-The current evaluator-step schedule is telemetry precursor evidence, not
-canonical-Psi fuel. The implementation cut and migration are detailed in
+precursor is schedule-keyed and uses logical-fuel provisions. The first
+terminal-Psi schedule and interpreter meter are live; build-time migration,
+general fixed-work segment checking, response outcomes, and native metering
+remain implementation work. The current TypedTrees evaluator-step schedule is
+telemetry precursor evidence, not canonical-Psi fuel. The implementation cut
+and migration are detailed in
 [`terminal_psi.md`](../architecture/pipeline/terminal_psi.md).
 
 Foundation checkpoint (2026-08-02): Psi-owned core and proof-kernel crates now
@@ -13,8 +15,8 @@ module value table, total primitive judgments, explicit structural proof
 certificates, and sealed admission evidence bound to an exact authorized site,
 authority identity, evidence identity, and installation-profile decision. The
 kernel rejects admission for a primitively derivable proposition. That
-foundation was the prerequisite evidence substrate; the executable checkpoint
-below extends it, while serialization and fuel remain absent.
+foundation was the prerequisite evidence substrate; the executable checkpoints
+below extend it.
 
 Executable checkpoint (2026-08-02): the first in-memory terminal semantic
 module now carries stable machine/block/value/operation/edge identities,
@@ -42,7 +44,12 @@ round-trips those bytes after discarding producer state while retaining the
 proof bundle as a separate artifact. Standalone object/image integration and
 general register assignment remain on the legacy backend. This checkpoint
 still has no branching/arithmetic operation, proof/install container manifest,
-version migration, or fuel schedule.
+or version migration. `psi-terminal-fuel` now defines schedule v1 as one unit
+per executed terminal operation and one unit per taken terminal edge. The
+verified interpreter returns exact schedule-keyed usage attributed to stable
+operation/edge identities; a finite sponsor allowance fails atomically before
+an unpaid site. Build-time migration, resumable sponsor execution state,
+fixed-work certificates, and native metering remain.
 
 ## Context
 

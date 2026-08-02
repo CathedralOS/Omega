@@ -1,4 +1,7 @@
-use omega_interpreter::{TerminalScalarValue, interpret_terminal};
+use omega_interpreter::{
+    TerminalInterpretError, TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
+    interpret_terminal_with_meter,
+};
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
     MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
@@ -10,6 +13,7 @@ use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
+use psi_terminal_fuel::{FuelChargeSite, FuelMeterError, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
 #[test]
@@ -118,11 +122,45 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
         .expect("module verifies without source or producer state");
 
+    let expected = TerminalScalarValue::Integer {
+        scalar_type: integer,
+        value: IntegerValue::Signed(7),
+    };
+    let first = interpret_terminal_measured(&verified, &[])
+        .expect("verified module executes with deterministic usage");
+    let second = interpret_terminal_measured(&verified, &[])
+        .expect("equal execution reproduces deterministic usage");
+    assert_eq!(first, second);
+    assert_eq!(first.value(), expected);
+    assert_eq!(first.usage().schedule().schedule_version(), 1);
+    assert_eq!(first.usage().total_units(), 3);
     assert_eq!(
-        interpret_terminal(&verified, &[]).expect("verified module executes"),
-        TerminalScalarValue::Integer {
-            scalar_type: integer,
-            value: IntegerValue::Signed(7),
-        }
+        first
+            .usage()
+            .at(FuelChargeSite::Operation(OperationId::new(1).unwrap()))
+            .unwrap()
+            .units(),
+        1
     );
+    assert_eq!(
+        first
+            .usage()
+            .at(FuelChargeSite::Edge(EdgeId::new(1).unwrap()))
+            .unwrap()
+            .units(),
+        1
+    );
+    assert_eq!(interpret_terminal(&verified, &[]).unwrap(), expected);
+
+    let mut limited = TerminalFuelMeter::with_allowance(2);
+    assert_eq!(
+        interpret_terminal_with_meter(&verified, &[], &mut limited),
+        Err(TerminalInterpretError::Fuel(FuelMeterError::Exhausted {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
+            required_units: 1,
+            remaining_units: 0,
+        }))
+    );
+    assert_eq!(limited.usage().total_units(), 2);
 }

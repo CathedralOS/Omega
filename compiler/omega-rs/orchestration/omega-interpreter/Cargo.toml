@@ -15,6 +15,7 @@ omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-checked-trees-to-terminal-psi = { path = "../../pipeline/omega-checked-trees-to-terminal-psi" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
+psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }
 
 [dev-dependencies]
