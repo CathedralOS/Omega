@@ -136,6 +136,14 @@ Console requirement; only its irreducible DLL/syscall/instruction leaves use
 reach, identity, and admission inputs from the explicitly selected
 conformance closure. Programs never assemble plan rows imperatively.
 
+The same rule applies to named boundary operators. A checked body may satisfy
+one exact overloaded operator slot without `via`; its proved contract must
+cover the public operator guarantee under positional parameter substitution
+while asking no stronger premises. The
+derived row uses `CheckedAdapter`, and execution redirects to the ordinary body
+only after the exact selected plan identity has been retained. Compiler
+intrinsics remain admitted leaves rather than masquerading as checked code.
+
 ## Consumption modes
 
 Consumption answers **how a valid machine is used**:

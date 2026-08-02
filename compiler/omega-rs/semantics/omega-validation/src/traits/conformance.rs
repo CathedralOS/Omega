@@ -349,11 +349,12 @@ fn validate_machine_operator_conformance(
     };
 
     if operator.is_boundary && conformance.via.is_none() {
-        diagnostics.push(Diagnostic::error(format!(
-            "checked machine `{}` satisfies boundary operator `{}`, but checked operator-law entailment is not implemented yet; use an admitted target leaf with `via Binding::...` until the checked-software provider rung lands",
-            machine.name,
-            omega_typed_trees::operator::boundary_operator_requirement_identity(program, operator),
-        )));
+        crate::contract_entailment::check_operator_contract_conformance(
+            program,
+            machine,
+            operator,
+            diagnostics,
+        );
     } else if !operator.is_boundary && !program.operator_contracts(operator).is_empty() {
         diagnostics.push(Diagnostic::error(format!(
             "checked machine `{}` satisfies operator `{}`, but checked operator-contract entailment is not implemented for contracted ordinary operators",

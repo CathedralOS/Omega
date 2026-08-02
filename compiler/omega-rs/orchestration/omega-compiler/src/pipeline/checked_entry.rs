@@ -103,6 +103,9 @@ pub fn compile_to_checked(
         &selected_provider_plans,
         &build_config.grants,
     )?;
+    crate::pipeline::operator_adapter_dispatch::rewrite_selected_operator_adapter_calls(
+        checked_program,
+    )?;
     crate::pipeline::float_intrinsic_dispatch::rewrite_selected_float_intrinsic_calls(
         checked_program,
     )?;

@@ -1,0 +1,19 @@
+// A checked provider may ask less than its boundary requirement, never more.
+// This implementation adds an input premise the public operator does not have.
+data CheckedMath {}
+
+boundary operator CheckedMath::identity(value: i32) -> i32
+ensures result == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::identity_impl(input: i32) -> i32
+satisfies CheckedMath::identity
+requires input == 0
+ensures result == input
+{
+    transition { _ -> (input) }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

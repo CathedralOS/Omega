@@ -613,6 +613,18 @@ requires a feature-qualified or checked software satisfier. Other named
 operation families remain on bootstrap target lowering until their own
 satisfiers and execution paths replace it.
 
+Named boundary operators now share a checked-software provider route. An
+ordinary machine body satisfying the exact operator without `via` is admitted
+only when its proved equality/`&&` guarantees cover the requirement and its
+requires contract is no stronger. Requirement parameters substitute onto
+provider parameters positionally; arbitrary role-swapping is not refinement.
+Selection retains a `CheckedAdapter`
+`ProviderPlan` identity on the named use; execution then calls that Omega body
+in both engines without replacing the boundary operator's proof identity. This
+route does not itself manufacture a software algorithm: generic x86-64 FMA
+remains unavailable until such a checked implementation (or an honestly
+feature-qualified hardware satisfier) is supplied.
+
 ### Value domains — wellness facts
 
 ```omega

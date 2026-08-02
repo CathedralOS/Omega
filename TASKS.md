@@ -999,6 +999,18 @@ and allocation handles expose no compiler-owned stack/control storage.
   realization, directed-rounding families, checked software fallbacks,
   canonical floating-control-state
   preconditions/restoration, and rung-4 differential evidence.
+  The first checked-software provider slice is now live independently of a
+  float algorithm: an ordinary body may satisfy one exact named boundary
+  operator without `via`, provided its machine-checked equality/`&&` ensures
+  cover every requirement guarantee under positional parameter substitution
+  and it adds no stronger requires. The
+  compiler derives and selects a one-row `CheckedAdapter` plan, retains the
+  exact plan identity on the general named-operator use fact, and redirects
+  interpreter/native execution to the checked body while preserving the public
+  operator as proof identity. Positive dual-engine and missing-guarantee/
+  stronger-premise rejection canaries pin the path. The actual binary32/
+  binary64 software FMA implementation (or feature-qualified x86 provider)
+  remains required before the generic x86 FMA slots can be selected.
   The public float/integer and float-format conversion requirement family is
   settled. Result-domain overload resolution and provider/artifact lowering are
   now live. The public float-format pair is published and pinned across all
