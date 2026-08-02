@@ -4,7 +4,9 @@
 
 use omega_checked_trees_to_terminal_psi::{LoweringError, lower_machine};
 use omega_compiler::compile_to_checked;
-use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
+use omega_interpreter::{
+    TerminalExecution, TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_measured,
+};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
@@ -19,6 +21,7 @@ use psi_core::{
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
+use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_verifier::verify_module;
 use std::path::{Path, PathBuf};
 
@@ -174,16 +177,41 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         &AdmissionProfile::default(),
     )
     .expect("source-produced terminal Psi and its proof should verify");
-    let measured = interpret_terminal_measured(&verified, &[])
-        .expect("verified source-produced terminal Psi should execute with fuel");
-    assert_eq!(measured.usage().schedule().schedule_version(), 1);
-    assert_eq!(measured.usage().total_units(), 4);
+    let mut execution = TerminalExecution::start(&verified, &[])
+        .expect("verified source-produced terminal Psi should start");
+    let mut meter = TerminalFuelMeter::with_allowance(3);
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    meter.replenish(1).unwrap();
+    let interpreted = match execution.resume(&mut meter).unwrap() {
+        TerminalExecutionStatus::Complete(value) => value,
+        TerminalExecutionStatus::SponsorExhausted(_) => {
+            panic!("one replenished unit should complete the source canary")
+        }
+    };
+    assert_eq!(meter.usage().schedule().schedule_version(), 1);
+    assert_eq!(meter.usage().total_units(), 4);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(OperationId::new(1).unwrap()))
+            .unwrap()
+            .executions(),
+        1,
+        "resume must not replay source-produced operations"
+    );
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
         original_identity,
         "fuel accounting must not change semantic identity"
     );
-    let interpreted = measured.value();
     let abstract_operations = lower_verified_module(&verified)
         .expect("verified terminal Psi should lower without source state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())

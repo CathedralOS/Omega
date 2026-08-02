@@ -1,7 +1,8 @@
 use psi_core::{EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 use psi_terminal::{Operation, OperationKind, Terminator, ValueDeclaration};
 use psi_terminal_fuel::{
-    FuelChargeSite, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter, TerminalFuelSchedule,
+    FuelChargeSite, FuelExhaustion, FuelMeterError, FuelScheduleIdentity, TerminalFuelMeter,
+    TerminalFuelSchedule,
 };
 
 #[test]
@@ -63,15 +64,28 @@ fn sponsor_allowance_exhausts_atomically_before_execution() {
 
     assert_eq!(
         meter.charge_operation(&operation),
-        Err(FuelMeterError::Exhausted {
+        Err(FuelMeterError::Exhausted(FuelExhaustion {
             schedule: TerminalFuelSchedule::CURRENT.identity(),
             site: FuelChargeSite::Operation(operation_id(1)),
             required_units: 1,
             remaining_units: 0,
-        })
+        }))
     );
     assert_eq!(meter.remaining_allowance(), Some(0));
     assert_eq!(meter.usage(), &usage_before);
+
+    meter.replenish(1).unwrap();
+    meter.charge_operation(&operation).unwrap();
+    assert_eq!(meter.remaining_allowance(), Some(0));
+    assert_eq!(meter.usage().total_units(), 2);
+}
+
+#[test]
+fn allowance_replenishment_fails_closed_on_overflow() {
+    let mut meter = TerminalFuelMeter::with_allowance(u64::MAX);
+    assert_eq!(meter.replenish(1), Err(FuelMeterError::AllowanceOverflow));
+    assert_eq!(meter.remaining_allowance(), Some(u64::MAX));
+    assert_eq!(meter.usage().total_units(), 0);
 }
 
 fn operation() -> Operation {

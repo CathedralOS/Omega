@@ -48,8 +48,9 @@ or version migration. `psi-terminal-fuel` now defines schedule v1 as one unit
 per executed terminal operation and one unit per taken terminal edge. The
 verified interpreter returns exact schedule-keyed usage attributed to stable
 operation/edge identities; a finite sponsor allowance fails atomically before
-an unpaid site. Build-time migration, resumable sponsor execution state,
-fixed-work certificates, and native metering remain.
+an unpaid site. Explicit in-memory execution state now resumes at that exact
+site after checked allowance replenishment without replaying prior work.
+Build-time migration, fixed-work certificates, and native metering remain.
 
 ## Context
 

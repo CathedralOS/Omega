@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
-use psi_core::{IntegerType, IntegerValue, ScalarType, ValueId};
-use psi_terminal::{OperationKind, TerminalMachine, Terminator};
-use psi_terminal_fuel::{FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
+use psi_core::{BlockId, IntegerType, IntegerValue, ScalarType, ValueId};
+use psi_terminal::{Block, OperationKind, Terminator};
+use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,92 +60,155 @@ pub fn interpret_terminal_with_meter(
     arguments: &[TerminalScalarValue],
     meter: &mut TerminalFuelMeter,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    let module = verified.module();
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
-        .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
-    execute_machine(machine, arguments, meter)
+    let mut execution = TerminalExecution::start(verified, arguments)?;
+    match execution.resume(meter)? {
+        TerminalExecutionStatus::Complete(value) => Ok(value),
+        TerminalExecutionStatus::SponsorExhausted(exhaustion) => Err(TerminalInterpretError::Fuel(
+            FuelMeterError::Exhausted(exhaustion),
+        )),
+    }
 }
 
-fn execute_machine(
-    machine: &TerminalMachine,
-    arguments: &[TerminalScalarValue],
-    meter: &mut TerminalFuelMeter,
-) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    if arguments.len() != machine.parameters.len() {
-        return Err(TerminalInterpretError::ArgumentCount {
-            expected: machine.parameters.len(),
-            actual: arguments.len(),
-        });
-    }
-    let mut values = BTreeMap::new();
-    for (parameter, argument) in machine.parameters.iter().zip(arguments) {
-        if parameter.scalar_type != argument.scalar_type() {
-            return Err(TerminalInterpretError::ArgumentType {
-                value: parameter.id,
-                expected: parameter.scalar_type,
-                actual: argument.scalar_type(),
+/// Resumable execution state for one already-verified terminal-Psi entry.
+///
+/// Fuel exhaustion never advances `next_operation` or the current terminator,
+/// so a sponsor can replenish the same meter and resume without replaying
+/// semantic work or charging it twice.
+pub struct TerminalExecution<'module> {
+    blocks: BTreeMap<BlockId, &'module Block>,
+    values: BTreeMap<ValueId, TerminalScalarValue>,
+    current: BlockId,
+    next_operation: usize,
+    result: Option<TerminalScalarValue>,
+}
+
+impl<'module> TerminalExecution<'module> {
+    pub fn start(
+        verified: &VerifiedTerminalModule<'module>,
+        arguments: &[TerminalScalarValue],
+    ) -> Result<Self, TerminalInterpretError> {
+        let module = verified.module();
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == module.entry)
+            .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
+        if arguments.len() != machine.parameters.len() {
+            return Err(TerminalInterpretError::ArgumentCount {
+                expected: machine.parameters.len(),
+                actual: arguments.len(),
             });
         }
-        values.insert(parameter.id, *argument);
+        let mut values = BTreeMap::new();
+        for (parameter, argument) in machine.parameters.iter().zip(arguments) {
+            if parameter.scalar_type != argument.scalar_type() {
+                return Err(TerminalInterpretError::ArgumentType {
+                    value: parameter.id,
+                    expected: parameter.scalar_type,
+                    actual: argument.scalar_type(),
+                });
+            }
+            values.insert(parameter.id, *argument);
+        }
+        let blocks = machine
+            .blocks
+            .iter()
+            .map(|block| (block.id, block))
+            .collect::<BTreeMap<_, _>>();
+        Ok(Self {
+            blocks,
+            values,
+            current: machine.entry,
+            next_operation: 0,
+            result: None,
+        })
     }
-    let blocks = machine
-        .blocks
-        .iter()
-        .map(|block| (block.id, block))
-        .collect::<BTreeMap<_, _>>();
-    let mut current = machine.entry;
 
-    loop {
-        let block = blocks
-            .get(&current)
-            .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-        for operation in &block.operations {
-            meter.charge_operation(operation)?;
-            match operation.kind {
-                OperationKind::IntegerConstant { value } => {
-                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                    };
-                    values.insert(
-                        operation.result.id,
-                        TerminalScalarValue::Integer { scalar_type, value },
-                    );
-                }
-            }
+    pub fn resume(
+        &mut self,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        if let Some(result) = self.result {
+            return Ok(TerminalExecutionStatus::Complete(result));
         }
-        meter.charge_terminator(&block.terminator)?;
-        match &block.terminator {
-            Terminator::Jump {
-                target, arguments, ..
-            } => {
-                let target_block = blocks
-                    .get(target)
-                    .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
-                let transferred = arguments
-                    .iter()
-                    .map(|argument| {
-                        values
-                            .get(argument)
-                            .copied()
-                            .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                for (parameter, value) in target_block.parameters.iter().zip(transferred) {
-                    values.insert(parameter.id, value);
+
+        loop {
+            let block = self
+                .blocks
+                .get(&self.current)
+                .copied()
+                .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+            while let Some(operation) = block.operations.get(self.next_operation) {
+                if let Err(error) = meter.charge_operation(operation) {
+                    return meter_status(error);
                 }
-                current = *target;
+                match operation.kind {
+                    OperationKind::IntegerConstant { value } => {
+                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Integer { scalar_type, value },
+                        );
+                    }
+                }
+                self.next_operation += 1;
             }
-            Terminator::Return { value, .. } => {
-                return values
-                    .get(value)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*value));
+            if let Err(error) = meter.charge_terminator(&block.terminator) {
+                return meter_status(error);
+            }
+            match &block.terminator {
+                Terminator::Jump {
+                    target, arguments, ..
+                } => {
+                    let target_block = self
+                        .blocks
+                        .get(target)
+                        .copied()
+                        .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+                    let transferred = arguments
+                        .iter()
+                        .map(|argument| {
+                            self.values
+                                .get(argument)
+                                .copied()
+                                .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    for (parameter, value) in target_block.parameters.iter().zip(transferred) {
+                        self.values.insert(parameter.id, value);
+                    }
+                    self.current = *target;
+                    self.next_operation = 0;
+                }
+                Terminator::Return { value, .. } => {
+                    let result = self
+                        .values
+                        .get(value)
+                        .copied()
+                        .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
+                    self.result = Some(result);
+                    return Ok(TerminalExecutionStatus::Complete(result));
+                }
             }
         }
     }
+}
+
+fn meter_status(error: FuelMeterError) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+    match error {
+        FuelMeterError::Exhausted(exhaustion) => {
+            Ok(TerminalExecutionStatus::SponsorExhausted(exhaustion))
+        }
+        other => Err(TerminalInterpretError::Fuel(other)),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalExecutionStatus {
+    Complete(TerminalScalarValue),
+    SponsorExhausted(FuelExhaustion),
 }
 
 /// A successful semantic result paired with deterministic terminal-Psi fuel.

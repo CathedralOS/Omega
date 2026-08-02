@@ -63,8 +63,8 @@ module, records its identity, discards the source and producing module, decodes
 a fresh module, verifies it against the separately retained proof bundle, and
 then drives both interpretation and native realization. Branching,
 arithmetic-policy operations, artifact section manifests/version migration,
-fixed-work checking, build-time fuel migration, resumable sponsor execution,
-and native fuel metering remain next.
+fixed-work checking, build-time fuel migration, and native fuel metering remain
+next.
 
 ## Boundary
 
@@ -229,10 +229,12 @@ meter may be unbounded or carry a finite allowance. Insufficient allowance is a
 host result before the unpaid site, leaves usage unchanged, and is not visible
 or catchable as a terminal-Psi machine result. The serialized real-source
 canary costs four v1 units—two constants and two edges—and retains the same
-semantic identity before and after accounting. Persisted execution state for
-replenish/resume, build-time migration, fixed-work certificates, attributed
-response outcomes, and trusted native block metering remain later IRFUEL
-slices.
+semantic identity before and after accounting. `TerminalExecution` retains the
+exact block/operation cursor and values across that sponsor event; checked
+replenishment resumes at the unpaid site without replaying or double-charging
+earlier work, including in the serialized real-source/native canary. Build-time
+migration, fixed-work certificates, attributed response outcomes, and trusted
+native block metering remain later IRFUEL slices.
 
 ## Migration plan
 

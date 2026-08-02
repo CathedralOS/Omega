@@ -167,6 +167,20 @@ impl TerminalFuelMeter {
         self.usage
     }
 
+    /// Add sponsor allowance without changing usage. An unbounded meter stays
+    /// unbounded; a finite allowance fails rather than wrapping.
+    pub fn replenish(&mut self, additional_units: u64) -> Result<(), FuelMeterError> {
+        let Some(remaining) = self.remaining_allowance else {
+            return Ok(());
+        };
+        self.remaining_allowance = Some(
+            remaining
+                .checked_add(additional_units)
+                .ok_or(FuelMeterError::AllowanceOverflow)?,
+        );
+        Ok(())
+    }
+
     pub fn charge_operation(&mut self, operation: &Operation) -> Result<(), FuelMeterError> {
         self.charge(
             FuelChargeSite::Operation(operation.id),
@@ -185,12 +199,12 @@ impl TerminalFuelMeter {
         if let Some(remaining) = self.remaining_allowance
             && remaining < units
         {
-            return Err(FuelMeterError::Exhausted {
+            return Err(FuelMeterError::Exhausted(FuelExhaustion {
                 schedule: self.schedule.identity(),
                 site,
                 required_units: units,
                 remaining_units: remaining,
-            });
+            }));
         }
 
         let previous = self.usage.at(site).unwrap_or_default();
@@ -230,14 +244,18 @@ impl Default for TerminalFuelMeter {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FuelExhaustion {
+    pub schedule: FuelScheduleIdentity,
+    pub site: FuelChargeSite,
+    pub required_units: u64,
+    pub remaining_units: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FuelMeterError {
-    Exhausted {
-        schedule: FuelScheduleIdentity,
-        site: FuelChargeSite,
-        required_units: u64,
-        remaining_units: u64,
-    },
+    Exhausted(FuelExhaustion),
     AccountingOverflow(FuelChargeSite),
+    AllowanceOverflow,
 }
 
 impl std::fmt::Display for FuelMeterError {
