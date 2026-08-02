@@ -362,7 +362,8 @@ fn emit_x86_64_expression_node(
         TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. } => {
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. } => {
             emit_x86_64_expression_node(bytes, scalar_type, left, stack_depth)?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
@@ -387,6 +388,10 @@ fn emit_x86_64_expression_node(
                 }
                 TerminalTargetIntegerExpression::SaturatingSubtract { .. } => {
                     emit_x86_64_saturating_subtract(bytes, scalar_type);
+                }
+                TerminalTargetIntegerExpression::WrappingMultiply { .. } => {
+                    bytes.extend_from_slice(&[0x49, 0x0f, 0xaf, 0xc2]); // imul rax, r10
+                    emit_x86_64_normalize(bytes, scalar_type);
                 }
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
             }
@@ -630,7 +635,8 @@ fn emit_aarch64_expression_node(
         TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
         | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. } => {
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. } => {
             emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
@@ -666,6 +672,10 @@ fn emit_aarch64_expression_node(
                 }
                 TerminalTargetIntegerExpression::SaturatingSubtract { .. } => {
                     emit_aarch64_saturating_subtract(instructions, scalar_type);
+                }
+                TerminalTargetIntegerExpression::WrappingMultiply { .. } => {
+                    instructions.push(0x9b00_7d20); // mul x0, x9, x0
+                    emit_aarch64_normalize(instructions, scalar_type);
                 }
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
             }
@@ -819,7 +829,8 @@ fn expression_parameter_locations(
             TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
             | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
-            | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. } => {
+            | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
+            | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. } => {
                 collect(left, locations)?;
                 collect(right, locations)?;
             }
@@ -839,9 +850,8 @@ fn expression_source(expression: &TerminalTargetIntegerExpression) -> ValueId {
         TerminalTargetIntegerExpression::WrappingAdd { left, .. }
         | TerminalTargetIntegerExpression::SaturatingAdd { left, .. }
         | TerminalTargetIntegerExpression::WrappingSubtract { left, .. }
-        | TerminalTargetIntegerExpression::SaturatingSubtract { left, .. } => {
-            expression_source(left)
-        }
+        | TerminalTargetIntegerExpression::SaturatingSubtract { left, .. }
+        | TerminalTargetIntegerExpression::WrappingMultiply { left, .. } => expression_source(left),
     }
 }
 
@@ -1226,6 +1236,53 @@ mod tests {
         .unwrap();
         let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
         assert!(instructions.contains(&0xcb00_0120)); // sub x0, x9, x0
+        assert_eq!(instructions.last(), Some(&0xd65f_03c0));
+    }
+
+    #[test]
+    fn emits_parameter_fed_wrapping_multiply_for_both_architectures() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let expression = |left, right| TerminalTargetIntegerExpression::WrappingMultiply {
+            psi_operation: OperationId::new(3).expect("operation"),
+            left: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(1).expect("left"),
+                parameter_index: 0,
+                location: left,
+            }),
+            right: Box::new(TerminalTargetIntegerExpression::Parameter {
+                source_value: ValueId::new(2).expect("right"),
+                parameter_index: 1,
+                location: right,
+            }),
+        };
+        let x86 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_x64(),
+            scalar_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rsi),
+            ),
+        ))
+        .unwrap();
+        assert_eq!(
+            x86.functions[0].bytes,
+            [
+                0x48, 0x89, 0xf8, 0x25, 0xff, 0, 0, 0, 0x50, 0x48, 0x89, 0xf0, 0x25, 0xff, 0, 0, 0,
+                0x41, 0x5a, 0x49, 0x0f, 0xaf, 0xc2, 0x25, 0xff, 0, 0, 0, 0xc3,
+            ]
+        );
+
+        let aarch64 = emit_machine_code(&expression_plan(
+            NativeTarget::linux_arm64(),
+            scalar_type,
+            expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+            ),
+        ))
+        .unwrap();
+        let instructions = aarch64_instructions(&aarch64.functions[0].bytes);
+        assert!(instructions.contains(&0x9b00_7d20)); // mul x0, x9, x0
         assert_eq!(instructions.last(), Some(&0xd65f_03c0));
     }
 

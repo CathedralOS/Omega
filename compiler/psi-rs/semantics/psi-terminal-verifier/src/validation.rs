@@ -40,6 +40,7 @@ pub fn validate_module(
             | SemanticVersion::V4
             | SemanticVersion::V5
             | SemanticVersion::V6
+            | SemanticVersion::V7
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -210,6 +211,20 @@ fn validate_machine(
                         ));
                     }
                 }
+                OperationKind::WrappingIntegerMultiply { .. } => {
+                    if semantic_version < SemanticVersion::V7 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V7,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::WrappingIntegerMultiplyRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
             }
         }
         insert_unique(
@@ -372,6 +387,18 @@ fn validate_term_semantic_version(
             validate_term_semantic_version(left, semantic_version, contract, clause)?;
             validate_term_semantic_version(right, semantic_version, contract, clause)
         }
+        ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
+            if semantic_version < SemanticVersion::V7 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V7,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(left, semantic_version, contract, clause)?;
+            validate_term_semantic_version(right, semantic_version, contract, clause)
+        }
         ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => Ok(()),
     }
 }
@@ -425,7 +452,8 @@ fn validate_term_scope(
         ScalarTerm::WrappingIntegerAdd { left, right, .. }
         | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
         | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => {
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+        | ScalarTerm::WrappingIntegerMultiply { left, right, .. } => {
             validate_term_scope(left, allowed, contract, clause)?;
             validate_term_scope(right, allowed, contract, clause)?;
         }
@@ -472,6 +500,9 @@ fn validate_straight_line_flow(
                 OperationKind::SaturatingIntegerSubtract { left, right } => {
                     Some((left, right, ArithmeticOperandKind::SaturatingSubtract))
                 }
+                OperationKind::WrappingIntegerMultiply { left, right } => {
+                    Some((left, right, ArithmeticOperandKind::WrappingMultiply))
+                }
                 OperationKind::IntegerConstant { .. } | OperationKind::BooleanConstant { .. } => {
                     None
                 }
@@ -516,6 +547,14 @@ fn validate_straight_line_flow(
                             }
                             ArithmeticOperandKind::SaturatingSubtract => {
                                 ModuleError::SaturatingIntegerSubtractOperandTypeMismatch {
+                                    operation: operation.id,
+                                    operand,
+                                    expected,
+                                    actual,
+                                }
+                            }
+                            ArithmeticOperandKind::WrappingMultiply => {
+                                ModuleError::WrappingIntegerMultiplyOperandTypeMismatch {
                                     operation: operation.id,
                                     operand,
                                     expected,
@@ -598,6 +637,7 @@ enum ArithmeticOperandKind {
     SaturatingAdd,
     WrappingSubtract,
     SaturatingSubtract,
+    WrappingMultiply,
 }
 
 pub(crate) fn machine_value_types(
@@ -684,6 +724,7 @@ pub enum ModuleError {
     SaturatingIntegerAddRequiresIntegerResult(OperationId),
     WrappingIntegerSubtractRequiresIntegerResult(OperationId),
     SaturatingIntegerSubtractRequiresIntegerResult(OperationId),
+    WrappingIntegerMultiplyRequiresIntegerResult(OperationId),
     WrappingIntegerAddOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,
@@ -703,6 +744,12 @@ pub enum ModuleError {
         actual: ScalarType,
     },
     SaturatingIntegerSubtractOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    WrappingIntegerMultiplyOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,
         expected: ScalarType,

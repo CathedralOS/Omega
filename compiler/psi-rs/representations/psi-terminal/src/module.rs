@@ -11,8 +11,9 @@ use psi_core::{
 /// `psi-terminal-codec`. Version 2 adds `BooleanConstant`; version 3 adds
 /// width-relative `WrappingIntegerAdd`; version 4 adds
 /// `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
-/// adds `SaturatingIntegerSubtract`. Older bytes retain their original meaning
-/// and identity.
+/// adds `SaturatingIntegerSubtract`; version 7 adds
+/// `WrappingIntegerMultiply`. Older bytes retain their original meaning and
+/// identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
@@ -23,7 +24,8 @@ impl SemanticVersion {
     pub const V4: Self = Self(NonZeroU16::new(4).expect("four is nonzero"));
     pub const V5: Self = Self(NonZeroU16::new(5).expect("five is nonzero"));
     pub const V6: Self = Self(NonZeroU16::new(6).expect("six is nonzero"));
-    pub const CURRENT: Self = Self::V6;
+    pub const V7: Self = Self(NonZeroU16::new(7).expect("seven is nonzero"));
+    pub const CURRENT: Self = Self::V7;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -86,7 +88,7 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Closed operation vocabulary through semantic version 6.
+/// Closed operation vocabulary through semantic version 7.
 ///
 /// `IntegerConstant` writes the declared integer value to its result and
 /// establishes the semantic axiom `result == literal`. It cannot trap and
@@ -100,6 +102,12 @@ pub struct Operation {
 /// the result's exact integer type and reduces their sum modulo the declared
 /// width. Signed values interpret the reduced bits as two's complement. It is
 /// total and therefore generates no overflow obligation; the verifier
+/// reconstructs its exact result-term axiom.
+///
+/// `WrappingIntegerMultiply` was added in semantic version 7. It reads two
+/// values of the result's exact integer type and reduces their product modulo
+/// the declared width. Signed values interpret the reduced bits as two's
+/// complement. It is total and generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
 ///
 /// `SaturatingIntegerSubtract` was added in semantic version 6. It reads two
@@ -125,6 +133,7 @@ pub enum OperationKind {
     SaturatingIntegerAdd { left: ValueId, right: ValueId },
     WrappingIntegerSubtract { left: ValueId, right: ValueId },
     SaturatingIntegerSubtract { left: ValueId, right: ValueId },
+    WrappingIntegerMultiply { left: ValueId, right: ValueId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

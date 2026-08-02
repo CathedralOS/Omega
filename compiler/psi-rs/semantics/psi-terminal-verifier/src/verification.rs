@@ -203,6 +203,18 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                         difference,
                     ));
                 }
+                OperationKind::WrappingIntegerMultiply { left, right } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires wrapping-multiply integer result type")
+                    };
+                    let product = ScalarTerm::wrapping_integer_multiply(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact wrapping-multiply operand types");
+                    axioms.push(Proposition::Equal(value_term(operation.result.id), product));
+                }
             }
         }
         match &block.terminator {

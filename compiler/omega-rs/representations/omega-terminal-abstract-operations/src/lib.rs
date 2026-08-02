@@ -83,6 +83,13 @@ pub enum TerminalAbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    WrappingIntegerMultiply {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
     Jump {
         psi_edge: EdgeId,
         target: BlockId,
