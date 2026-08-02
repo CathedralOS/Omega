@@ -565,18 +565,18 @@ fn resolve_callee<'a>(
     target_symbol: SymbolHandle,
     target_name: &str,
 ) -> Option<&'a CalleeState> {
-    callee_states
+    if target_symbol.is_valid() {
+        return callee_states
+            .iter()
+            .find(|callee| callee.symbol == target_symbol);
+    }
+    let mut matching = callee_states
         .iter()
-        .find(|callee| target_symbol.is_valid() && callee.symbol == target_symbol)
-        .or_else(|| {
-            let mut matching = callee_states
-                .iter()
-                .filter(|callee| callee.name == target_name);
-            match (matching.next(), matching.next()) {
-                (Some(only), None) => Some(only),
-                _ => None,
-            }
-        })
+        .filter(|callee| callee.name == target_name);
+    match (matching.next(), matching.next()) {
+        (Some(only), None) => Some(only),
+        _ => None,
+    }
 }
 
 fn state_by_symbol(

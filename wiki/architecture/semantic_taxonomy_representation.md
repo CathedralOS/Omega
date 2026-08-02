@@ -578,10 +578,10 @@ lease provenance until settlement or transfer. Provider-specific handles and
 physical frame locations are lowering details and must not be confused with
 machine-contract or result-type identity.
 
-Implementation status (TR2/TR3, 2026-07-21): core owns the source-visible
+Implementation status (TR2/TR4, 2026-08-01): core owns the source-visible
 `[linear] Task<T>` claim carrier plus `TaskOutcome<T>`,
 `StartOutcome<T, Arguments>`, and the generic `TaskRuntime::start` /
-`try_start` boundary surface. Symbol-keyed generic substitution preserves
+`try_start` ordinary boundary-trait surface. Symbol-keyed generic substitution preserves
 conditional payload debt, with pass and scope-loss canaries covering returned
 linear results and rejected linear argument bundles.
 
@@ -597,7 +597,10 @@ fields are gone. `StackPlan.bytes` is currently the local machine/park-frontier
 layout bridge; whole-call-graph WCSU composition remains part of fixed-stack
 lowering. Every activation requires the cancellation operation because
 cancellation-request authority is part of every `Task<T>` claim. Provider
-admission/dispatch, claim provenance, stack leases, and child accounting remain
+plans now bind each concrete activation to the exact selected `TaskRuntime`
+plan and exact `start`/`try_start` requirement; missing selection and provider
+machine-contract narrowing reject. Dynamic provider-instance/invocation
+receipts, dispatch, claim provenance, stack leases, and child accounting remain
 later task-runtime rungs.
 
 ### Multiplicity and permission context

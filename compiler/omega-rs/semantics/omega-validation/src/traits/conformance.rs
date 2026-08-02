@@ -3,7 +3,7 @@ use crate::type_references::{type_reference_label, type_references_match};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::data::{DataMember, TypeParameter};
+use omega_typed_trees::data::{DataMember, TypeParameter, TypeParameterKind};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::{StateParameter, StateSignature};
 use omega_typed_trees::state::State;
@@ -670,15 +670,129 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     }
 
     let trait_type_parameters = program.trait_type_parameters(trait_definition);
+    let requirement_type_parameters = program.state_signature_type_parameters(requirement);
+    let actual_type_parameters = program.machine_type_parameters(machine);
+    if requirement_type_parameters.len() != actual_type_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` does not satisfy trait `{}` machine `{}`: expected {} callable generic parameter(s), got {}",
+            machine.name,
+            trait_definition.name,
+            requirement.name,
+            requirement_type_parameters.len(),
+            actual_type_parameters.len(),
+        )));
+        return;
+    }
+    if let Some((index, (required, actual))) = requirement_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .enumerate()
+        .find(|(_, (required, actual))| {
+            !matches!(
+                (&required.kind, &actual.kind),
+                (TypeParameterKind::Type, TypeParameterKind::Type)
+                    | (
+                        TypeParameterKind::Const { .. },
+                        TypeParameterKind::Const { .. }
+                    )
+                    | (
+                        TypeParameterKind::Machine { .. },
+                        TypeParameterKind::Machine { .. }
+                    )
+            )
+        })
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` does not satisfy trait `{}` machine `{}`: callable generic parameter {} has incompatible kinds (`{}` versus `{}`)",
+            machine.name,
+            trait_definition.name,
+            requirement.name,
+            index,
+            required.name,
+            actual.name,
+        )));
+        return;
+    }
+    let mut required_generic_types = trait_type_parameters.to_vec();
+    required_generic_types.extend(
+        requirement_type_parameters
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .cloned(),
+    );
+    let generic_type_parameters = required_generic_types.iter().collect::<Vec<_>>();
+    crate::machine_parameters::validate_trait_callable_parameter_refinement(
+        program,
+        &format!(
+            "provider machine `{}` for trait requirement `{}::{}`",
+            machine.name, trait_definition.name, requirement.name
+        ),
+        requirement_type_parameters,
+        actual_type_parameters,
+        &generic_type_parameters,
+        diagnostics,
+    );
     let mut type_bindings = trait_type_parameters
         .iter()
         .zip(explicit_type_arguments.iter().copied())
         .map(|(parameter, actual)| TraitTypeBinding {
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name.as_str().to_owned(),
-            actual,
+            target: TraitTypeBindingTarget::Type(actual),
         })
         .collect::<Vec<_>>();
+    type_bindings.extend(
+        requirement_type_parameters
+            .iter()
+            .zip(actual_type_parameters)
+            .filter_map(|(required, actual)| {
+                matches!(required.kind, TypeParameterKind::Type).then(|| TraitTypeBinding {
+                    parameter_symbol: required.symbol,
+                    parameter_name: required.name.as_str().to_owned(),
+                    target: TraitTypeBindingTarget::Parameter {
+                        symbol: actual.symbol,
+                        name: actual.name.as_str().to_owned(),
+                    },
+                })
+            }),
+    );
+    for (index, (required, actual)) in requirement_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .enumerate()
+    {
+        match (&required.kind, &actual.kind) {
+            (TypeParameterKind::Type, TypeParameterKind::Type) => {
+                if (actual.bounds.copy && !required.bounds.copy)
+                    || actual.bounds.carry.is_some()
+                        && actual.bounds.carry != required.bounds.carry
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` does not satisfy trait `{}` machine `{}`: callable generic parameter {} demands stronger type properties",
+                        machine.name, trait_definition.name, requirement.name, index
+                    )));
+                }
+            }
+            (
+                TypeParameterKind::Const {
+                    type_reference: required_type,
+                },
+                TypeParameterKind::Const {
+                    type_reference: actual_type,
+                },
+            ) if !type_references_match_with_trait_bindings(
+                program,
+                *actual_type,
+                *required_type,
+                &required_generic_types,
+                &mut type_bindings,
+            ) => diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` does not satisfy trait `{}` machine `{}`: callable const generic parameter {} has a different type",
+                machine.name, trait_definition.name, requirement.name, index
+            ))),
+            _ => {}
+        }
+    }
 
     for (index, (actual, required)) in actual_parameters
         .iter()
@@ -691,7 +805,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             state,
             trait_definition.name.as_str(),
             requirement,
-            trait_type_parameters,
+            &required_generic_types,
             &mut type_bindings,
             index,
             actual,
@@ -704,7 +818,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         program,
         state.return_type,
         requirement.return_type,
-        trait_type_parameters,
+        &required_generic_types,
         &mut type_bindings,
     ) {
         diagnostics.push(Diagnostic::error(format!(
@@ -833,7 +947,13 @@ fn validate_trait_parameter_match(
 struct TraitTypeBinding {
     parameter_symbol: SymbolHandle,
     parameter_name: String,
-    actual: TypeReferenceHandle,
+    target: TraitTypeBindingTarget,
+}
+
+#[derive(Debug, Clone)]
+enum TraitTypeBindingTarget {
+    Type(TypeReferenceHandle),
+    Parameter { symbol: SymbolHandle, name: String },
 }
 
 fn type_references_match_with_trait_bindings(
@@ -855,13 +975,13 @@ fn type_references_match_with_trait_bindings(
         if let Some(binding) = bindings.iter().find(|binding| {
             !binding.parameter_symbol.is_valid() && binding.parameter_name == "Self"
         }) {
-            return type_references_match(program, actual, binding.actual);
+            return binding_matches_actual(program, binding, actual);
         }
 
         bindings.push(TraitTypeBinding {
             parameter_symbol: SymbolHandle::invalid(),
             parameter_name: "Self".to_owned(),
-            actual,
+            target: TraitTypeBindingTarget::Type(actual),
         });
         return true;
     }
@@ -872,13 +992,13 @@ fn type_references_match_with_trait_bindings(
             binding.parameter_symbol == parameter.symbol
                 && binding.parameter_name == parameter.name.as_str()
         }) {
-            return type_references_match(program, actual, binding.actual);
+            return binding_matches_actual(program, binding, actual);
         }
 
         bindings.push(TraitTypeBinding {
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name.to_string(),
-            actual,
+            target: TraitTypeBindingTarget::Type(actual),
         });
         return true;
     }
@@ -993,6 +1113,24 @@ fn type_references_match_with_trait_bindings(
                     })
         }
         _ => type_references_match(program, actual, required),
+    }
+}
+
+fn binding_matches_actual(
+    program: &TypedTrees,
+    binding: &TraitTypeBinding,
+    actual: TypeReferenceHandle,
+) -> bool {
+    match &binding.target {
+        TraitTypeBindingTarget::Type(expected) => type_references_match(program, actual, *expected),
+        TraitTypeBindingTarget::Parameter { symbol, name } => matches!(
+            program.type_reference_table.type_reference(actual),
+            TypeReferenceNode::Named {
+                symbol: actual_symbol,
+                name: actual_name,
+            } if (*symbol).is_valid() && *actual_symbol == *symbol
+                || actual_name.as_str() == name
+        ),
     }
 }
 

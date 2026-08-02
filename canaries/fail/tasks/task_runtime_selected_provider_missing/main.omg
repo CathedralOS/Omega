@@ -1,0 +1,26 @@
+use omega::language::core::task;
+
+// A TaskRuntime value is not enough to manufacture runtime authority. A
+// concrete activation must bind to a retained selected provider plan.
+data Job {
+    value: i32;
+}
+
+data Worker { }
+machine Worker::run(job: Job) -> i32 {
+    job.value
+}
+
+machine Task::settle<T>(self) { }
+
+data Main {
+    runtime: &TaskRuntime;
+}
+
+machine Main::probe(&mut self) {
+    let job: Job = Job { value: 7 };
+    let task: Task<i32> = self.runtime.start<Worker::run>(job);
+    Task::settle(task);
+}
+
+machine Main::main(&mut self) { }

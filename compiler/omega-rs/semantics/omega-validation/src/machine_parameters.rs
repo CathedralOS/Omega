@@ -118,6 +118,27 @@ fn validate_call_selection(
                 .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
                 .collect(),
         )
+    } else if let Some(signature) = program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .find(|signature| signature.symbol == target_symbol)
+    {
+        (
+            program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .filter_map(|parameter| match &parameter.kind {
+                    TypeParameterKind::Machine { contract } => Some((parameter, contract)),
+                    _ => None,
+                })
+                .collect(),
+            program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                .collect(),
+        )
     } else {
         if !arguments.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
@@ -477,6 +498,102 @@ fn validate_callable_parts(
         actual_parameters,
         diagnostics,
     );
+}
+
+/// Check an authored callable generic parameter list against a trait
+/// requirement. Trait conformance needs the same recursive machine-contract
+/// judgment as a concrete static selection; a kind-only comparison would let
+/// a provider silently change `machine Target(...)` beneath an otherwise
+/// matching requirement.
+pub(crate) fn validate_trait_callable_parameter_refinement(
+    program: &TypedTrees,
+    label: &str,
+    requirement_parameters: &[TypeParameter],
+    actual_parameters: &[TypeParameter],
+    generic_types: &[&TypeParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut bindings = Vec::new();
+    let mut binder_bindings = requirement_parameters
+        .iter()
+        .zip(actual_parameters)
+        .map(|(required, provider)| BinderBinding {
+            required: required.symbol,
+            actual: provider.symbol,
+        })
+        .collect::<Vec<_>>();
+
+    for (required, actual) in requirement_parameters.iter().zip(actual_parameters) {
+        let (
+            TypeParameterKind::Machine {
+                contract: required_contract,
+            },
+            TypeParameterKind::Machine {
+                contract: actual_contract,
+            },
+        ) = (&required.kind, &actual.kind)
+        else {
+            continue;
+        };
+        let nested_label = format!("machine parameter `{}` of {label}", actual.name);
+        validate_callable_parts(
+            program,
+            &nested_label,
+            required,
+            required_contract,
+            program.state_signature_type_parameters(actual_contract),
+            program.state_signature_parameters(actual_contract),
+            actual_contract.return_type,
+            program
+                .service_reach_rows
+                .services(actual_contract.service_reach_row),
+            &omega_effects::declared_signature_invocations(program, actual_contract),
+            actual_contract.suspends,
+            actual_contract.blocks,
+            actual_contract.terminates_guarantee,
+            program.state_signature_contracts(actual_contract),
+            generic_types,
+            &mut bindings,
+            &mut binder_bindings,
+            diagnostics,
+        );
+
+        // Provider conformance publishes one exact higher-order slot. The
+        // ordinary selection refinement above rejects a wider provider
+        // contract; these reverse checks reject a narrower one.
+        if required_contract.suspends && !actual_contract.suspends {
+            diagnostics.push(Diagnostic::error(format!(
+                "{nested_label} narrows `{}` by omitting `suspends;`",
+                required.name
+            )));
+        }
+        if required_contract.blocks && !actual_contract.blocks {
+            diagnostics.push(Diagnostic::error(format!(
+                "{nested_label} narrows `{}` by omitting `blocks;`",
+                required.name
+            )));
+        }
+        let actual_services = program
+            .service_reach_rows
+            .services(actual_contract.service_reach_row);
+        for service in program
+            .service_reach_rows
+            .services(required_contract.service_reach_row)
+        {
+            if !actual_services.contains(service) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{nested_label} narrows `{}` by omitting an admitted service reach",
+                    required.name
+                )));
+            }
+        }
+        if required_contract.terminates_guarantee != actual_contract.terminates_guarantee {
+            diagnostics.push(Diagnostic::error(format!(
+                "{nested_label} changes `{}` termination requirements",
+                required.name
+            )));
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

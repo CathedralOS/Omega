@@ -1,4 +1,4 @@
-use crate::parser::data::parse_type_parameters;
+use crate::parser::data::{parse_machine_type_parameters, parse_type_parameters};
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
@@ -161,9 +161,14 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateSignature> {
     let (name, input) = parse_trait_machine_name(input)?;
-    let (generic_parameters, input) = parse_type_parameters(syntax_trees, input)?;
+    let (generic_parameters, input) = parse_machine_type_parameters(syntax_trees, input)?;
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
+    let ((), input) = crate::parser::machine::parse_machine_parameter_contracts(
+        syntax_trees,
+        generic_parameters.type_parameters,
+        input,
+    )?;
 
     Ok((
         StateSignature {

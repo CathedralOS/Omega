@@ -141,9 +141,12 @@ composite claim-frontier work remain.
   exact accepted requirement parameter, and core cannot name an open-ended
   target-owned handler requirement. Do not bless the current empty domain or
   arbitrary boundary parameters as issuance authority.
-- migrate the
-  `TaskRuntime` handle through the ordinary selected-provider behavior evidence,
-  stack-resource, and custody work tracked under TR3–TR8.
+- `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
+  `try_start<M>` activation fact binds the exact retained selected-provider
+  plan and exact operation requirement, rejecting a missing provider or a
+  provider that narrows the published machine-parameter contract. Continue
+  from that static binding into per-invocation behavior receipts,
+  stack-resource authority, and custody under TR3–TR8.
 
 Acceptance: reconstructing an authority carrier does not establish its facts;
 an authorized route cannot satisfy a predicate-bearing result without proving
@@ -868,7 +871,11 @@ improvements do not change public identity.
   lowering, suspension-safe loans, and reference packages. The provider-
   independent plan schema, canonical crossings, activation-wide CPU/thread
   demands, and retirement of the generalized `TaskRuntimeContract` join are
-  complete. Authority-value declarations follow P1a.
+  complete. The core runtime surface is now an ordinary boundary trait, and
+  concrete activation facts retain the exact selected provider plan plus
+  `start`/`try_start` requirement identity. Dynamic provider-instance and
+  invocation receipts, fixed-stack reservation, cancellation conformance,
+  transactional argument custody, and task-claim provenance remain.
 - **PSIIR — IMPLEMENTATION WORK:** build the terminal Psi boundary settled in
   `wiki/architecture/pipeline/terminal_psi.md`. Psi owns Omega-file parsing
   through one concrete, post-instantiation semantic module; Omega starts at
@@ -913,8 +920,9 @@ improvements do not change public identity.
   gate now consumes exact per-axis checked/admitted evidence identities,
   rejects a CPU- or host-thread-affine activation when the selected executor
   lacks the matching axis, and retains the validated selection in task
-  lifecycle custody; source selected-provider evidence wiring remains under
-  TR3–TR8. Then
+  lifecycle custody; the source activation now binds the exact selected
+  `TaskRuntime` plan and operation requirement, while per-invocation evidence
+  remains under TR3–TR8. Then
   implement a narrow Windows `user32` slice:
   `RegisterClassEx`, `CreateWindowEx`/`WM_NCCREATE`, `GetMessage`,
   `DispatchMessage`, `DefWindowProc`, `DestroyWindow`, and

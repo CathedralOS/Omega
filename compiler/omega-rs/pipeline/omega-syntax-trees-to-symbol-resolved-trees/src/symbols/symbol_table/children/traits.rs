@@ -34,12 +34,12 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
             .trait_machine_signatures(trait_definition.machines)
             .iter(),
     ) {
-        builder.insert_children(
+        super::insert_machine_parameter_signature_children(
+            builder,
+            program,
             machine_symbol,
-            program
-                .state_parameters(machine.parameters)
-                .iter()
-                .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+            machine,
+            has_sources,
         );
     }
 }

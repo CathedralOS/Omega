@@ -1,0 +1,26 @@
+use omega::language::core::task;
+
+// A provider cannot narrow the callback domain published by TaskRuntime. The
+// trait admits targets that may block, so an implementation that omits
+// `blocks;` from its own Target requirement cannot realize the slot.
+data NarrowTaskRuntime { }
+NarrowTaskRuntime satisfies TaskRuntime;
+
+machine NarrowTaskRuntime::start<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> Task<T>
+where machine Target(arguments: Arguments) -> T suspends;
+satisfies TaskRuntime::start
+via Binding::CompilerIntrinsic("TaskRuntime::start");
+
+machine NarrowTaskRuntime::try_start<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> StartOutcome<T, Arguments>
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies TaskRuntime::try_start
+via Binding::CompilerIntrinsic("TaskRuntime::try_start");
+
+data Main { }
+machine Main::main(&mut self) { }

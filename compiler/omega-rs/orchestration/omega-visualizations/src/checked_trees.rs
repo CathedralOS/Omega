@@ -1079,6 +1079,26 @@ pub fn task_activation_manifest_json(program: &CheckedTrees) -> String {
             .map(|machine| machine.name.as_str())
             .unwrap_or("<unknown>")
     }
+    fn callable_name(program: &CheckedTrees, symbol: SymbolHandle) -> String {
+        if let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+        {
+            return machine.name.as_str().to_owned();
+        }
+        program
+            .traits()
+            .iter()
+            .find_map(|definition| {
+                program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.symbol == symbol)
+                    .map(|signature| format!("{}::{}", definition.name, signature.name))
+            })
+            .unwrap_or_else(|| "<unknown>".to_owned())
+    }
     let mut json = String::from("{\n  \"activations\": [");
     for (index, activation) in program
         .facts
@@ -1099,11 +1119,21 @@ pub fn task_activation_manifest_json(program: &CheckedTrees) -> String {
                 TaskStartOperation::TryStart => "try_start",
             },
         );
-        json.push_str(",\n      \"start_instance\": ");
+        json.push_str(",\n      \"start_requirement\": ");
         push_json_string(
             &mut json,
-            machine_name(program.machines(), activation.start_instance),
+            &callable_name(program, activation.start_requirement),
         );
+        json.push_str(",\n      \"selected_runtime\": {\"provider_plan\": ");
+        push_json_string(&mut json, &activation.selected_runtime.provider_plan_name);
+        json.push_str(", \"runtime_identity\": \"0x");
+        json.push_str(&format!(
+            "{:016x}",
+            activation.selected_runtime.runtime.normalized_identity()
+        ));
+        json.push_str("\", \"requirement_identity\": ");
+        push_json_string(&mut json, &activation.selected_runtime.requirement_identity);
+        json.push('}');
         json.push_str(",\n      \"target_machine\": ");
         push_json_string(
             &mut json,

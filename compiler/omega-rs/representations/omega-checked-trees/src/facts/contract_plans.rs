@@ -35,12 +35,23 @@ pub enum TaskStartOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskActivationPlanFact {
-    pub start_instance: SymbolHandle,
+    pub start_requirement: SymbolHandle,
     pub target_machine: SymbolHandle,
     pub target_entry: SymbolHandle,
     pub specialization_fingerprint: u64,
     pub operation: TaskStartOperation,
+    /// Exact ordinary provider selection serving this operation. The runtime
+    /// instance/invocation receipt remains dynamic and is deliberately not
+    /// manufactured by this compile-time fact.
+    pub selected_runtime: SelectedTaskRuntimeProviderFact,
     pub plan: omega_task_plans::ValidatedActivationPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTaskRuntimeProviderFact {
+    pub runtime: omega_task_plans::TaskRuntimeId,
+    pub provider_plan_name: String,
+    pub requirement_identity: String,
 }
 
 impl MachineContractPlans {

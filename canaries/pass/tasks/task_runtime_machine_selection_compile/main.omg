@@ -3,6 +3,25 @@ use omega::language::core::task;
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the
 // concrete activation target; no runtime callable or inferred capture exists.
+data CanaryTaskRuntime { }
+CanaryTaskRuntime satisfies TaskRuntime;
+
+machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> Task<T>
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies TaskRuntime::start
+via Binding::CompilerIntrinsic("TaskRuntime::start");
+
+machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> StartOutcome<T, Arguments>
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies TaskRuntime::try_start
+via Binding::CompilerIntrinsic("TaskRuntime::try_start");
+
 boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
 
@@ -23,8 +42,9 @@ machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends; {
     carried
 }
 
-// Provider dispatch is deliberately outside this frontend/plan canary. This
-// consumer closes each linear bootstrap claim locally after elaboration.
+// Runtime-instance dispatch is deliberately outside this selected-provider
+// plan canary. This consumer closes each linear bootstrap claim locally after
+// elaboration.
 machine Task::settle<T>(self) { }
 
 data Main {
