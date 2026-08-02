@@ -39,10 +39,14 @@ machine Main::main(&mut self) {
     // Conversion policy belongs to the named operation. The result returns to
     // Exact arithmetic, then is qualified separately for these policy-bearing
     // storage fields.
-    self.trunc8 = narrow_u16_to_u8_wrapping(self.u16val) as u8 in Wrapping;        // 255
-    self.wide32 = widen_i16_to_i32(self.i16val) as i32 in Trapping;                // -100
-    self.narrow16 = narrow_i32_to_i16_wrapping(self.i32val) as i16 in Wrapping;    // 4464
-    self.widened16 = widen_u8_to_u16(self.u8val) as u16 in Wrapping;                // 200
+    self.trunc8 =
+        narrow_u16_to_u8_wrapping(self.u16val as u16) as u8 in Wrapping; // 255
+    self.wide32 =
+        widen_i16_to_i32(self.i16val as i16) as i32 in Trapping; // -100
+    self.narrow16 =
+        narrow_i32_to_i16_wrapping(self.i32val as i32) as i16 in Wrapping; // 4464
+    self.widened16 =
+        widen_u8_to_u16(self.u8val as u8) as u16 in Wrapping; // 200
 
     transition self.trunc8 == 255 {
         true -> check_wide()
@@ -59,13 +63,14 @@ machine Main::main(&mut self) {
     }
     state check_i16_to_i8(&mut self) {
         self.i16val = 200;
-        self.signed8 = narrow_i16_to_i8_wrapping(self.i16val) as i8 in Wrapping;   // -56
+        self.signed8 =
+            narrow_i16_to_i8_wrapping(self.i16val as i16) as i8 in Wrapping; // -56
         transition self.signed8 == 0 - 56 { true -> check_reinterp() _ -> bad() }
     }
     state check_reinterp(&mut self) {
         self.u16val = 40000;
         self.reinterp16 =
-            narrow_u16_to_i16_wrapping(self.u16val) as i16 in Wrapping;            // -25536
+            narrow_u16_to_i16_wrapping(self.u16val as u16) as i16 in Wrapping; // -25536
         transition self.reinterp16 == 0 - 25536 { true -> good() _ -> bad() }
     }
 
