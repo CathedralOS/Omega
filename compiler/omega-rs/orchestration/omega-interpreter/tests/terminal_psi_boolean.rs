@@ -497,6 +497,135 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
+fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
+    let machine = MachineId::new(120).expect("machine");
+    let operation = OperationId::new(120).expect("operation");
+    let edge = EdgeId::new(120).expect("edge");
+    let left = ValueId::new(120).expect("left parameter");
+    let right = ValueId::new(121).expect("right parameter");
+    let difference = ValueId::new(122).expect("difference");
+    let result = ValueId::new(123).expect("result");
+    let integer = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let scalar_type = ScalarType::Integer(integer);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V6,
+        entry: machine,
+        machines: vec![TerminalMachine {
+            id: machine,
+            parameters: vec![
+                ValueDeclaration {
+                    id: left,
+                    scalar_type,
+                },
+                ValueDeclaration {
+                    id: right,
+                    scalar_type,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            entry: BlockId::new(120).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(120).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation,
+                    result: ValueDeclaration {
+                        id: difference,
+                        scalar_type,
+                    },
+                    kind: OperationKind::SaturatingIntegerSubtract { left, right },
+                }],
+                terminator: Terminator::Return {
+                    edge,
+                    value: difference,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(120).expect("contract"),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let original_identity = terminal_psi_identity(&module).expect("v6 subtraction identity");
+    let canonical_bytes = encode_module(&module).expect("v6 subtraction canonical bytes");
+    drop(module);
+    let module = decode_module(&canonical_bytes).expect("decode v6 subtraction module");
+    assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free saturating subtraction verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed subtraction fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("subtraction fuel recomputes");
+    assert_eq!(fixed.ceiling_units(), 2);
+
+    for (left_value, right_value, expected) in [(i64::MAX, -1, i64::MAX), (i64::MIN, 1, i64::MIN)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Signed(left_value as i128),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Signed(right_value as i128),
+                },
+            ],
+        )
+        .expect("interpret signed saturating subtraction");
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Signed(expected as i128),
+            }
+        );
+        assert_eq!(measured.usage().total_units(), 2);
+    }
+
+    let abstract_plan =
+        lower_verified_module(&verified).expect("lower saturating-subtract requirements");
+    assert!(matches!(
+        abstract_plan.functions[0].operations[0],
+        TerminalAbstractOperation::SaturatingIntegerSubtract {
+            psi_operation,
+            scalar_type: operation_type,
+            left: operation_left,
+            right: operation_right,
+            ..
+        } if psi_operation == operation
+            && operation_type == integer
+            && operation_left == left
+            && operation_right == right
+    ));
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select saturating-subtract target operation");
+    let machine_code =
+        emit_machine_code(&target_plan).expect("emit saturating-subtract machine code");
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build saturating-subtract object artifact");
+    assert_eq!(artifact.entry_function().provenance.operations, [operation]);
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    assert_eq!(run_host_i64_saturating_subtract_canary(&entry_bytes), 0);
+}
+
+#[cfg(unix)]
+#[test]
 fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
     let machine = MachineId::new(100).expect("machine");
     let operation = OperationId::new(100).expect("operation");
@@ -1126,13 +1255,37 @@ fn run_host_machine_code_with_u8_arguments(bytes: &[u8], arguments: &[u8]) -> i3
 
 #[cfg(unix)]
 fn run_host_i64_saturation_canary(bytes: &[u8]) -> i32 {
+    let harness = "#include <limits.h>\n\
+extern long long omega_entry(long long, long long);\n\
+int main(void) {\n\
+  if (omega_entry(LLONG_MAX, 1) != LLONG_MAX) return 1;\n\
+  if (omega_entry(LLONG_MIN, -1) != LLONG_MIN) return 2;\n\
+  return 0;\n\
+}\n";
+    run_host_i64_binary_canary(bytes, "saturation", harness)
+}
+
+#[cfg(unix)]
+fn run_host_i64_saturating_subtract_canary(bytes: &[u8]) -> i32 {
+    let harness = "#include <limits.h>\n\
+extern long long omega_entry(long long, long long);\n\
+int main(void) {\n\
+  if (omega_entry(LLONG_MAX, -1) != LLONG_MAX) return 1;\n\
+  if (omega_entry(LLONG_MIN, 1) != LLONG_MIN) return 2;\n\
+  return 0;\n\
+}\n";
+    run_host_i64_binary_canary(bytes, "saturating-subtract", harness)
+}
+
+#[cfg(unix)]
+fn run_host_i64_binary_canary(bytes: &[u8], label: &str, harness: &str) -> i32 {
     let nonce = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("wall clock after epoch")
         .as_nanos();
     let sequence = SCRATCH_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let directory = std::env::temp_dir().join(format!(
-        "omega-terminal-i64-saturation-native-{}-{nonce}-{sequence}",
+        "omega-terminal-i64-{label}-native-{}-{nonce}-{sequence}",
         std::process::id()
     ));
     std::fs::create_dir(&directory).expect("create i64 saturation native test directory");
@@ -1157,13 +1310,6 @@ fn run_host_i64_saturation_canary(bytes: &[u8]) -> i32 {
             ".text\n.globl {symbol}\n.type {symbol},@function\n{symbol}:\n.byte {bytes}\n.size {symbol}, .-{symbol}\n.section .note.GNU-stack,\"\",@progbits\n"
         )
     };
-    let harness = "#include <limits.h>\n\
-extern long long omega_entry(long long, long long);\n\
-int main(void) {\n\
-  if (omega_entry(LLONG_MAX, 1) != LLONG_MAX) return 1;\n\
-  if (omega_entry(LLONG_MIN, -1) != LLONG_MIN) return 2;\n\
-  return 0;\n\
-}\n";
     std::fs::write(&assembly_path, assembly).expect("write i64 saturation native assembly");
     std::fs::write(&harness_path, harness).expect("write i64 saturation native harness");
     let link = Command::new("cc")
