@@ -104,12 +104,14 @@ impl<'program> CallFrameResolver<'program> {
             return NormalizedWriteFrame::opaque();
         }
         let mut written = Vec::new();
+        let mut active_states = Vec::new();
         let complete = collect_expression_call_written_paths(
             self.program,
             expression,
             current_machine,
             &machine_symbols,
             &self.symbols,
+            &mut active_states,
             &mut written,
         )
         .is_some();
@@ -144,6 +146,7 @@ impl<'program> CallFrameResolver<'program> {
             return NormalizedWriteFrame::opaque();
         }
         let mut written = Vec::new();
+        let mut active_states = Vec::new();
         for expression in statement_value_expression_roots(self.program, statement) {
             if collect_expression_call_written_paths(
                 self.program,
@@ -151,6 +154,7 @@ impl<'program> CallFrameResolver<'program> {
                 current_machine,
                 &machine_symbols,
                 &self.symbols,
+                &mut active_states,
                 &mut written,
             )
             .is_none()
@@ -265,6 +269,7 @@ fn collect_expression_call_written_paths(
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
     written: &mut Vec<String>,
 ) -> Option<()> {
     if !expression.is_valid() {
@@ -277,6 +282,7 @@ fn collect_expression_call_written_paths(
             current_machine,
             machine_symbols,
             symbols,
+            active_states,
             written,
         )
     };
@@ -312,7 +318,7 @@ fn collect_expression_call_written_paths(
                 current_machine,
                 machine_symbols,
                 symbols,
-                &mut Vec::new(),
+                active_states,
             )
             .or_else(|| {
                 known_boundary_call_written_paths_for_parts(
@@ -1062,10 +1068,10 @@ fn machine_state_by_symbol(
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
 /// the caller must invalidate every flow fact. Internal acyclic calls and
-/// call-free state-transition graphs compose; implementation shapes this
-/// inference cannot summarize remain deliberately opaque. Authored `stores`
-/// clauses are retired; precision grows through the shared inferred
-/// complete-or-opaque frame instead.
+/// state-transition graphs with complete expression frames compose;
+/// implementation shapes this inference cannot summarize remain deliberately
+/// opaque. Authored `stores` clauses are retired; precision grows through the
+/// shared inferred complete-or-opaque frame instead.
 pub(crate) fn known_call_written_paths(
     program: &TypedTrees,
     call: &TableCall,
@@ -1233,18 +1239,28 @@ fn summarize_state_written_paths(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
-        match statement {
-            StatementNode::AssemblyFact(fact) => {
-                if !expression_is_call_free(program, fact.expression) {
-                    return None;
+        for expression in statement_value_expression_roots(program, statement) {
+            let mut expression_writes = Vec::new();
+            collect_expression_call_written_paths(
+                program,
+                expression,
+                machine,
+                &machine_symbols,
+                symbols,
+                active_states,
+                &mut expression_writes,
+            )?;
+            for relative in expression_writes {
+                if relative_state_path_is_visible(&relative, parameters, &locals)?
+                    && !written.contains(&relative)
+                {
+                    written.push(relative);
                 }
             }
+        }
+        match statement {
+            StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
-                if !expression_is_call_free(program, assignment.target)
-                    || !expression_is_call_free(program, assignment.value)
-                {
-                    return None;
-                }
                 let relative = coarse_place_path(program, assignment.target)?;
                 if relative_state_path_is_visible(&relative, parameters, &locals)?
                     && !written.contains(&relative)
@@ -1281,11 +1297,6 @@ fn summarize_state_written_paths(
                 }
             }
             StatementNode::Transition(transition) => {
-                if matches!(transition.guard, TransitionGuardNode::When(guard)
-                    if !expression_is_call_free(program, guard))
-                {
-                    return None;
-                }
                 for target in [transition.target, transition.continuation] {
                     for relative in summarize_transition_target_written_paths(
                         program,
@@ -1305,15 +1316,8 @@ fn summarize_state_written_paths(
                     }
                 }
             }
-            StatementNode::Expression(expression) => {
-                if !expression_is_call_free(program, *expression) {
-                    return None;
-                }
-            }
+            StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
-                if !expression_is_call_free(program, local.initial_value) {
-                    return None;
-                }
                 locals.push(local.name.as_str().to_owned());
             }
         }
@@ -1325,9 +1329,9 @@ fn summarize_state_written_paths(
 
 #[allow(clippy::too_many_arguments)]
 /// Summarize one tail transition in the source state's namespace. Named target
-/// states compose only when their complete state graph is acyclic and every
-/// transition-position expression is call-free; target parameters substitute
-/// through authored arguments exactly like call-frame instantiation.
+/// states compose only when their complete state graph is acyclic; target
+/// parameters substitute through authored arguments exactly like call-frame
+/// instantiation. Value-position call writes are collected before the jump.
 fn summarize_transition_target_written_paths(
     program: &TypedTrees,
     machine: &Machine,
@@ -1343,18 +1347,10 @@ fn summarize_transition_target_written_paths(
     }
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Terminal => Some(Vec::new()),
-        TransitionTargetNode::Value(expression) => {
-            expression_is_call_free(program, *expression).then(Vec::new)
-        }
+        TransitionTargetNode::Value(_) => Some(Vec::new()),
         TransitionTargetNode::SelfTarget => None,
         TransitionTargetNode::Named { path, arguments } => {
             let arguments = program.statement_table.expression_handles(*arguments);
-            if !arguments
-                .iter()
-                .all(|argument| expression_is_call_free(program, *argument))
-            {
-                return None;
-            }
             let target_state = program
                 .machine_states(machine)
                 .iter()
@@ -1491,48 +1487,6 @@ fn coarse_place_path(program: &TypedTrees, expression: ExpressionHandle) -> Opti
         ExpressionNode::Mutable(inner) => coarse_place_path(program, *inner),
         ExpressionNode::Indexed(indexed) => coarse_place_path(program, indexed.collection),
         _ => arithmetic_domains::place_path(program, expression),
-    }
-}
-
-fn expression_is_call_free(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    if !expression.is_valid() {
-        return true;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => expression_is_call_free(program, atomic.value),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_call_free(program, *value)),
-        ExpressionNode::Binary(binary) => {
-            expression_is_call_free(program, binary.left)
-                && expression_is_call_free(program, binary.right)
-        }
-        ExpressionNode::Cast(cast) => expression_is_call_free(program, cast.value),
-        ExpressionNode::Call(_) => false,
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_call_free(program, indexed.collection)
-                && expression_is_call_free(program, indexed.index)
-        }
-        ExpressionNode::Member(member) => expression_is_call_free(program, member.receiver),
-        ExpressionNode::Mutable(inner) => expression_is_call_free(program, *inner),
-        ExpressionNode::Range(range) => {
-            expression_is_call_free(program, range.start)
-                && expression_is_call_free(program, range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| expression_is_call_free(program, field.value)),
-        ExpressionNode::Unary(unary) => expression_is_call_free(program, unary.operand),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
     }
 }
 

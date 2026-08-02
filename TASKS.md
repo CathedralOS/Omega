@@ -632,6 +632,12 @@ service-table paths are already plan-driven.
 Remaining:
 
 - remove residual hardcoded placement decisions;
+- finish control-flow-local value-call lowering without changing evaluation:
+  an effectful call nested in a transition subject or guarded target argument
+  must execute exactly once on the path that evaluates it, and a direct
+  terminal value call must materialize inside its reached state. Never hoist an
+  arm-local effect across the guard. Unconditional transition arguments and
+  the explicit bind-then-use forms are already live;
 - implement the settled foreign-storage lifetime model: derive ordinary
   call-scoped borrows from reference-shaped ABI parameters; require storage
   used after return to move into an ordinary linear protocol claim; infer the
@@ -717,8 +723,12 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   Exact inferred frames now cross acyclic intra-machine state transitions:
   conditional arms union, shared tail states memoize, and non-`self` state
   parameters substitute positionally back into the source/caller namespace.
-  Transition guards, arguments, and returned values must remain call-free in
-  this slice. A reachable state cycle or nested value call stays opaque, so
+  Value-position calls nested anywhere in a state body now compose through the
+  shared call-frame resolver before the statement or jump: initializers,
+  assignment operands, statement-call arguments, transition subjects and
+  arguments, and returned values all contribute their may-write paths.
+  Recursion detection is shared across statement- and value-position calls. A
+  reachable state-transition cycle or truly unresolved frame stays opaque, so
   consumers fail closed rather than extrapolating from one observed route.
 - **DOM1/DOM2/DOM3/DOM5:** exact integer `as`, per-atom
   weakening/explicit erasure, operator ownership, predicate `requires`, and

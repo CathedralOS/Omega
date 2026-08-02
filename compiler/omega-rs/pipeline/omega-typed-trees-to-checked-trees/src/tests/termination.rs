@@ -2057,6 +2057,21 @@ fn contract_plans_fingerprint_published_halves() {
         }
         state branch_done(&mut self) { }
     }
+    machine Main::touch_right_value(&mut self) -> bool {
+        self.right = 8;
+        true
+    }
+    machine Main::call_bearing(&mut self) -> bool {
+        let seed: bool = self.touch_right_value();
+        transition self.touch_right_value() == seed {
+            true -> call_bearing_done(self.touch_right_value())
+            false -> call_bearing_done(seed)
+        }
+        state call_bearing_done(&mut self, value: bool) -> bool {
+            let answer: bool = self.touch_right_value();
+            answer
+        }
+    }
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
@@ -2083,6 +2098,7 @@ fn contract_plans_fingerprint_published_halves() {
     let write_through_transition = symbol_of("write_through_transition");
     let cyclic = symbol_of("Main::cyclic");
     let branching = symbol_of("Main::branching");
+    let call_bearing = symbol_of("Main::call_bearing");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
     let plan = |symbol| {
@@ -2116,6 +2132,11 @@ fn contract_plans_fingerprint_published_halves() {
         frame(branching).paths(),
         &["self.left".to_owned(), "self.right".to_owned()],
         "both conditional arms compose and may share one memoized tail state"
+    );
+    assert_eq!(
+        frame(call_bearing).paths(),
+        &["self.right".to_owned()],
+        "value calls in locals, guards, jump arguments, and terminal results compose"
     );
     // A different `reaches` clause -> a different fingerprint.
     assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);

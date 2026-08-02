@@ -332,9 +332,12 @@ Complete inferred frames now compose across acyclic state-transition graphs as
 well as ordinary internal call graphs. Both conditional arms contribute their
 may-write paths, shared tail states are memoized, and target-state parameters
 substitute positionally into the source namespace before the entry frame is
-normalized. Transition expressions containing nested calls and every reachable
-state cycle remain opaque; completeness never depends on selecting one runtime
-arm or assuming a cycle terminates.
+normalized. Value-position calls in every state expression root contribute the
+shared call resolver's complete may-write paths before the surrounding
+statement or transition is summarized, with one recursion frontier spanning
+statement- and value-position calls. Every reachable state-transition cycle
+and every genuinely unresolved frame remain opaque; completeness never depends
+on selecting one runtime arm or assuming a cycle terminates.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -566,8 +569,9 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   planned. Remaining work is additional relational Houdini candidates, finer
   read-consumption precision, and broader exact summaries for implementation
   shapes that remain opaque. Acyclic state-transition graphs now compose exact
-  frames, including conditional-arm union and positional argument forwarding;
-  cycles and call-bearing transition expressions remain opaque. Normalized
+  frames, including conditional-arm union, positional argument forwarding, and
+  nested value-call frames across every state expression position; reachable
+  state cycles and genuinely unresolved frames remain opaque. Normalized
   per-state frame publication is live and kept outside public contract
   identity. Driver: dependent facts across sibling-machine calls.
 - **R6 — Proof propositions and index telescopes:** add Prop-valued families
