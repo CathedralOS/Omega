@@ -1,0 +1,114 @@
+// ENT2c guarded target-argument calls execute only inside the selected arm.
+// The first call-bearing arm is not taken and must leave `hits` at zero. The
+// second is taken, must increment exactly once, and must deliver 7 to the
+// original target state. Follow-on arms forward a ranged state parameter
+// through two calls (pinning left-to-right delivery), an explicitly typed
+// source local, and nested calls inside a binary target argument. Exit 70
+// covers both engines.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    hits: u64 in Wrapping;
+}
+
+machine Main::bump_and_value(&mut self, value: u32 [0..=20]) -> u32 [0..=20] {
+    self.hits = self.hits + 1;
+    value
+}
+
+machine Main::main(&mut self) {
+    self.hits = 0;
+    transition false {
+        true -> consume(self.bump_and_value(7))
+        false -> check_skipped()
+    }
+
+    state check_skipped(&mut self) {
+        transition self.hits == 0 {
+            true -> take_call()
+            false -> bad(71)
+        }
+    }
+
+    state take_call(&mut self) {
+        transition true {
+            true -> consume(self.bump_and_value(7))
+            false -> bad(72)
+        }
+    }
+
+    state consume(&mut self, delivered: u32) {
+        transition delivered == 7 && self.hits == 1 {
+            true -> reset_pair()
+            false -> bad(73)
+        }
+    }
+
+    state reset_pair(&mut self) {
+        self.hits = 0;
+        transition { _ -> take_pair(10) }
+    }
+
+    state take_pair(&mut self, seed: u32 [0..=10]) {
+        transition true {
+            true -> consume_pair(
+                self.bump_and_value(seed),
+                self.bump_and_value(seed + 1)
+            )
+            false -> bad(74)
+        }
+    }
+
+    state consume_pair(&mut self, first: u32, second: u32) {
+        transition first == 10 && second == 11 && self.hits == 2 {
+            true -> reset_local()
+            false -> bad(75)
+        }
+    }
+
+    state reset_local(&mut self) {
+        self.hits = 0;
+        transition { _ -> take_local() }
+    }
+
+    state take_local(&mut self) {
+        let seed: u32 = 20;
+        transition true {
+            true -> consume_local(self.bump_and_value(seed))
+            false -> bad(76)
+        }
+    }
+
+    state consume_local(&mut self, delivered: u32) {
+        transition delivered == 20 && self.hits == 1 {
+            true -> reset_nested()
+            false -> bad(77)
+        }
+    }
+
+    state reset_nested(&mut self) {
+        self.hits = 0;
+        transition { _ -> take_nested() }
+    }
+
+    state take_nested(&mut self) {
+        let seed: u32 = 20;
+        transition true {
+            true -> consume_nested(
+                self.bump_and_value(self.bump_and_value(seed)) + 1
+            )
+            false -> bad(78)
+        }
+    }
+
+    state consume_nested(&mut self, delivered: u32) {
+        transition delivered == 21 && self.hits == 2 {
+            true -> good()
+            false -> bad(79)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

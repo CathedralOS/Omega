@@ -68,8 +68,22 @@ pub(crate) struct Lowerer {
     /// The CURRENT state's parameters (name + resolved type) -- the
     /// guarded-arm value-call rewrite copies parameter records into its
     /// synthesized continuation state. Overwritten at each state.
-    pub(crate) current_state_parameters:
-        Vec<(String, omega_symbol_resolved_trees::types::TypeReference)>,
+    pub(crate) current_state_parameters: Vec<(
+        String,
+        omega_symbol_resolved_trees::types::TypeReference,
+        bool,
+    )>,
+    /// The CURRENT state's explicit `self` parameter, retained so an
+    /// arm-selected synthesized continuation can carry the same receiver.
+    pub(crate) current_state_self_parameter:
+        Option<omega_symbol_resolved_trees::signature::StateParameter>,
+    /// Explicitly typed locals declared so far in the CURRENT state. A
+    /// guarded arm continuation may carry them across its generated edge.
+    pub(crate) current_state_locals: Vec<(
+        String,
+        omega_symbol_resolved_trees::types::TypeReference,
+        bool,
+    )>,
     /// The CURRENT state's declared return type -- the synthesized
     /// continuation state returns the same type. Overwritten at each state.
     pub(crate) current_state_return_type: Option<omega_symbol_resolved_trees::types::TypeReference>,
@@ -78,6 +92,10 @@ pub(crate) struct Lowerer {
     /// state whose Always terminal hoists the call). Drained by the machine
     /// lowering after the authored states.
     pub(crate) pending_synthesized_states: Vec<SynthesizedArmState>,
+    /// Continuation states that evaluate guarded named-target call arguments
+    /// only after their arm is selected.
+    pub(crate) pending_synthesized_transition_argument_states:
+        Vec<SynthesizedTransitionArgumentState>,
     arm_state_counter: u32,
 }
 
@@ -91,6 +109,21 @@ pub(crate) struct SynthesizedArmState {
     pub(crate) call: omega_symbol_resolved_trees::expression::ExpressionHandle,
 }
 
+/// One arm-selected continuation that materializes direct value-call target
+/// arguments, then performs the original named transition.
+pub(crate) struct SynthesizedTransitionArgumentState {
+    pub(crate) name: String,
+    pub(crate) self_parameter: Option<omega_symbol_resolved_trees::signature::StateParameter>,
+    pub(crate) parameters: Vec<(
+        String,
+        omega_symbol_resolved_trees::types::TypeReference,
+        bool,
+    )>,
+    pub(crate) return_type: Option<omega_symbol_resolved_trees::types::TypeReference>,
+    pub(crate) target: omega_symbol_resolved_trees::statement::NamedTransitionTarget,
+    pub(crate) calls: Vec<omega_symbol_resolved_trees::expression::ExpressionHandle>,
+}
+
 impl Lowerer {
     fn new(sources: Option<Arc<SourceMap>>) -> Self {
         Self {
@@ -102,8 +135,11 @@ impl Lowerer {
             current_machine_is_boundary: false,
             match_subject_temps: std::collections::HashMap::new(),
             current_state_parameters: Vec::new(),
+            current_state_self_parameter: None,
+            current_state_locals: Vec::new(),
             current_state_return_type: None,
             pending_synthesized_states: Vec::new(),
+            pending_synthesized_transition_argument_states: Vec::new(),
             arm_state_counter: 0,
         }
     }

@@ -484,5 +484,22 @@ fn lower_machine_states(
             .append_to_span(&mut span, state);
     }
 
+    let synthesized = std::mem::take(&mut lowerer.pending_synthesized_transition_argument_states);
+    for arm in synthesized {
+        let state = crate::state::build_synthesized_transition_argument_state(lowerer, arm);
+        let state = lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .machine_states
+            .append(state);
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .machine_state_handles
+            .append_to_span(&mut span, state);
+    }
+
     Ok(span)
 }

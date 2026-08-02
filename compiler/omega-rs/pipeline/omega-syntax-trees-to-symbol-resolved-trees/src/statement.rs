@@ -164,6 +164,13 @@ fn lower_statement_node(
             } else {
                 TypeReference::Unit
             };
+            let capturable_local = (!matches!(type_reference, TypeReference::Unit)).then(|| {
+                (
+                    local_data.name.as_str().to_owned(),
+                    type_reference.clone(),
+                    local_data.is_mutable,
+                )
+            });
             let initial_value = if local_data.initial_value.is_valid() {
                 lower_statement_expression(lowerer, syntax_trees, local_data.initial_value)?
             } else {
@@ -184,6 +191,9 @@ fn lower_statement_node(
                     is_mutable: local_data.is_mutable,
                 },
             }));
+            if let Some(local) = capturable_local {
+                lowerer.current_state_locals.push(local);
+            }
             Ok(hoisted)
         }
         syntax::statement::StatementNode::Transition(transition) => {
@@ -202,12 +212,13 @@ fn lower_statement_node(
             if matches!(
                 transition.guard,
                 syntax::statement::TransitionGuardNode::Always
-            ) && let TransitionTarget::Value(expression) = target
-            {
-                let rewritten =
-                    hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
-                if rewritten != expression {
-                    target = TransitionTarget::Value(rewritten);
+            ) {
+                if let TransitionTarget::Value(expression) = target {
+                    let rewritten =
+                        hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
+                    if rewritten != expression {
+                        target = TransitionTarget::Value(rewritten);
+                    }
                 }
             } else {
                 // GUARDED-ARM DEEP FIX (task #45): a guarded arm's value call
@@ -219,6 +230,7 @@ fn lower_statement_node(
                 // automated. V1 gates the arguments to enclosing-parameter
                 // NAMES (the synthesized state's parameter types copy over).
                 target = rewrite_guarded_call_arm(lowerer, target);
+                target = rewrite_guarded_transition_argument_calls(lowerer, target);
             }
             let continuation = if transition.continuation.is_valid() {
                 // A continuation arm is conditional by construction (it runs
@@ -229,7 +241,19 @@ fn lower_statement_node(
                     transition.continuation,
                     &mut hoisted,
                 )?;
-                Some(rewrite_guarded_call_arm(lowerer, lowered))
+                if matches!(
+                    transition.guard,
+                    syntax::statement::TransitionGuardNode::Always
+                ) {
+                    // A lone wildcard arm is represented as the continuation
+                    // of an Always transition. It is unconditional, so keep
+                    // its existing target intact (including ownership-call
+                    // ordinals) instead of synthesizing an arm-local state.
+                    Some(lowered)
+                } else {
+                    let lowered = rewrite_guarded_call_arm(lowerer, lowered);
+                    Some(rewrite_guarded_transition_argument_calls(lowerer, lowered))
+                }
             } else {
                 None
             };
@@ -941,10 +965,10 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
         let [single] = members else {
             return TransitionTarget::Value(expression);
         };
-        let Some((name, type_reference)) = lowerer
+        let Some((name, type_reference, _)) = lowerer
             .current_state_parameters
             .iter()
-            .find(|(name, _)| name == single.as_str())
+            .find(|(name, _, _)| name == single.as_str())
         else {
             return TransitionTarget::Value(expression);
         };
@@ -999,6 +1023,246 @@ fn rewrite_guarded_call_arm(lowerer: &mut Lowerer, target: TransitionTarget) -> 
             arguments,
         },
     })
+}
+
+/// Move direct free/`self` value calls used as guarded named-target arguments
+/// behind the selected arm. The generated state receives the source state's
+/// referenced parameters, evaluates calls left-to-right into locals, then
+/// performs the original transition. Unsupported captures (notably source
+/// locals whose types are not retained here) keep the existing honest fence.
+fn rewrite_guarded_transition_argument_calls(
+    lowerer: &mut Lowerer,
+    target: TransitionTarget,
+) -> TransitionTarget {
+    let TransitionTarget::Named(named) = target else {
+        return target;
+    };
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let argument_handles = expressions.expression_handles(named.storage.arguments);
+    let mut calls = Vec::new();
+    for argument in argument_handles {
+        collect_synthesizable_argument_calls(lowerer, *argument, &mut calls);
+    }
+    if calls.is_empty() {
+        return TransitionTarget::Named(named);
+    }
+
+    let mut captured_names = Vec::new();
+    let mut uses_self = false;
+    if !argument_handles.iter().all(|argument| {
+        collect_synthesized_argument_captures(
+            lowerer,
+            *argument,
+            &mut captured_names,
+            &mut uses_self,
+        )
+    }) {
+        return TransitionTarget::Named(named);
+    }
+    let self_parameter = uses_self
+        .then(|| lowerer.current_state_self_parameter.clone())
+        .flatten();
+    if uses_self && self_parameter.is_none() {
+        return TransitionTarget::Named(named);
+    }
+    let parameters = lowerer
+        .current_state_parameters
+        .iter()
+        .filter(|(name, _, _)| captured_names.contains(name))
+        .cloned()
+        .chain(
+            lowerer
+                .current_state_locals
+                .iter()
+                .filter(|(name, _, _)| captured_names.contains(name))
+                .cloned(),
+        )
+        .collect::<Vec<_>>();
+    if parameters.len() != captured_names.len() {
+        return TransitionTarget::Named(named);
+    }
+
+    let state_name = lowerer.next_arm_state_name();
+    lowerer.pending_synthesized_transition_argument_states.push(
+        crate::lowerer::SynthesizedTransitionArgumentState {
+            name: state_name.clone(),
+            self_parameter,
+            parameters: parameters.clone(),
+            return_type: lowerer.current_state_return_type.clone(),
+            target: named,
+            calls,
+        },
+    );
+
+    let mut path = HandleSpan::empty();
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .statement_path_members
+        .append_to_span(&mut path, DiagnosticName::generated(state_name));
+    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut arguments = HandleSpan::empty();
+    for (name, _, _) in &parameters {
+        let mut members = HandleSpan::empty();
+        expressions.push_name_path_member(&mut members, DiagnosticName::generated(name.clone()));
+        let fresh = expressions.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+        expressions.push_expression_handle(&mut arguments, fresh);
+    }
+    TransitionTarget::Named(NamedTransitionTarget {
+        head_symbol: SymbolHandle::invalid(),
+        symbol: SymbolHandle::invalid(),
+        storage: NamedTransitionTargetStorage {
+            path,
+            path_starts_at_self: false,
+            arguments,
+        },
+    })
+}
+
+/// Collect direct free/`self` machine calls in evaluation order. Children are
+/// visited first so a nested call result is materialized before its enclosing
+/// call, and sibling operands retain left-to-right order.
+fn collect_synthesizable_argument_calls(
+    lowerer: &Lowerer,
+    expression: ExpressionHandle,
+    calls: &mut Vec<ExpressionHandle>,
+) {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut visit = |child| collect_synthesizable_argument_calls(lowerer, child, calls);
+    match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => visit(atomic.value),
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in expressions.expression_handles(*values) {
+                visit(*value);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            visit(binary.left);
+            visit(binary.right);
+        }
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                visit(call.receiver);
+            }
+            for argument in expressions.expression_handles(call.arguments) {
+                visit(*argument);
+            }
+            if matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+                return;
+            }
+            if call.receiver.is_valid() {
+                let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
+                    return;
+                };
+                if !matches!(expressions.name_path_members(path.members), [member] if member.as_str() == "self")
+                {
+                    return;
+                }
+            }
+            calls.push(expression);
+        }
+        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            visit(indexed.collection);
+            visit(indexed.index);
+        }
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::Membership(membership) => visit(membership.value),
+        ExpressionNode::Mutable(inner) => visit(*inner),
+        ExpressionNode::Range(range) => {
+            visit(range.start);
+            visit(range.end);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in expressions.struct_fields(literal.fields) {
+                visit(field.value);
+            }
+        }
+        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+fn collect_synthesized_argument_captures(
+    lowerer: &Lowerer,
+    expression: ExpressionHandle,
+    captured_names: &mut Vec<String>,
+    uses_self: &mut bool,
+) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut visit =
+        |child| collect_synthesized_argument_captures(lowerer, child, captured_names, uses_self);
+    match expressions.expression(expression) {
+        ExpressionNode::Atomic(atomic) => visit(atomic.value),
+        ExpressionNode::ArrayLiteral(values) => expressions
+            .expression_handles(*values)
+            .iter()
+            .all(|value| visit(*value)),
+        ExpressionNode::Binary(binary) => visit(binary.left) && visit(binary.right),
+        ExpressionNode::Call(call) => {
+            (!call.receiver.is_valid() || visit(call.receiver))
+                && expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| visit(*argument))
+        }
+        ExpressionNode::Cast(cast) => visit(cast.value),
+        ExpressionNode::Indexed(indexed) => visit(indexed.collection) && visit(indexed.index),
+        ExpressionNode::Member(member) => visit(member.receiver),
+        ExpressionNode::Membership(membership) => visit(membership.value),
+        ExpressionNode::Mutable(inner) => visit(*inner),
+        ExpressionNode::Name(path) => {
+            let members = expressions.name_path_members(path.members);
+            if members
+                .first()
+                .is_some_and(|member| member.as_str() == "self")
+            {
+                *uses_self = true;
+                return true;
+            }
+            let [name] = members else {
+                return false;
+            };
+            let name = name.as_str();
+            if !lowerer
+                .current_state_parameters
+                .iter()
+                .any(|(parameter, _, _)| parameter == name)
+                && !lowerer
+                    .current_state_locals
+                    .iter()
+                    .any(|(local, _, _)| local == name)
+            {
+                return false;
+            }
+            if !captured_names.iter().any(|captured| captured == name) {
+                captured_names.push(name.to_owned());
+            }
+            true
+        }
+        ExpressionNode::Range(range) => visit(range.start) && visit(range.end),
+        ExpressionNode::StructLiteral(literal) => expressions
+            .struct_fields(literal.fields)
+            .iter()
+            .all(|field| visit(field.value)),
+        ExpressionNode::Unary(unary) => visit(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => true,
+    }
 }
 
 /// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
