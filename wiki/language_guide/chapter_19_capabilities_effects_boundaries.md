@@ -1130,22 +1130,31 @@ the core `Content<A>` projection requirement. The conformance selects a closed
 compiler-owned partial composition algebra and must normalize from the
 content-projection fragment: subject field reads, proof-level scalar
 embeddings, proof-defined closed arithmetic, and constructors of that algebra.
-Its admitted receipt states backing in the same algebra. Establishment proves
-projected content lies within that backing; access proves its touched footprint
-lies within content; and every n-to-m transformation proves consumed content
-equals the separated composition of produced content plus any authorized
-retirement. Per-output containment and scalar measures do not establish this
-theorem. Ordinary claims without a projection remain fully accounted for by
-whole-claim frontier transfer and cleanup.
+An ordinary boundary postcondition states geometry in the same algebra, while
+selected provider evidence separately admits external supply, fresh issuance,
+and custody. Establishment proves projected content lies within that backing;
+access proves its touched footprint lies within content; and every n-to-m
+transformation proves entry plus introduced content equals separated output
+plus content that left checked custody. Per-output containment and scalar
+measures do not establish this theorem. Ordinary claims without a projection
+remain fully accounted for by whole-claim frontier transfer and cleanup.
+
+Contracts call the exact owner-unique projection machine. Proof-only
+`entry(place)` selects an entry-version structural place, while compiler-owned
+`separate(...)` performs the closed algebra's partial n-ary composition. Neither
+has runtime representation. Identity-preserving claim reshuffles infer;
+partition-changing primitives author their theorem and checked wrappers compose
+it.
 
 For example, an admitted platform provider may return an
 `Extent::Granted & Physical`; its ordinary linear runtime carrier is
 `Extent { base: addr, length: u64 }`.
 Reconstructing those fields produces an unqualified Extent. `Granted` projects
-the qualified subject into the compiler-owned interval algebra after its
+the qualified subject into the compiler-owned interval-set algebra after its
 `no_wrap(base, length)` predicate proves the embedded proof-level natural end
-fits the target address space. Split consumes the qualified parent and proves
-its interval equals the separated composition of all children while preserving
+fits the target address space. The projection produces a singleton canonical
+`IntervalSet<PhysicalMemory>`; split consumes the qualified parent and proves
+its set equals the separated composition of all children while preserving
 compatible common root lineage. Merge proves the same theorem in reverse.
 Permission attenuation cannot be reversed by joining permissions; authority
 that must return is represented as a claim or loan.

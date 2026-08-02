@@ -328,7 +328,7 @@ V1 resource bounds remain contracts on explicit resource capabilities:
 ```omega
 machine parse(heap: &mut HeapBudget, input: &[u8]) -> ParseResult
     requires heap.remaining >= required(input.len)
-    ensures heap.remaining >= old(heap.remaining) - max_used(input.len)
+    ensures heap.remaining >= entry(heap.remaining) - max_used(input.len)
 {
 }
 ```

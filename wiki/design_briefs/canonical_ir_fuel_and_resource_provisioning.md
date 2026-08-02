@@ -463,8 +463,9 @@ Infallible allocation in the package-level bump canary is the first concrete
 customer for a `CountedQuantity<Bytes>` content algebra. Allocation consumes
 normalized size, alignment padding, and metadata from a proof-level natural
 residual magnitude keyed by the `Bytes` unit identity. The residual tail
-`Extent` supplies placement; released extents become retired content and do not
-restore bump capacity until reset recomposes the original backing. A scalar
+`Extent` supplies placement; released extents leave the allocation's live
+custody frontier but do not restore bump capacity until reset recomposes the
+original backing. A scalar
 free-byte count does not prove placement in a fragmented general heap. Such
 allocators remain fallible or require an exact free-extent/reservation theorem.
 
@@ -508,6 +509,11 @@ separate future lane.
 10. Add trusted native block metering while preserving accounting provenance
    through optimization; canonical block topology itself need not survive.
    Defer a separate Psi-to-native PCC chain.
-11. Add `CountedQuantity<Bytes>` with the package-level bump-allocation canary;
+11. Add entry/current structural-place proposition terms, canonical
+   `IntervalSet<CoordinateSpace>`, partial n-ary separation, canonical residual
+   difference, and sealed introduction/custody-exit frontier rows. Migrate the
+   current transitional single-interval content carrier before this vocabulary
+   enters terminal Psi identity.
+12. Add `CountedQuantity<Bytes>` with the package-level bump-allocation canary;
    retain exact tail placement and keep general fragmented allocators fallible
    unless they supply placement/reservation evidence.

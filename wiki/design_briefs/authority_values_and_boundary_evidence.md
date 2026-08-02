@@ -128,13 +128,13 @@ same stable backing identity must derive their custody from a common root; a
 set of individually honest provider ledgers does not establish cross-provider
 separation.
 
-No source-visible backing-receipt binder exists. Parameters, entry snapshots,
-and result paths are the contract subjects. The static requirement fingerprints
-the normalized algebra expression; each invocation substitutes its actual
-values. For multiple content-bearing results, one n-ary separated relation
-bounds all newly established result claims together. Content transferred from
-input claims remains ordinary conservation and is not counted again as new
-boundary supply.
+No source-visible backing-receipt binder exists. Parameters, entry-version
+structural places, and result paths are the contract subjects. The static
+requirement fingerprints the normalized algebra expression; each invocation
+substitutes its actual values. For multiple content-bearing results, one n-ary
+separated relation bounds all newly established result claims together. Content
+transferred from input claims remains ordinary conservation and is not counted
+again as new boundary supply.
 
 Geometry and external supply retain different trust. A checked adapter may
 derive that a returned length is at most an input count or that a returned
@@ -187,10 +187,10 @@ reinterpret the same authority through conformance selection.
 Schematically, the `Granted` projection has this shape:
 
 ```omega
-machine Granted::content(e: &Extent) -> Interval<Nat>
-    satisfies Content<Interval<Nat>>::project
+machine Granted::content(e: &Extent) -> IntervalSet<PhysicalMemory>
+    satisfies Content<IntervalSet<PhysicalMemory>>::project
 {
-    Interval::new(embed(e.base), embed(e.base) + embed(e.length))
+    IntervalSet::singleton(embed(e.base), embed(e.base) + embed(e.length))
 }
 ```
 
@@ -205,17 +205,27 @@ interface identity.
 
 The initial closed algebras are:
 
-- one-dimensional intervals with proof-level `Nat` bounds and one normalized
-  coordinate-space identity; and
+- `IntervalSet<CoordinateSpace>`, a canonical finite set of disjoint half-open
+  intervals with proof-level `Nat` bounds and one normalized coordinate-space
+  identity; and
 - `CountedQuantity` with a proof-level `Nat` magnitude and one normalized unit
   identity.
 
-An address interval uses embedded arithmetic rather than wrapping runtime
-`addr` arithmetic. Its half-open end may equal the address-space bound even
-when that one-past value is not representable as `addr`.
+`IntervalSet` rather than a single interval is the algebra carrier because
+separated composition and residual difference are not closed over single
+intervals. Its unique canonical form sorts by lower endpoint, removes empty
+members, merges adjacency, and stores one representation of the empty set.
+`separate(...)` rejects overlap and otherwise produces canonical union.
+`residual(whole, kept)` requires `kept` contained in `whole` and produces the
+canonical set difference, which may contain several intervals. Equality is
+structural equality of those canonical forms.
+
+An address interval-set member uses embedded arithmetic rather than wrapping
+runtime `addr` arithmetic. Its half-open end may equal the address-space bound
+even when that one-past value is not representable as `addr`.
 `no_wrap(base, length)` therefore means that the embedded sum does not exceed
 the target address-space bound, and every route establishing `Granted` proves
-that predicate. Separated interval composition requires the same coordinate
+that predicate. Separated interval-set composition requires the same coordinate
 space and nonoverlap. Exact equality with a parent rejects omitted gaps; equal
 numbers in different spaces never compose.
 
@@ -226,6 +236,16 @@ It models a divisible pool of units, not an obligation to deliver one value to
 exactly `n` destinations. Count alone does not prove placement in a fragmented
 heap, which remains fallible or requires an exact free-extent or reservation
 theorem.
+
+`CountedQuantity` proves fungible magnitude only. It never equates claim
+identities. Whole-claim identity, root lineage, custody, and any separately
+modeled slot/address/handle identity remain independent. If an operation
+creates or selects identity-specific authority for the same conserved units,
+a quantity theorem alone cannot discharge it; the operation needs an
+identity-bearing or joint correspondence algebra. The compiler can reject a
+modeled mismatch, but cannot discover identity that the program never modeled.
+Artifacts therefore report the selected algebra and whether unit identity is
+covered or remains outside the content projection.
 
 Ordinary claims publish no content projection. Whole-claim identity, custody,
 transfer, and cleanup remain in the frontier, so file handles and other
@@ -241,39 +261,74 @@ customer requires a third permission algebra. Root lineage remains an
 additional authority-family check rather than part of numeric geometry.
 
 Backing geometry and transformation correspondence use ordinary machine
-postconditions over the projection. For example, an establishment postcondition
-may bound `content(result)` by an expression over parameters and result paths,
-while a retained-buffer transformation may prove
-`content(result) == content(old(buffer))`. Those postconditions relate
-already-established evidence; they cannot make an ordinary record
-authoritative. Clear one-to-one and one-to-many claim mappings infer from the
-frontier. An ambiguous mapping requires an explicit postcondition or rejects.
+postconditions over the exact owner-unique projection machine. There is no
+`content(value)` intrinsic: a contract names `Granted::content(&value)` or the
+corresponding exact machine for another qualification. This makes projection
+selection explicit when a carrier has several independent content-bearing
+claims.
 
-The backing surface is settled: it introduces no receipt binder and uses the
-ordinary postcondition subjects and one n-ary result-path relation.
-Implementations must not infer fresh supply or nonduplication from a
-result-selected bound. `content(value)` and `old(value)` below still state the
-settled semantic relation but are not yet source intrinsics.
-`OWNER_QUESTIONS.md` #1 must choose
-their exact qualification-selection, pre-state, separated-composition, and
-authorized-retirement surface before explicit n-to-m conservation contracts
-can be implemented; an outcome map alone does not prove content equality.
+Two proof-only operations complete the source surface:
+
+- `entry(place)` denotes the callable-entry version of a parameter, `self`, or
+  one of their structural places; it is not executable, does not copy an owned
+  value, and is not a modality over arbitrary propositions; and
+- `separate(a, b, ...)` applies the selected closed algebra's partial n-ary
+  composition and generates compatibility and separation obligations.
+
+Proof operations compose around entry-version places. A content split may
+therefore state:
+
+```omega
+ensures
+    Granted::content(entry(&whole))
+    == separate(
+        Granted::content(&result.left),
+        Granted::content(&result.right),
+    );
+```
+
+Terminal Psi represents `entry` as a version on the existing structural-place
+term (`Entry | Current`), not as entry variants of every proposition node.
+`separate` is a compiler-owned proof intrinsic over the closed algebra
+vocabulary. Both use ordinary call-shaped source spelling, erase completely,
+and cannot be implemented or overridden by packages.
+
+An establishment postcondition may similarly bound
+`Granted::content(&result)` by an algebra expression over parameters and result
+paths. Such postconditions relate already-established evidence; they cannot
+make an ordinary record authoritative. Clear identity-preserving outcome maps
+infer from the frontier. An ambiguous mapping or partition change requires an
+explicit postcondition or rejects.
 
 One projection is load-bearing in four places:
 
-1. establishment proves `content(value)` is within checked or admitted backing;
+1. establishment proves the exact projection of a value is within checked or
+   admitted backing;
 2. every authority-bearing access proves its touched footprint is within
-   `content(value)`;
+   that exact projection;
 3. transformations conserve the separated composition of all consumed and
    produced content; and
-4. retirement accounts for every remainder through an authorized route.
+4. a custody-exit frontier row accounts for every remainder through an exact
+   authorized terminal route.
 
 Only an authorized establishment route introduces new content, and only an
-ordinary terminal claim consumer authorized by its contract retires content.
+ordinary terminal claim consumer authorized by its contract transfers content
+out of the checked custody frontier.
 An owner-originated resource may expose machines that establish fresh claims
 under the owner's policy. An externally rooted conduit may establish roots
 only through admitted backing identity, fresh issuance, and custody evidence;
 its ordinary checked machines must conserve existing content.
+
+The admitted root is a scoped hypothesis import, not a proof that external
+reality equals the compiler model. A selected provider states the exact
+correspondence between runtime geometry and one backing/root identity. The
+compiler then proves every downstream transformation conditionally on that
+premise and retains it in the provenance of every dependent fact. Only a sealed
+owner-authorized route at one selected provider invocation may introduce the
+hypothesis; ordinary source cannot admit a derivable obligation or fabricate
+equivalent evidence. PCC rechecks all derived consequences and discloses the
+external premise for profile acceptance. Checked roots derived from already
+owned storage need no admitted seam; external OS, firmware, and device roots do.
 
 An underapproximating projection is safe but restricts access. An
 overapproximating projection rejects at checked establishment when the supplied
@@ -331,16 +386,46 @@ duplication.
 For every content-bearing claim kind, checked transformation proves:
 
 ```text
-separate(content(consumed claims))
+separate(entry content, introduced content)
     =
-separate(content(produced claims), content(authorized retirement))
+separate(output content, content leaving checked custody)
 ```
 
 Separated composition is partial: overlapping or otherwise incompatible
 content has no composition. Exact equality rejects gaps unless an authorized
-retirement accounts for them. Split and merge are the same theorem in opposite
-dataflow directions. Binary operations are a common library shape, not the
-semantic limit; the frontier theorem is general n-to-m conservation.
+custody exit accounts for them. Split and merge are the same theorem in
+opposite dataflow directions. Binary operations are a common library shape,
+not the semantic limit; the frontier theorem is general n-to-m conservation.
+
+Introduction and custody exit are claim-frontier rows, not freely authored
+algebra terms. A structural introduction requires all of: no consumed content
+source, an exact sealed establishment route, a content-bearing result, and the
+matching selected provider invocation. A checked machine cannot mint content
+by constructing equal geometry or writing a postcondition. Whole-claim custody
+exit follows a visible exact terminal call. Checked partial transformations
+compose the authored theorem of the partitioning primitive with the visible
+terminal call on the residual claim.
+
+A bodyless partial boundary cannot assert its own partition. The compiler
+derives `kept` from result projections, proves `kept` is contained in entry
+content, and computes the canonical residual. The admitted fact states only
+that the provider accepted custody of that exact residual. It does not claim
+that the provider destroyed it, returned it to a parent, made it reissuable, or
+retained it internally. Those are separate provider-ledger states. If the
+closed algebra cannot derive the residual, admission is unavailable and the
+boundary rejects.
+
+“Retired” in frontier and allocator reports means only “left this checked
+custody frontier.” It never implies destruction, reclamation, or reusable
+capacity.
+
+Inference stops at claim-identity-preserving reshuffles: direct moves,
+one-to-one forwarding, and transparent construction/extraction preserving the
+existing claim identities. The primitive operation that establishes or changes
+a partition must author its theorem. Checked wrappers may compose already
+proved split, merge, introduction, and custody-exit facts without repeating
+them. Field names, constructor shape, per-output containment, and scalar totals
+never establish a partition.
 
 Root lineage remains distinct from geometry. Equal or adjacent content from
 unrelated admitted roots cannot merge merely because the algebraic ranges fit.
@@ -486,7 +571,7 @@ guard or explicit `as ... in Active` cannot reproduce the route.
 Inbound acknowledgement establishment still needs one language ruling. Domain
 routes currently authorize only exact qualified results, while `Pending`
 arrives at an exact external-entry parameter and the core domain cannot name an
-open-ended target-owned handler requirement. OWNER_QUESTIONS #2 must select an
+open-ended target-owned handler requirement. OWNER_QUESTIONS #1 must select an
 owner-authorized parameter-route shape before checked entry lowering treats the
 runtime receipt as source membership evidence.
 
@@ -522,9 +607,9 @@ The implementation requires:
    validate inferred resource-transformation outcome mappings together with
    their inherited carry permissions.
 3. Qualified claim metadata must retain the owner-unique `Content<A>`
-   conformance, its canonical content-projection expression, and its interval
-   or counted-quantity identity; admitted receipts must carry backing in the
-   same algebra.
+   conformance, its canonical content-projection expression, and its
+   interval-set or counted-quantity identity; admitted receipts must carry
+   backing in the same algebra.
 4. The prover and resource checker must connect subject arithmetic and access
    footprints to compiler-owned containment and separated composition without
    teaching either system names such as `Extent`, `base`, `split`, or `merge`.

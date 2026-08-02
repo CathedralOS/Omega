@@ -298,6 +298,14 @@ Nothing may appear in two categories or in none. The transfer map, ordered
 cleanup actions, contracts, and backend realization are evidence for that
 theorem.
 
+When an obligation carries decomposable content, this whole-claim theorem also
+contains the normalized content equation for its algebra: machine-entry content
+plus sealed introductions equals returned content plus content that left checked
+custody. `entry(place)` names the entry version of a structural place, the exact
+owner-unique `Content<A>::project` machine projects its content, and
+`separate(...)` composes disjoint pieces. Here “left checked custody” does not
+mean destroyed, reclaimed, or reusable; it records only the frontier transfer.
+
 One useful report shape is:
 
 ```text
