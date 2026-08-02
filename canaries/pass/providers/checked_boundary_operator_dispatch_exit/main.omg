@@ -1,0 +1,27 @@
+// A named boundary operator may select a checked Omega body. Checking retains
+// the public operator contract and exact ProviderPlan identity; execution in
+// both engines redirects to the selected ordinary machine.
+use omega::language::std::console;
+
+data CheckedMath {}
+
+boundary operator CheckedMath::offset_zero(value: i32) -> i32
+requires value == value
+ensures result == value + 0 && value == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+requires input == input
+ensures result == input + 0 && input == input
+{
+    transition { _ -> (input + 0) }
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let result: i32 = CheckedMath::offset_zero(70);
+    self.console.exit_process(result);
+}

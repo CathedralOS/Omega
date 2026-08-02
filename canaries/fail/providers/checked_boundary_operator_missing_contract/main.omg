@@ -1,0 +1,17 @@
+// A checked body is not an admitted leaf: it must prove the boundary
+// operator's public result contract before its ProviderPlan can be selected.
+data CheckedMath {}
+
+boundary operator CheckedMath::identity(value: i32) -> i32
+ensures result == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::identity_impl(input: i32) -> i32
+satisfies CheckedMath::identity
+{
+    transition { _ -> (input) }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

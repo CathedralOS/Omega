@@ -15663,6 +15663,42 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn checked_boundary_operator_dispatch_exit_canary_runs() {
+    let canary = pass_canary("providers/checked_boundary_operator_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("checked boundary-operator canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter dispatches the selected checked operator body; error: {:?}",
+        outcome.error,
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-checked-operator-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("checked boundary-operator canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("checked boundary-operator canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native execution dispatches the selected checked operator body"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_result_domain_requirement_overload_exit_canary_runs() {
     // Result-domain identity survives requirement collection, provider-plan
     // selection, checked adapter dispatch, and both executable engines.
@@ -40598,6 +40634,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/stores_capability",
     "capabilities/external_leaf_binding_forms",
     "capabilities/native_fixed_array_import_compile",
+    "providers/checked_boundary_operator_dispatch_exit",
     "capabilities/win64_pointer_length_vs_descriptor_compile",
     "targets/target_machine_gating_exit",
     "targets/single_target_internal_machine_skipped",
@@ -41794,6 +41831,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/provider_selection_outside_build",
     "providers/scoped_provider_selection_outside_build",
     "providers/free_adapter_rejected",
+    "providers/checked_boundary_operator_missing_contract",
+    "providers/checked_boundary_operator_parameter_swap",
+    "providers/checked_boundary_operator_stronger_requires",
     "providers/adapter_hidden_effect",
     "providers/adapter_forwarding_bad_lead",
     "providers/via_on_axiom_rejected",

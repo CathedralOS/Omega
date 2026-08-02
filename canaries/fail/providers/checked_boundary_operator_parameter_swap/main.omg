@@ -1,0 +1,19 @@
+// Operator parameters map to provider parameters positionally. A general
+// bijection is insufficient for a functional contract: returning the second
+// argument cannot satisfy a requirement that returns the first.
+data CheckedMath {}
+
+boundary operator CheckedMath::first(left: i32, right: i32) -> i32
+ensures result == left;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::wrong_first(x: i32, y: i32) -> i32
+satisfies CheckedMath::first
+ensures result == y
+{
+    transition { _ -> (y) }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

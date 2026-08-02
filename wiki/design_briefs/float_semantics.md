@@ -292,6 +292,15 @@ pin the positive fused residual, and intrinsic-label rejection keeps the FMA
 slot distinct from multiply-then-add. The generic x86-64 targets intentionally
 remain SSE2-baseline: selecting FMA3 there without a target feature claim would
 be unsound, so they await a feature-qualified or checked software provider.
+The reusable checked-software dispatch path now exists for named boundary
+operators. A checked machine body with no `via` must prove equality/`&&`
+guarantees covering the operator contract under positional parameter
+substitution and may not add a stronger requires
+premise; its exact one-row `CheckedAdapter` plan is selected and retained on the
+named use before both engines redirect execution to the ordinary Omega body.
+This is provider infrastructure, not an FMA implementation: the x86 slots stay
+unselected until a checked binary32/binary64 algorithm or honest feature-
+qualified target provider is present.
 Primitive spellings, the twenty-two cross-target named slots above, and two
 AArch64 FMA slots are migrated, not all of rung 3: x86-64 FMA,
 directed-rounding families, checked software fallbacks, canonical

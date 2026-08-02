@@ -196,9 +196,45 @@ fn selected_operator_provider_identity(
             plan.name,
         )));
     };
+    if let ProviderBinding::CheckedAdapter { machine } = &row.binding {
+        let [namespace, requirement] = checked.typed.operator_path_members(operator.name) else {
+            return Err(omega_core::diagnostics::Diagnostic::error(format!(
+                "selected checked boundary-operator ProviderPlan `{}` targets `{slot}`, whose source path is not the supported `Namespace::requirement` shape",
+                plan.name,
+            )));
+        };
+        let checked_provider = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|candidate| candidate.name.as_str() == machine)
+            .filter(|candidate| {
+                checked
+                    .typed
+                    .machine_trait_conformances(candidate)
+                    .iter()
+                    .any(|conformance| {
+                        conformance.via.is_none()
+                            && omega_typed_trees::operator::resolve_satisfied_checked_operator(
+                                &checked.typed,
+                                candidate,
+                                namespace.as_str(),
+                                requirement.as_str(),
+                            )
+                            .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                    })
+            });
+        if checked_provider.is_none() {
+            return Err(omega_core::diagnostics::Diagnostic::error(format!(
+                "selected boundary-operator ProviderPlan `{}` binds checked adapter `{machine}`, but that machine does not satisfy exact slot `{slot}` with a checked body",
+                plan.name,
+            )));
+        }
+        return Ok(Some(plan.identity_fingerprint()));
+    }
     let ProviderBinding::CompilerIntrinsic { name } = &row.binding else {
         return Err(omega_core::diagnostics::Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` uses unsupported bootstrap binding `{:?}`; the migrated target slice requires one compiler intrinsic",
+            "selected boundary-operator ProviderPlan `{}` uses unsupported binding `{:?}`; boundary operators require a checked adapter or compiler intrinsic",
             plan.name, row.binding,
         )));
     };
@@ -698,10 +734,22 @@ fn derive_boundary_operator_plans(
             continue;
         };
         for clause in syntax_trees.items.satisfies_clauses(machine.satisfies) {
-            let (Some(requirement), Some(binding)) =
-                (clause.requirement.as_ref(), clause.via.as_ref())
-            else {
+            let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
+            };
+            let binding = match (&clause.via, machine.bodyless) {
+                (Some(binding), true) => external_provider_binding(
+                    binding,
+                    machine
+                        .attached_data
+                        .as_ref()
+                        .map(|name| name.as_str())
+                        .unwrap_or_default(),
+                ),
+                (None, false) => ProviderBinding::CheckedAdapter {
+                    machine: machine.name.as_str().to_owned(),
+                },
+                _ => continue, // invalid via/body combinations are refused elsewhere
             };
             let Some(operator) = omega_typed_trees::operator::resolve_satisfied_boundary_operator(
                 typed,
@@ -741,7 +789,7 @@ fn derive_boundary_operator_plans(
             plans[position].rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
                 requirement_identity: String::new(),
-                binding: external_provider_binding(binding, &provider_type),
+                binding,
             });
         }
     }

@@ -153,9 +153,7 @@ fn collect_expression_operator_use(
             );
         }
         ExpressionNode::Call(call) => {
-            if let Some(named_use) =
-                named_float_operator_use_fact(program, expression, origin, call)
-            {
+            if let Some(named_use) = named_operator_use_fact(program, expression, origin, call) {
                 named_uses.append(named_use);
             }
             collect_expression_operator_use(
@@ -239,11 +237,13 @@ fn collect_expression_operator_use(
     }
 }
 
-/// Retain the selected identity of one normalized numeric boundary call.
+/// Retain the selected identity of one unambiguously resolved named operator
+/// call. Every boundary-operator provider path consumes this common fact;
+/// numeric policy adaptation remains specific to the normalized float surface.
 /// Policy adaptation is operand-driven for float-returning F32/F64 operations;
 /// classification and destination-owned float-to-integer conversions carry no
 /// float result adapter.
-fn named_float_operator_use_fact(
+fn named_operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
@@ -262,7 +262,7 @@ fn named_float_operator_use_fact(
         {
             None
         }
-        _ => return None,
+        _ => None,
     };
     let policy_adapter = match format {
         Some(format)
