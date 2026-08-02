@@ -46,6 +46,14 @@ explicit consuming machine such as `close`, `flush`, `commit`, `finish`, or
 An affine resource may instead have an authorized nonblocking fallback, such as
 abandonment or transfer to a stable custodian.
 
+Sound abandonment does not make silent abandonment appropriate. When forgetting
+a claim permanently withholds external capacity, the claim remains linear and
+the terminal choice is explicit: a potentially failing or blocking `release`,
+or an infallible `abandon` that records the loss. Only resources whose contract
+declares implicit disposal harmless may use affine scope exit for abandonment.
+Deployment profiles may reject explicit or implicit abandonment independently
+of memory safety.
+
 Such an explicit consumer uses the ordinary call acknowledgement required by
 its contract:
 

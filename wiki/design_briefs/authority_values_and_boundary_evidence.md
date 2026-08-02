@@ -1,6 +1,6 @@
 # Design Brief: Authority Values And Boundary Evidence
 
-Status: semantic direction updated 2026-07-30. The core `Extent` declaration,
+Status: semantic direction updated 2026-08-02. The core `Extent` declaration,
 owner-authored root requirement, state-local constrained-parameter evidence
 boundary, Cathedral's first admitted `Granted` root, and ordinary interrupt
 obligation carriers are live; further provider, carry, resource-frontier, and
@@ -118,12 +118,38 @@ admission supplies that evidence and records its scope.
 The root value carries runtime geometry when the platform discovers that
 geometry at runtime. Domain membership itself adds no runtime tag.
 
-A content-bearing root receipt is denominated in the same normalized
-compiler-owned algebra as the claim it establishes. Admission proves the
-claim's projected content is contained in the receipt's backing. A receipt
-cannot introduce an owner-defined geometry that the resource checker cannot
-normalize or compose. The provider may still lie about external reality; that
-is the explicit admitted trust seam. Checked code cannot enlarge the receipt.
+A content-bearing root crosses three distinct checks. An ordinary fingerprinted
+postcondition states its per-invocation **geometry** over parameters and result
+paths. The selected provider separately attests **fresh issuance** from backing
+under its custody: every newly owned exclusive claim is separated from every
+other live exclusive issuance, while intentional aliases carry an explicit
+shared-view authority instead. Finally, providers that issue claims over the
+same stable backing identity must derive their custody from a common root; a
+set of individually honest provider ledgers does not establish cross-provider
+separation.
+
+No source-visible backing-receipt binder exists. Parameters, entry snapshots,
+and result paths are the contract subjects. The static requirement fingerprints
+the normalized algebra expression; each invocation substitutes its actual
+values. For multiple content-bearing results, one n-ary separated relation
+bounds all newly established result claims together. Content transferred from
+input claims remains ordinary conservation and is not counted again as new
+boundary supply.
+
+Geometry and external supply retain different trust. A checked adapter may
+derive that a returned length is at most an input count or that a returned
+interval has the promised size. A result-selected base can establish that
+geometry but cannot prove the range is new. External ownership, fresh issuance,
+and the provider's correspondence to physical reality remain admitted facts
+with exact provider provenance. If a checked runtime validation can reject, its
+boundary signature must publish an `Outcome` path or an explicit trap effect;
+the compiler never invents a hidden rejection edge. A provider merely violating
+an admitted assertion is a trust violation, not a failed runtime check.
+
+Provider plans and invocation evidence retain the normalized geometry theorem,
+backing identity, issuer, live-issuance premise, custody lineage, alias class,
+and trust provenance. Ordinary record construction can reproduce geometry but
+cannot establish any of those authority facts.
 
 A provider-neutral grant may be useful when platform admission and a portable
 library need a separate handoff. Such a handoff is a resource transformation,
@@ -214,21 +240,21 @@ evidence. Fractional permissions are deliberately absent: ordinary `&` and
 customer requires a third permission algebra. Root lineage remains an
 additional authority-family check rather than part of numeric geometry.
 
-Backing and transformation correspondence use ordinary machine postconditions
-over the projection. For example, an establishment postcondition proves
-`content(result) ⊆ content(receipt)`, while a retained-buffer transformation
-may prove
+Backing geometry and transformation correspondence use ordinary machine
+postconditions over the projection. For example, an establishment postcondition
+may bound `content(result)` by an expression over parameters and result paths,
+while a retained-buffer transformation may prove
 `content(result) == content(old(buffer))`. Those postconditions relate
 already-established evidence; they cannot make an ordinary record
 authoritative. Clear one-to-one and one-to-many claim mappings infer from the
 frontier. An ambiguous mapping requires an explicit postcondition or rejects.
 
-The semantics above are settled, but the source-visible proof-only binder for
-an admitted receipt's per-invocation backing is not. `content(receipt)` remains
-schematic until `OWNER_QUESTIONS.md` #1 chooses that binder and its failure
-surface; implementations must not infer backing equal to the returned claim.
-Likewise, `content(value)` and `old(value)` below state the settled semantic
-relation but are not yet source intrinsics. `OWNER_QUESTIONS.md` #2 must choose
+The backing surface is settled: it introduces no receipt binder and uses the
+ordinary postcondition subjects and one n-ary result-path relation.
+Implementations must not infer fresh supply or nonduplication from a
+result-selected bound. `content(value)` and `old(value)` below still state the
+settled semantic relation but are not yet source intrinsics.
+`OWNER_QUESTIONS.md` #1 must choose
 their exact qualification-selection, pre-state, separated-composition, and
 authorized-retirement surface before explicit n-to-m conservation contracts
 can be implemented; an outcome map alone does not prove content equality.
@@ -246,13 +272,53 @@ Only an authorized establishment route introduces new content, and only an
 ordinary terminal claim consumer authorized by its contract retires content.
 An owner-originated resource may expose machines that establish fresh claims
 under the owner's policy. An externally rooted conduit may establish roots
-only from algebra-denominated admitted backing; its ordinary checked machines
-must conserve existing content.
+only through admitted backing identity, fresh issuance, and custody evidence;
+its ordinary checked machines must conserve existing content.
 
 An underapproximating projection is safe but restricts access. An
 overapproximating projection rejects at checked establishment when the supplied
 backing does not cover it. An admitted provider can still misstate external
-backing, and the receipt records that accepted claim.
+backing or duplicate an issuance, and the evidence records those accepted
+premises separately from derived geometry.
+
+### Custody, reclamation, and succession
+
+Provider-local nonduplication does not compose across providers. Exclusive
+claims compare through one stable backing identity and a common custody root.
+The root may delegate separated custody to provider children or authorize an
+explicit shared alias. Providers without a common custody lineage cannot
+establish mutually exclusive claims merely because their numeric intervals
+appear disjoint.
+
+Reclamation closes the temporal half of issuance. Automatic return is legal
+only when cleanup is terminating, infallible, non-suspending, and nonblocking.
+If provider release may block or fail, the claim remains linear and an explicit
+terminal operation returns it. If no safe release exists, explicit abandonment
+may discharge the local obligation while leaving the external capacity
+permanently unavailable. Silent affine abandonment is reserved for resources
+declared disposable; safety profiles may reject abandonment. Destroying a
+placed `T` and recovering its `Extent` is distinct from returning that extent
+to its external provider.
+
+Custody is a tree at one instant and an append-only transition graph over time.
+A platform handoff performs a classified succession rather than replacing one
+root wholesale:
+
+- preserved delegations transfer to a successor, which must honor them;
+- reclaimable classes require no overlapping live claims before they become
+  successor capacity;
+- retained classes remain under the predecessor or another continuing root;
+  and
+- excluded classes remain unavailable until a later authorized transition.
+
+The provider admits the platform classification and its correspondence to
+external reality. Given that classification and exact locally tracked ranges,
+the no-live-claim precondition for reclamation is derived and rejects when it
+fails. Succession consumes the transferred issuance authority, prevents later
+issuance by the old custodian for those classes, and moves the relevant live
+ledger and unused capacity. Existing claim values retain their stable backing
+identity. Provenance is not rewritten: it appends the classification,
+predecessor, successor, retained custodian, and transition evidence.
 
 ### N-ary conservation
 
@@ -420,7 +486,7 @@ guard or explicit `as ... in Active` cannot reproduce the route.
 Inbound acknowledgement establishment still needs one language ruling. Domain
 routes currently authorize only exact qualified results, while `Pending`
 arrives at an exact external-entry parameter and the core domain cannot name an
-open-ended target-owned handler requirement. OWNER_QUESTIONS #6 must select an
+open-ended target-owned handler requirement. OWNER_QUESTIONS #2 must select an
 owner-authorized parameter-route shape before checked entry lowering treats the
 runtime receipt as source membership evidence.
 

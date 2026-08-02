@@ -93,10 +93,12 @@ An admitted platform provider originates a root only by satisfying the
 owner-authored `ExtentRootProvider::grant` requirement. The caller supplies the
 ordinary geometry; the selected provider and its admission receipt establish
 `Granted` on the returned carrier. A direct call to the checked adapter is not
-that crossing and does not establish the fact. The receipt denominates its
-backing in the same compiler-owned interval algebra as `Granted`'s normalized
-content projection, and admission proves the projected interval is contained
-in that backing.
+that crossing and does not establish the fact. An ordinary fingerprinted
+postcondition bounds per-invocation geometry in the same compiler-owned
+interval algebra as `Granted`'s normalized content projection. No proof-only
+receipt binder exists. The provider evidence separately admits stable backing
+identity, ownership, and fresh nonduplicating issuance; a result-selected base
+can prove returned size but cannot prove that the interval is new.
 
 The live source declaration is in `omega::language::core::extent` together
 with the debt-free `ExtentSlot { Empty | Live(Extent) }` bridge. Core's stage-1
@@ -138,6 +140,23 @@ may establish, and the receipt records that origin. Checked code derives
 children through resource transformations whose outcome mappings conserve the
 parent claim's content and root lineage.
 
+Provider-local issuance is insufficient for cross-provider exclusivity. Every
+exclusive extent names stable backing. Providers issuing over the same backing
+identity descend from a common custody root; that root delegates separated
+ranges to child providers or explicitly authorizes shared aliases. Providers
+with no common custody lineage do not gain a derived nonoverlap fact from
+individually clean ledgers.
+
+Boot handoff uses classified custody succession. At one instant custody is a
+tree; over time provenance appends succession edges. Preserved delegations move
+to the successor and remain honored. Reclaimable classes become successor
+capacity only after a derived check proves that no live claim overlaps them.
+Retained classes remain under firmware or another continuing root, while
+excluded classes stay unavailable. The platform provider admits the external
+classification; the compiler checks locally tracked live ranges against it.
+Existing claims keep stable backing identity, and provenance records rather
+than rewrites their custody history.
+
 Splitting consumes one owned qualified extent and returns disjoint owned
 children whose ranges exactly cover it. `Extent::Granted` projects its subject
 through its owner-unique `Content` conformance to a normalized address-space
@@ -161,6 +180,14 @@ Subrange loans are borrow-carrying values. Their polarity follows the parent
 borrow: shared loans permit only shared operations; exclusive loans permit
 ordinary mutation. Loans are not linear cleanup obligations. The owned extent,
 DMA tokens, shootdown tokens, and similar authority/debt values remain linear.
+
+Destroying placed content returns its extent authority but does not itself
+release that extent to an OS or firmware provider. Provider reclamation may be
+implicit only when it is terminating, infallible, non-suspending, and
+nonblocking. Otherwise the extent stays linear and exposes explicit terminal
+`release` and, where policy permits permanent loss, `abandon` operations.
+Safety profiles may reject abandonment; capacity loss must not hide behind an
+ordinary silent drop.
 
 The normalized conservation model is live in `omega-extents`. Its Rust carrier
 is non-clonable; an admitted one-shot root receipt establishes the first claim;

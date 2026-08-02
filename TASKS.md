@@ -134,7 +134,7 @@ composite claim-frontier work remain.
   transition receipt mints subject/invocation-bound `Active` evidence; explicit
   qualification, missing contracts, claim drift, and receipt substitution
   reject.
-- **LANGUAGE-DESIGN BLOCKED (OWNER_QUESTIONS #6):** connect concrete inbound
+- **LANGUAGE-DESIGN BLOCKED (OWNER_QUESTIONS #2):** connect concrete inbound
   invocation evidence to the checked `Pending` source-parameter fact and
   backend entry lowering without weakening the exact owner-authorized route
   rule. Current routes name only qualified results; `Pending` originates at an
@@ -334,20 +334,30 @@ fingerprint. It does not publish placeholder backing or conservation witnesses;
 those rows remain absent until their actual checked proofs exist.
 
 - **BUMP-ALLOCATOR-CANARY — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #2:** implement an ordinary package-level bump strategy
+  `OWNER_QUESTIONS.md` #1:** implement an ordinary package-level bump strategy
   over a consumed `Extent` once source content-conservation contracts can state
   its split, retirement, reset recomposition, and backing return. Keep
   allocatable tail, live extents, and retired extents distinct: release cleans
   `T` and returns authority but restores bump capacity only at reset. Exercise
   RAM and non-RAM placed access without adding an Arena primitive, interior
   mutability, or a new borrowing rule;
-- **BACKING-RECEIPT — LANGUAGE-DESIGN BLOCKED on `OWNER_QUESTIONS.md` #1:**
-  require admitted roots to carry backing receipts denominated in the same
-  algebra and prove projected content is within that backing through ordinary
-  postconditions. Provider selection and receipt identity are live, but no
-  source/IR binder yet supplies the receipt's per-invocation algebra value;
+- **BOUNDARY-ISSUANCE — DESIGN CLEAR; source theorem spelling shares
+  `OWNER_QUESTIONS.md` #1:** lower per-invocation geometry from ordinary
+  postconditions over parameters, entry snapshots, and result paths; do not add
+  a receipt binder. Bound every newly established result claim through one
+  n-ary relation, keep transferred input content in conservation, and reject
+  algebra mismatch. Retain admitted external ownership and fresh issuance
+  separately from derived geometry. Add stable backing identities, provider
+  live-issuance ledgers, common-root custody delegation, explicit alias classes,
+  and partitioned succession. A succession classifies preserved, reclaimable,
+  retained, and excluded ranges; reclaimable ranges require a derived check
+  that no live claim overlaps them. Runtime validation uses a declared
+  `Outcome` or explicit trap; provider assertion failure remains a trust
+  violation. Proof/debug artifacts
+  retain geometry, issuer, custody lineage, alias class, succession history,
+  and trust provenance;
 - **CONSERVATION-CONTRACT — LANGUAGE-DESIGN BLOCKED on
-  `OWNER_QUESTIONS.md` #2:** prove all consumed content equals the separated
+  `OWNER_QUESTIONS.md` #1:** prove all consumed content equals the separated
   composition of produced content plus any remainder retired through an
   authorized route. The equation and closed algebras are settled, but the
   documented `content(...)`/`old(...)` forms remain schematic: no source or IR
@@ -1090,7 +1100,7 @@ improvements do not change public identity.
   killed safely, an orphan pins its worker/storage/provider era, and bounded
   recovery from a hung call requires process isolation.
 - Build the package-level bump-allocation canary after
-  `OWNER_QUESTIONS.md` #2. Core supplies qualified `Extent`, placement, and
+  `OWNER_QUESTIONS.md` #1. Core supplies qualified `Extent`, placement, and
   conservation; it does not bless Arena, bump, slab, pool, buddy, or heap
   strategy semantics.
 - Implement owned `Vec<T>` and then `Vec<u8>::Utf8` through ordinary data and
@@ -1404,8 +1414,8 @@ blocked work.
 
 | Question | Unblocks |
 |---|---|
-| #1 algebra-denominated backing | source-visible admitted backing receipts and containment obligations |
-| #2 content-conservation contracts | normalized n-to-m content equations, correspondence, allocator canaries, inference, and retained proof evidence |
+| #1 content-conservation contracts | normalized n-to-m content equations, boundary geometry, correspondence, allocator canaries, inference, and retained proof evidence |
+| #2 admitted inbound parameters | exact parameter-position establishment routes and invocation-bound evidence |
 
 ## Vertical acceptance slices
 
