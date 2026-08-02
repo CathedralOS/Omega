@@ -497,6 +497,239 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
+fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
+    let machine = MachineId::new(60).expect("machine");
+    let wrapping_operation = OperationId::new(60).expect("wrapping operation");
+    let saturating_operation = OperationId::new(61).expect("saturating operation");
+    let edge = EdgeId::new(60).expect("edge");
+    let wrapped = ValueId::new(70).expect("wrapped value");
+    let saturated = ValueId::new(71).expect("saturated value");
+    let result = ValueId::new(72).expect("result");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let parameters = (0..9)
+        .map(|index| ValueDeclaration {
+            id: ValueId::new(60 + index).expect("parameter"),
+            scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V4,
+        entry: machine,
+        machines: vec![TerminalMachine {
+            id: machine,
+            parameters: parameters.clone(),
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            entry: BlockId::new(60).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(60).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: wrapping_operation,
+                        result: ValueDeclaration {
+                            id: wrapped,
+                            scalar_type,
+                        },
+                        kind: OperationKind::WrappingIntegerAdd {
+                            left: parameters[0].id,
+                            right: parameters[8].id,
+                        },
+                    },
+                    Operation {
+                        id: saturating_operation,
+                        result: ValueDeclaration {
+                            id: saturated,
+                            scalar_type,
+                        },
+                        kind: OperationKind::SaturatingIntegerAdd {
+                            left: wrapped,
+                            right: parameters[1].id,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    edge,
+                    value: saturated,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(60).expect("contract"),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let original_identity = terminal_psi_identity(&module).expect("v4 runtime identity");
+    let canonical_bytes = encode_module(&module).expect("v4 runtime canonical bytes");
+    drop(module);
+    let module = decode_module(&canonical_bytes).expect("decode v4 runtime module");
+    assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free runtime arithmetic module verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed runtime arithmetic fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("runtime arithmetic fuel recomputes");
+    assert_eq!(fixed.ceiling_units(), 3);
+
+    let argument_values: [u8; 9] = [250, 253, 0, 0, 0, 0, 0, 0, 10];
+    let arguments = argument_values
+        .into_iter()
+        .map(|value| TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(u128::from(value)),
+        })
+        .collect::<Vec<_>>();
+    let measured =
+        interpret_terminal_measured(&verified, &arguments).expect("interpret runtime arithmetic");
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(255),
+        }
+    );
+    assert_eq!(measured.usage().total_units(), 3);
+
+    let abstract_plan =
+        lower_verified_module(&verified).expect("lower runtime arithmetic requirements");
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select runtime arithmetic target operations");
+    let machine_code =
+        emit_machine_code(&target_plan).expect("emit nested runtime arithmetic machine code");
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build nested runtime arithmetic object artifact");
+    assert_eq!(
+        artifact.entry_function().provenance.operations,
+        [wrapping_operation, saturating_operation]
+    );
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    assert_eq!(
+        run_host_machine_code_with_u8_arguments(&entry_bytes, &argument_values),
+        255
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn v4_signed_i64_runtime_saturation_matches_both_bounds_natively() {
+    let machine = MachineId::new(80).expect("machine");
+    let operation = OperationId::new(80).expect("operation");
+    let edge = EdgeId::new(80).expect("edge");
+    let left = ValueId::new(80).expect("left parameter");
+    let right = ValueId::new(81).expect("right parameter");
+    let sum = ValueId::new(82).expect("sum");
+    let result = ValueId::new(83).expect("result");
+    let integer = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    let scalar_type = ScalarType::Integer(integer);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V4,
+        entry: machine,
+        machines: vec![TerminalMachine {
+            id: machine,
+            parameters: vec![
+                ValueDeclaration {
+                    id: left,
+                    scalar_type,
+                },
+                ValueDeclaration {
+                    id: right,
+                    scalar_type,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            entry: BlockId::new(80).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(80).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation,
+                    result: ValueDeclaration {
+                        id: sum,
+                        scalar_type,
+                    },
+                    kind: OperationKind::SaturatingIntegerAdd { left, right },
+                }],
+                terminator: Terminator::Return { edge, value: sum },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(80).expect("contract"),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free signed runtime saturation verifies");
+    for (left_value, right_value, expected) in [(i64::MAX, 1, i64::MAX), (i64::MIN, -1, i64::MIN)] {
+        let measured = interpret_terminal_measured(
+            &verified,
+            &[
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Signed(left_value as i128),
+                },
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Signed(right_value as i128),
+                },
+            ],
+        )
+        .expect("interpret signed runtime saturation");
+        assert_eq!(
+            measured.value(),
+            TerminalScalarValue::Integer {
+                scalar_type: integer,
+                value: IntegerValue::Signed(expected as i128),
+            }
+        );
+        assert_eq!(measured.usage().total_units(), 2);
+    }
+
+    let abstract_plan =
+        lower_verified_module(&verified).expect("lower signed runtime saturation requirements");
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select signed runtime saturation target operations");
+    let machine_code =
+        emit_machine_code(&target_plan).expect("emit signed runtime saturation machine code");
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build signed runtime saturation object artifact");
+    assert_eq!(artifact.entry_function().provenance.operations, [operation]);
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    assert_eq!(run_host_i64_saturation_canary(&entry_bytes), 0);
+}
+
+#[cfg(unix)]
+#[test]
 fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
     let machine = MachineId::new(50).expect("machine");
     let edge = EdgeId::new(50).expect("edge");
@@ -753,6 +986,67 @@ fn run_host_machine_code_with_u8_arguments(bytes: &[u8], arguments: &[u8]) -> i3
         .expect("execute parameter terminal native canary")
         .code()
         .expect("parameter terminal native canary exited normally")
+}
+
+#[cfg(unix)]
+fn run_host_i64_saturation_canary(bytes: &[u8]) -> i32 {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let sequence = SCRATCH_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!(
+        "omega-terminal-i64-saturation-native-{}-{nonce}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create i64 saturation native test directory");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let harness_path = directory.join("harness.c");
+    let executable_path = directory.join("entry");
+    let bytes = bytes
+        .iter()
+        .map(|byte| format!("0x{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let symbol = if cfg!(target_os = "macos") {
+        "_omega_entry"
+    } else {
+        "omega_entry"
+    };
+    let assembly = if cfg!(target_os = "macos") {
+        format!(".text\n.globl {symbol}\n.p2align 2\n{symbol}:\n.byte {bytes}\n")
+    } else {
+        format!(
+            ".text\n.globl {symbol}\n.type {symbol},@function\n{symbol}:\n.byte {bytes}\n.size {symbol}, .-{symbol}\n.section .note.GNU-stack,\"\",@progbits\n"
+        )
+    };
+    let harness = "#include <limits.h>\n\
+extern long long omega_entry(long long, long long);\n\
+int main(void) {\n\
+  if (omega_entry(LLONG_MAX, 1) != LLONG_MAX) return 1;\n\
+  if (omega_entry(LLONG_MIN, -1) != LLONG_MIN) return 2;\n\
+  return 0;\n\
+}\n";
+    std::fs::write(&assembly_path, assembly).expect("write i64 saturation native assembly");
+    std::fs::write(&harness_path, harness).expect("write i64 saturation native harness");
+    let link = Command::new("cc")
+        .arg(&assembly_path)
+        .arg(&harness_path)
+        .arg("-o")
+        .arg(&executable_path)
+        .output()
+        .expect("invoke host C linker driver");
+    assert!(
+        link.status.success(),
+        "host linker rejected i64 saturation terminal machine code:\n{}",
+        String::from_utf8_lossy(&link.stderr)
+    );
+    Command::new(&executable_path)
+        .status()
+        .expect("execute i64 saturation terminal native canary")
+        .code()
+        .expect("i64 saturation terminal native canary exited normally")
 }
 
 #[cfg(unix)]

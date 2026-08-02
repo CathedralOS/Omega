@@ -53,8 +53,13 @@ declared parameter/result types, selects their AAPCS64, System V AMD64, or
 Microsoft x64 register/incoming-stack locations through the established call
 planner, and emits direct scalar parameter returns on both architectures. A
 nine-`u8` canary forces a stack argument and agrees with interpretation at 77.
-Parameter-fed operations and general register assignment remain separate
-implementation work.
+The next continuation lowers recursive parameter-fed wrapping/saturating
+integer expressions and emits signed or unsigned 8/16/32/64-bit native
+arithmetic on both architectures. A nested `u8` register/stack canary and a
+signed `i64` two-bound canary agree with interpretation through real C ABI
+calls. General register assignment remains separate implementation work; this
+terminal slice uses bounded scratch registers and an aligned AArch64 argument
+spill frame.
 
 The vocabulary has canonical semantic bytes and a domain-separated semantic
 fingerprint; the source, wrapping, and saturating canaries round-trip after

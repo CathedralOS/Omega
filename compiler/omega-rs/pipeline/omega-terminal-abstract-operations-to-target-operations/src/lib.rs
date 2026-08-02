@@ -16,7 +16,7 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetFunction,
-    TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
 
@@ -76,15 +76,22 @@ fn lower_function(
         .zip(&call_plan.parameters)
         .enumerate()
     {
-        insert_value(
-            &mut values,
-            parameter.value,
-            KnownScalar::Parameter {
-                scalar_type: parameter.scalar_type,
+        let location = scalar_parameter_location(parameter, placement)?;
+        let value = match parameter.scalar_type {
+            ScalarType::Boolean => KnownScalar::BooleanParameter {
                 parameter_index,
-                location: scalar_parameter_location(parameter, placement)?,
+                location,
             },
-        )?;
+            ScalarType::Integer(scalar_type) => KnownScalar::Integer {
+                scalar_type,
+                value: KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
+                    source_value: parameter.value,
+                    parameter_index,
+                    location,
+                }),
+            },
+        };
+        insert_value(&mut values, parameter.value, value)?;
     }
 
     for operation in &function.operations {
@@ -109,7 +116,7 @@ fn lower_function(
                     *result,
                     KnownScalar::Integer {
                         scalar_type: *integer_type,
-                        value: *value,
+                        value: KnownInteger::Immediate(*value),
                     },
                 )?;
                 provenance.operations.push(*psi_operation);
@@ -129,13 +136,15 @@ fn lower_function(
                 left,
                 right,
             } => {
+                let left_id = *left;
+                let right_id = *right;
                 let left = values
                     .get(left)
-                    .copied()
+                    .cloned()
                     .ok_or(LoweringError::UnknownValue(*left))?;
                 let right = values
                     .get(right)
-                    .copied()
+                    .cloned()
                     .ok_or(LoweringError::UnknownValue(*right))?;
                 let (
                     KnownScalar::Integer {
@@ -148,17 +157,27 @@ fn lower_function(
                     },
                 ) = (left, right)
                 else {
-                    if left.is_parameter() || right.is_parameter() {
-                        return Err(LoweringError::RuntimeArithmeticNotYetSupported(*result));
-                    }
                     return Err(LoweringError::WrappingAddOperandTypeMismatch(*result));
                 };
                 if left_type != *scalar_type || right_type != *scalar_type {
                     return Err(LoweringError::WrappingAddOperandTypeMismatch(*result));
                 }
-                let value = scalar_type
-                    .wrapping_add(left, right)
-                    .ok_or(LoweringError::WrappingAddOperandTypeMismatch(*result))?;
+                let value = match (left, right) {
+                    (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+                        KnownInteger::Immediate(
+                            scalar_type
+                                .wrapping_add(left, right)
+                                .ok_or(LoweringError::WrappingAddOperandTypeMismatch(*result))?,
+                        )
+                    }
+                    (left, right) => {
+                        KnownInteger::Runtime(TerminalTargetIntegerExpression::WrappingAdd {
+                            psi_operation: *psi_operation,
+                            left: Box::new(left.into_expression(left_id)),
+                            right: Box::new(right.into_expression(right_id)),
+                        })
+                    }
+                };
                 insert_value(
                     &mut values,
                     *result,
@@ -176,13 +195,15 @@ fn lower_function(
                 left,
                 right,
             } => {
+                let left_id = *left;
+                let right_id = *right;
                 let left = values
                     .get(left)
-                    .copied()
+                    .cloned()
                     .ok_or(LoweringError::UnknownValue(*left))?;
                 let right = values
                     .get(right)
-                    .copied()
+                    .cloned()
                     .ok_or(LoweringError::UnknownValue(*right))?;
                 let (
                     KnownScalar::Integer {
@@ -195,17 +216,27 @@ fn lower_function(
                     },
                 ) = (left, right)
                 else {
-                    if left.is_parameter() || right.is_parameter() {
-                        return Err(LoweringError::RuntimeArithmeticNotYetSupported(*result));
-                    }
                     return Err(LoweringError::SaturatingAddOperandTypeMismatch(*result));
                 };
                 if left_type != *scalar_type || right_type != *scalar_type {
                     return Err(LoweringError::SaturatingAddOperandTypeMismatch(*result));
                 }
-                let value = scalar_type
-                    .saturating_add(left, right)
-                    .ok_or(LoweringError::SaturatingAddOperandTypeMismatch(*result))?;
+                let value = match (left, right) {
+                    (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+                        KnownInteger::Immediate(
+                            scalar_type
+                                .saturating_add(left, right)
+                                .ok_or(LoweringError::SaturatingAddOperandTypeMismatch(*result))?,
+                        )
+                    }
+                    (left, right) => {
+                        KnownInteger::Runtime(TerminalTargetIntegerExpression::SaturatingAdd {
+                            psi_operation: *psi_operation,
+                            left: Box::new(left.into_expression(left_id)),
+                            right: Box::new(right.into_expression(right_id)),
+                        })
+                    }
+                };
                 insert_value(
                     &mut values,
                     *result,
@@ -224,7 +255,7 @@ fn lower_function(
                     .map(|binding| {
                         let value = values
                             .get(&binding.argument)
-                            .copied()
+                            .cloned()
                             .ok_or(LoweringError::UnknownValue(binding.argument))?;
                         if binding.scalar_type != value.scalar_type() {
                             return Err(LoweringError::ValueTypeMismatch(binding.parameter));
@@ -248,7 +279,7 @@ fn lower_function(
                 }
                 let returned_value = values
                     .get(value)
-                    .copied()
+                    .cloned()
                     .ok_or(LoweringError::UnknownValue(*value))?;
                 if *scalar_type != returned_value.scalar_type() {
                     return Err(LoweringError::ValueTypeMismatch(*result));
@@ -264,31 +295,43 @@ fn lower_function(
                     }
                     KnownScalar::Integer {
                         scalar_type,
-                        value: integer,
+                        value: KnownInteger::Immediate(integer),
                     } => TerminalTargetOperation::ReturnIntegerImmediate {
                         psi_edge: *psi_edge,
                         source_value: *value,
                         scalar_type,
                         value: integer,
                     },
-                    KnownScalar::Parameter {
-                        scalar_type: ScalarType::Boolean,
+                    KnownScalar::Integer {
+                        scalar_type,
+                        value:
+                            KnownInteger::Runtime(TerminalTargetIntegerExpression::Parameter {
+                                parameter_index,
+                                location,
+                                ..
+                            }),
+                    } => TerminalTargetOperation::ReturnIntegerParameter {
+                        psi_edge: *psi_edge,
+                        source_value: *value,
+                        scalar_type,
+                        parameter_index,
+                        location,
+                    },
+                    KnownScalar::Integer {
+                        scalar_type,
+                        value: KnownInteger::Runtime(expression),
+                    } => TerminalTargetOperation::ReturnIntegerExpression {
+                        psi_edge: *psi_edge,
+                        source_value: *value,
+                        scalar_type,
+                        expression,
+                    },
+                    KnownScalar::BooleanParameter {
                         parameter_index,
                         location,
                     } => TerminalTargetOperation::ReturnBooleanParameter {
                         psi_edge: *psi_edge,
                         source_value: *value,
-                        parameter_index,
-                        location,
-                    },
-                    KnownScalar::Parameter {
-                        scalar_type: ScalarType::Integer(scalar_type),
-                        parameter_index,
-                        location,
-                    } => TerminalTargetOperation::ReturnIntegerParameter {
-                        psi_edge: *psi_edge,
-                        source_value: *value,
-                        scalar_type,
                         parameter_index,
                         location,
                     },
@@ -364,31 +407,44 @@ fn insert_value(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum KnownScalar {
     Boolean(bool),
     Integer {
         scalar_type: IntegerType,
-        value: IntegerValue,
+        value: KnownInteger,
     },
-    Parameter {
-        scalar_type: ScalarType,
+    BooleanParameter {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
 }
 
 impl KnownScalar {
-    const fn scalar_type(self) -> ScalarType {
+    const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Boolean(_) => ScalarType::Boolean,
-            Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
-            Self::Parameter { scalar_type, .. } => scalar_type,
+            Self::Integer { scalar_type, .. } => ScalarType::Integer(*scalar_type),
+            Self::BooleanParameter { .. } => ScalarType::Boolean,
         }
     }
+}
 
-    const fn is_parameter(self) -> bool {
-        matches!(self, Self::Parameter { .. })
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum KnownInteger {
+    Immediate(IntegerValue),
+    Runtime(TerminalTargetIntegerExpression),
+}
+
+impl KnownInteger {
+    fn into_expression(self, source_value: ValueId) -> TerminalTargetIntegerExpression {
+        match self {
+            Self::Immediate(value) => TerminalTargetIntegerExpression::Immediate {
+                source_value,
+                value,
+            },
+            Self::Runtime(expression) => expression,
+        }
     }
 }
 
@@ -405,7 +461,6 @@ pub enum LoweringError {
     IntegerConstantOutsideType(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),
     SaturatingAddOperandTypeMismatch(ValueId),
-    RuntimeArithmeticNotYetSupported(ValueId),
     ParameterWidthNotNativelySupported { value: ValueId, bits: u16 },
     UnsupportedScalarParameterPlacement(ValueId),
     AbiPlan(PlanDiagnostic),
@@ -519,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn runtime_parameter_arithmetic_refuses_until_its_target_slice_exists() {
+    fn lowers_runtime_parameter_arithmetic_to_a_typed_target_expression() {
         let mut plan = parameter_return_plan(2);
         let function = &mut plan.functions[0];
         let sum = ValueId::new(50).expect("sum");
@@ -542,10 +597,36 @@ mod tests {
         };
         *value = sum;
 
-        assert_eq!(
-            lower_to_target_operations(&plan, NativeTarget::host()),
-            Err(LoweringError::RuntimeArithmeticNotYetSupported(sum))
-        );
+        let lowered = lower_to_target_operations(&plan, NativeTarget::host()).unwrap();
+        assert!(matches!(
+            &lowered.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerExpression {
+                source_value,
+                scalar_type: result_type,
+                expression: TerminalTargetIntegerExpression::WrappingAdd {
+                    psi_operation,
+                    left,
+                    right,
+                },
+                ..
+            } if *source_value == sum
+                && *result_type == scalar_type
+                && *psi_operation == psi_core::OperationId::new(50).expect("operation")
+                && matches!(
+                    left.as_ref(),
+                    TerminalTargetIntegerExpression::Parameter {
+                        parameter_index: 0,
+                        ..
+                    }
+                )
+                && matches!(
+                    right.as_ref(),
+                    TerminalTargetIntegerExpression::Parameter {
+                        parameter_index: 1,
+                        ..
+                    }
+                )
+        ));
     }
 
     #[test]

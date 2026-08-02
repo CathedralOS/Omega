@@ -66,6 +66,37 @@ pub enum TerminalTargetOperation {
         parameter_index: usize,
         location: TerminalScalarParameterLocation,
     },
+    /// Return a runtime integer expression lowered from exact-width terminal
+    /// Psi operations. Every node has the enclosing result's integer type.
+    ReturnIntegerExpression {
+        psi_edge: EdgeId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        expression: TerminalTargetIntegerExpression,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalTargetIntegerExpression {
+    Immediate {
+        source_value: ValueId,
+        value: IntegerValue,
+    },
+    Parameter {
+        source_value: ValueId,
+        parameter_index: usize,
+        location: TerminalScalarParameterLocation,
+    },
+    WrappingAdd {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
+    SaturatingAdd {
+        psi_operation: OperationId,
+        left: Box<TerminalTargetIntegerExpression>,
+        right: Box<TerminalTargetIntegerExpression>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

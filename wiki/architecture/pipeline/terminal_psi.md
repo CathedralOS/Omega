@@ -55,7 +55,8 @@ compile-known scalar operations and jump bindings into a target immediate
 return while retaining every contributing Psi operation and edge identity. It
 also uses the established native call planner to select AAPCS64, System V
 AMD64, or Microsoft x64 register/incoming-stack locations for runtime scalar
-parameters returned directly.
+parameters. Direct parameter returns stay explicit; parameter-fed wrapping and
+saturating additions lower to recursive, exact-width target expressions.
 `omega-terminal-machine-emission` emits ordinary scalar-return code for
 AArch64 and x86-64 and rejects non-native integer widths.
 `omega-terminal-image-emission` then constructs an owned, canonical-order
@@ -64,7 +65,12 @@ semantic identity. It emits the compatibility Omega object container and
 standalone ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64 images through
 the shared image model and writers. Parameter-return emission supports Boolean
 and 8/16/32/64-bit integers in selected native registers or incoming stack
-slots on both architectures. The relocation-free slice requires exact
+slots on both architectures. Runtime wrapping/saturating addition supports
+signed and unsigned 8/16/32/64-bit operands, recursive expressions, and mixed
+immediate/register/stack leaves. The AArch64 emitter preserves every referenced
+argument register in an aligned local spill frame before evaluating into `x0`;
+both emitters compensate incoming-stack addresses for their expression stack.
+The relocation-free slice requires exact
 final text, complete provenance-bearing compiler regions, and no unclassified
 executable gaps. The source, Boolean, wrapping-add, and saturating-add canaries
 drop all producing semantic and lowering state before artifact emission; the
@@ -81,10 +87,13 @@ canary independently round-trips, verifies, meters, lowers, emits, and executes
 `u8` 200+100 as 44 after producer state is discarded; the current-v4 saturating
 canary follows the same path and clamps that sum to 255. A frozen-v1
 nine-parameter canary forces its returned `u8` through the host incoming-stack
-ABI and matches interpretation at 77. Branching, the remaining
-arithmetic-policy variants, parameter-fed runtime operations and general
-register assignment, typed debug payloads, general safe-point/branch fixed-work
-checking, build-time fuel migration, and native fuel metering remain next.
+ABI and matches interpretation at 77. A current-v4 nested runtime canary wraps
+a register and ninth-argument stack `u8`, then saturates with another register
+to 255; a signed `i64` canary exercises both saturation bounds. Both agree with
+interpretation through real C ABI calls. Branching, the remaining
+arithmetic-policy variants, general register assignment, typed debug payloads,
+general safe-point/branch fixed-work checking, build-time fuel migration, and
+native fuel metering remain next.
 
 ## Boundary
 
