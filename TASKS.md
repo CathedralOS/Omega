@@ -889,13 +889,20 @@ improvements do not change public identity.
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
   `omega-interpreter`. Its validator rejects unreachable axiom sources and
-  entry/postcondition references to internal values.
+  entry/postcondition references to internal values. The first transitional
+  checked-tree producer is also live and fail-closed: it lowers one exact typed
+  integer-constant/unconditional-jump/literal-return/closed-contract source
+  slice, emits the module and proof bundle separately, and its real-source
+  canary verifies and executes after `CheckedTrees` are dropped. Because the
+  legacy exit prover cannot establish ordinary `result == literal` contracts,
+  this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
+  asserts the returned `i32` independently; do not generalize that workaround
+  into the target Psi frontend.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
-  Omega-to-Psi path. Next lower this constant/control/contract slice from the
-  transitional frontend, add the source-independent Omega abstract-operation
-  consumer, and compare interpreted/native results. Then add operations in
-  vertical slices containing execution
+  Omega-to-Psi path. Next add the source-independent Omega abstract-operation
+  consumer for the live slice and compare interpreted/native results. Then add
+  operations in vertical slices containing execution
   semantics, generated obligations, sound proof rules, interpreter behavior,
   Omega lowering requirements, and canonical encoding. Merge the useful
   `StateGraph`/`ControlFlowPlan` topology, replace every `ExpressionHandle` with

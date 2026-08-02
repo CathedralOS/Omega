@@ -28,6 +28,7 @@ members = [
     "compiler/omega-rs/pipeline/omega-syntax-trees-to-symbol-resolved-trees",
     "compiler/omega-rs/pipeline/omega-symbol-resolved-trees-to-typed-trees",
     "compiler/omega-rs/pipeline/omega-typed-trees-to-checked-trees",
+    "compiler/omega-rs/pipeline/omega-checked-trees-to-terminal-psi",
     "compiler/omega-rs/pipeline/omega-checked-trees-to-state-graph",
     "compiler/omega-rs/pipeline/omega-state-graph-to-control-flow",
     "compiler/omega-rs/representations/omega-symbol-resolved-trees",
