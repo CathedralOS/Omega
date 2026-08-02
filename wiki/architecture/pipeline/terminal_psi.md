@@ -63,7 +63,8 @@ module, records its identity, discards the source and producing module, decodes
 a fresh module, verifies it against the separately retained proof bundle, and
 then drives both interpretation and native realization. Branching,
 arithmetic-policy operations, artifact section manifests/version migration,
-and fuel remain next.
+fixed-work checking, build-time fuel migration, resumable sponsor execution,
+and native fuel metering remain next.
 
 ## Boundary
 
@@ -210,6 +211,28 @@ semantic version and this fingerprint: proof bundles, installation records,
 and debug maps are deliberately absent and remain replaceable. Container
 section manifests and cross-version translation are not part of this first
 semantic-codec checkpoint.
+
+## Logical-fuel v1
+
+`psi-terminal-fuel` owns the accounting identity independently from terminal
+semantic versioning. Schedule v1 charges one logical unit for each executed
+`IntegerConstant` and one for each taken `Jump` or `Return` edge. The cost table
+matches the closed operation/terminator enums exhaustively, so a new vocabulary
+variant cannot compile without making its schedule treatment explicit. A
+schedule revision changes accounting identity, never terminal semantic bytes or
+the program fingerprint.
+
+The interpreter charges before executing each semantic site and returns a
+deterministic `TerminalFuelUsage`: total units plus execution count and units
+aggregated under stable `OperationId`/`EdgeId` attribution. Its sponsor-owned
+meter may be unbounded or carry a finite allowance. Insufficient allowance is a
+host result before the unpaid site, leaves usage unchanged, and is not visible
+or catchable as a terminal-Psi machine result. The serialized real-source
+canary costs four v1 units—two constants and two edges—and retains the same
+semantic identity before and after accounting. Persisted execution state for
+replenish/resume, build-time migration, fixed-work certificates, attributed
+response outcomes, and trusted native block metering remain later IRFUEL
+slices.
 
 ## Migration plan
 

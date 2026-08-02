@@ -951,7 +951,15 @@ improvements do not change public identity.
   TypedTrees evaluator now publishes an explicitly versioned deterministic
   step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not terminal-Psi
-  fuel.
+  fuel. The first terminal-Psi fuel slice is now live: a Psi-owned nonzero
+  schedule identity independently versions a v1 one-unit-per-operation/edge
+  table, the verified interpreter returns checked deterministic totals and
+  stable operation/edge attribution, and an optional sponsor allowance fails
+  atomically before an unpaid semantic site. The serialized source canary costs
+  four units without changing its semantic fingerprint. Build-time migration,
+  persisted execution state for replenish/resume, restricted entry/segment
+  certificates, response outcomes, provider-summary migration, and trusted
+  native metering remain.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
   through content-algebra facts. The provider-independent executor-selection

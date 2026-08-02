@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use psi_core::{IntegerType, IntegerValue, ScalarType, ValueId};
 use psi_terminal::{OperationKind, TerminalMachine, Terminator};
+use psi_terminal_fuel::{FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,18 +33,46 @@ pub fn interpret_terminal(
     verified: &VerifiedTerminalModule<'_>,
     arguments: &[TerminalScalarValue],
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+    interpret_terminal_measured(verified, arguments).map(MeasuredTerminalExecution::into_value)
+}
+
+/// Execute terminal Psi and return deterministic logical usage under the
+/// current separately versioned schedule.
+pub fn interpret_terminal_measured(
+    verified: &VerifiedTerminalModule<'_>,
+    arguments: &[TerminalScalarValue],
+) -> Result<MeasuredTerminalExecution, TerminalInterpretError> {
+    let mut meter = TerminalFuelMeter::unbounded();
+    let value = interpret_terminal_with_meter(verified, arguments, &mut meter)?;
+    Ok(MeasuredTerminalExecution {
+        value,
+        usage: meter.into_usage(),
+    })
+}
+
+/// Execute terminal Psi against a sponsor-owned logical-fuel meter.
+///
+/// A finite meter reports exhaustion through this host API before the unpaid
+/// semantic operation or edge executes. Terminal Psi has no instruction for
+/// observing the allowance or catching exhaustion as a machine result.
+pub fn interpret_terminal_with_meter(
+    verified: &VerifiedTerminalModule<'_>,
+    arguments: &[TerminalScalarValue],
+    meter: &mut TerminalFuelMeter,
+) -> Result<TerminalScalarValue, TerminalInterpretError> {
     let module = verified.module();
     let machine = module
         .machines
         .iter()
         .find(|machine| machine.id == module.entry)
         .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
-    execute_machine(machine, arguments)
+    execute_machine(machine, arguments, meter)
 }
 
 fn execute_machine(
     machine: &TerminalMachine,
     arguments: &[TerminalScalarValue],
+    meter: &mut TerminalFuelMeter,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
     if arguments.len() != machine.parameters.len() {
         return Err(TerminalInterpretError::ArgumentCount {
@@ -74,6 +103,7 @@ fn execute_machine(
             .get(&current)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
         for operation in &block.operations {
+            meter.charge_operation(operation)?;
             match operation.kind {
                 OperationKind::IntegerConstant { value } => {
                     let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
@@ -86,6 +116,7 @@ fn execute_machine(
                 }
             }
         }
+        meter.charge_terminator(&block.terminator)?;
         match &block.terminator {
             Terminator::Jump {
                 target, arguments, ..
@@ -117,6 +148,31 @@ fn execute_machine(
     }
 }
 
+/// A successful semantic result paired with deterministic terminal-Psi fuel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasuredTerminalExecution {
+    value: TerminalScalarValue,
+    usage: TerminalFuelUsage,
+}
+
+impl MeasuredTerminalExecution {
+    pub const fn value(&self) -> TerminalScalarValue {
+        self.value
+    }
+
+    pub const fn usage(&self) -> &TerminalFuelUsage {
+        &self.usage
+    }
+
+    pub fn into_value(self) -> TerminalScalarValue {
+        self.value
+    }
+
+    pub fn into_parts(self) -> (TerminalScalarValue, TerminalFuelUsage) {
+        (self.value, self.usage)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
     ArgumentCount {
@@ -132,6 +188,13 @@ pub enum TerminalInterpretError {
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
     VerifiedValueMissing(ValueId),
+    Fuel(FuelMeterError),
+}
+
+impl From<FuelMeterError> for TerminalInterpretError {
+    fn from(error: FuelMeterError) -> Self {
+        Self::Fuel(error)
+    }
 }
 
 impl std::fmt::Display for TerminalInterpretError {

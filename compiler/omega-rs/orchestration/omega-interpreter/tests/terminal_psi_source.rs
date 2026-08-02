@@ -4,7 +4,7 @@
 
 use omega_checked_trees_to_terminal_psi::{LoweringError, lower_machine};
 use omega_compiler::compile_to_checked;
-use omega_interpreter::{TerminalScalarValue, interpret_terminal};
+use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
@@ -71,8 +71,16 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
     .expect("source-produced terminal Psi and its proof should verify");
     let abstract_operations = lower_verified_module(&verified)
         .expect("verified terminal Psi should lower without source state");
-    let result = interpret_terminal(&verified, &[])
-        .expect("verified source-produced terminal Psi should execute");
+    let measured = interpret_terminal_measured(&verified, &[])
+        .expect("verified source-produced terminal Psi should execute with fuel");
+    assert_eq!(measured.usage().schedule().schedule_version(), 1);
+    assert_eq!(measured.usage().total_units(), 4);
+    assert_eq!(
+        terminal_psi_identity(&semantic_module).unwrap(),
+        original_identity,
+        "fuel accounting must not change semantic identity"
+    );
+    let result = measured.value();
     drop(verified);
     drop(semantic_module);
     drop(proof_bundle);
@@ -166,8 +174,16 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         &AdmissionProfile::default(),
     )
     .expect("source-produced terminal Psi and its proof should verify");
-    let interpreted = interpret_terminal(&verified, &[])
-        .expect("verified source-produced terminal Psi should execute");
+    let measured = interpret_terminal_measured(&verified, &[])
+        .expect("verified source-produced terminal Psi should execute with fuel");
+    assert_eq!(measured.usage().schedule().schedule_version(), 1);
+    assert_eq!(measured.usage().total_units(), 4);
+    assert_eq!(
+        terminal_psi_identity(&semantic_module).unwrap(),
+        original_identity,
+        "fuel accounting must not change semantic identity"
+    );
+    let interpreted = measured.value();
     let abstract_operations = lower_verified_module(&verified)
         .expect("verified terminal Psi should lower without source state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
