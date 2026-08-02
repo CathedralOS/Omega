@@ -348,9 +348,9 @@ migration remain later slices.
    constants, v3 wrapping integer addition, and current-v4 saturating integer
    addition have verifier,
    direct-interpreter, canonical-codec, fuel, Omega-lowering, and native-return
-   coverage. The first direct runtime-parameter return slice covers native
-   register and incoming-stack ABI locations. Structural places,
-   parameter-fed operations/general register assignment, and the other
+   coverage. The runtime-parameter slice covers direct returns plus recursive
+   wrapping/saturating expressions over native register and incoming-stack ABI
+   locations. Structural places, general register assignment, and the other
    arithmetic variants remain later slices.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
