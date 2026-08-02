@@ -9,8 +9,8 @@
 use crate::type_references::type_references_match;
 use omega_core::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentFieldSegment,
-    ContentProjectionExpression, ContentProjectionPlan, ContentScalarExpression,
-    projection_fingerprint,
+    ContentIntervalExpression, ContentProjectionExpression, ContentProjectionPlan,
+    ContentScalarExpression, projection_fingerprint,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -123,7 +123,7 @@ pub(crate) fn validate_content_projection_conformances(
 
             let Some(algebra) = selected_content_algebra(program, conformance) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "content projection `{}` must select compiler-owned `Interval<CoordinateSpace>` or `CountedQuantity<Unit>`, not `{}`",
+                    "content projection `{}` must select compiler-owned `IntervalSet<CoordinateSpace>` or `CountedQuantity<Unit>`, not `{}`",
                     machine.name,
                     program
                         .type_reference_table
@@ -270,7 +270,7 @@ fn selected_content_algebra(
     };
     let identity = program.normalized_type_identity(*identity).into_string();
     match base_name.as_str().rsplit("::").next() {
-        Some("Interval") => Some(ContentAlgebraIdentity::Interval {
+        Some("IntervalSet") => Some(ContentAlgebraIdentity::IntervalSet {
             coordinate_space: identity,
         }),
         Some("CountedQuantity") => Some(ContentAlgebraIdentity::CountedQuantity { unit: identity }),
@@ -314,7 +314,7 @@ fn normalize_projection_expression(
         return None;
     };
     let expected_name = match algebra {
-        ContentAlgebraIdentity::Interval { .. } => "Interval",
+        ContentAlgebraIdentity::IntervalSet { .. } => "IntervalSet",
         ContentAlgebraIdentity::CountedQuantity { .. } => "CountedQuantity",
     };
     let literal_leaf = literal
@@ -328,16 +328,15 @@ fn normalize_projection_expression(
     }
     let fields = program.expression_table.struct_fields(literal.fields);
     match algebra {
-        ContentAlgebraIdentity::Interval { .. } => {
+        ContentAlgebraIdentity::IntervalSet { .. } => {
             let [start, end] = ["start", "end"].map(|name| {
                 fields
                     .iter()
                     .find(|field| field.name.as_str() == name)
                     .and_then(|field| normalize_projection_scalar(program, subject, field.value))
             });
-            (fields.len() == 2).then_some(ContentProjectionExpression::Interval {
-                start: start?,
-                end: end?,
+            (fields.len() == 2).then_some(ContentProjectionExpression::IntervalSet {
+                members: vec![ContentIntervalExpression::new(start?, end?)],
             })
         }
         ContentAlgebraIdentity::CountedQuantity { .. } => {

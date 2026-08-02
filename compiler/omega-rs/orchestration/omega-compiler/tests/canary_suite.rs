@@ -4529,21 +4529,24 @@ fn extent_root_provider_adapter_compiles() {
         .find(|plan| {
             matches!(
                 &plan.algebra,
-                ContentAlgebraIdentity::Interval { coordinate_space }
+                ContentAlgebraIdentity::IntervalSet { coordinate_space }
                     if coordinate_space == "named(name(Nat))"
             )
         })
-        .expect("Extent::Granted should publish its Nat-coordinate interval");
-    let ContentProjectionExpression::Interval { start, end } = &plan.expression else {
-        panic!("Extent::Granted must normalize to an interval");
+        .expect("Extent::Granted should publish its Nat-coordinate interval set");
+    let ContentProjectionExpression::IntervalSet { members } = &plan.expression else {
+        panic!("Extent::Granted must normalize to an interval set");
+    };
+    let [member] = members.as_slice() else {
+        panic!("Extent::Granted must normalize to one interval-set member");
     };
     assert!(matches!(
-        start,
+        member.start(),
         ContentScalarExpression::RuntimeScalarEmbedding(path)
             if matches!(path.as_slice(), [field] if field.name == "base")
     ));
     assert!(matches!(
-        end,
+        member.end(),
         ContentScalarExpression::Arithmetic {
             operator: ContentArithmeticOperator::Add,
             left,
@@ -4580,7 +4583,8 @@ fn extent_root_provider_adapter_compiles() {
         .expect("Extent claim-outcome and content-projection artifact");
     assert!(outcomes.contains("\"content_projections\""));
     assert!(outcomes.contains("\"domain\": \"Extent::Granted\""));
-    assert!(outcomes.contains("\"kind\": \"interval\""));
+    assert!(outcomes.contains("\"kind\": \"interval_set\""));
+    assert!(outcomes.contains("\"members\": ["));
     assert!(outcomes.contains("\"coordinate_space\": \"named(name(Nat))\""));
     assert!(outcomes.contains("\"kind\": \"runtime_scalar_embedding\""));
     assert!(outcomes.contains("\"path\": [\"base\"]"));
@@ -41731,6 +41735,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/extent_reconstruction_does_not_grant",
     "core/content_projection_foreign_owner",
     "core/content_projection_duplicate",
+    "core/content_projection_legacy_interval",
     "core/content_projection_arbitrary_call",
     "core/content_projection_signed_embedding",
     "core/extent_no_wrap_lookalike",

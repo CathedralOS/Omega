@@ -4,12 +4,13 @@
 //! available to checked consumers, while fingerprints fold stable field names
 //! and normalized type identities rather than arena-local handles.
 
+use crate::bignum::BigInt;
 use crate::semantics::SemanticDomainId;
 use crate::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentAlgebraIdentity {
-    Interval { coordinate_space: String },
+    IntervalSet { coordinate_space: String },
     CountedQuantity { unit: String },
 }
 
@@ -41,13 +42,177 @@ pub enum ContentScalarExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentProjectionExpression {
-    Interval {
-        start: ContentScalarExpression,
-        end: ContentScalarExpression,
+    IntervalSet {
+        members: Vec<ContentIntervalExpression>,
     },
     CountedQuantity {
         magnitude: ContentScalarExpression,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentIntervalExpression {
+    start: ContentScalarExpression,
+    end: ContentScalarExpression,
+}
+
+impl ContentIntervalExpression {
+    pub fn new(start: ContentScalarExpression, end: ContentScalarExpression) -> Self {
+        Self { start, end }
+    }
+
+    pub const fn start(&self) -> &ContentScalarExpression {
+        &self.start
+    }
+
+    pub const fn end(&self) -> &ContentScalarExpression {
+        &self.end
+    }
+}
+
+/// One exact proof-natural half-open interval.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NaturalInterval {
+    start: BigInt,
+    end: BigInt,
+}
+
+impl NaturalInterval {
+    pub fn new(start: BigInt, end: BigInt) -> Result<Self, IntervalSetError> {
+        if start.is_negative() || end.is_negative() {
+            return Err(IntervalSetError::NegativeBound);
+        }
+        if start > end {
+            return Err(IntervalSetError::ReversedBounds);
+        }
+        Ok(Self { start, end })
+    }
+
+    pub const fn start(&self) -> &BigInt {
+        &self.start
+    }
+
+    pub const fn end(&self) -> &BigInt {
+        &self.end
+    }
+
+    fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+}
+
+/// Canonical finite set of sorted, disjoint proof-natural intervals.
+///
+/// Empty members disappear and adjacent members merge. Overlap is rejected,
+/// including by `separate`, because separated composition is a partial
+/// authority operation rather than ordinary set union.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CanonicalIntervalSet {
+    members: Vec<NaturalInterval>,
+}
+
+impl CanonicalIntervalSet {
+    pub fn new(
+        members: impl IntoIterator<Item = NaturalInterval>,
+    ) -> Result<Self, IntervalSetError> {
+        let mut members = members
+            .into_iter()
+            .filter(|member| !member.is_empty())
+            .collect::<Vec<_>>();
+        members.sort();
+
+        let mut normalized: Vec<NaturalInterval> = Vec::with_capacity(members.len());
+        for member in members {
+            let Some(previous) = normalized.last_mut() else {
+                normalized.push(member);
+                continue;
+            };
+            if member.start < previous.end {
+                return Err(IntervalSetError::OverlappingMembers);
+            }
+            if member.start == previous.end {
+                previous.end = member.end;
+            } else {
+                normalized.push(member);
+            }
+        }
+        Ok(Self {
+            members: normalized,
+        })
+    }
+
+    pub fn singleton(start: BigInt, end: BigInt) -> Result<Self, IntervalSetError> {
+        Self::new([NaturalInterval::new(start, end)?])
+    }
+
+    pub fn members(&self) -> &[NaturalInterval] {
+        &self.members
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.members.is_empty()
+    }
+
+    pub fn separate<'a>(
+        sets: impl IntoIterator<Item = &'a Self>,
+    ) -> Result<Self, IntervalSetError> {
+        Self::new(sets.into_iter().flat_map(|set| set.members.iter().cloned()))
+    }
+
+    pub fn contains(&self, kept: &Self) -> bool {
+        let mut whole_index = 0;
+        for member in &kept.members {
+            while whole_index < self.members.len() && self.members[whole_index].end <= member.start
+            {
+                whole_index += 1;
+            }
+            let Some(whole) = self.members.get(whole_index) else {
+                return false;
+            };
+            if member.start < whole.start || member.end > whole.end {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn residual(&self, kept: &Self) -> Result<Self, IntervalSetError> {
+        if !self.contains(kept) {
+            return Err(IntervalSetError::NotContained);
+        }
+        let mut residual = Vec::new();
+        for whole in &self.members {
+            let mut cursor = whole.start.clone();
+            for member in kept
+                .members
+                .iter()
+                .filter(|member| member.start >= whole.start && member.end <= whole.end)
+            {
+                if cursor < member.start {
+                    residual.push(NaturalInterval {
+                        start: cursor,
+                        end: member.start.clone(),
+                    });
+                }
+                cursor = member.end.clone();
+            }
+            if cursor < whole.end {
+                residual.push(NaturalInterval {
+                    start: cursor,
+                    end: whole.end.clone(),
+                });
+            }
+        }
+        Self::new(residual)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntervalSetError {
+    NegativeBound,
+    ReversedBounds,
+    OverlappingMembers,
+    NotContained,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,8 +243,8 @@ pub fn projection_fingerprint(
 
 fn encode_algebra(algebra: &ContentAlgebraIdentity, output: &mut Vec<u8>) {
     match algebra {
-        ContentAlgebraIdentity::Interval { coordinate_space } => {
-            output.push(1);
+        ContentAlgebraIdentity::IntervalSet { coordinate_space } => {
+            output.push(3);
             encode_string(coordinate_space, output);
         }
         ContentAlgebraIdentity::CountedQuantity { unit } => {
@@ -91,10 +256,13 @@ fn encode_algebra(algebra: &ContentAlgebraIdentity, output: &mut Vec<u8>) {
 
 fn encode_projection(expression: &ContentProjectionExpression, output: &mut Vec<u8>) {
     match expression {
-        ContentProjectionExpression::Interval { start, end } => {
-            output.push(1);
-            encode_scalar(start, output);
-            encode_scalar(end, output);
+        ContentProjectionExpression::IntervalSet { members } => {
+            output.push(3);
+            output.extend_from_slice(&(members.len() as u64).to_le_bytes());
+            for member in members {
+                encode_scalar(member.start(), output);
+                encode_scalar(member.end(), output);
+            }
         }
         ContentProjectionExpression::CountedQuantity { magnitude } => {
             output.push(2);
@@ -153,6 +321,71 @@ fn encode_string(value: &str, output: &mut Vec<u8>) {
 mod tests {
     use super::*;
 
+    fn natural(value: u64) -> BigInt {
+        BigInt::from_u64(value)
+    }
+
+    fn interval(start: u64, end: u64) -> NaturalInterval {
+        NaturalInterval::new(natural(start), natural(end)).unwrap()
+    }
+
+    #[test]
+    fn interval_sets_sort_drop_empty_and_merge_adjacency() {
+        let set = CanonicalIntervalSet::new([
+            interval(8, 10),
+            interval(4, 4),
+            interval(0, 3),
+            interval(3, 8),
+        ])
+        .unwrap();
+
+        assert_eq!(set.members(), [interval(0, 10)]);
+        assert_eq!(
+            CanonicalIntervalSet::new([interval(0, 4), interval(3, 5)]),
+            Err(IntervalSetError::OverlappingMembers)
+        );
+        assert!(
+            CanonicalIntervalSet::singleton(natural(7), natural(7))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn separate_is_partial_and_canonical() {
+        let left = CanonicalIntervalSet::new([interval(8, 10), interval(0, 2)]).unwrap();
+        let middle = CanonicalIntervalSet::singleton(natural(2), natural(8)).unwrap();
+        assert_eq!(
+            CanonicalIntervalSet::separate([&left, &middle])
+                .unwrap()
+                .members(),
+            [interval(0, 10)]
+        );
+
+        let overlap = CanonicalIntervalSet::singleton(natural(1), natural(3)).unwrap();
+        assert_eq!(
+            CanonicalIntervalSet::separate([&left, &overlap]),
+            Err(IntervalSetError::OverlappingMembers)
+        );
+    }
+
+    #[test]
+    fn residual_derives_fragmented_canonical_difference_after_containment() {
+        let whole = CanonicalIntervalSet::singleton(natural(0), natural(10)).unwrap();
+        let kept = CanonicalIntervalSet::new([interval(2, 4), interval(6, 8)]).unwrap();
+        assert!(whole.contains(&kept));
+        assert_eq!(
+            whole.residual(&kept).unwrap().members(),
+            [interval(0, 2), interval(4, 6), interval(8, 10)]
+        );
+
+        let outside = CanonicalIntervalSet::singleton(natural(9), natural(11)).unwrap();
+        assert_eq!(
+            whole.residual(&outside),
+            Err(IntervalSetError::NotContained)
+        );
+    }
+
     #[test]
     fn projection_fingerprint_ignores_arena_local_field_symbols() {
         let expression = |index| ContentProjectionExpression::CountedQuantity {
@@ -186,6 +419,24 @@ mod tests {
         assert_eq!(
             projection_fingerprint(&algebra, &expression(7)),
             projection_fingerprint(&algebra, &expression(91))
+        );
+    }
+
+    #[test]
+    fn interval_set_projection_has_a_stable_schema_distinct_fingerprint() {
+        let algebra = ContentAlgebraIdentity::IntervalSet {
+            coordinate_space: "named(name(PhysicalMemory))".to_owned(),
+        };
+        let expression = ContentProjectionExpression::IntervalSet {
+            members: vec![ContentIntervalExpression::new(
+                ContentScalarExpression::Natural("0".to_owned()),
+                ContentScalarExpression::Natural("4096".to_owned()),
+            )],
+        };
+
+        assert_eq!(
+            projection_fingerprint(&algebra, &expression),
+            0x0042_e73e_1d08_fd01
         );
     }
 }

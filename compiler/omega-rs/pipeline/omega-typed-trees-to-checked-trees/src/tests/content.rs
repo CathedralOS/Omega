@@ -79,6 +79,64 @@ fn checked_facts_retain_normalized_content_projection() {
 }
 
 #[test]
+fn checked_facts_lift_a_singleton_into_the_interval_set_algebra() {
+    let source = r#"
+        data Nat {
+            case Zero;
+            case Succ(previous: Nat);
+        }
+        data PhysicalMemory {}
+        data IntervalSet<Space> { start: Nat; end: Nat; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        boundary machine embed<T>(value: T) -> Nat;
+        data Region [linear] { base: u64; length: u64; }
+        domain Region::Owned;
+
+        machine Owned::content(region: &Region) -> IntervalSet<PhysicalMemory>
+        satisfies Content<IntervalSet<PhysicalMemory>>::project
+        {
+            IntervalSet {
+                start: embed(region.base),
+                end: embed(region.base) + embed(region.length)
+            }
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let [plan] = checked.facts.qualifications.content.plans.as_slice() else {
+        panic!("one normalized content projection should be retained");
+    };
+    assert!(matches!(
+        &plan.algebra,
+        ContentAlgebraIdentity::IntervalSet { coordinate_space }
+            if coordinate_space == "named(name(PhysicalMemory))"
+    ));
+    let ContentProjectionExpression::IntervalSet { members } = &plan.expression else {
+        panic!("interval-set projection shape");
+    };
+    let [member] = members.as_slice() else {
+        panic!("one singleton interval-set member");
+    };
+    assert!(matches!(
+        member.start(),
+        ContentScalarExpression::RuntimeScalarEmbedding(path)
+            if matches!(path.as_slice(), [field] if field.name == "base")
+    ));
+    assert!(matches!(
+        member.end(),
+        ContentScalarExpression::Arithmetic {
+            operator: ContentArithmeticOperator::Add,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn checked_facts_retain_runtime_scalar_embedding() {
     let source = r#"
         data Nat {
