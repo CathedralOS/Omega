@@ -37,7 +37,9 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
     program.push_domain_definition(DomainDefinition {
         symbol: alive_domain_symbol,
         name: Identifier::generated("Player::Alive"),
+        type_parameters: HandleSpan::empty(),
         target_type: TypeReferenceHandle::invalid(),
+        index_arguments: Vec::new(),
         is_public: false,
         alias: None,
         predicate_body: omega_core::semantics::DomainPredicateBody::Present,
@@ -51,7 +53,9 @@ fn builds_definition_fact_plan_for_domains_and_invariants() {
     program.push_domain_definition(DomainDefinition {
         symbol: valid_domain_symbol,
         name: Identifier::generated("Player::Valid"),
+        type_parameters: HandleSpan::empty(),
         target_type: TypeReferenceHandle::invalid(),
+        index_arguments: Vec::new(),
         is_public: false,
         alias: None,
         predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
@@ -132,7 +136,9 @@ fn domain_membership_queries_follow_domain_imports() {
     program.push_domain_definition(DomainDefinition {
         symbol: alive_domain_symbol,
         name: Identifier::generated("Player::Alive"),
+        type_parameters: HandleSpan::empty(),
         target_type: TypeReferenceHandle::invalid(),
+        index_arguments: Vec::new(),
         is_public: false,
         alias: None,
         predicate_body: omega_core::semantics::DomainPredicateBody::Present,
@@ -146,7 +152,9 @@ fn domain_membership_queries_follow_domain_imports() {
     program.push_domain_definition(DomainDefinition {
         symbol: valid_domain_symbol,
         name: Identifier::generated("Player::Valid"),
+        type_parameters: HandleSpan::empty(),
         target_type: TypeReferenceHandle::invalid(),
+        index_arguments: Vec::new(),
         is_public: false,
         alias: None,
         predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
@@ -315,6 +323,7 @@ fn expression_places_resolve_attached_data_members() {
         quotient: None,
         where_facts: Default::default(),
         zero_gated: false,
+        retired_identities: Vec::new(),
         members: HandleSpan::empty(),
     });
     let mut main_data = omega_typed_trees::data::DataDefinition {
@@ -327,11 +336,13 @@ fn expression_places_resolve_attached_data_members() {
         quotient: None,
         where_facts: Default::default(),
         zero_gated: false,
+        retired_identities: Vec::new(),
         members: HandleSpan::empty(),
     };
     program.push_data_member(
         &mut main_data,
         omega_typed_trees::data::DataMember::Field(omega_typed_trees::data::DataField {
+            identity: None,
             symbol: player_field_symbol,
             name: Identifier::generated("player"),
             type_reference: TypeReferenceHandle::invalid(),
@@ -356,6 +367,7 @@ fn expression_places_resolve_attached_data_members() {
         decrease_view_arguments: HandleSpan::empty(),
         decrease_range: Default::default(),
         service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
         suspends: false,
         blocks: false,
         contracts: HandleSpan::empty(),

@@ -33,6 +33,7 @@ fn copies_abstract_value_summary_to_target_plan() {
                 role: AbstractValueStatementRole::AssignmentValue,
             },
             arithmetic_policy_adapter: None,
+            operator_provider_plan_identity: None,
         });
 
     let target_operations = build_target_operation_plan(
