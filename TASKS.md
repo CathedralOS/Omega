@@ -891,8 +891,9 @@ improvements do not change public identity.
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
   The first in-memory executable slice is also live: stable machine/block
-  topology, representable integer constants, v2 Boolean constants, current-v3
-  exact-width wrapping integer addition,
+  topology, representable integer constants, v2 Boolean constants, v3
+  exact-width wrapping integer addition, current-v4 exact-width saturating
+  integer addition,
   unconditional jump/return edges,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
@@ -927,15 +928,23 @@ improvements do not change public identity.
   provenance while reducing the current compile-known scalar slice. A canonical
   v3 `u8` 200+100 canary verifies, costs four units, lowers, emits, and executes
   as 44 through both the host linker harness and standalone Mach-O image after
-  semantic/lowering state is dropped. The initial vocabulary now
-  has canonical semantic bytes and a domain-separated
+  semantic/lowering state is dropped. The next arithmetic vertical slice is
+  live in v4: `SaturatingIntegerAdd` has the same exact defined-operand/type
+  requirements, clamps at the declared signed or unsigned bounds, is total,
+  creates no overflow obligation, and reconstructs a distinct exact result-term
+  axiom. Signed, unsigned, sub-width, and 128-bit semantic edges are covered. A
+  canonical `u8` 200+100 canary verifies, costs four units, lowers with retained
+  provenance, emits, and executes as 255 through the host linker harness and
+  standalone Mach-O image after semantic/lowering state is dropped. The
+  initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
   Canonical proof-bundle bytes and a separate golden proof fingerprint are live
   too, covering kernel, certificate, and admission evidence with independent
   proof-system versions. Proof format v1 remains byte-frozen for the original
-  vocabulary; minimal format v2 adds recursive wrapping-add scalar terms and
-  rejects over-deep or unnecessarily-v2 encodings. A role-domain-separated
+  vocabulary; minimal format v2 adds recursive wrapping-add scalar terms;
+  minimal format v3 adds recursive saturating-add scalar terms; both reject
+  over-deep or unnecessarily newer encodings. A role-domain-separated
   manifest binds semantic,
   proof, optional installation, and optional debug section identities; proof,
   provider-record, or debug replacement changes container identity without
@@ -943,10 +952,10 @@ improvements do not change public identity.
   proof sections, discards the complete producer output, decodes and validates
   their manifest, and then compares interpreted/native behavior. Semantic v1
   remains decodable, verifiable, executable, and frozen to its integer
-  vocabulary; v2 adds `BooleanConstant`; current v3 adds
-  `WrappingIntegerAdd`; and explicit validated migration preserves an older
-  semantic graph while producing a new v3 fingerprint. Archived v1 and v2
-  identities remain frozen. The clean
+  vocabulary; v2 adds `BooleanConstant`; v3 adds `WrappingIntegerAdd`; current
+  v4 adds `SaturatingIntegerAdd`; and explicit validated migration preserves an
+  older semantic graph while producing a new v4 fingerprint. Archived v1, v2,
+  and v3 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
@@ -996,8 +1005,9 @@ improvements do not change public identity.
   has schedule-keyed provider summaries and provisions, rejects mixed
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
-  provider-authored precursor as a Psi proof. The terminal-Psi v1/v2/v3 schemas,
-  serialization, migration, and verifier/lowering boundary are owned by PSIIR.
+  provider-authored precursor as a Psi proof. The terminal-Psi v1/v2/v3/v4
+  schemas, serialization, migration, and verifier/lowering boundary are owned
+  by PSIIR.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic
   step-usage record for interpreted and
   build-time outcomes; it is telemetry precursor evidence, not terminal-Psi
@@ -1007,8 +1017,9 @@ improvements do not change public identity.
   stable operation/edge attribution, and an optional sponsor allowance fails
   atomically before an unpaid semantic site. The serialized source canary costs
   four units without changing its semantic fingerprint. Schedule v1 also
-  charges the v3 wrapping-add operation one unit; the wrapping canary's two
-  constants, addition, and return edge total four units. Explicit in-memory
+  charges both v3 wrapping-add and v4 saturating-add operations one unit; each
+  arithmetic canary's two constants, addition, and return edge total four
+  units. Explicit in-memory
   execution state preserves the exact cursor and values across exhaustion;
   checked allowance replenishment resumes at the unpaid edge without replaying
   or double-charging earlier work. The first restricted checker now derives an

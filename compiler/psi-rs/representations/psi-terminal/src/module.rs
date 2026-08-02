@@ -9,8 +9,9 @@ use psi_core::{
 ///
 /// Version 1 has canonical bytes and a semantic fingerprint defined by
 /// `psi-terminal-codec`. Version 2 adds `BooleanConstant`; version 3 adds
-/// width-relative `WrappingIntegerAdd`. Older bytes retain their original
-/// meaning and identity.
+/// width-relative `WrappingIntegerAdd`; version 4 adds
+/// `SaturatingIntegerAdd`. Older bytes retain their original meaning and
+/// identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
@@ -18,7 +19,8 @@ impl SemanticVersion {
     pub const V1: Self = Self(NonZeroU16::MIN);
     pub const V2: Self = Self(NonZeroU16::new(2).expect("two is nonzero"));
     pub const V3: Self = Self(NonZeroU16::new(3).expect("three is nonzero"));
-    pub const CURRENT: Self = Self::V3;
+    pub const V4: Self = Self(NonZeroU16::new(4).expect("four is nonzero"));
+    pub const CURRENT: Self = Self::V4;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -81,7 +83,7 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Closed operation vocabulary through semantic version 3.
+/// Closed operation vocabulary through semantic version 4.
 ///
 /// `IntegerConstant` writes the declared integer value to its result and
 /// establishes the semantic axiom `result == literal`. It cannot trap and
@@ -96,11 +98,17 @@ pub struct Operation {
 /// width. Signed values interpret the reduced bits as two's complement. It is
 /// total and therefore generates no overflow obligation; the verifier
 /// reconstructs its exact result-term axiom.
+///
+/// `SaturatingIntegerAdd` was added in semantic version 4. It reads two values
+/// of the result's exact integer type and clamps their sum at that type's
+/// representable bounds. It is total and therefore generates no overflow
+/// obligation; the verifier reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationKind {
     IntegerConstant { value: IntegerValue },
     BooleanConstant { value: bool },
     WrappingIntegerAdd { left: ValueId, right: ValueId },
+    SaturatingIntegerAdd { left: ValueId, right: ValueId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

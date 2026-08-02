@@ -21,16 +21,19 @@ below extend it.
 
 Executable checkpoint (2026-08-02): the in-memory terminal semantic module now
 carries stable machine/block/value/operation/edge identities, representable
-integer constants, v2 Boolean constants, current-v3 exact-width wrapping
-integer addition, unconditional jump/return control, and bodyful contracts. The
+integer constants, v2 Boolean constants, v3 exact-width wrapping integer
+addition, current-v4 exact-width saturating integer addition, unconditional
+jump/return control, and bodyful contracts. The
 verifier reconstructs operation, edge-binding, and return-binding axioms from
 the executable path, rejects unreachable fact sources and out-of-scope contract
 values, and requires evidence for every `ensures`; the proof kernel checks
-semantic-axiom citations, equality composition, and closed wrapping-integer
-relations. Wrapping addition is total: it reduces modulo the declared 1–128-bit
-width and interprets signed reduced bits as two's complement, so it creates no
-overflow obligation. Omega's interpreter executes the same verified module
-object and rejects out-of-range integer arguments before execution.
+semantic-axiom citations, equality composition, and closed integer relations
+over both addition terms. Wrapping addition reduces modulo the declared
+1–128-bit width and interprets signed reduced bits as two's complement;
+saturating addition clamps at the declared signed or unsigned bounds. Both are
+total and create no overflow obligation. Omega's interpreter executes the same
+verified module object and rejects out-of-range integer arguments before
+execution.
 
 The first transitional checked-tree producer lowers an exact typed
 integer-constant/unconditional-jump/literal-return/closed-contract source slice,
@@ -39,8 +42,9 @@ other shapes. Its canary drops the frontend trees before terminal verification
 and interpretation. This adapter does not change the target ownership rule:
 the current Omega-branded frontend still needs to migrate under Psi. A
 source-independent Omega abstract-operation consumer accepts only the verified
-module and emits owned scalar-materialization, wrapping-add, jump-binding, and
-return requirements with stable Psi provenance and no source handles. The clean
+module and emits owned scalar-materialization, wrapping-add, saturating-add,
+jump-binding, and return requirements with stable Psi provenance and no source
+handles. The clean
 target continuation resolves the current compile-known stream to a
 provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
 and executes the emitted host entry in a linker harness with the same result as
@@ -48,9 +52,10 @@ terminal interpretation. Runtime terminal-parameter ABI/register lowering
 remains separate implementation work.
 
 The vocabulary has canonical semantic bytes and a domain-separated semantic
-fingerprint; the source and wrapping canaries round-trip after discarding
-producer state. Proof format v1 retains its frozen original bytes, while minimal
-format v2 adds recursive wrapping-add terms. The proof section has its own
+fingerprint; the source, wrapping, and saturating canaries round-trip after
+discarding producer state. Proof format v1 retains its frozen original bytes,
+minimal format v2 adds recursive wrapping-add terms, and minimal format v3 adds
+recursive saturating-add terms. The proof section has its own
 golden fingerprint, and a role-separated manifest binds semantic, proof,
 installation, and debug sections without folding replaceable evidence into
 program identity. The clean terminal lane owns a semantic-identity-bound object
@@ -67,10 +72,11 @@ replace the native executable admission/placement state machine. Typed
 debug/source maps remain. General register assignment remains on the legacy
 backend.
 
-Semantic v1 integer and v2 Boolean modules retain their frozen bytes and
-execution semantics; explicit migration produces a new v3 fingerprint. The
-current v3 wrapping slice round-trips, verifies, meters, lowers, emits, and
-executes `u8` 200+100 as 44. The checkpoint still has no branching.
+Semantic v1 integer, v2 Boolean, and v3 wrapping modules retain their frozen
+bytes and execution semantics; explicit migration produces a new current-v4
+fingerprint. The v3 wrapping slice round-trips, verifies, meters, lowers, emits,
+and executes `u8` 200+100 as 44. The current v4 saturating slice traverses the
+same path and clamps that sum to 255. The checkpoint still has no branching.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a

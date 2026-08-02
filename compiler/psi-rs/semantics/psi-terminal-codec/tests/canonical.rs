@@ -25,7 +25,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "f260034bf6fa5c6021b449c6e5ba13dd116dbaa9a2f2e2033dbd60b3231c7cae"
+        "0ddada3ee80cd36a693cac576bf89bfb1cd84b4c928f3b3bb71ba7f163b51f19"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -154,6 +154,76 @@ fn v3_wrapping_add_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "2c0e2777161b1a8840bb5f63e5b96bc6ecf0831bcbde76e4d218104f105e580d"
+    );
+}
+
+#[test]
+fn archived_v3_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let archived = wrapping_add_fixture(SemanticVersion::V3);
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "2c0e2777161b1a8840bb5f63e5b96bc6ecf0831bcbde76e4d218104f105e580d"
+    );
+    let migrated = migrate_module_to_current(&archived).expect("v3 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::V4);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn v3_cannot_claim_the_v4_saturating_add_operation() {
+    let module = saturating_add_fixture(SemanticVersion::V3);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V4,
+                actual: SemanticVersion::V3,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v3_cannot_claim_the_v4_saturating_add_proposition_term() {
+    let mut module = wrapping_add_fixture(SemanticVersion::V3);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let sum = ScalarTerm::saturating_integer_add(integer, literal(200), literal(100)).unwrap();
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(literal(255), sum));
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionRequiresSemanticVersion {
+                required: SemanticVersion::V4,
+                actual: SemanticVersion::V3,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v4_saturating_add_has_stable_canonical_bytes() {
+    let module = saturating_add_fixture(SemanticVersion::V4);
+    let bytes = encode_module(&module).expect("v4 saturating-add module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "6f1bbce42a5a3e4632b99fc5bc1e528d4d9a18761bf12aa696be2a6073cda274"
     );
 }
 
@@ -476,6 +546,15 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
             },
         }],
     }
+}
+
+fn saturating_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let mut module = wrapping_add_fixture(semantic_version);
+    module.machines[0].blocks[0].operations[2].kind = OperationKind::SaturatingIntegerAdd {
+        left: value_id(20),
+        right: value_id(21),
+    };
+    module
 }
 
 fn i32_type() -> IntegerType {

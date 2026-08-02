@@ -124,6 +124,50 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::SaturatingIntegerAdd {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            } => {
+                let left = values
+                    .get(left)
+                    .copied()
+                    .ok_or(LoweringError::UnknownValue(*left))?;
+                let right = values
+                    .get(right)
+                    .copied()
+                    .ok_or(LoweringError::UnknownValue(*right))?;
+                let (
+                    KnownScalar::Integer {
+                        scalar_type: left_type,
+                        value: left,
+                    },
+                    KnownScalar::Integer {
+                        scalar_type: right_type,
+                        value: right,
+                    },
+                ) = (left, right)
+                else {
+                    return Err(LoweringError::SaturatingAddOperandTypeMismatch(*result));
+                };
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return Err(LoweringError::SaturatingAddOperandTypeMismatch(*result));
+                }
+                let value = scalar_type
+                    .saturating_add(left, right)
+                    .ok_or(LoweringError::SaturatingAddOperandTypeMismatch(*result))?;
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::Jump {
                 psi_edge, bindings, ..
             } => {
@@ -228,6 +272,7 @@ pub enum LoweringError {
     IntegerConstantHasNonIntegerType(ValueId),
     IntegerConstantOutsideType(ValueId),
     WrappingAddOperandTypeMismatch(ValueId),
+    SaturatingAddOperandTypeMismatch(ValueId),
 }
 
 impl std::fmt::Display for LoweringError {

@@ -52,10 +52,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&3_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&4_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(3))
+        Err(ProofCodecError::UnsupportedFormatVersion(4))
     );
 }
 
@@ -98,6 +98,55 @@ fn proof_format_v2_canonically_encodes_closed_wrapping_arithmetic() {
     assert_eq!(
         proof_bundle_fingerprint(&bundle).unwrap().to_string(),
         "efe529c7e2ee78900801f6423704d4f7f6312b35b91657dc0bac25adcc9595cd"
+    );
+
+    let mut unnecessarily_v3 = bytes;
+    unnecessarily_v3[8..10].copy_from_slice(&3_u16.to_le_bytes());
+    assert_eq!(
+        decode_proof_bundle(&unnecessarily_v3),
+        Err(ProofCodecError::NonCanonicalEncoding)
+    );
+}
+
+#[test]
+fn proof_format_v3_canonically_encodes_closed_saturating_arithmetic() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(200)).unwrap();
+    let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(100)).unwrap();
+    let sum = ScalarTerm::saturating_integer_add(integer, left, right).unwrap();
+    let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap();
+    let goal = Proposition::Equal(sum, clamped);
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(1),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                },
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(
+        &psi_core::PropositionContext::default(),
+        &goal,
+        &[],
+        &[],
+        match &bundle.evidence[0].route {
+            EvidenceRoute::CertificateDerived(certificate) => &certificate.proof,
+            _ => unreachable!("fixture is certificate-derived"),
+        },
+    )
+    .expect("closed u8 saturating addition proves 255");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v3 bytes");
+    assert_eq!(&bytes[8..10], &3_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "d9cada7d8d15d785b3dbe60b8845032e58a1ee06f40532a4b15b320de495dbf6"
     );
 }
 

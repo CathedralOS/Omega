@@ -93,6 +93,18 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
                         right,
                     });
                 }
+                OperationKind::SaturatingIntegerAdd { left, right } => {
+                    let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                        return Err(LoweringError::VerifiedSaturatingAddMalformed(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::SaturatingIntegerAdd {
+                        psi_operation: operation.id,
+                        result: operation.result.id,
+                        scalar_type,
+                        left,
+                        right,
+                    });
+                }
             }
         }
         match &block.terminator {
@@ -155,6 +167,7 @@ pub enum LoweringError {
     VerifiedControlCycle { machine: MachineId, block: BlockId },
     VerifiedJumpArityMismatch { edge: psi_core::EdgeId },
     VerifiedWrappingAddMalformed(psi_core::OperationId),
+    VerifiedSaturatingAddMalformed(psi_core::OperationId),
 }
 
 impl std::fmt::Display for LoweringError {

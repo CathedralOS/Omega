@@ -19,8 +19,9 @@ tests reject any Psi dependency on Omega.
 The first in-memory executable slice is also live. `psi-terminal` defines a
 versioned module with stable machines, blocks, values, operations, edges, and
 bodyful contracts. Frozen semantic v1 contains representable integer constants;
-v2 adds Boolean constants; current v3 adds exact-width wrapping integer
-addition. All three use unconditional jump and return edges.
+v2 adds Boolean constants; v3 adds exact-width wrapping integer addition;
+current v4 adds exact-width saturating integer addition. All four use
+unconditional jump and return edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -41,8 +42,8 @@ fact `7i32 == 7i32` and asserts the executed result separately. An Omega
 source-independent consumer is also live:
 `omega-terminal-psi-to-abstract-operations` accepts only a
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
-wrapping-add, jump-binding, and return requirements with stable Psi
-provenance. Neither it nor `omega-terminal-abstract-operations` depends on
+wrapping-add, saturating-add, jump-binding, and return requirements with stable
+Psi provenance. Neither it nor `omega-terminal-abstract-operations` depends on
 checked/typed trees, `ExpressionHandle`, or the legacy source-shaped abstract
 operation plan.
 
@@ -58,11 +59,11 @@ semantic identity. It emits the compatibility Omega object container and
 standalone ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64 images through
 the shared image model and writers. The relocation-free slice requires exact
 final text, complete provenance-bearing compiler regions, and no unclassified
-executable gaps. The source, Boolean, and wrapping-add canaries drop all producing semantic
-and lowering state before artifact emission; the host linker harness executes
-the retained entry bytes, and the macOS host canary also executes the emitted
-Mach-O image directly. General register assignment and migration of the legacy
-backend remain outside this checkpoint.
+executable gaps. The source, Boolean, wrapping-add, and saturating-add canaries
+drop all producing semantic and lowering state before artifact emission; the
+host linker harness executes the retained entry bytes, and the macOS host
+canary also executes the emitted Mach-O image directly. General register
+assignment and migration of the legacy backend remain outside this checkpoint.
 
 Canonical semantic serialization and identity are now live for this initial
 vocabulary in `psi-terminal-codec`. The real-source canary encodes the semantic
@@ -70,7 +71,8 @@ module, records its identity, discards the source and producing module, decodes
 a fresh module and proof bundle, validates their section manifest, and then
 drives verification, interpretation, and native realization. The v3 wrapping
 canary independently round-trips, verifies, meters, lowers, emits, and executes
-`u8` 200+100 as 44 after producer state is discarded. Branching, the remaining
+`u8` 200+100 as 44 after producer state is discarded; the current-v4 saturating
+canary follows the same path and clamps that sum to 255. Branching, the remaining
 arithmetic-policy variants, runtime terminal-parameter ABI/register lowering,
 typed debug payloads, general safe-point/branch fixed-work checking, build-time
 fuel migration, and native fuel metering remain next.
@@ -220,23 +222,25 @@ semantic version and this fingerprint: proof bundles, installation records,
 and debug maps are deliberately absent and remain replaceable.
 
 Semantic version 1 is frozen with `IntegerConstant`; version 2 adds
-`BooleanConstant`; current version 3 adds `WrappingIntegerAdd`. The v3 operation
-requires two already defined operands of the exact result integer type and has
-a canonical recursive proposition term for its exact logical result. Validation
-and execution continue to accept valid v1/v2 modules under their original
-meaning, while an older module cannot claim a later operation tag.
-`migrate_module_to_current` is an explicit validated older-to-v3 translation:
+`BooleanConstant`; version 3 adds `WrappingIntegerAdd`; current version 4 adds
+`SaturatingIntegerAdd`. Both additions require two already defined operands of
+the exact result integer type and have distinct canonical recursive proposition
+terms for their exact logical results. Validation and execution continue to
+accept valid v1/v2/v3 modules under their original meaning, while an older
+module cannot claim a later operation tag. `migrate_module_to_current` is an
+explicit validated older-to-v4 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 and v2 fingerprints and
-independently freeze the current v3 fingerprint and wrapping-add fixture.
+migrated module. Golden tests retain the archived v1, v2, and v3 fingerprints
+and independently freeze the current v4 fingerprint and saturating-add fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
 original proposition vocabulary. Format v2 adds the recursive wrapping-add
-scalar term; the encoder selects it only when a carried proof tree needs that
-term, and the decoder rejects a v2 bundle that was representable as v1.
+scalar term; format v3 adds the recursive saturating-add scalar term. The
+encoder selects the minimal format needed by a carried proof tree, and the
+decoder rejects a v2 or v3 bundle representable in an earlier format.
 Evidence entries are strictly ordered by `ObligationId`; the
 closed encoding covers kernel judgments, separately versioned recursive proof
 trees, and exact admission site/authority/evidence/profile identities. Unknown
@@ -273,7 +277,8 @@ maps remain a later artifact slice.
 
 `psi-terminal-fuel` owns the accounting identity independently from terminal
 semantic versioning. Schedule v1 charges one logical unit for each executed
-`IntegerConstant`, `BooleanConstant`, or `WrappingIntegerAdd` and one for each
+`IntegerConstant`, `BooleanConstant`, `WrappingIntegerAdd`, or
+`SaturatingIntegerAdd` and one for each
 taken `Jump` or `Return` edge. The cost table
 matches the closed operation/terminator enums exhaustively, so a new vocabulary
 variant cannot compile without making its schedule treatment explicit. A
@@ -296,14 +301,15 @@ outcomes, and trusted native block metering remain later IRFUEL slices.
 
 The v3 wrapping canary also costs four v1 units: two constants, one addition,
 and one return edge. Semantic-version migration therefore does not imply a fuel
-schedule change; each newly admitted operation is reviewed against the closed
-schedule table.
+schedule change. The current-v4 saturating canary has the same four-unit shape;
+each newly admitted operation is reviewed against the closed schedule table.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. Because the supported v1/v2/v3 control vocabulary currently permits one
-acyclic straight-line path, it derives an exact entry-to-return ceiling with no
-additional precondition assumptions. The certificate keys the canonical terminal-Psi
-identity, entry machine, reached return edge, schedule identity, and ceiling.
+schedule. Because the supported v1/v2/v3/v4 control vocabulary currently
+permits one acyclic straight-line path, it derives an exact entry-to-return
+ceiling with no additional precondition assumptions. The certificate keys the
+canonical terminal-Psi identity, entry machine, reached return edge, schedule
+identity, and ceiling.
 Validation recomputes every field from the verified decoded module; changing
 program semantics invalidates an old certificate even when the numeric cost is
 unchanged, and a verified but noncanonical module cannot acquire semantic
@@ -321,7 +327,8 @@ migration remain later slices.
 2. Extend the live stable Psi value, proposition, proof, and place identities
    into the first terminal semantic module without changing the current backend.
    **Initial scalar subsets complete:** frozen v1 integer constants, v2 Boolean
-   constants, and current-v3 wrapping integer addition have verifier,
+   constants, v3 wrapping integer addition, and current-v4 saturating integer
+   addition have verifier,
    direct-interpreter, canonical-codec, fuel, Omega-lowering, and native-return
    coverage. Structural places, runtime terminal-parameter lowering, and the
    other arithmetic variants remain later slices.
@@ -352,7 +359,8 @@ migration remain later slices.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   v3 modules. Typed installation records are live; typed debug/source maps
+   current-v4 modules; archived v3 wrapping identity is frozen as well. Typed
+   installation records are live; typed debug/source maps
    remain a later artifact slice.
 
 The migration may keep old and new paths temporarily for comparison. That is a

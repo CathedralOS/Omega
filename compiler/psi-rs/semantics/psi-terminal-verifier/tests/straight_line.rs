@@ -189,6 +189,79 @@ fn wrapping_add_requires_v3_and_defined_exact_type_operands() {
 }
 
 #[test]
+fn v4_saturating_add_axiom_proves_the_return_contract() {
+    let (module, goal, obligation) = saturating_add_module();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let term = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar_type);
+    let sum = ScalarTerm::saturating_integer_add(integer, term(30), term(31)).unwrap();
+    let proof = ProofNode {
+        conclusion: goal,
+        rule: ProofRule::EqualityTransitivity {
+            left_equals_middle: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(33), term(32)),
+                rule: ProofRule::SemanticAxiom { index: 1 },
+            }),
+            middle_equals_right: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(32), sum),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            }),
+        },
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(30).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof,
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v4 saturating-add semantics should reconstruct both axioms");
+}
+
+#[test]
+fn saturating_add_requires_v4_and_defined_exact_type_operands() {
+    let (mut old_version, _, _) = saturating_add_module();
+    old_version.semantic_version = SemanticVersion::V3;
+    assert!(matches!(
+        validate_module(&old_version),
+        Err(ModuleError::OperationRequiresSemanticVersion {
+            required: SemanticVersion::V4,
+            actual: SemanticVersion::V3,
+            ..
+        })
+    ));
+
+    let (mut use_before_definition, _, _) = saturating_add_module();
+    use_before_definition.machines[0].blocks[0].operations[0].kind =
+        OperationKind::SaturatingIntegerAdd {
+            left: ValueId::new(32).expect("sum result"),
+            right: ValueId::new(31).expect("right parameter"),
+        };
+    assert_eq!(
+        validate_module(&use_before_definition).expect_err("self-reference must fail closed"),
+        ModuleError::ValueUsedBeforeDefinition(ValueId::new(32).expect("sum result"))
+    );
+
+    let (mut wrong_type, _, _) = saturating_add_module();
+    wrong_type.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
+    wrong_type.machines[0].contract.ensures.clear();
+    assert_eq!(
+        validate_module(&wrong_type).expect_err("mixed operand types must fail closed"),
+        ModuleError::SaturatingIntegerAddOperandTypeMismatch {
+            operation: OperationId::new(30).expect("add operation"),
+            operand: ValueId::new(31).expect("right parameter"),
+            expected: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")),
+            actual: ScalarType::Boolean,
+        }
+    );
+}
+
+#[test]
 fn initial_control_vocabulary_rejects_unreachable_semantic_axioms() {
     let mut fixture = Fixture::new();
     fixture.module.machines[0].blocks.push(Block {
@@ -284,6 +357,72 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             semantic_version: SemanticVersion::V3,
+            entry: machine.id,
+            machines: vec![machine],
+        },
+        goal,
+        obligation,
+    )
+}
+
+fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let left = ValueId::new(30).expect("left parameter");
+    let right = ValueId::new(31).expect("right parameter");
+    let sum = ValueId::new(32).expect("sum result");
+    let result = ValueId::new(33).expect("machine result");
+    let obligation = ObligationId::new(30).expect("obligation");
+    let term = |id| ScalarTerm::value(id, scalar_type);
+    let goal = Proposition::Equal(
+        term(result),
+        ScalarTerm::saturating_integer_add(integer, term(left), term(right)).unwrap(),
+    );
+    let machine = TerminalMachine {
+        id: MachineId::new(30).expect("machine"),
+        parameters: vec![
+            ValueDeclaration {
+                id: left,
+                scalar_type,
+            },
+            ValueDeclaration {
+                id: right,
+                scalar_type,
+            },
+        ],
+        result: ValueDeclaration {
+            id: result,
+            scalar_type,
+        },
+        entry: BlockId::new(30).expect("block"),
+        blocks: vec![Block {
+            id: BlockId::new(30).expect("block"),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: OperationId::new(30).expect("add operation"),
+                result: ValueDeclaration {
+                    id: sum,
+                    scalar_type,
+                },
+                kind: OperationKind::SaturatingIntegerAdd { left, right },
+            }],
+            terminator: Terminator::Return {
+                edge: EdgeId::new(30).expect("return edge"),
+                value: sum,
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(30).expect("contract"),
+            requires: Vec::new(),
+            ensures: vec![ContractClause {
+                obligation,
+                proposition: goal.clone(),
+            }],
+        },
+    };
+    (
+        TerminalModule {
+            semantic_version: SemanticVersion::V4,
             entry: machine.id,
             machines: vec![machine],
         },

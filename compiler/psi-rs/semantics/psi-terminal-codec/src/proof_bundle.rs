@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 const FORMAT_VERSION_V1: u16 = 1;
 const FORMAT_VERSION_V2: u16 = 2;
+const FORMAT_VERSION_V3: u16 = 3;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -52,7 +53,10 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
         return Err(ProofCodecError::InvalidMagic);
     }
     let format_version = reader.u16()?;
-    if !matches!(format_version, FORMAT_VERSION_V1 | FORMAT_VERSION_V2) {
+    if !matches!(
+        format_version,
+        FORMAT_VERSION_V1 | FORMAT_VERSION_V2 | FORMAT_VERSION_V3
+    ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
     let evidence_count = reader.count()?;
@@ -169,9 +173,13 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
     if depth > MAX_SCALAR_TERM_DEPTH {
         return Err(ProofCodecError::ScalarTermNestingTooDeep);
     }
-    if let ScalarTerm::WrappingIntegerAdd { left, right, .. } = term {
-        validate_scalar_term_depth(left, depth + 1)?;
-        validate_scalar_term_depth(right, depth + 1)?;
+    match term {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
+            validate_scalar_term_depth(left, depth + 1)?;
+            validate_scalar_term_depth(right, depth + 1)?;
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
 }
@@ -181,12 +189,68 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v3_term(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V3
+    } else if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
                 if proof_uses_v2_term(&certificate.proof)
         )
     }) {
         FORMAT_VERSION_V2
     } else {
         FORMAT_VERSION_V1
+    }
+}
+
+fn proof_uses_v3_term(node: &ProofNode) -> bool {
+    proposition_uses_v3_term(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v3_term),
+            ProofRule::ConjunctionElimination { conjunction, .. } => {
+                proof_uses_v3_term(conjunction)
+            }
+            ProofRule::ImplicationIntroduction { body } => proof_uses_v3_term(body),
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v3_term(implication) || proof_uses_v3_term(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => proof_uses_v3_term(left_equals_middle) || proof_uses_v3_term(middle_equals_right),
+        }
+}
+
+fn proposition_uses_v3_term(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v3_term),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_v3_term(premise) || proposition_uses_v3_term(conclusion),
+    }
+}
+
+fn scalar_term_uses_v3(term: &ScalarTerm) -> bool {
+    match term {
+        ScalarTerm::SaturatingIntegerAdd { .. } => true,
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+            scalar_term_uses_v3(left) || scalar_term_uses_v3(right)
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
     }
 }
 
@@ -229,7 +293,13 @@ fn proposition_uses_v2_term(proposition: &Proposition) -> bool {
 }
 
 fn scalar_term_uses_v2(term: &ScalarTerm) -> bool {
-    matches!(term, ScalarTerm::WrappingIntegerAdd { .. })
+    match term {
+        ScalarTerm::WrappingIntegerAdd { .. } => true,
+        ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
+            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => false,
+    }
 }
 
 fn encode_raw(bundle: &ProofBundle, format_version: u16) -> Result<Vec<u8>, ProofCodecError> {
@@ -421,6 +491,19 @@ fn encode_scalar_term(
             encode_scalar_term(writer, left, depth + 1, format_version)?;
             encode_scalar_term(writer, right, depth + 1, format_version)?;
         }
+        ScalarTerm::SaturatingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } => {
+            if format_version < FORMAT_VERSION_V3 {
+                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
+            }
+            writer.u8(5);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1, format_version)?;
+            encode_scalar_term(writer, right, depth + 1, format_version)?;
+        }
     }
     Ok(())
 }
@@ -604,6 +687,13 @@ fn decode_scalar_term(
             let left = decode_scalar_term(reader, depth + 1, format_version)?;
             let right = decode_scalar_term(reader, depth + 1, format_version)?;
             ScalarTerm::wrapping_integer_add(scalar_type, left, right)
+                .map_err(ProofCodecError::MalformedProposition)?
+        }
+        5 if format_version >= FORMAT_VERSION_V3 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1, format_version)?;
+            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            ScalarTerm::saturating_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
