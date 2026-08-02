@@ -63,8 +63,8 @@ module, records its identity, discards the source and producing module, decodes
 a fresh module, verifies it against the separately retained proof bundle, and
 then drives both interpretation and native realization. Branching,
 arithmetic-policy operations, artifact section manifests/version migration,
-fixed-work checking, build-time fuel migration, and native fuel metering remain
-next.
+general safe-point/branch fixed-work checking, build-time fuel migration, and
+native fuel metering remain next.
 
 ## Boundary
 
@@ -233,8 +233,21 @@ semantic identity before and after accounting. `TerminalExecution` retains the
 exact block/operation cursor and values across that sponsor event; checked
 replenishment resumes at the unpaid site without replaying or double-charging
 earlier work, including in the serialized real-source/native canary. Build-time
-migration, fixed-work certificates, attributed response outcomes, and trusted
-native block metering remain later IRFUEL slices.
+migration, general fixed-work/segment certificates, attributed response
+outcomes, and trusted native block metering remain later IRFUEL slices.
+
+`psi-terminal-fixed-fuel` provides the first restricted checker over this same
+schedule. Because v1 validation currently permits one acyclic straight-line
+path, it derives an exact entry-to-return ceiling with no additional
+precondition assumptions. The certificate keys the canonical terminal-Psi
+identity, entry machine, reached return edge, schedule identity, and ceiling.
+Validation recomputes every field from the verified decoded module; changing
+program semantics invalidates an old certificate even when the numeric cost is
+unchanged, and a verified but noncanonical module cannot acquire semantic
+identity. The source canary's exact four-unit certificate equals measured
+execution after source and producer state are discarded. Branch/loop outcomes,
+safe-point segments, relevant-precondition subsets, and provider-summary
+migration remain later slices.
 
 ## Migration plan
 

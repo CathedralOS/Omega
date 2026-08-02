@@ -2,9 +2,10 @@
 
 Status: canonical Psi architecture settled 2026-08-02. The hard-root accounting
 precursor is schedule-keyed and uses logical-fuel provisions. The first
-terminal-Psi schedule and interpreter meter are live; build-time migration,
-general fixed-work segment checking, response outcomes, and native metering
-remain implementation work. The current TypedTrees evaluator-step schedule is
+terminal-Psi schedule, interpreter meter, and straight-line fixed-entry checker
+are live; build-time migration, general safe-point segment checking, response
+outcomes, and native metering remain implementation work. The current
+TypedTrees evaluator-step schedule is
 telemetry precursor evidence, not canonical-Psi fuel. The implementation cut
 and migration are detailed in
 [`terminal_psi.md`](../architecture/pipeline/terminal_psi.md).
@@ -50,7 +51,10 @@ verified interpreter returns exact schedule-keyed usage attributed to stable
 operation/edge identities; a finite sponsor allowance fails atomically before
 an unpaid site. Explicit in-memory execution state now resumes at that exact
 site after checked allowance replenishment without replaying prior work.
-Build-time migration, fixed-work certificates, and native metering remain.
+The current acyclic single-path vocabulary also has an exact entry-to-return
+certificate keyed by semantic identity, entry, return edge, and fuel schedule;
+consumers recompute every field without trusting the producer. Build-time
+migration, branch/loop/safe-point certificates, and native metering remain.
 
 ## Context
 
