@@ -19,6 +19,9 @@ psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifie
 
 [dev-dependencies]
 omega-compiler = { path = "../omega-compiler" }
+omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
+omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }

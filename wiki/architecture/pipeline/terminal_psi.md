@@ -43,8 +43,20 @@ source-independent consumer is also live:
 materialization, jump binding, and return requirements with stable Psi
 provenance. Neither it nor `omega-terminal-abstract-operations` depends on
 checked/typed trees, `ExpressionHandle`, or the legacy source-shaped abstract
-operation plan. Target/native realization of that stream, canonical bytes,
-fingerprints, branching, arithmetic-policy operations, and fuel remain next.
+operation plan.
+
+The first target/native realization is live on the same clean lane.
+`omega-terminal-abstract-operations-to-target-operations` resolves the verified
+constant and jump bindings into a target `ReturnIntegerImmediate` while
+retaining every contributing Psi operation and edge identity.
+`omega-terminal-machine-emission` emits ordinary scalar-return code for
+AArch64 and x86-64 and rejects non-native integer widths. The real-source canary
+links only those emitted entry bytes into a minimal host harness and proves its
+process result equals terminal interpretation after all producer and
+intermediate state is dropped. This checkpoint does not claim standalone
+object/image emission, general register assignment, or migration of the legacy
+backend. Canonical serialization/fingerprints, branching, arithmetic-policy
+operations, and fuel remain next.
 
 ## Boundary
 
@@ -176,10 +188,12 @@ identities. One execution verifies and runs one complete Psi semantic version.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
-   **In-memory producer/consumer complete:** the fail-closed compatibility
-   adapter and a real source canary now verify and execute after checked trees
-   are dropped, then lower the verified module into an owned, source-independent
-   Omega requirement stream. Target/native realization and comparison remain.
+   **Initial vertical slice complete through native comparison:** the
+   fail-closed compatibility adapter and a real source canary now verify and
+   execute after checked trees are dropped, then lower the verified module into
+   an owned, source-independent Omega requirement stream, a target
+   return-immediate, and host machine code whose execution matches
+   interpretation. Standalone image integration is not part of this checkpoint.
 4. Add calls, continuations, cleanup, conservation, boundary operations,
    suspension, and scoped ordering as reviewed vertical slices.
 5. Move binding substitution and concrete instantiation above terminal Psi so

@@ -1,0 +1,14 @@
+[package]
+name = "omega-terminal-machine-code"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_machine_code"
+path = "src/lib.rs"
+
+[dependencies]
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-target-operations = { path = "../omega-terminal-target-operations" }
+psi-core = { path = "../../../psi-rs/foundation/psi-core" }
