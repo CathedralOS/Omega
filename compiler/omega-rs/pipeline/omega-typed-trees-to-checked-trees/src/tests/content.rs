@@ -361,3 +361,270 @@ fn retained_content_custody_accepts_consumed_owned_source() {
         "#,
     );
 }
+
+#[test]
+fn checked_facts_infer_exact_content_reshuffles_through_transparent_paths() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Wrapped { region: Region in Owned; }
+
+        data Main {}
+        machine Main::forward(region: Region in Owned) -> Region in Owned {
+            region
+        }
+        machine Main::pack(region: Region in Owned) -> Wrapped {
+            Wrapped { region: region }
+        }
+        machine Main::unpack(wrapped: Wrapped) -> Region in Owned {
+            wrapped.region
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let reshuffles = &checked.facts.qualifications.content.identity_reshuffles;
+    assert_eq!(reshuffles.len(), 3, "identity reshuffles: {reshuffles:#?}");
+
+    let row_for = |state_name: &str| {
+        let state_symbol = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .find(|state| state.name.as_str() == state_name)
+            .expect("named state")
+            .symbol;
+        reshuffles
+            .iter()
+            .find(|row| row.state_symbol == state_symbol)
+            .expect("inferred reshuffle row")
+    };
+
+    let forward = row_for("forward");
+    assert_ne!(
+        forward.claim_identity,
+        omega_core::semantics::PermissionClaimIdentity::Unknown
+    );
+    assert!(matches!(
+        forward.plan.equation.left(),
+        ContentConservationTerm::Projection { subject, .. }
+            if subject.version == ContentPlaceVersion::Entry
+                && subject.segments.is_empty()
+    ));
+    assert!(matches!(
+        forward.plan.equation.right(),
+        ContentConservationTerm::Projection { subject, .. }
+            if subject.version == ContentPlaceVersion::Current
+                && subject.segments.is_empty()
+    ));
+
+    let pack = row_for("pack");
+    let pack_paths = [pack.plan.equation.left(), pack.plan.equation.right()]
+        .into_iter()
+        .map(|term| match term {
+            ContentConservationTerm::Projection { subject, .. } => subject,
+            ContentConservationTerm::Separate(_) => panic!("reshuffles never infer separation"),
+        })
+        .collect::<Vec<_>>();
+    assert!(pack_paths.iter().any(|subject| {
+        subject.version == ContentPlaceVersion::Entry && subject.segments.is_empty()
+    }));
+    assert!(pack_paths.iter().any(|subject| {
+        subject.version == ContentPlaceVersion::Current
+            && matches!(subject.segments.as_slice(), [ContentPlaceSegment::Field(field)] if field.name == "region")
+    }));
+
+    let unpack = row_for("unpack");
+    let unpack_paths = [unpack.plan.equation.left(), unpack.plan.equation.right()]
+        .into_iter()
+        .map(|term| match term {
+            ContentConservationTerm::Projection { subject, .. } => subject,
+            ContentConservationTerm::Separate(_) => panic!("reshuffles never infer separation"),
+        })
+        .collect::<Vec<_>>();
+    assert!(unpack_paths.iter().any(|subject| {
+        subject.version == ContentPlaceVersion::Entry
+            && matches!(subject.segments.as_slice(), [ContentPlaceSegment::Field(field)] if field.name == "region")
+    }));
+    assert!(unpack_paths.iter().any(|subject| {
+        subject.version == ContentPlaceVersion::Current && subject.segments.is_empty()
+    }));
+}
+
+#[test]
+fn checked_facts_do_not_infer_content_for_fresh_claim_establishment() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Main {}
+        machine Main::issue() -> Region in Owned {
+            Region { length: 1 }
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    assert!(
+        checked
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .is_empty(),
+        "fresh establishment requires a sealed introduction row, not an inferred reshuffle"
+    );
+}
+
+#[test]
+fn checked_facts_keep_independent_same_algebra_reshuffles_separate() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Pair {
+            first: Region in Owned;
+            second: Region in Owned;
+        }
+
+        data Main {}
+        machine Main::swap(pair: Pair) -> Pair {
+            Pair { first: pair.second, second: pair.first }
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let reshuffles = &checked.facts.qualifications.content.identity_reshuffles;
+    assert_eq!(reshuffles.len(), 2, "one row per preserved claim identity");
+    assert!(reshuffles.iter().all(|row| {
+        !matches!(
+            row.plan.equation.left(),
+            ContentConservationTerm::Separate(_)
+        ) && !matches!(
+            row.plan.equation.right(),
+            ContentConservationTerm::Separate(_)
+        )
+    }));
+    let ownership = &checked.facts.flow.ownership;
+    assert!(reshuffles.iter().all(|row| {
+        ownership.segments.span_or_empty(row.input_segments)
+            != ownership.segments.span_or_empty(row.output_segments)
+    }));
+}
+
+#[test]
+fn checked_facts_do_not_equate_distinct_content_projection_identities() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Left;
+        domain Region::Right;
+        machine Left::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+        machine Right::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Main {}
+        machine Main::retag(region: Region in Left) -> Region in Right {
+            region
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    assert!(
+        checked
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .is_empty(),
+        "matching carrier and algebra cannot replace exact projection identity"
+    );
+}
+
+#[test]
+fn checked_facts_infer_reshuffles_from_ordinary_qualification_contracts() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data Main {}
+        machine Main::forward(region: Region) -> Region in Owned
+        requires
+            region in Region::Owned
+        {
+            region
+        }
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    assert_eq!(
+        checked
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .len(),
+        1,
+        "an ordinary requires qualification should select the exact input projection"
+    );
+}

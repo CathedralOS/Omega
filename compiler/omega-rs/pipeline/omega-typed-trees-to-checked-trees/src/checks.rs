@@ -47,6 +47,8 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut multiplicity_diagnostics);
     }
 
+    content::infer_identity_preserving_reshuffles(program, facts);
+
     if let Err(mut content_diagnostics) = content::check_retained_content_custody(program, facts) {
         diagnostics.append(&mut content_diagnostics);
     }

@@ -179,6 +179,17 @@ claims under field/case/index paths; destructuring performs the inverse.
 One-to-one and otherwise unambiguous outcome mappings infer. Ambiguous mappings
 reject rather than guessing.
 
+Implementation checkpoint (2026-08-02): checked outcome maps now feed exact
+content-identity reshuffle rows. A row exists only when the input and output
+claim paths preserve one transfer-stable claim identity and both places select
+the same owner-unique terminal projection identity and algebra. The retained
+equality, claim identity, and input/output paths are emitted together in the
+claim-outcome proof/debug artifact. Multiple independent claims remain multiple
+rewrite rows; inference does not use whole-claim distinctness as evidence that
+their projected content is disjoint. Fresh claims and mismatched projection
+identities do not infer. Terminal revalidation, partition-theorem composition,
+and sealed frontier rows remain implementation work.
+
 ### Content-bearing claims
 
 A content-bearing exact qualification publishes one owner-unique conformance
