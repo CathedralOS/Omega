@@ -138,7 +138,7 @@ Omega/
 |   |   `-- images/
 |   |       |-- [CRATE] omega-image/                  # Shared final image data model and fixup helpers.
 |   |       |-- [CRATE] omega-image-emission/         # Selects the final executable image writer for a target.
-|   |       |-- [CRATE] omega-terminal-image-emission/ # Clean terminal-Psi object and standalone image emission.
+|   |       |-- [CRATE] omega-terminal-image-emission/ # Clean terminal-Psi object/image emission and typed installation record.
 |   |       |-- [CRATE] omega-image-elf/              # Final ELF image layout, program headers, loaders.
 |   |       |-- [CRATE] omega-image-macho/            # Final Mach-O image layout, load commands, fixups.
 |   |       `-- [CRATE] omega-image-pe/               # Final PE image layout, directories, imports, relocations.

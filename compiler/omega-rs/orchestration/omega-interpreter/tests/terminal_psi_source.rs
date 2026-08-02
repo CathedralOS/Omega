@@ -14,13 +14,16 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
-    build_terminal_object_artifact, emit_terminal_executable_image, emit_terminal_object_container,
+    build_terminal_installation_record, build_terminal_object_artifact,
+    decode_terminal_installation_record, emit_terminal_executable_image,
+    emit_terminal_object_container, encode_terminal_installation_record,
+    validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
 use psi_core::{
-    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
-    ValueId,
+    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
+    ProfileDecisionId, ScalarType, ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal_codec::{
@@ -302,9 +305,55 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert_eq!(object.output.relocations, 0);
     let image = emit_terminal_executable_image(&object_artifact, 3)
         .expect("source-produced owned artifact should emit a standalone host image");
-    assert_eq!(image.terminal_psi, original_identity);
-    assert_eq!(image.output.final_text_bytes, object_artifact.text_bytes());
-    assert!(image.output.executable_regions.unclassified_gaps.is_empty());
+    assert_eq!(image.terminal_psi(), original_identity);
+    assert_eq!(
+        image.output().final_text_bytes,
+        object_artifact.text_bytes()
+    );
+    assert!(
+        image
+            .output()
+            .executable_regions
+            .unclassified_gaps
+            .is_empty()
+    );
+    let installation = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(1).expect("source installation profile decision"),
+        [],
+    )
+    .expect("source image should produce a typed installation record");
+    validate_terminal_installation_record(&installation, &image)
+        .expect("installation record should bind the exact source image");
+    let installation_bytes =
+        encode_terminal_installation_record(&installation).expect("canonical installation bytes");
+    assert_eq!(
+        decode_terminal_installation_record(&installation_bytes),
+        Ok(installation)
+    );
+
+    let manifest_module = decode_module(&canonical_bytes)
+        .expect("redecode semantic bytes after image realization state is dropped");
+    let manifest_proof = decode_proof_bundle(&canonical_proof_bytes)
+        .expect("redecode proof bytes after image realization state is dropped");
+    let installed_manifest = build_artifact_manifest(
+        &manifest_module,
+        &manifest_proof,
+        Some(&installation_bytes),
+        None,
+    )
+    .expect("typed installation bytes should enter the artifact manifest");
+    validate_artifact_manifest(
+        &manifest_module,
+        &manifest_proof,
+        Some(&installation_bytes),
+        None,
+        installed_manifest,
+    )
+    .expect("installed artifact manifest should recompute from canonical sections");
+    assert_eq!(installed_manifest.semantic(), original_identity);
+    assert!(installed_manifest.installation().is_some());
+    assert_ne!(installed_manifest.identity(), artifact_manifest.identity());
 
     let expected_exit = match interpreted {
         TerminalScalarValue::Integer {
@@ -316,7 +365,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert_eq!(run_host_machine_code(&entry_bytes), expected_exit);
     #[cfg(target_os = "macos")]
     assert_eq!(
-        run_host_executable_image(&image.output.bytes),
+        run_host_executable_image(&image.output().bytes),
         expected_exit
     );
 }

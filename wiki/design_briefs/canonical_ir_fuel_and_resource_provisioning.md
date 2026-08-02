@@ -49,8 +49,15 @@ owns a semantic-identity-bound object artifact, emits the compatibility object
 container and standalone images for the four supported architecture/format
 pairs, and validates exact relocation-free text plus complete executable-region
 coverage. The macOS canaries execute the emitted Mach-O image directly after
-producer state is dropped. General register assignment remains on the legacy
-backend. The first version transition is live: valid v1 integer modules retain their frozen
+producer state is dropped. A canonical typed installation payload separately
+binds the terminal identity, exact target facts, PE subsystem, profile decision,
+selected provider-plan set, complete image digest, and compiler text-validation
+evidence; its exact bytes enter the installation role of the artifact manifest.
+The provider-free scalar canaries use an empty selected set. This metadata does
+not replace the native executable admission/placement state machine. Typed
+debug/source maps remain. General register assignment remains on the legacy
+backend. The first version transition is live: valid v1 integer modules retain
+their frozen
 bytes and execution semantics, explicit migration produces a new v2
 fingerprint, and the current v2 Boolean slice round-trips, verifies, meters,
 lowers, emits, and executes as a canonical zero/one native result. This
