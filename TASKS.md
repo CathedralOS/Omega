@@ -274,6 +274,20 @@ retain exact claim identity and provenance across multi-hop wrappers. Bodyless
 or ambiguous targets remain fail-closed. The checked proof/debug surface retains
 the structured maps in `05_claim_outcomes.json`.
 
+Implementation checkpoint (2026-08-02): those outcome maps now drive the first
+content-conservation inference consumer. For every exact input-relative mapping
+whose entry and result places select the same semantic-domain/projection
+fingerprint and algebra, checked facts retain a fingerprinted entry/current
+equality together with the transfer-stable claim identity and structural input
+and output paths. Direct forwarding, transparent record construction/extraction,
+fixed indices, and ordinary qualification contracts participate. Each preserved
+claim remains an individual rewrite row: the checker does not turn multiple
+independent claims into `separate(...)`, because claim distinctness does not
+prove projected-content disjointness. Fresh establishments, projection-identity
+mismatches, sum-case paths absent from terminal v9, and runtime indices infer
+nothing. `05_claim_outcomes.json` publishes these rows beside their outcome-map
+evidence.
+
 Carry policy now follows the exact claim identity independently of the
 carrier's structural policy. Each qualification-evidence origin begins strict,
 its own positive permissions relax only that origin, and distinct origins and
@@ -401,10 +415,13 @@ those rows remain absent until their actual checked proofs exist.
   symbols, and lowers stable domains, projection fingerprints, entry/current
   places, fields, fixed indices, and flattened separation. Semantic format v1
   and proof format v8 encode the proposition canonically, while the verifier
-  restricts it to `ensures` and checks replaceable certificates. Remaining
-  work is to compose inferred identity-preserving reshuffles, insert sealed
-  introduction and custody-exit rows, and discharge or admit the exact
-  frontier theorem. Contracts call the exact
+  restricts it to `ensures` and checks replaceable certificates. Checked
+  lowering now derives exact one-to-one identity-reshuffle rows without
+  manufacturing separation between independent claims. Remaining work is to
+  carry and revalidate those rows in terminal Psi (including a structural
+  sum-case path when that vocabulary lands), compose them with authored
+  partition equations, insert sealed introduction and custody-exit rows, and
+  discharge or admit the exact frontier theorem. Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
   equation per content algebra and outcome row. Infer only claim-identity-

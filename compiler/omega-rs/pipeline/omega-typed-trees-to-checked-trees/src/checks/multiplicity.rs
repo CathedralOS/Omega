@@ -44,10 +44,11 @@ struct WrittenLinearTarget {
 }
 
 #[derive(Debug, Clone)]
-struct LinearClaimTemplate {
-    path: Vec<omega_facts::PlaceSegment>,
-    multiplicity: Multiplicity,
-    conditional: bool,
+pub(super) struct LinearClaimTemplate {
+    pub(super) path: Vec<omega_facts::PlaceSegment>,
+    pub(super) type_reference: TypeReferenceHandle,
+    pub(super) multiplicity: Multiplicity,
+    pub(super) conditional: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1527,7 +1528,7 @@ fn initial_linear_places(
     places
 }
 
-fn linear_claim_frontier(
+pub(super) fn linear_claim_frontier(
     program: &omega_typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<LinearClaimTemplate> {
@@ -1554,8 +1555,20 @@ fn append_linear_claim_frontier(
     if !type_reference.is_valid() {
         return;
     }
+    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
+            if multiplicity == Multiplicity::Linear {
+                claims.push(LinearClaimTemplate {
+                    path: path.to_vec(),
+                    type_reference,
+                    multiplicity,
+                    conditional: path
+                        .iter()
+                        .any(|segment| matches!(segment, omega_facts::PlaceSegment::Case { .. })),
+                });
+                return;
+            }
             append_linear_claim_frontier(
                 program,
                 *base_type,
@@ -1608,10 +1621,10 @@ fn append_linear_claim_frontier(
         _ => {}
     }
 
-    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
     if multiplicity == Multiplicity::Linear {
         claims.push(LinearClaimTemplate {
             path: path.to_vec(),
+            type_reference,
             multiplicity,
             conditional: path
                 .iter()

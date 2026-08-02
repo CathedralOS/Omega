@@ -417,8 +417,10 @@ pub fn index_compatibility_manifest_json(program: &CheckedTrees) -> String {
 /// the checked ownership and qualification passes. This proof/debug artifact
 /// exposes exact output paths, input-or-established sources, and the closed
 /// symbolic content expression without making presentation spelling part of
-/// public contract identity. Admitted backing and discharged conservation
-/// witnesses join this same artifact when their source surfaces land.
+/// public contract identity. Exact identity-preserving content rewrites are
+/// retained beside the outcome rows that justify them; admitted backing and
+/// complete frontier witnesses join this same artifact when their source
+/// surfaces land.
 pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     let ownership = &program.facts.flow.ownership;
     let mut json = String::from("{\n  \"claim_outcome_maps\": [");
@@ -490,6 +492,60 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_content_projection_json(&mut json, &plan.expression);
         json.push_str(",\n      \"fingerprint\": ");
         push_json_string(&mut json, &format!("0x{:016x}", plan.fingerprint));
+        json.push_str("\n    }");
+    }
+    let mut identity_reshuffles = program
+        .facts
+        .qualifications
+        .content
+        .identity_reshuffles
+        .iter()
+        .collect::<Vec<_>>();
+    identity_reshuffles.sort_by_key(|row| {
+        (
+            state_label_from_symbol(program, row.state_symbol),
+            omega_core::content::content_conservation_plan_bytes(&row.plan),
+        )
+    });
+    json.push_str("\n  ],\n  \"content_identity_reshuffles\": [");
+    for (index, row) in identity_reshuffles.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"machine\": ");
+        push_json_string(&mut json, &symbol_label(program, row.machine_symbol));
+        json.push_str(",\n      \"state\": ");
+        push_json_string(
+            &mut json,
+            &state_label_from_symbol(program, row.state_symbol),
+        );
+        json.push_str(",\n      \"claim_identity\": ");
+        push_claim_identity_json(&mut json, program, row.claim_identity);
+        json.push_str(",\n      \"input\": {\"parameter\": ");
+        push_json_string(
+            &mut json,
+            &symbol_label(program, row.input_parameter_symbol),
+        );
+        json.push_str(", \"path\": ");
+        push_claim_path_json(
+            &mut json,
+            program,
+            ownership.segments.span_or_empty(row.input_segments),
+        );
+        json.push_str("},\n      \"output_path\": ");
+        push_claim_path_json(
+            &mut json,
+            program,
+            ownership.segments.span_or_empty(row.output_segments),
+        );
+        json.push_str(",\n      \"algebra\": ");
+        push_content_algebra_json(&mut json, &row.plan.algebra);
+        json.push_str(",\n      \"equation\": {\"left\": ");
+        push_content_conservation_term_json(&mut json, program, row.plan.equation.left());
+        json.push_str(", \"right\": ");
+        push_content_conservation_term_json(&mut json, program, row.plan.equation.right());
+        json.push_str("},\n      \"fingerprint\": ");
+        push_json_string(&mut json, &format!("0x{:016x}", row.plan.fingerprint));
         json.push_str("\n    }");
     }
     let mut conservation = program
@@ -2475,13 +2531,16 @@ mod tests {
         push_termination_interface_json, qualification_evidence_manifest_json,
     };
     use omega_checked_trees::{
-        CheckedTrees, ClaimCarryPolicyFact, DataCarryFact, FlowClaimOutcomeEntryFact,
-        FlowClaimOutcomeMapFact, FlowClaimOutcomeSource, MachineActivationCarryFact,
-        MachineContractPlan, MachineTerminationFact,
+        CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact, DataCarryFact,
+        FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+        MachineActivationCarryFact, MachineContractPlan, MachineTerminationFact,
     };
     use omega_core::content::{
-        ContentAlgebraIdentity, ContentArithmeticOperator, ContentFieldSegment,
-        ContentProjectionExpression, ContentProjectionPlan, ContentScalarExpression,
+        ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
+        ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
+        ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
+        ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
+        conservation_fingerprint,
     };
     use omega_core::semantics::{
         BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
@@ -2578,6 +2637,64 @@ mod tests {
                 },
                 fingerprint: 0x0123_4567_89ab_cdef,
             });
+        let input = ContentConservationTerm::Projection {
+            domain: SymbolHandle::invalid(),
+            semantic_domain: SemanticDomainId(41),
+            projection_machine: SymbolHandle::invalid(),
+            projection_fingerprint: 0x0123_4567_89ab_cdef,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Entry,
+                root: ContentPlaceRoot::Parameter {
+                    position: 0,
+                    symbol: SymbolHandle::invalid(),
+                    name: "region".to_owned(),
+                    is_self: false,
+                },
+                segments: Vec::new(),
+            },
+        };
+        let output = ContentConservationTerm::Projection {
+            domain: SymbolHandle::invalid(),
+            semantic_domain: SemanticDomainId(41),
+            projection_machine: SymbolHandle::invalid(),
+            projection_fingerprint: 0x0123_4567_89ab_cdef,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: ContentPlaceRoot::Result,
+                segments: Vec::new(),
+            },
+        };
+        let algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(ByteUnit))".to_owned(),
+        };
+        let equation = ContentConservationEquation::new(input, output);
+        let fingerprint = conservation_fingerprint(&algebra, &equation);
+        program
+            .facts
+            .qualifications
+            .content
+            .identity_reshuffles
+            .push(ContentIdentityReshuffleFact {
+                machine_symbol: SymbolHandle::invalid(),
+                state_symbol: SymbolHandle::invalid(),
+                claim_identity: omega_core::semantics::PermissionClaimIdentity::Established {
+                    machine_symbol: SymbolHandle::invalid(),
+                    state_symbol: SymbolHandle::invalid(),
+                    source: omega_core::semantics::PermissionEventSource::StateEntry,
+                    ordinal: 9,
+                },
+                input_parameter_symbol: SymbolHandle::invalid(),
+                input_segments: Default::default(),
+                output_segments: Default::default(),
+                plan: ContentConservationPlan {
+                    owner_kind: ContentConservationOwnerKind::Machine,
+                    owner: SymbolHandle::invalid(),
+                    callable: SymbolHandle::invalid(),
+                    algebra,
+                    equation,
+                    fingerprint,
+                },
+            });
 
         let json = claim_outcome_manifest_json(&program);
 
@@ -2591,6 +2708,9 @@ mod tests {
         assert!(json.contains("\"ordinal\": 7"));
         assert!(json.contains("\"kind\": \"state_entry\""));
         assert!(json.contains("\"content_projections\""));
+        assert!(json.contains("\"content_identity_reshuffles\": [\n    {"));
+        assert!(json.contains("\"input\": {\"parameter\": \"invalid\", \"path\": []}"));
+        assert!(json.contains("\"ordinal\": 9"));
         assert!(json.contains("\"semantic_domain_id\": 41"));
         assert!(json.contains("\"kind\": \"counted_quantity\""));
         assert!(json.contains("\"unit\": \"named(name(ByteUnit))\""));

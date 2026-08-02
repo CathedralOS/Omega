@@ -247,8 +247,17 @@ canonical equation. The checked-plan adapter rechecks the source fingerprint
 and strips arena-local handles. Canonical semantic bytes and minimal proof
 format v8 are golden-pinned; verifier checks restrict content propositions to
 `ensures`, reject invalid roots and `entry(result)`, and accept replaceable
-certificates. Identity-preserving reshuffle inference, sealed introduction and
-custody-exit frontier rows, and the general frontier theorem remain to land.
+certificates. Identity-preserving reshuffle inference now has a checked
+precursor: exact input-relative outcome maps derive one fingerprinted
+entry/current equality per preserved claim, retaining its claim identity and
+both structural paths. The derivation requires the same terminal projection
+identity and algebra on both places, accepts type or ordinary contract
+qualification, and never synthesizes separated composition across independent
+claims. Fresh establishments, mismatched projections, runtime indices, and the
+not-yet-representable sum-case path infer nothing. Terminal
+carriage/revalidation of those rows, sealed introduction and custody-exit
+frontier rows, authored-partition composition, and the general frontier theorem
+remain to land.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
@@ -437,8 +446,9 @@ migration remain later slices.
    wrapping/saturating addition, subtraction, and multiplication
    expressions over native register and incoming-stack ABI locations. The v9
    content slice has canonical semantic/proof bytes, checked-plan translation,
-   and certificate verification; identity-reshuffle inference and sealed
-   frontier rows remain. Executable storage places, general register assignment,
+   and certificate verification; checked identity-reshuffle rows now exist,
+   while their terminal carriage/revalidation and sealed frontier rows remain.
+   Executable storage places, general register assignment,
    and the other arithmetic variants remain later slices.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
