@@ -714,6 +714,12 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   authored boundary write clause: do not reintroduce `stores`; remaining R5
   work is further relational candidates, finer read-consumption precision, and
   broader exact inferred summaries for currently opaque implementations.
+  Exact inferred frames now cross acyclic intra-machine state transitions:
+  conditional arms union, shared tail states memoize, and non-`self` state
+  parameters substitute positionally back into the source/caller namespace.
+  Transition guards, arguments, and returned values must remain call-free in
+  this slice. A reachable state cycle or nested value call stays opaque, so
+  consumers fail closed rather than extrapolating from one observed route.
 - **DOM1/DOM2/DOM3/DOM5:** exact integer `as`, per-atom
   weakening/explicit erasure, operator ownership, predicate `requires`, and
   exact route bodies are complete. Keep unit conversion in ordinary library

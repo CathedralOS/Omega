@@ -178,12 +178,14 @@ impl<'program> CallFrameResolver<'program> {
             return NormalizedWriteFrame::opaque();
         }
         let mut active_states = vec![state.symbol];
+        let mut complete_state_summaries = Vec::new();
         let Some(relative_paths) = summarize_state_written_paths(
             self.program,
             machine,
             state,
             &self.symbols,
             &mut active_states,
+            &mut complete_state_summaries,
         ) else {
             return NormalizedWriteFrame::opaque();
         };
@@ -1059,10 +1061,11 @@ fn machine_state_by_symbol(
 
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
-/// the caller must invalidate every flow fact. Internal acyclic calls compose;
-/// implementation shapes this inference cannot summarize remain deliberately
-/// opaque. Authored `stores` clauses are retired; precision grows through the
-/// shared inferred complete-or-opaque frame instead.
+/// the caller must invalidate every flow fact. Internal acyclic calls and
+/// call-free state-transition graphs compose; implementation shapes this
+/// inference cannot summarize remain deliberately opaque. Authored `stores`
+/// clauses are retired; precision grows through the shared inferred
+/// complete-or-opaque frame instead.
 pub(crate) fn known_call_written_paths(
     program: &TypedTrees,
     call: &TableCall,
@@ -1186,6 +1189,7 @@ fn summarize_resolved_call(
         callee_state,
         symbols,
         active_states,
+        &mut Vec::new(),
     )?;
     for relative in relative_paths {
         if let Some(instantiated) = instantiate_written_path(
@@ -1210,7 +1214,14 @@ fn summarize_state_written_paths(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     active_states: &mut Vec<SymbolHandle>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
+    if let Some((_, paths)) = complete_state_summaries
+        .iter()
+        .find(|(symbol, _)| *symbol == state.symbol)
+    {
+        return Some(paths.clone());
+    }
     let parameters = program.state_parameters(state);
     let mut locals = Vec::new();
     let mut written = Vec::new();
@@ -1269,7 +1280,31 @@ fn summarize_state_written_paths(
                     }
                 }
             }
-            StatementNode::Transition(_) => return None,
+            StatementNode::Transition(transition) => {
+                if matches!(transition.guard, TransitionGuardNode::When(guard)
+                    if !expression_is_call_free(program, guard))
+                {
+                    return None;
+                }
+                for target in [transition.target, transition.continuation] {
+                    for relative in summarize_transition_target_written_paths(
+                        program,
+                        machine,
+                        state,
+                        target,
+                        symbols,
+                        active_states,
+                        complete_state_summaries,
+                        &locals,
+                    )? {
+                        if relative_state_path_is_visible(&relative, parameters, &locals)?
+                            && !written.contains(&relative)
+                        {
+                            written.push(relative);
+                        }
+                    }
+                }
+            }
             StatementNode::Expression(expression) => {
                 if !expression_is_call_free(program, *expression) {
                     return None;
@@ -1284,7 +1319,82 @@ fn summarize_state_written_paths(
         }
     }
 
+    complete_state_summaries.push((state.symbol, written.clone()));
     Some(written)
+}
+
+#[allow(clippy::too_many_arguments)]
+/// Summarize one tail transition in the source state's namespace. Named target
+/// states compose only when their complete state graph is acyclic and every
+/// transition-position expression is call-free; target parameters substitute
+/// through authored arguments exactly like call-frame instantiation.
+fn summarize_transition_target_written_paths(
+    program: &TypedTrees,
+    machine: &Machine,
+    source_state: &State,
+    target: omega_typed_trees::statement::TransitionTargetHandle,
+    symbols: &TopLevelSymbols<'_>,
+    active_states: &mut Vec<SymbolHandle>,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    source_locals: &[String],
+) -> Option<Vec<String>> {
+    if !target.is_valid() {
+        return Some(Vec::new());
+    }
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Terminal => Some(Vec::new()),
+        TransitionTargetNode::Value(expression) => {
+            expression_is_call_free(program, *expression).then(Vec::new)
+        }
+        TransitionTargetNode::SelfTarget => None,
+        TransitionTargetNode::Named { path, arguments } => {
+            let arguments = program.statement_table.expression_handles(*arguments);
+            if !arguments
+                .iter()
+                .all(|argument| expression_is_call_free(program, *argument))
+            {
+                return None;
+            }
+            let target_state = program
+                .machine_states(machine)
+                .iter()
+                .find(|candidate| candidate.symbol == path.symbol)
+                .or_else(|| {
+                    let members = program.statement_table.name_path_members(path.members);
+                    matches!(members, [member] if member.as_str() == "self").then_some(source_state)
+                })?;
+            if active_states.contains(&target_state.symbol) {
+                return None;
+            }
+            active_states.push(target_state.symbol);
+            let target_writes = summarize_state_written_paths(
+                program,
+                machine,
+                target_state,
+                symbols,
+                active_states,
+                complete_state_summaries,
+            );
+            active_states.pop();
+            let target_writes = target_writes?;
+            let parameters = program.state_parameters(target_state);
+            let mut instantiated = Vec::new();
+            for relative in target_writes {
+                if let Some(path) = instantiate_written_path(
+                    program,
+                    &relative,
+                    Some("self"),
+                    parameters,
+                    arguments,
+                    source_locals,
+                )? && !instantiated.contains(&path)
+                {
+                    instantiated.push(path);
+                }
+            }
+            Some(instantiated)
+        }
+    }
 }
 
 fn relative_state_path_is_visible(

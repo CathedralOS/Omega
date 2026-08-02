@@ -344,6 +344,14 @@ summary has a deterministic implementation fingerprint. They remain under the
 machine-contract artifact's `implementation` section and do not enter authored
 contract or specialization identity.
 
+An acyclic state-transition graph participates in the same inference. The
+summary unions every conditional arm, memoizes shared downstream states, and
+substitutes target-state parameters back through their transition arguments.
+Transition guards, arguments, and returned values containing nested calls are
+still opaque, as is every reachable state cycle. Callers may therefore use
+exact preservation only when the complete control-flow implementation was
+summarized; one terminating observed route never licenses a cyclic machine.
+
 A state's signature is its arrival contract. Parameter refinements —
 dependent ones included — plus an explicit state-level `requires` are proven
 at every in-edge, including guarded named transitions and back-edges, and are

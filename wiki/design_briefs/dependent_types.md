@@ -328,6 +328,13 @@ state-parameter roots. Checked machine plans retain the per-state frames and
 their deterministic implementation identities, and the machine-contract
 manifest exposes them only as implementation evidence. Public contract and
 specialization identities intentionally exclude body-derived frames.
+Complete inferred frames now compose across acyclic state-transition graphs as
+well as ordinary internal call graphs. Both conditional arms contribute their
+may-write paths, shared tail states are memoized, and target-state parameters
+substitute positionally into the source namespace before the entry frame is
+normalized. Transition expressions containing nested calls and every reachable
+state cycle remain opaque; completeness never depends on selecting one runtime
+arm or assuming a cycle terminates.
 
 ## 6. Dynamic lowering — the runtime half
 
@@ -558,9 +565,11 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   preservation `ensures`; no source `stores` surface remains blocked or
   planned. Remaining work is additional relational Houdini candidates, finer
   read-consumption precision, and broader exact summaries for implementation
-  shapes that remain opaque. Normalized per-state frame publication is live
-  and kept outside public contract identity. Driver: dependent facts across
-  sibling-machine calls.
+  shapes that remain opaque. Acyclic state-transition graphs now compose exact
+  frames, including conditional-arm union and positional argument forwarding;
+  cycles and call-bearing transition expressions remain opaque. Normalized
+  per-state frame publication is live and kept outside public contract
+  identity. Driver: dependent facts across sibling-machine calls.
 - **R6 — Proof propositions and index telescopes:** add Prop-valued families
   over representative values, typed proof-static carrier-family index packs,
   and carrierless selected-conformance evidence. Establish one requirement
