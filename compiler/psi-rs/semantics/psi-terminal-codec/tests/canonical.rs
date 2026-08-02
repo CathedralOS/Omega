@@ -25,7 +25,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "883755aeb504645926adbf12f3696bbe087e48b87fd324ea766198c824f409df"
+        "a0619727af6cb5b22fe41bdd77734f6d4f1b765902f8a7f000e78a5f136bc039"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -366,6 +366,76 @@ fn v6_saturating_subtract_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "c7eb235760b941c502c19090b929482d149a35db3b723396dbe0f9d0a534c9a0"
+    );
+}
+
+#[test]
+fn archived_v6_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let archived = saturating_subtract_fixture(SemanticVersion::V6);
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "c7eb235760b941c502c19090b929482d149a35db3b723396dbe0f9d0a534c9a0"
+    );
+    let migrated = migrate_module_to_current(&archived).expect("v6 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn v6_cannot_claim_the_v7_wrapping_multiply_operation() {
+    let module = wrapping_multiply_fixture(SemanticVersion::V6);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V7,
+                actual: SemanticVersion::V6,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v6_cannot_claim_the_v7_wrapping_multiply_proposition_term() {
+    let mut module = saturating_subtract_fixture(SemanticVersion::V6);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let product = ScalarTerm::wrapping_integer_multiply(integer, literal(20), literal(13)).unwrap();
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(literal(4), product));
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionRequiresSemanticVersion {
+                required: SemanticVersion::V7,
+                actual: SemanticVersion::V6,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v7_wrapping_multiply_has_stable_canonical_bytes() {
+    let module = wrapping_multiply_fixture(SemanticVersion::V7);
+    let bytes = encode_module(&module).expect("v7 wrapping-multiply module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "ba5decde144648c31baff22f9d536591cd1c2f9db39470e02e948ff14db53132"
     );
 }
 
@@ -717,6 +787,21 @@ fn wrapping_subtract_fixture(semantic_version: SemanticVersion) -> TerminalModul
 fn saturating_subtract_fixture(semantic_version: SemanticVersion) -> TerminalModule {
     let mut module = wrapping_subtract_fixture(semantic_version);
     module.machines[0].blocks[0].operations[2].kind = OperationKind::SaturatingIntegerSubtract {
+        left: value_id(20),
+        right: value_id(21),
+    };
+    module
+}
+
+fn wrapping_multiply_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let mut module = wrapping_add_fixture(semantic_version);
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(20),
+    };
+    module.machines[0].blocks[0].operations[1].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(13),
+    };
+    module.machines[0].blocks[0].operations[2].kind = OperationKind::WrappingIntegerMultiply {
         left: value_id(20),
         right: value_id(21),
     };

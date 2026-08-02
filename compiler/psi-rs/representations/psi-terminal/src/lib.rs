@@ -5,8 +5,8 @@
 //! The frozen v1 vocabulary contains integer constants and a straight-line
 //! chain of explicit jump/return edges; v2 adds Boolean constants, v3 adds
 //! explicit wrapping integer addition, v4 adds saturating integer addition,
-//! v5 adds wrapping integer subtraction, and current v6 adds saturating integer
-//! subtraction. This small executable slice
+//! v5 adds wrapping integer subtraction, v6 adds saturating integer
+//! subtraction, and current v7 adds wrapping integer multiplication. This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy without pretending that branching or other arithmetic
 //! policies have already been specified. Every later operation extends this

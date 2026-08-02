@@ -52,10 +52,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&6_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&7_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(6))
+        Err(ProofCodecError::UnsupportedFormatVersion(7))
     );
 }
 
@@ -231,6 +231,48 @@ fn proof_format_v5_canonically_encodes_closed_saturating_subtraction() {
     assert_eq!(
         proof_bundle_fingerprint(&bundle).unwrap().to_string(),
         "4ff038480cc5a7573c2a217b4ad4e76fa0f7ce267f84bdb82ab6876395e8deb3"
+    );
+}
+
+#[test]
+fn proof_format_v6_canonically_encodes_closed_wrapping_multiplication() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(20)).unwrap();
+    let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(13)).unwrap();
+    let product = ScalarTerm::wrapping_integer_multiply(integer, left, right).unwrap();
+    let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap();
+    let goal = Proposition::Equal(product, reduced);
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(1),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                },
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(
+        &psi_core::PropositionContext::default(),
+        &goal,
+        &[],
+        &[],
+        match &bundle.evidence[0].route {
+            EvidenceRoute::CertificateDerived(certificate) => &certificate.proof,
+            _ => unreachable!("fixture is certificate-derived"),
+        },
+    )
+    .expect("closed u8 wrapping multiplication proves four");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v6 bytes");
+    assert_eq!(&bytes[8..10], &6_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "ca94daffef56eebbb5ecb44f90e619f7cc85fa62c4a5af0b413f1b60ddf3426a"
     );
 }
 

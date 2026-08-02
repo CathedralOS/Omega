@@ -366,6 +366,64 @@ fn lower_function(
                 )?;
                 provenance.operations.push(*psi_operation);
             }
+            TerminalAbstractOperation::WrappingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                right,
+            } => {
+                let left_id = *left;
+                let right_id = *right;
+                let left = values
+                    .get(left)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*left))?;
+                let right = values
+                    .get(right)
+                    .cloned()
+                    .ok_or(LoweringError::UnknownValue(*right))?;
+                let (
+                    KnownScalar::Integer {
+                        scalar_type: left_type,
+                        value: left,
+                    },
+                    KnownScalar::Integer {
+                        scalar_type: right_type,
+                        value: right,
+                    },
+                ) = (left, right)
+                else {
+                    return Err(LoweringError::WrappingMultiplyOperandTypeMismatch(*result));
+                };
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return Err(LoweringError::WrappingMultiplyOperandTypeMismatch(*result));
+                }
+                let value =
+                    match (left, right) {
+                        (KnownInteger::Immediate(left), KnownInteger::Immediate(right)) => {
+                            KnownInteger::Immediate(scalar_type.wrapping_mul(left, right).ok_or(
+                                LoweringError::WrappingMultiplyOperandTypeMismatch(*result),
+                            )?)
+                        }
+                        (left, right) => KnownInteger::Runtime(
+                            TerminalTargetIntegerExpression::WrappingMultiply {
+                                psi_operation: *psi_operation,
+                                left: Box::new(left.into_expression(left_id)),
+                                right: Box::new(right.into_expression(right_id)),
+                            },
+                        ),
+                    };
+                insert_value(
+                    &mut values,
+                    *result,
+                    KnownScalar::Integer {
+                        scalar_type: *scalar_type,
+                        value,
+                    },
+                )?;
+                provenance.operations.push(*psi_operation);
+            }
             TerminalAbstractOperation::Jump {
                 psi_edge, bindings, ..
             } => {
@@ -582,6 +640,7 @@ pub enum LoweringError {
     SaturatingAddOperandTypeMismatch(ValueId),
     WrappingSubtractOperandTypeMismatch(ValueId),
     SaturatingSubtractOperandTypeMismatch(ValueId),
+    WrappingMultiplyOperandTypeMismatch(ValueId),
     ParameterWidthNotNativelySupported { value: ValueId, bits: u16 },
     UnsupportedScalarParameterPlacement(ValueId),
     AbiPlan(PlanDiagnostic),
@@ -855,6 +914,60 @@ mod tests {
                 value: IntegerValue::Unsigned(0),
                 ..
             } if source_value == difference && result_type == scalar_type
+        ));
+    }
+
+    #[test]
+    fn folds_closed_wrapping_multiplication_at_the_declared_width() {
+        let mut plan = parameter_return_plan(1);
+        let function = &mut plan.functions[0];
+        let left = ValueId::new(50).expect("left");
+        let right = ValueId::new(51).expect("right");
+        let product = ValueId::new(52).expect("product");
+        let scalar_type = match function.result.scalar_type {
+            ScalarType::Integer(integer) => integer,
+            ScalarType::Boolean => unreachable!("fixture is integer"),
+        };
+        function.operations.splice(
+            0..0,
+            [
+                TerminalAbstractOperation::IntegerConstant {
+                    psi_operation: psi_core::OperationId::new(50).expect("left operation"),
+                    result: left,
+                    scalar_type: ScalarType::Integer(scalar_type),
+                    value: IntegerValue::Unsigned(20),
+                },
+                TerminalAbstractOperation::IntegerConstant {
+                    psi_operation: psi_core::OperationId::new(51).expect("right operation"),
+                    result: right,
+                    scalar_type: ScalarType::Integer(scalar_type),
+                    value: IntegerValue::Unsigned(13),
+                },
+                TerminalAbstractOperation::WrappingIntegerMultiply {
+                    psi_operation: psi_core::OperationId::new(52).expect("multiply operation"),
+                    result: product,
+                    scalar_type,
+                    left,
+                    right,
+                },
+            ],
+        );
+        let TerminalAbstractOperation::Return { value, .. } =
+            function.operations.last_mut().expect("return")
+        else {
+            unreachable!("fixture ends in return")
+        };
+        *value = product;
+
+        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+        assert!(matches!(
+            lowered.functions[0].operation,
+            TerminalTargetOperation::ReturnIntegerImmediate {
+                source_value,
+                scalar_type: result_type,
+                value: IntegerValue::Unsigned(4),
+                ..
+            } if source_value == product && result_type == scalar_type
         ));
     }
 
