@@ -35,13 +35,14 @@ object-file writers, the linker crates, and Wasm/RISC-V ISA crates) are still
 folded into other crates or do not exist yet. They are placement intent, not
 current packages.
 
-> **STALE TREE (2026-06-21 move).** Every Rust-compiler crate drawn below now
-> lives under **`compiler/omega-rs/`** (e.g.
-> `compiler/omega-rs/semantics/omega-validation/`), not directly under
-> `compiler/`. `compiler/` also now holds the bootstrap rungs `alpha/ beta/
-> gamma/ beta-lang-rs/` (see [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md)). The
-> crate *names* and internal organization are unchanged; only the
-> `compiler/omega-rs/` prefix is new. A full tree re-draw is pending.
+> **TRANSITIONAL TREE (2026-08-02).** Existing bootstrap crates drawn below live
+> under **`compiler/omega-rs/`**. New target-neutral terminal foundations live
+> under **`compiler/psi-rs/`**, beginning with
+> `foundation/psi-core` and `semantics/psi-proof-kernel`; parsing-through-
+> lowering crates move there incrementally with compatibility adapters. The
+> diagram still uses the old unprefixed shorthand for the larger Omega tree.
+> `compiler/` also holds the bootstrap lattice rungs documented in
+> [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 
 ```text
 Omega/
@@ -51,6 +52,12 @@ Omega/
 |   `-- [CRATE] omega-cli/                              # User-facing `omega` command.
 |
 |-- compiler/
+|   |-- psi-rs/                                         # Psi owns target-neutral semantics through terminal Psi.
+|   |   |-- foundation/
+|   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
+|   |   `-- semantics/
+|   |       `-- [CRATE] psi-proof-kernel/               # Total judgments, proof certificates, and admission checks.
+|   |
 |   |-- foundation/
 |   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.
 |   |
@@ -207,6 +214,15 @@ Omega/
 
 ### Semantic Ownership
 
+- `compiler/psi-rs/` owns Omega-file parsing and all target-neutral language
+  meaning through terminal Psi. Psi crates must not depend on Omega crates;
+  the architecture test enforces that firewall.
+- Existing target-neutral `omega-*` crates are migration inputs, not a second
+  permanent frontend. Move or rename them under Psi ownership as terminal
+  vertical slices replace their source-shaped handles.
+- `compiler/omega-rs/` begins its long-term semantic consumption at terminal
+  Psi and owns provider installation, ABI/storage realization, optimization,
+  target lowering, and execution machinery.
 - `semantics/` owns language meaning: names, types, effects, proofs, facts,
   invariants, and validation. It has been consolidated: there are no separate
   `omega-borrow`, `omega-invariants`, `omega-contracts`, or `omega-consteval`

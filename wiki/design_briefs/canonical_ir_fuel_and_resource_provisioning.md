@@ -7,6 +7,15 @@ The current evaluator-step schedule is telemetry precursor evidence, not
 canonical-Psi fuel. The implementation cut and migration are detailed in
 [`terminal_psi.md`](../architecture/pipeline/terminal_psi.md).
 
+Foundation checkpoint (2026-08-02): Psi-owned core and proof-kernel crates now
+carry stable semantic identities, typed scalar propositions checked against a
+module value table, total primitive judgments, explicit structural proof
+certificates, and sealed admission evidence bound to an exact authorized site,
+authority identity, evidence identity, and installation-profile decision. The
+kernel rejects admission for a primitively derivable proposition. This is the
+prerequisite evidence substrate, not yet a terminal semantic module, operation
+vocabulary, serialization, interpreter, or fuel schedule.
+
 ## Context
 
 WCSU proves a spatial fact: a closed activation needs at most a derived amount

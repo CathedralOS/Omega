@@ -6,6 +6,14 @@ so the choice is made on paper rather than drifted into. Nothing here is frozen;
 the near-term work (S4 narrowing, domains over carriers) is committed and lives
 in TASKS.md — this brief is the endpoint that work aims at.
 
+Update 2026-08-02: the terminal-Psi architecture has now settled the fork in
+favor of a small trusted kernel plus untrusted/certifying automation. The
+initial Psi-owned scalar proposition core, structural kernel, total primitive
+judgments, certificate envelope, and sealed admission validator are live. The
+broader quantified proof language and automation-to-certificate bridge remain
+long-range work; see
+[Terminal Psi, Fuel, And Resource Provisioning](canonical_ir_fuel_and_resource_provisioning.md).
+
 ## The ambition
 
 Omega should make whole *classes* of existing tools redundant inside one
@@ -111,7 +119,9 @@ The **known ceilings are exactly the automation/general-math boundary**:
 - **no quantifiers** in contracts (`forall`/`exists` are parse errors);
 - proof views (`Seq`/`Bag`/`Range`, `Sorted`) parse but have no semantics;
 - `Real` approximation is an open design question;
-- no trusted kernel / proof-term layer at all — the engine *is* the trusted base.
+- the legacy source entailment engine emits no terminal-Psi certificate, so it
+  remains trusted automation on that path. The initial Psi kernel is live but
+  not yet connected to source obligations or the broader theorem vocabulary.
 
 ## The three kills, sequenced
 
@@ -123,14 +133,13 @@ The **known ceilings are exactly the automation/general-math boundary**:
 - **Rust — in progress.** Ownership/borrows + logic-errors-proven-away
   (panic-as-effect) + exact-arithmetic-by-default. This is the systems-safety
   story already being executed.
-- **Lean — the long pole.** Needs the two ceiling-movers: **quantifiers** in the
-  logic, and eventually **a small trusted kernel that checks proof objects**, so
-  generality and soundness coexist. This is most of what Lean *is* — a multi-year
-  arc.
+- **Lean — the long pole.** Still needs quantifiers, a much broader proposition
+  and proof-term vocabulary, and the automation-to-certificate bridge into the
+  now-live small Psi kernel. This is most of what Lean *is* — a multi-year arc.
 
-The friendly part of the sequencing: the automation-first base delivers
-SPARK/Rust-class value *long* before the kernel exists, and **the kernel can be
-added later as a backstop without discarding the automation** — they compose
+The friendly part of the sequencing remains: the automation-first base delivers
+SPARK/Rust-class value while the initial kernel grows, and **the kernel can
+become the backstop without discarding the automation** — they compose
 (automation tries first; kernel-checked explicit proof catches the rest). So the
 end-state is coherent and incremental, not a rewrite.
 
@@ -164,21 +173,24 @@ which is also the SPARK-rung architecture. ch16's recoverable-error model is the
 first concrete customer: a success case's `ensures` fact is inherited by the
 handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
 
-## Open questions (to decide before the Lean rung)
+## Remaining research questions for the Lean rung
 
 1. **Logic surface:** what fragment of quantification do we admit, and how is it
    discharged — bounded instantiation (stays automated) vs general (needs the
    kernel)?
-2. **Kernel:** what is the trusted core's term language and rule set? How small
-   can it be while still expressing the math we want to port?
+2. **Kernel growth:** the initial terminal-Psi kernel checks typed scalar
+   propositions, structural implication/conjunction proofs, and total closed
+   judgments. Which additional term constructors and rules are necessary for
+   quantified mathematics while keeping the trusted core small?
 3. **Certificate bridge:** can the existing engine emit kernel-checkable
    certificates (so automation stays the front line under the kernel)?
 4. **`Real` / analysis:** the proof-side Cauchy/evidence/quotient construction
    is settled; the Prop-family/index-telescope fragment gates its
    implementation, while the runtime approximation-policy surface remains
    open.
-5. **Trust story:** is "the engine is the trusted base" acceptable for the
-   SPARK/Rust era, with the kernel introduced only when the Lean rung is taken?
+5. **Trust migration:** which existing automated judgments become total kernel
+   primitives, which emit certificates, and which remain explicitly admitted
+   while the terminal-Psi bridge is incomplete?
 
 None of these block the near-term work; they're the gates on the long pole, and
 this brief exists so they're chosen deliberately when the time comes.

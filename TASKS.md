@@ -879,11 +879,14 @@ improvements do not change public identity.
 - **PSIIR — IMPLEMENTATION WORK:** build the terminal Psi boundary settled in
   `wiki/architecture/pipeline/terminal_psi.md`. Psi owns Omega-file parsing
   through one concrete, post-instantiation semantic module; Omega starts at
-  abstract-operation lowering. Move or rename the current target-neutral
-  `omega-*` frontend crates under Psi ownership as each slice migrates; do not
-  leave parsing or checking on an Omega-to-Psi path. Establish the proposition
-  IR, small proof kernel, total primitive judgments, certificate envelope, and
-  sealed admission taxonomy first, then add operations in vertical slices containing execution
+  abstract-operation lowering. The Psi-owned workspace root, stable semantic
+  identities, typed scalar proposition core, module value-typing context,
+  small structural proof kernel, versioned certificate envelope, total truth /
+  reflexive-equality / closed-integer judgments, and sealed exact admission
+  validator are live; architecture tests forbid Psi dependencies on Omega.
+  Move or rename the current target-neutral `omega-*` frontend crates under Psi
+  ownership as each slice migrates; do not leave parsing or checking on an
+  Omega-to-Psi path. Next add operations in vertical slices containing execution
   semantics, generated obligations, sound proof rules, interpreter behavior,
   Omega lowering requirements, and canonical encoding. Merge the useful
   `StateGraph`/`ControlFlowPlan` topology, replace every `ExpressionHandle` with

@@ -1,6 +1,6 @@
 //! Architecture-enforcement guard for the Omega workspace.
 //!
-//! Omega is a ~70-crate nanopass compiler. The crates are organised on disk
+//! Omega/Psi is a nanopass compiler workspace. The crates are organised on disk
 //! into architectural *layers* (foundation, representations, semantics,
 //! pipeline, isa, object, images, backend, orchestration, app). This test
 //! reads the *actual* workspace dependency graph from `cargo metadata` and
@@ -81,8 +81,8 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
     ("semantics", "pipeline"),
 ];
 
-/// Classify a crate into an architectural layer from its manifest path.
-/// Returns `None` for non-`omega-*` crates and for crates we don't govern.
+/// Classify a governed Omega or Psi crate into an architectural layer from its
+/// manifest path.
 fn layer_of(manifest_path: &str) -> Option<&'static str> {
     // Normalise Windows separators so the substring matches are portable.
     let p = manifest_path.replace('\\', "/");
@@ -92,13 +92,13 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     // the generic `compiler/backend/` catch-all.
     if m("/apps/") {
         Some("app")
-    } else if m("/compiler/omega-rs/foundation/") {
+    } else if m("/compiler/omega-rs/foundation/") || m("/compiler/psi-rs/foundation/") {
         Some("foundation")
-    } else if m("/compiler/omega-rs/representations/") {
+    } else if m("/compiler/omega-rs/representations/") || m("/compiler/psi-rs/representations/") {
         Some("representations")
-    } else if m("/compiler/omega-rs/semantics/") {
+    } else if m("/compiler/omega-rs/semantics/") || m("/compiler/psi-rs/semantics/") {
         Some("semantics")
-    } else if m("/compiler/omega-rs/pipeline/") {
+    } else if m("/compiler/omega-rs/pipeline/") || m("/compiler/psi-rs/pipeline/") {
         Some("pipeline")
     } else if m("/compiler/omega-rs/orchestration/") {
         Some("orchestration")
@@ -130,7 +130,8 @@ struct Crate {
     deps: Vec<String>,
 }
 
-/// Run `cargo metadata` and build the `omega-*` crate -> {layer, omega deps} map.
+/// Run `cargo metadata` and build the governed crate -> {layer, governed deps}
+/// map.
 fn load_graph() -> BTreeMap<String, Crate> {
     let output = Command::new(env!("CARGO"))
         .args(["metadata", "--format-version", "1", "--no-deps"])
@@ -155,7 +156,7 @@ fn load_graph() -> BTreeMap<String, Crate> {
     let mut graph = BTreeMap::new();
     for pkg in packages {
         let name = pkg["name"].as_str().unwrap_or_default();
-        if !name.starts_with("omega-") {
+        if !is_governed_crate(name) {
             continue;
         }
         let manifest = pkg["manifest_path"].as_str().unwrap_or_default();
@@ -169,7 +170,7 @@ fn load_graph() -> BTreeMap<String, Crate> {
             .map(|arr| {
                 arr.iter()
                     .filter_map(|d| d["name"].as_str())
-                    .filter(|n| n.starts_with("omega-"))
+                    .filter(|n| is_governed_crate(n))
                     .map(|n| n.to_string())
                     .collect::<Vec<_>>()
             })
@@ -178,6 +179,10 @@ fn load_graph() -> BTreeMap<String, Crate> {
         graph.insert(name.to_string(), Crate { layer, deps });
     }
     graph
+}
+
+fn is_governed_crate(name: &str) -> bool {
+    name.starts_with("omega-") || name.starts_with("psi-")
 }
 
 /// The workspace root: this crate lives at
@@ -276,4 +281,25 @@ fn every_layer_has_a_unique_rank() {
             krate.layer
         );
     }
+}
+
+#[test]
+fn psi_does_not_depend_on_omega() {
+    let graph = load_graph();
+    let violations = graph
+        .iter()
+        .filter(|(name, _)| name.starts_with("psi-"))
+        .flat_map(|(name, krate)| {
+            krate
+                .deps
+                .iter()
+                .filter(|dependency| dependency.starts_with("omega-"))
+                .map(move |dependency| format!("{name} -> {dependency}"))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        violations.is_empty(),
+        "Psi owns target-neutral semantics and must not depend on Omega crates:\n{}",
+        violations.join("\n")
+    );
 }

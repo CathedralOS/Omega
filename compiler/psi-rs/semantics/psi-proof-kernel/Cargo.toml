@@ -1,0 +1,12 @@
+[package]
+name = "psi-proof-kernel"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_proof_kernel"
+path = "src/lib.rs"
+
+[dependencies]
+psi-core = { path = "../../foundation/psi-core" }
