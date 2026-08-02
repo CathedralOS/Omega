@@ -2,11 +2,15 @@
 
 [Pipeline](../pipeline.md) | Previous: [State Graph To Control Flow](state_graph_to_control_flow.md) | Next: [Abstract Operations To Target Operations](abstract_operations_to_target_operations.md)
 
-This stage starts backend lowering by converting checked control flow into target-independent operations.
+This stage starts Omega lowering. Today it adapts checked control flow into
+abstract operations; in the target architecture it consumes terminal Psi
+directly. See [Terminal Psi Architecture](../terminal_psi.md).
 
 ## Stage Contract
 
-Input: `ControlFlow`.
+Current input: `ControlFlow`.
+
+Target input: terminal Psi.
 
 Output: target-independent abstract operations.
 
@@ -100,6 +104,10 @@ Primary responsibility: lower checked control flow into explicit operations with
 This stage is not yet a true representation-to-representation lowering pass.
 Runtime and instruction-selection policy still owns too much of the abstract
 operation construction that should eventually live here.
+It also still receives `CheckedTrees` through transitional lowering input and
+instruction selection performs binding substitution over source expression
+tables. Terminal Psi moves concrete instantiation and expression lowering above
+this boundary; the completed stage must consume no source-tree handles.
 It preserves canonical control-flow permission events as abstract ownership
 summaries and joins the currently covered runtime/direct selection sites to
 their exact selected instructions. Folded materialization follows stable

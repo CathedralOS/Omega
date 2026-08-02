@@ -548,7 +548,7 @@ realized facts, and validation receipts; private rankings and codegen proofs sta
 behind the evidence firewall. Fixed logical work proves only a finite admitted
 operation path, not target WCET. The current schedule-keyed fixed-fuel
 provider-summary composer and logical-fuel provision are the implementation
-precursor to canonical-IR fixed-work entry and safe-point segment checking in
+precursor to terminal-Psi fixed-work entry and safe-point segment checking in
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md),
 not an IR-derived certificate or a general symbolic cost model.
 

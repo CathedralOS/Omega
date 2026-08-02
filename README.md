@@ -109,6 +109,13 @@ Current known limitations:
 Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
 
 ## Architecture
+
+Psi operates on Omega files and owns the target-neutral pipeline from parsing
+through one canonical terminal representation. Omega consumes terminal Psi for
+interpretation, provider installation, optimization, and native lowering. The
+current Rust pipeline predates that cut and is being migrated; `StateGraph` and
+`ControlFlowPlan` are not the public portable format.
+
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
 ## Samples And Canaries

@@ -1,6 +1,6 @@
 # Design Brief: Concurrency And Atomics
 
-Current as of 2026-07-28. This brief records the surviving concurrency model
+Current as of 2026-08-01. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
 [task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). Continuation
@@ -141,6 +141,74 @@ shared-access operation.
   contracts govern shared mutation.
 - Atomics are dedicated core types with explicit operations and orderings.
 
+Generic atomic code uses one sealed `omega::core` requirement per primitive
+operation rather than one universal atomic trait. This is not a departure from
+the ordinary RAM API: direct core atomics deliberately retain the familiar
+load/store/swap/compare-exchange/fetch shape. The split is required because a
+placed accessor's exact operation subset is computed from placement admission,
+not authored as one wrapper type per subset. Core atomics and placed accessors
+conform to the same requirements, so a helper asks only for the operations it
+uses.
+
+The family contains distinct load, store, swap, decisive compare-exchange,
+single-attempt compare-exchange, and individual fetch requirements. Every
+receiver is shared; the operation contract, rather than `&mut`, authorizes the
+atomic event. Ordering is proof-static operation data. A requirement has
+compiler-owned atomic semantics: core atomics and admitted placements derive
+exact conformance, an exact-forwarding wrapper may preserve it mechanically,
+and any other realization needs checked proof or admitted provider evidence.
+A lookalike trait grants nothing. Missing conformance makes an operation
+unavailable; arithmetic capability never manufactures hardware support.
+
+The public requirement identities and result shapes are:
+
+| Requirement | Operation result |
+|---|---|
+| `AtomicLoad<T>` | observed `T` |
+| `AtomicStore<T>` | no value |
+| `AtomicSwap<T>` | prior `T` |
+| `AtomicCompareExchange<T>` | `Exchanged | Mismatched(observed: T)` |
+| `AtomicCompareExchangeOnce<T>` | `Exchanged | Mismatched(observed: T) | Uncommitted(observed: T)` |
+| `AtomicFetchAdd<T>` and each other fetch requirement | prior `T` |
+
+Load/store/swap/fetch take one legal ordering. Both compare-exchange
+requirements take separate success and failure orderings. New hardware
+operations such as fetch-min or fetch-max extend the family additively through
+new requirements under the same rules.
+
+Every operation first requires a statically fixed representation that fits one
+target/provider-supported atomic transfer width at the required alignment.
+Additional eligibility is per operation:
+
+- load duplicates and therefore requires a duplicable resident;
+- store discards the displaced resident and therefore requires it to be freely
+  discardable;
+- swap conserves one value into and one value out of the cell and may transfer
+  an affine resident when the placement owns that resident through Stable
+  initialization;
+- scalar compare-exchange initially requires a copyable resident; atomic
+  custody transfer selected by a separate copyable comparison key remains a
+  later protocol rather than a distorted scalar operation; and
+- each fetch requirement proves its exact operation law over raw
+  representations.
+
+Load/store/swap require the corresponding total decode, total encode, and
+round-trip representation laws. Compare-exchange compares the stored
+representation with `encode(expected)`, not user equality. A fetch proof ranges
+over every raw representation the provider says may be read, authorizes the
+exact raw transition and operand encoding, and proves that decoding the result
+equals the logical operation. External/device placements never derive fetch
+from generic reads and writes; only an explicitly supplied provider operation
+can conform. Identity encoding over a primitive total carrier is the
+conservative first implementation.
+
+Atomic ownership and cross-activation movement remain separate. An adopted
+view never owns device content and therefore cannot derive affine swap. A local
+cell may hold an activation-bound affine value, but the cell becomes
+cross-activation shareable only when its resident type is transferable.
+Diagnostics report the resident type and crossing rather than claiming the
+local atomic conformance disappeared.
+
 Atomic operations name one ordering from a closed, operation-checked
 vocabulary:
 
@@ -160,6 +228,16 @@ admit `NoOrdering | Receive | GlobalOrder`, stores admit
 the complete vocabulary. Compare-exchange failure performs only a read, so its
 ordering may not publish and may not be stronger than the success ordering.
 
+Decisive compare-exchange returns either `Exchanged` or
+`Mismatched(observed)`. Its target realization may retry unsuccessful
+load-linked/store-conditional attempts and carries the resulting
+target-relative work attribution. Single-attempt compare-exchange returns
+`Exchanged`, `Mismatched(observed)`, or `Uncommitted(observed)`; the last case
+means the comparison matched but the attempt did not commit, without asserting
+that another participant caused the failure. Both failure arms use the
+read-compatible failure ordering, while `Exchanged` uses the success
+read-modify-write ordering.
+
 The implemented first slice carries its ordering through normalized
 load/store/fetch-add/fetch-sub/fetch-xor/fetch-or/fetch-and/swap/
 compare-exchange operations and exact x86-64/AArch64 instruction selection.
@@ -169,9 +247,10 @@ reject instead of becoming aliases.
 It does not yet constitute the formal memory model: the language relations,
 their global-order axioms, and proofs that each target mapping refines them
 remain required.
-Fetch/swap/CAS write the instruction-observed
-prior into the language result; a separate ordinary read is forbidden because
-it races the RMW. Swap is a first-class carrier rather than synthetic
+Fetch and swap return the instruction-observed prior. Compare-exchange returns
+`Exchanged` or the observation carried by its failure arm; success does not
+repeat the expected value. A separate ordinary read is forbidden because it
+races the RMW. Swap is a first-class carrier rather than synthetic
 arithmetic and lowers to implicitly locked `XCHG` on x86_64 or the selected LSE
 `SWP` form on aarch64. `fetch_sub` performs the subtraction at the exact atomic
 width: x86_64 negates the operand before one locked `XADD`; aarch64 does the
@@ -230,19 +309,42 @@ and asynchronous same-context ordering remain distinct facilities with their
 actual participants and contracts. Ordinary portable atomics range over
 coherent atomic memory rather than a target-selected semantic scope.
 
+Cross-device ordering is expressed by sealed semantic provider operations, not
+by strengthening `reaches` or adding a universal fence. A provider may expose a
+complete operation such as DMA submission, or lower-level publication,
+acquisition, cache-maintenance, MMIO-notification, and completion operations
+from which a checked driver derives it. Each operation emits normalized
+requirements naming its exact range, mapping, observer/device instance, and
+ordering scope. Every requirement must be discharged by derived or
+policy-permitted admitted evidence; an open requirement rejects.
+
+Publication evidence is tied to the published range and current write state.
+Any later write whose frame intersects that range invalidates the evidence, so
+a stale publication cannot authorize a doorbell. The erased evidence proves
+source composition but creates no machine dependency: the publication
+operation itself contributes a scoped ordering event to terminal Psi, and
+lowering must preserve it. On a coherent target that event may require no
+instruction; on a non-coherent target it may require cache maintenance and a
+barrier.
+
+Device acquisition is not a freely mintable persistent fact. It consumes
+completion evidence tied to the same request, device instance, mapping, and
+range. When completion also returns custody, the resulting CPU view may be
+Stable. If the device may continue writing, acquisition only orders subsequent
+observations and the placement remains External.
+
 Still required:
 
 - the remaining fetch-and-modify surface;
 - contention tests once concurrent activation is runnable;
-- migration of the implemented ordering names to the settled source
-  vocabulary;
 - formal atomic-access and fence axioms, including the complete global-order
   semantics, plus mechanically checked x86-64/AArch64 target refinement;
 - normalized portable-fence operations and target lowerings;
 - proof-scoped AArch64 weaker-acquire selection after target measurements
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
-- volatile/MMIO types and ordering contracts;
+- device/DMA provider operations, scoped ordering events, completion-bound
+  acquisition, and publication invalidation through ordinary write frames;
 - and the deferred compiler-issued composition model when a concrete protocol
   or deployment profile requires whole-system proof.
 
@@ -323,7 +425,7 @@ there is no generic `SafePoints | Asynchronous` runtime mode.
 
 The compiler never inserts a semantic safe point as an ordinary optimization.
 A hot non-suspending kernel may be architecturally preempted while an outer
-machine places explicit polls between bounded chunks. Restricted canonical-IR
+machine places explicit polls between bounded chunks. Restricted terminal-Psi
 fixed-work checking may close the segment between those points. Otherwise the
 report is `Unknown` or retains the exact blocking/foreign edge with no finite
 guarantee. Blocking creates no safe point.

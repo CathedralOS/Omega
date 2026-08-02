@@ -4,6 +4,15 @@ Omega's compiler pipeline is a sequence of durable representation boundaries.
 Each stage should have one primary job, one input representation, and one output
 representation.
 
+The target architecture has one named language/realization boundary. Psi owns
+Omega-file parsing and every target-neutral stage through immutable terminal
+Psi. Omega consumes terminal Psi and owns installation, optimization, ABI and
+storage realization, target operations, and native artifacts. See
+[Terminal Psi Architecture](terminal_psi.md). The stage list and matrix below
+describe the current bootstrap implementation while that boundary is built;
+they are not a commitment to preserve `StateGraph` and `ControlFlowPlan` as two
+public representations.
+
 The same semantic nouns should be recognizable across stages, but their data
 shape changes as they become more resolved. Source-shaped IR can only say "this
 syntax looks like a place." Checked IR can say "this place overlaps this loan."
@@ -120,6 +129,14 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 
 Current deliberate gaps:
 
+- There is no expression-lowering representation between checked trees and
+  instruction selection. `StateGraph` and `ControlFlowPlan` retain the typed
+  expression table, while abstract-operation construction still performs
+  binding substitution over tree expressions. Terminal Psi will merge the
+  useful graph/control topology, replace those references with lowered values,
+  predicates, places, operations, and edges, and become the sole Psi-to-Omega
+  input.
+
 - Moves and drops now have durable checked/control-flow event plumbing, but
   event production still needs type-aware precision plus transition and nested
   call coverage.
@@ -137,6 +154,8 @@ Current deliberate gaps:
   in the semantic spine.
 
 ## Stages
+
+- [Terminal Psi target architecture and migration](terminal_psi.md)
 
 - [Source Files To Tokens](stages/source_files_to_tokens.md)
 - [Tokens To Syntax Trees](stages/tokens_to_syntax_trees.md)

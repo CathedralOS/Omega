@@ -4,6 +4,11 @@
 
 This stage lowers the state-machine graph into explicit blocks, branches, calls, exits, and data-flow structure.
 
+This is transitional bootstrap plumbing. In the target architecture its useful
+topology is absorbed with `StateGraph` into terminal Psi rather than surviving
+as a second, nearly identical public representation. See
+[Terminal Psi Architecture](../terminal_psi.md).
+
 ## Stage Contract
 
 Input: `StateGraph`.
@@ -107,6 +112,11 @@ noun preserved in a focused file:
   the remapped arenas.
 
 ## Known Gaps
+
+- The current pass mostly remaps arenas and clones the same typed expression
+  table; it does not lower expressions into a self-contained operation/value
+  vocabulary. Terminal Psi owns that missing work and ultimately retires this
+  standalone boundary.
 
 - Control-flow now preserves move/drop ownership events, but backend lowering
   still needs to decide how moves become transfers and drops become cleanup.

@@ -87,9 +87,9 @@ MMIO, descriptor tables, framebuffers, DMA buffers, and shared IPC
 pages use the same composition:
 
 ```text
-qualified Extent loan + admitted ResourceProfile
+qualified Extent borrow + provider-bound ResourceProfile receipt
     + evaluated PlacementPlan { LayoutPlan, AccessPlan, reach }
-    -> PlacementAdmission
+    -> checked admission + explicit content establishment
     -> Placed<P, T> / field accessors
 ```
 
@@ -109,6 +109,16 @@ layout, and checked-assembly contracts. DMA lends extents to an invisible
 borrower represented by a linear completion token; completion may restore a
 stable CPU loan after the device-owned phase.
 
+CPU atomic fences, DMA publication/acquisition, cache maintenance, MMIO
+notification, and posted-write completion remain distinct semantic operations.
+A checked Cathedral driver composes provider primitives; a hosted OS boundary
+may conform directly to a complete submission requirement. Publication
+evidence is bound to an exact range and invalidated by an intersecting write.
+Acquisition consumes completion tied to the same request and device instance,
+and restores Stable CPU observation only when custody returns. Every provider
+or target requirement emitted by these operations must be discharged or the
+program rejects.
+
 ## Checked assembly
 
 OS code uses parsed `asm {}` under compiler-known instruction contracts. The
@@ -116,10 +126,14 @@ first freestanding catalog must cover the actual x86 bringup path: interrupt
 mask save/restore, `hlt`, port I/O, descriptor-table loads, control registers,
 MSRs, fences/cache maintenance, atomics, and mode/entry transitions.
 
-Contracts emit service reach, authority requirements, register/flag/memory
-changes, ordering, regime changes, and exits. Direct assembly cannot be quieter
-than a boundary-trait operation. Unknown instructions and raw emitted bytes are
-rejected; trusted foreign blobs use provider admission.
+Instructions emit service-reach, authority, target, and state requirements
+that must all be discharged, plus modeled register/flag/memory changes,
+ordering, regime changes, and exits. A checked block may separately provide a
+conformance when the modeled sequence proves it; policy-permitted admitted
+provider evidence is still evidence, never an open requirement. Direct
+assembly cannot be quieter than a boundary-trait operation. Unknown
+instructions and raw emitted bytes are rejected; trusted foreign blobs use
+provider admission.
 
 Entry/exit-only operations such as `iretq` are deriver-only. Interrupt masking
 is an ordinary linear save/restore token, distinct from a scheduler-switch
