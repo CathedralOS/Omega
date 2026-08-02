@@ -92,6 +92,7 @@ fn build_contract_plans(
     operations: &OperationalPlan,
 ) -> omega_checked_trees::MachineContractPlans {
     let mut machines = Vec::new();
+    let content_conservation = omega_validation::build_content_conservation_plans(program);
     let frame_resolver = omega_validation::CallFrameResolver::new(program);
     let invocation_inference = omega_effects::infer_synchronous_invocations(program);
     for machine in program.machines() {
@@ -210,10 +211,11 @@ fn build_contract_plans(
                     match fact {
                         omega_typed_trees::domain::ProofFact::Expression(expression) => {
                             contract_bytes.push(1);
-                            encode_expression_canonical(
+                            encode_contract_expression_canonical(
                                 program,
                                 *expression,
                                 &parameter_names,
+                                &content_conservation,
                                 &mut contract_bytes,
                             );
                         }
@@ -267,10 +269,11 @@ fn build_contract_plans(
                 match fact {
                     omega_typed_trees::domain::ProofFact::Expression(expression) => {
                         encoded.push(1);
-                        encode_expression_canonical(
+                        encode_contract_expression_canonical(
                             program,
                             *expression,
                             &parameter_names,
+                            &content_conservation,
                             &mut encoded,
                         );
                     }
@@ -800,6 +803,10 @@ fn build_qualification_facts(program: &TypedTrees) -> omega_checked_trees::Quali
         vacuous_uses,
         content: omega_checked_trees::ContentProjectionFacts {
             plans: omega_validation::build_content_projection_plans(program),
+            conservation_plans: omega_validation::build_content_conservation_plans(program)
+                .into_iter()
+                .map(|source| source.plan)
+                .collect(),
         },
     }
 }
@@ -945,4 +952,24 @@ fn encode_expression_canonical(
             out.push(0);
         }
     }
+}
+
+fn encode_contract_expression_canonical(
+    program: &TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+    parameter_names: &[String],
+    content_conservation: &[omega_validation::ContentConservationSourcePlan],
+    out: &mut Vec<u8>,
+) {
+    if let Some(conservation) = content_conservation
+        .iter()
+        .find(|candidate| candidate.source_expression == expression)
+    {
+        out.push(0xcc);
+        out.extend(omega_core::content::content_conservation_plan_bytes(
+            &conservation.plan,
+        ));
+        return;
+    }
+    encode_expression_canonical(program, expression, parameter_names, out);
 }

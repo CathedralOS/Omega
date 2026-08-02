@@ -2,6 +2,7 @@ mod arithmetic_domains;
 mod call_cycles;
 mod callable_overloads;
 mod calls;
+mod content_conservation;
 mod content_projections;
 mod contract_entailment;
 mod data;
@@ -42,6 +43,9 @@ pub use crate::calls::{CallFrameResolver, frame_paths_overlap};
 use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
     validate_value_position_calls,
+};
+pub use crate::content_conservation::{
+    ContentConservationSourcePlan, build_content_conservation_plans,
 };
 pub use crate::content_projections::build_content_projection_plans;
 use crate::contract_entailment::validate_machine_contract_entailment;
@@ -140,6 +144,7 @@ fn validate_program_internal(
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &symbols, &mut diagnostics);
     content_projections::validate_content_projection_conformances(program, &mut diagnostics);
+    content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
     qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);

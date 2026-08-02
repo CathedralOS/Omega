@@ -492,6 +492,43 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(&mut json, &format!("0x{:016x}", plan.fingerprint));
         json.push_str("\n    }");
     }
+    let mut conservation = program
+        .facts
+        .qualifications
+        .content
+        .conservation_plans
+        .iter()
+        .collect::<Vec<_>>();
+    conservation.sort_by_key(|plan| (symbol_label(program, plan.callable), plan.fingerprint));
+    json.push_str("\n  ],\n  \"content_conservation\": [");
+    for (index, plan) in conservation.iter().enumerate() {
+        if index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"owner_kind\": ");
+        push_json_string(
+            &mut json,
+            match plan.owner_kind {
+                omega_core::content::ContentConservationOwnerKind::Machine => "machine",
+                omega_core::content::ContentConservationOwnerKind::TraitRequirement => {
+                    "trait_requirement"
+                }
+            },
+        );
+        json.push_str(",\n      \"owner\": ");
+        push_json_string(&mut json, &symbol_label(program, plan.owner));
+        json.push_str(",\n      \"callable\": ");
+        push_json_string(&mut json, &symbol_label(program, plan.callable));
+        json.push_str(",\n      \"algebra\": ");
+        push_content_algebra_json(&mut json, &plan.algebra);
+        json.push_str(",\n      \"equation\": {\"left\": ");
+        push_content_conservation_term_json(&mut json, program, plan.equation.left());
+        json.push_str(", \"right\": ");
+        push_content_conservation_term_json(&mut json, program, plan.equation.right());
+        json.push_str("},\n      \"fingerprint\": ");
+        push_json_string(&mut json, &format!("0x{:016x}", plan.fingerprint));
+        json.push_str("\n    }");
+    }
     json.push_str("\n  ]\n}\n");
     json
 }
@@ -607,6 +644,93 @@ fn push_content_field_path_json(
         push_json_string(json, &segment.name);
     }
     json.push(']');
+}
+
+fn push_content_conservation_term_json(
+    json: &mut String,
+    program: &CheckedTrees,
+    term: &omega_core::content::ContentConservationTerm,
+) {
+    use omega_core::content::{
+        ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
+    };
+
+    match term {
+        ContentConservationTerm::Projection {
+            domain,
+            semantic_domain,
+            projection_machine,
+            projection_fingerprint,
+            subject,
+        } => {
+            json.push_str("{\"kind\": \"projection\", \"domain\": ");
+            push_json_string(json, &qualification_symbol_label(program, *domain));
+            json.push_str(", \"semantic_domain_id\": ");
+            json.push_str(&semantic_domain.0.to_string());
+            json.push_str(", \"projection_machine\": ");
+            push_json_string(
+                json,
+                &qualification_symbol_label(program, *projection_machine),
+            );
+            json.push_str(", \"projection_fingerprint\": ");
+            push_json_string(json, &format!("0x{projection_fingerprint:016x}"));
+            json.push_str(", \"place\": {\"version\": ");
+            push_json_string(
+                json,
+                match subject.version {
+                    ContentPlaceVersion::Entry => "entry",
+                    ContentPlaceVersion::Current => "current",
+                },
+            );
+            json.push_str(", \"root\": ");
+            match &subject.root {
+                ContentPlaceRoot::Parameter {
+                    position,
+                    name,
+                    is_self,
+                    ..
+                } => {
+                    json.push_str("{\"kind\": ");
+                    push_json_string(json, if *is_self { "self" } else { "parameter" });
+                    json.push_str(", \"position\": ");
+                    json.push_str(&position.to_string());
+                    json.push_str(", \"name\": ");
+                    push_json_string(json, name);
+                    json.push('}');
+                }
+                ContentPlaceRoot::Result => json.push_str("{\"kind\": \"result\"}"),
+            }
+            json.push_str(", \"path\": [");
+            for (index, segment) in subject.segments.iter().enumerate() {
+                if index > 0 {
+                    json.push_str(", ");
+                }
+                match segment {
+                    ContentPlaceSegment::Field(field) => {
+                        json.push_str("{\"kind\": \"field\", \"name\": ");
+                        push_json_string(json, &field.name);
+                        json.push('}');
+                    }
+                    ContentPlaceSegment::FixedIndex(index) => {
+                        json.push_str("{\"kind\": \"fixed_index\", \"index\": ");
+                        json.push_str(&index.to_string());
+                        json.push('}');
+                    }
+                }
+            }
+            json.push_str("]}}");
+        }
+        ContentConservationTerm::Separate(terms) => {
+            json.push_str("{\"kind\": \"separate\", \"terms\": [");
+            for (index, term) in terms.iter().enumerate() {
+                if index > 0 {
+                    json.push_str(", ");
+                }
+                push_content_conservation_term_json(json, program, term);
+            }
+            json.push_str("]}");
+        }
+    }
 }
 
 fn push_claim_outcome_source_json(

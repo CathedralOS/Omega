@@ -1,6 +1,7 @@
 use omega_compiler::{CompileOptions, CompileReport, compile, compile_to_checked};
 use omega_core::content::{
-    ContentAlgebraIdentity, ContentArithmeticOperator, ContentProjectionExpression,
+    ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
+    ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
     ContentScalarExpression,
 };
 use omega_core::diagnostics::Diagnostic;
@@ -4590,6 +4591,64 @@ fn extent_root_provider_adapter_compiles() {
     assert!(outcomes.contains("\"path\": [\"base\"]"));
     assert!(outcomes.contains("\"path\": [\"length\"]"));
     assert!(outcomes.contains("\"operator\": \"add\""));
+    assert!(outcomes.contains("\"fingerprint\": \"0x"));
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn content_conservation_contract_is_normalized_and_reported() {
+    let canary = pass_canary("core/content_conservation_contract");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("the exact entry/separate conservation contract should check");
+    let [plan] = checked
+        .facts
+        .qualifications
+        .content
+        .conservation_plans
+        .as_slice()
+    else {
+        panic!("one normalized conservation equation should be retained");
+    };
+    assert_eq!(
+        plan.owner_kind,
+        ContentConservationOwnerKind::TraitRequirement
+    );
+    assert!(matches!(
+        &plan.algebra,
+        ContentAlgebraIdentity::CountedQuantity { unit }
+            if unit == "named(name(ByteUnit))"
+    ));
+    let ContentConservationTerm::Projection { subject, .. } = plan.equation.left() else {
+        panic!("entry projection should canonicalize before separated outputs");
+    };
+    assert_eq!(subject.version, ContentPlaceVersion::Entry);
+    assert!(matches!(
+        subject.root,
+        ContentPlaceRoot::Parameter { position: 0, .. }
+    ));
+    assert!(matches!(
+        plan.equation.right(),
+        ContentConservationTerm::Separate(outputs) if outputs.len() == 2
+    ));
+    assert_ne!(plan.fingerprint, 0);
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-content-conservation-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: false,
+    })
+    .expect("the normalized conservation contract should emit its proof/debug artifact");
+    let outcomes = fs::read_to_string(build_dir.join("05_claim_outcomes.json"))
+        .expect("content-conservation artifact");
+    assert!(outcomes.contains("\"content_conservation\""));
+    assert!(outcomes.contains("\"owner_kind\": \"trait_requirement\""));
+    assert!(outcomes.contains("\"version\": \"entry\""));
+    assert!(outcomes.contains("\"kind\": \"separate\""));
+    assert!(outcomes.contains("\"kind\": \"result\""));
     assert!(outcomes.contains("\"fingerprint\": \"0x"));
     let _ = fs::remove_dir_all(&build_dir);
 }
@@ -41349,6 +41408,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/arena_core_surface",
     "core/extent_core_surface",
     "core/content_projection_owner",
+    "core/content_conservation_contract",
     "core/extent_root_provider_adapter",
     "core/carry_permission_provider_adapter",
     "core/interrupt_obligations_surface",
@@ -41738,6 +41798,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/content_projection_legacy_interval",
     "core/content_projection_arbitrary_call",
     "core/content_projection_signed_embedding",
+    "core/content_conservation_unqualified_place",
     "core/extent_no_wrap_lookalike",
     "core/content_retained_custody_from_borrow",
     "core/extent_root_adapter_direct_call_does_not_grant",

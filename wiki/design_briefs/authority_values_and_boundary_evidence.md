@@ -226,9 +226,14 @@ Implementation checkpoint (2026-08-02): this exact algebra is live in
 containment, and fragmented residuals over exact proof naturals. Content
 projection plans lift the core singleton spelling into an interval-set term;
 the set identity and member vector survive checked facts and debug artifacts
-under a schema-distinct stable fingerprint. The terminal-Psi conservation
-proposition and source-visible `entry`/`separate` consumers remain subsequent
-work.
+under a schema-distinct stable fingerprint. Source-visible proof-only
+`entry(place)` and compiler-owned `separate(...)` now normalize exact
+owner-projection equations over entry/current structural places. Their stable
+semantic fingerprints survive checked facts, machine contract identity, and
+the claim-outcome artifact; runtime use and malformed, mixed-algebra,
+duplicate, or unqualified equations reject. The terminal-Psi proposition,
+sealed introduction/custody-exit rows, and frontier discharge remain
+subsequent work.
 
 An address interval-set member uses embedded arithmetic rather than wrapping
 runtime `addr` arithmetic. Its half-open end may equal the address-space bound
