@@ -97,10 +97,18 @@ pub enum BuiltinFunction {
     FloatIsSubnormal,
     FloatClassifyF32,
     FloatClassifyF64,
+    /// Proof-only callable-entry versioning for content-conservation
+    /// contracts. This is source-nameable only in proof facts and never has a
+    /// runtime implementation.
+    ContentEntry,
+    /// Proof-only partial n-ary composition for the compiler-owned content
+    /// algebras. Validation selects the algebra from the exact projection
+    /// terms; packages cannot implement or override this operation.
+    ContentSeparate,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 33;
+    pub const COUNT: usize = 35;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -137,6 +145,8 @@ impl BuiltinFunction {
             Self::FloatIsSubnormal => "float#is_subnormal",
             Self::FloatClassifyF32 => "float#classify_f32",
             Self::FloatClassifyF64 => "float#classify_f64",
+            Self::ContentEntry => "entry",
+            Self::ContentSeparate => "separate",
         }
     }
 
@@ -175,6 +185,8 @@ impl BuiltinFunction {
             Self::FloatIsSubnormal => 30,
             Self::FloatClassifyF32 => 31,
             Self::FloatClassifyF64 => 32,
+            Self::ContentEntry => 33,
+            Self::ContentSeparate => 34,
         }
     }
 
@@ -212,6 +224,8 @@ impl BuiltinFunction {
             | Self::FloatIsSubnormal
             | Self::FloatClassifyF32
             | Self::FloatClassifyF64
+            | Self::ContentEntry
+            | Self::ContentSeparate
             | Self::AsmLoadFence
             | Self::AsmStoreFence
             | Self::AsmFullFence
@@ -448,6 +462,14 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatClassifyF64.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::ContentEntry.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::ContentSeparate.name()),
+        ),
     ]
 }
 
@@ -511,6 +533,8 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatIsSubnormal,
             BuiltinFunction::FloatClassifyF32,
             BuiltinFunction::FloatClassifyF64,
+            BuiltinFunction::ContentEntry,
+            BuiltinFunction::ContentSeparate,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

@@ -1,7 +1,8 @@
 use super::*;
 use omega_core::content::{
-    ContentAlgebraIdentity, ContentArithmeticOperator, ContentProjectionExpression,
-    ContentScalarExpression,
+    ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
+    ContentConservationTerm, ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion,
+    ContentProjectionExpression, ContentScalarExpression,
 };
 
 fn checked(source: &str) -> omega_checked_trees::CheckedTrees {
@@ -174,6 +175,100 @@ fn checked_facts_retain_runtime_scalar_embedding() {
         ContentScalarExpression::RuntimeScalarEmbedding(path)
             if matches!(path.as_slice(), [field] if field.name == "length" && field.symbol.is_valid())
     ));
+}
+
+#[test]
+fn checked_facts_retain_normalized_content_conservation() {
+    let source = r#"
+        data ByteUnit {}
+        data CountedQuantity<Unit> { magnitude: u64; }
+        trait Content<A> {
+            machine project(subject: &Self) -> A;
+        }
+        data Region [linear] { length: u64; }
+        domain Region::Owned;
+
+        machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+        satisfies Content<CountedQuantity<ByteUnit>>::project
+        {
+            CountedQuantity { magnitude: region.length }
+        }
+
+        data SplitResult {
+            left: Region in Owned;
+            right: Region in Owned;
+        }
+
+        trait Splitter {
+            machine split(whole: Region in Owned) -> SplitResult
+            ensures
+                Owned::content(entry(&whole))
+                == separate(
+                    Owned::content(&result.right),
+                    Owned::content(&result.left),
+                );
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {}
+    "#;
+
+    let checked = checked(source);
+    let [plan] = checked
+        .facts
+        .qualifications
+        .content
+        .conservation_plans
+        .as_slice()
+    else {
+        panic!("one normalized conservation equation should be retained");
+    };
+    assert_eq!(
+        plan.owner_kind,
+        ContentConservationOwnerKind::TraitRequirement
+    );
+    assert!(plan.owner.is_valid());
+    assert!(plan.callable.is_valid());
+    assert_ne!(plan.fingerprint, 0);
+    assert!(matches!(
+        &plan.algebra,
+        ContentAlgebraIdentity::CountedQuantity { unit }
+            if unit == "named(name(ByteUnit))"
+    ));
+
+    let ContentConservationTerm::Projection { subject, .. } = plan.equation.left() else {
+        panic!("canonical equation left side should be the entry projection");
+    };
+    assert_eq!(subject.version, ContentPlaceVersion::Entry);
+    assert!(matches!(
+        &subject.root,
+        ContentPlaceRoot::Parameter {
+            position: 0,
+            is_self: false,
+            ..
+        }
+    ));
+    assert!(subject.segments.is_empty());
+
+    let ContentConservationTerm::Separate(outputs) = plan.equation.right() else {
+        panic!("canonical equation right side should be separated outputs");
+    };
+    assert_eq!(outputs.len(), 2);
+    let output_fields = outputs
+        .iter()
+        .map(|term| {
+            let ContentConservationTerm::Projection { subject, .. } = term else {
+                panic!("separate child should be a projection");
+            };
+            assert_eq!(subject.version, ContentPlaceVersion::Current);
+            assert!(matches!(subject.root, ContentPlaceRoot::Result));
+            let [ContentPlaceSegment::Field(field)] = subject.segments.as_slice() else {
+                panic!("result projection should select one field");
+            };
+            field.name.as_str()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(output_fields, ["left", "right"]);
 }
 
 #[test]

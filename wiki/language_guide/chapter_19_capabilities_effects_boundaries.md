@@ -1146,6 +1146,13 @@ has runtime representation. Identity-preserving claim reshuffles infer;
 partition-changing primitives author their theorem and checked wrappers compose
 it.
 
+The current compiler accepts this surface only in `ensures`, resolves every
+projection call to the exact owner-unique `Content<A>::project` machine, and
+retains one normalized equation per callable outcome and algebra. `entry`
+cannot select `result` or an arbitrary expression; projection subjects must be
+shared borrows of qualified structural places; mixed algebras, duplicate
+equations, and executable uses reject.
+
 For example, an admitted platform provider may return an
 `Extent::Granted & Physical`; its ordinary linear runtime carrier is
 `Extent { base: addr, length: u64 }`.

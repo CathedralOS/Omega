@@ -65,6 +65,23 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 return target_symbol;
             }
         }
+        // A domain-owned proof machine is called by its exact authored home
+        // in contracts (`Granted::content(&value)`). Domains are not runtime
+        // receivers; later validation admits only the owner-unique content
+        // projection in proof position and rejects runtime use.
+        if matches!(receiver_kind, SymbolKind::Domain) {
+            let owner = symbols.name(receiver_symbol);
+            let direct = call_target_for_attached_data(symbols, owner, target.as_str());
+            if direct.is_valid() {
+                return direct;
+            }
+            if let Some(leaf) = owner.rsplit("::").next() {
+                let leaf = call_target_for_attached_data(symbols, leaf, target.as_str());
+                if leaf.is_valid() {
+                    return leaf;
+                }
+            }
+        }
         if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Trait) {
             if receiver_symbol == machine.symbol
                 && let Some(attached_data) = machine.attached_data

@@ -1,0 +1,34 @@
+use omega::language::core::content;
+
+data ByteUnit {}
+
+data Region [linear] {
+    remaining: u64;
+}
+
+domain Region::Owned;
+
+machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
+satisfies Content<CountedQuantity<ByteUnit>>::project
+{
+    CountedQuantity { magnitude: embed(region.remaining) }
+}
+
+data SplitResult {
+    left: Region in Owned;
+    right: Region in Owned;
+}
+
+pub trait InvalidSplit {
+    machine split(whole: Region) -> SplitResult
+    ensures
+        Owned::content(entry(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        );
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

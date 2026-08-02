@@ -226,6 +226,201 @@ pub struct ContentProjectionPlan {
     pub fingerprint: u64,
 }
 
+/// Which declared callable owns an authored content-conservation equation.
+/// The symbols are retained separately on [`ContentConservationPlan`]; this
+/// closed tag keeps artifacts and later terminal-Psi lowering explicit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentConservationOwnerKind {
+    Machine,
+    TraitRequirement,
+}
+
+/// The version of a structural place observed by a content projection.
+/// `Entry` is available only through proof-only `entry(place)`; there is no
+/// general historical-expression modality.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentPlaceVersion {
+    Entry,
+    Current,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentPlaceRoot {
+    Parameter {
+        position: u32,
+        symbol: SymbolHandle,
+        name: String,
+        is_self: bool,
+    },
+    Result,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentPlaceSegment {
+    Field(ContentFieldSegment),
+    FixedIndex(u64),
+}
+
+/// A parameter, `self`, or result structural place in a callable contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentStructuralPlace {
+    pub version: ContentPlaceVersion,
+    pub root: ContentPlaceRoot,
+    pub segments: Vec<ContentPlaceSegment>,
+}
+
+/// Closed content expression admitted in an authored conservation equation.
+/// Projection identity is exact and `Separate` children are flattened and
+/// canonically sorted, so package spelling order cannot perturb semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentConservationTerm {
+    Projection {
+        domain: SymbolHandle,
+        semantic_domain: SemanticDomainId,
+        projection_machine: SymbolHandle,
+        projection_fingerprint: u64,
+        subject: ContentStructuralPlace,
+    },
+    Separate(Vec<ContentConservationTerm>),
+}
+
+impl ContentConservationTerm {
+    pub fn separate(terms: impl IntoIterator<Item = Self>) -> Self {
+        let mut flattened = Vec::new();
+        for term in terms {
+            match term {
+                Self::Separate(children) => flattened.extend(children),
+                other => flattened.push(other),
+            }
+        }
+        flattened.sort_by_key(content_conservation_term_bytes);
+        Self::Separate(flattened)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentConservationEquation {
+    left: ContentConservationTerm,
+    right: ContentConservationTerm,
+}
+
+impl ContentConservationEquation {
+    pub fn new(left: ContentConservationTerm, right: ContentConservationTerm) -> Self {
+        if content_conservation_term_bytes(&left) <= content_conservation_term_bytes(&right) {
+            Self { left, right }
+        } else {
+            Self {
+                left: right,
+                right: left,
+            }
+        }
+    }
+
+    pub const fn left(&self) -> &ContentConservationTerm {
+        &self.left
+    }
+
+    pub const fn right(&self) -> &ContentConservationTerm {
+        &self.right
+    }
+}
+
+/// One normalized authored equation for one callable outcome and one closed
+/// content algebra. Proof derivations do not enter this semantic carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentConservationPlan {
+    pub owner_kind: ContentConservationOwnerKind,
+    pub owner: SymbolHandle,
+    pub callable: SymbolHandle,
+    pub algebra: ContentAlgebraIdentity,
+    pub equation: ContentConservationEquation,
+    pub fingerprint: u64,
+}
+
+pub fn conservation_fingerprint(
+    algebra: &ContentAlgebraIdentity,
+    equation: &ContentConservationEquation,
+) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"content-conservation-v1");
+    encode_algebra(algebra, &mut bytes);
+    encode_content_conservation_term(equation.left(), &mut bytes);
+    encode_content_conservation_term(equation.right(), &mut bytes);
+    bytes.into_iter().fold(OFFSET, |mut hash, byte| {
+        hash ^= u64::from(byte);
+        hash.wrapping_mul(PRIME)
+    })
+}
+
+pub fn content_conservation_plan_bytes(plan: &ContentConservationPlan) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"content-conservation-plan-v1");
+    bytes.push(match plan.owner_kind {
+        ContentConservationOwnerKind::Machine => 1,
+        ContentConservationOwnerKind::TraitRequirement => 2,
+    });
+    encode_algebra(&plan.algebra, &mut bytes);
+    encode_content_conservation_term(plan.equation.left(), &mut bytes);
+    encode_content_conservation_term(plan.equation.right(), &mut bytes);
+    bytes
+}
+
+fn content_conservation_term_bytes(term: &ContentConservationTerm) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    encode_content_conservation_term(term, &mut bytes);
+    bytes
+}
+
+fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut Vec<u8>) {
+    match term {
+        ContentConservationTerm::Projection {
+            semantic_domain,
+            projection_fingerprint,
+            subject,
+            ..
+        } => {
+            output.push(1);
+            output.extend_from_slice(&semantic_domain.0.to_le_bytes());
+            output.extend_from_slice(&projection_fingerprint.to_le_bytes());
+            output.push(match subject.version {
+                ContentPlaceVersion::Entry => 1,
+                ContentPlaceVersion::Current => 2,
+            });
+            match &subject.root {
+                ContentPlaceRoot::Parameter {
+                    position, is_self, ..
+                } => {
+                    output.push(if *is_self { 2 } else { 1 });
+                    output.extend_from_slice(&position.to_le_bytes());
+                }
+                ContentPlaceRoot::Result => output.push(3),
+            }
+            output.extend_from_slice(&(subject.segments.len() as u64).to_le_bytes());
+            for segment in &subject.segments {
+                match segment {
+                    ContentPlaceSegment::Field(field) => {
+                        output.push(1);
+                        encode_string(&field.name, output);
+                    }
+                    ContentPlaceSegment::FixedIndex(index) => {
+                        output.push(2);
+                        output.extend_from_slice(&index.to_le_bytes());
+                    }
+                }
+            }
+        }
+        ContentConservationTerm::Separate(terms) => {
+            output.push(2);
+            output.extend_from_slice(&(terms.len() as u64).to_le_bytes());
+            for term in terms {
+                encode_content_conservation_term(term, output);
+            }
+        }
+    }
+}
+
 pub fn projection_fingerprint(
     algebra: &ContentAlgebraIdentity,
     expression: &ContentProjectionExpression,
@@ -438,5 +633,59 @@ mod tests {
             projection_fingerprint(&algebra, &expression),
             0x0042_e73e_1d08_fd01
         );
+    }
+
+    #[test]
+    fn conservation_fingerprint_normalizes_equation_and_separate_order() {
+        let algebra = ContentAlgebraIdentity::CountedQuantity {
+            unit: "named(name(ByteUnit))".to_owned(),
+        };
+        let projection = |subject| ContentConservationTerm::Projection {
+            domain: SymbolHandle::from_arena_index(71),
+            semantic_domain: SemanticDomainId(9),
+            projection_machine: SymbolHandle::from_arena_index(72),
+            projection_fingerprint: 0x1122_3344_5566_7788,
+            subject,
+        };
+        let entry = |name: &str, symbol_index| ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: ContentPlaceRoot::Parameter {
+                position: 0,
+                symbol: SymbolHandle::from_arena_index(symbol_index),
+                name: name.to_owned(),
+                is_self: false,
+            },
+            segments: Vec::new(),
+        };
+        let output = |name: &str, symbol_index| ContentStructuralPlace {
+            version: ContentPlaceVersion::Current,
+            root: ContentPlaceRoot::Result,
+            segments: vec![ContentPlaceSegment::Field(ContentFieldSegment {
+                symbol: SymbolHandle::from_arena_index(symbol_index),
+                name: name.to_owned(),
+            })],
+        };
+
+        let first = ContentConservationEquation::new(
+            projection(entry("whole", 1)),
+            ContentConservationTerm::separate([
+                projection(output("right", 3)),
+                projection(output("left", 2)),
+            ]),
+        );
+        let renamed_and_reordered = ContentConservationEquation::new(
+            ContentConservationTerm::separate([
+                projection(output("left", 200)),
+                projection(output("right", 300)),
+            ]),
+            projection(entry("renamed", 100)),
+        );
+
+        let fingerprint = conservation_fingerprint(&algebra, &first);
+        assert_eq!(
+            fingerprint,
+            conservation_fingerprint(&algebra, &renamed_and_reordered)
+        );
+        assert_eq!(fingerprint, 0xbca0_a611_d59c_b3c1);
     }
 }

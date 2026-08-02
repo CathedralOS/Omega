@@ -23,6 +23,11 @@ pub trait Content<A> {
     machine project(subject: &Self) -> A;
 }
 
+// Conservation contracts call the exact owner projection above around the
+// compiler-owned proof-only `entry(&place)` and `separate(a, b, ...)`
+// builtins. They are reserved compiler symbols rather than package machines:
+// neither can be implemented, overridden, stored, or executed.
+
 // Compiler-erased injection of an unsigned runtime scalar into proof-level
 // natural arithmetic. The content-fragment validator admits this generic
 // surface only for u8/u16/u32/u64/addr subject fields; arbitrary calls and

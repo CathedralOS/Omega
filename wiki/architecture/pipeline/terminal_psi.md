@@ -229,6 +229,14 @@ exact residual—not the partition arithmetic. External root correspondence and
 fresh issuance remain scoped admitted hypotheses with provenance; downstream
 conservation remains derived.
 
+Implementation checkpoint (2026-08-02): the source-to-checked precursor is
+live. Exact owner-projection calls, entry/current structural-place versions,
+and flattened canonical `separate(...)` equations retain one schema-stable
+fingerprint per callable/algebra in checked facts and proof/debug artifacts.
+They do not yet claim terminal-Psi verification: the proposition vocabulary,
+sealed frontier rows, and certificates described above remain to be added to
+the terminal module and verifier.
+
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
 

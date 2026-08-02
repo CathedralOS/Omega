@@ -370,9 +370,21 @@ those rows remain absent until their actual checked proofs exist.
   violation. Proof/debug artifacts
   retain geometry, issuer, custody lineage, alias class, succession history,
   and trust provenance;
-- **CONSERVATION-CONTRACT — DESIGN CLEAR:** add proof-only `entry(place)` as an
-  entry/current version on structural-place terms and compiler-owned variadic
-  `separate(...)` over the closed content algebras. Contracts call the exact
+- **CONSERVATION-CONTRACT — IMPLEMENTATION IN PROGRESS:** proof-only
+  `entry(place)` and compiler-owned variadic `separate(...)` are now reserved
+  call-shaped builtins. Validation admits them only in `ensures`, requires
+  `entry` to select a parameter/`self` structural place, requires every
+  projection subject to carry the exact qualification, and resolves each
+  projection to the owner-unique `Content<A>::project` conformance. One
+  equality per callable outcome and algebra normalizes entry/current
+  structural places, fixed indices, flattened/sorted separation, exact
+  projection identity, and a stable fingerprint; checked facts, machine
+  contract identity, and `05_claim_outcomes.json` retain the result. Runtime
+  use, algebra mixing, duplicate equations, arbitrary projection lookalikes,
+  and unqualified subjects reject. Remaining work is to lower this proposition
+  into terminal Psi, compose inferred identity-preserving reshuffles, insert
+  sealed introduction and custody-exit rows, and discharge or admit the exact
+  frontier theorem. Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
   equation per content algebra and outcome row. Infer only claim-identity-
