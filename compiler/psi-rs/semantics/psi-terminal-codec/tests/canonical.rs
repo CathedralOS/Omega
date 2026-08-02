@@ -25,7 +25,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "a23a71844c2a4729c8d5beb0f62e0e632a91c3a10095bc01f2f2eedcf3ffedaf"
+        "f260034bf6fa5c6021b449c6e5ba13dd116dbaa9a2f2e2033dbd60b3231c7cae"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -46,8 +46,30 @@ fn archived_v1_bytes_keep_their_original_identity_and_migrate_explicitly() {
         "bcb56768a31b4ddde394676892c42d702f18bad3a563457cd36fe73912f7e26f"
     );
 
-    let migrated = migrate_module_to_current(&archived).expect("v1 migrates to v2");
-    assert_eq!(migrated.semantic_version, SemanticVersion::V2);
+    let migrated = migrate_module_to_current(&archived).expect("v1 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn archived_v2_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let archived = boolean_fixture(SemanticVersion::V2);
+    let archived_bytes = encode_module(&archived).expect("v2 remains encodable");
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(decode_module(&archived_bytes), Ok(archived.clone()));
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "5a4b9e8eb4fc5e3a5c90c635ea0da2b9d312d65fddaaa022fda4e300ff5f6fde"
+    );
+
+    let migrated = migrate_module_to_current(&archived).expect("v2 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(migrated.entry, archived.entry);
     assert_eq!(migrated.machines, archived.machines);
     assert_ne!(
@@ -81,6 +103,57 @@ fn v2_boolean_operation_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "5a4b9e8eb4fc5e3a5c90c635ea0da2b9d312d65fddaaa022fda4e300ff5f6fde"
+    );
+}
+
+#[test]
+fn v2_cannot_claim_the_v3_wrapping_add_operation() {
+    let module = wrapping_add_fixture(SemanticVersion::V2);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V3,
+                actual: SemanticVersion::V2,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v2_cannot_claim_the_v3_wrapping_add_proposition_term() {
+    let mut module = boolean_fixture(SemanticVersion::V2);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let sum = ScalarTerm::wrapping_integer_add(integer, literal(200), literal(100)).unwrap();
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(literal(44), sum));
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionRequiresSemanticVersion {
+                required: SemanticVersion::V3,
+                actual: SemanticVersion::V2,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v3_wrapping_add_has_stable_canonical_bytes() {
+    let module = wrapping_add_fixture(SemanticVersion::V3);
+    let bytes = encode_module(&module).expect("v3 wrapping-add module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "2c0e2777161b1a8840bb5f63e5b96bc6ecf0831bcbde76e4d218104f105e580d"
     );
 }
 
@@ -187,6 +260,23 @@ fn proposition_nesting_has_a_total_v1_bound() {
     assert_eq!(
         encode_module(&module),
         Err(CodecError::PropositionNestingTooDeep)
+    );
+}
+
+#[test]
+fn scalar_term_nesting_has_a_total_bound() {
+    let mut module = fixture();
+    let integer = i32_type();
+    let literal = || ScalarTerm::integer(integer, IntegerValue::Signed(1)).unwrap();
+    let mut term = literal();
+    for _ in 0..257 {
+        term = ScalarTerm::wrapping_integer_add(integer, term, literal()).unwrap();
+    }
+    module.machines[0].contract.ensures[0].proposition = Proposition::Equal(literal(), term);
+
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::ScalarTermNestingTooDeep)
     );
 }
 
@@ -317,6 +407,70 @@ fn boolean_fixture(semantic_version: SemanticVersion) -> TerminalModule {
             }],
             contract: MachineContract {
                 id: contract_id(10),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    TerminalModule {
+        semantic_version,
+        entry: machine_id(20),
+        machines: vec![TerminalMachine {
+            id: machine_id(20),
+            parameters: Vec::new(),
+            result: ValueDeclaration {
+                id: value_id(23),
+                scalar_type,
+            },
+            entry: block_id(20),
+            blocks: vec![Block {
+                id: block_id(20),
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: operation_id(20),
+                        result: ValueDeclaration {
+                            id: value_id(20),
+                            scalar_type,
+                        },
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(200),
+                        },
+                    },
+                    Operation {
+                        id: operation_id(21),
+                        result: ValueDeclaration {
+                            id: value_id(21),
+                            scalar_type,
+                        },
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(100),
+                        },
+                    },
+                    Operation {
+                        id: operation_id(22),
+                        result: ValueDeclaration {
+                            id: value_id(22),
+                            scalar_type,
+                        },
+                        kind: OperationKind::WrappingIntegerAdd {
+                            left: value_id(20),
+                            right: value_id(21),
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    edge: edge_id(20),
+                    value: value_id(22),
+                },
+            }],
+            contract: MachineContract {
+                id: contract_id(20),
                 requires: Vec::new(),
                 ensures: Vec::new(),
             },

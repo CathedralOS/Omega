@@ -31,6 +31,13 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         "f4b07ab8cdca7a33b0d2184c77db19d11626bf5db938d19ce13afa38628d06c4"
     );
 
+    let mut unnecessarily_v2 = bytes.clone();
+    unnecessarily_v2[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    assert_eq!(
+        decode_proof_bundle(&unnecessarily_v2),
+        Err(ProofCodecError::NonCanonicalEncoding)
+    );
+
     let mut noncanonical = bytes.clone();
     noncanonical[14..22].copy_from_slice(&3_u64.to_le_bytes());
     assert_eq!(
@@ -45,10 +52,52 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&3_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(2))
+        Err(ProofCodecError::UnsupportedFormatVersion(3))
+    );
+}
+
+#[test]
+fn proof_format_v2_canonically_encodes_closed_wrapping_arithmetic() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(200)).unwrap();
+    let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(100)).unwrap();
+    let sum = ScalarTerm::wrapping_integer_add(integer, left, right).unwrap();
+    let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(44)).unwrap();
+    let goal = Proposition::Equal(sum, reduced);
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(1),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                },
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(
+        &psi_core::PropositionContext::default(),
+        &goal,
+        &[],
+        &[],
+        match &bundle.evidence[0].route {
+            EvidenceRoute::CertificateDerived(certificate) => &certificate.proof,
+            _ => unreachable!("fixture is certificate-derived"),
+        },
+    )
+    .expect("closed u8 wrapping addition proves 44");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v2 bytes");
+    assert_eq!(&bytes[8..10], &2_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "efe529c7e2ee78900801f6423704d4f7f6312b35b91657dc0bac25adcc9595cd"
     );
 }
 
@@ -86,6 +135,30 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
     assert_eq!(
         encode_proof_bundle(&too_deep),
         Err(ProofCodecError::ProofNestingTooDeep)
+    );
+
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = || ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).unwrap();
+    let mut term = literal();
+    for _ in 0..257 {
+        term = ScalarTerm::wrapping_integer_add(integer, term, literal()).unwrap();
+    }
+    let deep_term = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(1),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: Proposition::Equal(literal(), term),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                },
+            }),
+        }],
+    };
+    assert_eq!(
+        encode_proof_bundle(&deep_term),
+        Err(ProofCodecError::ScalarTermNestingTooDeep)
     );
 }
 

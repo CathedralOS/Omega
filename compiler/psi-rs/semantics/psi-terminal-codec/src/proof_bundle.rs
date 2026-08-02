@@ -10,9 +10,11 @@ use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
-const FORMAT_VERSION: u16 = 1;
+const FORMAT_VERSION_V1: u16 = 1;
+const FORMAT_VERSION_V2: u16 = 2;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
+const MAX_SCALAR_TERM_DEPTH: usize = 256;
 const MAX_PROOF_DEPTH: usize = 256;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -41,7 +43,7 @@ impl std::fmt::Display for ProofBundleFingerprint {
 
 pub fn encode_proof_bundle(bundle: &ProofBundle) -> Result<Vec<u8>, ProofCodecError> {
     validate_bundle(bundle)?;
-    encode_raw(bundle)
+    encode_raw(bundle, required_format_version(bundle))
 }
 
 pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError> {
@@ -50,20 +52,22 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
         return Err(ProofCodecError::InvalidMagic);
     }
     let format_version = reader.u16()?;
-    if format_version != FORMAT_VERSION {
+    if !matches!(format_version, FORMAT_VERSION_V1 | FORMAT_VERSION_V2) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
     let evidence_count = reader.count()?;
     let mut evidence = Vec::new();
     for _ in 0..evidence_count {
-        evidence.push(decode_evidence(&mut reader)?);
+        evidence.push(decode_evidence(&mut reader, format_version)?);
     }
     if reader.remaining() != 0 {
         return Err(ProofCodecError::TrailingBytes(reader.remaining()));
     }
     let bundle = ProofBundle { evidence };
     validate_bundle(&bundle)?;
-    if encode_raw(&bundle)? != bytes {
+    if required_format_version(&bundle) != format_version
+        || encode_raw(&bundle, format_version)? != bytes
+    {
         return Err(ProofCodecError::NonCanonicalEncoding);
     }
     Ok(bundle)
@@ -137,7 +141,11 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
     }
     match proposition {
         Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
-        Proposition::Equal(_, _) | Proposition::LessThan(_, _) | Proposition::LessOrEqual(_, _) => {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            validate_scalar_term_depth(left, 0)?;
+            validate_scalar_term_depth(right, 0)?;
         }
         Proposition::Conjunction(conjuncts) => {
             for conjunct in conjuncts {
@@ -157,13 +165,80 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
         .map_err(ProofCodecError::MalformedProposition)
 }
 
-fn encode_raw(bundle: &ProofBundle) -> Result<Vec<u8>, ProofCodecError> {
+fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), ProofCodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(ProofCodecError::ScalarTermNestingTooDeep);
+    }
+    if let ScalarTerm::WrappingIntegerAdd { left, right, .. } = term {
+        validate_scalar_term_depth(left, depth + 1)?;
+        validate_scalar_term_depth(right, depth + 1)?;
+    }
+    Ok(())
+}
+
+fn required_format_version(bundle: &ProofBundle) -> u16 {
+    if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v2_term(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V2
+    } else {
+        FORMAT_VERSION_V1
+    }
+}
+
+fn proof_uses_v2_term(node: &ProofNode) -> bool {
+    proposition_uses_v2_term(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v2_term),
+            ProofRule::ConjunctionElimination { conjunction, .. } => {
+                proof_uses_v2_term(conjunction)
+            }
+            ProofRule::ImplicationIntroduction { body } => proof_uses_v2_term(body),
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v2_term(implication) || proof_uses_v2_term(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => proof_uses_v2_term(left_equals_middle) || proof_uses_v2_term(middle_equals_right),
+        }
+}
+
+fn proposition_uses_v2_term(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            scalar_term_uses_v2(left) || scalar_term_uses_v2(right)
+        }
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v2_term),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_v2_term(premise) || proposition_uses_v2_term(conclusion),
+    }
+}
+
+fn scalar_term_uses_v2(term: &ScalarTerm) -> bool {
+    matches!(term, ScalarTerm::WrappingIntegerAdd { .. })
+}
+
+fn encode_raw(bundle: &ProofBundle, format_version: u16) -> Result<Vec<u8>, ProofCodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
-    writer.u16(FORMAT_VERSION);
+    writer.u16(format_version);
     writer.len("evidence", bundle.evidence.len())?;
     for evidence in &bundle.evidence {
-        encode_evidence(&mut writer, evidence)?;
+        encode_evidence(&mut writer, evidence, format_version)?;
     }
     Ok(writer.finish())
 }
@@ -171,6 +246,7 @@ fn encode_raw(bundle: &ProofBundle) -> Result<Vec<u8>, ProofCodecError> {
 fn encode_evidence(
     writer: &mut Writer,
     evidence: &ObligationEvidence,
+    format_version: u16,
 ) -> Result<(), ProofCodecError> {
     writer.id(evidence.obligation);
     match &evidence.route {
@@ -182,7 +258,7 @@ fn encode_evidence(
             writer.u8(2);
             writer.id(certificate.identity);
             writer.u16(certificate.proof_system_version.get());
-            encode_proof_node(writer, &certificate.proof, 0)?;
+            encode_proof_node(writer, &certificate.proof, 0, format_version)?;
         }
         EvidenceRoute::Admitted(evidence) => {
             writer.u8(3);
@@ -200,11 +276,12 @@ fn encode_proof_node(
     writer: &mut Writer,
     node: &ProofNode,
     depth: usize,
+    format_version: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_PROOF_DEPTH {
         return Err(ProofCodecError::ProofNestingTooDeep);
     }
-    encode_proposition(writer, &node.conclusion, 0)?;
+    encode_proposition(writer, &node.conclusion, 0, format_version)?;
     match &node.rule {
         ProofRule::Primitive(judgment) => {
             writer.u8(1);
@@ -222,7 +299,7 @@ fn encode_proof_node(
             writer.u8(4);
             writer.len("conjunction proofs", nodes.len())?;
             for node in nodes {
-                encode_proof_node(writer, node, depth + 1)?;
+                encode_proof_node(writer, node, depth + 1, format_version)?;
             }
         }
         ProofRule::ConjunctionElimination {
@@ -230,28 +307,28 @@ fn encode_proof_node(
             conjunct,
         } => {
             writer.u8(5);
-            encode_proof_node(writer, conjunction, depth + 1)?;
+            encode_proof_node(writer, conjunction, depth + 1, format_version)?;
             writer.index("conjunct index", *conjunct)?;
         }
         ProofRule::ImplicationIntroduction { body } => {
             writer.u8(6);
-            encode_proof_node(writer, body, depth + 1)?;
+            encode_proof_node(writer, body, depth + 1, format_version)?;
         }
         ProofRule::ImplicationElimination {
             implication,
             premise,
         } => {
             writer.u8(7);
-            encode_proof_node(writer, implication, depth + 1)?;
-            encode_proof_node(writer, premise, depth + 1)?;
+            encode_proof_node(writer, implication, depth + 1, format_version)?;
+            encode_proof_node(writer, premise, depth + 1, format_version)?;
         }
         ProofRule::EqualityTransitivity {
             left_equals_middle,
             middle_equals_right,
         } => {
             writer.u8(8);
-            encode_proof_node(writer, left_equals_middle, depth + 1)?;
-            encode_proof_node(writer, middle_equals_right, depth + 1)?;
+            encode_proof_node(writer, left_equals_middle, depth + 1, format_version)?;
+            encode_proof_node(writer, middle_equals_right, depth + 1, format_version)?;
         }
     }
     Ok(())
@@ -261,6 +338,7 @@ fn encode_proposition(
     writer: &mut Writer,
     proposition: &Proposition,
     depth: usize,
+    format_version: u16,
 ) -> Result<(), ProofCodecError> {
     if depth > MAX_PROPOSITION_DEPTH {
         return Err(ProofCodecError::PropositionNestingTooDeep);
@@ -274,24 +352,24 @@ fn encode_proposition(
         }
         Proposition::Equal(left, right) => {
             writer.u8(4);
-            encode_scalar_term(writer, left);
-            encode_scalar_term(writer, right);
+            encode_scalar_term(writer, left, 0, format_version)?;
+            encode_scalar_term(writer, right, 0, format_version)?;
         }
         Proposition::LessThan(left, right) => {
             writer.u8(5);
-            encode_scalar_term(writer, left);
-            encode_scalar_term(writer, right);
+            encode_scalar_term(writer, left, 0, format_version)?;
+            encode_scalar_term(writer, right, 0, format_version)?;
         }
         Proposition::LessOrEqual(left, right) => {
             writer.u8(6);
-            encode_scalar_term(writer, left);
-            encode_scalar_term(writer, right);
+            encode_scalar_term(writer, left, 0, format_version)?;
+            encode_scalar_term(writer, right, 0, format_version)?;
         }
         Proposition::Conjunction(conjuncts) => {
             writer.u8(7);
             writer.len("proof proposition conjuncts", conjuncts.len())?;
             for conjunct in conjuncts {
-                encode_proposition(writer, conjunct, depth + 1)?;
+                encode_proposition(writer, conjunct, depth + 1, format_version)?;
             }
         }
         Proposition::Implication {
@@ -299,14 +377,22 @@ fn encode_proposition(
             conclusion,
         } => {
             writer.u8(8);
-            encode_proposition(writer, premise, depth + 1)?;
-            encode_proposition(writer, conclusion, depth + 1)?;
+            encode_proposition(writer, premise, depth + 1, format_version)?;
+            encode_proposition(writer, conclusion, depth + 1, format_version)?;
         }
     }
     Ok(())
 }
 
-fn encode_scalar_term(writer: &mut Writer, term: &ScalarTerm) {
+fn encode_scalar_term(
+    writer: &mut Writer,
+    term: &ScalarTerm,
+    depth: usize,
+    format_version: u16,
+) -> Result<(), ProofCodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(ProofCodecError::ScalarTermNestingTooDeep);
+    }
     match term {
         ScalarTerm::Value { id, scalar_type } => {
             writer.u8(1);
@@ -322,7 +408,21 @@ fn encode_scalar_term(writer: &mut Writer, term: &ScalarTerm) {
             encode_integer_type(writer, *scalar_type);
             encode_integer_value(writer, *value);
         }
+        ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } => {
+            if format_version < FORMAT_VERSION_V2 {
+                return Err(ProofCodecError::UnsupportedScalarTermForFormat);
+            }
+            writer.u8(4);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1, format_version)?;
+            encode_scalar_term(writer, right, depth + 1, format_version)?;
+        }
     }
+    Ok(())
 }
 
 fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
@@ -372,7 +472,10 @@ fn encode_admission_kind(writer: &mut Writer, kind: AdmissionKind) {
     });
 }
 
-fn decode_evidence(reader: &mut Reader<'_>) -> Result<ObligationEvidence, ProofCodecError> {
+fn decode_evidence(
+    reader: &mut Reader<'_>,
+    format_version: u16,
+) -> Result<ObligationEvidence, ProofCodecError> {
     let obligation = reader.id("ObligationId")?;
     let route = match reader.u8()? {
         1 => EvidenceRoute::KernelDerived(decode_primitive(reader)?),
@@ -380,7 +483,7 @@ fn decode_evidence(reader: &mut Reader<'_>) -> Result<ObligationEvidence, ProofC
             identity: reader.id("EvidenceIdentity")?,
             proof_system_version: ProofSystemVersion::new(reader.u16()?)
                 .ok_or(ProofCodecError::ZeroProofSystemVersion)?,
-            proof: decode_proof_node(reader, 0)?,
+            proof: decode_proof_node(reader, 0, format_version)?,
         }),
         3 => EvidenceRoute::Admitted(AdmissionEvidence {
             site: reader.id("AdmissionSiteId")?,
@@ -394,11 +497,15 @@ fn decode_evidence(reader: &mut Reader<'_>) -> Result<ObligationEvidence, ProofC
     Ok(ObligationEvidence { obligation, route })
 }
 
-fn decode_proof_node(reader: &mut Reader<'_>, depth: usize) -> Result<ProofNode, ProofCodecError> {
+fn decode_proof_node(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    format_version: u16,
+) -> Result<ProofNode, ProofCodecError> {
     if depth > MAX_PROOF_DEPTH {
         return Err(ProofCodecError::ProofNestingTooDeep);
     }
-    let conclusion = decode_proposition(reader, 0)?;
+    let conclusion = decode_proposition(reader, 0, format_version)?;
     let rule = match reader.u8()? {
         1 => ProofRule::Primitive(decode_primitive(reader)?),
         2 => ProofRule::SemanticAxiom {
@@ -411,24 +518,24 @@ fn decode_proof_node(reader: &mut Reader<'_>, depth: usize) -> Result<ProofNode,
             let count = reader.count()?;
             let mut nodes = Vec::new();
             for _ in 0..count {
-                nodes.push(decode_proof_node(reader, depth + 1)?);
+                nodes.push(decode_proof_node(reader, depth + 1, format_version)?);
             }
             ProofRule::ConjunctionIntroduction(nodes)
         }
         5 => ProofRule::ConjunctionElimination {
-            conjunction: Box::new(decode_proof_node(reader, depth + 1)?),
+            conjunction: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
             conjunct: reader.index()?,
         },
         6 => ProofRule::ImplicationIntroduction {
-            body: Box::new(decode_proof_node(reader, depth + 1)?),
+            body: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
         },
         7 => ProofRule::ImplicationElimination {
-            implication: Box::new(decode_proof_node(reader, depth + 1)?),
-            premise: Box::new(decode_proof_node(reader, depth + 1)?),
+            implication: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
+            premise: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
         },
         8 => ProofRule::EqualityTransitivity {
-            left_equals_middle: Box::new(decode_proof_node(reader, depth + 1)?),
-            middle_equals_right: Box::new(decode_proof_node(reader, depth + 1)?),
+            left_equals_middle: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
+            middle_equals_right: Box::new(decode_proof_node(reader, depth + 1, format_version)?),
         },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };
@@ -438,6 +545,7 @@ fn decode_proof_node(reader: &mut Reader<'_>, depth: usize) -> Result<ProofNode,
 fn decode_proposition(
     reader: &mut Reader<'_>,
     depth: usize,
+    format_version: u16,
 ) -> Result<Proposition, ProofCodecError> {
     if depth > MAX_PROPOSITION_DEPTH {
         return Err(ProofCodecError::PropositionNestingTooDeep);
@@ -446,26 +554,42 @@ fn decode_proposition(
         1 => Proposition::Truth,
         2 => Proposition::Falsehood,
         3 => Proposition::Atom(reader.id::<PropositionId>("PropositionId")?),
-        4 => Proposition::Equal(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
-        5 => Proposition::LessThan(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
-        6 => Proposition::LessOrEqual(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
+        4 => Proposition::Equal(
+            decode_scalar_term(reader, 0, format_version)?,
+            decode_scalar_term(reader, 0, format_version)?,
+        ),
+        5 => Proposition::LessThan(
+            decode_scalar_term(reader, 0, format_version)?,
+            decode_scalar_term(reader, 0, format_version)?,
+        ),
+        6 => Proposition::LessOrEqual(
+            decode_scalar_term(reader, 0, format_version)?,
+            decode_scalar_term(reader, 0, format_version)?,
+        ),
         7 => {
             let count = reader.count()?;
             let mut conjuncts = Vec::new();
             for _ in 0..count {
-                conjuncts.push(decode_proposition(reader, depth + 1)?);
+                conjuncts.push(decode_proposition(reader, depth + 1, format_version)?);
             }
             Proposition::Conjunction(conjuncts)
         }
         8 => Proposition::Implication {
-            premise: Box::new(decode_proposition(reader, depth + 1)?),
-            conclusion: Box::new(decode_proposition(reader, depth + 1)?),
+            premise: Box::new(decode_proposition(reader, depth + 1, format_version)?),
+            conclusion: Box::new(decode_proposition(reader, depth + 1, format_version)?),
         },
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
     })
 }
 
-fn decode_scalar_term(reader: &mut Reader<'_>) -> Result<ScalarTerm, ProofCodecError> {
+fn decode_scalar_term(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    format_version: u16,
+) -> Result<ScalarTerm, ProofCodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(ProofCodecError::ScalarTermNestingTooDeep);
+    }
     Ok(match reader.u8()? {
         1 => ScalarTerm::value(reader.id("ValueId")?, decode_scalar_type(reader)?),
         2 => ScalarTerm::boolean(reader.boolean()?),
@@ -473,6 +597,13 @@ fn decode_scalar_term(reader: &mut Reader<'_>) -> Result<ScalarTerm, ProofCodecE
             let scalar_type = decode_integer_type(reader)?;
             let value = decode_integer_value(reader)?;
             ScalarTerm::integer(scalar_type, value)
+                .map_err(ProofCodecError::MalformedProposition)?
+        }
+        4 if format_version >= FORMAT_VERSION_V2 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1, format_version)?;
+            let right = decode_scalar_term(reader, depth + 1, format_version)?;
+            ScalarTerm::wrapping_integer_add(scalar_type, left, right)
                 .map_err(ProofCodecError::MalformedProposition)?
         }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
@@ -649,7 +780,9 @@ pub enum ProofCodecError {
     NonCanonicalEvidenceOrder,
     NonCanonicalEncoding,
     PropositionNestingTooDeep,
+    ScalarTermNestingTooDeep,
     ProofNestingTooDeep,
+    UnsupportedScalarTermForFormat,
     MalformedProposition(PropositionError),
 }
 

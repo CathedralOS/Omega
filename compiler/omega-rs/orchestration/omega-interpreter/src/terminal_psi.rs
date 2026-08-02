@@ -108,6 +108,13 @@ impl<'module> TerminalExecution<'module> {
                     actual: argument.scalar_type(),
                 });
             }
+            if let TerminalScalarValue::Integer { scalar_type, value } = argument
+                && !scalar_type.admits(*value)
+            {
+                return Err(TerminalInterpretError::ArgumentIntegerOutsideType {
+                    value: parameter.id,
+                });
+            }
             values.insert(parameter.id, *argument);
         }
         let blocks = machine
@@ -158,6 +165,44 @@ impl<'module> TerminalExecution<'module> {
                         }
                         self.values
                             .insert(operation.result.id, TerminalScalarValue::Boolean(value));
+                    }
+                    OperationKind::WrappingIntegerAdd { left, right } => {
+                        let ScalarType::Integer(scalar_type) = operation.result.scalar_type else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let left = self
+                            .values
+                            .get(&left)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
+                        let right = self
+                            .values
+                            .get(&right)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
+                        let (
+                            TerminalScalarValue::Integer {
+                                scalar_type: left_type,
+                                value: left,
+                            },
+                            TerminalScalarValue::Integer {
+                                scalar_type: right_type,
+                                value: right,
+                            },
+                        ) = (left, right)
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if left_type != scalar_type || right_type != scalar_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let value = scalar_type
+                            .wrapping_add(left, right)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.values.insert(
+                            operation.result.id,
+                            TerminalScalarValue::Integer { scalar_type, value },
+                        );
                     }
                 }
                 self.next_operation += 1;
@@ -253,6 +298,9 @@ pub enum TerminalInterpretError {
         value: ValueId,
         expected: ScalarType,
         actual: ScalarType,
+    },
+    ArgumentIntegerOutsideType {
+        value: ValueId,
     },
     VerifiedEntryMachineMissing,
     VerifiedBlockMissing,

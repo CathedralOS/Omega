@@ -34,7 +34,7 @@ pub fn validate_module(
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
     if !matches!(
         module.semantic_version,
-        SemanticVersion::V1 | SemanticVersion::V2
+        SemanticVersion::V1 | SemanticVersion::V2 | SemanticVersion::V3
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -149,6 +149,20 @@ fn validate_machine(
                         ));
                     }
                 }
+                OperationKind::WrappingIntegerAdd { .. } => {
+                    if semantic_version < SemanticVersion::V3 {
+                        return Err(ModuleError::OperationRequiresSemanticVersion {
+                            operation: operation.id,
+                            required: SemanticVersion::V3,
+                            actual: semantic_version,
+                        });
+                    }
+                    if !matches!(operation.result.scalar_type, ScalarType::Integer(_)) {
+                        return Err(ModuleError::WrappingIntegerAddRequiresIntegerResult(
+                            operation.id,
+                        ));
+                    }
+                }
             }
         }
         insert_unique(
@@ -179,6 +193,12 @@ fn validate_machine(
     let mut ensures_values = requires_values.clone();
     ensures_values.insert(machine.result.id);
     for proposition in &machine.contract.requires {
+        validate_proposition_semantic_version(
+            proposition,
+            semantic_version,
+            machine.contract.id,
+            ContractClauseKind::Requires,
+        )?;
         context
             .validate(proposition)
             .map_err(ModuleError::MalformedProposition)?;
@@ -195,6 +215,12 @@ fn validate_machine(
             clause.obligation,
             ModuleError::DuplicateObligation,
         )?;
+        validate_proposition_semantic_version(
+            &clause.proposition,
+            semantic_version,
+            machine.contract.id,
+            ContractClauseKind::Ensures,
+        )?;
         context
             .validate(&clause.proposition)
             .map_err(ModuleError::MalformedProposition)?;
@@ -207,6 +233,64 @@ fn validate_machine(
     }
 
     validate_straight_line_flow(machine, &blocks, &value_types)
+}
+
+fn validate_proposition_semantic_version(
+    proposition: &Proposition,
+    semantic_version: SemanticVersion,
+    contract: ContractId,
+    clause: ContractClauseKind,
+) -> Result<(), ModuleError> {
+    match proposition {
+        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => {
+            validate_term_semantic_version(left, semantic_version, contract, clause)?;
+            validate_term_semantic_version(right, semantic_version, contract, clause)
+        }
+        Proposition::Conjunction(conjuncts) => {
+            for conjunct in conjuncts {
+                validate_proposition_semantic_version(
+                    conjunct,
+                    semantic_version,
+                    contract,
+                    clause,
+                )?;
+            }
+            Ok(())
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            validate_proposition_semantic_version(premise, semantic_version, contract, clause)?;
+            validate_proposition_semantic_version(conclusion, semantic_version, contract, clause)
+        }
+    }
+}
+
+fn validate_term_semantic_version(
+    term: &ScalarTerm,
+    semantic_version: SemanticVersion,
+    contract: ContractId,
+    clause: ContractClauseKind,
+) -> Result<(), ModuleError> {
+    match term {
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+            if semantic_version < SemanticVersion::V3 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V3,
+                    actual: semantic_version,
+                });
+            }
+            validate_term_semantic_version(left, semantic_version, contract, clause)?;
+            validate_term_semantic_version(right, semantic_version, contract, clause)
+        }
+        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => Ok(()),
+    }
 }
 
 fn validate_contract_scope(
@@ -245,15 +329,21 @@ fn validate_term_scope(
     contract: ContractId,
     clause: ContractClauseKind,
 ) -> Result<(), ModuleError> {
-    let ScalarTerm::Value { id, .. } = term else {
-        return Ok(());
-    };
-    if !allowed.contains(id) {
-        return Err(ModuleError::ContractValueOutsideScope {
-            contract,
-            clause,
-            value: *id,
-        });
+    match term {
+        ScalarTerm::Value { id, .. } => {
+            if !allowed.contains(id) {
+                return Err(ModuleError::ContractValueOutsideScope {
+                    contract,
+                    clause,
+                    value: *id,
+                });
+            }
+        }
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
+            validate_term_scope(left, allowed, contract, clause)?;
+            validate_term_scope(right, allowed, contract, clause)?;
+        }
+        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
     }
     Ok(())
 }
@@ -283,6 +373,29 @@ fn validate_straight_line_flow(
             defined.insert(parameter.id);
         }
         for operation in &block.operations {
+            if let OperationKind::WrappingIntegerAdd { left, right } = operation.kind {
+                let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                    unreachable!("operation shape validation requires an integer result")
+                };
+                for operand in [left, right] {
+                    if !defined.contains(&operand) {
+                        return Err(ModuleError::ValueUsedBeforeDefinition(operand));
+                    }
+                    let actual = value_types
+                        .get(&operand)
+                        .copied()
+                        .ok_or(ModuleError::UnknownValue(operand))?;
+                    let expected = ScalarType::Integer(integer_type);
+                    if actual != expected {
+                        return Err(ModuleError::WrappingIntegerAddOperandTypeMismatch {
+                            operation: operation.id,
+                            operand,
+                            expected,
+                            actual,
+                        });
+                    }
+                }
+            }
             defined.insert(operation.result.id);
         }
         match &block.terminator {
@@ -429,8 +542,21 @@ pub enum ModuleError {
     IntegerConstantRequiresIntegerResult(OperationId),
     IntegerConstantOutsideResultType(OperationId),
     BooleanConstantRequiresBooleanResult(OperationId),
+    WrappingIntegerAddRequiresIntegerResult(OperationId),
+    WrappingIntegerAddOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     OperationRequiresSemanticVersion {
         operation: OperationId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    PropositionRequiresSemanticVersion {
+        contract: ContractId,
+        clause: ContractClauseKind,
         required: SemanticVersion,
         actual: SemanticVersion,
     },

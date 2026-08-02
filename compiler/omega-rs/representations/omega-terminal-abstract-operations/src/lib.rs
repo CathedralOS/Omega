@@ -7,7 +7,9 @@
 //! provenance and scalar semantics, but no syntax tree, arena handle,
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
-use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
+use psi_core::{
+    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
+};
 use psi_terminal::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +39,13 @@ pub enum TerminalAbstractOperation {
         psi_operation: OperationId,
         result: ValueId,
         value: bool,
+    },
+    WrappingIntegerAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
     },
     Jump {
         psi_edge: EdgeId,

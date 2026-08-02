@@ -34,6 +34,7 @@ const MAGIC: &[u8; 8] = b"PSITERM\0";
 const FORMAT_VERSION: u16 = 1;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
+const MAX_SCALAR_TERM_DEPTH: usize = 256;
 
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     validate_canonical_order(module)?;
@@ -78,7 +79,8 @@ pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdent
 ///
 /// Migration is deliberately explicit: it preserves the semantic graph and
 /// proof obligations, but changes semantic version and therefore program
-/// fingerprint. Version-1 bytes are never silently reinterpreted as version 2.
+/// fingerprint. Older bytes are never silently reinterpreted as the current
+/// version.
 pub fn migrate_module_to_current(module: &TerminalModule) -> Result<TerminalModule, CodecError> {
     validate_canonical_order(module)?;
     validate_module(module).map_err(CodecError::InvalidModule)?;
@@ -142,7 +144,7 @@ fn validate_canonical_proposition(
     match proposition {
         Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
         Proposition::Equal(left, right) => {
-            if canonical_scalar_term_bytes(left) > canonical_scalar_term_bytes(right) {
+            if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)? {
                 return Err(CodecError::NonCanonicalOrder("equality operands"));
             }
             Ok(())
@@ -193,10 +195,10 @@ fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, Cod
     Ok(writer.finish())
 }
 
-fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Vec<u8> {
+fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
-    encode_scalar_term(&mut writer, term);
-    writer.finish()
+    encode_scalar_term(&mut writer, term, 0)?;
+    Ok(writer.finish())
 }
 
 fn strictly_increasing<T: Ord>(values: impl IntoIterator<Item = T>) -> bool {
@@ -268,6 +270,11 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.u8(2);
                 writer.u8(u8::from(value));
             }
+            OperationKind::WrappingIntegerAdd { left, right } => {
+                writer.u8(3);
+                writer.id(left);
+                writer.id(right);
+            }
         }
     }
     match &block.terminator {
@@ -324,18 +331,18 @@ fn encode_proposition(
         }
         Proposition::Equal(left, right) => {
             writer.u8(4);
-            encode_scalar_term(writer, left);
-            encode_scalar_term(writer, right);
+            encode_scalar_term(writer, left, 0)?;
+            encode_scalar_term(writer, right, 0)?;
         }
         Proposition::LessThan(left, right) => {
             writer.u8(5);
-            encode_scalar_term(writer, left);
-            encode_scalar_term(writer, right);
+            encode_scalar_term(writer, left, 0)?;
+            encode_scalar_term(writer, right, 0)?;
         }
         Proposition::LessOrEqual(left, right) => {
             writer.u8(6);
-            encode_scalar_term(writer, left);
-            encode_scalar_term(writer, right);
+            encode_scalar_term(writer, left, 0)?;
+            encode_scalar_term(writer, right, 0)?;
         }
         Proposition::Conjunction(conjuncts) => {
             writer.u8(7);
@@ -356,7 +363,14 @@ fn encode_proposition(
     Ok(())
 }
 
-fn encode_scalar_term(writer: &mut Writer, term: &ScalarTerm) {
+fn encode_scalar_term(
+    writer: &mut Writer,
+    term: &ScalarTerm,
+    depth: usize,
+) -> Result<(), CodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(CodecError::ScalarTermNestingTooDeep);
+    }
     match term {
         ScalarTerm::Value { id, scalar_type } => {
             writer.u8(1);
@@ -372,7 +386,18 @@ fn encode_scalar_term(writer: &mut Writer, term: &ScalarTerm) {
             encode_integer_type(writer, *scalar_type);
             encode_integer_value(writer, *value);
         }
+        ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(4);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
     }
+    Ok(())
 }
 
 fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
@@ -475,6 +500,10 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
             2 => OperationKind::BooleanConstant {
                 value: reader.boolean()?,
             },
+            3 => OperationKind::WrappingIntegerAdd {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };
         operations.push(Operation {
@@ -542,9 +571,18 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
         1 => Proposition::Truth,
         2 => Proposition::Falsehood,
         3 => Proposition::Atom(reader.id::<PropositionId>("PropositionId")?),
-        4 => Proposition::Equal(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
-        5 => Proposition::LessThan(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
-        6 => Proposition::LessOrEqual(decode_scalar_term(reader)?, decode_scalar_term(reader)?),
+        4 => Proposition::Equal(
+            decode_scalar_term(reader, 0)?,
+            decode_scalar_term(reader, 0)?,
+        ),
+        5 => Proposition::LessThan(
+            decode_scalar_term(reader, 0)?,
+            decode_scalar_term(reader, 0)?,
+        ),
+        6 => Proposition::LessOrEqual(
+            decode_scalar_term(reader, 0)?,
+            decode_scalar_term(reader, 0)?,
+        ),
         7 => {
             let count = reader.count()?;
             let mut conjuncts = Vec::new();
@@ -561,7 +599,10 @@ fn decode_proposition(reader: &mut Reader<'_>, depth: usize) -> Result<Propositi
     })
 }
 
-fn decode_scalar_term(reader: &mut Reader<'_>) -> Result<ScalarTerm, CodecError> {
+fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTerm, CodecError> {
+    if depth > MAX_SCALAR_TERM_DEPTH {
+        return Err(CodecError::ScalarTermNestingTooDeep);
+    }
     Ok(match reader.u8()? {
         1 => ScalarTerm::value(reader.id("ValueId")?, decode_scalar_type(reader)?),
         2 => ScalarTerm::boolean(reader.boolean()?),
@@ -569,6 +610,13 @@ fn decode_scalar_term(reader: &mut Reader<'_>) -> Result<ScalarTerm, CodecError>
             let scalar_type = decode_integer_type(reader)?;
             let value = decode_integer_value(reader)?;
             ScalarTerm::integer(scalar_type, value).map_err(CodecError::MalformedProposition)?
+        }
+        4 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::wrapping_integer_add(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
@@ -717,6 +765,7 @@ pub enum CodecError {
     NonCanonicalEncoding,
     NestedConjunction,
     PropositionNestingTooDeep,
+    ScalarTermNestingTooDeep,
     MalformedProposition(PropositionError),
     InvalidModule(ModuleError),
 }

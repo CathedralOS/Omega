@@ -8,16 +8,17 @@ use psi_core::{
 /// Version of the in-memory terminal-Psi semantic vocabulary.
 ///
 /// Version 1 has canonical bytes and a semantic fingerprint defined by
-/// `psi-terminal-codec`. Version 2 adds `BooleanConstant` without changing the
-/// meaning of version-1 bytes. Any further meaning-changing vocabulary
-/// revision requires another semantic version.
+/// `psi-terminal-codec`. Version 2 adds `BooleanConstant`; version 3 adds
+/// width-relative `WrappingIntegerAdd`. Older bytes retain their original
+/// meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
 impl SemanticVersion {
     pub const V1: Self = Self(NonZeroU16::MIN);
     pub const V2: Self = Self(NonZeroU16::new(2).expect("two is nonzero"));
-    pub const CURRENT: Self = Self::V2;
+    pub const V3: Self = Self(NonZeroU16::new(3).expect("three is nonzero"));
+    pub const CURRENT: Self = Self::V3;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -80,7 +81,7 @@ pub struct Operation {
     pub kind: OperationKind,
 }
 
-/// Closed operation vocabulary through semantic version 2.
+/// Closed operation vocabulary through semantic version 3.
 ///
 /// `IntegerConstant` writes the declared integer value to its result and
 /// establishes the semantic axiom `result == literal`. It cannot trap and
@@ -89,10 +90,17 @@ pub struct Operation {
 ///
 /// `BooleanConstant` was added in semantic version 2. It writes the declared
 /// Boolean value to its result and establishes `result == literal`.
+///
+/// `WrappingIntegerAdd` was added in semantic version 3. It reads two values of
+/// the result's exact integer type and reduces their sum modulo the declared
+/// width. Signed values interpret the reduced bits as two's complement. It is
+/// total and therefore generates no overflow obligation; the verifier
+/// reconstructs its exact result-term axiom.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationKind {
     IntegerConstant { value: IntegerValue },
     BooleanConstant { value: bool },
+    WrappingIntegerAdd { left: ValueId, right: ValueId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
