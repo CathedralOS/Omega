@@ -481,6 +481,79 @@ fn wrapping_multiply_requires_v7_and_defined_exact_type_operands() {
 }
 
 #[test]
+fn v8_saturating_multiply_axiom_proves_the_return_contract() {
+    let (module, goal, obligation) = saturating_multiply_module();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let term = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar_type);
+    let product = ScalarTerm::saturating_integer_multiply(integer, term(70), term(71)).unwrap();
+    let proof = ProofNode {
+        conclusion: goal,
+        rule: ProofRule::EqualityTransitivity {
+            left_equals_middle: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(73), term(72)),
+                rule: ProofRule::SemanticAxiom { index: 1 },
+            }),
+            middle_equals_right: Box::new(ProofNode {
+                conclusion: Proposition::Equal(term(72), product),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            }),
+        },
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(70).expect("certificate"),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof,
+            }),
+        }],
+    };
+
+    verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("v8 saturating-multiply semantics should reconstruct both axioms");
+}
+
+#[test]
+fn saturating_multiply_requires_v8_and_defined_exact_type_operands() {
+    let (mut old_version, _, _) = saturating_multiply_module();
+    old_version.semantic_version = SemanticVersion::V7;
+    assert!(matches!(
+        validate_module(&old_version),
+        Err(ModuleError::OperationRequiresSemanticVersion {
+            required: SemanticVersion::V8,
+            actual: SemanticVersion::V7,
+            ..
+        })
+    ));
+
+    let (mut use_before_definition, _, _) = saturating_multiply_module();
+    use_before_definition.machines[0].blocks[0].operations[0].kind =
+        OperationKind::SaturatingIntegerMultiply {
+            left: ValueId::new(72).expect("product result"),
+            right: ValueId::new(71).expect("right parameter"),
+        };
+    assert_eq!(
+        validate_module(&use_before_definition).expect_err("self-reference must fail closed"),
+        ModuleError::ValueUsedBeforeDefinition(ValueId::new(72).expect("product result"))
+    );
+
+    let (mut wrong_type, _, _) = saturating_multiply_module();
+    wrong_type.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
+    wrong_type.machines[0].contract.ensures.clear();
+    assert_eq!(
+        validate_module(&wrong_type).expect_err("mixed operand types must fail closed"),
+        ModuleError::SaturatingIntegerMultiplyOperandTypeMismatch {
+            operation: OperationId::new(70).expect("multiply operation"),
+            operand: ValueId::new(71).expect("right parameter"),
+            expected: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")),
+            actual: ScalarType::Boolean,
+        }
+    );
+}
+
+#[test]
 fn initial_control_vocabulary_rejects_unreachable_semantic_axioms() {
     let mut fixture = Fixture::new();
     fixture.module.machines[0].blocks.push(Block {
@@ -840,6 +913,72 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
     (
         TerminalModule {
             semantic_version: SemanticVersion::V7,
+            entry: machine.id,
+            machines: vec![machine],
+        },
+        goal,
+        obligation,
+    )
+}
+
+fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let left = ValueId::new(70).expect("left parameter");
+    let right = ValueId::new(71).expect("right parameter");
+    let product = ValueId::new(72).expect("product result");
+    let result = ValueId::new(73).expect("machine result");
+    let obligation = ObligationId::new(70).expect("obligation");
+    let term = |id| ScalarTerm::value(id, scalar_type);
+    let goal = Proposition::Equal(
+        term(result),
+        ScalarTerm::saturating_integer_multiply(integer, term(left), term(right)).unwrap(),
+    );
+    let machine = TerminalMachine {
+        id: MachineId::new(70).expect("machine"),
+        parameters: vec![
+            ValueDeclaration {
+                id: left,
+                scalar_type,
+            },
+            ValueDeclaration {
+                id: right,
+                scalar_type,
+            },
+        ],
+        result: ValueDeclaration {
+            id: result,
+            scalar_type,
+        },
+        entry: BlockId::new(70).expect("block"),
+        blocks: vec![Block {
+            id: BlockId::new(70).expect("block"),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: OperationId::new(70).expect("multiply operation"),
+                result: ValueDeclaration {
+                    id: product,
+                    scalar_type,
+                },
+                kind: OperationKind::SaturatingIntegerMultiply { left, right },
+            }],
+            terminator: Terminator::Return {
+                edge: EdgeId::new(70).expect("return edge"),
+                value: product,
+            },
+        }],
+        contract: MachineContract {
+            id: ContractId::new(70).expect("contract"),
+            requires: Vec::new(),
+            ensures: vec![ContractClause {
+                obligation,
+                proposition: goal.clone(),
+            }],
+        },
+    };
+    (
+        TerminalModule {
+            semantic_version: SemanticVersion::V8,
             entry: machine.id,
             machines: vec![machine],
         },

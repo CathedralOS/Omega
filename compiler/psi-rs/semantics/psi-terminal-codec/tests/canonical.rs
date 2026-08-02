@@ -25,7 +25,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "a0619727af6cb5b22fe41bdd77734f6d4f1b765902f8a7f000e78a5f136bc039"
+        "8b7ebb5a18f3ee1ac9937eac775623ec9a3fd1616b2207b0b89256bebd203efe"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -440,6 +440,77 @@ fn v7_wrapping_multiply_has_stable_canonical_bytes() {
 }
 
 #[test]
+fn archived_v7_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let archived = wrapping_multiply_fixture(SemanticVersion::V7);
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "ba5decde144648c31baff22f9d536591cd1c2f9db39470e02e948ff14db53132"
+    );
+    let migrated = migrate_module_to_current(&archived).expect("v7 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn v7_cannot_claim_the_v8_saturating_multiply_operation() {
+    let module = saturating_multiply_fixture(SemanticVersion::V7);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V8,
+                actual: SemanticVersion::V7,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v7_cannot_claim_the_v8_saturating_multiply_proposition_term() {
+    let mut module = wrapping_multiply_fixture(SemanticVersion::V7);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let product =
+        ScalarTerm::saturating_integer_multiply(integer, literal(20), literal(13)).unwrap();
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(literal(255), product));
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionRequiresSemanticVersion {
+                required: SemanticVersion::V8,
+                actual: SemanticVersion::V7,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v8_saturating_multiply_has_stable_canonical_bytes() {
+    let module = saturating_multiply_fixture(SemanticVersion::V8);
+    let bytes = encode_module(&module).expect("v8 saturating-multiply module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "14c981af3621e87b8e7763821197cf7ea11c08e44dea712217ae1e45f407d1a6"
+    );
+}
+
+#[test]
 fn semantic_mutation_changes_the_program_fingerprint() {
     let original = fixture();
     let mut changed = original.clone();
@@ -802,6 +873,15 @@ fn wrapping_multiply_fixture(semantic_version: SemanticVersion) -> TerminalModul
         value: IntegerValue::Unsigned(13),
     };
     module.machines[0].blocks[0].operations[2].kind = OperationKind::WrappingIntegerMultiply {
+        left: value_id(20),
+        right: value_id(21),
+    };
+    module
+}
+
+fn saturating_multiply_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let mut module = wrapping_multiply_fixture(semantic_version);
+    module.machines[0].blocks[0].operations[2].kind = OperationKind::SaturatingIntegerMultiply {
         left: value_id(20),
         right: value_id(21),
     };
