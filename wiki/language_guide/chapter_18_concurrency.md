@@ -80,8 +80,11 @@ task may not be copied, overwritten, dropped at ordinary scope exit, or lost
 on one branch.
 
 Implementation staging: the core `Task<T>` claim carrier, generic terminal and
-start outcome sums, and opaque `TaskRuntime::start` / `try_start` signatures
-have landed. Qualifier-aware generic payload propagation preserves a
+start outcome sums, and ordinary boundary-trait `TaskRuntime::start` /
+`try_start` requirements have landed. Each concrete activation binds the exact
+selected runtime provider plan and operation requirement; this does not yet
+manufacture a dynamic runtime-instance or invocation receipt. Qualifier-aware
+generic payload propagation preserves a
 substituted linear result or rejected argument bundle instead of silently
 losing its obligation through an unconstrained generic field. Concrete static
 targets produce `05_task_activations.json`; it now records a fixed-stack

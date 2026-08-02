@@ -112,13 +112,21 @@ the fixed-stack lowering rung below. `05_carry_manifest.json` remains useful
 because it names each suspension crossing and its typed live-value/storage
 frontier; tools consume that checked artifact rather than reinterpret source.
 
+`TaskRuntime` is now an ordinary boundary trait. Every concrete activation
+fact also retains the exact selected provider-plan identity and exact authored
+`start` or `try_start` requirement identity. Missing selection, duplicate slot
+selection, requirement drift, and provider narrowing of the published static
+machine contract reject. This is static provider/operation binding, not a
+fabricated runtime-instance or per-invocation receipt.
+
 The provider-independent selection gate is also live in `omega-task-plans`.
 It consumes one exact checked-conformance or admission-receipt identity for
 each demanded CPU/host-thread preservation axis, rejects missing or mismatched
 evidence, and folds the validated executor selection into the task lifecycle
 claim and dependency record. This is deliberately not a generalized runtime
 behavior/supply record. Connecting those identities to the ordinary selected
-`TaskRuntime` provider and source invocation receipt remains TR3–TR8 work.
+`TaskRuntime` provider plan is live; connecting dynamic provider-instance and
+source invocation receipts remains TR3–TR8 work.
 
 Architectural preemption does not itself create a semantic crossing. A runtime
 may stop and restore opaque register/stack state without changing the
@@ -501,10 +509,11 @@ arguments remain TR3–TR8 work.
    preservation. Keep incomplete derivation fail-closed.
 4. Retire `TaskRuntimeContract`, `AdmittedTaskRuntimeContract`,
    `PreemptionGranularity`, and the generalized activation/runtime join from
-   `omega-task-plans`. Connect the ordinary selected `TaskRuntime` provider,
-   stack resource/reservation, carry obligations, cancellation conformance, and
-   operation-specific `start` contract. Then add transactional
-   `start`/`try_start` ownership.
+   `omega-task-plans`. The ordinary selected `TaskRuntime` provider plan and
+   operation-specific requirement are connected to each concrete activation.
+   Next connect the provider-instance/invocation receipt, stack
+   resource/reservation, carry obligations, and cancellation conformance; then
+   add transactional `start`/`try_start` ownership.
 5. Connect the implemented normalized provider-provenance/child-lease ledger
    to selected runtime values and source `Task<T>` after provider selection and
    routed establishment lands. The ledger already prevents premature

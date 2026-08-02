@@ -1,5 +1,6 @@
 use omega_checked_trees::{
-    CheckedTrees, SuspensionCrossingStorage, TaskActivationPlanFact, TaskStartOperation,
+    CheckedTrees, SelectedTaskRuntimeProviderFact, SuspensionCrossingStorage,
+    TaskActivationPlanFact, TaskStartOperation,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
@@ -8,7 +9,8 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
     CanonicalSuspensionCrossing, MachineContractId, MachineEntryId, StackPlan,
-    StackRepresentationId, SuspensionCrossingId, ValueLayoutId, validate_activation_plan,
+    StackRepresentationId, SuspensionCrossingId, TaskRuntimeId, ValueLayoutId,
+    validate_activation_plan,
 };
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
@@ -19,56 +21,27 @@ pub(super) fn elaborate_task_activation_plans(
     program: &mut CheckedTrees,
     target: NativeTarget,
 ) -> Result<(), Vec<Diagnostic>> {
-    let specializations = program
-        .machine_specializations
-        .iter()
-        .filter(|specialization| {
-            program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.instance)
-                .is_some_and(|machine| task_start_operation(program, machine).is_some())
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    if specializations.is_empty() {
+    let selections = task_start_selections(program)?;
+    if selections.is_empty() {
         program.facts.contract_plans.task_activations.clear();
         return Ok(());
     }
     let layouts = omega_layout::build_layout_plan(program, target).map_err(|error| vec![error])?;
     let mut activations = Vec::new();
 
-    for specialization in specializations {
-        let Some(start_machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == specialization.instance)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "static-machine specialization 0x{:016x} names unknown concrete instance {:?}",
-                specialization.fingerprint, specialization.instance
-            ))]);
-        };
-        let Some(operation) = task_start_operation(program, start_machine) else {
-            continue;
-        };
-        let [target_entry] = specialization.machine_arguments.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "`{}` task-start specialization must select exactly one target machine, got {}",
-                start_machine.name,
-                specialization.machine_arguments.len()
-            ))]);
-        };
+    for selection in selections {
+        let selected_runtime = selected_task_runtime_provider(program, &selection)?;
+        let target_entry = selection.target_entry;
         let Some((target_machine, entry)) = program.machines().iter().find_map(|machine| {
             program
                 .machine_states(machine)
                 .iter()
-                .find(|state| state.symbol == *target_entry)
+                .find(|state| state.symbol == target_entry)
                 .map(|state| (machine, state))
         }) else {
             return Err(vec![Diagnostic::error(format!(
-                "`{}` task-start specialization selects unknown entry symbol {:?}",
-                start_machine.name, target_entry
+                "TaskRuntime start specialization selects unknown entry symbol {:?}",
+                target_entry
             ))]);
         };
         if !program.machine_type_parameters(target_machine).is_empty() {
@@ -175,17 +148,106 @@ pub(super) fn elaborate_task_activation_plans(
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
 
         activations.push(TaskActivationPlanFact {
-            start_instance: start_machine.symbol,
+            start_requirement: selection.requirement,
             target_machine: target_machine.symbol,
             target_entry: entry.symbol,
-            specialization_fingerprint: specialization.fingerprint,
-            operation,
+            specialization_fingerprint: selection.fingerprint,
+            operation: selection.operation,
+            selected_runtime,
             plan,
         });
     }
 
     program.facts.contract_plans.task_activations = activations;
     Ok(())
+}
+
+fn selected_task_runtime_provider(
+    program: &CheckedTrees,
+    selection: &TaskStartSelection,
+) -> Result<SelectedTaskRuntimeProviderFact, Vec<Diagnostic>> {
+    let Some(authored_requirement_identity) = program.traits().iter().find_map(|definition| {
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| signature.symbol == selection.requirement)
+            .map(|signature| {
+                program
+                    .normalized_trait_requirement_overload_identity(definition, signature)
+                    .identity()
+            })
+    }) else {
+        return Err(vec![Diagnostic::error(
+            "TaskRuntime activation names an unknown authored requirement",
+        )]);
+    };
+    let matches = program
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .filter(|plan| {
+            plan.schema.trait_name.rsplit("::").next() == Some("TaskRuntime")
+                && plan
+                    .schema
+                    .methods
+                    .iter()
+                    .any(|method| method.requirement_identity == authored_requirement_identity)
+        })
+        .collect::<Vec<_>>();
+    let [plan] = matches.as_slice() else {
+        return Err(vec![Diagnostic::error(match matches.len() {
+            0 => "TaskRuntime boundary slot has no retained selected provider plan".to_owned(),
+            count => format!(
+                "TaskRuntime boundary slot matches {count} retained selected provider plans"
+            ),
+        })]);
+    };
+    let requirement_name = match selection.operation {
+        TaskStartOperation::Start => "start",
+        TaskStartOperation::TryStart => "try_start",
+    };
+    let requirements = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|method| method.name == requirement_name)
+        .collect::<Vec<_>>();
+    let [method] = requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(match requirements.len() {
+            0 => format!(
+                "selected TaskRuntime provider plan `{}` has no `{requirement_name}` requirement",
+                plan.name
+            ),
+            count => format!(
+                "selected TaskRuntime provider plan `{}` has {count} `{requirement_name}` requirements; operation binding must be exact",
+                plan.name
+            ),
+        })]);
+    };
+    if method.requirement_identity != authored_requirement_identity {
+        return Err(vec![Diagnostic::error(format!(
+            "selected TaskRuntime provider plan `{}` binds `{requirement_name}` as `{}`, but the activation call requires `{authored_requirement_identity}`",
+            plan.name, method.requirement_identity
+        ))]);
+    }
+    let covering_rows = plan
+        .rows
+        .iter()
+        .filter(|row| plan.schema.row_binds_method(row, method))
+        .count();
+    if covering_rows != 1 {
+        return Err(vec![Diagnostic::error(format!(
+            "selected TaskRuntime provider plan `{}` binds `{requirement_name}` {covering_rows} times; exactly one operation realization is required",
+            plan.name
+        ))]);
+    }
+    let runtime = TaskRuntimeId::from_normalized_identity(plan.identity_fingerprint())
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    Ok(SelectedTaskRuntimeProviderFact {
+        runtime,
+        provider_plan_name: plan.name.clone(),
+        requirement_identity: method.requirement_identity.clone(),
+    })
 }
 
 struct ActivationCarryCrossings<'program> {
@@ -213,32 +275,143 @@ fn activation_carry_crossings(
     ActivationCarryCrossings { root, subtree }
 }
 
-fn task_start_operation(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TaskStartSelection {
+    requirement: omega_core::symbols::SymbolHandle,
+    target_entry: omega_core::symbols::SymbolHandle,
+    fingerprint: u64,
+    operation: TaskStartOperation,
+}
+
+fn task_start_selections(
     program: &CheckedTrees,
-    machine: &omega_checked_trees::machine::Machine,
-) -> Option<TaskStartOperation> {
-    let attached = machine.attached_data.as_ref()?;
-    if attached.as_str().rsplit("::").next() != Some("TaskRuntime")
-        || !matches!(
-            machine.supply_mode,
-            omega_core::semantics::MachineSupplyMode::Boundary
-                | omega_core::semantics::MachineSupplyMode::Accepted
-        )
-        || !program.data_definitions().iter().any(|definition| {
-            definition.name == *attached
-                && definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque
-        })
-    {
-        return None;
+) -> Result<Vec<TaskStartSelection>, Vec<Diagnostic>> {
+    let mut selections = Vec::new();
+    let mut diagnostics = Vec::new();
+    for (_, expression) in program.expression_table.iter_expressions() {
+        let omega_checked_trees::expression::ExpressionNode::Call(call) = expression else {
+            continue;
+        };
+        append_task_start_selection(
+            program,
+            call.target_symbol,
+            call.target.as_str(),
+            &call.machine_arguments,
+            &mut selections,
+            &mut diagnostics,
+        );
     }
-    let entry = program.machine_states(machine).first()?;
-    let result = program.display_type_reference(entry.return_type);
-    match (machine.name.as_str().rsplit("::").next(), result.as_str()) {
-        (Some("start"), result) if result.starts_with("Task<") => Some(TaskStartOperation::Start),
-        (Some("try_start"), result) if result.starts_with("StartOutcome<") => {
-            Some(TaskStartOperation::TryStart)
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let omega_checked_trees::statement::StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                append_task_start_selection(
+                    program,
+                    call.target_symbol,
+                    call.target.as_str(),
+                    &call.machine_arguments,
+                    &mut selections,
+                    &mut diagnostics,
+                );
+            }
         }
-        _ => None,
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    selections.sort_by_key(|selection| selection.fingerprint);
+    selections.dedup();
+    Ok(selections)
+}
+
+fn append_task_start_selection(
+    program: &CheckedTrees,
+    requirement: omega_core::symbols::SymbolHandle,
+    target_name: &str,
+    machine_arguments: &[omega_checked_trees::expression::StaticMachineArgument],
+    selections: &mut Vec<TaskStartSelection>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some((definition, signature, operation)) = program.traits().iter().find_map(|definition| {
+        if !definition.is_boundary
+            || definition.name.as_str().rsplit("::").next() != Some("TaskRuntime")
+        {
+            return None;
+        }
+        program
+            .trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| signature.symbol == requirement)
+            .and_then(|signature| {
+                let result = program.display_type_reference(signature.return_type);
+                match (signature.name.as_str(), result.as_str()) {
+                    ("start", result) if result.starts_with("Task<") => {
+                        Some((definition, signature, TaskStartOperation::Start))
+                    }
+                    ("try_start", result) if result.starts_with("StartOutcome<") => {
+                        Some((definition, signature, TaskStartOperation::TryStart))
+                    }
+                    _ => None,
+                }
+            })
+    }) else {
+        return;
+    };
+    let [target] = machine_arguments else {
+        diagnostics.push(Diagnostic::error(format!(
+            "TaskRuntime requirement `{target_name}` must select exactly one static target machine, got {}",
+            machine_arguments.len()
+        )));
+        return;
+    };
+    let Some((target_machine, target_entry)) = program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == target.symbol)
+            .map(|entry| (machine, entry))
+    }) else {
+        // A generic wrapper may forward its own machine parameter. Its cloned
+        // concrete specialization contributes the eventual activation row.
+        if target.symbol.is_valid()
+            && program
+                .machines()
+                .iter()
+                .flat_map(|machine| program.machine_type_parameters(machine))
+                .any(|parameter| parameter.symbol == target.symbol)
+        {
+            return;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "TaskRuntime requirement `{target_name}` selects an unresolved static target `{}`",
+            target
+                .path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        )));
+        return;
+    };
+    let mut hash = StableHash::new();
+    hash.string("task-runtime-requirement-specialization-v1");
+    hash.string(
+        program
+            .normalized_trait_requirement_overload_identity(definition, signature)
+            .identity()
+            .as_str(),
+    );
+    hash.u64(entry_identity(program, target_machine, target_entry));
+    let selection = TaskStartSelection {
+        requirement,
+        target_entry: target_entry.symbol,
+        fingerprint: hash.finish(),
+        operation,
+    };
+    if !selections.contains(&selection) {
+        selections.push(selection);
     }
 }
 
@@ -623,19 +796,37 @@ mod tests {
                 case Started(task: Task<T>);
                 case Rejected(arguments: Arguments, reason: StartRejection);
             }
-            boundary data TaskRuntime;
-            boundary machine TaskRuntime::start<T, Arguments, machine Target>(
+            boundary trait TaskRuntime {
+                machine start<T, Arguments, machine Target>(
+                    &self,
+                    arguments: Arguments
+                ) -> Task<T>
+                where machine Target(arguments: Arguments) -> T suspends; blocks;
+                ensures true;
+                machine try_start<T, Arguments, machine Target>(
+                    &self,
+                    arguments: Arguments
+                ) -> StartOutcome<T, Arguments>
+                where machine Target(arguments: Arguments) -> T suspends; blocks;
+                ensures true;
+            }
+
+            data LocalTaskRuntime { }
+            LocalTaskRuntime satisfies TaskRuntime;
+            machine LocalTaskRuntime::start<T, Arguments, machine Target>(
                 &self,
                 arguments: Arguments
             ) -> Task<T>
             where machine Target(arguments: Arguments) -> T suspends; blocks;
-            ensures true;
-            boundary machine TaskRuntime::try_start<T, Arguments, machine Target>(
+            satisfies TaskRuntime::start
+            via Binding::CompilerIntrinsic("TaskRuntime::start");
+            machine LocalTaskRuntime::try_start<T, Arguments, machine Target>(
                 &self,
                 arguments: Arguments
             ) -> StartOutcome<T, Arguments>
             where machine Target(arguments: Arguments) -> T suspends; blocks;
-            ensures true;
+            satisfies TaskRuntime::try_start
+            via Binding::CompilerIntrinsic("TaskRuntime::try_start");
 
             boundary data Sleeper;
             boundary machine Sleeper::park(token: i32) suspends;
@@ -667,8 +858,24 @@ mod tests {
         let typed =
             omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type");
+        let provider_plans =
+            crate::pipeline::provider_plans::derive_satisfies_plans(&syntax, &typed, None);
+        assert_eq!(provider_plans.len(), 1);
+        assert!(
+            crate::pipeline::provider_plans::validate_provider_plan_candidates(
+                &typed,
+                &provider_plans,
+            )
+            .is_empty()
+        );
+        let selected = omega_checked_trees::SelectedProviderPlanFacts::from_selection(
+            &provider_plans,
+            &[provider_plans[0].name.clone()],
+        )
+        .expect("select complete TaskRuntime provider");
         let mut checked = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check and specialize task start");
+        checked.retain_selected_provider_plans(selected);
 
         elaborate_task_activation_plans(&mut checked, NativeTarget::macos_arm64())
             .expect("elaborate activation plan");
@@ -704,11 +911,34 @@ mod tests {
             activation.plan.normalized_identity().normalized_identity(),
             0
         );
+        assert_eq!(
+            activation.selected_runtime.provider_plan_name,
+            "LocalTaskRuntime::satisfies::TaskRuntime"
+        );
+        assert_eq!(
+            activation.selected_runtime.runtime.normalized_identity(),
+            checked
+                .selected_provider_plans()
+                .plans()
+                .first()
+                .expect("selected runtime plan")
+                .identity_fingerprint()
+        );
+        assert!(
+            activation
+                .selected_runtime
+                .requirement_identity
+                .contains("TaskRuntime")
+        );
 
         let manifest = omega_visualizations::task_activation_manifest_json(&checked);
         assert!(manifest.contains("\"operation\": \"start\""));
         assert!(manifest.contains("\"operation\": \"try_start\""));
         assert!(manifest.contains("\"target_machine\": \"Worker::run\""));
+        assert!(manifest.contains("\"selected_runtime\": {"));
+        assert!(
+            manifest.contains("\"provider_plan\": \"LocalTaskRuntime::satisfies::TaskRuntime\"")
+        );
         assert!(manifest.contains("\"stack_plan\": {\"bytes\": 16, \"alignment\": 8"));
         assert!(manifest.contains("\"canonical_suspension_crossings\": ["));
         assert!(manifest.contains(

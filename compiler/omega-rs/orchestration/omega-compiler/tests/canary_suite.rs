@@ -40637,26 +40637,36 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
             0,
             "the complete selected activation demand must have a public identity"
         );
+        assert_eq!(
+            activation.selected_runtime.provider_plan_name,
+            "CanaryTaskRuntime::satisfies::TaskRuntime"
+        );
+        assert_eq!(
+            activation.selected_runtime.runtime.normalized_identity(),
+            checked
+                .selected_provider_plans()
+                .plans()
+                .first()
+                .expect("selected TaskRuntime provider plan")
+                .identity_fingerprint()
+        );
+        assert!(
+            activation
+                .selected_runtime
+                .requirement_identity
+                .contains("TaskRuntime")
+        );
     }
 
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-task-runtime-machine-selection-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("task-runtime machine selection should emit build artifacts");
-    let manifest = fs::read_to_string(build_dir.join("05_task_activations.json"))
-        .expect("task activation manifest should be written");
-    let carry_manifest = fs::read_to_string(build_dir.join("05_carry_manifest.json"))
-        .expect("carry manifest should be written");
+    // Runtime-instance dispatch/lowering is a later rung. Exercise the exact
+    // checked artifacts directly instead of pretending the canary provider's
+    // placeholder intrinsic is an executable backend implementation.
+    let manifest = omega_visualizations::task_activation_manifest_json(&checked);
+    let carry_manifest = omega_visualizations::carry_manifest_json(&checked);
     assert!(manifest.contains("\"operation\": \"start\""));
     assert!(manifest.contains("\"operation\": \"try_start\""));
+    assert!(manifest.contains("\"start_requirement\": \"TaskRuntime::start\""));
+    assert!(manifest.contains("\"start_requirement\": \"TaskRuntime::try_start\""));
     assert_eq!(
         manifest
             .matches("\"target_machine\": \"Worker::run\"")
@@ -40666,6 +40676,13 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     assert_eq!(manifest.matches("\"may_suspend\": true").count(), 2);
     assert_eq!(manifest.matches("\"may_block\": false").count(), 2);
     assert_eq!(manifest.matches("\"activation_plan_id\": \"0x").count(), 2);
+    assert_eq!(manifest.matches("\"selected_runtime\": {").count(), 2);
+    assert_eq!(
+        manifest
+            .matches("\"provider_plan\": \"CanaryTaskRuntime::satisfies::TaskRuntime\"")
+            .count(),
+        2
+    );
     assert_eq!(
         manifest
             .matches("\"canonical_suspension_crossings\": [")
@@ -40686,7 +40703,6 @@ fn task_runtime_machine_selection_reaches_checked_activation_plans() {
     assert!(carry_manifest.contains("\"target\": \"Sleeper::park\""));
     assert!(carry_manifest.contains("\"storage\": \"call_argument\""));
     assert!(carry_manifest.contains("\"storage\": \"local\""));
-    let _ = fs::remove_dir_all(&build_dir);
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
@@ -41755,6 +41771,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/interrupt_acknowledgement_double_complete",
     "core/task_outcome_linear_payload_scope_loss",
     "tasks/task_runtime_machine_selection_effect_mismatch",
+    "tasks/task_runtime_provider_contract_narrowing",
+    "tasks/task_runtime_selected_provider_missing",
     "core/start_outcome_linear_arguments_scope_loss",
     "ownership/copy_linear_conflict",
     "ownership/linear_ambiguous_state_result_mapping",

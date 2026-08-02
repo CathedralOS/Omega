@@ -1,0 +1,1 @@
+narrows `Target` by omitting `blocks;`
