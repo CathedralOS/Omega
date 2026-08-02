@@ -22,9 +22,11 @@ bodyful contracts. Frozen semantic v1 contains representable integer constants;
 v2 adds Boolean constants; v3 adds exact-width wrapping integer addition; v4
 adds exact-width saturating integer addition; v5 adds exact-width
 wrapping integer subtraction; v6 adds exact-width saturating integer
-subtraction; v7 adds exact-width wrapping integer multiplication; current v8
-adds exact-width saturating integer multiplication. All eight use
-unconditional jump and return edges.
+subtraction; v7 adds exact-width wrapping integer multiplication; v8 adds
+exact-width saturating integer multiplication; current v9 adds proof-only
+structural-place declarations and content-conservation propositions without a
+new executable operation. Every executable slice uses unconditional jump and
+return edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -39,6 +41,11 @@ other checked-tree shapes. The source canary discards `CheckedTrees` before it
 verifies and executes the produced semantic module, proving the artifact has no
 frontend lifetime dependency. This is explicitly a migration adapter, not the
 target ownership direction: parsing and checking still need to move under Psi.
+The adapter also has a source-shape-independent content-plan translation: it
+rechecks each checked conservation fingerprint, removes arena-local symbols,
+and produces canonical v9 structural-place declarations and proposition terms.
+Integration into general executable-machine lowering waits on the broader
+frontend migration.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed
 fact `7i32 == 7i32` and asserts the executed result separately. An Omega
@@ -94,7 +101,7 @@ canary independently round-trips, verifies, meters, lowers, emits, and executes
 `u8` 200+100 as 44 after producer state is discarded; the v4 saturating
 canary follows the same path and clamps that sum to 255. A frozen-v1
 nine-parameter canary forces its returned `u8` through the host incoming-stack
-ABI and matches interpretation at 77. A current-v4 nested runtime canary wraps
+ABI and matches interpretation at 77. A v4 nested runtime canary wraps
 a register and ninth-argument stack `u8`, then saturates with another register
 to 255; a signed `i64` canary exercises both saturation bounds. Both agree with
 interpretation through real C ABI calls. Branching, the remaining
@@ -106,10 +113,10 @@ costs one operation plus one return edge, lowers, and executes parameter-fed
 `u8` 5-10 as 251 through a real C ABI call.
 The v6 saturating-subtract canary follows the same path and exercises
 both signed `i64` bounds through real C ABI calls.
-The current-v7 wrapping-multiply canary round-trips, verifies, costs one
+The v7 wrapping-multiply canary round-trips, verifies, costs one
 operation plus one return edge, and executes parameter-fed `u8` 20*13 as 4
 through a real C ABI call.
-The current-v8 saturating-multiply canary follows the same two-unit path and
+The v8 saturating-multiply canary follows the same two-unit path and
 executes parameter-fed signed `i64` multiplication through real C ABI calls,
 covering positive overflow, negative overflow, `MIN * -1`, and an ordinary
 negative product.
@@ -229,13 +236,19 @@ exact residual—not the partition arithmetic. External root correspondence and
 fresh issuance remain scoped admitted hypotheses with provenance; downstream
 conservation remains derived.
 
-Implementation checkpoint (2026-08-02): the source-to-checked precursor is
-live. Exact owner-projection calls, entry/current structural-place versions,
-and flattened canonical `separate(...)` equations retain one schema-stable
-fingerprint per callable/algebra in checked facts and proof/debug artifacts.
-They do not yet claim terminal-Psi verification: the proposition vocabulary,
-sealed frontier rows, and certificates described above remain to be added to
-the terminal module and verifier.
+Implementation checkpoint (2026-08-02): the source-to-checked precursor and
+the first terminal proposition slice are live. Exact owner-projection calls,
+entry/current structural-place versions, and flattened canonical
+`separate(...)` equations retain one schema-stable fingerprint per callable /
+algebra in checked facts and proof/debug artifacts. Terminal semantic v9
+declares proof-visible parameter/result roots and carries the exact algebra,
+semantic domain, projection fingerprint, versioned stable place path, and
+canonical equation. The checked-plan adapter rechecks the source fingerprint
+and strips arena-local handles. Canonical semantic bytes and minimal proof
+format v8 are golden-pinned; verifier checks restrict content propositions to
+`ensures`, reject invalid roots and `entry(result)`, and accept replaceable
+certificates. Identity-preserving reshuffle inference, sealed introduction and
+custody-exit frontier rows, and the general frontier theorem remain to land.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
@@ -270,11 +283,14 @@ payloads occupy the full signed or unsigned 128-bit field, and every sum type
 uses a closed one-byte tag. This intentionally favors one simple auditable
 encoding over density.
 
-Machines and blocks are strictly ordered by their stable identities; ensures
-are strictly ordered by obligation identity. Requirements and flattened
+Machines, blocks, and v9 structural-place declarations are strictly ordered by
+their stable identities; ensures are strictly ordered by obligation identity. Requirements and flattened
 conjunction members are strictly ordered by their canonical encoded bytes,
 duplicates are rejected, and symmetric equality operands use that same wire
-ordering. Nested conjunctions, proposition nesting, and recursive scalar terms
+ordering. Content equations order their symmetric sides canonically;
+`separate(...)` is flat, sorted, duplicate-free, and exact projection/domain,
+entry/current place, field, and fixed-index identities are encoded. Nested
+conjunctions, proposition nesting, recursive scalar terms, and content terms
 deeper than 256 edges are rejected. Execution-significant vectors—parameters, operations, and
 jump arguments—retain their declared order.
 
@@ -291,18 +307,19 @@ Semantic version 1 is frozen with `IntegerConstant`; version 2 adds
 `BooleanConstant`; version 3 adds `WrappingIntegerAdd`; version 4 adds
 `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
 adds `SaturatingIntegerSubtract`; version 7 adds `WrappingIntegerMultiply`;
-current version 8 adds `SaturatingIntegerMultiply`.
+version 8 adds `SaturatingIntegerMultiply`; current version 9 adds proof-only
+structural places and content-conservation propositions.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
-v1/v2/v3/v4/v5/v6/v7 modules under their original meaning, while an older
-module cannot claim a later operation tag. `migrate_module_to_current` is an
-explicit validated older-to-v8 translation:
+v1/v2/v3/v4/v5/v6/v7/v8 modules under their original meaning, while an older
+module cannot claim a later operation or proposition tag.
+`migrate_module_to_current` is an explicit validated older-to-v9 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v7 fingerprints
-and independently freeze the current v8 fingerprint and saturating-multiply
+migrated module. Golden tests retain the archived v1 through v8 fingerprints
+and independently freeze the current v9 fingerprint and content-conservation
 fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
@@ -311,9 +328,10 @@ original proposition vocabulary. Format v2 adds the recursive wrapping-add
 scalar term; format v3 adds the recursive saturating-add scalar term; format v4
 adds the recursive wrapping-subtract scalar term; format v5 adds the recursive
 saturating-subtract scalar term; format v6 adds the recursive wrapping-multiply
-scalar term; format v7 adds the recursive saturating-multiply scalar term. The
+scalar term; format v7 adds the recursive saturating-multiply scalar term;
+format v8 adds content-conservation propositions and structural-place terms. The
 encoder selects the minimal format needed by a carried proof tree, and the
-decoder rejects a v2, v3, v4, v5, v6, or v7 bundle representable in an earlier format.
+decoder rejects a v2, v3, v4, v5, v6, v7, or v8 bundle representable in an earlier format.
 Evidence entries are strictly ordered by `ObligationId`; the
 closed encoding covers kernel judgments, separately versioned recursive proof
 trees, and exact admission site/authority/evidence/profile identities. Unknown
@@ -383,13 +401,13 @@ subtraction and one return edge. It retains schedule v1 because the existing
 per-operation rule already determines that cost.
 The v6 parameter-fed saturating-subtract canary has the same two-unit
 shape and independently reaches both signed `i64` bounds.
-The current-v7 parameter-fed wrapping-multiply canary also costs two units and
+The v7 parameter-fed wrapping-multiply canary also costs two units and
 computes `u8` 20*13 as 4.
-The current-v8 parameter-fed saturating-multiply canary costs two units and
+The v8 parameter-fed saturating-multiply canary costs two units and
 reaches both signed `i64` bounds.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. Because the supported v1/v2/v3/v4/v5/v6/v7/v8 control vocabulary currently
+schedule. Because the supported v1/v2/v3/v4/v5/v6/v7/v8/v9 control vocabulary currently
 permits one acyclic straight-line path, it derives an exact entry-to-return
 ceiling with no additional precondition assumptions. The certificate keys the
 canonical terminal-Psi identity, entry machine, reached return edge, schedule
@@ -411,16 +429,17 @@ migration remain later slices.
 2. Extend the live stable Psi value, proposition, proof, and place identities
    into the first terminal semantic module without changing the current backend.
    **Initial scalar subsets complete:** frozen v1 integer constants, v2 Boolean
-   constants, v3 wrapping integer addition, v4 saturating integer addition, and
-   v5 wrapping integer subtraction, v6 saturating integer subtraction, v7
-   wrapping integer multiplication, and current-v8 saturating integer
-   multiplication have verifier,
-   direct-interpreter, canonical-codec, fuel, Omega-lowering, and native-return
-   coverage. The runtime-parameter slice covers direct returns plus recursive
+   constants, v3 wrapping integer addition, v4 saturating integer addition, v5
+   wrapping integer subtraction, v6 saturating integer subtraction, v7
+   wrapping integer multiplication, and v8 saturating integer multiplication
+   have verifier, direct-interpreter, canonical-codec, fuel, Omega-lowering,
+   and native-return coverage. The runtime-parameter slice covers direct returns plus recursive
    wrapping/saturating addition, subtraction, and multiplication
-   expressions over native
-   register and incoming-stack ABI locations. Structural places, general register assignment, and the other
-   arithmetic variants remain later slices.
+   expressions over native register and incoming-stack ABI locations. The v9
+   content slice has canonical semantic/proof bytes, checked-plan translation,
+   and certificate verification; identity-reshuffle inference and sealed
+   frontier rows remain. Executable storage places, general register assignment,
+   and the other arithmetic variants remain later slices.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
@@ -433,7 +452,7 @@ migration remain later slices.
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,
-   conservation, boundary operations, suspension, and scoped ordering as
+   conservation inference/frontiers, boundary operations, suspension, and scoped ordering as
    reviewed vertical slices.
 5. Move binding substitution and concrete instantiation above terminal Psi so
    no Omega pass consumes source expressions.
@@ -448,9 +467,9 @@ migration remain later slices.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v8 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v9 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
-   identities are frozen as well. Typed
+   identities plus the v8 saturating-multiply identity are frozen as well. Typed
    installation records are live; typed debug/source maps
    remain a later artifact slice.
 

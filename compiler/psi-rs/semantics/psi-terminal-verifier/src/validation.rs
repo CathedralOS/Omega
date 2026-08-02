@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, ContractId, EdgeId, MachineId, ObligationId, OperationId, Proposition,
+    BlockId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, Proposition,
     PropositionContext, PropositionError, ScalarTerm, ScalarType, ValueId,
 };
 use psi_terminal::{OperationKind, SemanticVersion, TerminalMachine, TerminalModule, Terminator};
@@ -24,8 +24,14 @@ impl<'module> ValidatedTerminalModule<'module> {
         self,
         machine: &TerminalMachine,
     ) -> Result<PropositionContext, ModuleError> {
-        PropositionContext::from_value_types(machine_value_types(machine))
-            .map_err(ModuleError::MalformedProposition)
+        PropositionContext::from_value_types_and_places(
+            machine_value_types(machine),
+            machine
+                .structural_places
+                .iter()
+                .map(|place| (place.id, place.kind)),
+        )
+        .map_err(ModuleError::MalformedProposition)
     }
 }
 
@@ -42,6 +48,7 @@ pub fn validate_module(
             | SemanticVersion::V6
             | SemanticVersion::V7
             | SemanticVersion::V8
+            | SemanticVersion::V9
     ) {
         return Err(ModuleError::UnsupportedSemanticVersion(
             module.semantic_version,
@@ -81,6 +88,13 @@ struct IdRegistry {
     edges: BTreeSet<EdgeId>,
     obligations: BTreeSet<ObligationId>,
     values: BTreeSet<ValueId>,
+    places: BTreeSet<PlaceId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum StructuralRootKey {
+    Parameter(u32),
+    Result,
 }
 
 fn validate_machine(
@@ -94,6 +108,29 @@ fn validate_machine(
 
     let mut blocks = BTreeMap::new();
     let mut value_types = BTreeMap::new();
+    let mut structural_roots = BTreeSet::new();
+    if semantic_version < SemanticVersion::V9 && !machine.structural_places.is_empty() {
+        return Err(ModuleError::StructuralPlacesRequireSemanticVersion {
+            machine: machine.id,
+            required: SemanticVersion::V9,
+            actual: semantic_version,
+        });
+    }
+    for place in &machine.structural_places {
+        insert_unique(&mut registry.places, place.id, ModuleError::DuplicatePlace)?;
+        let root = match place.kind {
+            psi_core::StructuralPlaceKind::Parameter { position, .. } => {
+                StructuralRootKey::Parameter(position)
+            }
+            psi_core::StructuralPlaceKind::Result => StructuralRootKey::Result,
+        };
+        if !structural_roots.insert(root) {
+            return Err(ModuleError::DuplicateStructuralPlaceRoot {
+                machine: machine.id,
+                kind: place.kind,
+            });
+        }
+    }
     for declaration in machine
         .parameters
         .iter()
@@ -259,9 +296,14 @@ fn validate_machine(
         return Err(ModuleError::EntryBlockCannotHaveParameters(machine.entry));
     }
 
-    let context =
-        PropositionContext::from_value_types(value_types.iter().map(|(id, ty)| (*id, *ty)))
-            .map_err(ModuleError::MalformedProposition)?;
+    let context = PropositionContext::from_value_types_and_places(
+        value_types.iter().map(|(id, ty)| (*id, *ty)),
+        machine
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind)),
+    )
+    .map_err(ModuleError::MalformedProposition)?;
     let requires_values = machine
         .parameters
         .iter()
@@ -343,6 +385,20 @@ fn validate_proposition_semantic_version(
         } => {
             validate_proposition_semantic_version(premise, semantic_version, contract, clause)?;
             validate_proposition_semantic_version(conclusion, semantic_version, contract, clause)
+        }
+        Proposition::ContentConservation(_) => {
+            if semantic_version < SemanticVersion::V9 {
+                return Err(ModuleError::PropositionRequiresSemanticVersion {
+                    contract,
+                    clause,
+                    required: SemanticVersion::V9,
+                    actual: semantic_version,
+                });
+            }
+            if clause != ContractClauseKind::Ensures {
+                return Err(ModuleError::ContentConservationRequiresEnsures { contract });
+            }
+            Ok(())
         }
     }
 }
@@ -457,6 +513,7 @@ fn validate_contract_scope(
             validate_contract_scope(premise, allowed, contract, clause)?;
             validate_contract_scope(conclusion, allowed, contract, clause)
         }
+        Proposition::ContentConservation(_) => Ok(()),
     }
 }
 
@@ -742,6 +799,11 @@ pub enum ModuleError {
     DuplicateEdge(EdgeId),
     DuplicateObligation(ObligationId),
     DuplicateValue(ValueId),
+    DuplicatePlace(PlaceId),
+    DuplicateStructuralPlaceRoot {
+        machine: MachineId,
+        kind: psi_core::StructuralPlaceKind,
+    },
     UnknownEntryMachine(MachineId),
     MachineHasNoBlocks(MachineId),
     UnknownEntryBlock {
@@ -753,6 +815,14 @@ pub enum ModuleError {
         contract: ContractId,
         clause: ContractClauseKind,
         value: ValueId,
+    },
+    StructuralPlacesRequireSemanticVersion {
+        machine: MachineId,
+        required: SemanticVersion,
+        actual: SemanticVersion,
+    },
+    ContentConservationRequiresEnsures {
+        contract: ContractId,
     },
     UnknownTargetBlock(BlockId),
     UnknownValue(ValueId),

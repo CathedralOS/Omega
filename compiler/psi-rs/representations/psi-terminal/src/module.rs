@@ -1,8 +1,8 @@
 use std::num::NonZeroU16;
 
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, Proposition,
-    ScalarType, ValueId,
+    BlockId, ContractId, EdgeId, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    Proposition, ScalarType, StructuralPlaceKind, ValueId,
 };
 
 /// Version of the in-memory terminal-Psi semantic vocabulary.
@@ -13,6 +13,8 @@ use psi_core::{
 /// `SaturatingIntegerAdd`; version 5 adds `WrappingIntegerSubtract`; version 6
 /// adds `SaturatingIntegerSubtract`; version 7 adds
 /// `WrappingIntegerMultiply`; version 8 adds `SaturatingIntegerMultiply`.
+/// Version 9 adds structural-place declarations and content-conservation
+/// propositions without adding an executable operation.
 /// Older bytes retain their original meaning and identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
@@ -26,7 +28,8 @@ impl SemanticVersion {
     pub const V6: Self = Self(NonZeroU16::new(6).expect("six is nonzero"));
     pub const V7: Self = Self(NonZeroU16::new(7).expect("seven is nonzero"));
     pub const V8: Self = Self(NonZeroU16::new(8).expect("eight is nonzero"));
-    pub const CURRENT: Self = Self::V8;
+    pub const V9: Self = Self(NonZeroU16::new(9).expect("nine is nonzero"));
+    pub const CURRENT: Self = Self::V9;
 
     pub fn new(raw: u16) -> Option<Self> {
         NonZeroU16::new(raw).map(Self)
@@ -56,9 +59,18 @@ pub struct TerminalMachine {
     pub parameters: Vec<ValueDeclaration>,
     /// Stable pseudo-value bound by every return edge and used by `ensures`.
     pub result: ValueDeclaration,
+    /// Proof-visible roots for structural-place propositions. Runtime scalar
+    /// parameters remain independently declared above.
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub entry: BlockId,
     pub blocks: Vec<Block>,
     pub contract: MachineContract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralPlaceDeclaration {
+    pub id: PlaceId,
+    pub kind: StructuralPlaceKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -56,6 +56,7 @@ fn v2_boolean_reaches_owned_object_image_and_native_execution() {
                 id: result,
                 scalar_type: ScalarType::Boolean,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(20).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(20).expect("block"),
@@ -192,6 +193,7 @@ fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(30).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(30).expect("block"),
@@ -355,6 +357,7 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(40).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(40).expect("block"),
@@ -526,6 +529,7 @@ fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(120).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(120).expect("block"),
@@ -655,6 +659,7 @@ fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(100).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(100).expect("block"),
@@ -791,6 +796,7 @@ fn v7_wrapping_multiply_matches_interpretation_and_native_execution() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(110).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(110).expect("block"),
@@ -927,6 +933,7 @@ fn v8_saturating_multiply_matches_interpretation_and_native_execution() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(130).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(130).expect("block"),
@@ -1057,6 +1064,7 @@ fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(60).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(60).expect("block"),
@@ -1189,6 +1197,7 @@ fn v4_signed_i64_runtime_saturation_matches_both_bounds_natively() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(80).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(80).expect("block"),
@@ -1287,6 +1296,7 @@ fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
                 id: result,
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: BlockId::new(50).expect("block"),
             blocks: vec![Block {
                 id: BlockId::new(50).expect("block"),

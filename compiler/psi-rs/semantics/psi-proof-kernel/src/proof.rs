@@ -166,22 +166,61 @@ fn check_node(
         } => {
             check_node(context, assumptions, semantic_axioms, left_equals_middle)?;
             check_node(context, assumptions, semantic_axioms, middle_equals_right)?;
-            let Proposition::Equal(left, first_middle) = &left_equals_middle.conclusion else {
-                return Err(ProofError::RulePremiseMismatch("equality transitivity"));
-            };
-            let Proposition::Equal(second_middle, right) = &middle_equals_right.conclusion else {
-                return Err(ProofError::RulePremiseMismatch("equality transitivity"));
-            };
-            let Proposition::Equal(expected_left, expected_right) = &proof.conclusion else {
-                return Err(ProofError::RuleConclusionMismatch("equality transitivity"));
-            };
-            if first_middle != second_middle {
-                return Err(ProofError::EqualityMiddleMismatch);
+            match (
+                &left_equals_middle.conclusion,
+                &middle_equals_right.conclusion,
+                &proof.conclusion,
+            ) {
+                (
+                    Proposition::Equal(left, first_middle),
+                    Proposition::Equal(second_middle, right),
+                    Proposition::Equal(expected_left, expected_right),
+                ) => {
+                    if first_middle != second_middle {
+                        return Err(ProofError::EqualityMiddleMismatch);
+                    }
+                    if left != expected_left || right != expected_right {
+                        return Err(ProofError::EqualityConclusionMismatch);
+                    }
+                    Ok(())
+                }
+                (
+                    Proposition::ContentConservation(left_equation),
+                    Proposition::ContentConservation(right_equation),
+                    Proposition::ContentConservation(expected),
+                ) => {
+                    if left_equation.algebra() != right_equation.algebra()
+                        || left_equation.algebra() != expected.algebra()
+                    {
+                        return Err(ProofError::EqualityAlgebraMismatch);
+                    }
+                    let left_terms = [left_equation.left(), left_equation.right()];
+                    let right_terms = [right_equation.left(), right_equation.right()];
+                    let mut shared_middle = false;
+                    for (left_index, left_term) in left_terms.iter().enumerate() {
+                        for (right_index, right_term) in right_terms.iter().enumerate() {
+                            if left_term != right_term {
+                                continue;
+                            }
+                            shared_middle = true;
+                            let composed = psi_core::ContentConservation::new(
+                                left_equation.algebra().clone(),
+                                left_terms[1 - left_index].clone(),
+                                right_terms[1 - right_index].clone(),
+                            );
+                            if &composed == expected {
+                                return Ok(());
+                            }
+                        }
+                    }
+                    Err(if shared_middle {
+                        ProofError::EqualityConclusionMismatch
+                    } else {
+                        ProofError::EqualityMiddleMismatch
+                    })
+                }
+                _ => Err(ProofError::RulePremiseMismatch("equality transitivity")),
             }
-            if left != expected_left || right != expected_right {
-                return Err(ProofError::EqualityConclusionMismatch);
-            }
-            Ok(())
         }
     }
 }
@@ -200,6 +239,7 @@ pub enum ProofError {
     ImplicationPremiseMismatch,
     ImplicationConclusionMismatch,
     EqualityMiddleMismatch,
+    EqualityAlgebraMismatch,
     EqualityConclusionMismatch,
     CertificateConclusionMismatch,
     RuleConclusionMismatch(&'static str),
@@ -271,5 +311,75 @@ mod tests {
         ])
         .expect("context");
         check_certificate(&context, &goal, &[], &axioms, &proof).expect("transitive equality");
+    }
+
+    #[test]
+    fn canonical_content_equalities_compose_through_either_orientation() {
+        use psi_core::{
+            ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
+            ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity,
+            ContentStructuralPlace, ContentTerm, PlaceId, StructuralPlaceKind,
+        };
+
+        let root = PlaceId::new(1).expect("place");
+        let projection = ContentProjectionIdentity {
+            domain: ContentDomainId::new(2).expect("domain"),
+            projection_fingerprint: 3,
+        };
+        let term = |field: &str| ContentTerm::Projection {
+            projection,
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root,
+                segments: vec![ContentPlaceSegment::Field(field.to_owned())],
+            },
+        };
+        let algebra = ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: "Byte".to_owned(),
+        };
+        let a = term("a");
+        let b = term("b");
+        let c = term("c");
+        let axioms = vec![
+            Proposition::ContentConservation(ContentConservation::new(
+                algebra.clone(),
+                a.clone(),
+                c.clone(),
+            )),
+            Proposition::ContentConservation(ContentConservation::new(
+                algebra.clone(),
+                b.clone(),
+                c,
+            )),
+        ];
+        let goal = Proposition::ContentConservation(ContentConservation::new(algebra, a, b));
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::EqualityTransitivity {
+                left_equals_middle: Box::new(ProofNode {
+                    conclusion: axioms[0].clone(),
+                    rule: ProofRule::SemanticAxiom { index: 0 },
+                }),
+                middle_equals_right: Box::new(ProofNode {
+                    conclusion: axioms[1].clone(),
+                    rule: ProofRule::SemanticAxiom { index: 1 },
+                }),
+            },
+        };
+        let context = PropositionContext::from_value_types_and_places(
+            [],
+            [(
+                root,
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            )],
+        )
+        .expect("context");
+
+        check_certificate(&context, &goal, &[], &axioms, &proof)
+            .expect("canonical equality orientation must not erase transitivity");
     }
 }

@@ -1,7 +1,9 @@
 use psi_core::{
-    AdmissionSiteId, BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, ObligationId, OperationId, ProfileDecisionId, Proposition, ScalarTerm,
-    ScalarType, ValueId,
+    AdmissionSiteId, BlockId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
+    ContentDomainId, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
+    ContentTerm, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId, Proposition,
+    PropositionContext, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId,
 };
 use psi_proof_kernel::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope, EvidenceRoute,
@@ -52,10 +54,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&8_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&9_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(8))
+        Err(ProofCodecError::UnsupportedFormatVersion(9))
     );
 }
 
@@ -106,6 +108,73 @@ fn proof_format_v2_canonically_encodes_closed_wrapping_arithmetic() {
         decode_proof_bundle(&unnecessarily_v3),
         Err(ProofCodecError::NonCanonicalEncoding)
     );
+}
+
+#[test]
+fn proof_format_v8_canonically_encodes_content_certificates() {
+    let root = PlaceId::new(80).expect("place");
+    let term = ContentTerm::Projection {
+        projection: ContentProjectionIdentity {
+            domain: ContentDomainId::new(81).expect("domain"),
+            projection_fingerprint: 0x8283,
+        },
+        subject: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root,
+            segments: Vec::new(),
+        },
+    };
+    let goal = Proposition::ContentConservation(ContentConservation::new(
+        ContentAlgebra {
+            kind: ContentAlgebraKind::CountedQuantity,
+            parameter: "Byte".to_owned(),
+        },
+        term.clone(),
+        term,
+    ));
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+    };
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(80),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(80),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: proof.clone(),
+            }),
+        }],
+    };
+    let context = PropositionContext::from_value_types_and_places(
+        [],
+        [(
+            root,
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        )],
+    )
+    .expect("context");
+    psi_proof_kernel::check_certificate(&context, &goal, &[], &[], &proof)
+        .expect("reflexive content certificate");
+
+    let bytes = encode_proof_bundle(&bundle).expect("proof v8 bytes");
+    assert_eq!(&bytes[8..10], &8_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "324790fa10f2378aece0064e0b3d64220398455745f6aa747376f4589c1a8550"
+    );
+
+    let mut old_version = bytes;
+    old_version[8..10].copy_from_slice(&7_u16.to_le_bytes());
+    assert!(matches!(
+        decode_proof_bundle(&old_version),
+        Err(ProofCodecError::InvalidTag("Proposition", 9))
+            | Err(ProofCodecError::NonCanonicalEncoding)
+    ));
 }
 
 #[test]
@@ -514,6 +583,7 @@ fn semantic_module() -> TerminalModule {
                 id: value_id(2),
                 scalar_type,
             },
+            structural_places: Vec::new(),
             entry: block_id(1),
             blocks: vec![Block {
                 id: block_id(1),

@@ -1,4 +1,6 @@
 use psi_core::{
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
     PsiSemanticId, ScalarTerm, ScalarType,
 };
@@ -17,10 +19,13 @@ const FORMAT_VERSION_V4: u16 = 4;
 const FORMAT_VERSION_V5: u16 = 5;
 const FORMAT_VERSION_V6: u16 = 6;
 const FORMAT_VERSION_V7: u16 = 7;
+const FORMAT_VERSION_V8: u16 = 8;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
+const MAX_CONTENT_TERM_DEPTH: usize = 256;
 const MAX_PROOF_DEPTH: usize = 256;
+const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofBundleFingerprint([u8; 32]);
@@ -66,6 +71,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             | FORMAT_VERSION_V5
             | FORMAT_VERSION_V6
             | FORMAT_VERSION_V7
+            | FORMAT_VERSION_V8
     ) {
         return Err(ProofCodecError::UnsupportedFormatVersion(format_version));
     }
@@ -173,10 +179,26 @@ fn validate_proposition(proposition: &Proposition, depth: usize) -> Result<(), P
             validate_proposition(premise, depth + 1)?;
             validate_proposition(conclusion, depth + 1)?;
         }
+        Proposition::ContentConservation(conservation) => {
+            validate_content_term_depth(conservation.left(), 0)?;
+            validate_content_term_depth(conservation.right(), 0)?;
+        }
     }
     proposition
         .validate()
         .map_err(ProofCodecError::MalformedProposition)
+}
+
+fn validate_content_term_depth(term: &ContentTerm, depth: usize) -> Result<(), ProofCodecError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(ProofCodecError::ContentTermNestingTooDeep);
+    }
+    if let ContentTerm::Separate(terms) = term {
+        for term in terms {
+            validate_content_term_depth(term, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), ProofCodecError> {
@@ -200,6 +222,14 @@ fn validate_scalar_term_depth(term: &ScalarTerm, depth: usize) -> Result<(), Pro
 
 fn required_format_version(bundle: &ProofBundle) -> u16 {
     if bundle.evidence.iter().any(|evidence| {
+        matches!(
+            &evidence.route,
+            EvidenceRoute::CertificateDerived(certificate)
+                if proof_uses_v8_content(&certificate.proof)
+        )
+    }) {
+        FORMAT_VERSION_V8
+    } else if bundle.evidence.iter().any(|evidence| {
         matches!(
             &evidence.route,
             EvidenceRoute::CertificateDerived(certificate)
@@ -252,6 +282,48 @@ fn required_format_version(bundle: &ProofBundle) -> u16 {
     }
 }
 
+fn proof_uses_v8_content(node: &ProofNode) -> bool {
+    proposition_uses_v8_content(&node.conclusion)
+        || match &node.rule {
+            ProofRule::Primitive(_)
+            | ProofRule::SemanticAxiom { .. }
+            | ProofRule::Assumption { .. } => false,
+            ProofRule::ConjunctionIntroduction(nodes) => nodes.iter().any(proof_uses_v8_content),
+            ProofRule::ConjunctionElimination { conjunction, .. } => {
+                proof_uses_v8_content(conjunction)
+            }
+            ProofRule::ImplicationIntroduction { body } => proof_uses_v8_content(body),
+            ProofRule::ImplicationElimination {
+                implication,
+                premise,
+            } => proof_uses_v8_content(implication) || proof_uses_v8_content(premise),
+            ProofRule::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            } => {
+                proof_uses_v8_content(left_equals_middle)
+                    || proof_uses_v8_content(middle_equals_right)
+            }
+        }
+}
+
+fn proposition_uses_v8_content(proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::ContentConservation(_) => true,
+        Proposition::Conjunction(conjuncts) => conjuncts.iter().any(proposition_uses_v8_content),
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => proposition_uses_v8_content(premise) || proposition_uses_v8_content(conclusion),
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::Equal(_, _)
+        | Proposition::LessThan(_, _)
+        | Proposition::LessOrEqual(_, _) => false,
+    }
+}
+
 fn proof_uses_v7_term(node: &ProofNode) -> bool {
     proposition_uses_v7_term(&node.conclusion)
         || match &node.rule {
@@ -276,7 +348,10 @@ fn proof_uses_v7_term(node: &ProofNode) -> bool {
 
 fn proposition_uses_v7_term(proposition: &Proposition) -> bool {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -328,7 +403,10 @@ fn proof_uses_v6_term(node: &ProofNode) -> bool {
 
 fn proposition_uses_v6_term(proposition: &Proposition) -> bool {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -380,7 +458,10 @@ fn proof_uses_v5_term(node: &ProofNode) -> bool {
 
 fn proposition_uses_v5_term(proposition: &Proposition) -> bool {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -432,7 +513,10 @@ fn proof_uses_v4_term(node: &ProofNode) -> bool {
 
 fn proposition_uses_v4_term(proposition: &Proposition) -> bool {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -490,7 +574,10 @@ fn proof_uses_v3_term(node: &ProofNode) -> bool {
 
 fn proposition_uses_v3_term(proposition: &Proposition) -> bool {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -550,7 +637,10 @@ fn proof_uses_v2_term(node: &ProofNode) -> bool {
 
 fn proposition_uses_v2_term(proposition: &Proposition) -> bool {
     match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => false,
+        Proposition::Truth
+        | Proposition::Falsehood
+        | Proposition::Atom(_)
+        | Proposition::ContentConservation(_) => false,
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => {
@@ -733,6 +823,72 @@ fn encode_proposition(
             writer.u8(8);
             encode_proposition(writer, premise, depth + 1, format_version)?;
             encode_proposition(writer, conclusion, depth + 1, format_version)?;
+        }
+        Proposition::ContentConservation(conservation) => {
+            if format_version < FORMAT_VERSION_V8 {
+                return Err(ProofCodecError::UnsupportedContentPropositionForFormat);
+            }
+            writer.u8(9);
+            encode_content_algebra(writer, conservation.algebra())?;
+            encode_content_term(writer, conservation.left(), 0)?;
+            encode_content_term(writer, conservation.right(), 0)?;
+        }
+    }
+    Ok(())
+}
+
+fn encode_content_algebra(
+    writer: &mut Writer,
+    algebra: &ContentAlgebra,
+) -> Result<(), ProofCodecError> {
+    writer.u8(match algebra.kind {
+        ContentAlgebraKind::IntervalSet => 1,
+        ContentAlgebraKind::CountedQuantity => 2,
+    });
+    writer.string("content algebra parameter", &algebra.parameter)
+}
+
+fn encode_content_term(
+    writer: &mut Writer,
+    term: &ContentTerm,
+    depth: usize,
+) -> Result<(), ProofCodecError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(ProofCodecError::ContentTermNestingTooDeep);
+    }
+    match term {
+        ContentTerm::Projection {
+            projection,
+            subject,
+        } => {
+            writer.u8(1);
+            writer.id(projection.domain);
+            writer.u64(projection.projection_fingerprint);
+            writer.u8(match subject.version {
+                ContentPlaceVersion::Entry => 1,
+                ContentPlaceVersion::Current => 2,
+            });
+            writer.id(subject.root);
+            writer.len("content place segments", subject.segments.len())?;
+            for segment in &subject.segments {
+                match segment {
+                    ContentPlaceSegment::Field(name) => {
+                        writer.u8(1);
+                        writer.string("content field", name)?;
+                    }
+                    ContentPlaceSegment::FixedIndex(index) => {
+                        writer.u8(2);
+                        writer.u64(*index);
+                    }
+                }
+            }
+        }
+        ContentTerm::Separate(terms) => {
+            writer.u8(2);
+            writer.len("separated content terms", terms.len())?;
+            for term in terms {
+                encode_content_term(writer, term, depth + 1)?;
+            }
         }
     }
     Ok(())
@@ -997,7 +1153,74 @@ fn decode_proposition(
             premise: Box::new(decode_proposition(reader, depth + 1, format_version)?),
             conclusion: Box::new(decode_proposition(reader, depth + 1, format_version)?),
         },
+        9 if format_version >= FORMAT_VERSION_V8 => {
+            let algebra = decode_content_algebra(reader)?;
+            let left = decode_content_term(reader, 0)?;
+            let right = decode_content_term(reader, 0)?;
+            Proposition::ContentConservation(ContentConservation::new(algebra, left, right))
+        }
         tag => return Err(ProofCodecError::InvalidTag("Proposition", tag)),
+    })
+}
+
+fn decode_content_algebra(reader: &mut Reader<'_>) -> Result<ContentAlgebra, ProofCodecError> {
+    let kind = match reader.u8()? {
+        1 => ContentAlgebraKind::IntervalSet,
+        2 => ContentAlgebraKind::CountedQuantity,
+        tag => return Err(ProofCodecError::InvalidTag("ContentAlgebraKind", tag)),
+    };
+    Ok(ContentAlgebra {
+        kind,
+        parameter: reader.string("content algebra parameter")?,
+    })
+}
+
+fn decode_content_term(
+    reader: &mut Reader<'_>,
+    depth: usize,
+) -> Result<ContentTerm, ProofCodecError> {
+    if depth > MAX_CONTENT_TERM_DEPTH {
+        return Err(ProofCodecError::ContentTermNestingTooDeep);
+    }
+    Ok(match reader.u8()? {
+        1 => {
+            let projection = ContentProjectionIdentity {
+                domain: reader.id::<ContentDomainId>("ContentDomainId")?,
+                projection_fingerprint: reader.u64()?,
+            };
+            let version = match reader.u8()? {
+                1 => ContentPlaceVersion::Entry,
+                2 => ContentPlaceVersion::Current,
+                tag => return Err(ProofCodecError::InvalidTag("ContentPlaceVersion", tag)),
+            };
+            let root = reader.id("PlaceId")?;
+            let count = reader.count()?;
+            let mut segments = Vec::new();
+            for _ in 0..count {
+                segments.push(match reader.u8()? {
+                    1 => ContentPlaceSegment::Field(reader.string("content field")?),
+                    2 => ContentPlaceSegment::FixedIndex(reader.u64()?),
+                    tag => return Err(ProofCodecError::InvalidTag("ContentPlaceSegment", tag)),
+                });
+            }
+            ContentTerm::Projection {
+                projection,
+                subject: ContentStructuralPlace {
+                    version,
+                    root,
+                    segments,
+                },
+            }
+        }
+        2 => {
+            let count = reader.count()?;
+            let mut terms = Vec::new();
+            for _ in 0..count {
+                terms.push(decode_content_term(reader, depth + 1)?);
+            }
+            ContentTerm::separate(terms).map_err(ProofCodecError::MalformedProposition)?
+        }
+        tag => return Err(ProofCodecError::InvalidTag("ContentTerm", tag)),
     })
 }
 
@@ -1133,6 +1356,10 @@ impl Writer {
         self.bytes(&value.to_le_bytes());
     }
 
+    fn u64(&mut self, value: u64) {
+        self.bytes(&value.to_le_bytes());
+    }
+
     fn id(&mut self, id: impl PsiSemanticId) {
         self.bytes(&id.get().to_le_bytes());
     }
@@ -1144,6 +1371,15 @@ impl Writer {
 
     fn index(&mut self, label: &'static str, index: usize) -> Result<(), ProofCodecError> {
         self.u32(u32::try_from(index).map_err(|_| ProofCodecError::IndexTooLarge(label))?);
+        Ok(())
+    }
+
+    fn string(&mut self, label: &'static str, value: &str) -> Result<(), ProofCodecError> {
+        if value.len() > MAX_CONTENT_IDENTITY_BYTES {
+            return Err(ProofCodecError::StringTooLong(label));
+        }
+        self.len(label, value.len())?;
+        self.bytes(value.as_bytes());
         Ok(())
     }
 }
@@ -1213,6 +1449,17 @@ impl<'bytes> Reader<'bytes> {
         }
     }
 
+    fn string(&mut self, label: &'static str) -> Result<String, ProofCodecError> {
+        let len =
+            usize::try_from(self.count()?).map_err(|_| ProofCodecError::StringTooLong(label))?;
+        if len > MAX_CONTENT_IDENTITY_BYTES {
+            return Err(ProofCodecError::StringTooLong(label));
+        }
+        std::str::from_utf8(self.take(len)?)
+            .map(str::to_owned)
+            .map_err(|_| ProofCodecError::InvalidUtf8(label))
+    }
+
     fn id<T: PsiSemanticId>(&mut self, label: &'static str) -> Result<T, ProofCodecError> {
         T::new(self.u64()?).ok_or(ProofCodecError::ZeroIdentity(label))
     }
@@ -1235,8 +1482,12 @@ pub enum ProofCodecError {
     NonCanonicalEncoding,
     PropositionNestingTooDeep,
     ScalarTermNestingTooDeep,
+    ContentTermNestingTooDeep,
     ProofNestingTooDeep,
     UnsupportedScalarTermForFormat,
+    UnsupportedContentPropositionForFormat,
+    StringTooLong(&'static str),
+    InvalidUtf8(&'static str),
     MalformedProposition(PropositionError),
 }
 
