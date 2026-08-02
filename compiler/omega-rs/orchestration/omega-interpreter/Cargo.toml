@@ -12,6 +12,10 @@ path = "src/lib.rs"
 omega-core = { path = "../../foundation/omega-core" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
+psi-core = { path = "../../../psi-rs/foundation/psi-core" }
+psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
+psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }
 
 [dev-dependencies]
 omega-compiler = { path = "../omega-compiler" }
+psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }

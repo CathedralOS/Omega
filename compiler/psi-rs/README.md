@@ -15,8 +15,13 @@ Current roots:
 
 - `foundation/psi-core`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
+- `representations/psi-terminal`: the in-memory terminal semantic module and
+  its first integer-constant / jump / return operation vocabulary;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
   checking, evidence envelopes, and sealed admission validation.
+- `semantics/psi-terminal-verifier`: structural module validation,
+  verifier-reconstructed operation/edge axioms, and exhaustive bodyful-contract
+  evidence checking.
 
 Canonical serialization and semantic fingerprints are intentionally deferred
 until the in-memory vocabulary has both interpreter and Omega-lowering

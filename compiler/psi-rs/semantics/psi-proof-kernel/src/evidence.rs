@@ -122,6 +122,7 @@ pub fn verify_obligation(
     context: &PropositionContext,
     obligation: &Obligation,
     assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
     route: EvidenceRoute,
     profile: &AdmissionProfile,
 ) -> Result<AcceptedFact, EvidenceError> {
@@ -144,6 +145,7 @@ pub fn verify_obligation(
                 context,
                 &obligation.proposition,
                 assumptions,
+                semantic_axioms,
                 &certificate.proof,
             )
             .map_err(EvidenceError::Certificate)?;
@@ -252,6 +254,7 @@ mod tests {
                     ObligationClass::AdmissionAuthorized(authorized),
                 ),
                 &[],
+                &[],
                 EvidenceRoute::Admitted(evidence),
                 &profile,
             )
@@ -282,6 +285,7 @@ mod tests {
                 ObligationClass::AdmissionAuthorized(authorized),
             ),
             &[],
+            &[],
             EvidenceRoute::Admitted(evidence),
             &profile,
         )
@@ -307,6 +311,7 @@ mod tests {
                     ObligationClass::AdmissionAuthorized(authorized),
                 ),
                 &[],
+                &[],
                 EvidenceRoute::Admitted(evidence),
                 &AdmissionProfile::default(),
             )
@@ -326,6 +331,7 @@ mod tests {
                     proposition,
                     ObligationClass::AdmissionAuthorized(authorized),
                 ),
+                &[],
                 &[],
                 EvidenceRoute::Admitted(evidence),
                 &AdmissionProfile::default(),
@@ -349,6 +355,7 @@ mod tests {
             verify_obligation(
                 &PropositionContext::default(),
                 &obligation(Proposition::Truth, ObligationClass::Derivable),
+                &[],
                 &[],
                 EvidenceRoute::CertificateDerived(certificate),
                 &AdmissionProfile::default(),
