@@ -897,11 +897,15 @@ improvements do not change public identity.
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
   asserts the returned `i32` independently; do not generalize that workaround
-  into the target Psi frontend.
+  into the target Psi frontend. The first source-independent Omega consumer is
+  live too: it accepts only `VerifiedTerminalModule` and emits an owned stream
+  of integer materializations, explicit jump bindings, and return requirements
+  with stable Psi provenance. Its representation and lowering crate contain no
+  checked/typed-tree, `ExpressionHandle`, or legacy `StateKey` dependency.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
-  Omega-to-Psi path. Next add the source-independent Omega abstract-operation
-  consumer for the live slice and compare interpreted/native results. Then add
+  Omega-to-Psi path. Next lower the source-independent requirement stream into
+  target/native realization and compare interpreted/native results. Then add
   operations in vertical slices containing execution
   semantics, generated obligations, sound proof rules, interpreter behavior,
   Omega lowering requirements, and canonical encoding. Merge the useful

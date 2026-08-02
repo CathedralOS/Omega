@@ -37,8 +37,14 @@ target ownership direction: parsing and checking still need to move under Psi.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed
 fact `7i32 == 7i32` and asserts the executed result separately. An Omega
-abstract-operation/native consumer, canonical bytes, fingerprints, branching,
-arithmetic-policy operations, and fuel remain next.
+source-independent consumer is also live:
+`omega-terminal-psi-to-abstract-operations` accepts only a
+`VerifiedTerminalModule` and produces an owned stream of integer
+materialization, jump binding, and return requirements with stable Psi
+provenance. Neither it nor `omega-terminal-abstract-operations` depends on
+checked/typed trees, `ExpressionHandle`, or the legacy source-shaped abstract
+operation plan. Target/native realization of that stream, canonical bytes,
+fingerprints, branching, arithmetic-policy operations, and fuel remain next.
 
 ## Boundary
 
@@ -170,9 +176,10 @@ identities. One execution verifies and runs one complete Psi semantic version.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
-   **Producer half complete:** the fail-closed compatibility adapter and a real
-   source canary now verify and execute after checked trees are dropped. The
-   source-independent Omega consumer and native comparison remain.
+   **In-memory producer/consumer complete:** the fail-closed compatibility
+   adapter and a real source canary now verify and execute after checked trees
+   are dropped, then lower the verified module into an owned, source-independent
+   Omega requirement stream. Target/native realization and comparison remain.
 4. Add calls, continuations, cleanup, conservation, boundary operations,
    suspension, and scoped ordering as reviewed vertical slices.
 5. Move binding substitution and concrete instantiation above terminal Psi so
