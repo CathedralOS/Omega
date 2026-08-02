@@ -19,8 +19,9 @@ tests reject any Psi dependency on Omega.
 The first in-memory executable slice is also live. `psi-terminal` defines a
 versioned module with stable machines, blocks, values, operations, edges, and
 bodyful contracts. Frozen semantic v1 contains representable integer constants;
-v2 adds Boolean constants; v3 adds exact-width wrapping integer addition;
-current v4 adds exact-width saturating integer addition. All four use
+v2 adds Boolean constants; v3 adds exact-width wrapping integer addition; v4
+adds exact-width saturating integer addition; current v5 adds exact-width
+wrapping integer subtraction. All five use
 unconditional jump and return edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
@@ -42,8 +43,8 @@ fact `7i32 == 7i32` and asserts the executed result separately. An Omega
 source-independent consumer is also live:
 `omega-terminal-psi-to-abstract-operations` accepts only a
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
-wrapping-add, saturating-add, jump-binding, and return requirements with stable
-Psi provenance. Its function records also retain declared runtime parameters
+wrapping-add, saturating-add, wrapping-subtract, jump-binding, and return
+requirements with stable Psi provenance. Its function records also retain declared runtime parameters
 and the result pseudo-value with exact scalar types. Neither it nor
 `omega-terminal-abstract-operations` depends on
 checked/typed trees, `ExpressionHandle`, or the legacy source-shaped abstract
@@ -56,7 +57,8 @@ return while retaining every contributing Psi operation and edge identity. It
 also uses the established native call planner to select AAPCS64, System V
 AMD64, or Microsoft x64 register/incoming-stack locations for runtime scalar
 parameters. Direct parameter returns stay explicit; parameter-fed wrapping and
-saturating additions lower to recursive, exact-width target expressions.
+saturating addition plus wrapping subtraction lower to recursive, exact-width
+target expressions.
 `omega-terminal-machine-emission` emits ordinary scalar-return code for
 AArch64 and x86-64 and rejects non-native integer widths.
 `omega-terminal-image-emission` then constructs an owned, canonical-order
@@ -65,7 +67,8 @@ semantic identity. It emits the compatibility Omega object container and
 standalone ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64 images through
 the shared image model and writers. Parameter-return emission supports Boolean
 and 8/16/32/64-bit integers in selected native registers or incoming stack
-slots on both architectures. Runtime wrapping/saturating addition supports
+slots on both architectures. Runtime wrapping/saturating addition and wrapping
+subtraction support
 signed and unsigned 8/16/32/64-bit operands, recursive expressions, and mixed
 immediate/register/stack leaves. The AArch64 emitter preserves every referenced
 argument register in an aligned local spill frame before evaluating into `x0`;
@@ -84,7 +87,7 @@ module, records its identity, discards the source and producing module, decodes
 a fresh module and proof bundle, validates their section manifest, and then
 drives verification, interpretation, and native realization. The v3 wrapping
 canary independently round-trips, verifies, meters, lowers, emits, and executes
-`u8` 200+100 as 44 after producer state is discarded; the current-v4 saturating
+`u8` 200+100 as 44 after producer state is discarded; the v4 saturating
 canary follows the same path and clamps that sum to 255. A frozen-v1
 nine-parameter canary forces its returned `u8` through the host incoming-stack
 ABI and matches interpretation at 77. A current-v4 nested runtime canary wraps
@@ -94,6 +97,9 @@ interpretation through real C ABI calls. Branching, the remaining
 arithmetic-policy variants, general register assignment, typed debug payloads,
 general safe-point/branch fixed-work checking, build-time fuel migration, and
 native fuel metering remain next.
+The current-v5 wrapping-subtract canary independently round-trips, verifies,
+costs one operation plus one return edge, lowers, and executes parameter-fed
+`u8` 5-10 as 251 through a real C ABI call.
 
 ## Boundary
 
@@ -240,25 +246,28 @@ semantic version and this fingerprint: proof bundles, installation records,
 and debug maps are deliberately absent and remain replaceable.
 
 Semantic version 1 is frozen with `IntegerConstant`; version 2 adds
-`BooleanConstant`; version 3 adds `WrappingIntegerAdd`; current version 4 adds
-`SaturatingIntegerAdd`. Both additions require two already defined operands of
-the exact result integer type and have distinct canonical recursive proposition
-terms for their exact logical results. Validation and execution continue to
-accept valid v1/v2/v3 modules under their original meaning, while an older
+`BooleanConstant`; version 3 adds `WrappingIntegerAdd`; version 4 adds
+`SaturatingIntegerAdd`; current version 5 adds `WrappingIntegerSubtract`.
+The arithmetic operations require two already defined operands of the exact
+result integer type and have distinct canonical recursive proposition terms for
+their exact logical results. Validation and execution continue to accept valid
+v1/v2/v3/v4 modules under their original meaning, while an older
 module cannot claim a later operation tag. `migrate_module_to_current` is an
-explicit validated older-to-v4 translation:
+explicit validated older-to-v5 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1, v2, and v3 fingerprints
-and independently freeze the current v4 fingerprint and saturating-add fixture.
+migrated module. Golden tests retain the archived v1, v2, v3, and v4
+fingerprints and independently freeze the current v5 fingerprint and
+wrapping-subtract fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the
 original proposition vocabulary. Format v2 adds the recursive wrapping-add
-scalar term; format v3 adds the recursive saturating-add scalar term. The
+scalar term; format v3 adds the recursive saturating-add scalar term; format v4
+adds the recursive wrapping-subtract scalar term. The
 encoder selects the minimal format needed by a carried proof tree, and the
-decoder rejects a v2 or v3 bundle representable in an earlier format.
+decoder rejects a v2, v3, or v4 bundle representable in an earlier format.
 Evidence entries are strictly ordered by `ObligationId`; the
 closed encoding covers kernel judgments, separately versioned recursive proof
 trees, and exact admission site/authority/evidence/profile identities. Unknown
@@ -319,11 +328,14 @@ outcomes, and trusted native block metering remain later IRFUEL slices.
 
 The v3 wrapping canary also costs four v1 units: two constants, one addition,
 and one return edge. Semantic-version migration therefore does not imply a fuel
-schedule change. The current-v4 saturating canary has the same four-unit shape;
+schedule change. The v4 saturating canary has the same four-unit shape;
 each newly admitted operation is reviewed against the closed schedule table.
+The current-v5 parameter-fed wrapping-subtract canary costs two units: one
+subtraction and one return edge. It retains schedule v1 because the existing
+per-operation rule already determines that cost.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. Because the supported v1/v2/v3/v4 control vocabulary currently
+schedule. Because the supported v1/v2/v3/v4/v5 control vocabulary currently
 permits one acyclic straight-line path, it derives an exact entry-to-return
 ceiling with no additional precondition assumptions. The certificate keys the
 canonical terminal-Psi identity, entry machine, reached return edge, schedule
@@ -345,12 +357,12 @@ migration remain later slices.
 2. Extend the live stable Psi value, proposition, proof, and place identities
    into the first terminal semantic module without changing the current backend.
    **Initial scalar subsets complete:** frozen v1 integer constants, v2 Boolean
-   constants, v3 wrapping integer addition, and current-v4 saturating integer
-   addition have verifier,
+   constants, v3 wrapping integer addition, v4 saturating integer addition, and
+   current-v5 wrapping integer subtraction have verifier,
    direct-interpreter, canonical-codec, fuel, Omega-lowering, and native-return
    coverage. The runtime-parameter slice covers direct returns plus recursive
-   wrapping/saturating expressions over native register and incoming-stack ABI
-   locations. Structural places, general register assignment, and the other
+   wrapping/saturating addition and wrapping-subtraction expressions over native
+   register and incoming-stack ABI locations. Structural places, general register assignment, and the other
    arithmetic variants remain later slices.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
@@ -379,7 +391,8 @@ migration remain later slices.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v4 modules; archived v3 wrapping identity is frozen as well. Typed
+   current-v5 modules; archived v3 wrapping-add and v4 saturating-add identities
+   are frozen as well. Typed
    installation records are live; typed debug/source maps
    remain a later artifact slice.
 

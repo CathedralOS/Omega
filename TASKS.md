@@ -902,8 +902,8 @@ improvements do not change public identity.
   validator are live; architecture tests forbid Psi dependencies on Omega.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
-  exact-width wrapping integer addition, current-v4 exact-width saturating
-  integer addition,
+  exact-width wrapping integer addition, v4 exact-width saturating integer
+  addition, and current-v5 exact-width wrapping integer subtraction,
   unconditional jump/return edges,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
@@ -961,11 +961,20 @@ improvements do not change public identity.
   saturating additions emit for signed or unsigned 8/16/32/64-bit integers on
   AArch64 and x86-64. AArch64 preserves referenced argument registers in an
   aligned spill frame before evaluating into `x0`, and both emitters retain the
-  original incoming-stack base across recursive evaluation. A nested current-v4
+  original incoming-stack base across recursive evaluation. A nested v4
   `u8` canary consumes the ninth stack argument, wraps to 4, saturates to 255,
   and matches interpretation through a real C ABI call; a signed `i64` canary
   independently reaches both saturation bounds. General register assignment
-  remains later implementation work. The
+  remains later implementation work. The next arithmetic slice is live in v5:
+  `WrappingIntegerSubtract` requires two defined operands of the exact result
+  integer type, reduces `left - right` modulo the declared 1–128-bit width, and
+  reinterprets signed reduced bits as two's complement. Its verifier axiom,
+  closed proof term, interpreter, schedule-v1 charge, abstract/target lowering,
+  constant folding, and AArch64/x86-64 runtime emission are live. Canonical
+  semantic v5 and minimal proof format v4 have distinct golden identities while
+  archived v1–v4 semantic and v1–v3 proof identities remain frozen. A
+  parameter-fed `u8` canary round-trips, verifies, costs one operation plus one
+  return edge, and agrees with real C ABI execution at 5-10 = 251. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
@@ -973,8 +982,9 @@ improvements do not change public identity.
   too, covering kernel, certificate, and admission evidence with independent
   proof-system versions. Proof format v1 remains byte-frozen for the original
   vocabulary; minimal format v2 adds recursive wrapping-add scalar terms;
-  minimal format v3 adds recursive saturating-add scalar terms; both reject
-  over-deep or unnecessarily newer encodings. A role-domain-separated
+  minimal format v3 adds recursive saturating-add scalar terms; minimal format
+  v4 adds recursive wrapping-subtract scalar terms; all reject over-deep or
+  unnecessarily newer encodings. A role-domain-separated
   manifest binds semantic,
   proof, optional installation, and optional debug section identities; proof,
   provider-record, or debug replacement changes container identity without
@@ -982,10 +992,10 @@ improvements do not change public identity.
   proof sections, discards the complete producer output, decodes and validates
   their manifest, and then compares interpreted/native behavior. Semantic v1
   remains decodable, verifiable, executable, and frozen to its integer
-  vocabulary; v2 adds `BooleanConstant`; v3 adds `WrappingIntegerAdd`; current
-  v4 adds `SaturatingIntegerAdd`; and explicit validated migration preserves an
-  older semantic graph while producing a new v4 fingerprint. Archived v1, v2,
-  and v3 identities remain frozen. The clean
+  vocabulary; v2 adds `BooleanConstant`; v3 adds `WrappingIntegerAdd`; v4 adds
+  `SaturatingIntegerAdd`; current v5 adds `WrappingIntegerSubtract`; and explicit
+  validated migration preserves an older semantic graph while producing a new
+  v5 fingerprint. Archived v1, v2, v3, and v4 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
@@ -1034,7 +1044,7 @@ improvements do not change public identity.
   has schedule-keyed provider summaries and provisions, rejects mixed
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
-  provider-authored precursor as a Psi proof. The terminal-Psi v1/v2/v3/v4
+  provider-authored precursor as a Psi proof. The terminal-Psi v1/v2/v3/v4/v5
   schemas, serialization, migration, and verifier/lowering boundary are owned
   by PSIIR.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic
@@ -1046,9 +1056,9 @@ improvements do not change public identity.
   stable operation/edge attribution, and an optional sponsor allowance fails
   atomically before an unpaid semantic site. The serialized source canary costs
   four units without changing its semantic fingerprint. Schedule v1 also
-  charges both v3 wrapping-add and v4 saturating-add operations one unit; each
-  arithmetic canary's two constants, addition, and return edge total four
-  units. Explicit in-memory
+  charges v3 wrapping-add, v4 saturating-add, and v5 wrapping-subtract operations
+  one unit. The closed v3/v4 arithmetic canaries each total four units; the
+  parameter-fed v5 subtraction canary totals two. Explicit in-memory
   execution state preserves the exact cursor and values across exhaustion;
   checked allowance replenishment resumes at the unpaid edge without replaying
   or double-charging earlier work. The first restricted checker now derives an

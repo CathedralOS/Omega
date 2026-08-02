@@ -25,7 +25,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "0ddada3ee80cd36a693cac576bf89bfb1cd84b4c928f3b3bb71ba7f163b51f19"
+        "5caabab4d824fb6211975a89a6eefeb24fbadfbde05db64f50b0f2697406f30d"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -167,7 +167,7 @@ fn archived_v3_bytes_keep_their_original_identity_and_migrate_explicitly() {
         "2c0e2777161b1a8840bb5f63e5b96bc6ecf0831bcbde76e4d218104f105e580d"
     );
     let migrated = migrate_module_to_current(&archived).expect("v3 migrates to current");
-    assert_eq!(migrated.semantic_version, SemanticVersion::V4);
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
     assert_eq!(migrated.entry, archived.entry);
     assert_eq!(migrated.machines, archived.machines);
     assert_ne!(
@@ -224,6 +224,77 @@ fn v4_saturating_add_has_stable_canonical_bytes() {
     assert_eq!(
         semantic_fingerprint(&module).unwrap().to_string(),
         "6f1bbce42a5a3e4632b99fc5bc1e528d4d9a18761bf12aa696be2a6073cda274"
+    );
+}
+
+#[test]
+fn archived_v4_bytes_keep_their_original_identity_and_migrate_explicitly() {
+    let archived = saturating_add_fixture(SemanticVersion::V4);
+    let archived_fingerprint = semantic_fingerprint(&archived).unwrap();
+
+    assert_eq!(
+        archived_fingerprint.to_string(),
+        "6f1bbce42a5a3e4632b99fc5bc1e528d4d9a18761bf12aa696be2a6073cda274"
+    );
+    let migrated = migrate_module_to_current(&archived).expect("v4 migrates to current");
+    assert_eq!(migrated.semantic_version, SemanticVersion::CURRENT);
+    assert_eq!(migrated.entry, archived.entry);
+    assert_eq!(migrated.machines, archived.machines);
+    assert_ne!(
+        semantic_fingerprint(&migrated).unwrap(),
+        archived_fingerprint
+    );
+}
+
+#[test]
+fn v4_cannot_claim_the_v5_wrapping_subtract_operation() {
+    let module = wrapping_subtract_fixture(SemanticVersion::V4);
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::OperationRequiresSemanticVersion {
+                required: SemanticVersion::V5,
+                actual: SemanticVersion::V4,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v4_cannot_claim_the_v5_wrapping_subtract_proposition_term() {
+    let mut module = saturating_add_fixture(SemanticVersion::V4);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let difference =
+        ScalarTerm::wrapping_integer_subtract(integer, literal(5), literal(10)).unwrap();
+    module.machines[0]
+        .contract
+        .requires
+        .push(Proposition::Equal(literal(251), difference));
+
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::PropositionRequiresSemanticVersion {
+                required: SemanticVersion::V5,
+                actual: SemanticVersion::V4,
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
+fn v5_wrapping_subtract_has_stable_canonical_bytes() {
+    let module = wrapping_subtract_fixture(SemanticVersion::V5);
+    let bytes = encode_module(&module).expect("v5 wrapping-subtract module should encode");
+
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(
+        semantic_fingerprint(&module).unwrap().to_string(),
+        "3ea582aeca24f9003ec33687bdc5ae403de933ede6005e33141a024ff069f965"
     );
 }
 
@@ -551,6 +622,21 @@ fn wrapping_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
 fn saturating_add_fixture(semantic_version: SemanticVersion) -> TerminalModule {
     let mut module = wrapping_add_fixture(semantic_version);
     module.machines[0].blocks[0].operations[2].kind = OperationKind::SaturatingIntegerAdd {
+        left: value_id(20),
+        right: value_id(21),
+    };
+    module
+}
+
+fn wrapping_subtract_fixture(semantic_version: SemanticVersion) -> TerminalModule {
+    let mut module = wrapping_add_fixture(semantic_version);
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(5),
+    };
+    module.machines[0].blocks[0].operations[1].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Unsigned(10),
+    };
+    module.machines[0].blocks[0].operations[2].kind = OperationKind::WrappingIntegerSubtract {
         left: value_id(20),
         right: value_id(21),
     };

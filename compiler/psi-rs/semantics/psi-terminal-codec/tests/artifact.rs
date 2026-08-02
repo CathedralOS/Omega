@@ -52,10 +52,10 @@ fn proof_bundle_has_stable_canonical_bytes_and_an_independent_identity() {
         Err(ProofCodecError::TrailingBytes(1))
     );
     let mut future = bytes;
-    future[8..10].copy_from_slice(&4_u16.to_le_bytes());
+    future[8..10].copy_from_slice(&5_u16.to_le_bytes());
     assert_eq!(
         decode_proof_bundle(&future),
-        Err(ProofCodecError::UnsupportedFormatVersion(4))
+        Err(ProofCodecError::UnsupportedFormatVersion(5))
     );
 }
 
@@ -147,6 +147,48 @@ fn proof_format_v3_canonically_encodes_closed_saturating_arithmetic() {
     assert_eq!(
         proof_bundle_fingerprint(&bundle).unwrap().to_string(),
         "d9cada7d8d15d785b3dbe60b8845032e58a1ee06f40532a4b15b320de495dbf6"
+    );
+}
+
+#[test]
+fn proof_format_v4_canonically_encodes_closed_wrapping_subtraction() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let left = ScalarTerm::integer(integer, IntegerValue::Unsigned(5)).unwrap();
+    let right = ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap();
+    let difference = ScalarTerm::wrapping_integer_subtract(integer, left, right).unwrap();
+    let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(251)).unwrap();
+    let goal = Proposition::Equal(difference, reduced);
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: obligation_id(1),
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: evidence_id(1),
+                proof_system_version: ProofSystemVersion::CURRENT,
+                proof: ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                },
+            }),
+        }],
+    };
+
+    psi_proof_kernel::check_certificate(
+        &psi_core::PropositionContext::default(),
+        &goal,
+        &[],
+        &[],
+        match &bundle.evidence[0].route {
+            EvidenceRoute::CertificateDerived(certificate) => &certificate.proof,
+            _ => unreachable!("fixture is certificate-derived"),
+        },
+    )
+    .expect("closed u8 wrapping subtraction proves 251");
+    let bytes = encode_proof_bundle(&bundle).expect("proof v4 bytes");
+    assert_eq!(&bytes[8..10], &4_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+    assert_eq!(
+        proof_bundle_fingerprint(&bundle).unwrap().to_string(),
+        "de2583689692dc8f2031d71d1f6a2d4256890cc3b5583d8d0fe9b36b36f83ecf"
     );
 }
 

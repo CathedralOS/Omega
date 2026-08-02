@@ -22,7 +22,8 @@ below extend it.
 Executable checkpoint (2026-08-02): the in-memory terminal semantic module now
 carries stable machine/block/value/operation/edge identities, representable
 integer constants, v2 Boolean constants, v3 exact-width wrapping integer
-addition, current-v4 exact-width saturating integer addition, unconditional
+addition, v4 exact-width saturating integer addition, current-v5 exact-width
+wrapping integer subtraction, unconditional
 jump/return control, and bodyful contracts. The
 verifier reconstructs operation, edge-binding, and return-binding axioms from
 the executable path, rejects unreachable fact sources and out-of-scope contract
@@ -43,7 +44,7 @@ and interpretation. This adapter does not change the target ownership rule:
 the current Omega-branded frontend still needs to migrate under Psi. A
 source-independent Omega abstract-operation consumer accepts only the verified
 module and emits owned scalar-materialization, wrapping-add, saturating-add,
-jump-binding, and return requirements with stable Psi provenance and no source
+wrapping-subtract, jump-binding, and return requirements with stable Psi provenance and no source
 handles. The clean
 target continuation resolves the current compile-known stream to a
 provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
@@ -60,6 +61,10 @@ signed `i64` two-bound canary agree with interpretation through real C ABI
 calls. General register assignment remains separate implementation work; this
 terminal slice uses bounded scratch registers and an aligned AArch64 argument
 spill frame.
+Current semantic v5 and proof format v4 add recursive wrapping-subtract
+vocabulary without changing fuel schedule v1. A parameter-fed `u8` canary
+round-trips, verifies, costs two units, and agrees with native execution at
+5-10 = 251.
 
 The vocabulary has canonical semantic bytes and a domain-separated semantic
 fingerprint; the source, wrapping, and saturating canaries round-trip after
@@ -82,10 +87,10 @@ replace the native executable admission/placement state machine. Typed
 debug/source maps remain. General register assignment remains on the legacy
 backend.
 
-Semantic v1 integer, v2 Boolean, and v3 wrapping modules retain their frozen
-bytes and execution semantics; explicit migration produces a new current-v4
-fingerprint. The v3 wrapping slice round-trips, verifies, meters, lowers, emits,
-and executes `u8` 200+100 as 44. The current v4 saturating slice traverses the
+Semantic v1 integer, v2 Boolean, v3 wrapping-add, and v4 saturating-add modules
+retain their frozen bytes and execution semantics; explicit migration produces
+a new current-v5 fingerprint. The v3 wrapping slice round-trips, verifies, meters, lowers, emits,
+and executes `u8` 200+100 as 44. The v4 saturating slice traverses the
 same path and clamps that sum to 255. The checkpoint still has no branching.
 `psi-terminal-fuel` defines schedule v1 as one unit per executed terminal
 operation and one unit per taken terminal edge. The verified interpreter returns
