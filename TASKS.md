@@ -229,6 +229,12 @@ retain exact claim identity and provenance across multi-hop wrappers. Bodyless
 or ambiguous targets remain fail-closed. The checked proof/debug surface retains
 the structured maps in `05_claim_outcomes.json`.
 
+Regression to restore: backend permission-event realization linking currently
+reports every event as `UNLINKED` in the nested and repeated linear transition
+call-ordinal canaries, even though canonical call ordinals and runtime call
+planning remain correct. This reproduces on pristine `origin/main`; restore the
+complete selected-instruction ledger without weakening the fail-closed report.
+
 Carry policy now follows the exact claim identity independently of the
 carrier's structural policy. Each qualification-evidence origin begins strict,
 its own positive permissions relax only that origin, and distinct origins and
@@ -632,14 +638,6 @@ service-table paths are already plan-driven.
 Remaining:
 
 - remove residual hardcoded placement decisions;
-- finish the remaining arm-local value-call lowering without changing
-  evaluation: an effectful call in a guarded target argument must execute
-  exactly once only after that arm is selected; never hoist it across the
-  guard. Guard comparisons with one call side now normalize through one
-  pre-dispatch result local, and receiver calls used as unconditional terminal
-  values now normalize through the established bind-then-return route.
-  Unconditional transition arguments and explicit bind-then-use forms are
-  already live;
 - implement the settled foreign-storage lifetime model: derive ordinary
   call-scoped borrows from reference-shaped ABI parameters; require storage
   used after return to move into an ordinary linear protocol claim; infer the

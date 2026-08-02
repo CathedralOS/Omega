@@ -75,15 +75,25 @@ fn lower_state_parts(
             (
                 parameter.name.as_str().to_string(),
                 parameter.type_reference.clone(),
+                parameter.is_mutable,
             )
         })
         .collect();
+    lowerer.current_state_self_parameter = lowerer
+        .symbol_resolved_trees
+        .state_parameters(parameters)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .cloned();
+    lowerer.current_state_locals.clear();
     lowerer.current_state_return_type = return_type.clone();
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
     let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
     lowerer.reference_struct_parameters = Vec::new();
     lowerer.current_state_parameter_names = Vec::new();
     lowerer.current_state_parameters = Vec::new();
+    lowerer.current_state_self_parameter = None;
+    lowerer.current_state_locals.clear();
     lowerer.current_state_return_type = None;
 
     Ok(State {
@@ -473,6 +483,114 @@ pub(crate) fn build_synthesized_arm_state(
         storage: StateStorage {
             parameters,
             return_type: Some(arm.return_type),
+            contracts: HandleSpan::empty(),
+            statements,
+            statement_nodes: Default::default(),
+        },
+    }
+}
+
+/// Build an arm-selected continuation for guarded named-target value calls:
+/// materialize every direct call argument in source order, then jump to the
+/// original target with those result locals substituted at their positions.
+pub(crate) fn build_synthesized_transition_argument_state(
+    lowerer: &mut Lowerer,
+    arm: crate::lowerer::SynthesizedTransitionArgumentState,
+) -> State {
+    use omega_symbol_resolved_trees::expression::{ExpressionNode, TableNamePath};
+    use omega_symbol_resolved_trees::statement::{
+        LocalData, LocalDataStorage, Statement, Transition, TransitionGuard, TransitionTarget,
+    };
+
+    let mut parameters = HandleSpan::empty();
+    if let Some(mut self_parameter) = arm.self_parameter {
+        self_parameter.symbol = SymbolHandle::invalid();
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_parameters
+            .append_to_span(&mut parameters, self_parameter);
+    }
+    for (name, type_reference, is_mutable) in arm.parameters {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_parameters
+            .append_to_span(
+                &mut parameters,
+                StateParameter {
+                    symbol: SymbolHandle::invalid(),
+                    name: DiagnosticName::generated(name),
+                    type_reference,
+                    is_const: false,
+                    is_mutable,
+                    is_self: false,
+                },
+            );
+    }
+
+    let target = arm.target;
+    let mut statements = HandleSpan::empty();
+    for call in arm.calls {
+        let hoist_name = DiagnosticName::generated(lowerer.next_hoist_name());
+        let call_initializer = lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .copy_from_self(call);
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_statements
+            .append_to_span(
+                &mut statements,
+                Statement::LocalData(LocalData {
+                    symbol: SymbolHandle::invalid(),
+                    name: hoist_name.clone(),
+                    storage: LocalDataStorage {
+                        type_reference: TypeReference::Unit,
+                        initial_value: call_initializer,
+                        is_mutable: false,
+                    },
+                }),
+            );
+
+        let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+        let mut members = HandleSpan::empty();
+        expressions.push_name_path_member(&mut members, hoist_name);
+        let result = expressions.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+        *expressions.expression_mut(call) = expressions.expression(result).clone();
+    }
+
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .state_statements
+        .append_to_span(
+            &mut statements,
+            Statement::Transition(Transition {
+                target: TransitionTarget::Named(target),
+                continuation: None,
+                guard: TransitionGuard::Always,
+            }),
+        );
+
+    State {
+        symbol: SymbolHandle::invalid(),
+        name: DiagnosticName::generated(arm.name),
+        storage: StateStorage {
+            parameters,
+            return_type: arm.return_type,
             contracts: HandleSpan::empty(),
             statements,
             statement_nodes: Default::default(),
