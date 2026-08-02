@@ -20,7 +20,10 @@ use psi_core::{
     ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
-use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
+use psi_terminal_codec::{
+    build_artifact_manifest, decode_module, decode_proof_bundle, encode_module,
+    encode_proof_bundle, terminal_psi_identity, validate_artifact_manifest,
+};
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_verifier::verify_module;
@@ -58,10 +61,25 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         .expect("source-produced terminal Psi should encode canonically");
     let original_identity = terminal_psi_identity(&lowered.semantic_module)
         .expect("source-produced terminal Psi should have a semantic identity");
-    let proof_bundle = lowered.proof_bundle.clone();
+    let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("source-produced proof bundle should encode canonically");
+    let artifact_manifest =
+        build_artifact_manifest(&lowered.semantic_module, &lowered.proof_bundle, None, None)
+            .expect("source-produced terminal sections should have a manifest");
     drop(lowered);
     let semantic_module = decode_module(&canonical_bytes)
         .expect("canonical source-produced terminal Psi should decode");
+    let proof_bundle = decode_proof_bundle(&canonical_proof_bytes)
+        .expect("canonical source-produced proof bundle should decode");
+    validate_artifact_manifest(
+        &semantic_module,
+        &proof_bundle,
+        None,
+        None,
+        artifact_manifest,
+    )
+    .expect("decoded source-produced sections should match their manifest");
+    assert_eq!(artifact_manifest.semantic(), original_identity);
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
         original_identity
@@ -169,10 +187,25 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("source-produced terminal Psi should encode canonically");
     let original_identity = terminal_psi_identity(&lowered.semantic_module)
         .expect("source-produced terminal Psi should have a semantic identity");
-    let proof_bundle = lowered.proof_bundle.clone();
+    let canonical_proof_bytes = encode_proof_bundle(&lowered.proof_bundle)
+        .expect("source-produced proof bundle should encode canonically");
+    let artifact_manifest =
+        build_artifact_manifest(&lowered.semantic_module, &lowered.proof_bundle, None, None)
+            .expect("source-produced terminal sections should have a manifest");
     drop(lowered);
     let semantic_module = decode_module(&canonical_bytes)
         .expect("canonical source-produced terminal Psi should decode");
+    let proof_bundle = decode_proof_bundle(&canonical_proof_bytes)
+        .expect("canonical source-produced proof bundle should decode");
+    validate_artifact_manifest(
+        &semantic_module,
+        &proof_bundle,
+        None,
+        None,
+        artifact_manifest,
+    )
+    .expect("decoded source-produced sections should match their manifest");
+    assert_eq!(artifact_manifest.semantic(), original_identity);
     assert_eq!(
         terminal_psi_identity(&semantic_module).unwrap(),
         original_identity

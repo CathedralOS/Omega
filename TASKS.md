@@ -910,11 +910,16 @@ improvements do not change public identity.
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
-  The real-source canary encodes, discards the producing module, decodes a fresh
-  module, verifies it with the separately retained proof bundle, and then
-  compares interpreted/native behavior. This does not yet provide standalone
-  object/image emission, section manifests/version migration, or migrate the
-  legacy backend.
+  Canonical proof-bundle bytes and a separate golden proof fingerprint are live
+  too, covering kernel, certificate, and admission evidence with independent
+  proof-system versions. A role-domain-separated manifest binds semantic,
+  proof, optional installation, and optional debug section identities; proof,
+  provider-record, or debug replacement changes container identity without
+  changing semantic identity. The real-source canary encodes both semantic and
+  proof sections, discards the complete producer output, decodes and validates
+  their manifest, and then compares interpreted/native behavior. This does not
+  yet provide standalone object/image emission, typed installation/debug
+  payload schemas, version migration, or migrate the legacy backend.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and
