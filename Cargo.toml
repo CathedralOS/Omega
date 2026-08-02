@@ -5,6 +5,7 @@ members = [
     "compiler/psi-rs/representations/psi-terminal",
     "compiler/psi-rs/semantics/psi-proof-kernel",
     "compiler/psi-rs/semantics/psi-terminal-verifier",
+    "compiler/psi-rs/semantics/psi-terminal-codec",
     "compiler/omega-rs/foundation/omega-core",
     "compiler/omega-rs/foundation/omega-target",
     "compiler/omega-rs/foundation/omega-calling-conventions",

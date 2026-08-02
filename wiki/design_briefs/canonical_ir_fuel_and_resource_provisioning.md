@@ -36,10 +36,13 @@ jump-binding, and return requirements with stable Psi provenance and no source
 handles. The clean target continuation now resolves that stream to a
 provenance-retaining immediate return, emits AArch64 and x86-64 machine code,
 and executes the emitted host entry in a linker harness with the same result as
-terminal interpretation. Standalone object/image integration and general
-register assignment remain on the legacy backend. This checkpoint still has no
-canonical serialization/fingerprint, branching/arithmetic operation, or fuel
-schedule.
+terminal interpretation. The initial vocabulary now also has canonical
+semantic bytes and a domain-separated semantic fingerprint; the source canary
+round-trips those bytes after discarding producer state while retaining the
+proof bundle as a separate artifact. Standalone object/image integration and
+general register assignment remain on the legacy backend. This checkpoint
+still has no branching/arithmetic operation, proof/install container manifest,
+version migration, or fuel schedule.
 
 ## Context
 

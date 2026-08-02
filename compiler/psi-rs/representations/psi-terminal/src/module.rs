@@ -7,8 +7,9 @@ use psi_core::{
 
 /// Version of the in-memory terminal-Psi semantic vocabulary.
 ///
-/// Canonical bytes and fingerprints remain deliberately undefined until this
-/// representation has both interpreter and Omega-lowering consumers.
+/// Version 1 has canonical bytes and a semantic fingerprint defined by
+/// `psi-terminal-codec`. Any meaning-changing vocabulary revision requires a
+/// new semantic version rather than reinterpretation of existing bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticVersion(NonZeroU16);
 
