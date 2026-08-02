@@ -551,9 +551,12 @@ mod tests {
 
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
+            type_parameters: HandleSpan::empty(),
             target_type,
+            index_arguments: HandleSpan::empty(),
             is_public: false,
             alias: None,
+            authored_routes: Vec::new(),
             predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
@@ -686,6 +689,7 @@ mod tests {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             service_reaches: HandleSpan::empty(),
+            invokes: HandleSpan::empty(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::empty(),
@@ -740,6 +744,7 @@ mod tests {
             decrease_view_arguments: HandleSpan::empty(),
             decrease_range: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             service_reaches: HandleSpan::empty(),
+            invokes: HandleSpan::empty(),
             suspends: false,
             blocks: false,
             contracts: HandleSpan::from_parts(

@@ -424,7 +424,7 @@ fn collect_constraints(
             TypeConstraintNode::Domain(name) => {
                 insert_reference(
                     report,
-                    name.as_str(),
+                    name.name.as_str(),
                     TypeReferenceUseKind::Constraint,
                     owner,
                 );
@@ -612,7 +612,9 @@ mod tests {
 
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
+            type_parameters: HandleSpan::empty(),
             target_type,
+            index_arguments: HandleSpan::empty(),
             is_public: false,
             alias: None,
             authored_routes: Vec::new(),

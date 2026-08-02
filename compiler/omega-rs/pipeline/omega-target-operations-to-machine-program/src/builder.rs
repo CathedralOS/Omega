@@ -47,6 +47,7 @@ mod tests {
                     role: AbstractValueStatementRole::TransitionTargetValue,
                 },
                 arithmetic_policy_adapter: None,
+                operator_provider_plan_identity: None,
             });
 
         let machine_program = build_machine_program(&target_operations).expect("machine program");
