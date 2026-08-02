@@ -956,10 +956,12 @@ improvements do not change public identity.
   table, the verified interpreter returns checked deterministic totals and
   stable operation/edge attribution, and an optional sponsor allowance fails
   atomically before an unpaid semantic site. The serialized source canary costs
-  four units without changing its semantic fingerprint. Build-time migration,
-  persisted execution state for replenish/resume, restricted entry/segment
-  certificates, response outcomes, provider-summary migration, and trusted
-  native metering remain.
+  four units without changing its semantic fingerprint. Explicit in-memory
+  execution state preserves the exact cursor and values across exhaustion;
+  checked allowance replenishment resumes at the unpaid edge without replaying
+  or double-charging earlier work. Build-time migration, restricted
+  entry/segment certificates, response outcomes, provider-summary migration,
+  and trusted native metering remain.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
   through content-algebra facts. The provider-independent executor-selection

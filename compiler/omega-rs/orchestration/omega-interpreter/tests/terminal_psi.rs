@@ -1,6 +1,6 @@
 use omega_interpreter::{
-    TerminalInterpretError, TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
-    interpret_terminal_with_meter,
+    TerminalExecution, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
+    interpret_terminal, interpret_terminal_measured, interpret_terminal_with_meter,
 };
 use psi_core::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
@@ -13,7 +13,9 @@ use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, SemanticVersion,
     TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
-use psi_terminal_fuel::{FuelChargeSite, FuelMeterError, TerminalFuelMeter, TerminalFuelSchedule};
+use psi_terminal_fuel::{
+    FuelChargeSite, FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelSchedule,
+};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
 
 #[test]
@@ -155,12 +157,48 @@ fn verified_integer_control_contract_slice_executes_directly() {
     let mut limited = TerminalFuelMeter::with_allowance(2);
     assert_eq!(
         interpret_terminal_with_meter(&verified, &[], &mut limited),
-        Err(TerminalInterpretError::Fuel(FuelMeterError::Exhausted {
-            schedule: TerminalFuelSchedule::CURRENT.identity(),
-            site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
-            required_units: 1,
-            remaining_units: 0,
-        }))
+        Err(TerminalInterpretError::Fuel(FuelMeterError::Exhausted(
+            FuelExhaustion {
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
+                required_units: 1,
+                remaining_units: 0,
+            }
+        )))
     );
     assert_eq!(limited.usage().total_units(), 2);
+
+    let mut execution = TerminalExecution::start(&verified, &[]).unwrap();
+    let mut resumable_meter = TerminalFuelMeter::with_allowance(2);
+    let exhaustion = FuelExhaustion {
+        schedule: TerminalFuelSchedule::CURRENT.identity(),
+        site: FuelChargeSite::Edge(EdgeId::new(2).unwrap()),
+        required_units: 1,
+        remaining_units: 0,
+    };
+    assert_eq!(
+        execution.resume(&mut resumable_meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(exhaustion)
+    );
+    resumable_meter.replenish(1).unwrap();
+    assert_eq!(
+        execution.resume(&mut resumable_meter).unwrap(),
+        TerminalExecutionStatus::Complete(expected)
+    );
+    assert_eq!(resumable_meter.usage().total_units(), 3);
+    assert_eq!(
+        resumable_meter
+            .usage()
+            .at(FuelChargeSite::Operation(OperationId::new(1).unwrap()))
+            .unwrap()
+            .executions(),
+        1,
+        "resume must not replay the already charged constant"
+    );
+    let completed_usage = resumable_meter.usage().clone();
+    assert_eq!(
+        execution.resume(&mut resumable_meter).unwrap(),
+        TerminalExecutionStatus::Complete(expected)
+    );
+    assert_eq!(resumable_meter.usage(), &completed_usage);
 }

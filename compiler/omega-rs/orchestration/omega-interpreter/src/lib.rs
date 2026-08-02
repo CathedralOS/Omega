@@ -89,8 +89,9 @@ mod value;
 
 pub use build_time::BuildTimeValue;
 pub use terminal_psi::{
-    MeasuredTerminalExecution, TerminalInterpretError, TerminalScalarValue, interpret_terminal,
-    interpret_terminal_measured, interpret_terminal_with_meter,
+    MeasuredTerminalExecution, TerminalExecution, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalScalarValue, interpret_terminal, interpret_terminal_measured,
+    interpret_terminal_with_meter,
 };
 
 pub use value::{Cell, Value};
