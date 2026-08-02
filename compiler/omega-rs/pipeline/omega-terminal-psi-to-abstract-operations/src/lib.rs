@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
-    TerminalValueBinding,
+    TerminalAbstractParameter, TerminalAbstractResult, TerminalValueBinding,
 };
 use psi_core::{BlockId, MachineId, ScalarType};
 use psi_terminal::{OperationKind, TerminalMachine, Terminator};
@@ -155,6 +155,18 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
     Ok(TerminalAbstractFunction {
         machine: machine.id,
         entry: machine.entry,
+        parameters: machine
+            .parameters
+            .iter()
+            .map(|parameter| TerminalAbstractParameter {
+                value: parameter.id,
+                scalar_type: parameter.scalar_type,
+            })
+            .collect(),
+        result: TerminalAbstractResult {
+            value: machine.result.id,
+            scalar_type: machine.result.scalar_type,
+        },
         operations,
     })
 }

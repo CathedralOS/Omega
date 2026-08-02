@@ -9,6 +9,7 @@ name = "omega_terminal_abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }

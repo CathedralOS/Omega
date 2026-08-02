@@ -6,7 +6,8 @@
 use omega_target::Architecture;
 use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
 use omega_terminal_target_operations::{
-    TerminalTargetFunction, TerminalTargetOperation, TerminalTargetOperationPlan,
+    MachineRegister, TerminalScalarParameterLocation, TerminalTargetFunction,
+    TerminalTargetOperation, TerminalTargetOperationPlan,
 };
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
 
@@ -53,6 +54,30 @@ fn emit_function(
             Architecture::Aarch64 => emit_aarch64_boolean_return(value),
             Architecture::X86_64 => emit_x86_64_boolean_return(value),
         },
+        TerminalTargetOperation::ReturnIntegerParameter {
+            source_value,
+            scalar_type,
+            location,
+            ..
+        } => {
+            require_native_integer_width(source_value, scalar_type)?;
+            match architecture {
+                Architecture::Aarch64 => {
+                    emit_aarch64_parameter_return(source_value, scalar_type.bits() > 32, location)?
+                }
+                Architecture::X86_64 => {
+                    emit_x86_64_parameter_return(source_value, scalar_type.bits() > 32, location)?
+                }
+            }
+        }
+        TerminalTargetOperation::ReturnBooleanParameter {
+            source_value,
+            location,
+            ..
+        } => match architecture {
+            Architecture::Aarch64 => emit_aarch64_parameter_return(source_value, false, location)?,
+            Architecture::X86_64 => emit_x86_64_parameter_return(source_value, false, location)?,
+        },
     };
     Ok(TerminalMachineCodeFunction {
         machine: function.machine,
@@ -78,13 +103,7 @@ fn integer_bits(
     scalar_type: IntegerType,
     value: IntegerValue,
 ) -> Result<u64, EmissionError> {
-    let width = scalar_type.bits();
-    if !matches!(width, 8 | 16 | 32 | 64) {
-        return Err(EmissionError::IntegerWidthNotNativelySupported {
-            value: source,
-            bits: width,
-        });
-    }
+    let width = require_native_integer_width(source, scalar_type)?;
     if !scalar_type.admits(value) {
         return Err(EmissionError::IntegerOutsideType(source));
     }
@@ -99,6 +118,131 @@ fn integer_bits(
         _ => return Err(EmissionError::IntegerSignMismatch(source)),
     };
     Ok(bits & mask)
+}
+
+fn require_native_integer_width(
+    source: ValueId,
+    scalar_type: IntegerType,
+) -> Result<u16, EmissionError> {
+    let width = scalar_type.bits();
+    if !matches!(width, 8 | 16 | 32 | 64) {
+        return Err(EmissionError::IntegerWidthNotNativelySupported {
+            value: source,
+            bits: width,
+        });
+    }
+    Ok(width)
+}
+
+fn emit_x86_64_parameter_return(
+    source: ValueId,
+    is_64: bool,
+    location: TerminalScalarParameterLocation,
+) -> Result<Vec<u8>, EmissionError> {
+    let mut bytes = Vec::new();
+    match location {
+        TerminalScalarParameterLocation::Register(register) => {
+            let register = x86_gpr_code(source, register)?;
+            let rex = 0x40 | (u8::from(is_64) << 3) | (((register >> 3) & 1) << 2);
+            if rex != 0x40 {
+                bytes.push(rex);
+            }
+            bytes.push(0x89); // mov eax/rax, selected argument register
+            bytes.push(0xc0 | ((register & 7) << 3));
+        }
+        TerminalScalarParameterLocation::IncomingStack { byte_offset } => {
+            let displacement = byte_offset.checked_add(8).ok_or(
+                EmissionError::IncomingStackOffsetNotEncodable {
+                    value: source,
+                    byte_offset,
+                },
+            )?;
+            if is_64 {
+                bytes.push(0x48);
+            }
+            bytes.push(0x8b); // mov eax/rax, [rsp + displacement]
+            if displacement <= i8::MAX as u32 {
+                bytes.extend_from_slice(&[0x44, 0x24, displacement as u8]);
+            } else {
+                bytes.extend_from_slice(&[0x84, 0x24]);
+                bytes.extend_from_slice(&displacement.to_le_bytes());
+            }
+        }
+    }
+    bytes.push(0xc3);
+    Ok(bytes)
+}
+
+fn x86_gpr_code(source: ValueId, register: MachineRegister) -> Result<u8, EmissionError> {
+    Ok(match register {
+        MachineRegister::X86Rax => 0,
+        MachineRegister::X86Rcx => 1,
+        MachineRegister::X86Rdx => 2,
+        MachineRegister::X86Rbx => 3,
+        MachineRegister::X86Rsp => 4,
+        MachineRegister::X86Rbp => 5,
+        MachineRegister::X86Rsi => 6,
+        MachineRegister::X86Rdi => 7,
+        MachineRegister::X86R8 => 8,
+        MachineRegister::X86R9 => 9,
+        MachineRegister::X86R10 => 10,
+        MachineRegister::X86R11 => 11,
+        MachineRegister::X86R12 => 12,
+        MachineRegister::X86R13 => 13,
+        MachineRegister::X86R14 => 14,
+        MachineRegister::X86R15 => 15,
+        MachineRegister::X86Xmm(_)
+        | MachineRegister::Aarch64X(_)
+        | MachineRegister::Aarch64V(_) => {
+            return Err(EmissionError::ParameterRegisterArchitectureMismatch {
+                value: source,
+                register,
+                architecture: Architecture::X86_64,
+            });
+        }
+    })
+}
+
+fn emit_aarch64_parameter_return(
+    source: ValueId,
+    is_64: bool,
+    location: TerminalScalarParameterLocation,
+) -> Result<Vec<u8>, EmissionError> {
+    let instruction = match location {
+        TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(register))
+            if register < 31 =>
+        {
+            if register == 0 {
+                None
+            } else {
+                let base = if is_64 { 0xaa00_03e0 } else { 0x2a00_03e0 };
+                Some(base | (u32::from(register) << 16))
+            }
+        }
+        TerminalScalarParameterLocation::Register(register) => {
+            return Err(EmissionError::ParameterRegisterArchitectureMismatch {
+                value: source,
+                register,
+                architecture: Architecture::Aarch64,
+            });
+        }
+        TerminalScalarParameterLocation::IncomingStack { byte_offset } => {
+            let scale = if is_64 { 8 } else { 4 };
+            if byte_offset % scale != 0 || byte_offset / scale > 0xfff {
+                return Err(EmissionError::IncomingStackOffsetNotEncodable {
+                    value: source,
+                    byte_offset,
+                });
+            }
+            let base = if is_64 { 0xf940_0000 } else { 0xb940_0000 };
+            Some(base | ((byte_offset / scale) << 10) | (31 << 5))
+        }
+    };
+    Ok(instruction
+        .into_iter()
+        .chain([0xd65f_03c0])
+        .flat_map(u32::to_le_bytes)
+        .collect())
 }
 
 fn emit_x86_64_return(scalar_type: IntegerType, bits: u64) -> Vec<u8> {
@@ -136,9 +280,21 @@ fn emit_aarch64_return(scalar_type: IntegerType, bits: u64) -> Vec<u8> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmissionError {
-    IntegerWidthNotNativelySupported { value: ValueId, bits: u16 },
+    IntegerWidthNotNativelySupported {
+        value: ValueId,
+        bits: u16,
+    },
     IntegerOutsideType(ValueId),
     IntegerSignMismatch(ValueId),
+    ParameterRegisterArchitectureMismatch {
+        value: ValueId,
+        register: MachineRegister,
+        architecture: Architecture,
+    },
+    IncomingStackOffsetNotEncodable {
+        value: ValueId,
+        byte_offset: u32,
+    },
     EntryFunctionMissing(MachineId),
 }
 
@@ -229,6 +385,143 @@ mod tests {
     }
 
     #[test]
+    fn emits_selected_register_parameter_returns_for_all_native_policies() {
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_x64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+                false,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0x89, 0xf8, 0xc3]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::windows_x64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86Rcx),
+                false,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0x89, 0xc8, 0xc3]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+                false,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0xc0, 0x03, 0x5f, 0xd6]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(1)),
+                false,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0xe0, 0x03, 0x01, 0x2a, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_x64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::X86R9),
+                true,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0x4c, 0x89, 0xc8, 0xc3]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(3)),
+                true,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0xe0, 0x03, 0x03, 0xaa, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+    }
+
+    #[test]
+    fn emits_selected_incoming_stack_parameter_returns_for_both_architectures() {
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_x64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 16 },
+                false,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0x8b, 0x44, 0x24, 24, 0xc3]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 0 },
+                false,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0xe0, 0x03, 0x40, 0xb9, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_x64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 16 },
+                true,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0x48, 0x8b, 0x44, 0x24, 24, 0xc3]
+        );
+        assert_eq!(
+            emit_machine_code(&parameter_plan(
+                NativeTarget::linux_arm64(),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 0 },
+                true,
+            ))
+            .unwrap()
+            .functions[0]
+                .bytes,
+            [0xe0, 0x03, 0x40, 0xf9, 0xc0, 0x03, 0x5f, 0xd6]
+        );
+    }
+
+    #[test]
+    fn emits_a_canonical_boolean_parameter_return() {
+        let mut plan = parameter_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+            false,
+        );
+        plan.functions[0].operation = TerminalTargetOperation::ReturnBooleanParameter {
+            psi_edge: EdgeId::new(1).expect("edge"),
+            source_value: ValueId::new(1).expect("value"),
+            parameter_index: 0,
+            location: TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+        };
+        assert_eq!(
+            emit_machine_code(&plan).unwrap().functions[0].bytes,
+            [0x89, 0xf8, 0xc3]
+        );
+    }
+
+    #[test]
     fn rejects_integer_width_without_a_native_scalar_realization() {
         let mut plan = plan(NativeTarget::linux_x64());
         let TerminalTargetOperation::ReturnIntegerImmediate {
@@ -243,6 +536,31 @@ mod tests {
             emit_machine_code(&plan),
             Err(EmissionError::IntegerWidthNotNativelySupported { bits: 128, .. })
         ));
+    }
+
+    fn parameter_plan(
+        target: NativeTarget,
+        location: TerminalScalarParameterLocation,
+        is_64: bool,
+    ) -> TerminalTargetOperationPlan {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, if is_64 { 64 } else { 8 })
+            .expect("integer type");
+        TerminalTargetOperationPlan {
+            terminal_psi: identity(),
+            target,
+            entry: MachineId::new(1).expect("machine"),
+            functions: vec![TerminalTargetFunction {
+                machine: MachineId::new(1).expect("machine"),
+                provenance: TerminalPsiProvenance::default(),
+                operation: TerminalTargetOperation::ReturnIntegerParameter {
+                    psi_edge: EdgeId::new(1).expect("edge"),
+                    source_value: ValueId::new(1).expect("value"),
+                    scalar_type,
+                    parameter_index: 0,
+                    location,
+                },
+            }],
+        }
     }
 
     fn identity() -> TerminalPsiIdentity {

@@ -43,21 +43,28 @@ source-independent consumer is also live:
 `omega-terminal-psi-to-abstract-operations` accepts only a
 `VerifiedTerminalModule` and produces an owned stream of scalar materialization,
 wrapping-add, saturating-add, jump-binding, and return requirements with stable
-Psi provenance. Neither it nor `omega-terminal-abstract-operations` depends on
+Psi provenance. Its function records also retain declared runtime parameters
+and the result pseudo-value with exact scalar types. Neither it nor
+`omega-terminal-abstract-operations` depends on
 checked/typed trees, `ExpressionHandle`, or the legacy source-shaped abstract
 operation plan.
 
 The first target/native realization is live on the same clean lane.
 `omega-terminal-abstract-operations-to-target-operations` resolves the verified
 compile-known scalar operations and jump bindings into a target immediate
-return while retaining every contributing Psi operation and edge identity.
+return while retaining every contributing Psi operation and edge identity. It
+also uses the established native call planner to select AAPCS64, System V
+AMD64, or Microsoft x64 register/incoming-stack locations for runtime scalar
+parameters returned directly.
 `omega-terminal-machine-emission` emits ordinary scalar-return code for
 AArch64 and x86-64 and rejects non-native integer widths.
 `omega-terminal-image-emission` then constructs an owned, canonical-order
 object artifact whose function spans retain terminal-Psi provenance and exact
 semantic identity. It emits the compatibility Omega object container and
 standalone ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64 images through
-the shared image model and writers. The relocation-free slice requires exact
+the shared image model and writers. Parameter-return emission supports Boolean
+and 8/16/32/64-bit integers in selected native registers or incoming stack
+slots on both architectures. The relocation-free slice requires exact
 final text, complete provenance-bearing compiler regions, and no unclassified
 executable gaps. The source, Boolean, wrapping-add, and saturating-add canaries
 drop all producing semantic and lowering state before artifact emission; the
@@ -72,10 +79,12 @@ a fresh module and proof bundle, validates their section manifest, and then
 drives verification, interpretation, and native realization. The v3 wrapping
 canary independently round-trips, verifies, meters, lowers, emits, and executes
 `u8` 200+100 as 44 after producer state is discarded; the current-v4 saturating
-canary follows the same path and clamps that sum to 255. Branching, the remaining
-arithmetic-policy variants, runtime terminal-parameter ABI/register lowering,
-typed debug payloads, general safe-point/branch fixed-work checking, build-time
-fuel migration, and native fuel metering remain next.
+canary follows the same path and clamps that sum to 255. A frozen-v1
+nine-parameter canary forces its returned `u8` through the host incoming-stack
+ABI and matches interpretation at 77. Branching, the remaining
+arithmetic-policy variants, parameter-fed runtime operations and general
+register assignment, typed debug payloads, general safe-point/branch fixed-work
+checking, build-time fuel migration, and native fuel metering remain next.
 
 ## Boundary
 
@@ -330,8 +339,10 @@ migration remain later slices.
    constants, v3 wrapping integer addition, and current-v4 saturating integer
    addition have verifier,
    direct-interpreter, canonical-codec, fuel, Omega-lowering, and native-return
-   coverage. Structural places, runtime terminal-parameter lowering, and the
-   other arithmetic variants remain later slices.
+   coverage. The first direct runtime-parameter return slice covers native
+   register and incoming-stack ABI locations. Structural places,
+   parameter-fed operations/general register assignment, and the other
+   arithmetic variants remain later slices.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.

@@ -128,6 +128,11 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
             functions: vec![TerminalAbstractFunction {
                 machine: MachineId::new(1).expect("machine"),
                 entry: BlockId::new(1).expect("entry block"),
+                parameters: Vec::new(),
+                result: omega_terminal_abstract_operations::TerminalAbstractResult {
+                    value: ValueId::new(4).expect("machine result"),
+                    scalar_type: ScalarType::Integer(i32_type),
+                },
                 operations: vec![
                     TerminalAbstractOperation::IntegerConstant {
                         psi_operation: OperationId::new(1).expect("operation"),
