@@ -8,17 +8,17 @@ use omega::language::std::console;
 data Main { console: Console; low: i32 in Wrapping; high: i32 in Wrapping; }
 machine Main::classify(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;
--> i32
+-> i32 in Wrapping
 {
     transition j < i {
         true -> classify(i, j + 1, acc + 2)
         false -> pick(acc)
     }
-    state pick(&mut self, acc: i32 in Wrapping) -> i32 {
+    state pick(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping {
         transition acc > 5 { true -> big(acc) false -> small(acc) }
     }
-    state big(&mut self, acc: i32 in Wrapping) -> i32 { acc }
-    state small(&mut self, acc: i32 in Wrapping) -> i32 { 0 - acc }
+    state big(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
+    state small(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { 0 - acc }
 }
 machine Main::main(&mut self) {
     // 4 iterations x 2 = 8 > 5 -> big -> 8; 2 iterations x 2 = 4 -> small -> -4.

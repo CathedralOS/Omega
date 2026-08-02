@@ -8,7 +8,7 @@ data Main {
 
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 {
     let r: i32 in Wrapping = x * 2;
-    transition { _ -> r }
+    transition { _ -> (r as i32) }
 }
 
 machine Main::main(&mut self) {

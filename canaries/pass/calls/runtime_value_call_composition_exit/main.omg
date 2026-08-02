@@ -17,15 +17,15 @@ data Main {
 
 machine Main::add_ten(&self, x: i32 in Wrapping) -> i32 {
     let r: i32 in Wrapping = x + 10;
-    transition { _ -> r }
+    transition { _ -> (r as i32) }
 }
 machine Main::double(&self, y: i32 in Wrapping) -> i32 {
     let r: i32 in Wrapping = y * 2;
-    transition { _ -> r }
+    transition { _ -> (r as i32) }
 }
 machine Main::minus_five(&self, z: i32 in Wrapping) -> i32 {
     let r: i32 in Wrapping = z - 5;
-    transition { _ -> r }
+    transition { _ -> (r as i32) }
 }
 
 machine Main::main(&mut self) {
@@ -38,6 +38,6 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(c); // surface the pipeline output on regression
+        self.console.exit_process(c as i32); // surface the pipeline output on regression
     }
 }

@@ -48,7 +48,7 @@ machine Main::main(&mut self) {
 }
 
 machine Main::put(&mut self, val: i32) {
-    let slot: i32 = self.s.count;       // capture count BEFORE increment
+    let slot: i32 = self.s.count as i32; // capture count BEFORE increment
     self.s.count = self.s.count + 1;    // increment
     transition slot == 0 {
         true -> set0(val)

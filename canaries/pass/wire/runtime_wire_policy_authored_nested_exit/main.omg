@@ -133,7 +133,7 @@ machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
         }
     }
     state classify(&mut self, schema: Schema) {
-        self.tag = schema.fields[self.index].number as u64 in Wrapping;
+        self.tag = (schema.fields[self.index].number as u64 in Wrapping) as u64;
         transition schema.fields[self.index].kind {
             FieldKind::Scalar -> put_varint(schema)
             FieldKind::Text -> put_blob(schema)

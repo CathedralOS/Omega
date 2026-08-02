@@ -7,13 +7,13 @@ use omega::language::std::console;
 data Main { console: Console; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;
--> i32
+-> i32 in Wrapping
 {
     transition j < i {
         true -> count(i, j + 1, acc + 3)
         false -> leaf(acc)
     }
-    state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
 }
 machine Main::main(&mut self) {
     // Guard-subject position: the hoist makes this a let temp; 3 x 3 = 9.

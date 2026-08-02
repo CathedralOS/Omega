@@ -6,6 +6,7 @@
 // interpreter 70); the selection is now deferred to the statement's
 // LocalStorage operation, after the callee's effects.
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Tally {
     calls: u64;
@@ -24,7 +25,7 @@ machine Main::next(
     tally.calls = tally.calls + 1;
 
     transition {
-        _ -> (tally.calls as u32)
+        _ -> (narrow_u64_to_u32_trapping(tally.calls))
     }
 }
 

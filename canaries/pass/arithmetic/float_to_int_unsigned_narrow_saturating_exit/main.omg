@@ -19,27 +19,27 @@ machine Main::main(&mut self) {
     transition self.u8v == 255 { true -> f32_unsigned_high() _ -> bad(71) }
     state f32_unsigned_high(&mut self) {
         self.f32v = 70000.0;
-        self.u16v = self.f32v as u16 in Saturating;
+        self.u16v = (self.f32v as u16 in Saturating) as u16;
         transition self.u16v == 65535 { true -> signed_high() _ -> bad(78) }
     }
     state signed_high(&mut self) {
         self.f = 200.0;
-        self.i8v = self.f as i8 in Saturating;
+        self.i8v = (self.f as i8 in Saturating) as i8;
         transition self.i8v == 127 { true -> signed_low() _ -> bad(72) }
     }
     state signed_low(&mut self) {
         self.f = 0.0 - 200.0;
-        self.i8v = self.f as i8 in Saturating;
+        self.i8v = (self.f as i8 in Saturating) as i8;
         transition self.i8v == (0 as i8 in Wrapping) - 128 { true -> unsigned_low() _ -> bad(73) }
     }
     state unsigned_low(&mut self) {
         self.f = 0.0 - 3.7;
-        self.u32v = self.f as u32 in Saturating;
+        self.u32v = (self.f as u32 in Saturating) as u32;
         transition self.u32v == 0 { true -> unsigned_high() _ -> bad(74) }
     }
     state unsigned_high(&mut self) {
         self.f = 100000000000000000000.0;
-        self.u32v = self.f as u32 in Saturating;
+        self.u32v = (self.f as u32 in Saturating) as u32;
         transition self.u32v == 4294967295 { true -> unsigned_wide_exact() _ -> bad(75) }
     }
     state unsigned_wide_exact(&mut self) {
@@ -48,7 +48,7 @@ machine Main::main(&mut self) {
     }
     state unsigned_wide_sat(&mut self) {
         self.f = 1000000000000000000000000000000.0;
-        self.u64v = self.f as u64 in Saturating;
+        self.u64v = (self.f as u64 in Saturating) as u64;
         transition self.u64v == 18446744073709551615 { true -> good() _ -> bad(77) }
     }
     state good(&mut self) { self.console.exit_process(70); }

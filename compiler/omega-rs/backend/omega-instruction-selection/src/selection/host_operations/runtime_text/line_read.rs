@@ -5,8 +5,9 @@ use crate::selection::bindings::{
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
+    resolve_runtime_storage_place_is_fixed_byte_array_in_table,
 };
-use omega_abstract_operations::SelectedInstructionKind;
+use omega_abstract_operations::{RuntimeTextReadTarget, SelectedInstructionKind};
 use omega_calling_conventions::PlatformCallData;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
@@ -56,9 +57,8 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         &input.runtime_text.expressions,
         buffer.text_place,
     )?;
-    // An owned `[u8; N]` carrier target reads stdin straight into its inline
-    // bytes (no `{ptr, len}` descriptor); a borrowed String descriptor stays the
-    // 16-byte {ptr, len} path. Anything else is not a text-read target.
+    // Owned carriers and raw byte arrays read straight into their inline bytes;
+    // a String stays on the detached-buffer `{ptr, len}` path.
     let is_bounded_buffer = resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
         input,
         dispatch_index.unwrap_or(0),
@@ -66,19 +66,32 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         &input.runtime_text.expressions,
         buffer.text_place,
     );
-    if !is_bounded_buffer && target_place.byte_count != input.runtime_abi.string_descriptor_size() {
+    let is_fixed_byte_array = resolve_runtime_storage_place_is_fixed_byte_array_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.runtime_text.expressions,
+        buffer.text_place,
+    );
+    let target = if is_bounded_buffer {
+        RuntimeTextReadTarget::BoundedByteBuffer
+    } else if is_fixed_byte_array {
+        RuntimeTextReadTarget::FixedByteArray
+    } else if target_place.byte_count == input.runtime_abi.string_descriptor_size() {
+        RuntimeTextReadTarget::StringDescriptor
+    } else {
         return None;
-    }
+    };
     // The host ABI's mutable-output capacity describes the legacy detached
     // String scratch buffer. An owned `[u8; N]` carrier is the destination
     // itself, so its inline capacity is authoritative: using the legacy limit
     // here would allow a short carrier to be overwritten by a longer line.
-    let byte_capacity = if is_bounded_buffer {
-        target_place
+    let byte_capacity = match target {
+        RuntimeTextReadTarget::BoundedByteBuffer => target_place
             .byte_count
-            .checked_sub(input.runtime_abi.pointer_size)?
-    } else {
-        byte_capacity
+            .checked_sub(input.runtime_abi.pointer_size)?,
+        RuntimeTextReadTarget::FixedByteArray => target_place.byte_count,
+        RuntimeTextReadTarget::StringDescriptor => byte_capacity,
     };
 
     Some(SelectedInstructionKind::ReadRuntimeTextLine {
@@ -86,7 +99,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_capacity,
-        is_bounded_buffer,
+        target,
     })
 }
 

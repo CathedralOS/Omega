@@ -6,6 +6,7 @@
 // interpreter is the L0 build-time engine, so this also gates the structured
 // Plan work).
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 data FieldPlan {
     case At(offset: i64, width: i64);
     case Skip;
@@ -28,7 +29,7 @@ machine Main::main(&mut self) {
     }
     state second(&mut self, v: i64) {
         self.b = v;
-        self.r = (self.a + self.b) as i32;
+        self.r = narrow_i64_to_i32_trapping((self.a + self.b) as i64);
         self.console.exit_process(self.r);
     }
     state bad(&mut self) { self.console.exit_process(99); }

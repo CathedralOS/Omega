@@ -242,7 +242,7 @@ machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
     }
     state read0(&mut self) {
         let b: i32 in Wrapping = self.accounts[0].balance;
-        transition { _ -> (b) }
+        transition { _ -> (b as i32) }
     }
     state try1(&mut self, idx: i32 in Wrapping) {
         transition idx == 1 {
@@ -252,7 +252,7 @@ machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
     }
     state read1(&mut self) {
         let b: i32 in Wrapping = self.accounts[1].balance;
-        transition { _ -> (b) }
+        transition { _ -> (b as i32) }
     }
     state try2(&mut self, idx: i32 in Wrapping) {
         transition idx == 2 {
@@ -262,11 +262,11 @@ machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
     }
     state read2(&mut self) {
         let b: i32 in Wrapping = self.accounts[2].balance;
-        transition { _ -> (b) }
+        transition { _ -> (b as i32) }
     }
     state read3(&mut self) {
         let b: i32 in Wrapping = self.accounts[3].balance;
-        transition { _ -> (b) }
+        transition { _ -> (b as i32) }
     }
 }
 
@@ -276,7 +276,7 @@ machine Main::total(&mut self) -> i32 {
                + self.accounts[1].balance
                + self.accounts[2].balance
                + self.accounts[3].balance;
-    transition { _ -> (t) }
+    transition { _ -> (t as i32) }
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────

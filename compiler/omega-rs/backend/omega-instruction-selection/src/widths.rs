@@ -6,8 +6,8 @@ use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{
-    InstructionOperandLike, RuntimeBitFieldFragment, RuntimeValueOperandHandle,
-    RuntimeValueOperandSource, StateGuardOperator,
+    InstructionOperandLike, RuntimeBitFieldFragment, RuntimeTextReadTarget,
+    RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
 
 pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
@@ -2058,12 +2058,15 @@ pub fn runtime_byte_read_width(
 pub fn runtime_byte_write_width(
     architecture: Architecture,
     binding: &HostBindingMechanism,
+    source_offset: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
-            HostBindingMechanism::Import { .. } => aarch64::runtime_byte_write_import_width(),
+            HostBindingMechanism::Import { .. } => {
+                aarch64::runtime_byte_write_import_width(source_offset)
+            }
             HostBindingMechanism::Syscall { number, .. } => {
-                aarch64::runtime_byte_write_syscall_width(*number)
+                aarch64::runtime_byte_write_syscall_width(*number, source_offset)
             }
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
@@ -2083,49 +2086,68 @@ pub fn runtime_text_line_read_width(
     architecture: Architecture,
     byte_capacity: usize,
     binding: &HostBindingMechanism,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
     target_offset: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
-            HostBindingMechanism::Import { .. } => {
-                if is_bounded_buffer {
-                    aarch64::runtime_text_line_read_carrier_import_width()
-                } else {
+            HostBindingMechanism::Import { .. } => match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => {
+                    aarch64::runtime_text_line_read_carrier_import_width(target_offset)
+                }
+                RuntimeTextReadTarget::FixedByteArray => {
+                    aarch64::runtime_text_line_read_fixed_array_import_width(target_offset)
+                }
+                RuntimeTextReadTarget::StringDescriptor => {
                     aarch64::runtime_text_line_read_import_width(byte_capacity, target_offset)
                 }
-            }
-            HostBindingMechanism::Syscall { number, .. } => {
-                if is_bounded_buffer {
-                    aarch64::runtime_text_line_read_carrier_syscall_width(*number)
-                } else {
+            },
+            HostBindingMechanism::Syscall { number, .. } => match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => {
+                    aarch64::runtime_text_line_read_carrier_syscall_width(*number, target_offset)
+                }
+                RuntimeTextReadTarget::FixedByteArray => {
+                    aarch64::runtime_text_line_read_fixed_array_syscall_width(
+                        *number,
+                        target_offset,
+                    )
+                }
+                RuntimeTextReadTarget::StringDescriptor => {
                     aarch64::runtime_text_line_read_syscall_width(
                         byte_capacity,
                         *number,
                         target_offset,
                     )
                 }
-            }
+            },
             // read_line is never vtable-bound; 0 = the refuse-to-emit convention.
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => 0,
         },
         Architecture::X86_64 => match binding {
-            HostBindingMechanism::Import { .. } => {
-                if is_bounded_buffer {
+            HostBindingMechanism::Import { .. } => match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => {
                     x86_64::runtime_text_line_read_carrier_width(byte_capacity)
-                } else {
+                }
+                RuntimeTextReadTarget::FixedByteArray => {
+                    x86_64::runtime_text_line_read_fixed_array_width(byte_capacity)
+                }
+                RuntimeTextReadTarget::StringDescriptor => {
                     x86_64::runtime_text_line_read_width(byte_capacity)
                 }
-            }
-            HostBindingMechanism::Syscall { .. } => {
-                if is_bounded_buffer {
+            },
+            HostBindingMechanism::Syscall { .. } => match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => {
                     x86_64::runtime_text_line_read_syscall_carrier_width()
-                } else {
+                }
+                RuntimeTextReadTarget::FixedByteArray => {
+                    x86_64::runtime_text_line_read_syscall_fixed_array_width()
+                }
+                RuntimeTextReadTarget::StringDescriptor => {
                     x86_64::runtime_text_line_read_syscall_width()
                 }
-            }
+            },
             HostBindingMechanism::VtableSlot { .. }
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => 0,
@@ -2174,9 +2196,12 @@ pub fn runtime_byte_read_import_call_offset(architecture: Architecture) -> usize
 
 /// Offset of the import call fixup inside the stdout byte write (aarch64: the
 /// `bl`; x86_64: the WriteFile rel32 bytes).
-pub fn runtime_byte_write_import_call_offset(architecture: Architecture) -> usize {
+pub fn runtime_byte_write_import_call_offset(
+    architecture: Architecture,
+    source_offset: usize,
+) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_byte_write_import_call_offset(),
+        Architecture::Aarch64 => aarch64::runtime_byte_write_import_call_offset(source_offset),
         Architecture::X86_64 => x86_64::runtime_byte_write_write_file_offset(),
     }
 }
@@ -2193,26 +2218,35 @@ pub fn runtime_byte_write_get_std_handle_offset() -> usize {
 
 pub fn runtime_text_line_read_import_call_offset(
     architecture: Architecture,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
+    target_offset: usize,
 ) -> usize {
     match architecture {
         // The carrier prologue adds a fixed bytes-base `add` after the region
         // materialization, shifting the `bl` by 4 (28 -> 32).
-        Architecture::Aarch64 => {
-            if is_bounded_buffer {
-                aarch64::runtime_text_line_read_carrier_import_call_offset()
-            } else {
+        Architecture::Aarch64 => match target {
+            RuntimeTextReadTarget::BoundedByteBuffer => {
+                aarch64::runtime_text_line_read_carrier_import_call_offset(target_offset)
+            }
+            RuntimeTextReadTarget::FixedByteArray => {
+                aarch64::runtime_text_line_read_fixed_array_import_call_offset(target_offset)
+            }
+            RuntimeTextReadTarget::StringDescriptor => {
                 aarch64::runtime_text_line_read_import_call_offset()
             }
-        }
+        },
         // x86_64 ReadFile call rel32 displacement (shifted for the carrier prologue).
-        Architecture::X86_64 => {
-            if is_bounded_buffer {
+        Architecture::X86_64 => match target {
+            RuntimeTextReadTarget::BoundedByteBuffer => {
                 x86_64::runtime_text_line_read_carrier_read_file_call_offset()
-            } else {
+            }
+            RuntimeTextReadTarget::FixedByteArray => {
+                x86_64::runtime_text_line_read_fixed_array_read_file_call_offset()
+            }
+            RuntimeTextReadTarget::StringDescriptor => {
                 x86_64::runtime_text_line_read_read_file_call_offset()
             }
-        }
+        },
     }
 }
 
@@ -2220,17 +2254,21 @@ pub fn runtime_text_line_read_import_call_offset(
 /// runtime line-read instruction (aarch64 has no separate handle call).
 pub fn runtime_text_line_read_get_std_handle_call_offset(
     architecture: Architecture,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 0,
-        Architecture::X86_64 => {
-            if is_bounded_buffer {
+        Architecture::X86_64 => match target {
+            RuntimeTextReadTarget::BoundedByteBuffer => {
                 x86_64::runtime_text_line_read_carrier_get_std_handle_call_offset()
-            } else {
+            }
+            RuntimeTextReadTarget::FixedByteArray => {
+                x86_64::runtime_text_line_read_fixed_array_get_std_handle_call_offset()
+            }
+            RuntimeTextReadTarget::StringDescriptor => {
                 x86_64::runtime_text_line_read_get_std_handle_call_offset()
             }
-        }
+        },
     }
 }
 

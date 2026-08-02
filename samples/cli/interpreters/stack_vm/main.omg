@@ -68,29 +68,29 @@ machine Main::push(&mut self, value: i32 in Wrapping) {
         true -> push0(value)
         _ -> try_push1(new_sp, value)
     }
-    state push0(&mut self, value: i32 in Wrapping) { self.vm.stack[0] = value; }
+    state push0(&mut self, value: i32 in Wrapping) { self.vm.stack[0] = value as i32; }
     state try_push1(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 1 {
             true -> push1(value)
             _ -> try_push2(new_sp, value)
         }
     }
-    state push1(&mut self, value: i32 in Wrapping) { self.vm.stack[1] = value; }
+    state push1(&mut self, value: i32 in Wrapping) { self.vm.stack[1] = value as i32; }
     state try_push2(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 2 {
             true -> push2(value)
             _ -> try_push3(new_sp, value)
         }
     }
-    state push2(&mut self, value: i32 in Wrapping) { self.vm.stack[2] = value; }
+    state push2(&mut self, value: i32 in Wrapping) { self.vm.stack[2] = value as i32; }
     state try_push3(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 3 {
             true -> push3(value)
             _ -> push4(value)
         }
     }
-    state push3(&mut self, value: i32 in Wrapping) { self.vm.stack[3] = value; }
-    state push4(&mut self, value: i32 in Wrapping) { self.vm.stack[4] = value; }
+    state push3(&mut self, value: i32 in Wrapping) { self.vm.stack[3] = value as i32; }
+    state push4(&mut self, value: i32 in Wrapping) { self.vm.stack[4] = value as i32; }
 }
 
 // Read top of stack (sp slot) as a value-returning machine.
@@ -126,7 +126,7 @@ machine Main::pop_val(&mut self) -> i32 {
     let v: i32 in Wrapping = self.top();
     self.vm.sp = self.vm.sp - 1;
     transition {
-        _ -> (v)
+        _ -> (v as i32)
     }
 }
 

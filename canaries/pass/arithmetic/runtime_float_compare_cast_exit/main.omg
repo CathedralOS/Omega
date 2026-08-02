@@ -57,7 +57,7 @@ machine Main::main(&mut self) {
     }
     state float_to_int(&mut self) {
         self.a = 3.75;
-        self.ri = self.a as i32 in Saturating; // F4: float casts have no Wrapping reading
+        self.ri = (self.a as i32 in Saturating) as i32; // F4 policy, then explicit erasure
         transition self.ri == 3 { true -> wide_int_to_float() _ -> bad() }
     }
     state wide_int_to_float(&mut self) {

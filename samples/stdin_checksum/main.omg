@@ -44,6 +44,6 @@ machine Main::main(&mut self) {
 
     state fin(&mut self) {
         let digest: i32 in Wrapping = self.sum + self.n;
-        self.console.exit_process(digest);
+        self.console.exit_process(digest as i32);
     }
 }

@@ -3,7 +3,7 @@ use crate::branch_distances::{
     byte_distance_to_next_runtime_write_end, byte_distances_to_next_runtime_machine_write_end,
 };
 use crate::layout::LaidOutMachineInstruction;
-use omega_assigned_target_operations::RuntimeTextReadSource;
+use omega_assigned_target_operations::{RuntimeTextReadSource, RuntimeTextReadTarget};
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 
@@ -206,7 +206,7 @@ pub(super) fn encode_runtime_text_line_read(
     target_offset: usize,
     byte_capacity: usize,
     source: &RuntimeTextReadSource,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
 ) -> Result<Vec<u8>, Diagnostic> {
     let RuntimeTextReadSource::HostOperation { operation_key } = source;
     let Some(binding) = input
@@ -224,7 +224,7 @@ pub(super) fn encode_runtime_text_line_read(
         target_offset,
         byte_capacity,
         &binding.mechanism,
-        is_bounded_buffer,
+        target,
     )
 }
 

@@ -49,5 +49,5 @@ machine Main::main(&mut self) {
         }
     }
     state ok(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(self.s); }
+    state bad(&mut self) { self.console.exit_process(self.s as i32); }
 }

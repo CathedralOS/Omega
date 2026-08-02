@@ -9,7 +9,7 @@
 use omega::language::std::console;
 data Verdict {
     case Nope;
-    case Yes(score: i32);
+    case Yes(score: i32 in Wrapping);
 }
 data Main { console: Console; result: Verdict; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
@@ -29,7 +29,7 @@ machine Main::main(&mut self) {
         Verdict::Yes { score } -> ck(score)
         Verdict::Nope -> bad(71)
     }
-    state ck(&mut self, score: i32) {
+    state ck(&mut self, score: i32 in Wrapping) {
         transition score == 15 { true -> good() _ -> bad(72) }
     }
     state good(&mut self) { self.console.exit_process(70); }

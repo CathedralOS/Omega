@@ -189,9 +189,15 @@ Per-atom weakening is now enforced at assignments, initializers, arguments,
 returns, struct fields, and array elements: predicate-only atoms may disappear
 implicitly, while semantic meaning, routed provenance, and non-Exact arithmetic
 policy require an explicit bare `as`. Same-data-carrier `as` supplies the
-zero-runtime-work provenance-erasure surface. Unit conversion remains an
-ordinary named library operation. Proof-static indexed domains follow the
-staged implementation below.
+zero-runtime-work provenance-erasure surface. The RUN-canary and sample corpus
+now authors those erasures and named narrowing policies explicitly; the
+collect-all differential gate reports frontend rejections without masking later
+members. The 2026-08-02 full sweep reached zero frontend blocks and zero
+mismatches; milestone audit then restored native selection for the ten
+policy-preserving dispatched terminal-result canaries, whose focused native
+reruns all pass, leaving only the existing host GUI block owned by the canary
+suite. Unit conversion remains an ordinary named library operation. Proof-static
+indexed domains follow the staged implementation below.
 
 The source/IR route migration is complete: domain predicate `requires` and exact
 `Trait::requirement` body entries now parse into independent records; authored

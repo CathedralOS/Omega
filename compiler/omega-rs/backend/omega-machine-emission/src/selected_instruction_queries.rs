@@ -1,4 +1,6 @@
-use omega_assigned_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_assigned_target_operations::{
+    RuntimeTextReadSource, RuntimeTextReadTarget, SelectedInstructionKind,
+};
 use omega_calling_conventions::HostOperationKey;
 use omega_core::arena::HandleSpan;
 use omega_target_operations::InstructionOperand;
@@ -15,8 +17,7 @@ pub(crate) struct SelectedHostTextRead<'instruction> {
     pub byte_capacity: usize,
     pub source: &'instruction RuntimeTextReadSource,
     pub operation_key: HostOperationKey,
-    /// Owned `[u8; N]` carrier target: read into its inline bytes + write only len.
-    pub is_bounded_buffer: bool,
+    pub target: RuntimeTextReadTarget,
 }
 
 pub(crate) fn selected_host_operation(
@@ -51,7 +52,7 @@ pub(crate) fn selected_host_text_read(
         target_offset,
         byte_capacity,
         source,
-        is_bounded_buffer,
+        target,
         ..
     } = kind
     else {
@@ -64,7 +65,7 @@ pub(crate) fn selected_host_text_read(
         byte_capacity: *byte_capacity,
         source,
         operation_key: *operation_key,
-        is_bounded_buffer: *is_bounded_buffer,
+        target: *target,
     })
 }
 
@@ -72,7 +73,7 @@ pub(crate) fn selected_host_text_read(
 mod tests {
     use super::{selected_host_operation, selected_host_text_read};
     use omega_assigned_target_operations::{
-        RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstructionKind,
+        RuntimeStorageRegion, RuntimeTextReadSource, RuntimeTextReadTarget, SelectedInstructionKind,
     };
     use omega_calling_conventions::HostOperationKey;
     use omega_core::arena::HandleSpan;
@@ -86,7 +87,7 @@ mod tests {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: 8,
             byte_capacity: 64,
-            is_bounded_buffer: false,
+            target: RuntimeTextReadTarget::StringDescriptor,
             source: RuntimeTextReadSource::HostOperation { operation_key },
         };
 

@@ -35,6 +35,6 @@ machine Main::main(&mut self) {
     }
 
     state fin(&mut self) {
-        self.console.exit_process(self.sum);
+        self.console.exit_process(self.sum as i32);
     }
 }

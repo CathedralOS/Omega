@@ -11,25 +11,25 @@ use omega::language::std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }
-    state done(&mut self, value: i32) -> i32 { value }
+    state done(&mut self, value: i32 in Wrapping) -> i32 in Wrapping { value }
 }
 data Holder { first: Tally; second: Tally; }
 machine Holder::inner(&mut self, u: &mut Tally) -> i32 in Wrapping {
     let v: i32 in Wrapping = u.get();
     transition true { true -> done(v) }
-    state done(&mut self, v: i32) -> i32 { v }
+    state done(&mut self, v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
 machine Holder::probe(&mut self, t: &mut Tally) -> i32 in Wrapping {
     let v: i32 in Wrapping = self.inner(&mut t);
     transition true { true -> done(v) }
-    state done(&mut self, v: i32) -> i32 { v }
+    state done(&mut self, v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
 machine Holder::run(&mut self) -> i32 in Wrapping {
     self.first.count = 7;
     self.second.count = 9;
     let v: i32 in Wrapping = self.probe(&mut self.second);
     transition true { true -> done(v) }
-    state done(&mut self, v: i32) -> i32 { v }
+    state done(&mut self, v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
 data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
 machine Main::main(&mut self) {

@@ -8,7 +8,7 @@ data Main {
     arr: [i32; 5];
 }
 
-machine count(s: &[i32], acc: i32 in Wrapping) -> i32 {
+machine count(s: &[i32], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
         true -> count(s[1..], acc + 1)
         false -> acc
@@ -17,7 +17,7 @@ machine count(s: &[i32], acc: i32 in Wrapping) -> i32 {
 
 machine Main::main(&mut self) {
     let s: &[i32] = self.arr.as_slice();
-    let n: i32 = count(s, 0);
+    let n: i32 in Wrapping = count(s, 0);
     transition n == 5 {
         true -> good()
         _ -> bad()

@@ -14,7 +14,7 @@ data Main { console: Console; wide: Box<i32 in Wrapping>; small: Box<u8 in Wrapp
 machine Main::main(&mut self) {
     self.wide.value = 42;
     self.small.value = 7;
-    self.r = self.wide.value;
+    self.r = self.wide.value as i32;
     transition self.small.value == 7 {
         true -> ok()
         false -> bad()

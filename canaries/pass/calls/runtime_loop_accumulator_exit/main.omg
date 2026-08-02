@@ -10,7 +10,7 @@ data Main {
 }
 machine Main::sum(&mut self, n: u64, acc: u64 in Wrapping)
 terminates by n;
--> u64
+-> u64 in Wrapping
 {
     transition n > 0 {
         true -> sum(n - 1, acc + (n as u64 in Wrapping))
@@ -18,7 +18,7 @@ terminates by n;
     }
 }
 machine Main::main(&mut self) {
-    let total: u64 = self.sum(5, 0);
+    let total: u64 in Wrapping = self.sum(5, 0);
     transition total == 15 {
         true -> yes()
         false -> no()

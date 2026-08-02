@@ -15,5 +15,5 @@ data Main { console: Console; gauge: Gauge; }
 machine Main::main(&mut self) {
     self.gauge.value = 0;
     let total: i32 in Wrapping = 64 + self.gauge.next(0) + self.gauge.next(self.gauge.next(0));
-    self.console.exit_process(total);
+    self.console.exit_process(total as i32);
 }

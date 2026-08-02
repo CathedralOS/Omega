@@ -14,25 +14,25 @@ terminates by n -> Nat::Descending;
 -> i32 in Wrapping
 {
     transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
-    state leaf(&mut self, acc: i32) -> i32 { acc }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
 }
 data Holder { first: Tally; second: Tally; }
 machine Holder::step(&mut self) -> i32 in Wrapping {
     let total: i32 in Wrapping = self.second.drain(3, 0);
     transition true { true -> done(total) }
-    state done(&mut self, total: i32) -> i32 { total }
+    state done(&mut self, total: i32 in Wrapping) -> i32 in Wrapping { total }
 }
 machine Holder::run(&mut self) -> i32 in Wrapping {
     self.first.count = 100;
     self.second.count = 7;
     let total: i32 in Wrapping = self.step();
     transition true { true -> done(total) }
-    state done(&mut self, total: i32) -> i32 { total }
+    state done(&mut self, total: i32 in Wrapping) -> i32 in Wrapping { total }
 }
 data Main { console: Console; holder: Holder; }
 machine Main::main(&mut self) {
     let total: i32 in Wrapping = self.holder.run();
     transition total == 21 { true -> good() _ -> bad(total) }
     state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+    state bad(&mut self, total: i32 in Wrapping) { self.console.exit_process(71); }
 }

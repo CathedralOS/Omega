@@ -27,15 +27,15 @@ machine Main::main(&mut self) {
 
     self.i = 2;
     self.tmp = self.counts[self.i] + 1;
-    self.counts[self.i] = self.tmp;          // counts[2] = 1
+    self.counts[self.i] = self.tmp as i32;   // counts[2] = 1
     self.tmp = self.counts[self.i] + 1;
-    self.counts[self.i] = self.tmp;          // counts[2] = 2
+    self.counts[self.i] = self.tmp as i32;   // counts[2] = 2
     self.tmp = self.counts[self.i] + 1;
-    self.counts[self.i] = self.tmp;          // counts[2] = 3
+    self.counts[self.i] = self.tmp as i32;   // counts[2] = 3
 
     self.i = 0;
     self.tmp = self.counts[self.i] + 1;
-    self.counts[self.i] = self.tmp;          // counts[0] = 1
+    self.counts[self.i] = self.tmp as i32;   // counts[0] = 1
 
     transition self.counts[2] == 3 {
         true -> check_zero()

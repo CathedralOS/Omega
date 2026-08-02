@@ -96,7 +96,7 @@ machine Main::main(&mut self) {
         // Trapping domain -- the count is defined (traps if ever >= 32; the
         // `& 7` construction keeps it in [0,7] so the trap never fires).
         self.nv = ((90 as i32 in Trapping) >> self.window) & 1;
-        self.next[self.op] = self.nv;
+        self.next[self.op] = self.nv as i32;
         transition { _ -> scan_advance() }
     }
     state scan_advance(&mut self) {
@@ -118,7 +118,7 @@ machine Main::main(&mut self) {
         transition self.x >= 0 && self.x < 8 { true -> copy_put() _ -> bad() }
     }
     state copy_put(&mut self) {
-        self.cells[self.x] = self.cv;
+        self.cells[self.x] = self.cv as i32;
         self.x = self.x + 1;
         transition { _ -> copy_loop() }
     }
@@ -134,7 +134,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state report(&mut self) {
-        self.console.exit_process(self.acc); // surface the wrong sum if it ever regresses
+        self.console.exit_process(self.acc as i32); // surface the wrong sum if it ever regresses
     }
     state bad(&mut self) {
         self.console.exit_process(1);

@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
+use omega_target_operations::RuntimeTextReadTarget;
 
 use super::host::normalized_syscall_registers;
 
@@ -412,43 +413,64 @@ pub fn encode_runtime_text_line_read(
     target_offset: usize,
     byte_capacity: usize,
     binding: &HostBindingMechanism,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
-            HostBindingMechanism::Import { .. } => {
-                if is_bounded_buffer {
+            HostBindingMechanism::Import { .. } => match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => {
                     aarch64::encode_runtime_text_line_read_carrier_import(
                         target_offset,
                         byte_capacity,
                     )
-                } else {
+                }
+                RuntimeTextReadTarget::FixedByteArray => {
+                    aarch64::encode_runtime_text_line_read_fixed_array_import(
+                        target_offset,
+                        byte_capacity,
+                    )
+                }
+                RuntimeTextReadTarget::StringDescriptor => {
                     aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
                 }
-            }
+            },
             HostBindingMechanism::Syscall { number, .. } => {
                 let registers = normalized_syscall_registers(architecture, 3, true)?;
                 let result_register = registers.required_result()?;
-                if is_bounded_buffer {
-                    aarch64::encode_runtime_text_line_read_carrier_syscall(
-                        target_offset,
-                        byte_capacity,
-                        *number,
-                        &registers.parameters,
-                        result_register,
-                        registers.number,
-                        registers.immediate,
-                    )
-                } else {
-                    aarch64::encode_runtime_text_line_read_syscall(
-                        target_offset,
-                        byte_capacity,
-                        *number,
-                        &registers.parameters,
-                        result_register,
-                        registers.number,
-                        registers.immediate,
-                    )
+                match target {
+                    RuntimeTextReadTarget::BoundedByteBuffer => {
+                        aarch64::encode_runtime_text_line_read_carrier_syscall(
+                            target_offset,
+                            byte_capacity,
+                            *number,
+                            &registers.parameters,
+                            result_register,
+                            registers.number,
+                            registers.immediate,
+                        )
+                    }
+                    RuntimeTextReadTarget::FixedByteArray => {
+                        aarch64::encode_runtime_text_line_read_fixed_array_syscall(
+                            target_offset,
+                            byte_capacity,
+                            *number,
+                            &registers.parameters,
+                            result_register,
+                            registers.number,
+                            registers.immediate,
+                        )
+                    }
+                    RuntimeTextReadTarget::StringDescriptor => {
+                        aarch64::encode_runtime_text_line_read_syscall(
+                            target_offset,
+                            byte_capacity,
+                            *number,
+                            &registers.parameters,
+                            result_register,
+                            registers.number,
+                            registers.immediate,
+                        )
+                    }
                 }
             }
             HostBindingMechanism::VtableSlot { .. }
@@ -458,36 +480,54 @@ pub fn encode_runtime_text_line_read(
             }
         },
         Architecture::X86_64 => match binding {
-            HostBindingMechanism::Import { .. } => {
-                if is_bounded_buffer {
+            HostBindingMechanism::Import { .. } => match target {
+                RuntimeTextReadTarget::BoundedByteBuffer => {
                     x86_64::encode_runtime_text_line_read_carrier(target_offset, byte_capacity)
-                } else {
+                }
+                RuntimeTextReadTarget::FixedByteArray => {
+                    x86_64::encode_runtime_text_line_read_fixed_array(target_offset, byte_capacity)
+                }
+                RuntimeTextReadTarget::StringDescriptor => {
                     x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
                 }
-            }
+            },
             HostBindingMechanism::Syscall { number, .. } => {
                 let registers = normalized_syscall_registers(architecture, 3, true)?;
                 let result_register = registers.required_result()?;
-                if is_bounded_buffer {
-                    x86_64::encode_runtime_text_line_read_syscall_carrier(
-                        target_offset,
-                        byte_capacity,
-                        *number,
-                        &registers.parameters,
-                        result_register,
-                        registers.number,
-                        registers.immediate,
-                    )
-                } else {
-                    x86_64::encode_runtime_text_line_read_syscall(
-                        target_offset,
-                        byte_capacity,
-                        *number,
-                        &registers.parameters,
-                        result_register,
-                        registers.number,
-                        registers.immediate,
-                    )
+                match target {
+                    RuntimeTextReadTarget::BoundedByteBuffer => {
+                        x86_64::encode_runtime_text_line_read_syscall_carrier(
+                            target_offset,
+                            byte_capacity,
+                            *number,
+                            &registers.parameters,
+                            result_register,
+                            registers.number,
+                            registers.immediate,
+                        )
+                    }
+                    RuntimeTextReadTarget::FixedByteArray => {
+                        x86_64::encode_runtime_text_line_read_syscall_fixed_array(
+                            target_offset,
+                            byte_capacity,
+                            *number,
+                            &registers.parameters,
+                            result_register,
+                            registers.number,
+                            registers.immediate,
+                        )
+                    }
+                    RuntimeTextReadTarget::StringDescriptor => {
+                        x86_64::encode_runtime_text_line_read_syscall(
+                            target_offset,
+                            byte_capacity,
+                            *number,
+                            &registers.parameters,
+                            result_register,
+                            registers.number,
+                            registers.immediate,
+                        )
+                    }
                 }
             }
             HostBindingMechanism::VtableSlot { .. }

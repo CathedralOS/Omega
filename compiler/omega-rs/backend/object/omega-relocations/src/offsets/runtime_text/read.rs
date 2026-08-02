@@ -1,5 +1,6 @@
 use omega_calling_conventions::HostBindingMechanism;
 use omega_target::Architecture;
+use omega_target_operations::RuntimeTextReadTarget;
 
 pub(crate) fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
@@ -11,12 +12,14 @@ pub(crate) fn runtime_text_line_read_target_address_offset(
 pub(crate) fn runtime_text_line_read_import_call_offset(
     architecture: Architecture,
     selected_text_offset: usize,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
+    target_offset: usize,
 ) -> usize {
     selected_text_offset
         + omega_instruction_selection::runtime_text_line_read_import_call_offset(
             architecture,
-            is_bounded_buffer,
+            target,
+            target_offset,
         )
 }
 
@@ -27,11 +30,11 @@ pub(crate) fn runtime_text_line_read_import_call_offset(
 pub(crate) fn runtime_text_line_read_get_std_handle_call_offset(
     architecture: Architecture,
     selected_text_offset: usize,
-    is_bounded_buffer: bool,
+    target: RuntimeTextReadTarget,
 ) -> usize {
     selected_text_offset
         + omega_instruction_selection::runtime_text_line_read_get_std_handle_call_offset(
             architecture,
-            is_bounded_buffer,
+            target,
         )
 }

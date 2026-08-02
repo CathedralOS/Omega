@@ -14,6 +14,7 @@ domain [u8; 4]::Utf8
 requires
     valid_utf8(self);
 use omega::language::std::console;
+use omega::language::core::numeric_conversion;
 
 data Main {
     console: Console;
@@ -38,7 +39,7 @@ machine Main::main(&mut self) {
     }
 
     state store(&mut self) {
-        self.ch = self.i as u8;
+        self.ch = narrow_i32_to_u8_trapping(self.i as i32);
         self.out[self.i] = self.ch;
         self.i = self.i + 1;
         transition {

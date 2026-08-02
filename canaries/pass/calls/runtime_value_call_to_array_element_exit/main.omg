@@ -17,7 +17,7 @@ data Main {
 
 machine Main::triple(&self, x: i32 in Wrapping) -> i32 {
     let r: i32 in Wrapping = x * 3;
-    transition { _ -> r }
+    transition { _ -> (r as i32) }
 }
 
 machine Main::main(&mut self) {
@@ -33,6 +33,6 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state bad(&mut self) {
-        self.console.exit_process(self.arr[2]); // surface the written value on regression
+        self.console.exit_process(self.arr[2] as i32); // surface the written value on regression
     }
 }

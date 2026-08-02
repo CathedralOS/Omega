@@ -22,7 +22,7 @@ machine Main::run(&mut self, s: Shape) {
         Shape::Rect { w, h } -> emit(w * h + 58)
     }
     state emit(&mut self, v: i32 in Wrapping) {
-        self.console.exit_process(v);
+        self.console.exit_process(v as i32);
     }
 }
 

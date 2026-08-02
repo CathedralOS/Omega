@@ -8,6 +8,7 @@ use super::queries::selected_host_text_read;
 use omega_calling_conventions::{HostBindingMechanism, HostOperation, HostOperationKey};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target::Architecture;
+use omega_target_operations::RuntimeTextReadTarget;
 use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_text_read_relocations(
@@ -21,11 +22,9 @@ pub(super) fn collect_runtime_text_read_relocations(
         return;
     };
 
-    if read.is_bounded_buffer {
-        // Owned `[u8; N]` carrier: r14 reads straight into the carrier's inline
-        // bytes, so it relocates to the carrier's OWN region (the encoder adds the
-        // `+ pointer_size` past the length word). There is no separate buffer and
-        // no `{ptr, len}` descriptor, hence no second target relocation.
+    if read.target != RuntimeTextReadTarget::StringDescriptor {
+        // Inline carrier/array: relocate the read base to the target's own
+        // region. The encoder applies the shape-specific field offset.
         let region_symbol = context.storage_region_symbol_handle(read.target_region);
         context.insert_data_address_at_instruction_start(region_symbol);
     } else {
@@ -71,7 +70,7 @@ pub(super) fn collect_runtime_text_read_relocations(
                     offset: runtime_text_line_read_get_std_handle_call_offset(
                         context.input.target.architecture,
                         context.selected_text_offset,
-                        read.is_bounded_buffer,
+                        read.target,
                     ),
                     byte_width: 4,
                     symbol_handle: object_symbol_handle_by_name(
@@ -97,7 +96,8 @@ pub(super) fn collect_runtime_text_read_relocations(
             offset: runtime_text_line_read_import_call_offset(
                 context.input.target.architecture,
                 context.selected_text_offset,
-                read.is_bounded_buffer,
+                read.target,
+                read.target_offset,
             ),
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),

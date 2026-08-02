@@ -72,6 +72,6 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state bad(&mut self, code: i32 in Trapping) {
-        self.console.exit_process(code);
+        self.console.exit_process(code as i32);
     }
 }

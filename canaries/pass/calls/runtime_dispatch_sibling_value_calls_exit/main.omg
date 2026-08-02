@@ -23,5 +23,5 @@ machine Main::main(&mut self) {
     self.first.count = 10;
     self.second.count = 25;
     let total: i32 in Wrapping = self.first.drain(2, 0) + self.second.drain(2, 0);
-    self.console.exit_process(total);
+    self.console.exit_process(total as i32);
 }

@@ -14,7 +14,7 @@ data Main {
 
 machine Main::main(&mut self) {
     let real: f64 = 10.0;
-    let truncated: i32 = real as i32 in Saturating; // 10 (float literal -> int; F4: the fold happens in the backend, validation sees a Name)
+    let truncated: i32 = (real as i32 in Saturating) as i32; // policy, then explicit erasure
 
     transition truncated == 10 {
         true -> check_int_to_float()

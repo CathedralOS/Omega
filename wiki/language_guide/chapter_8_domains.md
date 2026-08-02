@@ -1081,6 +1081,9 @@ boundary and the operators.
 > consumer does not require one. Sample “press Enter” scratch fields use raw
 > `[u8; 256]`: the bound is explicit and preserves the former line-read ceiling,
 > while no unused `Utf8` fact is established merely because the bytes are discarded.
+> A raw fixed array contributes its full `N`-byte capacity and receives bytes
+> directly in place; unlike a bounded carrier, it has no descriptor or runtime
+> length for the host read to materialize.
 
 ### Establishing the domain: construction, validation, and the wire
 

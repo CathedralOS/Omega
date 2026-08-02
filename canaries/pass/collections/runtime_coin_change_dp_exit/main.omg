@@ -54,7 +54,7 @@ machine Main::main(&mut self) {
         transition self.cand < self.cur { true -> update() _ -> next_ci() }
     }
     state update(&mut self) {
-        self.dp[self.a] = self.cand;
+        self.dp[self.a] = self.cand as i32;
         transition { _ -> next_ci() }
     }
     state next_ci(&mut self) {
@@ -74,7 +74,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
     state wrong(&mut self) {
-        self.console.exit_process(self.r); // surface dp[6] on regression
+        self.console.exit_process(self.r as i32); // surface dp[6] on regression
     }
     state bad(&mut self) {
         self.console.exit_process(1);

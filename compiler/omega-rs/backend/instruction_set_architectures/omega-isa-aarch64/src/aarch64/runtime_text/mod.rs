@@ -67,6 +67,8 @@ pub use compare::{
 };
 pub use read::{
     encode_runtime_text_line_read_carrier_import, encode_runtime_text_line_read_carrier_syscall,
-    encode_runtime_text_line_read_import, encode_runtime_text_line_read_syscall,
+    encode_runtime_text_line_read_fixed_array_import,
+    encode_runtime_text_line_read_fixed_array_syscall, encode_runtime_text_line_read_import,
+    encode_runtime_text_line_read_syscall,
 };
 pub use write::{encode_runtime_text_literal_segment_write, encode_runtime_text_literal_write};

@@ -686,21 +686,24 @@ fn selected_instruction_name(
             target_offset,
             byte_capacity,
             source,
-            is_bounded_buffer,
+            target,
         } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            if *is_bounded_buffer {
-                format!(
-                    "read runtime text line {} -> carrier {target_symbol}@{target_offset} cap {byte_capacity}",
-                    runtime_text_read_source_name(backend_plan, source)
-                )
-            } else {
-                format!(
+            match target {
+                omega_target_operations::RuntimeTextReadTarget::StringDescriptor => format!(
                     "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
                     runtime_text_read_source_name(backend_plan, source)
-                )
+                ),
+                omega_target_operations::RuntimeTextReadTarget::BoundedByteBuffer => format!(
+                    "read runtime text line {} -> carrier {target_symbol}@{target_offset} cap {byte_capacity}",
+                    runtime_text_read_source_name(backend_plan, source)
+                ),
+                omega_target_operations::RuntimeTextReadTarget::FixedByteArray => format!(
+                    "read runtime text line {} -> fixed byte array {target_symbol}@{target_offset} cap {byte_capacity}",
+                    runtime_text_read_source_name(backend_plan, source)
+                ),
             }
         }
         SelectedInstructionKind::ReadRuntimeByte {
