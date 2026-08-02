@@ -929,9 +929,17 @@ improvements do not change public identity.
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
   standalone images, and rejects altered final text or unclassified executable
   gaps. Source and Boolean canaries emit after producer/intermediate state is
-  dropped; on the macOS host they directly execute the emitted Mach-O image.
-  Typed installation/debug payload schemas and migration of the legacy backend
-  remain.
+  dropped; on the macOS host they directly execute the emitted Mach-O image. A
+  canonical typed installation-record v1 now separately binds the terminal
+  identity, exact target facts, PE subsystem when applicable, profile decision,
+  sorted selected-provider-plan identities, emitted-image SHA-256, and compiler
+  text-validation evidence. Its hostile-input decoder rejects alternate order,
+  malformed target facts, unknown tags/versions, truncation, and trailing data;
+  the source canary binds those exact bytes into the role-separated artifact
+  manifest after producer and intermediate lowering state is dropped. The
+  current scalar slice honestly records an empty provider closure; later
+  call/boundary slices must populate it from their selected plans. A typed
+  debug/source-map payload schema and migration of the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and

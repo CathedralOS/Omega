@@ -9,6 +9,14 @@
 //! or relocations, so final compiler text must be byte-for-byte identical to
 //! the emitted input and every byte must belong to one provenance-bearing
 //! function region.
+//!
+//! The adjacent canonical installation record is manifest metadata over the
+//! resulting sealed image. It does not grant executable authority or replace
+//! the separate native admission, placement, and retirement ladder.
+
+mod installation;
+
+pub use installation::*;
 
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
@@ -196,13 +204,15 @@ pub struct TerminalObjectContainer {
 }
 
 pub fn can_emit_terminal_executable_image(target: NativeTarget) -> bool {
-    matches!(
-        (target.object_format, target.architecture),
-        (ObjectFormat::Elf, Architecture::Aarch64)
-            | (ObjectFormat::Elf, Architecture::X86_64)
-            | (ObjectFormat::MachO, Architecture::Aarch64)
-            | (ObjectFormat::Coff, Architecture::X86_64)
-    )
+    target.pointer_size == 8
+        && target.pointer_alignment == 8
+        && matches!(
+            (target.object_format, target.architecture),
+            (ObjectFormat::Elf, Architecture::Aarch64)
+                | (ObjectFormat::Elf, Architecture::X86_64)
+                | (ObjectFormat::MachO, Architecture::Aarch64)
+                | (ObjectFormat::Coff, Architecture::X86_64)
+        )
 }
 
 /// Emit and validate one direct executable image.
@@ -214,6 +224,12 @@ pub fn emit_terminal_executable_image(
     artifact: &TerminalObjectArtifact,
     subsystem: u16,
 ) -> Result<TerminalExecutableImage, Diagnostic> {
+    if !can_emit_terminal_executable_image(artifact.target) {
+        return Err(Diagnostic::error(format!(
+            "cannot emit terminal-Psi executable image for {:?}",
+            artifact.target
+        )));
+    }
     let image = omega_image::build_final_image(FinalImageInput {
         target: artifact.target,
         object: &artifact.object,
@@ -246,14 +262,38 @@ pub fn emit_terminal_executable_image(
     output.compiler_text_validation = Some(exact_text_evidence(&artifact.text_bytes));
     Ok(TerminalExecutableImage {
         terminal_psi: artifact.terminal_psi,
+        target: artifact.target,
+        subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
         output,
     })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalExecutableImage {
-    pub terminal_psi: TerminalPsiIdentity,
-    pub output: EmittedImageOutput,
+    terminal_psi: TerminalPsiIdentity,
+    target: NativeTarget,
+    subsystem: Option<u16>,
+    output: EmittedImageOutput,
+}
+
+impl TerminalExecutableImage {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn target(&self) -> NativeTarget {
+        self.target
+    }
+
+    /// PE/COFF subsystem selected by the writer. Other formats carry no
+    /// subsystem fact because the argument is not interpreted by their writer.
+    pub const fn subsystem(&self) -> Option<u16> {
+        self.subsystem
+    }
+
+    pub const fn output(&self) -> &EmittedImageOutput {
+        &self.output
+    }
 }
 
 fn validate_terminal_image(

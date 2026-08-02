@@ -89,6 +89,10 @@ Must not own:
 - `omega-terminal-image-emission/src/lib.rs` dispatches the clean terminal-Psi
   artifact to those writers and publishes exact-text validation evidence while
   retaining terminal semantic identity alongside each object/image output.
+- `omega-terminal-image-emission/src/installation.rs` owns the canonical typed
+  installation-record payload over the sealed image: target facts, profile
+  decision, selected provider plans, image digest, and text-validation evidence.
+  It is manifest metadata, not the executable admission/placement ladder.
 
 ## Known Gaps
 

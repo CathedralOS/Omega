@@ -242,8 +242,23 @@ plus optional installation and debug section hashes. Each role has a separate
 SHA-256 domain, and absent differs from a present empty section. Replacing a
 valid proof, installation record, or debug map changes that section and the
 container identity while preserving `TerminalPsiIdentity`; validation
-recomputes the complete manifest from attached bytes. Installation/debug
-payload schemas remain later artifact slices.
+recomputes the complete manifest from attached bytes.
+
+The first typed installation payload is live in
+`omega-terminal-image-emission`. Wire format v1 begins with `PSIINST\0` and
+binds the terminal semantic identity, architecture, object format, pointer
+size/alignment, PE subsystem when present, exact profile-decision identity,
+strictly ordered selected-provider-plan identities, a domain-separated SHA-256
+of the complete emitted image, and the compiler text-validation evidence. Its
+decoder rejects unknown versions/tags, zero identities, invalid target facts,
+alternate provider order, nonzero reserved fields, truncation, and trailing
+bytes, then reproduces the canonical bytes. Validation recomputes the image
+binding from the sealed `TerminalExecutableImage`. The scalar canaries carry an
+empty provider set because they contain no calls or boundaries; later vertical
+slices populate that set from actual selected plans. The record is manifest
+metadata, not executable authority and not a replacement for the separate
+`omega-executable-installation` admission/placement ladder. Typed debug/source
+maps remain a later artifact slice.
 
 ## Logical-fuel v1
 

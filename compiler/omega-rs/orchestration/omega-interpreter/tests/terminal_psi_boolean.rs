@@ -10,11 +10,16 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
-    build_terminal_object_artifact, emit_terminal_executable_image, emit_terminal_object_container,
+    build_terminal_installation_record, build_terminal_object_artifact,
+    decode_terminal_installation_record, emit_terminal_executable_image,
+    emit_terminal_object_container, encode_terminal_installation_record,
+    validate_terminal_installation_record,
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
-use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
+use psi_core::{
+    BlockId, ContractId, EdgeId, MachineId, OperationId, ProfileDecisionId, ScalarType, ValueId,
+};
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, SemanticVersion, TerminalMachine,
@@ -124,16 +129,35 @@ fn v2_boolean_reaches_owned_object_image_and_native_execution() {
     assert_eq!(object.output.relocations, 0);
     let image = emit_terminal_executable_image(&artifact, 3)
         .expect("emit exact standalone host image after semantic state is dropped");
-    assert_eq!(image.terminal_psi, original_identity);
-    let image = image.output;
-    assert_eq!(image.final_text_bytes, artifact.text_bytes());
-    assert!(image.executable_regions.unclassified_gaps.is_empty());
-    assert_eq!(image.executable_regions.regions.len(), 1);
-    assert!(image.compiler_text_validation.is_some());
+    assert_eq!(image.terminal_psi(), original_identity);
+    assert_eq!(image.output().final_text_bytes, artifact.text_bytes());
+    assert!(
+        image
+            .output()
+            .executable_regions
+            .unclassified_gaps
+            .is_empty()
+    );
+    assert_eq!(image.output().executable_regions.regions.len(), 1);
+    assert!(image.output().compiler_text_validation.is_some());
+    let installation = build_terminal_installation_record(
+        &image,
+        ProfileDecisionId::new(2).expect("Boolean installation profile decision"),
+        [],
+    )
+    .expect("Boolean image should produce an installation record");
+    validate_terminal_installation_record(&installation, &image)
+        .expect("Boolean installation record should bind its exact image");
+    let installation_bytes =
+        encode_terminal_installation_record(&installation).expect("installation bytes");
+    assert_eq!(
+        decode_terminal_installation_record(&installation_bytes),
+        Ok(installation)
+    );
 
     assert_eq!(run_host_machine_code(&entry_bytes), 1);
     #[cfg(target_os = "macos")]
-    assert_eq!(run_host_executable_image(&image.bytes), 1);
+    assert_eq!(run_host_executable_image(&image.output().bytes), 1);
 }
 
 #[cfg(target_os = "macos")]

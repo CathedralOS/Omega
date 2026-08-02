@@ -20,3 +20,4 @@ omega-terminal-machine-code = { path = "../../../representations/omega-terminal-
 omega-terminal-target-operations = { path = "../../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi-rs/representations/psi-terminal" }
+sha2 = "0.10"

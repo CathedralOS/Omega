@@ -1073,6 +1073,7 @@ dependencies = [
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
+ "sha2",
 ]
 
 [[package]]
