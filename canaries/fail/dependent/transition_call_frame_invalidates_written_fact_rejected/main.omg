@@ -1,0 +1,24 @@
+// FAIL TWIN: the exact acyclic transition summary includes the later write to
+// `self.stable`, so the caller cannot reuse its pre-call exact value to prove
+// that the following Exact addition stays within `u32`.
+data Main {
+    stable: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.transition_write();
+    self.result = self.stable + 1;
+}
+
+machine Main::transition_write(&mut self) {
+    transition { _ -> write() }
+
+    state write(&mut self) {
+        self.stable = 1;
+        transition { _ -> done() }
+    }
+
+    state done(&mut self) { }
+}

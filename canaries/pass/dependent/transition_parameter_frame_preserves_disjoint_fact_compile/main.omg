@@ -1,0 +1,23 @@
+// R5 positional transition-frame composition: the free helper forwards its
+// mutable entry parameter into an acyclic target state. The published `$P0`
+// write instantiates to `self.touched`, preserving the disjoint exact fact for
+// `self.stable`.
+data Main {
+    stable: u32;
+    touched: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    transition_touch(&mut self.touched);
+    self.result = self.stable + 1;
+}
+
+machine transition_touch(value: &mut u32) {
+    transition { _ -> write(value) }
+
+    state write(slot: &mut u32) {
+        slot = 1;
+    }
+}

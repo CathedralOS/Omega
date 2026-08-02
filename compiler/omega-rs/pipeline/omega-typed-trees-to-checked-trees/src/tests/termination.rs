@@ -2026,6 +2026,37 @@ fn contract_plans_fingerprint_published_halves() {
     machine write_beta(beta: &mut u64) {
         beta = 2;
     }
+    machine Main::transitioning(&mut self) {
+        transition { _ -> write_left() }
+        state write_left(&mut self) {
+            self.left = 3;
+            transition { _ -> finished() }
+        }
+        state finished(&mut self) { }
+    }
+    machine write_through_transition(value: &mut u64) {
+        transition { _ -> write(value) }
+        state write(slot: &mut u64) { slot = 4; }
+    }
+    machine Main::cyclic(&mut self) {
+        transition { _ -> cycle() }
+        state cycle(&mut self) { transition { _ -> cycle() } }
+    }
+    machine Main::branching(&mut self) {
+        transition self.left == 0 {
+            true -> write_left_branch()
+            false -> write_right_branch()
+        }
+        state write_left_branch(&mut self) {
+            self.left = 5;
+            transition { _ -> branch_done() }
+        }
+        state write_right_branch(&mut self) {
+            self.right = 6;
+            transition { _ -> branch_done() }
+        }
+        state branch_done(&mut self) { }
+    }
     machine Main::main(&mut self) -> u64 { 7 }
     "#;
 
@@ -2048,6 +2079,10 @@ fn contract_plans_fingerprint_published_halves() {
     let loud = symbol_of("Main::loud");
     let write_alpha = symbol_of("write_alpha");
     let write_beta = symbol_of("write_beta");
+    let transitioning = symbol_of("Main::transitioning");
+    let write_through_transition = symbol_of("write_through_transition");
+    let cyclic = symbol_of("Main::cyclic");
+    let branching = symbol_of("Main::branching");
     let checked = lower_typed_trees(typed).expect("checked lowering should succeed");
 
     let plan = |symbol| {
@@ -2071,6 +2106,17 @@ fn contract_plans_fingerprint_published_halves() {
     assert_ne!(frame(quiet_a).fingerprint(), frame(quiet_b).fingerprint());
     assert_eq!(frame(write_alpha).paths(), &["$P0".to_owned()]);
     assert_eq!(frame(write_alpha), frame(write_beta));
+    assert_eq!(frame(transitioning).paths(), &["self.left".to_owned()]);
+    assert_eq!(frame(write_through_transition).paths(), &["$P0".to_owned()]);
+    assert!(
+        !frame(cyclic).is_complete(),
+        "a reachable state cycle must retain an opaque inferred frame"
+    );
+    assert_eq!(
+        frame(branching).paths(),
+        &["self.left".to_owned(), "self.right".to_owned()],
+        "both conditional arms compose and may share one memoized tail state"
+    );
     // A different `reaches` clause -> a different fingerprint.
     assert_ne!(plan(quiet_a).fingerprint, plan(loud).fingerprint);
     // Slice 2: REQUIRES clause ORDER never enters the identity...

@@ -1,0 +1,25 @@
+// R5 inferred transition frame: a resolved sibling machine jumps through two
+// acyclic states and writes only `self.touched`. Its composed write summary
+// preserves the caller's exact fact for `self.stable`.
+data Main {
+    stable: u32;
+    touched: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    self.transition_touch();
+    self.result = self.stable + 1;
+}
+
+machine Main::transition_touch(&mut self) {
+    transition { _ -> touch() }
+
+    state touch(&mut self) {
+        self.touched = 1;
+        transition { _ -> done() }
+    }
+
+    state done(&mut self) { }
+}
