@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "apps/omega-cli",
+    "compiler/psi-rs/foundation/psi-core",
+    "compiler/psi-rs/semantics/psi-proof-kernel",
     "compiler/omega-rs/foundation/omega-core",
     "compiler/omega-rs/foundation/omega-target",
     "compiler/omega-rs/foundation/omega-calling-conventions",

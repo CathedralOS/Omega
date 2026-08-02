@@ -1,0 +1,9 @@
+[package]
+name = "psi-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_core"
+path = "src/lib.rs"

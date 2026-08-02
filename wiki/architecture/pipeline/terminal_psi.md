@@ -7,6 +7,18 @@ implementation cut and migration from the current bootstrap pipeline. The
 semantic and evidence contract is owned by
 [`canonical_ir_fuel_and_resource_provisioning.md`](../../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
+Implementation status (2026-08-02): `compiler/psi-rs` is the Psi-owned
+workspace root. `psi-core` provides nonzero stable value/place/operation/edge,
+proposition/contract/obligation, admission, evidence, and profile identities
+plus the initial typed scalar proposition vocabulary and a module-owned value
+typing context. `psi-proof-kernel` provides total truth, reflexive-equality,
+and closed-integer judgments, structural proof checking, versioned certificate
+envelopes, and exact profile-authorized admission validation. Admission cannot
+replace a primitive derivation, and architecture tests reject any Psi crate
+dependency on Omega. No executable operation or terminal module is claimed by
+this foundation checkpoint; the first integer/control/contract vertical slice
+remains next.
+
 ## Boundary
 
 Psi operates on Omega-branded source files and owns every target-neutral stage
@@ -126,12 +138,12 @@ identities. One execution verifies and runs one complete Psi semantic version.
 
 ## Migration plan
 
-1. Establish the workspace boundary: move or rename the current target-neutral
-   parsing-through-lowering crates under Psi ownership while retaining temporary
-   compatibility adapters. No parser or semantic checker remains on an
-   Omega-to-Psi path.
-2. Introduce stable Psi value, proposition, proof, and place identities without
-   changing the current backend.
+1. Continue the established workspace boundary: move or rename the current
+   target-neutral parsing-through-lowering crates under Psi ownership while
+   retaining temporary compatibility adapters. No parser or semantic checker
+   remains on an Omega-to-Psi path.
+2. Extend the live stable Psi value, proposition, proof, and place identities
+   into the first terminal semantic module without changing the current backend.
 3. Lower a minimal integer/control/contract slice from checked trees into a
    terminal-Psi module and interpret it.
 4. Add calls, continuations, cleanup, conservation, boundary operations,
