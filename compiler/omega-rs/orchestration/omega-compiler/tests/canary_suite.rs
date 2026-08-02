@@ -33054,6 +33054,48 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_effectful_guard_local_and_self_terminal_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("effectful guard/local and self-terminal canary should reach checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter should return both call values and execute each call once, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-effectful-guard-local-self-terminal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("effectful guard/local and self-terminal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("effectful guard/local and self-terminal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native execution should return both call values and execute each call once, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Deferral face #5: a NESTED value call inside the callee's entry
 // (`self.flag = self.helper.check(1)` in Probe::make, guarded on flag,
 // through an outer value call). The nested callee splices a THIRD
@@ -40702,6 +40744,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_dispatch_results_exit",
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_guard_subject_exit",
+    "calls/runtime_effectful_guard_local_and_self_terminal_exit",
     "calls/runtime_value_call_literal_len_arm_guard_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
     "calls/runtime_value_call_same_callee_sites_exit",

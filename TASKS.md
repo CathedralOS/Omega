@@ -632,12 +632,14 @@ service-table paths are already plan-driven.
 Remaining:
 
 - remove residual hardcoded placement decisions;
-- finish control-flow-local value-call lowering without changing evaluation:
-  an effectful call nested in a transition subject or guarded target argument
-  must execute exactly once on the path that evaluates it, and a direct
-  terminal value call must materialize inside its reached state. Never hoist an
-  arm-local effect across the guard. Unconditional transition arguments and
-  the explicit bind-then-use forms are already live;
+- finish the remaining arm-local value-call lowering without changing
+  evaluation: an effectful call in a guarded target argument must execute
+  exactly once only after that arm is selected; never hoist it across the
+  guard. Guard comparisons with one call side now normalize through one
+  pre-dispatch result local, and receiver calls used as unconditional terminal
+  values now normalize through the established bind-then-return route.
+  Unconditional transition arguments and explicit bind-then-use forms are
+  already live;
 - implement the settled foreign-storage lifetime model: derive ordinary
   call-scoped borrows from reference-shaped ABI parameters; require storage
   used after return to move into an ordinary linear protocol claim; infer the

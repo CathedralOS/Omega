@@ -1,0 +1,51 @@
+// ENT2c control-flow-local value calls:
+// 1. an effectful call compared with a non-literal place is hoisted once before
+//    the guard, rather than left as an unmaterialized guard operand; and
+// 2. a receiver call used as an unconditional terminal result is normalized to
+//    the established bind-then-return route.
+// Each call increments `hits`; exit 70 proves both returned values and exactly
+// two executions in the interpreter and native runtime.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    hits: u64 in Wrapping;
+    expected: u32;
+}
+
+machine Main::bump_and_value(&mut self, value: u32) -> u32 {
+    self.hits = self.hits + 1;
+    value
+}
+
+machine Main::terminal_self_call(&mut self) -> u32 {
+    self.bump_and_value(7)
+}
+
+machine Main::main(&mut self) {
+    self.hits = 0;
+    self.expected = 5;
+
+    transition self.bump_and_value(5) == self.expected {
+        true -> check_terminal()
+        false -> bad(71)
+    }
+
+    state check_terminal(&mut self) {
+        let delivered: u32 = self.terminal_self_call();
+        transition delivered == 7 {
+            true -> check_count()
+            false -> bad(72)
+        }
+    }
+
+    state check_count(&mut self) {
+        transition self.hits == 2 {
+            true -> good()
+            false -> bad(73)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
