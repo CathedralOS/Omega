@@ -1,0 +1,30 @@
+// R5 expression-frame composition: value calls in a local initializer,
+// transition jump argument, and terminal-state local all write only
+// `self.touched`. The enclosing machine therefore preserves the caller's
+// exact fact for the disjoint `self.stable` place.
+data Main {
+    stable: u32;
+    touched: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    let marker: bool = self.call_bearing();
+    self.result = self.stable + 1;
+}
+
+machine Main::call_bearing(&mut self) -> bool {
+    let seed: bool = self.touch_value();
+    transition { _ -> done(self.touch_value()) }
+
+    state done(&mut self, value: bool) -> bool {
+        let answer: bool = self.touch_value();
+        answer
+    }
+}
+
+machine Main::touch_value(&mut self) -> bool {
+    self.touched = 1;
+    true
+}

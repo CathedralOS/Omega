@@ -347,10 +347,15 @@ contract or specialization identity.
 An acyclic state-transition graph participates in the same inference. The
 summary unions every conditional arm, memoizes shared downstream states, and
 substitutes target-state parameters back through their transition arguments.
-Transition guards, arguments, and returned values containing nested calls are
-still opaque, as is every reachable state cycle. Callers may therefore use
-exact preservation only when the complete control-flow implementation was
-summarized; one terminating observed route never licenses a cyclic machine.
+Value-position calls nested in a state body contribute their shared inferred
+call frames before the containing statement or jump, including calls in local
+initializers, assignment operands, statement-call arguments, transition
+subjects and arguments, and returned values. Recursive statement- and
+value-call graphs share cycle detection. Every reachable state-transition
+cycle and every genuinely unresolved frame remain opaque. Callers may
+therefore use exact preservation only when the complete control-flow
+implementation was summarized; one terminating observed route never licenses
+a cyclic machine.
 
 A state's signature is its arrival contract. Parameter refinements —
 dependent ones included — plus an explicit state-level `requires` are proven

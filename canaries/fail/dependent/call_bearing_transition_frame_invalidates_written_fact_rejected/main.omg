@@ -1,0 +1,27 @@
+// FAIL TWIN: each nested value call may write `self.stable`, so the enclosing
+// call-bearing transition frame invalidates the caller's earlier exact value.
+data Main {
+    stable: u32;
+    result: u32;
+}
+
+machine Main::main(&mut self) {
+    self.stable = 5;
+    let marker: bool = self.call_bearing();
+    self.result = self.stable + 1;
+}
+
+machine Main::call_bearing(&mut self) -> bool {
+    let seed: bool = self.replace_value();
+    transition { _ -> done(self.replace_value()) }
+
+    state done(&mut self, value: bool) -> bool {
+        let answer: bool = self.replace_value();
+        answer
+    }
+}
+
+machine Main::replace_value(&mut self) -> bool {
+    self.stable = 1;
+    true
+}
