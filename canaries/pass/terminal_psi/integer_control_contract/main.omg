@@ -1,0 +1,13 @@
+// Transitional source-to-terminal-Psi canary. The compatibility adapter must
+// lower this checked machine to a self-contained semantic module plus proof;
+// verification and execution then proceed after all frontend trees are dropped.
+machine terminal_constant() -> i32
+requires 7i32 == 7i32
+ensures 7i32 == 7i32
+{
+    transition { _ -> pass(7i32) }
+    state pass(value: i32) -> i32 { 7i32 }
+}
+
+data Main {}
+machine Main::main(&mut self) {}

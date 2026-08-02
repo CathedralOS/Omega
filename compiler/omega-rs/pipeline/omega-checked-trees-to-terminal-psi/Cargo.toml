@@ -1,22 +1,18 @@
 [package]
-name = "omega-interpreter"
+name = "omega-checked-trees-to-terminal-psi"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_interpreter"
+name = "omega_checked_trees_to_terminal_psi"
 path = "src/lib.rs"
 
 [dependencies]
+omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
-omega-checked-trees = { path = "../../representations/omega-checked-trees" }
-omega-checked-trees-to-terminal-psi = { path = "../../pipeline/omega-checked-trees-to-terminal-psi" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
+psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
 psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }
-
-[dev-dependencies]
-omega-compiler = { path = "../omega-compiler" }
-psi-proof-kernel = { path = "../../../psi-rs/semantics/psi-proof-kernel" }

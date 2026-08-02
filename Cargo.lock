@@ -300,6 +300,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-checked-trees-to-terminal-psi"
+version = "0.1.0"
+dependencies = [
+ "omega-checked-trees",
+ "omega-core",
+ "omega-typed-trees",
+ "psi-core",
+ "psi-proof-kernel",
+ "psi-terminal",
+ "psi-terminal-verifier",
+]
+
+[[package]]
 name = "omega-cli"
 version = "0.1.0"
 dependencies = [
@@ -583,6 +596,7 @@ name = "omega-interpreter"
 version = "0.1.0"
 dependencies = [
  "omega-checked-trees",
+ "omega-checked-trees-to-terminal-psi",
  "omega-compiler",
  "omega-core",
  "omega-typed-trees",

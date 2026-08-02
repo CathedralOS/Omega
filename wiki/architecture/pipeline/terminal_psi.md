@@ -24,9 +24,21 @@ integer constants plus unconditional jump and return edges.
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
 proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
-this path. Source-to-terminal lowering, branching and arithmetic-policy
-operations, an Omega abstract-operation consumer, canonical bytes,
-fingerprints, and fuel remain next; none is claimed by this checkpoint.
+this path.
+
+The first transitional source producer is now live as
+`omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:
+typed integer constants, one unconditional literal-carrying state jump, one
+literal return, and a matching closed `requires`/`ensures` pair. It rejects all
+other checked-tree shapes. The source canary discards `CheckedTrees` before it
+verifies and executes the produced semantic module, proving the artifact has no
+frontend lifetime dependency. This is explicitly a migration adapter, not the
+target ownership direction: parsing and checking still need to move under Psi.
+The current legacy exit prover also cannot establish an ordinary
+`result == literal` contract, so the bootstrap canary carries the closed typed
+fact `7i32 == 7i32` and asserts the executed result separately. An Omega
+abstract-operation/native consumer, canonical bytes, fingerprints, branching,
+arithmetic-policy operations, and fuel remain next.
 
 ## Boundary
 
@@ -158,6 +170,9 @@ identities. One execution verifies and runs one complete Psi semantic version.
 3. Lower the live integer/control/contract slice from the transitional checked
    frontend into terminal Psi, add its Omega abstract-operation consumer, and
    compare interpreted/native behavior before broadening the vocabulary.
+   **Producer half complete:** the fail-closed compatibility adapter and a real
+   source canary now verify and execute after checked trees are dropped. The
+   source-independent Omega consumer and native comparison remain.
 4. Add calls, continuations, cleanup, conservation, boundary operations,
    suspension, and scoped ordering as reviewed vertical slices.
 5. Move binding substitution and concrete instantiation above terminal Psi so

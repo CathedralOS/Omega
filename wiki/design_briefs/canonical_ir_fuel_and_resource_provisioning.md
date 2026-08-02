@@ -24,9 +24,14 @@ return-binding axioms from the executable path, rejects unreachable fact
 sources and out-of-scope contract values, and requires evidence for every
 `ensures`; the proof kernel checks semantic-axiom citations and equality
 composition. Omega's interpreter executes the same verified module object.
-This checkpoint still has no source lowering, Omega abstract-operation/native
-consumer, canonical serialization/fingerprint, branching/arithmetic operation,
-or fuel schedule.
+The first transitional checked-tree producer now lowers an exact typed
+integer-constant/unconditional-jump/literal-return/closed-contract source slice,
+emits the semantic module and proof bundle separately, and fails closed on all
+other shapes. Its canary drops the frontend trees before terminal verification
+and interpretation. This adapter does not change the target ownership rule:
+the current Omega-branded frontend still needs to migrate under Psi. This
+checkpoint still has no Omega abstract-operation/native consumer, canonical
+serialization/fingerprint, branching/arithmetic operation, or fuel schedule.
 
 ## Context
 
