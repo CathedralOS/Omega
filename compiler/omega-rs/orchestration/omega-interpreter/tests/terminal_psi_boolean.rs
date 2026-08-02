@@ -497,6 +497,142 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
 
 #[cfg(unix)]
 #[test]
+fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
+    let machine = MachineId::new(100).expect("machine");
+    let operation = OperationId::new(100).expect("operation");
+    let edge = EdgeId::new(100).expect("edge");
+    let left = ValueId::new(100).expect("left parameter");
+    let right = ValueId::new(101).expect("right parameter");
+    let difference = ValueId::new(102).expect("difference");
+    let result = ValueId::new(103).expect("result");
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let module = TerminalModule {
+        semantic_version: SemanticVersion::V5,
+        entry: machine,
+        machines: vec![TerminalMachine {
+            id: machine,
+            parameters: vec![
+                ValueDeclaration {
+                    id: left,
+                    scalar_type,
+                },
+                ValueDeclaration {
+                    id: right,
+                    scalar_type,
+                },
+            ],
+            result: ValueDeclaration {
+                id: result,
+                scalar_type,
+            },
+            entry: BlockId::new(100).expect("block"),
+            blocks: vec![Block {
+                id: BlockId::new(100).expect("block"),
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: operation,
+                    result: ValueDeclaration {
+                        id: difference,
+                        scalar_type,
+                    },
+                    kind: OperationKind::WrappingIntegerSubtract { left, right },
+                }],
+                terminator: Terminator::Return {
+                    edge,
+                    value: difference,
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(100).expect("contract"),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+            },
+        }],
+    };
+    let original_identity = terminal_psi_identity(&module).expect("v5 subtraction identity");
+    let canonical_bytes = encode_module(&module).expect("v5 subtraction canonical bytes");
+    drop(module);
+    let module = decode_module(&canonical_bytes).expect("decode v5 subtraction module");
+    assert_eq!(terminal_psi_identity(&module).unwrap(), original_identity);
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("proof-free wrapping subtraction verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, machine).expect("fixed subtraction fuel");
+    validate_fixed_entry_fuel(&verified, &fixed).expect("subtraction fuel recomputes");
+    assert_eq!(fixed.ceiling_units(), 2);
+
+    let arguments = [
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(5),
+        },
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(10),
+        },
+    ];
+    let measured =
+        interpret_terminal_measured(&verified, &arguments).expect("interpret wrapping subtract");
+    assert_eq!(
+        measured.value(),
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(251),
+        }
+    );
+    assert_eq!(measured.usage().total_units(), 2);
+    assert_eq!(
+        measured
+            .usage()
+            .at(FuelChargeSite::Operation(operation))
+            .unwrap()
+            .units(),
+        1
+    );
+
+    let abstract_plan =
+        lower_verified_module(&verified).expect("lower wrapping-subtract requirements");
+    assert!(matches!(
+        abstract_plan.functions[0].operations[0],
+        TerminalAbstractOperation::WrappingIntegerSubtract {
+            psi_operation,
+            scalar_type: operation_type,
+            left: operation_left,
+            right: operation_right,
+            ..
+        } if psi_operation == operation
+            && operation_type == integer
+            && operation_left == left
+            && operation_right == right
+    ));
+    let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+        .expect("select wrapping-subtract target operation");
+    let machine_code =
+        emit_machine_code(&target_plan).expect("emit wrapping-subtract machine code");
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build wrapping-subtract object artifact");
+    assert_eq!(artifact.entry_function().provenance.operations, [operation]);
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    assert_eq!(
+        run_host_machine_code_with_u8_arguments(&entry_bytes, &[5, 10]),
+        251
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
     let machine = MachineId::new(60).expect("machine");
     let wrapping_operation = OperationId::new(60).expect("wrapping operation");

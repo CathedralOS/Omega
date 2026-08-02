@@ -3,9 +3,9 @@
 //! Self-contained, target-neutral terminal-Psi semantics.
 //!
 //! The frozen v1 vocabulary contains integer constants and a straight-line
-//! chain of explicit jump/return edges; v2 adds Boolean constants and current
-//! v3 adds explicit wrapping integer addition; v4 adds saturating integer
-//! addition. This small executable slice
+//! chain of explicit jump/return edges; v2 adds Boolean constants, v3 adds
+//! explicit wrapping integer addition, v4 adds saturating integer addition,
+//! and current v5 adds wrapping integer subtraction. This small executable slice
 //! exercises values, control, bodyful contracts, and one width-relative
 //! arithmetic policy without pretending that branching or other arithmetic
 //! policies have already been specified. Every later operation extends this

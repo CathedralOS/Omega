@@ -280,6 +280,11 @@ fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
                 writer.id(left);
                 writer.id(right);
             }
+            OperationKind::WrappingIntegerSubtract { left, right } => {
+                writer.u8(5);
+                writer.id(left);
+                writer.id(right);
+            }
         }
     }
     match &block.terminator {
@@ -411,6 +416,16 @@ fn encode_scalar_term(
             encode_scalar_term(writer, left, depth + 1)?;
             encode_scalar_term(writer, right, depth + 1)?;
         }
+        ScalarTerm::WrappingIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } => {
+            writer.u8(6);
+            encode_integer_type(writer, *scalar_type);
+            encode_scalar_term(writer, left, depth + 1)?;
+            encode_scalar_term(writer, right, depth + 1)?;
+        }
     }
     Ok(())
 }
@@ -520,6 +535,10 @@ fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
                 right: reader.id("ValueId")?,
             },
             4 => OperationKind::SaturatingIntegerAdd {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+            },
+            5 => OperationKind::WrappingIntegerSubtract {
                 left: reader.id("ValueId")?,
                 right: reader.id("ValueId")?,
             },
@@ -642,6 +661,13 @@ fn decode_scalar_term(reader: &mut Reader<'_>, depth: usize) -> Result<ScalarTer
             let left = decode_scalar_term(reader, depth + 1)?;
             let right = decode_scalar_term(reader, depth + 1)?;
             ScalarTerm::saturating_integer_add(scalar_type, left, right)
+                .map_err(CodecError::MalformedProposition)?
+        }
+        6 => {
+            let scalar_type = decode_integer_type(reader)?;
+            let left = decode_scalar_term(reader, depth + 1)?;
+            let right = decode_scalar_term(reader, depth + 1)?;
+            ScalarTerm::wrapping_integer_subtract(scalar_type, left, right)
                 .map_err(CodecError::MalformedProposition)?
         }
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),

@@ -78,6 +78,39 @@ impl IntegerType {
         }
     }
 
+    /// Subtract two admitted values modulo this exact integer width.
+    ///
+    /// Signed results use two's-complement interpretation of the reduced bit
+    /// pattern. A sign/value mismatch or out-of-range input is rejected rather
+    /// than silently reinterpreted.
+    pub fn wrapping_sub(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+        if !self.admits(left) || !self.admits(right) {
+            return None;
+        }
+        let mask = if self.bits == 128 {
+            u128::MAX
+        } else {
+            (1_u128 << self.bits) - 1
+        };
+        match (self.sign, left, right) {
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(left),
+                IntegerValue::Unsigned(right),
+            ) => Some(IntegerValue::Unsigned(left.wrapping_sub(right) & mask)),
+            (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                let bits = (left as u128).wrapping_sub(right as u128) & mask;
+                let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
+                    bits as i128
+                } else {
+                    (bits | !mask) as i128
+                };
+                Some(IntegerValue::Signed(value))
+            }
+            _ => None,
+        }
+    }
+
     /// Add two admitted values and clamp the result to this exact integer
     /// type's representable bounds.
     ///
@@ -149,6 +182,11 @@ pub enum ScalarTerm {
         left: Box<ScalarTerm>,
         right: Box<ScalarTerm>,
     },
+    WrappingIntegerSubtract {
+        scalar_type: IntegerType,
+        left: Box<ScalarTerm>,
+        right: Box<ScalarTerm>,
+    },
 }
 
 impl ScalarTerm {
@@ -210,13 +248,36 @@ impl ScalarTerm {
         })
     }
 
+    pub fn wrapping_integer_subtract(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+    ) -> Result<Self, PropositionError> {
+        let expected = ScalarType::Integer(scalar_type);
+        if left.scalar_type() != expected || right.scalar_type() != expected {
+            return Err(PropositionError::WrappingIntegerSubtractTypeMismatch {
+                expected,
+                left: left.scalar_type(),
+                right: right.scalar_type(),
+            });
+        }
+        Ok(Self::WrappingIntegerSubtract {
+            scalar_type,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+    }
+
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Value { scalar_type, .. } => *scalar_type,
             Self::Boolean(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. }
             | Self::WrappingIntegerAdd { scalar_type, .. }
-            | Self::SaturatingIntegerAdd { scalar_type, .. } => ScalarType::Integer(*scalar_type),
+            | Self::SaturatingIntegerAdd { scalar_type, .. }
+            | Self::WrappingIntegerSubtract { scalar_type, .. } => {
+                ScalarType::Integer(*scalar_type)
+            }
         }
     }
 
@@ -246,6 +307,18 @@ impl ScalarTerm {
                     return None;
                 }
                 Some((*scalar_type, scalar_type.saturating_add(left, right)?))
+            }
+            Self::WrappingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } => {
+                let (left_type, left) = left.integer_value()?;
+                let (right_type, right) = right.integer_value()?;
+                if left_type != *scalar_type || right_type != *scalar_type {
+                    return None;
+                }
+                Some((*scalar_type, scalar_type.wrapping_sub(left, right)?))
             }
             _ => None,
         }
@@ -291,6 +364,23 @@ impl ScalarTerm {
                 let expected = ScalarType::Integer(*scalar_type);
                 if left.scalar_type() != expected || right.scalar_type() != expected {
                     return Err(PropositionError::SaturatingIntegerAddTypeMismatch {
+                        expected,
+                        left: left.scalar_type(),
+                        right: right.scalar_type(),
+                    });
+                }
+                Ok(())
+            }
+            Self::WrappingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            } => {
+                left.validate()?;
+                right.validate()?;
+                let expected = ScalarType::Integer(*scalar_type);
+                if left.scalar_type() != expected || right.scalar_type() != expected {
+                    return Err(PropositionError::WrappingIntegerSubtractTypeMismatch {
                         expected,
                         left: left.scalar_type(),
                         right: right.scalar_type(),
@@ -429,7 +519,8 @@ impl PropositionContext {
                 }
             }
             ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. } => {
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. } => {
                 self.validate_term(left)?;
                 self.validate_term(right)?;
             }
@@ -481,6 +572,11 @@ pub enum PropositionError {
         right: ScalarType,
     },
     SaturatingIntegerAddTypeMismatch {
+        expected: ScalarType,
+        left: ScalarType,
+        right: ScalarType,
+    },
+    WrappingIntegerSubtractTypeMismatch {
         expected: ScalarType,
         left: ScalarType,
         right: ScalarType,
@@ -603,6 +699,34 @@ mod tests {
         assert_eq!(
             i128_type.saturating_add(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(-1)),
             Some(IntegerValue::Signed(i128::MIN))
+        );
+    }
+
+    #[test]
+    fn wrapping_subtract_reduces_at_the_declared_width_for_all_edge_shapes() {
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        assert_eq!(
+            u8_type.wrapping_sub(IntegerValue::Unsigned(5), IntegerValue::Unsigned(10)),
+            Some(IntegerValue::Unsigned(251))
+        );
+        let i8_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+        assert_eq!(
+            i8_type.wrapping_sub(IntegerValue::Signed(-120), IntegerValue::Signed(20)),
+            Some(IntegerValue::Signed(116))
+        );
+        assert_eq!(
+            i8_type.wrapping_sub(IntegerValue::Signed(120), IntegerValue::Signed(-20)),
+            Some(IntegerValue::Signed(-116))
+        );
+        let u128_type = IntegerType::new(IntegerSign::Unsigned, 128).unwrap();
+        assert_eq!(
+            u128_type.wrapping_sub(IntegerValue::Unsigned(0), IntegerValue::Unsigned(1)),
+            Some(IntegerValue::Unsigned(u128::MAX))
+        );
+        let i128_type = IntegerType::new(IntegerSign::Signed, 128).unwrap();
+        assert_eq!(
+            i128_type.wrapping_sub(IntegerValue::Signed(i128::MIN), IntegerValue::Signed(1)),
+            Some(IntegerValue::Signed(i128::MAX))
         );
     }
 }

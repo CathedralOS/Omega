@@ -173,6 +173,21 @@ fn reconstruct_semantic_axioms(machine: &TerminalMachine) -> Vec<Proposition> {
                     .expect("validator requires exact saturating-add operand types");
                     axioms.push(Proposition::Equal(value_term(operation.result.id), sum));
                 }
+                OperationKind::WrappingIntegerSubtract { left, right } => {
+                    let ScalarType::Integer(integer_type) = operation.result.scalar_type else {
+                        unreachable!("validator requires wrapping-subtract integer result type")
+                    };
+                    let difference = ScalarTerm::wrapping_integer_subtract(
+                        integer_type,
+                        value_term(left),
+                        value_term(right),
+                    )
+                    .expect("validator requires exact wrapping-subtract operand types");
+                    axioms.push(Proposition::Equal(
+                        value_term(operation.result.id),
+                        difference,
+                    ));
+                }
             }
         }
         match &block.terminator {
