@@ -53,7 +53,7 @@ struct Edge {
     target: SymbolHandle,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum UpperTerm {
     /// `counter < self.collection.len`.
     CollectionLength(String),
@@ -65,6 +65,19 @@ enum UpperTerm {
 struct RelationalUpper {
     term: UpperTerm,
     /// `true` for `<` / `>`, `false` for `<=` / `>=`.
+    strict: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct AuthoredUpperRelation {
+    lower: String,
+    upper: UpperTerm,
+    strict: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct BoundCollectionChain {
+    collection: String,
     strict: bool,
 }
 
@@ -266,15 +279,16 @@ pub(super) fn collect_loop_invariant_facts(
                 });
             }
 
-            // Second relational class: every incoming edge establishes an
-            // upper relation to `self.limit`, while the machine arrival
-            // contract establishes an upper relation from the limit to
+            // Further relational class: every incoming edge establishes an
+            // upper relation to one stable machine place, while authored
+            // machine-arrival facts carry a finite chain from that place to
             // `self.collection.len`. At least one link must be strict:
-            // `i < limit <= len` and `i <= limit < len` both prove `i < len`,
-            // while `i <= limit <= len` deliberately does not.
-            // Both contract-owned places must be frame-stable throughout the
-            // whole machine (including preheaders); otherwise the arrival
-            // contract could describe old values before the first loop edge.
+            // `i < limit <= len` and `i <= outer <= limit < len` both prove
+            // `i < len`, while a fully non-strict chain deliberately does not.
+            // Every contract-owned intermediate and the collection must be
+            // frame-stable throughout the whole machine (including
+            // preheaders); otherwise an arrival fact could describe old values
+            // before the first loop edge.
             if matches!(direction, Direction::Increasing)
                 && let Some((bound, edge_strict)) = loop_head_upper_place(
                     program,
@@ -286,16 +300,13 @@ pub(super) fn collect_loop_invariant_facts(
                 )
                 && machine_preserves_path(program, machine, &call_frames, &bound)
             {
-                for (collection, bridge_strict) in
-                    machine_bound_collection_relations(program, machine, &bound)
+                for chain in machine_bound_collection_chains(program, machine, &call_frames, &bound)
                 {
-                    if (edge_strict || bridge_strict)
-                        && machine_preserves_path(program, machine, &call_frames, &collection)
-                    {
+                    if edge_strict || chain.strict {
                         invariants.push(LoopInvariant {
                             state: head.symbol,
                             index_name: index_name.clone(),
-                            kind: InvariantKind::IndexWithin(collection),
+                            kind: InvariantKind::IndexWithin(chain.collection),
                         });
                         break;
                     }
@@ -679,16 +690,17 @@ fn parse_counter_relational_upper(
     })
 }
 
-/// Collection relations named by authored machine-arrival requirements
-/// `bound <[=] C.len` (or `C.len >[=] bound`). This is not flow inference: the
-/// requirements are already assumed machine contract facts. We recover their
-/// exact place labels and strictness so the caller can compose only a chain
-/// that proves a strict final index bound.
-fn machine_bound_collection_relations(
+/// Finite upper-bound chains named by authored machine-arrival requirements,
+/// from `bound` through zero or more stable `self.*` places to
+/// `self.collection.len`. This is not flow inference: the requirements are
+/// already assumed machine contract facts. The caller separately proves every
+/// named place frame-stable before using the chain as a loop invariant.
+fn machine_bound_collection_chains(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
+    call_frames: &omega_validation::CallFrameResolver<'_>,
     bound: &str,
-) -> Vec<(String, bool)> {
+) -> Vec<BoundCollectionChain> {
     use omega_typed_trees::domain::ProofFact;
     use omega_typed_trees::signature::SignatureContractKind;
 
@@ -701,72 +713,112 @@ fn machine_bound_collection_relations(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            collect_bound_collection_relations(program, *expression, bound, &mut relations);
+            collect_authored_upper_relations(program, *expression, &mut relations);
         }
     }
     relations.sort();
     relations.dedup();
-    relations
+
+    // Reachability retains only whether a strict link has appeared. There are
+    // at most two states per authored place, so cycles and densely connected
+    // contracts cannot turn path enumeration exponential.
+    let mut frontier = vec![(bound.to_owned(), false)];
+    let mut visited = frontier.clone();
+    let mut chains = Vec::new();
+    while let Some((current, prior_strict)) = frontier.pop() {
+        for relation in relations
+            .iter()
+            .filter(|relation| relation.lower == current)
+        {
+            let strict = prior_strict || relation.strict;
+            match &relation.upper {
+                UpperTerm::CollectionLength(collection)
+                    if machine_preserves_path(program, machine, call_frames, collection) =>
+                {
+                    chains.push(BoundCollectionChain {
+                        collection: collection.clone(),
+                        strict,
+                    });
+                }
+                UpperTerm::Place(place)
+                    if machine_preserves_path(program, machine, call_frames, place) =>
+                {
+                    let next = (place.clone(), strict);
+                    if !visited.contains(&next) {
+                        visited.push(next.clone());
+                        frontier.push(next);
+                    }
+                }
+                UpperTerm::CollectionLength(_) | UpperTerm::Place(_) => {}
+            }
+        }
+    }
+    chains.sort();
+    chains.dedup();
+    chains
 }
 
-fn collect_bound_collection_relations(
+fn collect_authored_upper_relations(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    bound: &str,
-    relations: &mut Vec<(String, bool)>,
+    relations: &mut Vec<AuthoredUpperRelation>,
 ) {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            collect_bound_collection_relations(program, atomic.value, bound, relations);
+            collect_authored_upper_relations(program, atomic.value, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            collect_bound_collection_relations(program, binary.left, bound, relations);
-            collect_bound_collection_relations(program, binary.right, bound, relations);
+            collect_authored_upper_relations(program, binary.left, relations);
+            collect_authored_upper_relations(program, binary.right, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
             if let Some(inner) = boolean_equality_inner(program, binary.left, binary.right) {
-                collect_bound_collection_relations(program, inner, bound, relations);
+                collect_authored_upper_relations(program, inner, relations);
             }
         }
         ExpressionNode::Binary(binary) => {
-            let (possible_length, strict) = match binary.operator {
-                BinaryOperator::Less
-                    if program.expression_table.display_name(binary.left) == bound =>
-                {
-                    (binary.right, true)
-                }
-                BinaryOperator::LessOrEqual
-                    if program.expression_table.display_name(binary.left) == bound =>
-                {
-                    (binary.right, false)
-                }
-                BinaryOperator::Greater
-                    if program.expression_table.display_name(binary.right) == bound =>
-                {
-                    (binary.left, true)
-                }
-                BinaryOperator::GreaterOrEqual
-                    if program.expression_table.display_name(binary.right) == bound =>
-                {
-                    (binary.left, false)
-                }
+            let (possible_lower, possible_upper, strict) = match binary.operator {
+                BinaryOperator::Less => (binary.left, binary.right, true),
+                BinaryOperator::LessOrEqual => (binary.left, binary.right, false),
+                BinaryOperator::Greater => (binary.right, binary.left, true),
+                BinaryOperator::GreaterOrEqual => (binary.right, binary.left, false),
                 _ => return,
             };
-            let ExpressionNode::Member(length) =
-                program.expression_table.expression(possible_length)
-            else {
+            let lower = program.expression_table.display_name(possible_lower);
+            if !lower.starts_with("self.") {
+                return;
+            }
+            let upper = authored_upper_term(program, possible_upper);
+            let Some(upper) = upper else {
                 return;
             };
-            if length.member.as_str() != "len" {
-                return;
-            }
-            let collection = program.expression_table.display_name(length.receiver);
-            if collection.starts_with("self.") {
-                relations.push((collection, strict));
-            }
+            relations.push(AuthoredUpperRelation {
+                lower,
+                upper,
+                strict,
+            });
         }
         _ => {}
     }
+}
+
+fn authored_upper_term(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<UpperTerm> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() == "len" {
+        let collection = program.expression_table.display_name(member.receiver);
+        return collection
+            .starts_with("self.")
+            .then_some(UpperTerm::CollectionLength(collection));
+    }
+    let place = program.expression_table.display_name(expression);
+    place
+        .starts_with("self.")
+        .then_some(UpperTerm::Place(place))
 }
 
 /// Whether `path` stays unchanged throughout the natural loop. Direct writes

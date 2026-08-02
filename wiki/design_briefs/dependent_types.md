@@ -314,14 +314,15 @@ back edge carry `i < self.collection.len` to an increasing-counter head even
 though the guards have distinct expression handles. The candidate crosses
 calls only when recursive frames are disjoint from both the counter and
 collection, and index reassignment kills the collection-relative fact. Further
-composition now handles a stable intermediate limit: edge and authored
-machine-arrival relations compose when at least one link is strict, admitting
-both `i < limit <= collection.len` and `i <= limit < collection.len` while
-rejecting the fully non-strict chain. Since
-the second premise originates at machine arrival, limit and collection must be
-frame-stable through every machine state, including preheaders. Further
-relational classes remain future work; authored arrival contracts do not depend
-on them. Inferred intra-unit frames now normalize into one shared
+composition now handles a finite chain of stable intermediate limits: edge and
+authored machine-arrival relations compose when at least one link is strict,
+admitting both `i < limit <= collection.len` and
+`i <= outer <= limit < collection.len` while rejecting a fully non-strict
+chain. Since the bridge premises originate at machine arrival, every
+intermediate and the collection must be frame-stable through every machine
+state, including preheaders. Further relational classes remain future work;
+authored arrival contracts do not depend on them. Inferred intra-unit frames
+now normalize into one shared
 complete-or-opaque representation, with sorted/deduplicated paths and positional
 state-parameter roots. Checked machine plans retain the per-state frames and
 their deterministic implementation identities, and the machine-contract
@@ -549,13 +550,17 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   plus arrival facts are live; monotone counter inference crosses disjoint
   sibling-call frames, and symbolic `i < self.collection.len` loop-head facts
   now meet semantically across distinct entry/back-edge guards. Stable
-  limit-to-length chains also compose an authored arrival premise under
-  machine-wide frame stability, with strictness preserved across both links.
-  Remaining work is the
-  surface-blocked boundary write clause and additional relational Houdini
-  candidates. Normalized per-state frame publication is live and kept outside
-  public contract identity. Driver: dependent facts across sibling-machine
-  calls.
+  bound-to-length chains now compose finite authored arrival relations through
+  multiple intermediate places under machine-wide frame stability, with
+  strictness preserved across every link and cycle-safe traversal. The July 30
+  ruling retired authored boundary write clauses in favor of inferred
+  implementation summaries, narrow mutable signatures, and ordinary
+  preservation `ensures`; no source `stores` surface remains blocked or
+  planned. Remaining work is additional relational Houdini candidates, finer
+  read-consumption precision, and broader exact summaries for implementation
+  shapes that remain opaque. Normalized per-state frame publication is live
+  and kept outside public contract identity. Driver: dependent facts across
+  sibling-machine calls.
 - **R6 — Proof propositions and index telescopes:** add Prop-valued families
   over representative values, typed proof-static carrier-family index packs,
   and carrierless selected-conformance evidence. Establish one requirement

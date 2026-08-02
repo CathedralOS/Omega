@@ -1,0 +1,48 @@
+// R5/Houdini stable-chain composition. Entry and back-edge guards prove
+// `self.i <= self.outer`; machine-arrival facts carry the relation through a
+// second stable place to `self.items.len`. The strict final link and exact
+// disjoint call frame make the indexed read safe at the loop head.
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    items: [u8; 8] in Utf8;
+    i: u64;
+    outer: u64;
+    limit: u64;
+    value: u8;
+    other: u64;
+}
+
+machine Main::run(&mut self) { }
+
+machine Main::scan(&mut self)
+requires
+    self.outer <= self.limit && self.limit < self.items.len
+{
+    self.i = 0;
+    transition self.i <= self.outer {
+        true -> loop_()
+        false -> done()
+    }
+
+    state loop_(&mut self) {
+        self.touch_other();
+        self.value = self.items[self.i];
+        self.i = self.i + 1;
+        transition self.i <= self.outer {
+            true -> loop_()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+machine Main::touch_other(&mut self) {
+    self.other = 1;
+}

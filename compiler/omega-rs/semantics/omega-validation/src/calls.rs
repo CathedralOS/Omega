@@ -1060,8 +1060,9 @@ fn machine_state_by_symbol(
 /// Instantiate the conservative may-write set of a resolved internal call in
 /// the caller's place namespace. `None` means the summary is not complete and
 /// the caller must invalidate every flow fact. Internal acyclic calls compose;
-/// transitions, boundaries, machine parameters, and unresolved writes remain
-/// deliberately opaque until later R5 rungs add `stores` and state summaries.
+/// implementation shapes this inference cannot summarize remain deliberately
+/// opaque. Authored `stores` clauses are retired; precision grows through the
+/// shared inferred complete-or-opaque frame instead.
 pub(crate) fn known_call_written_paths(
     program: &TypedTrees,
     call: &TableCall,
