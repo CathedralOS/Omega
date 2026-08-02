@@ -213,6 +213,10 @@ Granted selected provider plans attach their normalized plan fingerprint to
 matching admitted facts, and checked artifacts publish
 `05_qualification_evidence.json` with origin, source, program point, and receipt
 identity. Exact owner-authorized admitted-subject matching is now live.
+Selected service methods additionally retain structured linear result claims.
+Those claims enter provider identity and the same artifact as `returns` rows;
+the external-root ledger can therefore bind a mask-transition receipt to the
+exact `Active` guard subject without parsing the normalized result type.
 Exact `as` uses retain the normalized domain and derivation before lowering.
 
 Implementation status (P1b vacuous qualification, 2026-07-30): an explicit

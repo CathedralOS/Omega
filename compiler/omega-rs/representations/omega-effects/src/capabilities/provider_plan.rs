@@ -46,6 +46,11 @@ pub struct ServiceMethod {
     /// Semantic identity of the declared result type. `None` denotes no
     /// result, not a unit-shaped result.
     pub result_type_identity: Option<String>,
+    /// Linear routed qualifications established on this exact result. These
+    /// are retained separately from the complete result type so runtime
+    /// transition receipts can bind a concrete subject without parsing a
+    /// normalized type display.
+    pub result_claims: Vec<ServiceResultClaim>,
     /// EFX: normalized boundary-service identities rendered from the
     /// symbol-resolved service table. This includes the containing boundary
     /// trait and any explicit additional reach (with parent closure).
@@ -88,6 +93,12 @@ pub struct ServiceEntryClaim {
     /// carry permissions remain separate constrained-type facts.
     pub effective_carry: omega_core::semantics::CarryPolicy,
     pub authority_flow: ServiceEntryAuthorityFlow,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceResultClaim {
+    pub domain: String,
+    pub effective_carry: omega_core::semantics::CarryPolicy,
 }
 
 /// How one method binds on one target -- the Binding sum's union with the
@@ -225,6 +236,7 @@ impl ServiceSchema {
                         .normalized_type_identity(operator.return_type)
                         .into_string()
                 }),
+                result_claims: Vec::new(),
                 service_reach: Vec::new(),
                 synchronous_invocations: Vec::new(),
                 may_suspend: false,
@@ -301,6 +313,7 @@ fn collect_service_methods(
                     .normalized_type_identity(signature.return_type)
                     .into_string()
             }),
+            result_claims: service_result_claims(program, trait_definition, signature),
             service_reach: service_reach_names(program, trait_definition, signature),
             synchronous_invocations: synchronous_invocation_names(program, signature),
             may_suspend: signature.suspends,
@@ -346,6 +359,81 @@ fn service_entry_claims(
         left.parameter_index == right.parameter_index && left.domain == right.domain
     });
     claims
+}
+
+fn service_result_claims(
+    program: &omega_typed_trees::TypedTrees,
+    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> Vec<ServiceResultClaim> {
+    if !signature.return_type.is_valid()
+        || program.type_multiplicity(signature.return_type)
+            != omega_core::semantics::Multiplicity::Linear
+    {
+        return Vec::new();
+    }
+    let mut claims = Vec::new();
+    append_bodyless_result_claims(
+        program,
+        signature.return_type,
+        trait_definition.symbol,
+        signature.symbol,
+        &mut claims,
+    );
+    claims.sort_by(|left, right| left.domain.cmp(&right.domain));
+    claims.dedup_by(|left, right| left.domain == right.domain);
+    claims
+}
+
+fn append_bodyless_result_claims(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    boundary_trait: omega_core::symbols::SymbolHandle,
+    requirement: omega_core::symbols::SymbolHandle,
+    claims: &mut Vec<ServiceResultClaim>,
+) {
+    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            append_bodyless_result_claims(program, *referee, boundary_trait, requirement, claims);
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            append_bodyless_result_claims(program, *base_type, boundary_trait, requirement, claims);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                let TypeConstraintNode::Domain(domain) = constraint else {
+                    continue;
+                };
+                if domain.symbol.is_valid()
+                    && domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+                    && domain.establishment_routes.iter().any(|route| {
+                        matches!(
+                            route,
+                            omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                                boundary_trait: route_trait,
+                                requirement: route_requirement,
+                            } if *route_trait == boundary_trait && *route_requirement == requirement
+                        )
+                    })
+                {
+                    claims.push(ServiceResultClaim {
+                        domain: domain
+                            .semantic_id
+                            .is_valid()
+                            .then(|| program.semantic_domains.name(domain.semantic_id))
+                            .flatten()
+                            .unwrap_or_else(|| domain.name.as_str())
+                            .to_owned(),
+                        effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+                    });
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn append_bodyless_entry_claims(
@@ -515,6 +603,11 @@ impl ProviderPlan {
                 rendered.push_str("\nmr:");
                 rendered.push_str(result);
             }
+            let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
+            result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
+            for claim in result_claims {
+                rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry,));
+            }
             if let Some(fingerprint) = method.calling_plan_fingerprint {
                 rendered.push_str(&format!("/calling:{fingerprint:016x}"));
             }
@@ -658,6 +751,7 @@ mod tests {
                     entry_claims: Vec::new(),
                     has_result: false,
                     result_type_identity: None,
+                    result_claims: Vec::new(),
                     service_reach: vec!["Console".to_owned()],
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,
@@ -672,6 +766,7 @@ mod tests {
                     entry_claims: Vec::new(),
                     has_result: true,
                     result_type_identity: Some("u8".to_owned()),
+                    result_claims: Vec::new(),
                     service_reach: vec!["Console".to_owned()],
                     synchronous_invocations: Vec::new(),
                     may_suspend: true,
@@ -686,6 +781,7 @@ mod tests {
                     entry_claims: Vec::new(),
                     has_result: false,
                     result_type_identity: None,
+                    result_claims: Vec::new(),
                     service_reach: vec!["Console".to_owned()],
                     synchronous_invocations: Vec::new(),
                     may_suspend: false,

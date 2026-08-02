@@ -41751,6 +41751,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "core/interrupt_mask_guard_scope_loss",
     "core/interrupt_acknowledgement_scope_loss",
     "core/interrupt_obligation_construction_rejected",
+    "core/interrupt_mask_guard_explicit_qualification_rejected",
     "core/interrupt_acknowledgement_double_complete",
     "core/task_outcome_linear_payload_scope_loss",
     "tasks/task_runtime_machine_selection_effect_mismatch",

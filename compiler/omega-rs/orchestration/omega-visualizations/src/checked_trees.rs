@@ -213,6 +213,28 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
                 .then_with(|| left_claim.domain.cmp(&right_claim.domain))
         },
     );
+    let mut boundary_result_rows = program
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| {
+            plan.schema.methods.iter().flat_map(move |method| {
+                method
+                    .result_claims
+                    .iter()
+                    .map(move |claim| (plan, method, claim))
+            })
+        })
+        .collect::<Vec<_>>();
+    boundary_result_rows.sort_by(
+        |(left_plan, left_method, left_claim), (right_plan, right_method, right_claim)| {
+            left_plan
+                .name
+                .cmp(&right_plan.name)
+                .then_with(|| left_method.name.cmp(&right_method.name))
+                .then_with(|| left_claim.domain.cmp(&right_claim.domain))
+        },
+    );
 
     json.push_str("\n  ],\n  \"boundary_authority_flow\": [");
     for (index, (plan, method, claim, subject_type)) in boundary_authority_rows.iter().enumerate() {
@@ -232,6 +254,38 @@ pub fn qualification_evidence_manifest_json(program: &CheckedTrees) -> String {
         json.push_str(&claim.parameter_index.to_string());
         json.push_str(",\n      \"subject_type\": ");
         if let Some(subject_type) = subject_type {
+            push_json_string(&mut json, subject_type);
+        } else {
+            json.push_str("null");
+        }
+        json.push_str(",\n      \"domain\": ");
+        push_json_string(&mut json, &claim.domain);
+        json.push_str(",\n      \"effective_carry\": ");
+        push_carry_policy_json(&mut json, claim.effective_carry);
+        json.push_str(",\n      \"provider_plan\": ");
+        push_json_string(&mut json, &plan.name);
+        json.push_str(",\n      \"receipt_identity\": ");
+        push_json_string(
+            &mut json,
+            &format!("0x{:016x}", plan.identity_fingerprint()),
+        );
+        json.push_str("\n    }");
+    }
+    for (index, (plan, method, claim)) in boundary_result_rows.iter().enumerate() {
+        if !boundary_authority_rows.is_empty() || index > 0 {
+            json.push(',');
+        }
+        json.push_str("\n    {\n      \"flow\": \"returns\"");
+        json.push_str(",\n      \"boundary\": ");
+        push_json_string(&mut json, &plan.schema.trait_name);
+        json.push_str(",\n      \"requirement\": ");
+        push_json_string(
+            &mut json,
+            &format!("{}::{}", plan.schema.trait_name, method.name),
+        );
+        json.push_str(",\n      \"parameter_index\": null");
+        json.push_str(",\n      \"subject_type\": ");
+        if let Some(subject_type) = &method.result_type_identity {
             push_json_string(&mut json, subject_type);
         } else {
             json.push_str("null");

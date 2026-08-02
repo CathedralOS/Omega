@@ -3,6 +3,79 @@ use omega_core::semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigi
 use omega_facts::{FactOrigin, FactPayload};
 
 #[test]
+fn exclusive_boundary_receiver_establishes_its_exact_routed_result() {
+    let source = r#"
+data Guard [linear] {
+    identity: u64;
+}
+
+domain Guard::Active {
+    MaskControl::save;
+}
+
+boundary trait MaskControl {
+    machine save(&mut self) -> Guard in Active
+    ensures
+        result in Guard::Active;
+}
+
+data Main {
+    control: MaskControl;
+}
+
+machine Main::run(&mut self) -> Guard in Active {
+    self.control.save()
+}
+"#;
+
+    let checked = lower_typed_trees(parse_typed_trees(source))
+        .expect("an exclusive boundary receiver should establish its routed result");
+    let control = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "MaskControl")
+        .expect("mask-control boundary trait");
+    let save = checked
+        .trait_machine_signatures(control)
+        .iter()
+        .find(|signature| signature.name.as_str() == "save")
+        .expect("save requirement");
+    let active = checked
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "Guard::Active")
+        .expect("Active domain");
+    assert_eq!(
+        active.establishment_routes,
+        [DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait: control.symbol,
+            requirement: save.symbol,
+        }]
+    );
+    let call_fact = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| {
+            fact.origin == FactOrigin::CallEnsures
+                && matches!(
+                    fact.payload,
+                    FactPayload::ContractDomainMembership { domain_symbol, .. }
+                        if domain_symbol == active.symbol
+                )
+        })
+        .expect("save call should materialize Active membership");
+    assert_eq!(
+        call_fact.evidence.origin,
+        QualificationEvidenceOrigin::AdmittedReceipt
+    );
+    assert_eq!(call_fact.evidence.source_symbol, control.symbol);
+    assert_eq!(call_fact.evidence.requirement_symbol, save.symbol);
+}
+
+#[test]
 fn boundary_result_authorization_retains_requirement_identity() {
     let source = r#"
 data Token {
