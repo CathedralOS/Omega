@@ -906,14 +906,20 @@ improvements do not change public identity.
   verified constant/jump chain to a provenance-retaining target
   return-immediate, emits AArch64 and x86-64 scalar-return bytes, rejects
   unsupported widths, and a linker-harness canary proves host execution matches
-  terminal interpretation after producer/intermediate state is dropped. This
-  does not yet provide standalone object/image emission or migrate the legacy
-  backend.
+  terminal interpretation after producer/intermediate state is dropped. The
+  initial vocabulary now has canonical semantic bytes and a domain-separated
+  semantic fingerprint as well: decoding rejects alternate encodings, invalid
+  modules, and trailing data, while a golden identity test freezes the format.
+  The real-source canary encodes, discards the producing module, decodes a fresh
+  module, verifies it with the separately retained proof bundle, and then
+  compares interpreted/native behavior. This does not yet provide standalone
+  object/image emission, section manifests/version migration, or migrate the
+  legacy backend.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
-  Omega-to-Psi path. With the initial interpreter and lowering customers live,
-  next freeze its canonical serialization and semantic fingerprint, then add
-  operations in vertical slices containing execution
+  Omega-to-Psi path. With the initial interpreter, lowering customers, and
+  canonical semantic codec live, next add operations in vertical slices
+  containing execution
   semantics, generated obligations, sound proof rules, interpreter behavior,
   Omega lowering requirements, and canonical encoding. Merge the useful
   `StateGraph`/`ControlFlowPlan` topology, replace every `ExpressionHandle` with
@@ -928,7 +934,9 @@ improvements do not change public identity.
   integer/control/contract canary serializes canonically, verifies after source
   and producer state are discarded, and produces identical interpreted and
   native behavior; no Omega-side lowering crate used by that path depends on
-  `TypedTrees` or `ExpressionHandle`.
+  `TypedTrees` or `ExpressionHandle`. **Initial acceptance canary complete;**
+  continue vocabulary and ownership migration rather than widening the
+  compatibility adapter.
 - **IRFUEL — IMPLEMENTATION WORK:** implement the settled
   `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md` sequence:
   versioned terminal Psi and fuel schedule, evaluator/interpreter metering,

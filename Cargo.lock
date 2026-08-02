@@ -608,6 +608,7 @@ dependencies = [
  "psi-core",
  "psi-proof-kernel",
  "psi-terminal",
+ "psi-terminal-codec",
  "psi-terminal-verifier",
 ]
 
@@ -1209,6 +1210,16 @@ name = "psi-terminal"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+]
+
+[[package]]
+name = "psi-terminal-codec"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+ "psi-terminal",
+ "psi-terminal-verifier",
+ "sha2",
 ]
 
 [[package]]

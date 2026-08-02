@@ -18,6 +18,7 @@ use psi_core::{
     ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
+use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
 use psi_terminal_verifier::verify_module;
 use std::path::{Path, PathBuf};
 
@@ -49,9 +50,22 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
 
     drop(checked);
 
+    let canonical_bytes = encode_module(&lowered.semantic_module)
+        .expect("source-produced terminal Psi should encode canonically");
+    let original_identity = terminal_psi_identity(&lowered.semantic_module)
+        .expect("source-produced terminal Psi should have a semantic identity");
+    let proof_bundle = lowered.proof_bundle.clone();
+    drop(lowered);
+    let semantic_module = decode_module(&canonical_bytes)
+        .expect("canonical source-produced terminal Psi should decode");
+    assert_eq!(
+        terminal_psi_identity(&semantic_module).unwrap(),
+        original_identity
+    );
+
     let verified = verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
+        &semantic_module,
+        &proof_bundle,
         &AdmissionProfile::default(),
     )
     .expect("source-produced terminal Psi and its proof should verify");
@@ -60,7 +74,8 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
     let result = interpret_terminal(&verified, &[])
         .expect("verified source-produced terminal Psi should execute");
     drop(verified);
-    drop(lowered);
+    drop(semantic_module);
+    drop(proof_bundle);
 
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     assert_eq!(
@@ -132,9 +147,22 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("accepted source slice should lower to terminal Psi");
     drop(checked);
 
+    let canonical_bytes = encode_module(&lowered.semantic_module)
+        .expect("source-produced terminal Psi should encode canonically");
+    let original_identity = terminal_psi_identity(&lowered.semantic_module)
+        .expect("source-produced terminal Psi should have a semantic identity");
+    let proof_bundle = lowered.proof_bundle.clone();
+    drop(lowered);
+    let semantic_module = decode_module(&canonical_bytes)
+        .expect("canonical source-produced terminal Psi should decode");
+    assert_eq!(
+        terminal_psi_identity(&semantic_module).unwrap(),
+        original_identity
+    );
+
     let verified = verify_module(
-        &lowered.semantic_module,
-        &lowered.proof_bundle,
+        &semantic_module,
+        &proof_bundle,
         &AdmissionProfile::default(),
     )
     .expect("source-produced terminal Psi and its proof should verify");
@@ -171,7 +199,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     drop(target_operations);
     drop(abstract_operations);
     drop(verified);
-    drop(lowered);
+    drop(semantic_module);
+    drop(proof_bundle);
 
     let expected_exit = match interpreted {
         TerminalScalarValue::Integer {

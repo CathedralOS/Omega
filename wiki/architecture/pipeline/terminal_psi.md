@@ -55,8 +55,15 @@ links only those emitted entry bytes into a minimal host harness and proves its
 process result equals terminal interpretation after all producer and
 intermediate state is dropped. This checkpoint does not claim standalone
 object/image emission, general register assignment, or migration of the legacy
-backend. Canonical serialization/fingerprints, branching, arithmetic-policy
-operations, and fuel remain next.
+backend.
+
+Canonical semantic serialization and identity are now live for this initial
+vocabulary in `psi-terminal-codec`. The real-source canary encodes the semantic
+module, records its identity, discards the source and producing module, decodes
+a fresh module, verifies it against the separately retained proof bundle, and
+then drives both interpretation and native realization. Branching,
+arithmetic-policy operations, artifact section manifests/version migration,
+and fuel remain next.
 
 ## Boundary
 
@@ -175,6 +182,35 @@ remain separate. Proof improvements do not change semantic identity; provider
 selection and attached evidence do change their own section and container
 identities. One execution verifies and runs one complete Psi semantic version.
 
+## Canonical v1 semantic bytes
+
+`psi-terminal-codec` owns the first canonical encoding of the current in-memory
+vocabulary. The format begins with `PSITERM\0`, a little-endian `u16` format
+version, and the terminal semantic version. Counts are fixed-width
+little-endian `u32`, stable identities are nonzero little-endian `u64`, integer
+payloads occupy the full signed or unsigned 128-bit field, and every sum type
+uses a closed one-byte tag. This intentionally favors one simple auditable
+encoding over density.
+
+Machines and blocks are strictly ordered by their stable identities; ensures
+are strictly ordered by obligation identity. Requirements and flattened
+conjunction members are strictly ordered by their canonical encoded bytes,
+duplicates are rejected, and symmetric equality operands use that same wire
+ordering. Nested conjunctions and proposition nesting deeper than 256 recursive
+edges are rejected. Execution-significant vectors—parameters, operations, and
+jump arguments—retain their declared order.
+
+Decoding fails on unknown versions or tags, zero identities, invalid booleans,
+noncanonical ordering/forms, malformed or verifier-invalid modules, truncated
+input, and trailing bytes. A successfully decoded module is re-encoded and the
+bytes must match exactly; the decoder never normalizes an alternate encoding.
+The semantic fingerprint is SHA-256 over a v1 domain separator, the canonical
+byte length, and those exact bytes. `TerminalPsiIdentity` contains only the
+semantic version and this fingerprint: proof bundles, installation records,
+and debug maps are deliberately absent and remain replaceable. Container
+section manifests and cross-version translation are not part of this first
+semantic-codec checkpoint.
+
 ## Migration plan
 
 1. Continue the established workspace boundary: move or rename the current
@@ -202,9 +238,11 @@ identities. One execution verifies and runs one complete Psi semantic version.
    during the transition.
 7. Re-root abstract-operation construction on terminal Psi, then retire the
    redundant state-graph/control-flow representation and adapters.
-8. Freeze canonical serialization, fingerprints, proof/install section
-   manifests, and version migration only after the in-memory vocabulary has
-   passed interpreter and lowering canaries.
+8. Freeze canonical serialization and semantic fingerprints only after the
+   in-memory vocabulary has passed interpreter and lowering canaries.
+   **Initial vocabulary complete:** canonical semantic bytes and identity now
+   round-trip through the real-source interpreter/native canary. Proof/install
+   section manifests and version migration remain later artifact slices.
 
 The migration may keep old and new paths temporarily for comparison. That is a
 testing bridge, not a permanent two-semantics architecture.
