@@ -8,9 +8,11 @@
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
 use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
+use psi_terminal::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAbstractOperationPlan {
+    pub terminal_psi: TerminalPsiIdentity,
     pub entry: MachineId,
     pub functions: Vec<TerminalAbstractFunction>,
 }

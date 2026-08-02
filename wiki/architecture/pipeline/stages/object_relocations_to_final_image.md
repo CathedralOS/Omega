@@ -4,6 +4,11 @@
 
 This stage combines encoded machine bytes, data bytes, object sections/symbols, relocation records, and target image rules into final executable image data.
 
+The clean terminal-Psi scalar lane also uses this model and the format writers.
+Because that lane currently has no imports or relocations, it requires the final
+compiler text to equal the owned terminal machine bytes exactly and requires
+every executable byte to belong to one provenance-bearing function region.
+
 ## Stage Contract
 
 Input: target, object layout under `ObjectFileLayout`, relocation records under
@@ -81,6 +86,9 @@ Must not own:
 - `omega-image-pe/src/lib.rs` owns PE emission orchestration; PE constants, byte writing, section/RVA planning, imports, entry-symbol lookup, and headers live in focused sibling modules.
 - `omega-image-macho/src/lib.rs` owns Mach-O emission orchestration; image command/section/linkedit planning, import thunks, bind info, AArch64 thunk patching, and entry-symbol lookup live in focused sibling modules.
 - The remaining ELF, Mach-O, and PE modules own format-specific executable layout and byte writing.
+- `omega-terminal-image-emission/src/lib.rs` dispatches the clean terminal-Psi
+  artifact to those writers and publishes exact-text validation evidence while
+  retaining terminal semantic identity alongside each object/image output.
 
 ## Known Gaps
 

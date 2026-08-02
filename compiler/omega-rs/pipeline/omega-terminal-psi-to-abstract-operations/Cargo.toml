@@ -12,4 +12,5 @@ path = "src/lib.rs"
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi-rs/semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }

@@ -1,6 +1,1 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuntimeStorageRegion {
-    #[default]
-    Machine,
-    RuntimeFrame,
-}
+pub use omega_core::runtime_storage::RuntimeStorageRegion;

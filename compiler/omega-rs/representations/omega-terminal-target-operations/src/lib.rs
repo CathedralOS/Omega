@@ -5,9 +5,11 @@
 
 use omega_target::NativeTarget;
 use psi_core::{EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ValueId};
+use psi_terminal::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetOperationPlan {
+    pub terminal_psi: TerminalPsiIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<TerminalTargetFunction>,

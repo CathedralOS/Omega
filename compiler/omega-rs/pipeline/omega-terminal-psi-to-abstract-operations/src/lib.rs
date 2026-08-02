@@ -11,6 +11,7 @@ use omega_terminal_abstract_operations::{
 };
 use psi_core::{BlockId, MachineId};
 use psi_terminal::{OperationKind, TerminalMachine, Terminator};
+use psi_terminal_codec::{CodecError, terminal_psi_identity};
 use psi_terminal_verifier::VerifiedTerminalModule;
 
 /// Consume the complete verified module without consulting source or producer
@@ -33,6 +34,7 @@ pub fn lower_verified_module(
         .map(lower_machine)
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalAbstractOperationPlan {
+        terminal_psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
         entry: module.entry,
         functions,
     })
@@ -135,6 +137,7 @@ fn lower_machine(machine: &TerminalMachine) -> Result<TerminalAbstractFunction, 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    SemanticIdentity(CodecError),
     VerifiedEntryMachineMissing(MachineId),
     VerifiedBlockMissing { machine: MachineId, block: BlockId },
     VerifiedControlCycle { machine: MachineId, block: BlockId },

@@ -27,6 +27,7 @@ pub fn lower_to_target_operations(
         return Err(LoweringError::EntryFunctionMissing(plan.entry));
     }
     Ok(TerminalTargetOperationPlan {
+        terminal_psi: plan.terminal_psi,
         target,
         entry: plan.entry,
         functions: plan
@@ -199,6 +200,7 @@ mod tests {
         TerminalAbstractFunction, TerminalAbstractOperation, TerminalAbstractOperationPlan,
     };
     use psi_core::{BlockId, EdgeId};
+    use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
 
     #[test]
     fn refuses_a_return_whose_value_was_never_materialized() {
@@ -207,6 +209,7 @@ mod tests {
         let result = ValueId::new(2).expect("result");
         let i32_type = IntegerType::new(psi_core::IntegerSign::Signed, 32).expect("i32");
         let plan = TerminalAbstractOperationPlan {
+            terminal_psi: identity(),
             entry: machine,
             functions: vec![TerminalAbstractFunction {
                 machine,
@@ -224,5 +227,12 @@ mod tests {
             lower_to_target_operations(&plan, NativeTarget::linux_x64()),
             Err(LoweringError::UnknownValue(unknown))
         );
+    }
+
+    fn identity() -> TerminalPsiIdentity {
+        TerminalPsiIdentity {
+            semantic_version: SemanticVersion::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
+        }
     }
 }

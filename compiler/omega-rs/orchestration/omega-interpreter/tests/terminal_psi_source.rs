@@ -13,6 +13,9 @@ use omega_terminal_abstract_operations::{
     TerminalValueBinding,
 };
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_terminal_image_emission::{
+    build_terminal_object_artifact, emit_terminal_executable_image, emit_terminal_object_container,
+};
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
 use psi_core::{
@@ -117,6 +120,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
     assert_eq!(
         abstract_operations,
         TerminalAbstractOperationPlan {
+            terminal_psi: original_identity,
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalAbstractFunction {
                 machine: MachineId::new(1).expect("machine"),
@@ -264,11 +268,10 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("constant terminal requirements should select for the host");
     let machine_code =
         emit_machine_code(&target_operations).expect("host machine code should emit");
-    let entry = machine_code
-        .functions
-        .iter()
-        .find(|function| function.machine == machine_code.entry)
-        .expect("emitted entry function");
+    let object_artifact = build_terminal_object_artifact(&machine_code)
+        .expect("source-produced machine code should form an owned object artifact");
+    assert_eq!(object_artifact.terminal_psi(), original_identity);
+    let entry = object_artifact.entry_function();
     assert_eq!(
         entry.provenance.operations,
         [
@@ -283,7 +286,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
             EdgeId::new(2).expect("return edge"),
         ]
     );
-    let entry_bytes = entry.bytes.clone();
+    let entry_bytes = entry.bytes(&object_artifact).to_vec();
 
     drop(machine_code);
     drop(target_operations);
@@ -291,6 +294,17 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     drop(verified);
     drop(semantic_module);
     drop(proof_bundle);
+
+    let object = emit_terminal_object_container(&object_artifact);
+    assert_eq!(object.terminal_psi, original_identity);
+    assert_eq!(&object.output.bytes[..8], b"OMGOBJ\0\0");
+    assert_eq!(object.output.text_bytes, object_artifact.text_bytes().len());
+    assert_eq!(object.output.relocations, 0);
+    let image = emit_terminal_executable_image(&object_artifact, 3)
+        .expect("source-produced owned artifact should emit a standalone host image");
+    assert_eq!(image.terminal_psi, original_identity);
+    assert_eq!(image.output.final_text_bytes, object_artifact.text_bytes());
+    assert!(image.output.executable_regions.unclassified_gaps.is_empty());
 
     let expected_exit = match interpreted {
         TerminalScalarValue::Integer {
@@ -300,6 +314,40 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         other => panic!("source canary returned unexpected value {other:?}"),
     };
     assert_eq!(run_host_machine_code(&entry_bytes), expected_exit);
+    #[cfg(target_os = "macos")]
+    assert_eq!(
+        run_host_executable_image(&image.output.bytes),
+        expected_exit
+    );
+}
+
+#[cfg(target_os = "macos")]
+fn run_host_executable_image(bytes: &[u8]) -> i32 {
+    use std::os::unix::fs::PermissionsExt;
+
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "omega-terminal-source-image-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create source image test directory");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let executable_path = directory.join("omega-program");
+    std::fs::write(&executable_path, bytes).expect("write direct source terminal image");
+    let mut permissions = std::fs::metadata(&executable_path)
+        .expect("source terminal image metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&executable_path, permissions)
+        .expect("mark source terminal image executable");
+    Command::new(&executable_path)
+        .status()
+        .expect("execute direct source terminal image")
+        .code()
+        .expect("direct source terminal image exited normally")
 }
 
 #[cfg(unix)]

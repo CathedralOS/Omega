@@ -18,8 +18,9 @@ tests reject any Psi dependency on Omega.
 
 The first in-memory executable slice is also live. `psi-terminal` defines a
 versioned module with stable machines, blocks, values, operations, edges, and
-bodyful contracts; its closed vocabulary currently contains representable
-integer constants plus unconditional jump and return edges.
+bodyful contracts. Frozen semantic v1 contains representable integer constants;
+current v2 adds Boolean constants. Both use unconditional jump and return
+edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -50,21 +51,27 @@ The first target/native realization is live on the same clean lane.
 constant and jump bindings into a target `ReturnIntegerImmediate` while
 retaining every contributing Psi operation and edge identity.
 `omega-terminal-machine-emission` emits ordinary scalar-return code for
-AArch64 and x86-64 and rejects non-native integer widths. The real-source canary
-links only those emitted entry bytes into a minimal host harness and proves its
-process result equals terminal interpretation after all producer and
-intermediate state is dropped. This checkpoint does not claim standalone
-object/image emission, general register assignment, or migration of the legacy
-backend.
+AArch64 and x86-64 and rejects non-native integer widths.
+`omega-terminal-image-emission` then constructs an owned, canonical-order
+object artifact whose function spans retain terminal-Psi provenance and exact
+semantic identity. It emits the compatibility Omega object container and
+standalone ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64 images through
+the shared image model and writers. The relocation-free slice requires exact
+final text, complete provenance-bearing compiler regions, and no unclassified
+executable gaps. The source and Boolean canaries drop all producing semantic
+and lowering state before artifact emission; the host linker harness executes
+the retained entry bytes, and the macOS host canary also executes the emitted
+Mach-O image directly. General register assignment and migration of the legacy
+backend remain outside this checkpoint.
 
 Canonical semantic serialization and identity are now live for this initial
 vocabulary in `psi-terminal-codec`. The real-source canary encodes the semantic
 module, records its identity, discards the source and producing module, decodes
 a fresh module and proof bundle, validates their section manifest, and then
 drives verification, interpretation, and native realization. Branching,
-arithmetic-policy operations, typed installation/debug payload schemas, version
-migration, general safe-point/branch fixed-work checking, build-time fuel
-migration, and native fuel metering remain next.
+arithmetic-policy operations, typed installation/debug payload schemas, general
+safe-point/branch fixed-work checking, build-time fuel migration, and native
+fuel metering remain next.
 
 ## Boundary
 
@@ -295,8 +302,10 @@ migration remain later slices.
    fail-closed compatibility adapter and a real source canary now verify and
    execute after checked trees are dropped, then lower the verified module into
    an owned, source-independent Omega requirement stream, a target
-   return-immediate, and host machine code whose execution matches
-   interpretation. Standalone image integration is not part of this checkpoint.
+   return-immediate, host machine code, an owned object artifact, and a direct
+   host image whose execution matches interpretation. The same exact-text image
+   boundary is structurally exercised for all four currently supported
+   architecture/format pairs.
 4. Add calls, continuations, cleanup, conservation, boundary operations,
    suspension, and scoped ordering as reviewed vertical slices.
 5. Move binding substitution and concrete instantiation above terminal Psi so

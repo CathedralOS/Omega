@@ -21,6 +21,7 @@ pub fn emit_machine_code(
         return Err(EmissionError::EntryFunctionMissing(plan.entry));
     }
     Ok(TerminalMachineCodePlan {
+        terminal_psi: plan.terminal_psi,
         target: plan.target,
         entry: plan.entry,
         functions: plan
@@ -158,10 +159,12 @@ mod tests {
         TerminalTargetOperationPlan,
     };
     use psi_core::{EdgeId, MachineId};
+    use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
 
     fn plan(target: NativeTarget) -> TerminalTargetOperationPlan {
         let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
         TerminalTargetOperationPlan {
+            terminal_psi: identity(),
             target,
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
@@ -195,6 +198,7 @@ mod tests {
     #[test]
     fn emits_canonical_boolean_returns_for_both_architectures() {
         let boolean_plan = |target, value| TerminalTargetOperationPlan {
+            terminal_psi: identity(),
             target,
             entry: MachineId::new(1).expect("machine"),
             functions: vec![TerminalTargetFunction {
@@ -239,5 +243,12 @@ mod tests {
             emit_machine_code(&plan),
             Err(EmissionError::IntegerWidthNotNativelySupported { bits: 128, .. })
         ));
+    }
+
+    fn identity() -> TerminalPsiIdentity {
+        TerminalPsiIdentity {
+            semantic_version: SemanticVersion::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
+        }
     }
 }
