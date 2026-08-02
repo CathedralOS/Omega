@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
+psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }

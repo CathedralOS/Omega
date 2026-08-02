@@ -602,6 +602,7 @@ dependencies = [
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-image-emission",
  "omega-terminal-machine-emission",
  "omega-terminal-psi-to-abstract-operations",
  "omega-typed-trees",
@@ -703,7 +704,6 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-target",
- "omega-target-operations",
 ]
 
 [[package]]
@@ -1044,6 +1044,7 @@ name = "omega-terminal-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]
@@ -1054,6 +1055,24 @@ dependencies = [
  "omega-terminal-abstract-operations",
  "omega-terminal-target-operations",
  "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
+name = "omega-terminal-image-emission"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-image",
+ "omega-image-elf",
+ "omega-image-macho",
+ "omega-image-pe",
+ "omega-object-file",
+ "omega-target",
+ "omega-terminal-machine-code",
+ "omega-terminal-target-operations",
+ "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]
@@ -1063,6 +1082,7 @@ dependencies = [
  "omega-target",
  "omega-terminal-target-operations",
  "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]
@@ -1073,6 +1093,7 @@ dependencies = [
  "omega-terminal-machine-code",
  "omega-terminal-target-operations",
  "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]
@@ -1082,6 +1103,7 @@ dependencies = [
  "omega-terminal-abstract-operations",
  "psi-core",
  "psi-terminal",
+ "psi-terminal-codec",
  "psi-terminal-verifier",
 ]
 
@@ -1091,6 +1113,7 @@ version = "0.1.0"
 dependencies = [
  "omega-target",
  "psi-core",
+ "psi-terminal",
 ]
 
 [[package]]

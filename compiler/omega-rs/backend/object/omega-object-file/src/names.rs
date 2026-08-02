@@ -1,6 +1,6 @@
 use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolSection};
+use omega_core::runtime_storage::RuntimeStorageRegion;
 use omega_target::{NativeTarget, ObjectFormat};
-use omega_target_operations::RuntimeStorageRegion;
 
 pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
     object

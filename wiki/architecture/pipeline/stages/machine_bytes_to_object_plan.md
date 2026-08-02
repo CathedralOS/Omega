@@ -4,6 +4,13 @@
 
 This stage turns encoded machine bytes, data bytes, layout facts, and host ABI imports into an object-file plan made of sections and symbols.
 
+The clean terminal-Psi lane enters the same object model through
+`omega-terminal-image-emission`. It consumes `TerminalMachineCodePlan` directly,
+retains the exact terminal semantic identity and per-function Psi provenance,
+and deliberately does not reconstruct the legacy `EncodedMachineCode` carrier.
+Its current relocation-free scalar slice owns only canonical-order text
+functions and their symbols.
+
 ## Stage Contract
 
 Input: encoded machine bytes under `EncodedMachineCode`, target data, layout,
@@ -77,6 +84,9 @@ Must not own:
 - `omega-object-file/src/sections.rs` owns section records.
 - `omega-object-file/src/symbols.rs` owns symbol records and handles.
 - `omega-object-file/src/names.rs` owns target-specific object symbol and section names.
+- `omega-terminal-image-emission/src/lib.rs` owns the clean terminal-Psi object
+  artifact, canonical function-span validation, compatibility-container
+  emission, and handoff to the shared final-image model.
 
 ## Known Gaps
 

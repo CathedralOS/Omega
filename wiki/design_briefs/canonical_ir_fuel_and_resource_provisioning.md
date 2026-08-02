@@ -44,9 +44,13 @@ semantic bytes and a domain-separated semantic fingerprint; the source canary
 round-trips both semantic and proof-bundle bytes after discarding producer
 state. The proof section has its own golden fingerprint, and a role-separated
 manifest binds semantic, proof, installation, and debug sections without
-folding replaceable evidence into program identity. Standalone object/image
-integration and general register assignment remain on the legacy backend. The
-first version transition is live: valid v1 integer modules retain their frozen
+folding replaceable evidence into program identity. The clean terminal lane now
+owns a semantic-identity-bound object artifact, emits the compatibility object
+container and standalone images for the four supported architecture/format
+pairs, and validates exact relocation-free text plus complete executable-region
+coverage. The macOS canaries execute the emitted Mach-O image directly after
+producer state is dropped. General register assignment remains on the legacy
+backend. The first version transition is live: valid v1 integer modules retain their frozen
 bytes and execution semantics, explicit migration produces a new v2
 fingerprint, and the current v2 Boolean slice round-trips, verifies, meters,
 lowers, emits, and executes as a canonical zero/one native result. This

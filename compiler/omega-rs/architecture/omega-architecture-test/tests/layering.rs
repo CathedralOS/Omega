@@ -314,6 +314,7 @@ fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
         "omega-terminal-target-operations",
         "omega-terminal-machine-emission",
         "omega-terminal-machine-code",
+        "omega-terminal-image-emission",
     ];
     let forbidden = BTreeSet::from([
         "omega-tokens",

@@ -923,9 +923,15 @@ improvements do not change public identity.
   their manifest, and then compares interpreted/native behavior. Semantic v1
   remains decodable, verifiable, executable, and frozen to its integer
   vocabulary; v2 adds `BooleanConstant`, and explicit validated migration
-  preserves the semantic graph while producing a new v2 fingerprint. This does
-  not yet provide standalone object/image emission, typed installation/debug
-  payload schemas, or migrate the legacy backend.
+  preserves the semantic graph while producing a new v2 fingerprint. The clean
+  lane now also constructs an owned, semantic-identity-bound object artifact
+  with canonical function spans and retained Psi provenance, emits the Omega
+  object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
+  standalone images, and rejects altered final text or unclassified executable
+  gaps. Source and Boolean canaries emit after producer/intermediate state is
+  dropped; on the macOS host they directly execute the emitted Mach-O image.
+  Typed installation/debug payload schemas and migration of the legacy backend
+  remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and

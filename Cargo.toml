@@ -79,6 +79,7 @@ members = [
     "compiler/omega-rs/backend/instruction_set_architectures/omega-isa-x86_64",
     "compiler/omega-rs/backend/images/omega-image",
     "compiler/omega-rs/backend/images/omega-image-emission",
+    "compiler/omega-rs/backend/images/omega-terminal-image-emission",
     "compiler/omega-rs/backend/images/omega-image-elf",
     "compiler/omega-rs/backend/images/omega-image-macho",
     "compiler/omega-rs/backend/images/omega-image-pe",

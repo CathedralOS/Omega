@@ -9,6 +9,9 @@ use omega_interpreter::{TerminalScalarValue, interpret_terminal_measured};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalAbstractOperation;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
+use omega_terminal_image_emission::{
+    build_terminal_object_artifact, emit_terminal_executable_image, emit_terminal_object_container,
+};
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
 use psi_core::{BlockId, ContractId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
@@ -24,7 +27,7 @@ use psi_terminal_verifier::{ProofBundle, verify_module};
 
 #[cfg(unix)]
 #[test]
-fn v2_boolean_round_trips_verifies_meters_lowers_and_executes_natively() {
+fn v2_boolean_reaches_owned_object_image_and_native_execution() {
     let machine = MachineId::new(20).expect("machine");
     let operation = OperationId::new(20).expect("operation");
     let edge = EdgeId::new(20).expect("edge");
@@ -102,14 +105,64 @@ fn v2_boolean_round_trips_verifies_meters_lowers_and_executes_natively() {
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select Boolean target operation");
     let machine_code = emit_machine_code(&target_plan).expect("emit Boolean machine code");
-    let entry = machine_code
-        .functions
-        .iter()
-        .find(|function| function.machine == machine_code.entry)
-        .expect("entry function");
-    assert_eq!(entry.provenance.operations, [operation]);
-    assert_eq!(entry.provenance.edges, [edge]);
-    assert_eq!(run_host_machine_code(&entry.bytes), 1);
+    let artifact = build_terminal_object_artifact(&machine_code)
+        .expect("build owned terminal object artifact");
+    assert_eq!(artifact.entry_function().provenance.operations, [operation]);
+    assert_eq!(artifact.entry_function().provenance.edges, [edge]);
+    let entry_bytes = artifact.entry_function().bytes(&artifact).to_vec();
+
+    drop(machine_code);
+    drop(target_plan);
+    drop(abstract_plan);
+    drop(verified);
+    drop(module);
+
+    let object = emit_terminal_object_container(&artifact);
+    assert_eq!(object.terminal_psi, original_identity);
+    assert_eq!(&object.output.bytes[..8], b"OMGOBJ\0\0");
+    assert_eq!(object.output.text_bytes, artifact.text_bytes().len());
+    assert_eq!(object.output.relocations, 0);
+    let image = emit_terminal_executable_image(&artifact, 3)
+        .expect("emit exact standalone host image after semantic state is dropped");
+    assert_eq!(image.terminal_psi, original_identity);
+    let image = image.output;
+    assert_eq!(image.final_text_bytes, artifact.text_bytes());
+    assert!(image.executable_regions.unclassified_gaps.is_empty());
+    assert_eq!(image.executable_regions.regions.len(), 1);
+    assert!(image.compiler_text_validation.is_some());
+
+    assert_eq!(run_host_machine_code(&entry_bytes), 1);
+    #[cfg(target_os = "macos")]
+    assert_eq!(run_host_executable_image(&image.bytes), 1);
+}
+
+#[cfg(target_os = "macos")]
+fn run_host_executable_image(bytes: &[u8]) -> i32 {
+    use std::os::unix::fs::PermissionsExt;
+
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("wall clock after epoch")
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "omega-terminal-boolean-image-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).expect("create image test directory");
+    let _cleanup = ScratchDirectory(directory.clone());
+    let executable_path = directory.join("omega-program");
+    std::fs::write(&executable_path, bytes).expect("write direct terminal image");
+    let mut permissions = std::fs::metadata(&executable_path)
+        .expect("terminal image metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&executable_path, permissions)
+        .expect("mark terminal image executable");
+    Command::new(&executable_path)
+        .status()
+        .expect("execute direct terminal image")
+        .code()
+        .expect("direct terminal image exited normally")
 }
 
 #[cfg(unix)]

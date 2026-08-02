@@ -17,6 +17,7 @@ pub use proof_bundle::{
     ProofBundleFingerprint, ProofCodecError, decode_proof_bundle, encode_proof_bundle,
     proof_bundle_fingerprint,
 };
+pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 
 use psi_core::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionError, PropositionId,
@@ -33,36 +34,6 @@ const MAGIC: &[u8; 8] = b"PSITERM\0";
 const FORMAT_VERSION: u16 = 1;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint-v1\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SemanticFingerprint([u8; 32]);
-
-impl SemanticFingerprint {
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-
-impl std::fmt::Debug for SemanticFingerprint {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, formatter)
-    }
-}
-
-impl std::fmt::Display for SemanticFingerprint {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0 {
-            write!(formatter, "{byte:02x}")?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TerminalPsiIdentity {
-    pub semantic_version: SemanticVersion,
-    pub program_fingerprint: SemanticFingerprint,
-}
 
 pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     validate_canonical_order(module)?;
@@ -124,7 +95,7 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
         u64::try_from(bytes.len()).expect("terminal-Psi bytes fit the u64 digest domain");
     digest.update(byte_len.to_le_bytes());
     digest.update(bytes);
-    SemanticFingerprint(digest.finalize().into())
+    SemanticFingerprint::from_bytes(digest.finalize().into())
 }
 
 fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
