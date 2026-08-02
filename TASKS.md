@@ -945,8 +945,17 @@ improvements do not change public identity.
   incoming stack slot. A frozen-v1 nine-`u8` canary forces the ninth argument
   through the host stack ABI, costs only its one return edge, and returns 77 in
   both the verified interpreter and a real C-linker invocation after semantic
-  and lowering state are dropped. Parameter-fed runtime arithmetic still
-  refuses explicitly until its target instruction slice exists. The
+  and lowering state are dropped. Parameter-fed runtime arithmetic is live as
+  recursive target expressions without a semantic-version change. Compile-known
+  subexpressions still fold; mixed immediate/register/stack wrapping and
+  saturating additions emit for signed or unsigned 8/16/32/64-bit integers on
+  AArch64 and x86-64. AArch64 preserves referenced argument registers in an
+  aligned spill frame before evaluating into `x0`, and both emitters retain the
+  original incoming-stack base across recursive evaluation. A nested current-v4
+  `u8` canary consumes the ninth stack argument, wraps to 4, saturates to 255,
+  and matches interpretation through a real C ABI call; a signed `i64` canary
+  independently reaches both saturation bounds. General register assignment
+  remains later implementation work. The
   initial vocabulary now has canonical semantic bytes and a domain-separated
   semantic fingerprint as well: decoding rejects alternate encodings, invalid
   modules, and trailing data, while a golden identity test freezes the format.
@@ -982,9 +991,8 @@ improvements do not change public identity.
   manifest after producer and intermediate lowering state is dropped. The
   current scalar slice honestly records an empty provider closure; later
   call/boundary slices must populate it from their selected plans. A typed
-  debug/source-map payload schema, parameter-fed runtime operations and general
-  register assignment, further closed arithmetic variants, and migration of
-  the legacy backend remain.
+  debug/source-map payload schema, general register assignment, further closed
+  arithmetic variants, and migration of the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and
