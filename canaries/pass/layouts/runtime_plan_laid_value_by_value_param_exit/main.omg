@@ -45,30 +45,39 @@ data Spread16 {
     slot: u64 in Wrapping;
 }
 machine Spread16::plan(&mut self, schema: Schema) -> Plan {
-    self.index = 0;
-    transition { _ -> fill_loop(schema) }
+    self.evaluate(schema, 256)
+}
 
-    state fill_loop(&mut self, schema: Schema) {
-        transition self.index < 32 && self.index < schema.field_count {
-            true -> place_field(schema)
+machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64 [1..=256]) -> Plan
+terminates by fuel;
+{
+    self.index = 0;
+    transition { _ -> fill_loop(schema, fuel) }
+
+    state fill_loop(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
+            true -> place_field(schema, fuel - 1)
             _ -> done(schema)
         }
     }
-    state place_field(&mut self, schema: Schema) {
+    state place_field(&mut self, schema: Schema, fuel: u64 [1..=256]) {
         self.slot = self.index * 16;
-        transition self.index < 32 {
-            true -> write_field(schema)
+        transition fuel > 1 && self.index < 32 {
+            true -> write_field(schema, fuel - 1)
             _ -> done(schema)
         }
     }
-    state write_field(&mut self, schema: Schema) {
+    state write_field(&mut self, schema: Schema, fuel: u64 [1..=256]) {
         let offset: u64 = self.slot as u64;
         self.entries[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
             placement: FieldPlan::At { offset: offset },
         };
         self.index = self.index + 1;
-        transition { _ -> fill_loop(schema) }
+        transition fuel > 1 {
+            true -> fill_loop(schema, fuel - 1)
+            _ -> done(schema)
+        }
     }
     state done(&mut self, schema: Schema) -> Plan {
         Plan {

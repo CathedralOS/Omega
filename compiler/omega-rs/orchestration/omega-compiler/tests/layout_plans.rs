@@ -72,46 +72,65 @@ data CLayout {
     pad: u64 in Wrapping;
 }
 machine CLayout::plan(&mut self, schema: Schema) -> Plan {
+    self.evaluate(schema, 256)
+}
+
+machine CLayout::evaluate(&mut self, schema: Schema, fuel: u64 [1..=256]) -> Plan
+terminates by fuel;
+{
     self.index = 0;
     self.offset = 0;
     self.widest = 1;
-    transition { _ -> place_loop(schema) }
+    transition { _ -> place_loop(schema, fuel) }
 
-    state place_loop(&mut self, schema: Schema) {
-        transition self.index < 32 && self.index < schema.field_count {
-            true -> read_field(schema)
+    state place_loop(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+        transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
+            true -> read_field(schema, fuel - 1)
             _ -> done(schema)
         }
     }
-    state read_field(&mut self, schema: Schema) {
+    state read_field(&mut self, schema: Schema, fuel: u64 [1..=256]) {
         self.fsize = schema.fields[self.index].size;
         self.falign = schema.fields[self.index].align;
         // C rule: round up to the field's alignment, place, advance.
         self.pad = (self.falign - self.offset % self.falign) % self.falign;
         self.offset = self.offset + self.pad;
-        transition self.index < 32 {
-            true -> place_field(schema)
+        transition fuel > 1 && self.index < 32 {
+            true -> place_field(schema, fuel - 1)
             _ -> done(schema)
         }
     }
-    state place_field(&mut self, schema: Schema) {
+    state place_field(&mut self, schema: Schema, fuel: u64 [1..=256]) {
         self.entries[self.index] = FieldEntry {
             key: schema.fields[self.index].key,
             placement: FieldPlan::At { offset: self.offset as u64 },
         };
         self.offset = self.offset + self.fsize;
-        transition self.widest < self.falign {
-            true -> widen(schema)
-            _ -> advance(schema)
+        transition fuel > 1 {
+            true -> choose_widen(schema, fuel - 1)
+            _ -> done(schema)
         }
     }
-    state widen(&mut self, schema: Schema) {
-        self.widest = self.falign;
-        transition { _ -> advance(schema) }
+    state choose_widen(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+        transition {
+            fuel > 1 && self.widest < self.falign -> widen(schema, fuel - 1)
+            fuel > 1 -> advance(schema, fuel - 1)
+            _ -> done(schema)
+        }
     }
-    state advance(&mut self, schema: Schema) {
+    state widen(&mut self, schema: Schema, fuel: u64 [1..=256]) {
+        self.widest = self.falign;
+        transition fuel > 1 {
+            true -> advance(schema, fuel - 1)
+            _ -> done(schema)
+        }
+    }
+    state advance(&mut self, schema: Schema, fuel: u64 [1..=256]) {
         self.index = self.index + 1;
-        transition { _ -> place_loop(schema) }
+        transition fuel > 1 {
+            true -> place_loop(schema, fuel - 1)
+            _ -> done(schema)
+        }
     }
     state done(&mut self, schema: Schema) -> Plan {
         // Round the total size up to the struct alignment (the C tail rule).
