@@ -269,7 +269,8 @@ STILL TODO:
 ## PROGRESS (S1b)
 
 - **Representation DONE + LIVE** (commits 8fb86b17, e2137582): `ArithmeticDomain`
-  in omega-core; `TypeConstraintNode::ArithmeticDomain` threaded through all 3
+  is Psi-owned in `psi-numerics` and temporarily re-exported by `omega-core`;
+  `TypeConstraintNode::ArithmeticDomain` is threaded through all 3
   type layers + every conversion/consumer; the parser emits `T in Wrapping` as
   `Constrained { base, [ArithmeticDomain(Wrapping)] }`. Validated end-to-end:
   `arithmetic_domain_wrapping_exit` is 70 on interp AND native, so a Constrained

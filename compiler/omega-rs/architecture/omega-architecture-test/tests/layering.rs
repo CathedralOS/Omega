@@ -332,6 +332,33 @@ fn lexical_frontend_implementation_is_psi_owned() {
 
     for (relative, expected_export) in [
         (
+            "compiler/omega-rs/foundation/omega-core/src/arithmetic.rs",
+            "pub use psi_numerics::arithmetic::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/bignum.rs",
+            "pub use psi_numerics::bignum::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/float_semantics.rs",
+            "pub use psi_numerics::float_semantics::*;",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/literals.rs",
+            "pub use psi_numerics::literals::*;",
+        ),
+    ] {
+        let path = root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            source.contains(expected_export),
+            "legacy numeric module must re-export its Psi-owned implementation: {relative}"
+        );
+    }
+
+    for (relative, expected_export) in [
+        (
             "compiler/omega-rs/foundation/omega-core/src/span.rs",
             "pub use psi_source::Span;",
         ),
