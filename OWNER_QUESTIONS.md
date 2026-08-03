@@ -24,3 +24,25 @@ Core `Extent::Granted` cannot directly cite a Cathedral/UEFI-specific route,
 and recognizing friendly target domain names would violate the ownership
 firewall. This decision fixes provider-schema identity, route ownership, the
 typed handoff shape, and the generic derivation key used for sections/statics.
+
+## Q2 — What is the final artifact-footprint certificate boundary?
+
+Final machine-state admission must independently validate the exact placed
+bytes of compiler functions, format-owned thunks, relaxation products,
+veneers, generated stubs, and admitted leaves against the selected
+`StatePlan`. Which evidence boundary is canonical for both statically linked
+and dynamically loaded admitted artifacts?
+
+- a self-describing, versioned instruction/region certificate whose normalized
+  semantic rows are replayed against exact final bytes by the admission
+  checker; or
+- an independent target decoder which derives the complete footprint directly
+  from final executable regions, with admitted leaves joined through a
+  separate receipt vocabulary?
+
+The choice fixes the certificate format, the trusted decoder surface, how
+relocation and generated-region identities bind to decoded instructions, and
+where admitted leaf claims enter transitive composition. The current exact
+relocation envelope, checked-assembly validators, import-thunk validators, and
+complete executable-region inventory are sound precursors, but none may claim
+complete final-footprint validation until this boundary is settled.
