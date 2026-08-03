@@ -653,8 +653,11 @@ plan-clobbered `r11`/`rax` pair rather than silently overwriting callee-saved
 `r15`. AArch64 large-offset marshalling reuses the plan-selected `x8` number
 register before loading the call number, and the evaluated plan explicitly
 includes `x8` in its realized clobber set. Composite runtime-text byte and line
-syscalls now use the same evaluated placements. AArch64 emits the plan-selected
-registers and supervisor-call
+syscalls now consume the binding-retained three-argument/result plan in both
+emission and layout rather than re-evaluating it from the architecture. Byte
+read, byte write, and bounded-carrier, fixed-array, or string-descriptor line
+read compatibility sequences have an exact byte/width differential lock on
+x86-64 and AArch64. AArch64 emits the plan-selected registers and supervisor-call
 immediate; the current fixed x86-64 sequences fail closed when asked to realize
 a different normalized plan rather than silently overriding it.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the

@@ -26,15 +26,7 @@ impl NormalizedSyscallRegisters {
     }
 }
 
-pub(super) fn normalized_syscall_registers(
-    architecture: Architecture,
-    parameter_count: usize,
-    has_result: bool,
-) -> Result<NormalizedSyscallRegisters, Diagnostic> {
-    normalized_syscall_registers_with_plan(architecture, parameter_count, has_result, None)
-}
-
-fn normalized_syscall_registers_with_plan(
+pub(super) fn normalized_syscall_registers_with_plan(
     architecture: Architecture,
     parameter_count: usize,
     has_result: bool,

@@ -1,11 +1,11 @@
-use omega_calling_conventions::HostBindingMechanism;
+use omega_calling_conventions::{CallPlan, HostBindingMechanism};
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::RuntimeTextReadTarget;
 use psi_diagnostics::Diagnostic;
 
-use super::host::normalized_syscall_registers;
+use super::host::normalized_syscall_registers_with_plan;
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
@@ -307,13 +307,28 @@ pub fn encode_runtime_byte_read(
     payload_offset: usize,
     binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_byte_read_with_plan(architecture, target_offset, payload_offset, binding, None)
+}
+
+pub fn encode_runtime_byte_read_with_plan(
+    architecture: Architecture,
+    target_offset: usize,
+    payload_offset: usize,
+    binding: &HostBindingMechanism,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
                 aarch64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let registers = normalized_syscall_registers_with_plan(
+                    architecture,
+                    3,
+                    true,
+                    authoritative_plan,
+                )?;
                 aarch64::encode_runtime_byte_read_syscall(
                     target_offset,
                     payload_offset,
@@ -335,7 +350,12 @@ pub fn encode_runtime_byte_read(
                 x86_64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let registers = normalized_syscall_registers_with_plan(
+                    architecture,
+                    3,
+                    true,
+                    authoritative_plan,
+                )?;
                 x86_64::encode_runtime_byte_read_syscall(
                     target_offset,
                     payload_offset,
@@ -362,13 +382,27 @@ pub fn encode_runtime_byte_write(
     source_offset: usize,
     binding: &HostBindingMechanism,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_byte_write_with_plan(architecture, source_offset, binding, None)
+}
+
+pub fn encode_runtime_byte_write_with_plan(
+    architecture: Architecture,
+    source_offset: usize,
+    binding: &HostBindingMechanism,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
                 aarch64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let registers = normalized_syscall_registers_with_plan(
+                    architecture,
+                    3,
+                    true,
+                    authoritative_plan,
+                )?;
                 aarch64::encode_runtime_byte_write_syscall(
                     source_offset,
                     *number,
@@ -389,7 +423,12 @@ pub fn encode_runtime_byte_write(
                 x86_64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let registers = normalized_syscall_registers_with_plan(
+                    architecture,
+                    3,
+                    true,
+                    authoritative_plan,
+                )?;
                 x86_64::encode_runtime_byte_write_syscall(
                     source_offset,
                     *number,
@@ -415,6 +454,24 @@ pub fn encode_runtime_text_line_read(
     binding: &HostBindingMechanism,
     target: RuntimeTextReadTarget,
 ) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_text_line_read_with_plan(
+        architecture,
+        target_offset,
+        byte_capacity,
+        binding,
+        target,
+        None,
+    )
+}
+
+pub fn encode_runtime_text_line_read_with_plan(
+    architecture: Architecture,
+    target_offset: usize,
+    byte_capacity: usize,
+    binding: &HostBindingMechanism,
+    target: RuntimeTextReadTarget,
+    authoritative_plan: Option<&CallPlan>,
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => match target {
@@ -435,7 +492,12 @@ pub fn encode_runtime_text_line_read(
                 }
             },
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let registers = normalized_syscall_registers_with_plan(
+                    architecture,
+                    3,
+                    true,
+                    authoritative_plan,
+                )?;
                 let result_register = registers.required_result()?;
                 match target {
                     RuntimeTextReadTarget::BoundedByteBuffer => {
@@ -492,7 +554,12 @@ pub fn encode_runtime_text_line_read(
                 }
             },
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers(architecture, 3, true)?;
+                let registers = normalized_syscall_registers_with_plan(
+                    architecture,
+                    3,
+                    true,
+                    authoritative_plan,
+                )?;
                 let result_register = registers.required_result()?;
                 match target {
                     RuntimeTextReadTarget::BoundedByteBuffer => {
@@ -543,4 +610,106 @@ fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 runtime text encoding is not implemented",
     ))
+}
+
+#[cfg(test)]
+mod plan_differential_tests {
+    use super::*;
+    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use std::sync::Arc;
+
+    fn syscall_binding() -> HostBindingMechanism {
+        HostBindingMechanism::Syscall {
+            name: Arc::from("read_or_write"),
+            number: 1,
+        }
+    }
+
+    fn plan(architecture: Architecture) -> CallPlan {
+        let policy = match architecture {
+            Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
+            Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
+        };
+        evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 3],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .expect("runtime text syscall plan")
+    }
+
+    #[test]
+    fn composite_runtime_text_syscalls_equal_the_explicit_retained_plan() {
+        let binding = syscall_binding();
+        for architecture in [Architecture::X86_64, Architecture::Aarch64] {
+            let plan = plan(architecture);
+
+            let compatibility = encode_runtime_byte_read(architecture, 16, 24, &binding)
+                .expect("compatibility byte read");
+            let planned =
+                encode_runtime_byte_read_with_plan(architecture, 16, 24, &binding, Some(&plan))
+                    .expect("planned byte read");
+            assert_eq!(compatibility, planned, "byte read {architecture:?}");
+            assert_eq!(
+                crate::runtime_byte_read_width(architecture, &binding),
+                crate::runtime_byte_read_width_with_plan(
+                    architecture,
+                    &binding,
+                    16,
+                    24,
+                    Some(&plan),
+                ),
+                "byte read width {architecture:?}"
+            );
+
+            let compatibility = encode_runtime_byte_write(architecture, 32, &binding)
+                .expect("compatibility byte write");
+            let planned =
+                encode_runtime_byte_write_with_plan(architecture, 32, &binding, Some(&plan))
+                    .expect("planned byte write");
+            assert_eq!(compatibility, planned, "byte write {architecture:?}");
+            assert_eq!(
+                crate::runtime_byte_write_width(architecture, &binding, 32),
+                crate::runtime_byte_write_width_with_plan(architecture, &binding, 32, Some(&plan),),
+                "byte write width {architecture:?}"
+            );
+
+            for target in [
+                RuntimeTextReadTarget::BoundedByteBuffer,
+                RuntimeTextReadTarget::FixedByteArray,
+                RuntimeTextReadTarget::StringDescriptor,
+            ] {
+                let compatibility =
+                    encode_runtime_text_line_read(architecture, 40, 64, &binding, target)
+                        .expect("compatibility line read");
+                let planned = encode_runtime_text_line_read_with_plan(
+                    architecture,
+                    40,
+                    64,
+                    &binding,
+                    target,
+                    Some(&plan),
+                )
+                .expect("planned line read");
+                assert_eq!(
+                    compatibility, planned,
+                    "line read {architecture:?} {target:?}"
+                );
+                assert_eq!(
+                    crate::runtime_text_line_read_width(architecture, 64, &binding, target, 40,),
+                    crate::runtime_text_line_read_width_with_plan(
+                        architecture,
+                        64,
+                        &binding,
+                        target,
+                        40,
+                        Some(&plan),
+                    ),
+                    "line read width {architecture:?} {target:?}"
+                );
+            }
+        }
+    }
 }

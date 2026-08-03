@@ -81,10 +81,11 @@ pub use runtime_storage::{
     x86_64_encode_write_place_string_with_sites,
 };
 pub use runtime_text::{
-    encode_runtime_byte_read, encode_runtime_byte_write, encode_runtime_text_buffer_materialize,
+    encode_runtime_byte_read, encode_runtime_byte_read_with_plan, encode_runtime_byte_write,
+    encode_runtime_byte_write_with_plan, encode_runtime_text_buffer_materialize,
     encode_runtime_text_buffer_materialize_to_runtime_frame_indexed,
     encode_runtime_text_buffer_materialize_to_runtime_pointee, encode_runtime_text_line_read,
-    encode_runtime_text_literal_append,
+    encode_runtime_text_line_read_with_plan, encode_runtime_text_literal_append,
     encode_runtime_text_literal_append_to_runtime_frame_indexed,
     encode_runtime_text_literal_append_to_runtime_pointee, encode_runtime_text_literal_compare,
     encode_runtime_text_literal_segment_write, encode_runtime_text_literal_write,

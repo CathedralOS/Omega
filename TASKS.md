@@ -799,7 +799,11 @@ Remaining:
   differential-locked too. Ordinary non-variadic scalar built-in imports now
   consume the binding-retained plan in emission, layout, and relocation
   accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
-  plus Windows x64 relocation sites, are differential-locked; and
+  plus Windows x64 relocation sites, are differential-locked. Composite Linux
+  runtime byte-read, byte-write, and all three line-read target shapes now
+  consume the binding-retained three-argument/result syscall plan in emission
+  and layout, with x86-64/AArch64 compatibility bytes and widths locked to the
+  explicit plan; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing

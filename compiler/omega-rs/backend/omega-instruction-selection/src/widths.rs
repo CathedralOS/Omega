@@ -2070,6 +2070,27 @@ pub fn runtime_byte_read_width(
     }
 }
 
+pub fn runtime_byte_read_width_with_plan(
+    architecture: Architecture,
+    binding: &HostBindingMechanism,
+    target_offset: usize,
+    payload_offset: usize,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match authoritative_plan {
+        Some(plan) => crate::encode_runtime_byte_read_with_plan(
+            architecture,
+            target_offset,
+            payload_offset,
+            binding,
+            Some(plan),
+        )
+        .map(|bytes| bytes.len())
+        .unwrap_or(0),
+        None => runtime_byte_read_width(architecture, binding),
+    }
+}
+
 /// Width of the stdout byte write; same conventions as the read.
 pub fn runtime_byte_write_width(
     architecture: Architecture,
@@ -2095,6 +2116,25 @@ pub fn runtime_byte_write_width(
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => 0,
         },
+    }
+}
+
+pub fn runtime_byte_write_width_with_plan(
+    architecture: Architecture,
+    binding: &HostBindingMechanism,
+    source_offset: usize,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match authoritative_plan {
+        Some(plan) => crate::encode_runtime_byte_write_with_plan(
+            architecture,
+            source_offset,
+            binding,
+            Some(plan),
+        )
+        .map(|bytes| bytes.len())
+        .unwrap_or(0),
+        None => runtime_byte_write_width(architecture, binding, source_offset),
     }
 }
 
@@ -2168,6 +2208,35 @@ pub fn runtime_text_line_read_width(
             | HostBindingMechanism::VtableField { .. }
             | HostBindingMechanism::TableFunction { .. } => 0,
         },
+    }
+}
+
+pub fn runtime_text_line_read_width_with_plan(
+    architecture: Architecture,
+    byte_capacity: usize,
+    binding: &HostBindingMechanism,
+    target: RuntimeTextReadTarget,
+    target_offset: usize,
+    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+) -> usize {
+    match authoritative_plan {
+        Some(plan) => crate::encode_runtime_text_line_read_with_plan(
+            architecture,
+            target_offset,
+            byte_capacity,
+            binding,
+            target,
+            Some(plan),
+        )
+        .map(|bytes| bytes.len())
+        .unwrap_or(0),
+        None => runtime_text_line_read_width(
+            architecture,
+            byte_capacity,
+            binding,
+            target,
+            target_offset,
+        ),
     }
 }
 

@@ -17,16 +17,16 @@ use omega_instruction_selection::{
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     runtime_atomic_fetch_and_width, runtime_atomic_fetch_or_width, runtime_atomic_fetch_sub_width,
     runtime_atomic_fetch_xor_width, runtime_atomic_load_to_storage_width,
-    runtime_atomic_store_from_operand_width, runtime_atomic_swap_width, runtime_byte_read_width,
-    runtime_byte_write_width, runtime_storage_convert_width,
-    runtime_storage_copy_to_return_register_width, runtime_text_buffer_materialize_width,
-    runtime_text_line_read_width, runtime_text_literal_append_width,
-    runtime_text_literal_compare_width, runtime_text_literal_segment_write_width,
-    runtime_text_literal_write_width, runtime_text_storage_compare_width,
-    runtime_text_stored_place_append_width, runtime_text_stored_suffix_append_width,
-    runtime_value_compare_width, syscall_sequence_width_with_plan,
-    table_function_call_sequence_width_with_plan, vtable_call_sequence_width_at_offset_with_plan,
-    vtable_call_sequence_width_with_plan,
+    runtime_atomic_store_from_operand_width, runtime_atomic_swap_width,
+    runtime_byte_read_width_with_plan, runtime_byte_write_width_with_plan,
+    runtime_storage_convert_width, runtime_storage_copy_to_return_register_width,
+    runtime_text_buffer_materialize_width, runtime_text_line_read_width_with_plan,
+    runtime_text_literal_append_width, runtime_text_literal_compare_width,
+    runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
+    runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
+    runtime_text_stored_suffix_append_width, runtime_value_compare_width,
+    syscall_sequence_width_with_plan, table_function_call_sequence_width_with_plan,
+    vtable_call_sequence_width_at_offset_with_plan, vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
 use psi_diagnostics::Diagnostic;
@@ -799,15 +799,21 @@ fn machine_instruction_width(
                     read.operation_key.operation_name()
                 )));
             };
-            runtime_text_line_read_width(
+            runtime_text_line_read_width_with_plan(
                 input.target.architecture,
                 read.byte_capacity,
                 &binding.mechanism,
                 read.target,
                 read.target_offset,
+                binding.call_plan(),
             )
         }
-        SelectedInstructionKind::ReadRuntimeByte { source, .. } => {
+        SelectedInstructionKind::ReadRuntimeByte {
+            target_offset,
+            payload_offset,
+            source,
+            ..
+        } => {
             let RuntimeTextReadSource::HostOperation { operation_key } = source;
             let Some(binding) = input
                 .assigned_target_operations
@@ -817,7 +823,13 @@ fn machine_instruction_width(
                     "missing host binding for runtime byte read",
                 ));
             };
-            runtime_byte_read_width(input.target.architecture, &binding.mechanism)
+            runtime_byte_read_width_with_plan(
+                input.target.architecture,
+                &binding.mechanism,
+                *target_offset,
+                *payload_offset,
+                binding.call_plan(),
+            )
         }
         SelectedInstructionKind::WriteRuntimeByte {
             source,
@@ -833,10 +845,11 @@ fn machine_instruction_width(
                     "missing host binding for runtime byte write",
                 ));
             };
-            runtime_byte_write_width(
+            runtime_byte_write_width_with_plan(
                 input.target.architecture,
                 &binding.mechanism,
                 *source_offset,
+                binding.call_plan(),
             )
         }
         SelectedInstructionKind::CopyPlaces {
