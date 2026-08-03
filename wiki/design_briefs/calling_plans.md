@@ -687,8 +687,10 @@ binding plan is not substituted for those internal signatures.
 The base Linux binding rows make that retention literal: `Stdin::read`,
 `Stdout::write`, and `Stderr::write` each carry the exact three-word/result
 syscall plan, while `Process::exit_group` carries its one-word/no-result plan.
-No composite or terminal process path needs to rediscover those fixed external
-signatures from the target architecture. The direct Darwin libc rows retain
+Machine layout and emission reject any selected syscall binding that loses
+that plan; architecture-derived syscall placement remains only a differential
+oracle. No composite or terminal process path needs to rediscover those fixed
+external signatures from the target architecture. The direct Darwin libc rows retain
 the corresponding three-word/result AAPCS64 plans for `_read` and `_write`,
 and the exact I32/no-result plan for `_exit`; unlike Windows' composite adapter,
 these are the actual external calls made by the runtime-text and process paths.

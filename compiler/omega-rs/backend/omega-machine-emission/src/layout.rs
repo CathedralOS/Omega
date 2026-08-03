@@ -112,42 +112,58 @@ fn machine_instruction_width(
                 Some(HostBindingMechanism::Syscall { number, .. })
                     if host_operation.operation_key.uses_linux_timespec_result() =>
                 {
-                    omega_instruction_selection::linux_timespec_syscall_sequence_width_with_plan(
-                        input.target.architecture,
-                        operands,
-                        *number,
-                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                    )
+                    binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                        .map_or(0, |plan| {
+                            omega_instruction_selection::linux_timespec_syscall_sequence_width_with_plan(
+                                input.target.architecture,
+                                operands,
+                                *number,
+                                Some(plan),
+                            )
+                        })
                 }
                 Some(HostBindingMechanism::Syscall { number, .. })
                     if host_operation
                         .operation_key
                         .uses_linux_timespec_argument() =>
                 {
-                    omega_instruction_selection::linux_timespec_argument_syscall_sequence_width_with_plan(
-                        input.target.architecture,
-                        operands,
-                        *number,
-                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                    )
+                    binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                        .map_or(0, |plan| {
+                            omega_instruction_selection::linux_timespec_argument_syscall_sequence_width_with_plan(
+                                input.target.architecture,
+                                operands,
+                                *number,
+                                Some(plan),
+                            )
+                        })
                 }
                 Some(HostBindingMechanism::Syscall { number, .. })
                     if host_operation.operation_key.returns_value() =>
                 {
-                    omega_instruction_selection::value_syscall_sequence_width_with_plan(
-                        input.target.architecture,
-                        operands,
-                        *number,
-                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                    )
+                    binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                        .map_or(0, |plan| {
+                            omega_instruction_selection::value_syscall_sequence_width_with_plan(
+                                input.target.architecture,
+                                operands,
+                                *number,
+                                Some(plan),
+                            )
+                        })
                 }
                 Some(HostBindingMechanism::Syscall { number, .. }) => {
-                    syscall_sequence_width_with_plan(
-                        input.target.architecture,
-                        operands,
-                        *number,
-                        binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-                    )
+                    binding
+                        .and_then(omega_calling_conventions::HostBinding::call_plan)
+                        .map_or(0, |plan| {
+                            syscall_sequence_width_with_plan(
+                                input.target.architecture,
+                                operands,
+                                *number,
+                                Some(plan),
+                            )
+                        })
                 }
                 Some(HostBindingMechanism::VtableSlot { index }) => {
                     binding
@@ -233,6 +249,19 @@ fn machine_instruction_width(
         // import relocation applied, which corrupts whatever instruction
         // lands at that offset and crashes the binary at runtime.
         if width == 0 {
+            if matches!(
+                binding.map(|binding| &binding.mechanism),
+                Some(HostBindingMechanism::Syscall { .. })
+            ) && binding
+                .and_then(omega_calling_conventions::HostBinding::call_plan)
+                .is_none()
+            {
+                return Err(Diagnostic::error(format!(
+                    "host operation {}.{} has no encodable call sequence: selected syscall binding has no evaluated call plan",
+                    host_operation.operation_key.capability_name(),
+                    host_operation.operation_key.operation_name(),
+                )));
+            }
             if matches!(
                 binding.map(|binding| &binding.mechanism),
                 Some(HostBindingMechanism::Import { .. })

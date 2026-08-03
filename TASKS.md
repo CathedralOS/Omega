@@ -847,7 +847,9 @@ Remaining:
   runtime byte-read, byte-write, and all three line-read target shapes now
   consume the binding-retained three-argument/result syscall plan in emission
   and layout, with x86-64/AArch64 compatibility bytes and widths locked to the
-  explicit plan. The base `Stdin::read`, `Stdout::write`, and `Stderr::write`
+  explicit plan. Any selected syscall binding that loses its plan now rejects
+  in layout/emission rather than reconstructing registers from the target. The
+  base `Stdin::read`, `Stdout::write`, and `Stderr::write`
   rows now actually retain those exact plans on both Linux targets rather than
   activating the no-plan compatibility path; `Process::exit_group` likewise
   retains its one-argument/no-result plan. The matching Darwin `Stdin::read`,

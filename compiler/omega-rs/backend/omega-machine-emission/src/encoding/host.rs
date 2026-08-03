@@ -23,7 +23,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                Some(required_syscall_call_plan(binding)?),
             )
         }
         Some(HostBindingMechanism::Syscall { number, .. })
@@ -33,7 +33,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                Some(required_syscall_call_plan(binding)?),
             )
         }
         Some(HostBindingMechanism::Syscall { number, .. }) if operation_key.returns_value() => {
@@ -41,7 +41,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                Some(required_syscall_call_plan(binding)?),
             )
         }
         Some(HostBindingMechanism::Syscall { number, .. }) => {
@@ -49,7 +49,7 @@ pub(super) fn encode_host_operation(
                 input.target.architecture,
                 operands,
                 *number,
-                binding.and_then(omega_calling_conventions::HostBinding::call_plan),
+                Some(required_syscall_call_plan(binding)?),
             )
         }
         Some(HostBindingMechanism::VtableSlot { index }) => {
@@ -140,6 +140,14 @@ fn required_import_call_plan(
         })
 }
 
+fn required_syscall_call_plan(
+    binding: Option<&omega_calling_conventions::HostBinding>,
+) -> Result<&omega_calling_conventions::CallPlan, Diagnostic> {
+    binding
+        .and_then(omega_calling_conventions::HostBinding::call_plan)
+        .ok_or_else(|| Diagnostic::error("selected syscall binding has no evaluated call plan"))
+}
+
 /// Whether a field-model call's operand list carries a prepended RESULT
 /// place: the list is exactly the declared parameters (`_ = ...`, no result)
 /// or the declared parameters plus one leading result (`let status = ...`).
@@ -165,7 +173,7 @@ fn field_model_result_present(
 
 #[cfg(test)]
 mod tests {
-    use super::required_import_call_plan;
+    use super::{required_import_call_plan, required_syscall_call_plan};
 
     #[test]
     fn built_in_import_cannot_reconstruct_a_missing_plan() {
@@ -175,6 +183,17 @@ mod tests {
         assert_eq!(
             error.message,
             "selected built-in import binding has no evaluated call plan"
+        );
+    }
+
+    #[test]
+    fn syscall_cannot_reconstruct_a_missing_plan() {
+        let binding = omega_calling_conventions::HostBinding::default();
+        let error = required_syscall_call_plan(Some(&binding))
+            .expect_err("a syscall without a retained plan must reject");
+        assert_eq!(
+            error.message,
+            "selected syscall binding has no evaluated call plan"
         );
     }
 }
