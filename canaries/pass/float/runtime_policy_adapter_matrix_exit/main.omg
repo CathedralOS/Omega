@@ -1,0 +1,88 @@
+// Every primitive arithmetic provider executes through both checked float
+// result adapters in both permanent formats. These finite cases establish the
+// ordinary result path; the dedicated policy-edge canaries retain overflow,
+// division-by-zero, invalid, and propagated-nonfinite behavior separately.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    sat_left32: f32 in Saturating;
+    sat_right32: f32 in Saturating;
+    sat_add32: f32 in Saturating;
+    sat_subtract32: f32 in Saturating;
+    sat_multiply32: f32 in Saturating;
+    sat_divide32: f32 in Saturating;
+    sat_left64: f64 in Saturating;
+    sat_right64: f64 in Saturating;
+    sat_add64: f64 in Saturating;
+    sat_subtract64: f64 in Saturating;
+    sat_multiply64: f64 in Saturating;
+    sat_divide64: f64 in Saturating;
+    trap_left32: f32 in Trapping;
+    trap_right32: f32 in Trapping;
+    trap_add32: f32 in Trapping;
+    trap_subtract32: f32 in Trapping;
+    trap_multiply32: f32 in Trapping;
+    trap_divide32: f32 in Trapping;
+    trap_left64: f64 in Trapping;
+    trap_right64: f64 in Trapping;
+    trap_add64: f64 in Trapping;
+    trap_subtract64: f64 in Trapping;
+    trap_multiply64: f64 in Trapping;
+    trap_divide64: f64 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.sat_left32 = 12.0;
+    self.sat_right32 = 3.0;
+    self.sat_add32 = self.sat_left32 + self.sat_right32;
+    self.sat_subtract32 = self.sat_left32 - self.sat_right32;
+    self.sat_multiply32 = self.sat_left32 * self.sat_right32;
+    self.sat_divide32 = self.sat_left32 / self.sat_right32;
+
+    self.sat_left64 = 20.0;
+    self.sat_right64 = 4.0;
+    self.sat_add64 = self.sat_left64 + self.sat_right64;
+    self.sat_subtract64 = self.sat_left64 - self.sat_right64;
+    self.sat_multiply64 = self.sat_left64 * self.sat_right64;
+    self.sat_divide64 = self.sat_left64 / self.sat_right64;
+
+    self.trap_left32 = 18.0;
+    self.trap_right32 = 6.0;
+    self.trap_add32 = self.trap_left32 + self.trap_right32;
+    self.trap_subtract32 = self.trap_left32 - self.trap_right32;
+    self.trap_multiply32 = self.trap_left32 * self.trap_right32;
+    self.trap_divide32 = self.trap_left32 / self.trap_right32;
+
+    self.trap_left64 = 21.0;
+    self.trap_right64 = 7.0;
+    self.trap_add64 = self.trap_left64 + self.trap_right64;
+    self.trap_subtract64 = self.trap_left64 - self.trap_right64;
+    self.trap_multiply64 = self.trap_left64 * self.trap_right64;
+    self.trap_divide64 = self.trap_left64 / self.trap_right64;
+
+    transition self.sat_add32 == 15.0
+        && self.sat_subtract32 == 9.0
+        && self.sat_multiply32 == 36.0
+        && self.sat_divide32 == 4.0
+        && self.sat_add64 == 24.0
+        && self.sat_subtract64 == 16.0
+        && self.sat_multiply64 == 80.0
+        && self.sat_divide64 == 5.0
+        && self.trap_add32 == 24.0
+        && self.trap_subtract32 == 12.0
+        && self.trap_multiply32 == 108.0
+        && self.trap_divide32 == 3.0
+        && self.trap_add64 == 28.0
+        && self.trap_subtract64 == 14.0
+        && self.trap_multiply64 == 147.0
+        && self.trap_divide64 == 3.0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

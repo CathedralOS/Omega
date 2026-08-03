@@ -37506,6 +37506,70 @@ fn retained_float_differential_result_identity(
     result_identity
 }
 
+fn retained_float_policy_differential_result_identity(
+    suite_id: &str,
+    target: &str,
+    coverage: &[&str],
+    selected_evidence: &std::collections::BTreeSet<String>,
+    selected_plan_identities: &[u64],
+    observations: &[(
+        &str,
+        &omega_interpreter::InterpretOutcome,
+        &std::process::Output,
+    )],
+    cross_builds: &std::collections::BTreeSet<String>,
+) -> u64 {
+    fn retain(hash: &mut u64, bytes: &[u8]) {
+        for byte in (bytes.len() as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(bytes.iter().copied())
+        {
+            *hash ^= u64::from(byte);
+            *hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+
+    let mut result_identity = 0xcbf29ce484222325_u64;
+    retain(&mut result_identity, suite_id.as_bytes());
+    retain(&mut result_identity, target.as_bytes());
+    for category in coverage {
+        retain(&mut result_identity, category.as_bytes());
+    }
+    for evidence in selected_evidence {
+        retain(&mut result_identity, evidence.as_bytes());
+    }
+    for identity in selected_plan_identities {
+        retain(&mut result_identity, &identity.to_le_bytes());
+    }
+    for (label, outcome, output) in observations {
+        retain(&mut result_identity, label.as_bytes());
+        retain(&mut result_identity, &outcome.exit_code.to_le_bytes());
+        retain(&mut result_identity, &outcome.stdout);
+        retain(&mut result_identity, &outcome.stderr);
+        match &outcome.error {
+            Some(error) => {
+                retain(&mut result_identity, b"interpreter-error");
+                retain(&mut result_identity, error.as_bytes());
+            }
+            None => retain(&mut result_identity, b"interpreter-success"),
+        }
+        retain(
+            &mut result_identity,
+            format!("{:?}", output.status).as_bytes(),
+        );
+        retain(&mut result_identity, &output.stdout);
+        retain(&mut result_identity, &output.stderr);
+    }
+    for cross_build in cross_builds {
+        retain(
+            &mut result_identity,
+            format!("{cross_build}:cross-compile-passed").as_bytes(),
+        );
+    }
+    result_identity
+}
+
 #[test]
 fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
     const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.directed-add.v1";
@@ -38251,6 +38315,237 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
             "{canary_name} should retain `{expected:?}` beside its selected float operator"
         );
     }
+}
+
+#[test]
+fn float_policy_adapters_retain_differential_results() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.policy-adapters.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32/binary64 finite results under both adapters",
+        "binary32/binary64 finite-overflow saturation",
+        "nested saturation and repeated clamping",
+        "division by zero remains unclamped under Saturating",
+        "Trapping finite overflow",
+        "Trapping division by zero and invalid operation",
+        "Trapping propagated NaN and infinity",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x72c8_984f_c870_3b9b;
+    const CASES: &[(&str, Option<i32>, Option<&str>)] = &[
+        ("float/runtime_policy_adapter_matrix_exit", Some(70), None),
+        ("arithmetic/float_saturating_overflow_exit", Some(70), None),
+        (
+            "arithmetic/float_trapping_overflow_traps",
+            None,
+            Some("float overflow"),
+        ),
+        (
+            "arithmetic/float_trapping_divzero_traps",
+            None,
+            Some("division by zero"),
+        ),
+        (
+            "arithmetic/float_trapping_invalid_traps",
+            None,
+            Some("invalid float operation"),
+        ),
+        (
+            "float/float_trapping_propagated_nan_traps",
+            None,
+            Some("non-finite NaN result"),
+        ),
+        (
+            "float/float_trapping_propagated_infinity_traps",
+            None,
+            Some("non-finite infinity result"),
+        ),
+    ];
+
+    let mut selected_evidence = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
+    let mut observations = Vec::new();
+    let mut cross_builds = std::collections::BTreeSet::new();
+    for (case_name, expected_exit, expected_error) in CASES {
+        let canary = pass_canary(case_name);
+        let main_path = canary.join("main.omg");
+        let checked =
+            omega_compiler::compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+                panic!("{case_name} should compile to checked policy evidence: {diagnostics:#?}")
+            });
+        for operator_use in checked.facts.operators.resolved_uses() {
+            let adapter = match operator_use.policy_adapter {
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::None => continue,
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                    format,
+                } => {
+                    if format == psi_numerics::float_semantics::FloatFormat::BINARY32 {
+                        "saturating-overflow-only.binary32"
+                    } else {
+                        assert_eq!(
+                            format,
+                            psi_numerics::float_semantics::FloatFormat::BINARY64,
+                            "policy evidence retained an unsupported float format"
+                        );
+                        "saturating-overflow-only.binary64"
+                    }
+                }
+                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
+                    format,
+                } => {
+                    if format == psi_numerics::float_semantics::FloatFormat::BINARY32 {
+                        "trapping-nonfinite.binary32"
+                    } else {
+                        assert_eq!(
+                            format,
+                            psi_numerics::float_semantics::FloatFormat::BINARY64,
+                            "policy evidence retained an unsupported float format"
+                        );
+                        "trapping-nonfinite.binary64"
+                    }
+                }
+            };
+            let plan = checked
+                .selected_provider_plans()
+                .plan_by_identity(operator_use.provider_plan_identity)
+                .expect("policy-adapted float evidence must retain its selected plan");
+            let [row] = plan.rows.as_slice() else {
+                panic!("policy-adapted float plan must retain one realization row");
+            };
+            let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { name } =
+                &row.binding
+            else {
+                panic!("policy-adapted float plan must select a compiler intrinsic");
+            };
+            selected_evidence.insert(format!("{name}|{adapter}"));
+            selected_plan_identities.push(plan.identity_fingerprint());
+        }
+
+        let outcome = omega_interpreter::interpret(&checked, &[]);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-float-policy-differential-{}-{}",
+            case_name.replace('/', "-"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: main_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("{case_name} should compile natively: {diagnostics:#?}")
+        });
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .unwrap_or_else(|error| panic!("{case_name} should run natively: {error}"));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        if let Some(expected_exit) = expected_exit {
+            assert_eq!(
+                outcome.exit_code, *expected_exit,
+                "{case_name} interpreter result changed: {:?}",
+                outcome.error
+            );
+            assert_eq!(
+                output.status.code(),
+                Some(*expected_exit),
+                "{case_name} native result changed; stderr: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        } else {
+            let error = outcome
+                .error
+                .as_deref()
+                .unwrap_or_else(|| panic!("{case_name} interpreter should reject the result"));
+            assert!(
+                error.contains(expected_error.expect("trapping case error fragment")),
+                "{case_name} interpreter error changed: {error}"
+            );
+            assert!(
+                !output.status.success(),
+                "{case_name} native execution reached its sailed-past sentinel"
+            );
+        }
+        observations.push(((*case_name).to_owned(), outcome, output));
+
+        for target in ["linux_x64", "linux_arm64"] {
+            let scratch = std::env::temp_dir().join(format!(
+                "omega-float-policy-differential-{}-{target}-{}",
+                case_name.replace('/', "-"),
+                std::process::id()
+            ));
+            let _ = fs::remove_dir_all(&scratch);
+            let source_dir = scratch.join("src");
+            fs::create_dir_all(&source_dir).expect("float-policy cross-target source directory");
+            fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
+                .expect("copy float-policy canary");
+            fs::write(
+                source_dir.join("build.omg"),
+                format!("target {target} {{\n}}\n"),
+            )
+            .expect("write float-policy target manifest");
+            compile(CompileOptions {
+                root_path: source_dir.join("main.omg"),
+                build_dir: Some(scratch.join("out")),
+                target_name: Some(target.to_owned()),
+                write_output: true,
+            })
+            .unwrap_or_else(|diagnostics| {
+                panic!("{case_name} should compile for {target}: {diagnostics:#?}")
+            });
+            let _ = fs::remove_dir_all(&scratch);
+            cross_builds.insert(format!("{case_name}@{target}"));
+        }
+    }
+
+    let expected_evidence = [
+        "Float::add.f32|saturating-overflow-only.binary32",
+        "Float::add.f32|trapping-nonfinite.binary32",
+        "Float::add.f64|saturating-overflow-only.binary64",
+        "Float::add.f64|trapping-nonfinite.binary64",
+        "Float::divide.f32|saturating-overflow-only.binary32",
+        "Float::divide.f32|trapping-nonfinite.binary32",
+        "Float::divide.f64|saturating-overflow-only.binary64",
+        "Float::divide.f64|trapping-nonfinite.binary64",
+        "Float::multiply.f32|saturating-overflow-only.binary32",
+        "Float::multiply.f32|trapping-nonfinite.binary32",
+        "Float::multiply.f64|saturating-overflow-only.binary64",
+        "Float::multiply.f64|trapping-nonfinite.binary64",
+        "Float::subtract.f32|saturating-overflow-only.binary32",
+        "Float::subtract.f32|trapping-nonfinite.binary32",
+        "Float::subtract.f64|saturating-overflow-only.binary64",
+        "Float::subtract.f64|trapping-nonfinite.binary64",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(selected_evidence, expected_evidence);
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        8,
+        "{DIFFERENTIAL_SUITE_ID} must bind all four primitive plans in both formats"
+    );
+    assert_eq!(cross_builds.len(), CASES.len() * 2);
+
+    let observation_refs = observations
+        .iter()
+        .map(|(label, outcome, output)| (label.as_str(), outcome, output))
+        .collect::<Vec<_>>();
+    let result_identity = retained_float_policy_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_evidence,
+        &selected_plan_identities,
+        &observation_refs,
+        &cross_builds,
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, adapter evidence, interpreter/native observations, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 // Without a declaration, mint, or signature selection, the domain meaning is
