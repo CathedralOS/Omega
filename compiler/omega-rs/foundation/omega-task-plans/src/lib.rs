@@ -8,6 +8,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod wcsu;
+pub use wcsu::{
+    AdmittedSameStackContribution, ComposedTaskStackDemand, StackCallContribution,
+    TaskStackFrameSummary, ValidatedTaskStackFrameSummary, compose_task_stack_demand,
+    validate_task_stack_frame_summary,
+};
+
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -36,6 +43,10 @@ normalized_id!(MachineEntryId, "machine-entry");
 normalized_id!(ValueLayoutId, "value-layout");
 normalized_id!(CallingPlanId, "calling-plan");
 normalized_id!(StackRepresentationId, "stack-representation");
+normalized_id!(TaskStackFrameId, "task-stack-frame");
+normalized_id!(TaskStackFrameValidationId, "task-stack-frame-validation");
+normalized_id!(AdmittedStackContributionId, "admitted-stack-contribution");
+normalized_id!(TaskStackCompositionId, "task-stack-composition");
 normalized_id!(SuspensionCrossingId, "suspension-crossing");
 normalized_id!(TaskRuntimeId, "task-runtime");
 normalized_id!(TaskRuntimeInstanceId, "task-runtime-instance");

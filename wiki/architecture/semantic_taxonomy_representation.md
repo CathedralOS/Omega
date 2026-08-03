@@ -594,8 +594,12 @@ concrete target layout. The artifact now carries `StackPlan`, canonical
 suspension-crossing identities, and demanded CPU/thread preservation; the
 retired continuation-size, preemption-mode, and all-instruction runtime-supply
 fields are gone. `StackPlan.bytes` is currently the local machine/park-frontier
-layout bridge; whole-call-graph WCSU composition remains part of fixed-stack
-lowering. Every activation requires the cancellation operation because
+layout bridge. The provider-independent task planner now validates local frame
+summaries and seals the maximum aligned live chain across an acyclic same-stack
+call graph, including exact admitted opaque-leaf contributions. Compiler
+call-graph collection and binding that composition evidence into `StackPlan`
+remain part of fixed-stack lowering. Every activation requires the cancellation
+operation because
 cancellation-request authority is part of every `Task<T>` claim. Provider
 plans now bind each concrete activation to the exact selected `TaskRuntime`
 plan and exact `start`/`try_start` requirement; missing selection and provider

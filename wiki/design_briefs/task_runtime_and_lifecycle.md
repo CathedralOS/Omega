@@ -109,8 +109,14 @@ superseded continuation-demand and `SafePoints | Asynchronous` runtime-join
 fields are gone. It is an Omega-owned post-check sidecar, not a field of
 `CheckedTrees`: target layout, calling-plan, stack, and selected-runtime state
 must not enter Psi checked semantics. Its current byte count is still the local
-machine/park-frontier layout bridge. Whole-call-graph WCSU composition and
-stack reservation remain the fixed-stack lowering rung below.
+machine/park-frontier layout bridge. The provider-independent stack planner can
+now validate exact local-frame summaries and seal the maximum aligned live
+chain across an acyclic same-stack call graph. Sequential sibling calls share
+capacity, opaque same-stack leaves require an explicit admitted contribution,
+and missing edges, residual cycles, unreachable summaries, invalid alignment,
+and arithmetic overflow reject. Compiler collection of those summaries,
+binding the composition evidence into the activation `StackPlan`, and stack
+reservation remain the fixed-stack lowering rung below.
 `05_carry_manifest.json` remains useful
 because it names each suspension crossing and its typed live-value/storage
 frontier; tools consume that checked artifact rather than reinterpret source.
@@ -421,6 +427,13 @@ provider-stack/component call
     -> caller accounts for its checked local stub
     -> foreign provider owns a separately provisioned stack
 ```
+
+The normalized stack composer implements that boundary directly: checked
+same-stack calls are graph edges, admitted same-stack leaves are explicit
+byte/alignment contributions, and provider-stack or new-activation transfers
+have no child edge in the current stack domain. It composes the maximum live
+chain rather than summing sequential callees and retains the exact validated
+frame and admission identities behind the sealed result.
 
 A callback requirement carries its own `Calling<C>` entry plan. A named static
 Omega machine satisfying that requirement enters through the generated thunk.
