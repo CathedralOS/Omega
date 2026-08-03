@@ -8,8 +8,11 @@ pub(super) fn check_boundary_provider_approval(
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;
     let registry = omega_effects::build_boundary_provider_approval_registry(program);
-    let unapproved =
-        omega_effects::audit_boundary_provider_calls(program, &checked.facts.operations, &registry);
+    let unapproved = omega_effects::audit_boundary_provider_calls(
+        program,
+        &checked.facts.operational,
+        &registry,
+    );
 
     if unapproved.is_empty() {
         return Ok(());

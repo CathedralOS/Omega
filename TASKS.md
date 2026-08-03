@@ -1074,6 +1074,9 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   separate dimensions. Finish independent service reach, `suspends`, `blocks`,
   termination, mutation, and trust publication/admission, then retire the
   remaining legacy internal umbrella names after their consumers migrate.
+  Checked facts now name their grouped suspension/blocking/call-topology root
+  `operational`, retiring the ambiguous `operations` umbrella field without
+  merging it with service reach or any other semantic axis.
   Imported transparent-refinement spelling must supply the narrowed
   operational envelope consumed by the completed exact call-acknowledgement
   checker.

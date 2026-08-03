@@ -5,7 +5,7 @@ use psi_typed_trees::TypedTrees;
 
 pub(crate) struct ValidatedTypedProgram<'program> {
     pub(crate) proof_plan: ProofPlan<'program>,
-    pub(crate) operations: OperationalPlan,
+    pub(crate) operational: OperationalPlan,
 }
 
 pub(crate) fn validate_typed_program(
@@ -16,12 +16,12 @@ pub(crate) fn validate_typed_program(
     let proof_plan = psi_proof::obligations::build_proof_plan(program);
     psi_proof::checker::check_proof_plan(&proof_plan)?;
 
-    let operations = psi_effects::infer_operational_may(program);
-    psi_validation::validate_behavior_plan(program, &operations)?;
-    crate::call_acknowledgements::validate_call_acknowledgements(program, &operations)?;
+    let operational = psi_effects::infer_operational_may(program);
+    psi_validation::validate_behavior_plan(program, &operational)?;
+    crate::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
 
     Ok(ValidatedTypedProgram {
         proof_plan,
-        operations,
+        operational,
     })
 }

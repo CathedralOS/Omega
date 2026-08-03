@@ -14,7 +14,7 @@ pub struct CheckFacts {
     pub domains: DomainFacts,
     pub operators: CheckedOperatorFacts,
     /// Grouped machine/state/call suspension and blocking inference.
-    pub operations: psi_effects::OperationalPlan,
+    pub operational: psi_effects::OperationalPlan,
     pub capabilities: psi_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
     /// PDI3 named equality verification conditions and their exact discharge
@@ -47,7 +47,7 @@ impl CheckFacts {
         invariants: InvariantFacts,
         domains: DomainFacts,
         operators: CheckedOperatorFacts,
-        operations: psi_effects::OperationalPlan,
+        operational: psi_effects::OperationalPlan,
         capabilities: psi_effects::CapabilityFlowPlan,
         flow: FlowFacts,
         index_compatibility: IndexCompatibilityFacts,
@@ -65,7 +65,7 @@ impl CheckFacts {
             invariants,
             domains,
             operators,
-            operations,
+            operational,
             capabilities,
             flow,
             index_compatibility,

@@ -17,7 +17,7 @@ mod index_compatibility;
 pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
-    operations: OperationalPlan,
+    operational: OperationalPlan,
 ) -> Result<CheckFacts, Vec<psi_diagnostics::Diagnostic>> {
     let borrow = build_borrow_facts(program);
     let values = build_value_facts(program);
@@ -26,14 +26,14 @@ pub(crate) fn build_check_facts(
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
-    let service_reach_inference = psi_effects::infer_service_reaches(program, &operations);
+    let service_reach_inference = psi_effects::infer_service_reaches(program, &operational);
     let flow = build_flow_facts_with_service_reaches(
         program,
         &borrow,
         &proof,
         &mut semantic,
         &domains,
-        &operations,
+        &operational,
         &service_reach_inference,
     );
     let index_compatibility = index_compatibility::build_index_compatibility_facts(
@@ -55,7 +55,7 @@ pub(crate) fn build_check_facts(
     let qualifications = build_qualification_facts(program);
     // STR4 checked plans: the normalized machine contracts (published
     // halves + fingerprint; prover-independent by construction).
-    let contract_plans = build_contract_plans(program, &service_reaches, &operations);
+    let contract_plans = build_contract_plans(program, &service_reaches, &operational);
     // CRY1: materialize the effective structural policy once in the checked
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
@@ -68,7 +68,7 @@ pub(crate) fn build_check_facts(
         invariants,
         domains,
         operators,
-        operations,
+        operational,
         capabilities,
         flow,
         index_compatibility,

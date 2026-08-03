@@ -249,7 +249,7 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
         .expect("worker target");
     let worker_operational = checked
         .facts
-        .operations
+        .operational
         .machines()
         .iter()
         .find(|machine| machine.symbol == worker.symbol)

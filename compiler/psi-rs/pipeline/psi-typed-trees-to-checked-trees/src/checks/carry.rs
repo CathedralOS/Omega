@@ -248,7 +248,7 @@ pub(super) fn check_suspension_carry(
             continue;
         };
         let Some(machine_operations) = facts
-            .operations
+            .operational
             .machines()
             .iter()
             .find(|operations| operations.symbol == machine.symbol)
@@ -256,7 +256,7 @@ pub(super) fn check_suspension_carry(
             continue;
         };
         let Some(state_operations) = facts
-            .operations
+            .operational
             .states
             .span_or_empty(machine_operations.states)
             .iter()
@@ -280,7 +280,7 @@ pub(super) fn check_suspension_carry(
 
         for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
             let Some(call_operations) = facts
-                .operations
+                .operational
                 .calls
                 .span_or_empty(state_operations.calls)
                 .iter()
