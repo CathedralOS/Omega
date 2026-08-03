@@ -793,7 +793,10 @@ fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> us
         | StateGuardOperator::SubtractTowardNegative
         | StateGuardOperator::MultiplyTowardZero
         | StateGuardOperator::MultiplyTowardPositive
-        | StateGuardOperator::MultiplyTowardNegative => 20 + 4 + 4,
+        | StateGuardOperator::MultiplyTowardNegative
+        | StateGuardOperator::DivideTowardZero
+        | StateGuardOperator::DivideTowardPositive
+        | StateGuardOperator::DivideTowardNegative => 20 + 4 + 4,
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual

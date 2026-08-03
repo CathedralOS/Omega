@@ -199,6 +199,30 @@ fn builtin_runtime_call_operator_by_symbol(
             BuiltinFunction::FloatMultiplyTowardNegativeF64,
             StateGuardOperator::MultiplyTowardNegative,
         ),
+        (
+            BuiltinFunction::FloatDivideTowardZeroF32,
+            StateGuardOperator::DivideTowardZero,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardZeroF64,
+            StateGuardOperator::DivideTowardZero,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardPositiveF32,
+            StateGuardOperator::DivideTowardPositive,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardPositiveF64,
+            StateGuardOperator::DivideTowardPositive,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardNegativeF32,
+            StateGuardOperator::DivideTowardNegative,
+        ),
+        (
+            BuiltinFunction::FloatDivideTowardNegativeF64,
+            StateGuardOperator::DivideTowardNegative,
+        ),
     ] {
         if Some(target_symbol) == symbols.builtin_function_symbol(builtin) {
             return Some(operator);

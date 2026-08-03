@@ -645,6 +645,9 @@ fn expected_float_intrinsic(
                 "multiply_toward_zero"
                 | "multiply_toward_positive"
                 | "multiply_toward_negative" => requirement.as_str(),
+                "divide_toward_zero" | "divide_toward_positive" | "divide_toward_negative" => {
+                    requirement.as_str()
+                }
                 _ => return None,
             };
             let expected_primitive = if namespace.as_str() == "F32" {
@@ -686,6 +689,9 @@ fn expected_float_intrinsic(
                             | "multiply_toward_zero"
                             | "multiply_toward_positive"
                             | "multiply_toward_negative"
+                            | "divide_toward_zero"
+                            | "divide_toward_positive"
+                            | "divide_toward_negative"
                     ) =>
                 {
                     if typed.primitive_type_reference(left.type_reference)
