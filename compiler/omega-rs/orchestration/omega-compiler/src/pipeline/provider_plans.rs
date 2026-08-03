@@ -20,6 +20,109 @@ pub struct SelectedExternalRootProviderPlan {
     pub schema: ServiceSchema,
 }
 
+/// Static bridge from one selected external-root `accepts` row to the exact
+/// checked entry fact that the runtime occurrence must discharge.
+///
+/// This is Omega-owned realization state: Psi checks the body under its
+/// declared parameter precondition, while installation and entry lowering bind
+/// that precondition to provider/invocation evidence without mutating
+/// `CheckedTrees` or manufacturing a second semantic fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedExternalRootEntryFactBinding {
+    provider_plan: omega_external_roots::ProviderPlanId,
+    requirement_identity: String,
+    parameter_index: usize,
+    domain: String,
+    effective_carry: omega_core::semantics::CarryPolicy,
+    implementation_machine: omega_core::symbols::SymbolHandle,
+    implementation_state: omega_core::symbols::SymbolHandle,
+    parameter_symbol: omega_core::symbols::SymbolHandle,
+    domain_symbol: omega_core::symbols::SymbolHandle,
+    checked_fact: psi_facts::FactHandle,
+}
+
+impl SelectedExternalRootEntryFactBinding {
+    pub const fn provider_plan(&self) -> omega_external_roots::ProviderPlanId {
+        self.provider_plan
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn parameter_index(&self) -> usize {
+        self.parameter_index
+    }
+
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+
+    pub const fn effective_carry(&self) -> omega_core::semantics::CarryPolicy {
+        self.effective_carry
+    }
+
+    pub const fn implementation_machine(&self) -> omega_core::symbols::SymbolHandle {
+        self.implementation_machine
+    }
+
+    pub const fn implementation_state(&self) -> omega_core::symbols::SymbolHandle {
+        self.implementation_state
+    }
+
+    pub const fn parameter_symbol(&self) -> omega_core::symbols::SymbolHandle {
+        self.parameter_symbol
+    }
+
+    pub const fn domain_symbol(&self) -> omega_core::symbols::SymbolHandle {
+        self.domain_symbol
+    }
+
+    pub const fn checked_fact(&self) -> psi_facts::FactHandle {
+        self.checked_fact
+    }
+
+    /// Match concrete runtime occurrence evidence without interpreting source
+    /// names or accepting a selected-plan receipt by itself.
+    pub fn matches_occurrence(
+        &self,
+        occurrence: &omega_external_roots::AdmittedEntryQualification,
+    ) -> bool {
+        occurrence.matches_contract(
+            self.provider_plan,
+            &self.requirement_identity,
+            self.parameter_index,
+            &self.domain,
+            self.effective_carry,
+        )
+    }
+
+    /// Resolve this checked parameter fact only through the linear runtime
+    /// acknowledgement minted for the installed-root occurrence. The returned
+    /// evidence remains borrowed from that carrier and cannot be detached or
+    /// replayed as an independently cloneable receipt.
+    pub fn admit_acknowledgement<'entry>(
+        &self,
+        acknowledgement: &'entry omega_external_roots::InterruptAcknowledgement,
+    ) -> Result<
+        &'entry omega_external_roots::AdmittedEntryQualification,
+        omega_external_roots::ExternalRootDiagnostic,
+    > {
+        let matches = acknowledgement
+            .qualifications()
+            .iter()
+            .filter(|occurrence| self.matches_occurrence(occurrence))
+            .collect::<Vec<_>>();
+        let [occurrence] = matches.as_slice() else {
+            return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                "installed-root acknowledgement maps to {} occurrence qualifications for the exact checked adapter parameter fact",
+                matches.len()
+            )));
+        };
+        Ok(*occurrence)
+    }
+}
+
 impl SelectedExternalRootProviderPlan {
     /// Lower the compiler-owned accepted claims for one exact requirement into
     /// the provider-neutral runtime-ledger representation. External-root
@@ -632,6 +735,160 @@ pub fn selected_external_root_provider_plan(
         )?,
         schema: plan.schema.clone(),
     })
+}
+
+/// Resolve every routed entry claim on one selected external root onto the
+/// exact checked source-parameter fact consumed by its checked adapter.
+pub fn selected_external_root_entry_fact_bindings(
+    checked: &omega_checked_trees::CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    boundary_trait: &str,
+) -> Result<Vec<SelectedExternalRootEntryFactBinding>, omega_external_roots::ExternalRootDiagnostic>
+{
+    use omega_effects::provider_plan::ProviderBinding;
+    use psi_facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
+
+    let matches = selected_provider_plans
+        .plans()
+        .iter()
+        .filter(|plan| same_semantic_name(&plan.schema.trait_name, boundary_trait))
+        .collect::<Vec<_>>();
+    let [plan] = matches.as_slice() else {
+        return Err(omega_external_roots::ExternalRootDiagnostic(
+            match matches.len() {
+                0 => format!(
+                    "external-root boundary slot `{boundary_trait}` has no retained selected provider plan"
+                ),
+                count => format!(
+                    "external-root boundary slot `{boundary_trait}` matches {count} retained selected provider plans"
+                ),
+            },
+        ));
+    };
+    let provider_plan = omega_external_roots::ProviderPlanId::from_normalized_identity(
+        plan.identity_fingerprint(),
+    )?;
+    let mut bindings = Vec::new();
+
+    for method in &plan.schema.methods {
+        for claim in &method.entry_claims {
+            let rows = plan
+                .rows
+                .iter()
+                .filter(|row| plan.schema.row_binds_method(row, method))
+                .collect::<Vec<_>>();
+            let [row] = rows.as_slice() else {
+                return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                    "selected external-root plan `{}` binds routed requirement `{}::{}` {} times",
+                    plan.name,
+                    method.requirement_owner,
+                    method.name,
+                    rows.len()
+                )));
+            };
+            let ProviderBinding::CheckedAdapter { machine } = &row.binding else {
+                return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                    "selected external-root routed requirement `{}::{}` has no checked adapter fact to bind",
+                    method.requirement_owner, method.name
+                )));
+            };
+            let implementation = checked
+                .typed
+                .machines()
+                .iter()
+                .find(|candidate| candidate.name.as_str() == machine)
+                .ok_or_else(|| {
+                    omega_external_roots::ExternalRootDiagnostic(format!(
+                        "selected external-root checked adapter `{machine}` is absent from checked semantics"
+                    ))
+                })?;
+            let state = checked
+                .typed
+                .machine_states(implementation)
+                .first()
+                .ok_or_else(|| {
+                    omega_external_roots::ExternalRootDiagnostic(format!(
+                        "selected external-root checked adapter `{machine}` has no entry state"
+                    ))
+                })?;
+            let parameters = checked
+                .typed
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .collect::<Vec<_>>();
+            let parameter = parameters.get(claim.parameter_index).ok_or_else(|| {
+                omega_external_roots::ExternalRootDiagnostic(format!(
+                    "selected external-root claim parameter {} is absent from checked adapter `{machine}`",
+                    claim.parameter_index
+                ))
+            })?;
+            let domain = checked
+                .typed
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.name.as_str() == claim.domain)
+                .ok_or_else(|| {
+                    omega_external_roots::ExternalRootDiagnostic(format!(
+                        "selected external-root claim domain `{}` is absent from checked semantics",
+                        claim.domain
+                    ))
+                })?;
+            let facts = checked
+                .facts
+                .semantic
+                .facts
+                .iter()
+                .filter(|(_, fact)| {
+                    fact.point
+                        == ProgramPoint::State {
+                            machine_symbol: implementation.symbol,
+                            state_symbol: state.symbol,
+                        }
+                        && fact.origin
+                            == FactOrigin::StateParameterDomain {
+                                machine_symbol: implementation.symbol,
+                                state_symbol: state.symbol,
+                            }
+                        && fact.evidence.origin
+                            == omega_core::semantics::QualificationEvidenceOrigin::Propagated
+                        && matches!(
+                            fact.payload,
+                            FactPayload::DomainMembership { domain_symbol, .. }
+                                if domain_symbol == domain.symbol
+                        )
+                        && matches!(fact.place, FactPlace::Place(place)
+                        if {
+                            let place = checked.facts.semantic.places.get(place);
+                            place.root == PlaceRoot::Symbol(parameter.symbol)
+                                && place.segments.is_empty()
+                        })
+                })
+                .map(|(handle, _)| handle)
+                .collect::<Vec<_>>();
+            let [checked_fact] = facts.as_slice() else {
+                return Err(omega_external_roots::ExternalRootDiagnostic(format!(
+                    "selected external-root claim `{}` parameter {} maps to {} checked entry facts",
+                    claim.domain,
+                    claim.parameter_index,
+                    facts.len()
+                )));
+            };
+            bindings.push(SelectedExternalRootEntryFactBinding {
+                provider_plan,
+                requirement_identity: method.requirement_identity.clone(),
+                parameter_index: claim.parameter_index,
+                domain: claim.domain.clone(),
+                effective_carry: claim.effective_carry,
+                implementation_machine: implementation.symbol,
+                implementation_state: state.symbol,
+                parameter_symbol: parameter.symbol,
+                domain_symbol: domain.symbol,
+                checked_fact: *checked_fact,
+            });
+        }
+    }
+    Ok(bindings)
 }
 
 /// PRV4 order step (2): derive plans from explicit SATISFIES edges -- one

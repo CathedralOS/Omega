@@ -40,6 +40,7 @@ omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symb
 omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi-rs/pipeline/psi-typed-trees-to-checked-trees" }
+psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }

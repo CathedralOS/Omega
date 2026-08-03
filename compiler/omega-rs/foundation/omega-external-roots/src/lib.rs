@@ -824,16 +824,68 @@ pub struct ExternalRootEntryClaim {
 
 /// Invocation-specific evidence that one runtime subject entered through an
 /// accepted source qualification on the installed root's exact requirement.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct AdmittedEntryQualification {
-    pub provider_plan: ProviderPlanId,
-    pub requirement_identity: String,
-    pub parameter_index: usize,
-    pub domain: String,
-    pub effective_carry: omega_core::semantics::CarryPolicy,
-    pub entry_receipt: InterruptEntryReceiptId,
-    pub invocation: InterruptInvocationId,
-    pub subject: AdmittedEntrySubject,
+    provider_plan: ProviderPlanId,
+    requirement_identity: String,
+    parameter_index: usize,
+    domain: String,
+    effective_carry: omega_core::semantics::CarryPolicy,
+    entry_receipt: InterruptEntryReceiptId,
+    invocation: InterruptInvocationId,
+    subject: AdmittedEntrySubject,
+}
+
+impl AdmittedEntryQualification {
+    /// Match this unforgeable occurrence against the compiler-owned static
+    /// parameter contract. The receipt/invocation/subject remain bound inside
+    /// the value; callers can inspect but cannot construct or restate them.
+    pub fn matches_contract(
+        &self,
+        provider_plan: ProviderPlanId,
+        requirement_identity: &str,
+        parameter_index: usize,
+        domain: &str,
+        effective_carry: omega_core::semantics::CarryPolicy,
+    ) -> bool {
+        self.provider_plan == provider_plan
+            && self.requirement_identity == requirement_identity
+            && self.parameter_index == parameter_index
+            && self.domain == domain
+            && self.effective_carry == effective_carry
+    }
+
+    pub const fn provider_plan(&self) -> ProviderPlanId {
+        self.provider_plan
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn parameter_index(&self) -> usize {
+        self.parameter_index
+    }
+
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+
+    pub const fn effective_carry(&self) -> omega_core::semantics::CarryPolicy {
+        self.effective_carry
+    }
+
+    pub const fn entry_receipt(&self) -> InterruptEntryReceiptId {
+        self.entry_receipt
+    }
+
+    pub const fn invocation(&self) -> InterruptInvocationId {
+        self.invocation
+    }
+
+    pub const fn subject(&self) -> AdmittedEntrySubject {
+        self.subject
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3197,6 +3249,48 @@ mod tests {
                 InterruptAcknowledgementId::from_normalized_identity
             ))
         );
+        assert!(pending_qualification.matches_contract(
+            root_id(55, ProviderPlanId::from_normalized_identity),
+            "TimerRoot::tick",
+            0,
+            "InterruptAcknowledgement::Pending",
+            omega_core::semantics::CarryPolicy::STRICT,
+        ));
+        assert!(!pending_qualification.matches_contract(
+            root_id(56, ProviderPlanId::from_normalized_identity),
+            "TimerRoot::tick",
+            0,
+            "InterruptAcknowledgement::Pending",
+            omega_core::semantics::CarryPolicy::STRICT,
+        ));
+        assert!(!pending_qualification.matches_contract(
+            root_id(55, ProviderPlanId::from_normalized_identity),
+            "LookalikeRoot::tick",
+            0,
+            "InterruptAcknowledgement::Pending",
+            omega_core::semantics::CarryPolicy::STRICT,
+        ));
+        assert!(!pending_qualification.matches_contract(
+            root_id(55, ProviderPlanId::from_normalized_identity),
+            "TimerRoot::tick",
+            1,
+            "InterruptAcknowledgement::Pending",
+            omega_core::semantics::CarryPolicy::STRICT,
+        ));
+        assert!(!pending_qualification.matches_contract(
+            root_id(55, ProviderPlanId::from_normalized_identity),
+            "TimerRoot::tick",
+            0,
+            "InterruptAcknowledgement::Forged",
+            omega_core::semantics::CarryPolicy::STRICT,
+        ));
+        assert!(!pending_qualification.matches_contract(
+            root_id(55, ProviderPlanId::from_normalized_identity),
+            "TimerRoot::tick",
+            0,
+            "InterruptAcknowledgement::Pending",
+            omega_core::semantics::CarryPolicy::PERMISSIVE,
+        ));
         let acknowledgement_receipt = InterruptAcknowledgementReceipt::from_provider(
             root_id(
                 99,

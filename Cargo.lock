@@ -352,6 +352,7 @@ dependencies = [
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
  "omega-visualizations",
+ "psi-facts",
  "psi-typed-trees-to-checked-trees",
 ]
 
