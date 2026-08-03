@@ -144,28 +144,6 @@ composite claim-frontier work remain.
   transition receipt mints subject/invocation-bound `Active` evidence; explicit
   qualification, missing contracts, claim drift, and receipt substitution
   reject.
-- **INBOUND-ROUTE-ESTABLISHMENT — IMPLEMENTATION IN PROGRESS:** extend existing exact domain
-  routes to matching non-`self` parameter positions. Static route normalization
-  now accepts exact qualified parameters only on boundary requirements and
-  keeps the same qualification as a precondition on ordinary calls. Core owns
-  `InterruptEntry::enter`; `Pending` names that route, target roots inherit the
-  exact requirement, and a descendant `Calling<C>` policy refines the selected
-  plan without replacing the semantic requirement identity. Selected schemas
-  retain the normalized parameter position and look-alike requirements publish
-  no accepted claim. An Omega-owned sidecar now resolves each selected
-  `accepts` row to the exact propagated checked parameter fact and admits only
-  a matching unforgeable installed-root occurrence; plan, requirement,
-  semantic parameter position, domain, and carry policy must all agree. The
-  live admitted occurrence now retains that semantic position beside its exact
-  placement from the validated boundary plan, and an out-of-range position
-  rejects before installation. Generated prologue derivation now retains one
-  exact semantic-parameter/ABI-placement/write-range row. The Omega sidecar
-  joins that row, the propagated checked parameter fact, and the live
-  invocation occurrence in one borrowed non-detachable handoff; parameter or
-  placement drift rejects. Do not add an `[entry]`/`[accepted]` marker,
-  source selector, public receipt, or new trust category. Remaining: make the
-  concrete provider entry executor require that handoff at actual checked-body
-  dispatch.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
   `try_start<M>` Omega activation-sidecar fact binds the exact retained
   selected-provider plan and exact operation requirement, rejecting a missing
@@ -1588,6 +1566,9 @@ ordinary code never receives a raw executable address.
 - **ENT3:** blocked on `OWNER_QUESTIONS.md` Q2's final artifact-footprint
   certificate format, trusted decoder surface, and admitted-leaf composition
   boundary.
+- **LINUX-METADATA:** blocked on `OWNER_QUESTIONS.md` Q3's choice between a
+  width-adapting integer layout placement and target-owned foreign-record
+  normalization.
 - **TERMINAL-CONTENT-CLAIMS:** blocked on a versioned terminal-Psi entry-claim
   binding that identifies a partition theorem's consumed inputs without
   asserting the stronger, false one-to-one input/output equality. This also
@@ -1622,8 +1603,10 @@ ordinary code never receives a raw executable address.
   plan-prefixed `readlinkat` are normalized too. Plain-path removal now injects
   both `AT_FDCWD` and Linux's `AT_REMOVEDIR` through retained plan data.
   `renameat`/`linkat`/`symlinkat` retain their directory descriptors and flags
-  through the same plan surface. Remaining Linux work is the real target
-  `StatLayout`, metadata, directory-record, and errno adapters.
+  through the same plan surface. **Linux metadata is DESIGN BLOCKED
+  (`OWNER_QUESTIONS.md` Q3):** the real x86-64/AArch64 `struct stat` fields
+  require target-width normalization that the settled layout vocabulary cannot
+  express. Directory-record and errno adapters remain implementation work.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement
