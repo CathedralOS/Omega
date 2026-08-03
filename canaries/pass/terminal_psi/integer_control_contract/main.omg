@@ -251,5 +251,13 @@ ensures true == true
     state finish(value: bool) -> bool { value }
 }
 
+machine terminal_boolean_chain_wrong_contract() -> bool
+requires false == false
+ensures false == false
+{
+    transition { _ -> finish(true) }
+    state finish(value: bool) -> bool { value }
+}
+
 data Main {}
 machine Main::main(&mut self) {}

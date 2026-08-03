@@ -984,7 +984,9 @@ fn lower_boolean_machine(
         return unsupported("Boolean source machine must contain exactly one value expression");
     };
     let return_expression = lower_boolean_expression(checked, *return_expression, parameters)?;
-    let contract_value = validate_boolean_contract(checked, machine)?;
+    let known_parameters = vec![None; parameters.len()];
+    let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
+    let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_boolean_module(
@@ -1036,6 +1038,7 @@ fn lower_boolean_state_chain(
     }
 
     let mut jump_expressions = Vec::with_capacity(states.len() - 1);
+    let mut known_parameters = vec![None; entry_parameters.len()];
     for (index, state) in states[..states.len() - 1].iter().enumerate() {
         let statements = checked.statement_table.statements(state.statement_nodes);
         let [StatementNode::Transition(transition)] = statements else {
@@ -1059,11 +1062,11 @@ fn lower_boolean_state_chain(
         let [argument] = checked.statement_table.expression_handles(*arguments) else {
             return unsupported("a Boolean state-chain transition must carry exactly one argument");
         };
-        jump_expressions.push(lower_boolean_expression(
-            checked,
-            *argument,
-            checked.state_parameters(state),
-        )?);
+        let expression =
+            lower_boolean_expression(checked, *argument, checked.state_parameters(state))?;
+        let known_value = evaluate_boolean_expression(&expression, &known_parameters);
+        jump_expressions.push(expression);
+        known_parameters = vec![known_value];
     }
 
     let return_state = states.last().expect("Boolean state chain is nonempty");
@@ -1081,8 +1084,9 @@ fn lower_boolean_state_chain(
         *return_expression,
         std::slice::from_ref(return_parameter),
     )?;
+    let expected_value = evaluate_boolean_expression(&return_expression, &known_parameters);
 
-    let contract_value = validate_boolean_contract(checked, machine)?;
+    let contract_value = validate_boolean_contract(checked, machine, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_boolean_state_chain_module(
@@ -1108,6 +1112,18 @@ fn lower_boolean_expression(
             position: direct_parameter_position(checked, path, parameters)?,
         }),
         _ => unsupported("Boolean terminal expressions require a literal or declared parameter"),
+    }
+}
+
+fn evaluate_boolean_expression(
+    expression: &LoweredBooleanReturnExpression,
+    parameters: &[Option<bool>],
+) -> Option<bool> {
+    match expression {
+        LoweredBooleanReturnExpression::Constant { value } => Some(*value),
+        LoweredBooleanReturnExpression::Parameter { position } => {
+            parameters.get(*position).copied().flatten()
+        }
     }
 }
 
@@ -1437,6 +1453,7 @@ fn validate_contract(
 fn validate_boolean_contract(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
+    expected_value: Option<bool>,
 ) -> Result<bool, LoweringError> {
     let contracts = checked.machine_contracts(machine);
     if contracts.len() != 2 {
@@ -1471,6 +1488,9 @@ fn validate_boolean_contract(
         };
         if left != right {
             return unsupported("contract equality must be reflexive");
+        }
+        if expected_value.is_some_and(|expected| *left != expected) {
+            return unsupported("Boolean contract literal must match the compile-known result");
         }
         if shared_value.is_some_and(|previous| previous != *left) {
             return unsupported("requires and ensures must carry the same closed equality");
