@@ -24,6 +24,7 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
@@ -120,7 +121,8 @@ fn v2_boolean_reaches_owned_object_image_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select Boolean target operation");
-    let machine_code = emit_machine_code(&target_plan).expect("emit Boolean machine code");
+    let assigned = assign_registers(&target_plan).expect("assign Boolean target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit Boolean machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build owned terminal object artifact");
     assert_eq!(artifact.entry_function().provenance.operations, [operation]);
@@ -293,7 +295,8 @@ fn v3_wrapping_add_reaches_owned_object_image_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select wrapping-add target operation");
-    let machine_code = emit_machine_code(&target_plan).expect("emit wrapping-add machine code");
+    let assigned = assign_registers(&target_plan).expect("assign wrapping-add target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit wrapping-add machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build owned terminal object artifact");
     assert_eq!(
@@ -460,7 +463,8 @@ fn v4_saturating_add_reaches_owned_object_image_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select saturating-add target operation");
-    let machine_code = emit_machine_code(&target_plan).expect("emit saturating-add machine code");
+    let assigned = assign_registers(&target_plan).expect("assign saturating-add target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit saturating-add machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build owned terminal object artifact");
     assert_eq!(
@@ -619,8 +623,8 @@ fn v6_signed_i64_saturating_subtract_matches_both_bounds_natively() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select saturating-subtract target operation");
-    let machine_code =
-        emit_machine_code(&target_plan).expect("emit saturating-subtract machine code");
+    let assigned = assign_registers(&target_plan).expect("assign saturating-subtract target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit saturating-subtract machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build saturating-subtract object artifact");
     assert_eq!(artifact.entry_function().provenance.operations, [operation]);
@@ -755,8 +759,8 @@ fn v5_wrapping_subtract_matches_interpretation_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select wrapping-subtract target operation");
-    let machine_code =
-        emit_machine_code(&target_plan).expect("emit wrapping-subtract machine code");
+    let assigned = assign_registers(&target_plan).expect("assign wrapping-subtract target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit wrapping-subtract machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build wrapping-subtract object artifact");
     assert_eq!(artifact.entry_function().provenance.operations, [operation]);
@@ -894,8 +898,8 @@ fn v7_wrapping_multiply_matches_interpretation_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select wrapping-multiply target operation");
-    let machine_code =
-        emit_machine_code(&target_plan).expect("emit wrapping-multiply machine code");
+    let assigned = assign_registers(&target_plan).expect("assign wrapping-multiply target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit wrapping-multiply machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build wrapping-multiply object artifact");
     assert_eq!(artifact.entry_function().provenance.operations, [operation]);
@@ -1033,8 +1037,8 @@ fn v8_saturating_multiply_matches_interpretation_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select saturating-multiply target operation");
-    let machine_code =
-        emit_machine_code(&target_plan).expect("emit saturating-multiply machine code");
+    let assigned = assign_registers(&target_plan).expect("assign saturating-multiply target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit saturating-multiply machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build saturating-multiply object artifact");
     assert_eq!(artifact.entry_function().provenance.operations, [operation]);
@@ -1159,8 +1163,9 @@ fn v4_nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         lower_verified_module(&verified).expect("lower runtime arithmetic requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select runtime arithmetic target operations");
+    let assigned = assign_registers(&target_plan).expect("assign nested runtime target homes");
     let machine_code =
-        emit_machine_code(&target_plan).expect("emit nested runtime arithmetic machine code");
+        emit_machine_code(&assigned).expect("emit nested runtime arithmetic machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build nested runtime arithmetic object artifact");
     assert_eq!(
@@ -1272,8 +1277,9 @@ fn v4_signed_i64_runtime_saturation_matches_both_bounds_natively() {
         lower_verified_module(&verified).expect("lower signed runtime saturation requirements");
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select signed runtime saturation target operations");
+    let assigned = assign_registers(&target_plan).expect("assign signed runtime target homes");
     let machine_code =
-        emit_machine_code(&target_plan).expect("emit signed runtime saturation machine code");
+        emit_machine_code(&assigned).expect("emit signed runtime saturation machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build signed runtime saturation object artifact");
     assert_eq!(artifact.entry_function().provenance.operations, [operation]);
@@ -1389,7 +1395,8 @@ fn v1_runtime_stack_parameter_matches_interpretation_and_native_execution() {
     ));
     let target_plan = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select host parameter ABI location");
-    let machine_code = emit_machine_code(&target_plan).expect("emit parameter-return machine code");
+    let assigned = assign_registers(&target_plan).expect("assign parameter-return target homes");
+    let machine_code = emit_machine_code(&assigned).expect("emit parameter-return machine code");
     let artifact = build_terminal_object_artifact(&machine_code)
         .expect("build owned parameter-return object artifact");
     assert!(artifact.entry_function().provenance.operations.is_empty());

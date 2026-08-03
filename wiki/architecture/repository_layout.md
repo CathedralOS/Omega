@@ -106,6 +106,7 @@ Omega/
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-abstract-operations/          # Target-independent abstract operations with virtual registers.
+|   |   |-- [CRATE] omega-terminal-assigned-target-operations/ # Assigned homes for the clean terminal-Psi lane.
 |   |   |-- [CRATE] omega-target-operations/            # Target-aware operations after legalization and selection.
 |   |   |-- [CRATE] omega-assigned-target-operations/   # Target-aware operations after register and stack assignment.
 |   |   |-- [CRATE] omega-machine-instructions/         # Final symbolic machine instructions before encoding.
@@ -118,6 +119,7 @@ Omega/
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/                       # State graph to control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-control-flow-to-abstract-operations/               # Lower control flow into target-independent abstract operations with virtual registers.
 |   |   |-- [CRATE] omega-abstract-operations-to-target-operations/          # Normalize, legalize, and lower abstract operations into target-aware forms.
+|   |   |-- [CRATE] omega-terminal-target-operations-to-assigned-target-operations/ # Assign clean terminal-Psi register and spill homes.
 |   |   |-- [CRATE] omega-target-operations-to-assigned-target-operations/   # Assign registers, stack slots, and calling-convention homes to target-aware operations.
 |   |   |-- [CRATE] omega-assigned-target-operations-to-machine-instructions/ # Convert assigned target-aware operations into final symbolic machine instructions.
 |   |   `-- [CRATE] omega-target-operations-to-machine-program/              # Assemble target operations into a machine-program artifact.
@@ -304,6 +306,9 @@ Omega/
   instruction-shape lowering.
 - `omega-target-operations-to-assigned-target-operations` owns register
   allocation, stack slots, spills, and calling-convention homes.
+- The clean terminal-Psi lane mirrors that boundary in
+  `omega-terminal-target-operations-to-assigned-target-operations`; it must
+  assign concrete parameter and spill homes before terminal machine emission.
 - `omega-assigned-target-operations-to-machine-instructions` owns symbolic
   machine instruction construction.
 - `omega-target-operations-to-machine-program` assembles target operations into

@@ -33,6 +33,7 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_emission::emit_machine_code;
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
+use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
 use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
 use psi_core::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
@@ -302,8 +303,9 @@ fn source_wrapping_add_matches_emitted_host_machine_code() {
         .expect("verified source wrapping add should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("source wrapping add should select for the host");
-    let machine_code = emit_machine_code(&target_operations)
-        .expect("source wrapping add machine code should emit");
+    let assigned = assign_registers(&target_operations).expect("source target homes should assign");
+    let machine_code =
+        emit_machine_code(&assigned).expect("source wrapping add machine code should emit");
     let object_artifact = build_terminal_object_artifact(&machine_code)
         .expect("source wrapping add should form an owned object artifact");
     let entry = object_artifact.entry_function();
@@ -353,8 +355,9 @@ fn checked_source_ninth_parameter_reaches_the_host_stack_abi() {
         .expect("verified source parameters should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("source parameters should select host ABI locations");
-    let machine_code =
-        emit_machine_code(&target_operations).expect("source parameter return should emit");
+    let assigned =
+        assign_registers(&target_operations).expect("parameter target homes should assign");
+    let machine_code = emit_machine_code(&assigned).expect("source parameter return should emit");
     let object_artifact = build_terminal_object_artifact(&machine_code)
         .expect("source parameter return should form an object artifact");
     let entry = object_artifact.entry_function();
@@ -472,8 +475,10 @@ fn source_closed_integer_chain_matches_emitted_host_machine_code() {
         .expect("closed integer state chain should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("closed integer state chain should select for the host");
+    let assigned =
+        assign_registers(&target_operations).expect("closed chain target homes should assign");
     let machine_code =
-        emit_machine_code(&target_operations).expect("closed integer state chain should emit");
+        emit_machine_code(&assigned).expect("closed integer state chain should emit");
     let object_artifact = build_terminal_object_artifact(&machine_code)
         .expect("closed integer state chain should form an object");
     let entry = object_artifact.entry_function();
@@ -530,7 +535,9 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
-        let machine_code = emit_machine_code(&target_operations)
+        let assigned =
+            assign_registers(&target_operations).expect("integer target homes should assign");
+        let machine_code = emit_machine_code(&assigned)
             .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
         let object_artifact = build_terminal_object_artifact(&machine_code)
             .unwrap_or_else(|error| panic!("{machine} should form an object: {error:?}"));
@@ -637,7 +644,9 @@ fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
         let target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
-        let machine_code = emit_machine_code(&target_operations)
+        let assigned =
+            assign_registers(&target_operations).expect("Boolean target homes should assign");
+        let machine_code = emit_machine_code(&assigned)
             .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
         let object_artifact = build_terminal_object_artifact(&machine_code)
             .unwrap_or_else(|error| panic!("{machine} should form an object: {error:?}"));
@@ -671,8 +680,9 @@ fn source_boolean_jump_bindings_reach_stack_parameter_machine_code() {
         .expect("Boolean jump bindings should lower without frontend state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean jump bindings should select for the host");
-    let machine_code =
-        emit_machine_code(&target_operations).expect("Boolean jump bindings should emit");
+    let assigned =
+        assign_registers(&target_operations).expect("Boolean jump target homes should assign");
+    let machine_code = emit_machine_code(&assigned).expect("Boolean jump bindings should emit");
     let object_artifact = build_terminal_object_artifact(&machine_code)
         .expect("Boolean state chain should form an object");
     let entry = object_artifact.entry_function();
@@ -801,8 +811,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("verified terminal Psi should lower without source state");
     let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("constant terminal requirements should select for the host");
-    let machine_code =
-        emit_machine_code(&target_operations).expect("host machine code should emit");
+    let assigned = assign_registers(&target_operations).expect("host target homes should assign");
+    let machine_code = emit_machine_code(&assigned).expect("host machine code should emit");
     let object_artifact = build_terminal_object_artifact(&machine_code)
         .expect("source-produced machine code should form an owned object artifact");
     assert_eq!(object_artifact.terminal_psi(), original_identity);

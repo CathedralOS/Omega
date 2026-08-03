@@ -10,9 +10,11 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-assigned-target-operations = { path = "../../representations/omega-terminal-assigned-target-operations" }
 omega-terminal-machine-code = { path = "../../representations/omega-terminal-machine-code" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
 
 [dev-dependencies]
+omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
 psi-terminal = { path = "../../../psi-rs/representations/psi-terminal" }

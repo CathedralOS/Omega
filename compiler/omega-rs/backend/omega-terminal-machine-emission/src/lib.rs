@@ -3,18 +3,17 @@
 //! Machine-code emission for the first source-independent terminal-Psi target
 //! operation slice.
 
-use std::collections::BTreeMap;
-
 use omega_target::Architecture;
-use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
-use omega_terminal_target_operations::{
-    MachineRegister, TerminalScalarParameterLocation, TerminalTargetFunction,
-    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+use omega_terminal_assigned_target_operations::{
+    TerminalAssignedFunction, TerminalAssignedIntegerExpression, TerminalAssignedOperation,
+    TerminalAssignedOperationPlan, TerminalAssignedScalarLocation, TerminalExpressionFrame,
 };
+use omega_terminal_machine_code::{TerminalMachineCodeFunction, TerminalMachineCodePlan};
+use omega_terminal_target_operations::MachineRegister;
 use psi_core::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
 
 pub fn emit_machine_code(
-    plan: &TerminalTargetOperationPlan,
+    plan: &TerminalAssignedOperationPlan,
 ) -> Result<TerminalMachineCodePlan, EmissionError> {
     if !plan
         .functions
@@ -36,11 +35,11 @@ pub fn emit_machine_code(
 }
 
 fn emit_function(
-    function: &TerminalTargetFunction,
+    function: &TerminalAssignedFunction,
     architecture: Architecture,
 ) -> Result<TerminalMachineCodeFunction, EmissionError> {
     let bytes = match &function.operation {
-        TerminalTargetOperation::ReturnIntegerImmediate {
+        TerminalAssignedOperation::ReturnIntegerImmediate {
             source_value,
             scalar_type,
             value,
@@ -52,11 +51,11 @@ fn emit_function(
                 Architecture::X86_64 => emit_x86_64_return(*scalar_type, bits),
             }
         }
-        TerminalTargetOperation::ReturnBooleanImmediate { value, .. } => match architecture {
+        TerminalAssignedOperation::ReturnBooleanImmediate { value, .. } => match architecture {
             Architecture::Aarch64 => emit_aarch64_boolean_return(*value),
             Architecture::X86_64 => emit_x86_64_boolean_return(*value),
         },
-        TerminalTargetOperation::ReturnIntegerParameter {
+        TerminalAssignedOperation::ReturnIntegerParameter {
             source_value,
             scalar_type,
             location,
@@ -74,7 +73,7 @@ fn emit_function(
                 }
             }
         }
-        TerminalTargetOperation::ReturnBooleanParameter {
+        TerminalAssignedOperation::ReturnBooleanParameter {
             source_value,
             location,
             ..
@@ -84,16 +83,21 @@ fn emit_function(
             }
             Architecture::X86_64 => emit_x86_64_parameter_return(*source_value, false, *location)?,
         },
-        TerminalTargetOperation::ReturnIntegerExpression {
+        TerminalAssignedOperation::ReturnIntegerExpression {
             source_value,
             scalar_type,
+            frame,
             expression,
             ..
         } => {
             require_native_integer_width(*source_value, *scalar_type)?;
             match architecture {
-                Architecture::Aarch64 => emit_aarch64_integer_expression(*scalar_type, expression)?,
-                Architecture::X86_64 => emit_x86_64_integer_expression(*scalar_type, expression)?,
+                Architecture::Aarch64 => {
+                    emit_aarch64_integer_expression(*scalar_type, frame, expression)?
+                }
+                Architecture::X86_64 => {
+                    emit_x86_64_integer_expression(*scalar_type, frame, expression)?
+                }
             }
         }
     };
@@ -155,11 +159,11 @@ fn require_native_integer_width(
 fn emit_x86_64_parameter_return(
     source: ValueId,
     is_64: bool,
-    location: TerminalScalarParameterLocation,
+    location: TerminalAssignedScalarLocation,
 ) -> Result<Vec<u8>, EmissionError> {
     let mut bytes = Vec::new();
     match location {
-        TerminalScalarParameterLocation::Register(register) => {
+        TerminalAssignedScalarLocation::Register(register) => {
             let register = x86_gpr_code(source, register)?;
             let rex = 0x40 | (u8::from(is_64) << 3) | (((register >> 3) & 1) << 2);
             if rex != 0x40 {
@@ -168,7 +172,7 @@ fn emit_x86_64_parameter_return(
             bytes.push(0x89); // mov eax/rax, selected argument register
             bytes.push(0xc0 | ((register & 7) << 3));
         }
-        TerminalScalarParameterLocation::IncomingStack { byte_offset } => {
+        TerminalAssignedScalarLocation::IncomingStack { byte_offset } => {
             let displacement = byte_offset.checked_add(8).ok_or(
                 EmissionError::IncomingStackOffsetNotEncodable {
                     value: source,
@@ -185,6 +189,9 @@ fn emit_x86_64_parameter_return(
                 bytes.extend_from_slice(&[0x84, 0x24]);
                 bytes.extend_from_slice(&displacement.to_le_bytes());
             }
+        }
+        TerminalAssignedScalarLocation::FrameSpill { .. } => {
+            return Err(EmissionError::AssignedFrameSpillOutsideExpression(source));
         }
     }
     bytes.push(0xc3);
@@ -224,10 +231,10 @@ fn x86_gpr_code(source: ValueId, register: MachineRegister) -> Result<u8, Emissi
 fn emit_aarch64_parameter_return(
     source: ValueId,
     is_64: bool,
-    location: TerminalScalarParameterLocation,
+    location: TerminalAssignedScalarLocation,
 ) -> Result<Vec<u8>, EmissionError> {
     let instruction = match location {
-        TerminalScalarParameterLocation::Register(MachineRegister::Aarch64X(register))
+        TerminalAssignedScalarLocation::Register(MachineRegister::Aarch64X(register))
             if register < 31 =>
         {
             if register == 0 {
@@ -237,14 +244,14 @@ fn emit_aarch64_parameter_return(
                 Some(base | (u32::from(register) << 16))
             }
         }
-        TerminalScalarParameterLocation::Register(register) => {
+        TerminalAssignedScalarLocation::Register(register) => {
             return Err(EmissionError::ParameterRegisterArchitectureMismatch {
                 value: source,
                 register,
                 architecture: Architecture::Aarch64,
             });
         }
-        TerminalScalarParameterLocation::IncomingStack { byte_offset } => {
+        TerminalAssignedScalarLocation::IncomingStack { byte_offset } => {
             let scale = if is_64 { 8 } else { 4 };
             if byte_offset % scale != 0 || byte_offset / scale > 0xfff {
                 return Err(EmissionError::IncomingStackOffsetNotEncodable {
@@ -254,6 +261,9 @@ fn emit_aarch64_parameter_return(
             }
             let base = if is_64 { 0xf940_0000 } else { 0xb940_0000 };
             Some(base | ((byte_offset / scale) << 10) | (31 << 5))
+        }
+        TerminalAssignedScalarLocation::FrameSpill { .. } => {
+            return Err(EmissionError::AssignedFrameSpillOutsideExpression(source));
         }
     };
     Ok(instruction
@@ -298,9 +308,14 @@ fn emit_aarch64_return(scalar_type: IntegerType, bits: u64) -> Vec<u8> {
 
 fn emit_x86_64_integer_expression(
     scalar_type: IntegerType,
-    expression: &TerminalTargetIntegerExpression,
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedIntegerExpression,
 ) -> Result<Vec<u8>, EmissionError> {
-    expression_parameter_locations(expression)?;
+    if frame.byte_size != 0 || !frame.register_spills.is_empty() {
+        return Err(EmissionError::AssignedFrameArchitectureMismatch(
+            Architecture::X86_64,
+        ));
+    }
     let mut bytes = Vec::new();
     emit_x86_64_expression_node(&mut bytes, scalar_type, expression, 0)?;
     bytes.push(0xc3); // ret
@@ -310,11 +325,11 @@ fn emit_x86_64_integer_expression(
 fn emit_x86_64_expression_node(
     bytes: &mut Vec<u8>,
     scalar_type: IntegerType,
-    expression: &TerminalTargetIntegerExpression,
+    expression: &TerminalAssignedIntegerExpression,
     stack_depth: u32,
 ) -> Result<(), EmissionError> {
     match expression {
-        TerminalTargetIntegerExpression::Immediate {
+        TerminalAssignedIntegerExpression::Immediate {
             source_value,
             value,
         } => {
@@ -323,13 +338,13 @@ fn emit_x86_64_expression_node(
             bytes.extend_from_slice(&bits.to_le_bytes());
             emit_x86_64_normalize(bytes, scalar_type);
         }
-        TerminalTargetIntegerExpression::Parameter {
+        TerminalAssignedIntegerExpression::Parameter {
             source_value,
             location,
             ..
         } => {
             match location {
-                TerminalScalarParameterLocation::Register(register) => {
+                TerminalAssignedScalarLocation::Register(register) => {
                     let register_code = x86_gpr_code(*source_value, *register)?;
                     if matches!(register_code, 0 | 4 | 10 | 11) {
                         return Err(EmissionError::ExpressionScratchRegisterConflict {
@@ -340,7 +355,7 @@ fn emit_x86_64_expression_node(
                     let rex = 0x48 | (((register_code >> 3) & 1) << 2);
                     bytes.extend_from_slice(&[rex, 0x89, 0xc0 | ((register_code & 7) << 3)]); // mov rax, selected argument register
                 }
-                TerminalScalarParameterLocation::IncomingStack { byte_offset } => {
+                TerminalAssignedScalarLocation::IncomingStack { byte_offset } => {
                     let displacement = byte_offset
                         .checked_add(8)
                         .and_then(|offset| offset.checked_add(stack_depth))
@@ -356,15 +371,20 @@ fn emit_x86_64_expression_node(
                         bytes.extend_from_slice(&displacement.to_le_bytes());
                     }
                 }
+                TerminalAssignedScalarLocation::FrameSpill { .. } => {
+                    return Err(EmissionError::AssignedFrameArchitectureMismatch(
+                        Architecture::X86_64,
+                    ));
+                }
             }
             emit_x86_64_normalize(bytes, scalar_type);
         }
-        TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
-        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
-        | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. } => {
+        TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
             emit_x86_64_expression_node(bytes, scalar_type, left, stack_depth)?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
@@ -375,26 +395,26 @@ fn emit_x86_64_expression_node(
             emit_x86_64_expression_node(bytes, scalar_type, right, nested_depth)?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             match expression {
-                TerminalTargetIntegerExpression::WrappingAdd { .. } => {
+                TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
                     bytes.extend_from_slice(&[0x4c, 0x01, 0xd0]); // add rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
                 }
-                TerminalTargetIntegerExpression::SaturatingAdd { .. } => {
+                TerminalAssignedIntegerExpression::SaturatingAdd { .. } => {
                     emit_x86_64_saturating_add(bytes, scalar_type);
                 }
-                TerminalTargetIntegerExpression::WrappingSubtract { .. } => {
+                TerminalAssignedIntegerExpression::WrappingSubtract { .. } => {
                     bytes.extend_from_slice(&[0x49, 0x29, 0xc2]); // sub r10, rax
                     bytes.extend_from_slice(&[0x4c, 0x89, 0xd0]); // mov rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
                 }
-                TerminalTargetIntegerExpression::SaturatingSubtract { .. } => {
+                TerminalAssignedIntegerExpression::SaturatingSubtract { .. } => {
                     emit_x86_64_saturating_subtract(bytes, scalar_type);
                 }
-                TerminalTargetIntegerExpression::WrappingMultiply { .. } => {
+                TerminalAssignedIntegerExpression::WrappingMultiply { .. } => {
                     bytes.extend_from_slice(&[0x49, 0x0f, 0xaf, 0xc2]); // imul rax, r10
                     emit_x86_64_normalize(bytes, scalar_type);
                 }
-                TerminalTargetIntegerExpression::SaturatingMultiply { .. } => {
+                TerminalAssignedIntegerExpression::SaturatingMultiply { .. } => {
                     emit_x86_64_saturating_multiply(bytes, scalar_type);
                 }
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
@@ -531,37 +551,24 @@ fn emit_x86_64_mov_r10(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend_from_slice(&value.to_le_bytes());
 }
 
-#[derive(Debug)]
-struct Aarch64ExpressionFrame {
-    byte_size: u32,
-    register_spills: BTreeMap<usize, Aarch64RegisterSpill>,
-}
-
-#[derive(Debug)]
-struct Aarch64RegisterSpill {
-    source_value: ValueId,
-    register: u8,
-    byte_offset: u32,
-}
-
 fn emit_aarch64_integer_expression(
     scalar_type: IntegerType,
-    expression: &TerminalTargetIntegerExpression,
+    frame: &TerminalExpressionFrame,
+    expression: &TerminalAssignedIntegerExpression,
 ) -> Result<Vec<u8>, EmissionError> {
-    let frame = plan_aarch64_expression_frame(expression)?;
     let mut instructions = Vec::new();
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, false)?;
-        for spill in frame.register_spills.values() {
+        for spill in &frame.register_spills {
             instructions.push(aarch64_stack_access(
                 0xf900_0000,
-                spill.register,
+                aarch64_spill_register(spill.source_value, spill.register)?,
                 spill.source_value,
                 spill.byte_offset,
             )?); // str xN, [sp, #spill]
         }
     }
-    emit_aarch64_expression_node(&mut instructions, scalar_type, expression, &frame, 0)?;
+    emit_aarch64_expression_node(&mut instructions, scalar_type, expression, frame, 0)?;
     if frame.byte_size != 0 {
         emit_aarch64_adjust_sp(&mut instructions, frame.byte_size, true)?;
     }
@@ -572,68 +579,29 @@ fn emit_aarch64_integer_expression(
         .collect())
 }
 
-fn plan_aarch64_expression_frame(
-    expression: &TerminalTargetIntegerExpression,
-) -> Result<Aarch64ExpressionFrame, EmissionError> {
-    let locations = expression_parameter_locations(expression)?;
-    let mut register_spills = BTreeMap::new();
-    for (parameter_index, (source_value, location)) in locations {
-        let TerminalScalarParameterLocation::Register(register) = location else {
-            continue;
-        };
-        let MachineRegister::Aarch64X(register) = register else {
-            return Err(EmissionError::ParameterRegisterArchitectureMismatch {
-                value: source_value,
-                register,
-                architecture: Architecture::Aarch64,
-            });
-        };
-        if register >= 31 {
-            return Err(EmissionError::ParameterRegisterArchitectureMismatch {
-                value: source_value,
-                register: MachineRegister::Aarch64X(register),
-                architecture: Architecture::Aarch64,
-            });
-        }
-        let byte_offset = u32::try_from(register_spills.len())
-            .ok()
-            .and_then(|count| count.checked_mul(8))
-            .ok_or(EmissionError::ExpressionStackFrameNotEncodable)?;
-        register_spills.insert(
-            parameter_index,
-            Aarch64RegisterSpill {
-                source_value,
-                register,
-                byte_offset,
-            },
-        );
+fn aarch64_spill_register(
+    source_value: ValueId,
+    register: MachineRegister,
+) -> Result<u8, EmissionError> {
+    match register {
+        MachineRegister::Aarch64X(register) if register < 31 => Ok(register),
+        _ => Err(EmissionError::ParameterRegisterArchitectureMismatch {
+            value: source_value,
+            register,
+            architecture: Architecture::Aarch64,
+        }),
     }
-    let used_bytes = u32::try_from(register_spills.len())
-        .ok()
-        .and_then(|count| count.checked_mul(8))
-        .ok_or(EmissionError::ExpressionStackFrameNotEncodable)?;
-    let byte_size = used_bytes
-        .checked_add(15)
-        .map(|bytes| bytes & !15)
-        .ok_or(EmissionError::ExpressionStackFrameNotEncodable)?;
-    if byte_size > 0xfff {
-        return Err(EmissionError::ExpressionStackFrameNotEncodable);
-    }
-    Ok(Aarch64ExpressionFrame {
-        byte_size,
-        register_spills,
-    })
 }
 
 fn emit_aarch64_expression_node(
     instructions: &mut Vec<u32>,
     scalar_type: IntegerType,
-    expression: &TerminalTargetIntegerExpression,
-    frame: &Aarch64ExpressionFrame,
+    expression: &TerminalAssignedIntegerExpression,
+    frame: &TerminalExpressionFrame,
     stack_depth: u32,
 ) -> Result<(), EmissionError> {
     match expression {
-        TerminalTargetIntegerExpression::Immediate {
+        TerminalAssignedIntegerExpression::Immediate {
             source_value,
             value,
         } => {
@@ -641,36 +609,30 @@ fn emit_aarch64_expression_node(
             emit_aarch64_mov_immediate(instructions, 0, bits);
             emit_aarch64_normalize(instructions, scalar_type);
         }
-        TerminalTargetIntegerExpression::Parameter {
+        TerminalAssignedIntegerExpression::Parameter {
             source_value,
-            parameter_index,
+            parameter_index: _,
             location,
         } => {
             let byte_offset = match location {
-                TerminalScalarParameterLocation::Register(register) => {
-                    let spill = frame.register_spills.get(parameter_index).ok_or(
-                        EmissionError::ExpressionParameterSpillMissing {
-                            value: *source_value,
-                            parameter_index: *parameter_index,
-                        },
-                    )?;
-                    if *register != MachineRegister::Aarch64X(spill.register) {
-                        return Err(EmissionError::ExpressionParameterLocationConflict {
-                            value: *source_value,
-                            parameter_index: *parameter_index,
-                        });
-                    }
-                    stack_depth.checked_add(spill.byte_offset)
+                TerminalAssignedScalarLocation::FrameSpill { byte_offset } => {
+                    stack_depth.checked_add(*byte_offset)
                 }
-                TerminalScalarParameterLocation::IncomingStack { byte_offset } => stack_depth
+                TerminalAssignedScalarLocation::IncomingStack { byte_offset } => stack_depth
                     .checked_add(frame.byte_size)
                     .and_then(|offset| offset.checked_add(*byte_offset)),
+                TerminalAssignedScalarLocation::Register(_) => {
+                    return Err(EmissionError::AssignedFrameArchitectureMismatch(
+                        Architecture::Aarch64,
+                    ));
+                }
             }
             .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
                 value: *source_value,
                 byte_offset: match location {
-                    TerminalScalarParameterLocation::Register(_) => 0,
-                    TerminalScalarParameterLocation::IncomingStack { byte_offset } => *byte_offset,
+                    TerminalAssignedScalarLocation::Register(_)
+                    | TerminalAssignedScalarLocation::FrameSpill { .. } => 0,
+                    TerminalAssignedScalarLocation::IncomingStack { byte_offset } => *byte_offset,
                 },
             })?;
             instructions.push(aarch64_stack_access(
@@ -681,12 +643,12 @@ fn emit_aarch64_expression_node(
             )?); // ldr x0, [sp, #value]
             emit_aarch64_normalize(instructions, scalar_type);
         }
-        TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
-        | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
-        | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
-        | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. } => {
+        TerminalAssignedIntegerExpression::WrappingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingAdd { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
+        | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
             emit_aarch64_expression_node(instructions, scalar_type, left, frame, stack_depth)?;
             emit_aarch64_adjust_sp(instructions, 16, false)?;
             instructions.push(aarch64_stack_access(
@@ -709,25 +671,25 @@ fn emit_aarch64_expression_node(
             )?); // ldr x9, [sp]
             emit_aarch64_adjust_sp(instructions, 16, true)?;
             match expression {
-                TerminalTargetIntegerExpression::WrappingAdd { .. } => {
+                TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
                     instructions.push(0x8b00_0120); // add x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
-                TerminalTargetIntegerExpression::SaturatingAdd { .. } => {
+                TerminalAssignedIntegerExpression::SaturatingAdd { .. } => {
                     emit_aarch64_saturating_add(instructions, scalar_type);
                 }
-                TerminalTargetIntegerExpression::WrappingSubtract { .. } => {
+                TerminalAssignedIntegerExpression::WrappingSubtract { .. } => {
                     instructions.push(0xcb00_0120); // sub x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
-                TerminalTargetIntegerExpression::SaturatingSubtract { .. } => {
+                TerminalAssignedIntegerExpression::SaturatingSubtract { .. } => {
                     emit_aarch64_saturating_subtract(instructions, scalar_type);
                 }
-                TerminalTargetIntegerExpression::WrappingMultiply { .. } => {
+                TerminalAssignedIntegerExpression::WrappingMultiply { .. } => {
                     instructions.push(0x9b00_7d20); // mul x0, x9, x0
                     emit_aarch64_normalize(instructions, scalar_type);
                 }
-                TerminalTargetIntegerExpression::SaturatingMultiply { .. } => {
+                TerminalAssignedIntegerExpression::SaturatingMultiply { .. } => {
                     emit_aarch64_saturating_multiply(instructions, scalar_type);
                 }
                 _ => unreachable!("outer match admits only binary arithmetic nodes"),
@@ -895,59 +857,16 @@ const fn aarch64_csel(destination: u8, left: u8, right: u8, condition: u8) -> u3
         | destination as u32
 }
 
-fn expression_parameter_locations(
-    expression: &TerminalTargetIntegerExpression,
-) -> Result<BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>, EmissionError> {
-    fn collect(
-        expression: &TerminalTargetIntegerExpression,
-        locations: &mut BTreeMap<usize, (ValueId, TerminalScalarParameterLocation)>,
-    ) -> Result<(), EmissionError> {
-        match expression {
-            TerminalTargetIntegerExpression::Immediate { .. } => {}
-            TerminalTargetIntegerExpression::Parameter {
-                source_value,
-                parameter_index,
-                location,
-            } => {
-                if let Some((_, established)) = locations.get(parameter_index) {
-                    if established != location {
-                        return Err(EmissionError::ExpressionParameterLocationConflict {
-                            value: *source_value,
-                            parameter_index: *parameter_index,
-                        });
-                    }
-                } else {
-                    locations.insert(*parameter_index, (*source_value, *location));
-                }
-            }
-            TerminalTargetIntegerExpression::WrappingAdd { left, right, .. }
-            | TerminalTargetIntegerExpression::SaturatingAdd { left, right, .. }
-            | TerminalTargetIntegerExpression::WrappingSubtract { left, right, .. }
-            | TerminalTargetIntegerExpression::SaturatingSubtract { left, right, .. }
-            | TerminalTargetIntegerExpression::WrappingMultiply { left, right, .. }
-            | TerminalTargetIntegerExpression::SaturatingMultiply { left, right, .. } => {
-                collect(left, locations)?;
-                collect(right, locations)?;
-            }
-        }
-        Ok(())
-    }
-
-    let mut locations = BTreeMap::new();
-    collect(expression, &mut locations)?;
-    Ok(locations)
-}
-
-fn expression_source(expression: &TerminalTargetIntegerExpression) -> ValueId {
+fn expression_source(expression: &TerminalAssignedIntegerExpression) -> ValueId {
     match expression {
-        TerminalTargetIntegerExpression::Immediate { source_value, .. }
-        | TerminalTargetIntegerExpression::Parameter { source_value, .. } => *source_value,
-        TerminalTargetIntegerExpression::WrappingAdd { left, .. }
-        | TerminalTargetIntegerExpression::SaturatingAdd { left, .. }
-        | TerminalTargetIntegerExpression::WrappingSubtract { left, .. }
-        | TerminalTargetIntegerExpression::SaturatingSubtract { left, .. }
-        | TerminalTargetIntegerExpression::WrappingMultiply { left, .. }
-        | TerminalTargetIntegerExpression::SaturatingMultiply { left, .. } => {
+        TerminalAssignedIntegerExpression::Immediate { source_value, .. }
+        | TerminalAssignedIntegerExpression::Parameter { source_value, .. } => *source_value,
+        TerminalAssignedIntegerExpression::WrappingAdd { left, .. }
+        | TerminalAssignedIntegerExpression::SaturatingAdd { left, .. }
+        | TerminalAssignedIntegerExpression::WrappingSubtract { left, .. }
+        | TerminalAssignedIntegerExpression::SaturatingSubtract { left, .. }
+        | TerminalAssignedIntegerExpression::WrappingMultiply { left, .. }
+        | TerminalAssignedIntegerExpression::SaturatingMultiply { left, .. } => {
             expression_source(left)
         }
     }
@@ -1013,6 +932,8 @@ pub enum EmissionError {
         value: ValueId,
     },
     ExpressionStackFrameNotEncodable,
+    AssignedFrameSpillOutsideExpression(ValueId),
+    AssignedFrameArchitectureMismatch(Architecture),
     EntryFunctionMissing(MachineId),
 }
 
@@ -1029,11 +950,19 @@ mod tests {
     use super::*;
     use omega_target::NativeTarget;
     use omega_terminal_target_operations::{
-        TerminalPsiProvenance, TerminalTargetFunction, TerminalTargetIntegerExpression,
-        TerminalTargetOperation, TerminalTargetOperationPlan,
+        TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetFunction,
+        TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
     };
+    use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
     use psi_core::{EdgeId, MachineId, OperationId};
     use psi_terminal::{SemanticFingerprint, SemanticVersion, TerminalPsiIdentity};
+
+    fn emit_machine_code(
+        plan: &TerminalTargetOperationPlan,
+    ) -> Result<TerminalMachineCodePlan, EmissionError> {
+        let assigned = assign_registers(plan).expect("test target operations must assign");
+        super::emit_machine_code(&assigned)
+    }
 
     fn plan(target: NativeTarget) -> TerminalTargetOperationPlan {
         let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
