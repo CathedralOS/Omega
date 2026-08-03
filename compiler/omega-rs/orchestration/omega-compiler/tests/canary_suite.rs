@@ -37440,11 +37440,23 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
 
 #[test]
 fn named_float_directed_square_root_selects_exact_plans_and_restores_control_state() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.directed-square-root.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32 irrational-result edge",
+        "binary64 irrational-result edge",
+        "toward zero",
+        "toward positive",
+        "toward negative",
+        "floating-control restoration",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x8b87_625f_d5e9_f1b7;
+
     let canary = pass_canary("float/named_provider_directed_square_root_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-square-root provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
@@ -37464,6 +37476,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
             continue;
         }
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -37488,6 +37501,13 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         .into_iter()
         .map(str::to_owned)
         .collect()
+    );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        6,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format/direction slot"
     );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
@@ -37545,6 +37565,21 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
