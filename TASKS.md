@@ -898,7 +898,10 @@ Remaining:
   target shapes now consume the retained GetStdHandle plan together with the
   retained ReadFile/WriteFile plan in production layout and emission. Missing,
   partial, or incompatible composite evidence rejects; independent
-  normalization remains only the differential oracle.
+  normalization remains only the differential oracle. Object relocation
+  planning independently validates the same retained pair before recording
+  either native call and rejects a missing GetStdHandle binding or plan instead
+  of silently omitting that call record.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

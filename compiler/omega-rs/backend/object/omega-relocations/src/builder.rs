@@ -64,7 +64,7 @@ fn collect_function_relocations(
             selected_text_width,
             instruction,
             relocation_plan,
-        );
+        )?;
     }
 
     Ok(())
