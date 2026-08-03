@@ -1073,7 +1073,7 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor_with_bindings(*element_type, bindings)),
             },
-            TypeReferenceNode::DynamicTrait { symbol, name } => {
+            TypeReferenceNode::DynamicTrait { symbol, name, .. } => {
                 TypeLayoutDescriptor::DynamicTrait {
                     symbol: *symbol,
                     name: name.clone(),
