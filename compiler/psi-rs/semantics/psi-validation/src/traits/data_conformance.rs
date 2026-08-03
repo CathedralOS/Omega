@@ -25,9 +25,28 @@ pub(crate) fn validate_data_conformances(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for conformance in program.data_conformances() {
+    for (index, conformance) in program.data_conformances().iter().enumerate() {
         let type_name = conformance.type_name.as_str();
         let trait_name = conformance.trait_name.as_str();
+
+        for previous in &program.data_conformances()[..index] {
+            if previous.type_name != conformance.type_name {
+                continue;
+            }
+            match (&previous.alias, &conformance.alias) {
+                (Some(previous), Some(alias)) if previous == alias => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "data `{type_name}` declares conformance name `{alias}` more than once"
+                    )));
+                }
+                (None, None) if previous.trait_name == conformance.trait_name => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "data `{type_name}` declares unnamed conformance to `{trait_name}` more than once"
+                    )));
+                }
+                _ => {}
+            }
+        }
 
         let data_exists = program
             .data_definitions()

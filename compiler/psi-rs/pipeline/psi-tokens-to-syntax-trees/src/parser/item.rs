@@ -303,12 +303,21 @@ pub(super) fn parse_item<'tokens, 'source>(
         } else {
             psi_arena::HandleSpan::empty()
         };
+        let alias = if rest.at_contextual("as") {
+            rest = rest.take_contextual("as")?;
+            let (alias, next) = rest.take_identifier()?;
+            rest = next;
+            Some(alias)
+        } else {
+            None
+        };
         let rest = take_optional_semicolon(rest)?;
         return Ok((
             Item::Conformance(psi_syntax_trees::item::ConformanceItem {
                 type_name,
                 trait_name,
                 trait_arguments,
+                alias,
             }),
             rest,
         ));

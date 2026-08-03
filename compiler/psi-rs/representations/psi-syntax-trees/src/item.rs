@@ -521,15 +521,16 @@ pub struct QuotientDefinition {
 }
 
 /// A standalone conformance item (frozen decision 8): `Point satisfies
-/// Equatable;` or `Buffer satisfies Storage<u8>;` claims a whole trait for a
-/// data type. Validation checks the type's written/default attached machines
-/// against the trait's requirements; nothing trait-shaped appears on the data
-/// declaration itself.
+/// Equatable;` or `Buffer satisfies Storage<u8> as ByteStorage;` claims a whole
+/// trait for a data type. Validation checks the type's written/default attached
+/// machines against the trait's requirements; nothing trait-shaped appears on
+/// the data declaration itself.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConformanceItem {
     pub type_name: Identifier,
     pub trait_name: Identifier,
     pub trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
+    pub alias: Option<Identifier>,
 }
 
 /// Declared type properties: lowercase facts in brackets on the data

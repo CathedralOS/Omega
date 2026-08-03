@@ -59,6 +59,7 @@ pub(crate) fn lower_item(
                     type_name: crate::name::lower_name(&conformance.type_name),
                     trait_name: crate::name::lower_name(&conformance.trait_name),
                     arguments,
+                    alias: conformance.alias.as_ref().map(crate::name::lower_name),
                 },
             );
         }
