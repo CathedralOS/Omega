@@ -73,21 +73,21 @@ machine may declare any nonempty sequence of ordinary primitive-integer
 parameters and return one exact named parameter or a recursively nested
 expression over parameters and landed literals using the six builtin
 add/subtract/multiply operations in the settled Wrapping or Saturating domains.
-A two-state integer machine may carry one typed constant through an
-unconditional jump and return either the matching literal or one builtin
-parameter-plus-literal operation. The parameterized form may contain any
-nonempty linear sequence of states: it computes a recursively nested
-parameter/literal add/subtract/multiply expression for each unconditional jump,
-binds one exact integer parameter in every non-entry state, and continues with
-another recursively nested expression over that parameter and landed literals.
-Both paths use the settled Wrapping or
-Saturating domains. All three forms require a matching closed
+The linear integer form may declare any sequence of ordinary primitive-integer
+machine parameters, including none, and any sequence of at least two states.
+It computes a recursively nested parameter/literal add/subtract/multiply
+expression for each unconditional jump, binds one exact integer parameter in
+every non-entry state, and continues with another recursively nested expression
+over that parameter and landed literals. When the whole chain is compile-known,
+the producer independently recomputes its result and rejects an unrelated
+reflexive contract. Both integer paths use the settled Wrapping or Saturating
+domains. All three forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
 runtime-parameter forms, Boolean literal and ninth-parameter returns, a
-three-state Boolean chain carrying its ninth parameter, plus a nine-parameter
-integer direct return, discards
+three-state Boolean chain carrying its ninth parameter, a closed three-state
+integer chain, plus a nine-parameter integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;

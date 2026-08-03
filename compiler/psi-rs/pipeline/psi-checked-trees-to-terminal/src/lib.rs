@@ -61,16 +61,6 @@ pub struct LoweredTerminalPsi {
     pub debug_map: Option<TerminalDebugMap>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LoweredReturnExpression {
-    Literal,
-    IntegerBinary {
-        kind: LoweredIntegerBinaryKind,
-        right: IntegerValue,
-        result: IntegerValue,
-    },
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredDirectExpression {
     Parameter {
@@ -765,12 +755,13 @@ fn lower_content_place(
 /// }
 /// E := pN | L | E (+|-|*) E
 ///
-/// machine name() -> integer
+/// machine name(p0: integer, ...) -> integer
 /// requires L == L
 /// ensures L == L
 /// {
-///     transition { _ -> done(L) }
-///     state done(value: integer) -> integer { L | value (+|-|*) R }
+///     transition { _ -> next(E) }
+///     state next(value: integer) -> integer { transition { _ -> done(E) } }
+///     state done(value: integer) -> integer { E }
 /// }
 /// ```
 pub fn lower_machine(
@@ -826,109 +817,13 @@ fn lower_selected_machine(
     {
         return lower_boolean_state_chain(checked, machine, states);
     }
-    if states.len() >= 2 && !checked.state_parameters(&states[0]).is_empty() {
-        return lower_parameterized_state_chain(checked, machine, states);
+    if states.len() >= 2 {
+        return lower_integer_state_chain(checked, machine, states);
     }
-    let [entry_state, return_state] = states else {
-        return unsupported(
-            "machine must contain one direct-parameter state or an entry state and one return state",
-        );
-    };
-    let [return_parameter] = checked.state_parameters(return_state) else {
-        return unsupported("return state must have exactly one parameter");
-    };
-    if return_parameter.is_self || return_parameter.is_const || return_parameter.is_mutable {
-        return unsupported("qualified return-state parameters are not supported");
-    }
-    if !checked.state_contracts(entry_state).is_empty()
-        || !checked.state_contracts(return_state).is_empty()
-    {
-        return unsupported("state contracts are not supported");
-    }
-
-    let return_type = integer_scalar_type(
-        checked
-            .primitive_type_reference(entry_state.return_type)
-            .ok_or(LoweringError::Unsupported(
-                "machine result must be a primitive integer",
-            ))?,
-    )?;
-    if integer_scalar_type(
-        checked
-            .primitive_type_reference(return_state.return_type)
-            .ok_or(LoweringError::Unsupported(
-                "return-state result must be a primitive integer",
-            ))?,
-    )? != return_type
-        || integer_scalar_type(
-            checked
-                .primitive_type_reference(return_parameter.type_reference)
-                .ok_or(LoweringError::Unsupported(
-                    "return-state parameter must be a primitive integer",
-                ))?,
-        )? != return_type
-    {
-        return unsupported("machine, return-state, and parameter types must match exactly");
-    }
-
-    let entry_statements = checked
-        .statement_table
-        .statements(entry_state.statement_nodes);
-    let [StatementNode::Transition(transition)] = entry_statements else {
-        return unsupported("entry state must contain exactly one transition");
-    };
-    if transition.guard != TransitionGuardNode::Always || transition.continuation.is_valid() {
-        return unsupported("entry transition must be unconditional and have no continuation");
-    }
-    let TransitionTargetNode::Named { path, arguments } =
-        checked.statement_table.transition_target(transition.target)
-    else {
-        return unsupported("entry transition must target the return state by name");
-    };
-    if path.symbol != return_state.symbol {
-        return unsupported("entry transition must target the sole return state");
-    }
-    let [argument] = checked.statement_table.expression_handles(*arguments) else {
-        return unsupported("entry transition must carry exactly one argument");
-    };
-    let ExpressionNode::Integer(argument_literal) = checked.expression_table.expression(*argument)
-    else {
-        return unsupported("entry transition argument must be an integer literal");
-    };
-    let value = integer_value(argument_literal, return_type)?;
-
-    let return_statements = checked
-        .statement_table
-        .statements(return_state.statement_nodes);
-    let [StatementNode::Expression(return_expression)] = return_statements else {
-        return unsupported("return state must contain exactly one value expression");
-    };
-    let lowered_return = lower_return_expression(
-        checked,
-        *return_expression,
-        return_parameter,
-        return_type,
-        value,
-    )?;
-    let executed_value = match lowered_return {
-        LoweredReturnExpression::Literal => value,
-        LoweredReturnExpression::IntegerBinary { result, .. } => result,
-    };
-
-    let contract_value = validate_contract(checked, machine, return_type, Some(executed_value))?;
-    let (identity_reshuffles, partition_compositions) =
-        lower_content_evidence(checked, machine, entry_state)?;
-    Ok(build_module(
-        return_type,
-        value,
-        lowered_return,
-        contract_value,
-        identity_reshuffles,
-        partition_compositions,
-    ))
+    unsupported("machine must contain at least one state")
 }
 
-fn lower_parameterized_state_chain(
+fn lower_integer_state_chain(
     checked: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     states: &[psi_checked_trees::state::State],
@@ -960,6 +855,9 @@ fn lower_parameterized_state_chain(
                 "linear-state machine result must be a primitive integer",
             ))?,
     )?;
+    let ScalarType::Integer(result_integer_type) = result_type else {
+        unreachable!("integer source result lowered to a non-integer scalar type");
+    };
     let mut state_parameter_types = Vec::with_capacity(states.len());
     state_parameter_types.push(parameter_types.clone());
     for state in &states[1..] {
@@ -992,6 +890,7 @@ fn lower_parameterized_state_chain(
     }
 
     let mut jump_expressions = Vec::with_capacity(states.len() - 1);
+    let mut known_parameters = vec![None; parameter_types.len()];
     for (index, state) in states[..states.len() - 1].iter().enumerate() {
         let statements = checked.statement_table.statements(state.statement_nodes);
         let [StatementNode::Transition(transition)] = statements else {
@@ -1020,7 +919,10 @@ fn lower_parameterized_state_chain(
             &state_parameter_types[index],
             result_type,
         )?;
+        let known_value =
+            evaluate_direct_expression(&expression, &known_parameters, result_integer_type);
         jump_expressions.push(expression);
+        known_parameters = vec![known_value];
     }
 
     let return_state = states.last().expect("linear chain is nonempty");
@@ -1038,11 +940,13 @@ fn lower_parameterized_state_chain(
         &[result_type],
         result_type,
     )?;
+    let expected_value =
+        evaluate_direct_expression(&return_expression, &known_parameters, result_integer_type);
 
-    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let contract_value = validate_contract(checked, machine, result_type, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
-    Ok(build_parameterized_state_chain_module(
+    Ok(build_integer_state_chain_module(
         &parameter_types,
         jump_expressions,
         return_expression,
@@ -1336,6 +1240,39 @@ fn lower_direct_return_expression(
     }
 }
 
+fn evaluate_direct_expression(
+    expression: &LoweredDirectExpression,
+    parameters: &[Option<IntegerValue>],
+    integer_type: IntegerType,
+) -> Option<IntegerValue> {
+    match expression {
+        LoweredDirectExpression::Parameter { position } => {
+            parameters.get(*position).copied().flatten()
+        }
+        LoweredDirectExpression::IntegerLiteral { value } => Some(*value),
+        LoweredDirectExpression::IntegerBinary { kind, left, right } => {
+            let left = evaluate_direct_expression(left, parameters, integer_type)?;
+            let right = evaluate_direct_expression(right, parameters, integer_type)?;
+            match kind {
+                LoweredIntegerBinaryKind::WrappingAdd => integer_type.wrapping_add(left, right),
+                LoweredIntegerBinaryKind::SaturatingAdd => integer_type.saturating_add(left, right),
+                LoweredIntegerBinaryKind::WrappingSubtract => {
+                    integer_type.wrapping_sub(left, right)
+                }
+                LoweredIntegerBinaryKind::SaturatingSubtract => {
+                    integer_type.saturating_sub(left, right)
+                }
+                LoweredIntegerBinaryKind::WrappingMultiply => {
+                    integer_type.wrapping_mul(left, right)
+                }
+                LoweredIntegerBinaryKind::SaturatingMultiply => {
+                    integer_type.saturating_mul(left, right)
+                }
+            }
+        }
+    }
+}
+
 fn combine_terminal_arithmetic_domains(
     left: ArithmeticDomain,
     right: ArithmeticDomain,
@@ -1435,91 +1372,6 @@ fn lower_content_evidence(
     let partition_compositions =
         lower_content_partition_compositions(&partition_facts, &identity_reshuffles)?;
     Ok((identity_reshuffles, partition_compositions))
-}
-
-fn lower_return_expression(
-    checked: &CheckedTrees,
-    expression: psi_checked_trees::expression::ExpressionHandle,
-    parameter: &psi_checked_trees::signature::StateParameter,
-    result_type: ScalarType,
-    parameter_value: IntegerValue,
-) -> Result<LoweredReturnExpression, LoweringError> {
-    match checked.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => {
-            if integer_value(literal, result_type)? != parameter_value {
-                return unsupported("jump and return literals must be equal");
-            }
-            Ok(LoweredReturnExpression::Literal)
-        }
-        ExpressionNode::Binary(binary) => {
-            let ExpressionNode::Name(left) = checked.expression_table.expression(binary.left)
-            else {
-                return unsupported(
-                    "terminal integer binary left operand must be the state parameter",
-                );
-            };
-            if checked
-                .expression_table
-                .name_path_members(left.members)
-                .len()
-                != 1
-                || (left.symbol != parameter.symbol && left.head_symbol != parameter.symbol)
-            {
-                return unsupported(
-                    "terminal integer binary left operand must be the state parameter",
-                );
-            }
-            let ExpressionNode::Integer(right_literal) =
-                checked.expression_table.expression(binary.right)
-            else {
-                return unsupported(
-                    "terminal integer binary right operand must be an integer literal",
-                );
-            };
-            if let Some(operator_use) = checked.facts.operators.expression_use(expression)
-                && operator_use.status != CheckedOperatorResolutionStatus::BuiltinFallback
-            {
-                return unsupported(
-                    "terminal integer binary expression must use the builtin operator",
-                );
-            }
-            let domain = checked.arithmetic_domain_for_type_reference(parameter.type_reference);
-            let kind = lowered_integer_binary_kind(binary.operator, domain)?;
-            let right = integer_value(right_literal, result_type)?;
-            let ScalarType::Integer(integer_type) = result_type else {
-                return Err(LoweringError::InvalidPsiIntegerType);
-            };
-            let result = match kind {
-                LoweredIntegerBinaryKind::WrappingAdd => {
-                    integer_type.wrapping_add(parameter_value, right)
-                }
-                LoweredIntegerBinaryKind::SaturatingAdd => {
-                    integer_type.saturating_add(parameter_value, right)
-                }
-                LoweredIntegerBinaryKind::WrappingSubtract => {
-                    integer_type.wrapping_sub(parameter_value, right)
-                }
-                LoweredIntegerBinaryKind::SaturatingSubtract => {
-                    integer_type.saturating_sub(parameter_value, right)
-                }
-                LoweredIntegerBinaryKind::WrappingMultiply => {
-                    integer_type.wrapping_mul(parameter_value, right)
-                }
-                LoweredIntegerBinaryKind::SaturatingMultiply => {
-                    integer_type.saturating_mul(parameter_value, right)
-                }
-            }
-            .ok_or(LoweringError::IntegerLiteralOutsidePsiType)?;
-            Ok(LoweredReturnExpression::IntegerBinary {
-                kind,
-                right,
-                result,
-            })
-        }
-        _ => unsupported(
-            "return state must return an integer literal or supported integer binary expression",
-        ),
-    }
 }
 
 fn validate_contract(
@@ -2125,7 +1977,7 @@ fn emit_direct_expression(
     }
 }
 
-fn build_parameterized_state_chain_module(
+fn build_integer_state_chain_module(
     parameter_types: &[ScalarType],
     jump_expressions: Vec<LoweredDirectExpression>,
     return_expression: LoweredDirectExpression,
@@ -2267,149 +2119,6 @@ fn build_parameterized_state_chain_module(
                 content_partition_compositions: partition_compositions.compositions,
                 entry: block_id(1),
                 blocks,
-                contract: MachineContract {
-                    id: contract_id(1),
-                    requires: vec![goal.clone()],
-                    ensures: vec![ContractClause {
-                        obligation,
-                        proposition: goal,
-                    }],
-                },
-            }],
-        },
-        proof_bundle: ProofBundle {
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
-            }],
-        },
-        debug_map: None,
-    }
-}
-
-fn build_module(
-    result_type: ScalarType,
-    value: IntegerValue,
-    return_expression: LoweredReturnExpression,
-    contract_value: IntegerValue,
-    identity_reshuffles: LoweredContentIdentityReshuffles,
-    partition_compositions: LoweredContentPartitionCompositions,
-) -> LoweredTerminalPsi {
-    let jump_constant_id = value_id(1);
-    let parameter_id = value_id(2);
-    let ScalarType::Integer(integer_type) = result_type else {
-        unreachable!("source slice accepts only integer results");
-    };
-    let (result_id, return_operations, return_value) = match return_expression {
-        LoweredReturnExpression::Literal => {
-            let return_constant_id = value_id(3);
-            (
-                value_id(4),
-                vec![Operation {
-                    id: operation_id(2),
-                    result: ValueDeclaration {
-                        id: return_constant_id,
-                        scalar_type: result_type,
-                    },
-                    kind: OperationKind::IntegerConstant { value },
-                }],
-                return_constant_id,
-            )
-        }
-        LoweredReturnExpression::IntegerBinary {
-            kind,
-            right,
-            result: _,
-        } => {
-            let right_id = value_id(3);
-            let binary_result_id = value_id(4);
-            (
-                value_id(5),
-                vec![
-                    Operation {
-                        id: operation_id(2),
-                        result: ValueDeclaration {
-                            id: right_id,
-                            scalar_type: result_type,
-                        },
-                        kind: OperationKind::IntegerConstant { value: right },
-                    },
-                    Operation {
-                        id: operation_id(3),
-                        result: ValueDeclaration {
-                            id: binary_result_id,
-                            scalar_type: result_type,
-                        },
-                        kind: kind.operation(parameter_id, right_id),
-                    },
-                ],
-                binary_result_id,
-            )
-        }
-    };
-    let literal = ScalarTerm::integer(integer_type, contract_value)
-        .expect("validated source contract value fits its terminal integer type");
-    let goal = Proposition::Equal(literal.clone(), literal);
-
-    let obligation = obligation_id(1);
-    let mut structural_places = identity_reshuffles
-        .structural_places
-        .into_iter()
-        .map(|place| (place.id, place.kind))
-        .collect::<BTreeMap<_, _>>();
-    for place in partition_compositions.structural_places {
-        merge_content_place_declaration(&mut structural_places, place)
-            .expect("checked lowering rejects conflicting structural places");
-    }
-    LoweredTerminalPsi {
-        semantic_module: TerminalModule {
-            semantic_version: SemanticVersion::CURRENT,
-            entry: machine_id(1),
-            machines: vec![TerminalMachine {
-                id: machine_id(1),
-                parameters: Vec::new(),
-                result: ValueDeclaration {
-                    id: result_id,
-                    scalar_type: result_type,
-                },
-                structural_places: structural_places
-                    .into_iter()
-                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
-                    .collect(),
-                content_identity_reshuffles: identity_reshuffles.reshuffles,
-                content_partition_compositions: partition_compositions.compositions,
-                entry: block_id(1),
-                blocks: vec![
-                    Block {
-                        id: block_id(1),
-                        parameters: Vec::new(),
-                        operations: vec![Operation {
-                            id: operation_id(1),
-                            result: ValueDeclaration {
-                                id: jump_constant_id,
-                                scalar_type: result_type,
-                            },
-                            kind: OperationKind::IntegerConstant { value },
-                        }],
-                        terminator: Terminator::Jump {
-                            edge: edge_id(1),
-                            target: block_id(2),
-                            arguments: vec![jump_constant_id],
-                        },
-                    },
-                    Block {
-                        id: block_id(2),
-                        parameters: vec![ValueDeclaration {
-                            id: parameter_id,
-                            scalar_type: result_type,
-                        }],
-                        operations: return_operations,
-                        terminator: Terminator::Return {
-                            edge: edge_id(2),
-                            value: return_value,
-                        },
-                    },
-                ],
                 contract: MachineContract {
                     id: contract_id(1),
                     requires: vec![goal.clone()],
