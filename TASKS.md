@@ -1357,9 +1357,13 @@ improvements do not change public identity.
   typed debug-map v1 now binds exact terminal semantic identity to ordered
   source origin/path/length/digest rows and bounded spans over stable semantic
   subjects; wrong-module attachment, unknown subjects/files, invalid spans,
-  alternate order, and hostile bytes reject. Producer span population, general
-  register assignment, further closed arithmetic variants, and migration of
-  the legacy backend remain.
+  alternate order, and hostile bytes reject. The checked-source producer now
+  publishes retained authored declaration spans for machines, blocks, edges,
+  operations, values, contracts, and obligations; the real-source canary
+  round-trips those bytes after checked trees are dropped and binds them into
+  the manifest's debug role without changing semantic identity. Retaining exact
+  expression/transition-site spans, general register assignment, further closed
+  arithmetic variants, and migration of the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and

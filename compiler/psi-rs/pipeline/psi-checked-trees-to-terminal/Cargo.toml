@@ -14,7 +14,9 @@ psi-core = { path = "../../foundation/psi-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-proof-kernel = { path = "../../semantics/psi-proof-kernel" }
+psi-source = { path = "../../foundation/psi-source" }
 psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-terminal = { path = "../../representations/psi-terminal" }
+psi-terminal-codec = { path = "../../semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../semantics/psi-terminal-verifier" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }

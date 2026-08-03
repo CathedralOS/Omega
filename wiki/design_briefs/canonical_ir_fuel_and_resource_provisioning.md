@@ -121,8 +121,10 @@ replace the native executable admission/placement state machine. Canonical
 typed debug-map v1 now binds the exact semantic identity to ordered source-file
 metadata and bounded spans for stable terminal subjects, rejects unknown
 subjects and wrong-module attachment, and remains replaceable presentation
-evidence. Producer span population remains. General register assignment remains
-on the legacy backend.
+evidence. The checked-source producer fills retained declaration spans and the
+real-source canary round-trips the manifested debug bytes after frontend state
+is dropped. Exact expression/transition-site span retention remains. General
+register assignment remains on the legacy backend.
 
 Semantic v1 integer, v2 Boolean, v3 wrapping-add, v4 saturating-add, v5
 wrapping-subtract, v6 saturating-subtract, v7 wrapping-multiply, v8

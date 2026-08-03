@@ -42,6 +42,10 @@ use psi_terminal::{
     SemanticVersion, StructuralPlaceDeclaration, TerminalMachine, TerminalModule, Terminator,
     ValueDeclaration,
 };
+use psi_terminal_codec::{
+    DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
+    TerminalDebugMap, source_digest, terminal_psi_identity, validate_debug_map,
+};
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 use psi_typed_trees::domain::ProofFact;
 
@@ -51,6 +55,10 @@ use psi_typed_trees::domain::ProofFact;
 pub struct LoweredTerminalPsi {
     pub semantic_module: TerminalModule,
     pub proof_bundle: ProofBundle,
+    /// Replaceable presentation metadata. The public producer always fills
+    /// this after semantic identities are final; private builders leave it
+    /// empty until that finalization step.
+    pub debug_map: Option<TerminalDebugMap>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -771,6 +779,15 @@ pub fn lower_machine(
     if matches.next().is_some() {
         return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
     }
+    let mut lowered = lower_selected_machine(checked, machine)?;
+    lowered.debug_map = Some(build_debug_map(checked, machine, &lowered.semantic_module)?);
+    Ok(lowered)
+}
+
+fn lower_selected_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+) -> Result<LoweredTerminalPsi, LoweringError> {
     if machine.attached_data.is_some() {
         return unsupported("attached machines are not in the first terminal-Psi source slice");
     }
@@ -1648,6 +1665,7 @@ fn build_boolean_module(
                 route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
             }],
         },
+        debug_map: None,
     }
 }
 
@@ -1744,6 +1762,7 @@ fn build_direct_parameter_module(
                 route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
             }],
         },
+        debug_map: None,
     }
 }
 
@@ -1965,6 +1984,7 @@ fn build_parameterized_state_chain_module(
                 route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
             }],
         },
+        debug_map: None,
     }
 }
 
@@ -2107,7 +2127,158 @@ fn build_module(
                 route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
             }],
         },
+        debug_map: None,
     }
+}
+
+fn build_debug_map(
+    checked: &CheckedTrees,
+    source_machine: &psi_checked_trees::machine::Machine,
+    module: &TerminalModule,
+) -> Result<TerminalDebugMap, LoweringError> {
+    let terminal_machine = module
+        .machines
+        .first()
+        .expect("the exact source slice always emits one terminal machine");
+    let source_states = checked.machine_states(source_machine);
+    let mut subjects = Vec::<(DebugSubject, psi_source::SourceSpan)>::new();
+    let mut push = |subject, symbol| {
+        if let Some(span) = checked.symbols.symbol_source_span(symbol) {
+            subjects.push((subject, span));
+        }
+    };
+
+    push(
+        DebugSubject::Machine(terminal_machine.id),
+        source_machine.symbol,
+    );
+    push(
+        DebugSubject::Contract(terminal_machine.contract.id),
+        source_machine.symbol,
+    );
+    for clause in &terminal_machine.contract.ensures {
+        push(
+            DebugSubject::Obligation(clause.obligation),
+            source_machine.symbol,
+        );
+    }
+
+    for (index, block) in terminal_machine.blocks.iter().enumerate() {
+        let source_state = source_states
+            .get(index)
+            .expect("terminal blocks follow accepted source-state order");
+        push(DebugSubject::Block(block.id), source_state.symbol);
+        push(
+            DebugSubject::Edge(block.terminator.edge()),
+            source_state.symbol,
+        );
+        for operation in &block.operations {
+            push(DebugSubject::Operation(operation.id), source_state.symbol);
+            push(
+                DebugSubject::Value(operation.result.id),
+                source_state.symbol,
+            );
+        }
+        for (parameter_index, parameter) in block.parameters.iter().enumerate() {
+            if let Some(source_parameter) = checked
+                .state_parameters(source_state)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .nth(parameter_index)
+            {
+                push(DebugSubject::Value(parameter.id), source_parameter.symbol);
+            }
+        }
+    }
+
+    if let Some(entry_state) = source_states.first() {
+        for (parameter_index, parameter) in terminal_machine.parameters.iter().enumerate() {
+            if let Some(source_parameter) = checked
+                .state_parameters(entry_state)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .nth(parameter_index)
+            {
+                push(DebugSubject::Value(parameter.id), source_parameter.symbol);
+            }
+        }
+    }
+    push(
+        DebugSubject::Value(terminal_machine.result.id),
+        source_machine.symbol,
+    );
+
+    subjects.sort_by_key(|(subject, _)| *subject);
+    subjects.dedup_by_key(|(subject, _)| *subject);
+    let mut source_ids = subjects
+        .iter()
+        .map(|(_, span)| span.source_id.0)
+        .collect::<Vec<_>>();
+    source_ids.sort_unstable();
+    source_ids.dedup();
+
+    let mut files = Vec::with_capacity(source_ids.len());
+    for (index, source_id) in source_ids.iter().copied().enumerate() {
+        let source_span = psi_source::SourceSpan::new(
+            psi_source::SourceId(source_id),
+            psi_source::Span::default(),
+        );
+        let source_file = checked
+            .symbols
+            .source_file(source_span)
+            .ok_or(LoweringError::MissingDebugSourceFile(source_id))?;
+        let id = DebugFileId::new(
+            u32::try_from(index)
+                .map_err(|_| LoweringError::DebugSourceFileCountOverflow)?
+                .checked_add(1)
+                .ok_or(LoweringError::DebugSourceFileCountOverflow)?,
+        )
+        .expect("one-based debug file identity is nonzero");
+        files.push(DebugSourceFile {
+            id,
+            origin: match source_file.origin {
+                psi_source::SourceOrigin::User => DebugSourceOrigin::User,
+                psi_source::SourceOrigin::Toolchain => DebugSourceOrigin::Toolchain,
+            },
+            byte_len: u64::try_from(source_file.source.len())
+                .map_err(|_| LoweringError::DebugSourceLengthOverflow)?,
+            digest: source_digest(source_file.source.as_bytes()),
+            path: source_file.path.to_string_lossy().into_owned(),
+        });
+    }
+
+    let sites = subjects
+        .into_iter()
+        .map(|(subject, span)| {
+            let file_index = source_ids
+                .binary_search(&span.source_id.0)
+                .expect("source identity was collected above");
+            let file = DebugFileId::new(
+                u32::try_from(file_index)
+                    .expect("validated debug file count fits u32")
+                    .checked_add(1)
+                    .expect("one-based debug file identity fits u32"),
+            )
+            .expect("one-based debug file identity is nonzero");
+            Ok(DebugSite {
+                subject,
+                span: DebugSourceSpan {
+                    file,
+                    start: u64::try_from(span.span.start)
+                        .map_err(|_| LoweringError::DebugSourceLengthOverflow)?,
+                    end: u64::try_from(span.span.end)
+                        .map_err(|_| LoweringError::DebugSourceLengthOverflow)?,
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let debug_map = TerminalDebugMap {
+        semantic: terminal_psi_identity(module).map_err(LoweringError::DebugSemanticCodec)?,
+        files,
+        sites,
+    };
+    validate_debug_map(module, &debug_map).map_err(LoweringError::InvalidDebugMap)?;
+    Ok(debug_map)
 }
 
 fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
@@ -2134,6 +2305,11 @@ id_constructor!(obligation_id, ObligationId);
 pub enum LoweringError {
     MachineNotFound(String),
     AmbiguousMachineName(String),
+    DebugSourceFileCountOverflow,
+    DebugSourceLengthOverflow,
+    MissingDebugSourceFile(usize),
+    DebugSemanticCodec(psi_terminal_codec::CodecError),
+    InvalidDebugMap(psi_terminal_codec::DebugMapError),
     Unsupported(&'static str),
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,
