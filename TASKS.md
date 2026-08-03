@@ -881,7 +881,16 @@ Remaining:
   shape at the ABI seam when compiler scratch has greater capacity; a wider
   internal slot no longer overrides a proved-safe narrower call type.
   Windows' parameter-free `GetTickCount64`, `GetForegroundWindow`, `_errno`,
-  and `GetLastError` rows now retain exact Microsoft x64 result plans.
+  and `GetLastError` rows now retain exact Microsoft x64 result plans. Every
+  built-in Windows import row now retains its concrete native Microsoft x64
+  plan at catalog construction, including the independently emitted
+  GetStdHandle/ReadFile/WriteFile and time-adapter subcalls. DWORD literals and
+  compiler-derived counts take the retained parameter width at the ABI seam
+  instead of retyping that plan as an eight-byte scratch value. Unannotated
+  compatibility external leaves likewise evaluate and retain the selected
+  target's native plan from their declared recursive boundary signature during
+  binding construction; explicit `Calling<C>` plans still take precedence,
+  and compatibility syscalls retain the target's full-word syscall signature.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

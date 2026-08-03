@@ -734,6 +734,13 @@ On Microsoft x64, the parameter-free `GetTickCount64` and
 `GetForegroundWindow` rows retain word-result plans, while `_errno` and
 `GetLastError` retain I32 stored-result plans. These rows need no compatibility
 with an untyped synthesized argument, so their selected plans are authoritative.
+The rest of the built-in Windows import catalog now retains its concrete native
+Microsoft x64 plan at the same construction seam. Composite console and time
+rows retain the actual GetStdHandle, ReadFile/WriteFile, QPC/QPF, or FILETIME
+subcall signature rather than pretending the adapter's outer semantic operands
+are the imported function. Contextual integer literals and compiler-derived
+byte counts adopt that retained parameter width during validation, so a DWORD
+plan is not replaced by an eight-byte compiler scratch classification.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
@@ -855,6 +862,12 @@ syscall plan rather than re-evaluating one from the CPU architecture. The
 encoder rechecks the word signature and syscall contract, then uses the exact
 parameter registers, number register, and supervisor-call immediate on x86-64
 or AArch64; layout measures those same emitted bytes.
+When a compatibility external leaf has no explicit `Calling<C>` relationship,
+binding construction evaluates the selected target's native policy once from
+the declared recursive boundary signature and retains that complete plan.
+Explicit source-authored policy evidence always wins. Compatibility syscall
+leaves use the corresponding Linux full-word syscall policy at that same seam;
+they do not inherit the C policy or ask emission to reconstruct one.
 
 Compatibility providers may adapt a syscall's concrete result shape without
 publishing it as Omega ABI. Linux `clock_gettime` is the first composite

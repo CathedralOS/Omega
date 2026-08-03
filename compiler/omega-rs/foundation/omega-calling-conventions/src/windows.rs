@@ -720,13 +720,82 @@ fn windows_import(
 }
 
 fn windows_fixed_import_signature(capability: &str, operation: &str) -> Option<CallSignature> {
-    let result = match (capability, operation) {
-        ("Clock", "tick_count") | ("Gui", "foreground_window") => ValueShape::integer(8, 8),
-        ("Filesystem", "get_last_error" | "read_errno") => ValueShape::integer(4, 4),
+    let (parameters, result): (&[u16], Option<u16>) = match (capability, operation) {
+        // Composite console adapters retain the concrete signatures of their
+        // independently emitted native subcalls, not the outer semantic call.
+        ("Stdin" | "Stdout" | "Stderr", "get_std_handle") => (&[4], Some(8)),
+        ("Stdin", "read" | "read_file") | ("Stdout" | "Stderr", "write" | "write_file") => {
+            // ReadFile/WriteFile(HANDLE, buffer, DWORD, DWORD*, OVERLAPPED*) -> BOOL.
+            (&[8, 8, 4, 8, 8], Some(4))
+        }
+        ("Process", "exit_process") | ("Clock", "sleep") => (&[4], None),
+        ("Clock", "tick_count") | ("Gui", "foreground_window") => (&[], Some(8)),
+        ("Clock", "monotonic_ticks" | "monotonic_ticks_per_second") => {
+            // QueryPerformanceCounter/Frequency(LARGE_INTEGER*) -> BOOL.
+            (&[8], Some(4))
+        }
+        ("Clock", "wall_clock_raw") => {
+            // GetSystemTimePreciseAsFileTime(FILETIME*) -> void.
+            (&[8], None)
+        }
+        ("Input", "key_state") => (&[4], Some(8)),
+        ("Gui", "dc_create") | ("Gui", "get_dc" | "is_window" | "window_destroy") => (
+            &[8],
+            Some(if operation == "dc_create" || operation == "get_dc" {
+                8
+            } else {
+                4
+            }),
+        ),
+        ("Gui", "window_create") => {
+            // CreateWindowExA: DWORD, two pointers, DWORD/four i32 values,
+            // then four pointer-sized handles/pointers.
+            (&[4, 8, 8, 4, 4, 4, 4, 4, 8, 8, 8, 8], Some(8))
+        }
+        ("Gui", "blit") => {
+            // StretchDIBits(HDC, six i32 coordinates/sizes, bits, info,
+            // usage, raster-op) -> scanline count.
+            (&[8, 4, 4, 4, 4, 4, 4, 4, 4, 8, 8, 4, 4], Some(4))
+        }
+        ("Gui", "msg_peek") => (&[8, 8, 4, 4, 4], Some(4)),
+        ("Gui", "msg_translate") => (&[8], Some(4)),
+        ("Gui", "msg_dispatch") => (&[8], Some(8)),
+        ("Filesystem", "open") => (&[8, 4], Some(4)),
+        ("Filesystem", "open_create") => (&[8, 4, 4], Some(4)),
+        ("Filesystem", "creat") | ("Filesystem", "chmod") => (&[8, 4], Some(4)),
+        ("Filesystem", "read" | "write") => (&[4, 8, 4], Some(8)),
+        ("Filesystem", "close" | "dup" | "fsync") => (&[4], Some(4)),
+        ("Filesystem", "unlink" | "mkdir" | "rmdir") => {
+            if operation == "mkdir" {
+                (&[8, 4], Some(4))
+            } else {
+                (&[8], Some(4))
+            }
+        }
+        ("Filesystem", "lseek") => (&[4, 8, 4], Some(8)),
+        ("Filesystem", "rename") => (&[8, 8], Some(4)),
+        ("Filesystem", "stat") => (&[8, 8], Some(4)),
+        ("Filesystem", "fstat") => (&[4, 8], Some(4)),
+        ("Filesystem", "find_first") => (&[8, 8], Some(8)),
+        ("Filesystem", "find_next") => (&[8, 8], Some(4)),
+        ("Filesystem", "find_close" | "close_handle") => (&[8], Some(4)),
+        ("Filesystem", "create_hard_link") => (&[8, 8, 8], Some(4)),
+        ("Filesystem", "open_path_handle") => (&[8, 4, 4, 8, 4, 4, 8], Some(8)),
+        ("Filesystem", "get_osfhandle") => (&[4], Some(8)),
+        ("Filesystem", "final_path_name_by_handle") => (&[8, 8, 8, 4], Some(8)),
+        ("Filesystem", "set_file_time") => (&[8, 8, 8, 8], Some(4)),
+        ("Filesystem", "lock_file_ex") => (&[8, 4, 4, 4, 4, 8], Some(4)),
+        ("Filesystem", "unlock_file") => (&[8, 4, 4, 4, 4], Some(4)),
+        ("Filesystem", "get_last_error" | "read_errno") => (&[], Some(4)),
+        ("Filesystem", "ftruncate") => (&[4, 8], Some(4)),
         _ => return None,
     };
     Some(CallSignature {
-        parameters: Vec::new(),
-        result: Some(result),
+        parameters: parameters
+            .iter()
+            .copied()
+            .map(|width| ValueShape::integer(width, width))
+            .collect(),
+        result: result.map(|width| ValueShape::integer(width, width)),
     })
 }
