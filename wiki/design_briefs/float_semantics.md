@@ -378,7 +378,12 @@ and both Linux cross-builds. The enum-valued classification cohort retains
 `0xf63a865e9bbb85f2`, binding its two exact plan identities to the eight-byte
 source-order `FloatClass` carrier, sign payload at byte four, every tag and
 signed payload in both formats, exactly-once unary evaluation shape,
-interpreter/native outputs, and both Linux cross-builds. Directed FMA separately
+interpreter/native outputs, and both Linux cross-builds. The format-conversion
+cohort retains `omega.float.hardware.macos_arm64.format-conversion.v1` /
+`0xeb1e22fdac585936`, binding its two exact directional plan identities to the
+binary64-to-binary32 halfway and just-above cases, exact widening, infinity
+preservation, interpreter/native outputs, and both Linux cross-builds. Directed
+FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
