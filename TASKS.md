@@ -410,23 +410,20 @@ those rows remain absent until their actual checked proofs exist.
   contract identity, and `05_claim_outcomes.json` retain the result. Runtime
   use, algebra mixing, duplicate equations, arbitrary projection lookalikes,
   and unqualified subjects reject. Terminal Psi v9 now carries canonical
-  structural-place declarations and exact content-conservation equalities; the
-  checked-plan adapter verifies the source fingerprint, removes arena-local
-  symbols, and lowers stable domains, projection fingerprints, entry/current
-  places, fields, fixed indices, and flattened separation. Semantic format v1
+  structural-place declarations and exact content-conservation equalities
+  without arena-local identity. Semantic format v1
   and proof format v8 encode field/fixed-index propositions canonically, while
   proof format v9 adds sum-case path segments; the verifier restricts the
   proposition to `ensures` and checks replaceable certificates. Checked
   lowering now derives exact one-to-one identity-reshuffle rows without
   manufacturing separation between independent claims. Terminal semantic v10
-  carries those rows canonically: the checked adapter revalidates direct
-  equality shape and fingerprints, groups exact projections by preserved claim,
-  strips arena-local identity, and emits dense machine-local claim IDs. The
+  carries canonical dense machine-local rows independently of the legacy
+  checked representation. The
   terminal verifier requires a one-to-one parameter-entry/result-current map,
   rejects duplicate or prefix-overlapping paths and projection/algebra drift,
   and reconstructs one semantic content-equality axiom per exact projection for
   certificate use. Terminal semantic v11 adds a distinct stable sum-case path
-  segment; the checker, adapter, verifier, semantic codec, and proof format v9
+  segment; the legacy checker precursor, verifier, semantic codec, and proof format v9
   retain case-plus-field identity without arena-local symbols or collision with
   equal field spellings in other cases. Checked lowering now also instantiates
   an authored partition equation through an exact direct returned call. Every
@@ -445,10 +442,13 @@ those rows remain absent until their actual checked proofs exist.
   the substitution, and reconstructs only the exact derived theorem as a
   semantic axiom. Canonical bytes include the witness; existing proof format v9
   already carries the resulting content proposition.
-  Archived v1-v11 bytes retain their identities. Remaining work is to compose
-  identity rewrites around non-direct authored-partition calls, insert sealed
-  introduction and custody-exit rows, and discharge or admit the exact frontier
-  theorem.
+  Archived v1-v11 bytes retain their identities. The content-specific
+  checked-to-terminal translator has been removed from the frozen bootstrap
+  adapter: these checked facts are migration precursors, not an endorsed
+  Omega-to-Psi stage. Before extending wrapper composition, move the real
+  content producer under Psi frontend ownership. Then compose identity rewrites
+  around non-direct authored-partition calls, insert sealed introduction and
+  custody-exit rows, and discharge or admit the exact frontier theorem.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
@@ -1009,6 +1009,13 @@ improvements do not change public identity.
   small structural proof kernel, versioned certificate envelope, total truth /
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
+  The first frontend-ownership migration slice is live: `psi-source` owns byte
+  spans, `psi-tokens` owns the token representation, and
+  `psi-source-files-to-tokens` owns Omega lexing with no Omega dependency. The
+  former Omega token and lexer crates are now implementation-free compatibility
+  re-exports for the unmigrated parser. The checked-tree-to-terminal adapter is
+  frozen at its single bootstrap canary; architecture coverage rejects adding
+  target-neutral content producers to that reverse bridge.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
   exact-width wrapping integer addition, v4 exact-width saturating integer
@@ -1143,9 +1150,10 @@ improvements do not change public identity.
   `SaturatingIntegerSubtract`; v7 adds `WrappingIntegerMultiply`; v8 adds
   `SaturatingIntegerMultiply`; v9 adds proof-only structural places and
   content-conservation propositions; v10 adds canonical identity-preserving
-  claim reshuffles; current v11 adds stable sum-case content-path segments; and explicit
-  validated migration preserves an older semantic graph while producing a new
-  v11 fingerprint. Archived v1 through v10 identities remain frozen. The clean
+  claim reshuffles; v11 adds stable sum-case content-path segments; current v12
+  adds exact authored-partition substitution rows; and explicit validated
+  migration preserves an older semantic graph while producing a new v12
+  fingerprint. Archived v1 through v11 identities remain frozen. The clean
   lane now also constructs an owned, semantic-identity-bound object artifact
   with canonical function spans and retained Psi provenance, emits the Omega
   object container plus ELF/AArch64, ELF/x86-64, Mach-O/AArch64, and PE/x86-64
@@ -1184,7 +1192,9 @@ improvements do not change public identity.
   native behavior; no Omega-side lowering crate used by that path depends on
   `TypedTrees` or `ExpressionHandle`. **Initial acceptance canary complete;**
   continue vocabulary and ownership migration rather than widening the
-  compatibility adapter.
+  compatibility adapter. The adapter is now restored to that one exact
+  integer/control/contract `lower_machine` entry; an architecture test rejects
+  content-plan, identity-reshuffle, or partition-composition APIs there.
 - **IRFUEL — IMPLEMENTATION WORK:** implement the settled
   `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md` sequence:
   versioned terminal Psi and fuel schedule, evaluator/interpreter metering,

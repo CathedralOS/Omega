@@ -1,5 +1,5 @@
-use omega_core::Span;
-use omega_tokens::{
+use psi_source::Span;
+use psi_tokens::{
     FloatLiteralKind, IntegerLiteralKind, NumericBase, NumericLiteralKind, TokenKind,
 };
 

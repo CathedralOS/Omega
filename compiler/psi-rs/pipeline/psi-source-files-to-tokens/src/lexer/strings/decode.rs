@@ -1,6 +1,6 @@
 use std::str::CharIndices;
 
-use omega_core::Span;
+use psi_source::Span;
 
 use crate::LexError;
 

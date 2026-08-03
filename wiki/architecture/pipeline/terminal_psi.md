@@ -8,7 +8,11 @@ semantic and evidence contract is owned by
 [`canonical_ir_fuel_and_resource_provisioning.md`](../../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
 
 Implementation status (2026-08-02): `compiler/psi-rs` is the Psi-owned
-workspace root. `psi-core` provides nonzero stable semantic identities, the
+workspace root. The first source-facing ownership slice is live:
+`psi-source` owns byte spans, `psi-tokens` owns token streams, and
+`psi-source-files-to-tokens` owns the Omega lexer without depending on any
+Omega crate. The old Omega-named token and lexer crates are thin compatibility
+exports for the not-yet-migrated parser. `psi-core` provides nonzero stable semantic identities, the
 typed scalar proposition vocabulary, and a module-owned value-typing context.
 `psi-proof-kernel` provides total primitive judgments, structural proof
 checking (including semantic-axiom citation and typed equality transitivity),
@@ -25,10 +29,10 @@ wrapping integer subtraction; v6 adds exact-width saturating integer
 subtraction; v7 adds exact-width wrapping integer multiplication; v8 adds
 exact-width saturating integer multiplication; v9 adds proof-only
 structural-place declarations and content-conservation propositions; v10 adds
-canonical identity-preserving claim reshuffles; and current v11 adds distinct
-stable sum-case segments to structural content paths. Neither v10 nor v11 adds
-an executable operation. Every executable slice uses unconditional jump and
-return edges.
+canonical identity-preserving claim reshuffles; v11 adds distinct stable
+sum-case segments to structural content paths; and current v12 adds exact
+authored-partition substitution witnesses. None of v9-v12 adds an executable
+operation. Every executable slice uses unconditional jump and return edges.
 `psi-terminal-verifier` rejects malformed identities, types, contract scopes,
 cycles, unreachable fact sources, and missing/extra evidence, reconstructs the
 exact operation/edge/return axioms, and checks every `ensures` from a separate
@@ -43,16 +47,13 @@ other checked-tree shapes. The source canary discards `CheckedTrees` before it
 verifies and executes the produced semantic module, proving the artifact has no
 frontend lifetime dependency. This is explicitly a migration adapter, not the
 target ownership direction: parsing and checking still need to move under Psi.
-The adapter also has a source-shape-independent content-plan translation: it
-rechecks each checked conservation fingerprint, removes arena-local symbols,
-and produces canonical v9 structural-place declarations and proposition terms.
-Its v10 identity-reshuffle translation additionally revalidates direct
-entry-parameter/current-result equality shape, groups exact projections by
-preserved source claim, and emits dense machine-local terminal claim IDs. The
-v11 vocabulary retains active-sum case-plus-field identity while stripping
-arena-local variant and payload-field symbols.
-Integration into general executable-machine lowering waits on the broader
-frontend migration.
+That adapter is frozen at the original integer/control/contract canary. An
+architecture test permits only its single `lower_machine` entry and rejects
+content-conservation, identity-reshuffle, or partition-composition APIs there.
+Target-neutral source production—including content checking—must move under
+Psi ownership rather than widening an Omega-to-Psi bridge. Integration into
+general executable-machine lowering therefore waits on the broader frontend
+migration.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed
 fact `7i32 == 7i32` and asserts the executed result separately. An Omega
@@ -250,11 +251,10 @@ entry/current structural-place versions, and flattened canonical
 algebra in checked facts and proof/debug artifacts. Terminal semantic v9
 declares proof-visible parameter/result roots and carries the exact algebra,
 semantic domain, projection fingerprint, versioned stable place path, and
-canonical equation. The checked-plan adapter rechecks the source fingerprint
-and strips arena-local handles. Canonical semantic bytes and minimal proof
-format v8 are golden-pinned; verifier checks restrict content propositions to
-`ensures`, reject invalid roots and `entry(result)`, and accept replaceable
-certificates. Identity-preserving reshuffle inference now has a checked
+canonical equation without any Omega arena identity. Canonical semantic bytes
+and minimal proof format v8 are golden-pinned; verifier checks restrict content
+propositions to `ensures`, reject invalid roots and `entry(result)`, and accept
+replaceable certificates. Identity-preserving reshuffle inference has a legacy checked
 precursor: exact input-relative outcome maps derive one fingerprinted
 entry/current equality per preserved claim, retaining its claim identity and
 both structural paths. The derivation requires the same terminal projection
@@ -277,6 +277,12 @@ the derived proposition as a semantic axiom. Existing proof format v9 already
 represents that proposition. Composition through surrounding non-direct
 rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
+
+Correction checkpoint (2026-08-02): the legacy checked-to-terminal content
+translator was removed from the frozen compatibility adapter. The v9-v12
+terminal vocabulary, canonical codec, and verifier remain Psi-owned and
+source-independent; their next real producer must be the Psi-owned frontend.
+Legacy checked facts are migration input, not an endorsed Omega-to-Psi stage.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
@@ -337,20 +343,21 @@ Semantic version 1 is frozen with `IntegerConstant`; version 2 adds
 adds `SaturatingIntegerSubtract`; version 7 adds `WrappingIntegerMultiply`;
 version 8 adds `SaturatingIntegerMultiply`; version 9 adds proof-only
 structural places and content-conservation propositions; version 10 adds
-canonical identity-preserving claim reshuffles; current version 11 adds stable
-sum-case content-path segments.
+canonical identity-preserving claim reshuffles; version 11 adds stable sum-case
+content-path segments; current version 12 adds exact authored-partition
+substitution rows.
 The arithmetic operations require two already defined operands of the exact
 result integer type and have distinct canonical recursive proposition terms for
 their exact logical results. Validation and execution continue to accept valid
 v1/v2/v3/v4/v5/v6/v7/v8/v9/v10 modules under their original meaning, while an older
 module cannot claim a later operation or proposition tag.
-`migrate_module_to_current` is an explicit validated older-to-v11 translation:
+`migrate_module_to_current` is an explicit validated older-to-v12 translation:
 it preserves the graph and obligations, changes the version field, and therefore
 creates new canonical bytes and a new semantic fingerprint. An unchanged proof
 bundle retains its separate bytes and identity but is verified again against the
-migrated module. Golden tests retain the archived v1 through v10 fingerprints
-and independently freeze the current v11 fingerprint, v10 identity-reshuffle
-fixture, and v11 sum-case fixture.
+migrated module. Golden tests retain the archived v1 through v11 fingerprints
+and independently freeze the current v12 fingerprint, v10 identity-reshuffle
+fixture, v11 sum-case fixture, and v12 partition-composition fixture.
 
 The same codec gives proof bundles their own canonical `PSIPRF` bytes and golden
 fingerprint. Proof format v1 remains the minimal frozen encoding for the

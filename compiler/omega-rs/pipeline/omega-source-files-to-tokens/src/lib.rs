@@ -1,5 +1,5 @@
-pub mod lex_error;
-pub mod lexer;
+#![forbid(unsafe_code)]
 
-pub use lex_error::LexError;
-pub use lexer::Lexer;
+//! Compatibility export for the Psi-owned Omega source lexer.
+
+pub use psi_source_files_to_tokens::*;

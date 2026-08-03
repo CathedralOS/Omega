@@ -1,13 +1,12 @@
 [package]
-name = "omega-core"
+name = "psi-tokens"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_core"
+name = "psi_tokens"
 path = "src/lib.rs"
 
 [dependencies]
-arc-swap = "1.7"
-psi-source = { path = "../../../psi-rs/foundation/psi-source" }
+psi-source = { path = "../../foundation/psi-source" }

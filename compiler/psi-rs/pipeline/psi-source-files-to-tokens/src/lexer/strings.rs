@@ -1,5 +1,5 @@
-use omega_core::Span;
-use omega_tokens::TokenKind;
+use psi_source::Span;
+use psi_tokens::TokenKind;
 
 use crate::LexError;
 

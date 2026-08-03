@@ -305,6 +305,62 @@ fn psi_does_not_depend_on_omega() {
 }
 
 #[test]
+fn lexical_frontend_implementation_is_psi_owned() {
+    let root = workspace_root();
+    for (relative, expected_export) in [
+        (
+            "compiler/omega-rs/representations/omega-tokens/src/lib.rs",
+            "pub use psi_tokens::*;",
+        ),
+        (
+            "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
+            "pub use psi_source_files_to_tokens::*;",
+        ),
+    ] {
+        let path = root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            source.contains(expected_export),
+            "legacy lexical crate must re-export its Psi-owned implementation: {relative}"
+        );
+        assert!(
+            !source.contains("pub mod "),
+            "legacy lexical crate must not regain an implementation module: {relative}"
+        );
+    }
+}
+
+#[test]
+fn omega_to_psi_compatibility_adapter_stays_narrow() {
+    let path = workspace_root()
+        .join("compiler/omega-rs/pipeline/omega-checked-trees-to-terminal-psi/src/lib.rs");
+    let source = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+
+    assert!(
+        source.contains("pub fn lower_machine("),
+        "the bootstrap adapter must retain its one exact source-canary entry"
+    );
+    assert_eq!(
+        source.matches("pub fn lower_").count(),
+        1,
+        "the Omega-to-Psi bridge is a frozen bootstrap canary, not a frontend migration route"
+    );
+    for forbidden in [
+        "lower_content_",
+        "ContentIdentityReshuffleFact",
+        "ContentPartitionCompositionFact",
+        "ContentConservationPlan",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "compatibility adapter widened with target-neutral frontend concept {forbidden}; move that producer under Psi ownership"
+        );
+    }
+}
+
+#[test]
 fn terminal_psi_realization_lane_has_no_source_shaped_dependencies() {
     let graph = load_graph();
     let roots = [

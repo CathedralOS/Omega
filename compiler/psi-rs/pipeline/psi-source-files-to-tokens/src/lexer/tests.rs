@@ -1,5 +1,5 @@
 use super::Lexer;
-use omega_tokens::{
+use psi_tokens::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
     NumericLiteralKind, PunctuationKind, TokenKind,
 };
