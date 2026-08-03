@@ -1142,7 +1142,8 @@ fn mutable_record_representation_inner(
         .iter()
         .find(|plan| plan.data_name == name)
     {
-        if plan.offsets.len() != fields.len()
+        if !plan.integer_fields.is_empty()
+            || plan.offsets.len() != fields.len()
             || fields.iter().zip(&plan.offsets).any(|(field, offset)| {
                 offset
                     .checked_add(field.size)

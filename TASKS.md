@@ -2057,13 +2057,15 @@ ordinary code never receives a raw executable address.
   stored width, and signed/unsigned interpretation. Projection sign- or zero-
   extends into the portable semantic carrier; mutable views require total
   encoding or a concrete fit proof plus ordinary legal-transfer evidence.
-  `IntegerAt` is now live through source evaluation and normalized plan/access
-  geometry: byte offset, whole-byte stored width through 64 bits, and
-  interpretation enter plan identity and overlap checks; invalid carriers and
-  non-total decode ranges reject. Remaining work is direct plan-laid
-  sign/zero-extending projection, total/proved-fit mutation lowering, and the
-  Linux metadata policies/canaries that consume it. Existing materializers and
-  plan-laid projection reject the new case until those consumers land.
+  `IntegerAt` is now live through source evaluation, normalized plan/access
+  geometry, typed plan-laid layouts, and concrete Omega layouts: byte offset,
+  whole-byte stored width through 64 bits, and interpretation survive into a
+  field-keyed backend record; invalid carriers and non-total decode ranges
+  reject. Remaining work is direct sign/zero-extending projection,
+  total/proved-fit mutation lowering, and the Linux metadata policies/canaries
+  that consume it. Ordinary scalar resolution, mutable recasts, interpreter
+  record views, and by-value boundary classification reject stored-width fields
+  until those consumers use the dedicated encoding metadata.
   Linux `read_dir` now retains the real three-argument `getdents64`
   plan, omits the Darwin-only cursor at selection, and decodes the Linux record
   offsets in both target packages. Direct syscall failures now flow as explicit

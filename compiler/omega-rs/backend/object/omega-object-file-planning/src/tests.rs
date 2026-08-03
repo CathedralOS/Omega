@@ -22,6 +22,7 @@ fn builds_sections_and_symbols_for_runtime_frame_import_and_data() {
         data_layouts: Arena::<DataLayout>::new(),
         fields: Arena::<FieldLayout>::new(),
         bit_fields: Vec::new(),
+        stored_integers: Vec::new(),
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
     };
@@ -238,6 +239,7 @@ fn empty_layouts() -> LayoutPlan {
         data_layouts: Arena::<DataLayout>::new(),
         fields: Arena::<FieldLayout>::new(),
         bit_fields: Vec::new(),
+        stored_integers: Vec::new(),
         machine_layouts: Arena::<MachineLayout>::new(),
         variants: Arena::<VariantLayout>::new(),
     }

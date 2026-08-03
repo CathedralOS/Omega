@@ -7267,7 +7267,7 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|plan| plan.data_name == type_name)
         {
-            if plan.offsets.len() != field_specs.len() {
+            if !plan.integer_fields.is_empty() || plan.offsets.len() != field_specs.len() {
                 visiting.remove(type_name);
                 return Ok(None);
             }
@@ -7472,7 +7472,8 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|plan| plan.data_name == type_name)
         {
-            (plan.offsets.len() == field_layouts.len()).then_some((plan.size, plan.align))
+            (plan.integer_fields.is_empty() && plan.offsets.len() == field_layouts.len())
+                .then_some((plan.size, plan.align))
         } else {
             let mut offset = 0usize;
             let mut max_align = 1usize;
@@ -7508,7 +7509,7 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|plan| plan.data_name == type_name)
         {
-            if plan.offsets.len() != fields.len() {
+            if !plan.integer_fields.is_empty() || plan.offsets.len() != fields.len() {
                 return None;
             }
             plan.offsets.clone()

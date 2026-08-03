@@ -163,6 +163,10 @@ pub struct PlanLaidLayout {
     /// validator has already proved complete source tiling, non-overlapping
     /// destinations, and in-bounds containers.
     pub bit_fields: Vec<PlanLaidBitField>,
+    /// Fixed-width integer fields whose physical encoding is narrower than
+    /// their semantic carrier. The validated plan has already proved that
+    /// every stored bit pattern decodes into the carrier.
+    pub integer_fields: Vec<PlanLaidIntegerField>,
     /// Total value size (fixed by the value-type gate).
     pub size: usize,
     pub align: usize,
@@ -172,6 +176,13 @@ pub struct PlanLaidLayout {
 pub struct PlanLaidBitField {
     pub field_index: usize,
     pub fragments: Vec<PlanLaidBitFragment>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlanLaidIntegerField {
+    pub field_index: usize,
+    pub stored_width_bits: u16,
+    pub interpretation: psi_layout_plans::IntegerInterpretation,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

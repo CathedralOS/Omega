@@ -4,7 +4,7 @@ use crate::sizing::{
 };
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
-    MachineLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
+    MachineLayout, StoredIntegerLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
 use omega_target::NativeTarget;
 use psi_arena::Arena;
@@ -88,6 +88,7 @@ struct LayoutBuilder<'program> {
     data_visiting: LayoutVisitStack,
     fields: Arena<FieldLayout>,
     bit_fields: Vec<BitFieldLayout>,
+    stored_integers: Vec<StoredIntegerLayout>,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
     /// definition symbol paired with the canonical display of its type
     /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
@@ -200,6 +201,7 @@ impl<'program> LayoutBuilder<'program> {
             data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
             fields: Arena::with_capacity(field_capacity),
             bit_fields: Vec::new(),
+            stored_integers: Vec::new(),
             generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
@@ -216,6 +218,7 @@ impl<'program> LayoutBuilder<'program> {
             data_layouts: self.data_layouts,
             fields: self.fields,
             bit_fields: self.bit_fields,
+            stored_integers: self.stored_integers,
             machine_layouts: self.machine_layouts,
             variants: self.variants,
         }
@@ -382,6 +385,23 @@ impl<'program> LayoutBuilder<'program> {
                             width: fragment.width,
                         })
                         .collect(),
+                });
+            }
+            for integer_field in &plan.integer_fields {
+                let Some(field) = self
+                    .fields
+                    .span(fields)
+                    .and_then(|fields| fields.get(integer_field.field_index))
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "plan-laid data `{}` has no field at stored-integer index {}",
+                        definition.name, integer_field.field_index
+                    )));
+                };
+                self.stored_integers.push(StoredIntegerLayout {
+                    field: field.symbol,
+                    stored_width_bits: integer_field.stored_width_bits,
+                    interpretation: integer_field.interpretation,
                 });
             }
 
