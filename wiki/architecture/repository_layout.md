@@ -252,8 +252,11 @@ Omega/
   retired; legacy backend consumers depend on the Psi owner directly while
   they migrate to terminal Psi.
 - `psi-checked-trees` owns the durable checked semantic representation and its
-  proof, borrow, flow, reach, value-origin, and admissibility evidence. The old
-  `omega-checked-trees` name is an implementation-free compatibility export.
+  proof, borrow, flow, reach, value-origin, and admissibility evidence. Legacy
+  state/control representations and transforms, artifact/backend orchestration,
+  and the interpreter consume the Psi owner directly. The old
+  `omega-checked-trees` name remains an implementation-free compatibility
+  export only for unmigrated backend leaf consumers.
 - `psi-effects` carries target-neutral operational ceilings, service reach,
   synchronous invocation summaries, and capability-flow facts. `omega-effects`
   retains provider declarations, target/provider bindings, approval, and
