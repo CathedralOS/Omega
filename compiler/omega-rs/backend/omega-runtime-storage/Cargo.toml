@@ -18,6 +18,7 @@ psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
 omega-layout = { path = "../omega-layout" }
+omega-runtime-abi = { path = "../../foundation/omega-runtime-abi" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-storage = { path = "../omega-state-storage" }

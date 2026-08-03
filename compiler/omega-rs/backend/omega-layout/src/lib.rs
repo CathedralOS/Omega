@@ -64,8 +64,14 @@ pub enum TypeLayoutDescriptor {
         element_type: Box<TypeLayoutDescriptor>,
     },
     DynamicTrait {
+        /// Dynamic trait whose requirement surface owns the private table.
         symbol: SymbolHandle,
         name: Identifier,
+        /// Exact selected nominal conformance when the source spelling named
+        /// one. Bare coercions retain their checked selection in Psi facts.
+        conformance: Option<SymbolHandle>,
+        conformance_carrier: Option<Identifier>,
+        conformance_name: Option<Identifier>,
     },
     Named {
         symbol: SymbolHandle,

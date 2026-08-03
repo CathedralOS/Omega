@@ -15,6 +15,15 @@ pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
     }
 }
 
+/// Borrowed dynamic-trait descriptor layout (`{ instance, table }`).
+pub(super) fn dynamic_trait_descriptor_layout(target: NativeTarget) -> TypeLayout {
+    let descriptor = build_runtime_abi_plan(target).dynamic_trait_descriptor();
+    TypeLayout {
+        size: descriptor.total_size(),
+        alignment: descriptor.align(),
+    }
+}
+
 /// The canonical `TypeLayout` of a scalar primitive, given the target's pointer
 /// geometry.
 ///
