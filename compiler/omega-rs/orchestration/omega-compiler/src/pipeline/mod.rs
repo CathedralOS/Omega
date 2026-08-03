@@ -7,6 +7,7 @@ mod build_time_admission;
 mod calling_policy_plans;
 mod checked_entry;
 pub mod compile_options;
+mod compile_policy;
 pub mod compile_report;
 pub mod compiler;
 mod const_domain_facts;
@@ -39,8 +40,9 @@ pub use access_plans::{compute_access_plan, compute_placement_plan};
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{CheckedCompilation, compile_to_checked};
 pub use compile_options::CompileOptions;
+pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compile_report::CompileReport;
-pub use compiler::compile;
+pub use compiler::{compile, compile_with_policy};
 pub use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
 };

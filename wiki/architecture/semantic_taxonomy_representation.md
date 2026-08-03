@@ -512,6 +512,14 @@ Incomplete scopes either reject or return a sealed acceptance marked with the
 original attributed causes. The acceptance retains the exact profile and
 manifest, so it cannot be replayed after either input changes.
 
+The compiler's programmatic `ExecutableTcbBuildPolicy` keeps deployment trust
+inputs outside source syntax. It binds each opaque admission candidate only
+after exact provider selection, evaluates an optional profile over the
+resulting manifest, and carries the sealed acceptance to the output installer;
+a rejection occurs before the installer creates an output path. The existing
+unprofiled compile entry remains available during migration. Selecting named
+profiles through the ordinary `Build` package API remains pending API design.
+
 Source `boundary` remains insufficient to reconstruct this enum: a checked
 exported callable and an accepted bodyless declaration both mention the word
 but have different supply modes. Likewise, body absence distinguishes a trait

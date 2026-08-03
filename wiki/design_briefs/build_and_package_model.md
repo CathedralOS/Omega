@@ -111,6 +111,13 @@ platform-baseline policy, implementation evidence, scope completeness, and
 required memory/termination/fault/resource containment. They may permit and
 mark an artifact or reject it before installation.
 
+The current compiler integration takes those deployment-owned facts through a
+programmatic `ExecutableTcbBuildPolicy`, not through new language syntax. After
+provider selection it validates opaque admissions against the exact selected
+rows, evaluates the optional profile, and carries the sealed acceptance to the
+filesystem installation gate. Named profile selection in `build.omg` remains
+ordinary `Build` API design; no method spelling is frozen here.
+
 A filesystem path or unresolved loader name is not executable identity.
 Ordinary package policy rejects an opaque provider whose content, signer, or
 profile-owned platform identity cannot be pinned. Explicit admission of a known

@@ -1384,15 +1384,20 @@ improvements do not change public identity.
   independent implementation and containment receipts. Pinning alone retains
   the attributed incompleteness cause; only a separate executable-closure
   receipt removes it, and closure evidence survives when another row keeps the
-  overall scope incomplete. Compiler/build-policy wiring for real admissions,
-  runtime-ledger union, and isolated-scope manifests remain. The normalized
-  profile gate now allows static current-artifact checked bodies only through
-  an explicit class rule; every compiler-known or opaque entry otherwise needs
-  an exact provider/plan/executable/evidence/origin/scope allowance and any
-  required containment axes. Incomplete scopes either reject or produce a
-  sealed acceptance marked with the original causes, retaining the exact
-  manifest and profile against replay. Build-profile selection/wiring and
-  consumption of that acceptance by installation remain.
+  overall scope incomplete. Runtime-ledger union and isolated-scope manifests
+  remain. The compiler now accepts a deployment-owned TCB build-policy carrier
+  separately from source syntax, binds its opaque admission candidates against
+  the exact selected rows, evaluates the selected profile, and carries the
+  sealed acceptance to the filesystem installation gate. The legacy compile
+  entry remains source-compatible and delegates with no selected profile. The
+  normalized profile gate now allows static current-artifact checked bodies
+  only through an explicit class rule; every compiler-known or opaque entry
+  otherwise needs an exact provider/plan/executable/evidence/origin/scope
+  allowance and any required containment axes. Incomplete scopes either reject
+  or produce a sealed acceptance marked with the original causes, retaining
+  the exact manifest and profile against replay. Source/package selection of
+  named build profiles remains ordinary Build API work; the exact method names
+  are not yet designed.
 - **REPLACE-OPAQUE:** extend component acceptance tests with selected-provider
   manifest union across coexisting eras, process-static service handover
   contracts, and mapping reuse only after proof that no live authority reaches

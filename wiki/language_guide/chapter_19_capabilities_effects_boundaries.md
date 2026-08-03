@@ -1363,6 +1363,11 @@ Omega admission. The runtime ledger therefore reports what Omega admitted,
 never a falsely exhaustive map of an opaque process. Build profiles may permit
 and mark that result or reject it before installation; platform baselines are
 ordinary policy allowlists.
+The compiler currently receives these deployment-owned admissions and profile
+rules through a programmatic build-policy input. It validates them only after
+exact provider selection and carries a successful, manifest-bound acceptance
+to output installation. This is build/deployment policy, not a new source
+language construct; named `Build` API surface remains to be designed.
 
 ## Build Artifacts
 

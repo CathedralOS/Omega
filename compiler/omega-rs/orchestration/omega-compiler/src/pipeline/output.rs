@@ -1,4 +1,5 @@
 use crate::pipeline::compile_options::CompileOptions;
+use crate::pipeline::compile_policy::ExecutableTcbInstallationAuthorization;
 use crate::pipeline::stages::EmittedProgram;
 use omega_artifacts::ArtifactWriter;
 use omega_image_emission::{
@@ -9,9 +10,11 @@ use psi_diagnostics::Diagnostic;
 
 pub(super) fn write_output(
     options: &CompileOptions,
+    executable_tcb_authorization: &ExecutableTcbInstallationAuthorization,
     emitted: EmittedProgram,
     footprints: &omega_target_operations::BoundaryFootprintPlan,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
+    executable_tcb_authorization.authorize_installation();
     let build_dir = options.build_dir();
     std::fs::create_dir_all(&build_dir).map_err(io_diagnostic)?;
 

@@ -595,6 +595,7 @@ fn synthesize_machine_named(
         lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         terminates: signature.terminates_guarantee,
         terminates_guarantee: signature.terminates_guarantee,
         decreases: HandleSpan::<ExpressionHandle>::empty(),
