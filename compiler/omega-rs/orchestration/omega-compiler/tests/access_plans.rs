@@ -5,10 +5,10 @@
 use std::fs;
 use std::path::PathBuf;
 
-use omega_access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
 use omega_compiler::{
     compile_to_checked, compute_access_plan, compute_layout_plan, compute_placement_plan,
 };
+use psi_access_plans::{AccessExposure, ExternalRead, FieldAccess, ObservationModel};
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory =

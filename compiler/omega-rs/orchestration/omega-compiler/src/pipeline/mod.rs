@@ -44,16 +44,16 @@ pub use compiler::compile;
 pub use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, compute_layout_plan,
 };
-pub use omega_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
-pub use omega_layout_plans::{
+pub use provider_plans::{
+    SelectedExternalRootEntryFactBinding, SelectedExternalRootProviderPlan,
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
+};
+pub use psi_access_plans::{ValidatedAccessPlan, ValidatedPlacementPlan};
+pub use psi_layout_plans::{
     ByteOrder, ConsumptionInstant, DataSymbolId, EntryStubId, MaterializationAction,
     MaterializationContext, MaterializationDiagnostic, MaterializationWrite, RelocationTarget,
     ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, SymbolicMaterializationPlan,
     decode_scalar_layout, derive_symbolic_materialization, materialize_scalar_layout_into,
     normalized_layout_plan_fingerprint,
-};
-pub use provider_plans::{
-    SelectedExternalRootEntryFactBinding, SelectedExternalRootProviderPlan,
-    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
-    selected_external_root_provider_plan_id,
 };

@@ -175,8 +175,8 @@ impl ServiceSchema {
     /// PRV2: reify a typed boundary trait's callable surface. `None` for a
     /// non-boundary trait (only boundary traits have service schemas).
     pub fn from_typed(
-        program: &omega_typed_trees::TypedTrees,
-        trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+        program: &psi_typed_trees::TypedTrees,
+        trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
     ) -> Option<Self> {
         Self::from_typed_instance(program, trait_definition, &[])
     }
@@ -185,9 +185,9 @@ impl ServiceSchema {
     /// semantic input only for resolving evaluated calling-plan identity;
     /// policy type/source names remain absent from the published schema.
     pub fn from_typed_instance(
-        program: &omega_typed_trees::TypedTrees,
-        trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
-        boundary_arguments: &[omega_typed_trees::types::TypeReferenceHandle],
+        program: &psi_typed_trees::TypedTrees,
+        trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
+        boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     ) -> Option<Self> {
         if !trait_definition.is_boundary {
             return None;
@@ -213,17 +213,17 @@ impl ServiceSchema {
     /// shared carrier; operator slots use their stable signature identity so
     /// f32/f64 overloads can never collide or be selected as one another.
     pub fn from_typed_operator(
-        program: &omega_typed_trees::TypedTrees,
-        operator: &omega_typed_trees::operator::OperatorDefinition,
+        program: &psi_typed_trees::TypedTrees,
+        operator: &psi_typed_trees::operator::OperatorDefinition,
     ) -> Option<Self> {
         operator.is_boundary.then(|| Self {
-            trait_name: omega_typed_trees::operator::boundary_operator_requirement_identity(
+            trait_name: psi_typed_trees::operator::boundary_operator_requirement_identity(
                 program, operator,
             ),
             methods: vec![ServiceMethod {
                 name: "realize".to_owned(),
                 requirement_owner:
-                    omega_typed_trees::operator::boundary_operator_requirement_identity(
+                    psi_typed_trees::operator::boundary_operator_requirement_identity(
                         program, operator,
                     ),
                 requirement_identity: String::new(),
@@ -256,10 +256,10 @@ impl ServiceSchema {
 }
 
 fn collect_service_methods(
-    program: &omega_typed_trees::TypedTrees,
-    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
+    program: &psi_typed_trees::TypedTrees,
+    trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
     policy_owner: omega_core::symbols::SymbolHandle,
-    boundary_arguments: &[omega_typed_trees::types::TypeReferenceHandle],
+    boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
     visited: &mut Vec<omega_core::symbols::SymbolHandle>,
     methods: &mut Vec<ServiceMethod>,
 ) {
@@ -337,9 +337,9 @@ fn collect_service_methods(
 }
 
 fn service_entry_claims(
-    program: &omega_typed_trees::TypedTrees,
-    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
-    signature: &omega_typed_trees::signature::StateSignature,
+    program: &psi_typed_trees::TypedTrees,
+    trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
+    signature: &psi_typed_trees::signature::StateSignature,
 ) -> Vec<ServiceEntryClaim> {
     let mut claims = Vec::new();
     for (parameter_index, parameter) in program
@@ -374,9 +374,9 @@ fn service_entry_claims(
 }
 
 fn service_result_claims(
-    program: &omega_typed_trees::TypedTrees,
-    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
-    signature: &omega_typed_trees::signature::StateSignature,
+    program: &psi_typed_trees::TypedTrees,
+    trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
+    signature: &psi_typed_trees::signature::StateSignature,
 ) -> Vec<ServiceResultClaim> {
     if !signature.return_type.is_valid()
         || program.type_multiplicity(signature.return_type)
@@ -398,13 +398,13 @@ fn service_result_claims(
 }
 
 fn append_bodyless_result_claims(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
     boundary_trait: omega_core::symbols::SymbolHandle,
     requirement: omega_core::symbols::SymbolHandle,
     claims: &mut Vec<ServiceResultClaim>,
 ) {
-    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -449,14 +449,14 @@ fn append_bodyless_result_claims(
 }
 
 fn append_bodyless_entry_claims(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
     parameter_index: usize,
     boundary_trait: omega_core::symbols::SymbolHandle,
     requirement: omega_core::symbols::SymbolHandle,
     claims: &mut Vec<ServiceEntryClaim>,
 ) {
-    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -517,9 +517,9 @@ fn append_bodyless_entry_claims(
 }
 
 fn service_reach_names(
-    program: &omega_typed_trees::TypedTrees,
-    trait_definition: &omega_typed_trees::trait_definition::TraitDefinition,
-    signature: &omega_typed_trees::signature::StateSignature,
+    program: &psi_typed_trees::TypedTrees,
+    trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
+    signature: &psi_typed_trees::signature::StateSignature,
 ) -> Vec<String> {
     let mut services = program
         .service_reach_rows
@@ -547,8 +547,8 @@ fn service_reach_names(
 }
 
 fn synchronous_invocation_names(
-    program: &omega_typed_trees::TypedTrees,
-    signature: &omega_typed_trees::signature::StateSignature,
+    program: &psi_typed_trees::TypedTrees,
+    signature: &psi_typed_trees::signature::StateSignature,
 ) -> Vec<String> {
     let parameters = program
         .state_signature_parameters(signature)
@@ -575,8 +575,8 @@ fn synchronous_invocation_names(
 }
 
 fn boundary_trait_name_for_type(
-    program: &omega_typed_trees::TypedTrees,
-    type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    program: &psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
 ) -> Option<String> {
     let symbol = program
         .type_reference_table

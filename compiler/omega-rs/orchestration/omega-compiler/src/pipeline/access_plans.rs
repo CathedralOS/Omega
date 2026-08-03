@@ -7,13 +7,13 @@
 
 use std::collections::BTreeSet;
 
-use omega_access_plans::{
+use omega_interpreter::BuildTimeValue;
+use psi_access_plans::{
     AccessExposure, AccessPlan, AtomicPermissions, BoundaryReach, BoundaryServiceReachId,
     ExternalRead, FieldAccess, PlacementPlan, ValidatedAccessPlan, ValidatedPlacementPlan,
     validate_access_plan, validate_placement_plan,
 };
-use omega_interpreter::BuildTimeValue;
-use omega_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
+use psi_layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 use psi_typed_trees::TypedTrees;
 
 use super::build_time_admission::BuildTimeAdmissionPlan;
