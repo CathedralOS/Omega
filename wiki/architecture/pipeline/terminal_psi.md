@@ -168,10 +168,17 @@ nine-parameter canary forces its returned `u8` through the host incoming-stack
 ABI and matches interpretation at 77. A v4 nested runtime canary wraps
 a register and ninth-argument stack `u8`, then saturates with another register
 to 255; a signed `i64` canary exercises both saturation bounds. Both agree with
-interpretation through real C ABI calls. Branching, the remaining
-arithmetic-policy variants, general register assignment, typed debug payloads,
-general safe-point/branch fixed-work checking, build-time fuel migration, and
-native fuel metering remain next.
+interpretation through real C ABI calls. Canonical typed debug-map v1 now binds
+an exact semantic identity to strictly ordered source files and stable terminal
+machine, block, operation, edge, value, contract, obligation, place, and
+machine-local claim subjects. Source rows retain origin, presentation path,
+byte length, and a domain-separated content digest; sites retain bounded byte
+spans. Decoding rejects wrong-module attachment, unknown subjects/files,
+alternate ordering, invalid spans, unknown tags, truncation, and trailing
+bytes. Producer span population remains. Branching, the remaining
+arithmetic-policy variants, general register assignment, general
+safe-point/branch fixed-work checking, build-time fuel migration, and native
+fuel metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,
 costs one operation plus one return edge, lowers, and executes parameter-fed
 `u8` 5-10 as 251 through a real C ABI call.
@@ -466,8 +473,10 @@ binding from the sealed `TerminalExecutableImage`. The scalar canaries carry an
 empty provider set because they contain no calls or boundaries; later vertical
 slices populate that set from actual selected plans. The record is manifest
 metadata, not executable authority and not a replacement for the separate
-`omega-executable-installation` admission/placement ladder. Typed debug/source
-maps remain a later artifact slice.
+`omega-executable-installation` admission/placement ladder. Typed debug-map v1
+is independently live in `psi-terminal-codec`; it is replaceable presentation
+metadata bound to one exact semantic identity. Connecting checked-source spans
+to that schema remains.
 
 ## Logical-fuel v1
 
@@ -599,11 +608,11 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    proof bytes and role-separated semantic/proof/install/debug manifest hashes
    are also live. Semantic migration is exercised: archived v1 and v2 bytes
    retain their identities and migrate explicitly into separately fingerprinted
-   current-v9 modules; archived v3 wrapping-add, v4 saturating-add, v5
+   current-v12 modules; archived v3 wrapping-add, v4 saturating-add, v5
    wrapping-subtract, v6 saturating-subtract, and v7 wrapping-multiply
    identities plus the v8 saturating-multiply identity are frozen as well. Typed
-   installation records are live; typed debug/source maps
-   remain a later artifact slice.
+   installation records and the canonical typed debug/source-map schema are
+   live; producer span population remains a later artifact slice.
 
 The migration may keep old and new paths temporarily for comparison. That is a
 testing bridge, not a permanent two-semantics architecture.

@@ -1353,9 +1353,13 @@ improvements do not change public identity.
   the source canary binds those exact bytes into the role-separated artifact
   manifest after producer and intermediate lowering state is dropped. The
   current scalar slice honestly records an empty provider closure; later
-  call/boundary slices must populate it from their selected plans. A typed
-  debug/source-map payload schema, general register assignment, further closed
-  arithmetic variants, and migration of the legacy backend remain.
+  call/boundary slices must populate it from their selected plans. Canonical
+  typed debug-map v1 now binds exact terminal semantic identity to ordered
+  source origin/path/length/digest rows and bounded spans over stable semantic
+  subjects; wrong-module attachment, unknown subjects/files, invalid spans,
+  alternate order, and hostile bytes reject. Producer span population, general
+  register assignment, further closed arithmetic variants, and migration of
+  the legacy backend remain.
   Move or rename the current target-neutral `omega-*` frontend crates under Psi
   ownership as each slice migrates; do not leave parsing or checking on an
   Omega-to-Psi path. With the initial interpreter, lowering customers, and
