@@ -201,6 +201,22 @@ ensures 137u8 == 137u8
     }
 }
 
+machine terminal_runtime_conditional(
+    condition: bool,
+    when_true: u8,
+    when_false: u8
+) -> u8
+requires 17u8 == 17u8
+ensures 17u8 == 17u8
+{
+    transition condition {
+        true -> selected_true(when_true)
+        _ -> selected_false(when_false)
+    }
+    state selected_true(value: u8) -> u8 { value }
+    state selected_false(value: u8) -> u8 { value }
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8

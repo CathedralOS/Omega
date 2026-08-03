@@ -1000,9 +1000,11 @@ improvements do not change public identity.
   successor bindings; common-path proof reconstruction does not manufacture a
   proposition for the structural branch. Canonical bytes retain both ordered
   arms, interpretation charges only the selected edge, and Omega abstract
-  lowering retains canonical block entries plus both successors. Checked-source
-  production, branch fixed-work certificates, and target/native block lowering
-  remain implementation work.
+  lowering retains canonical block entries plus both successors. The first
+  checked-source producer lowers an ordered positive-Boolean/fallback branch
+  whose successors bind already-defined integer entry parameters to direct-
+  return branch states. Branch fixed-work certificates and target/native block
+  lowering remain implementation work.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1131,7 +1133,10 @@ improvements do not change public identity.
   parameters, either directly or through a nonempty linear sequence of
   unconditional one-parameter Boolean state bindings. Optional compile-known
   propagation also requires its result to match the closed reflexive contract.
-  It emits the module and
+  A fourth exact form lowers an ordered positive-Boolean/fallback conditional.
+  Each arm binds one already-defined integer entry parameter to a one-parameter
+  branch state that returns it directly; computed branch-local work remains
+  fail-closed. It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
   ninth-parameter direct and three-state bound returns, a direct closed integer
@@ -1152,6 +1157,9 @@ improvements do not change public identity.
   multi-binding three-state companion carries two independently computed values
   across both edges and agrees across its ten-unit certificate, interpretation,
   and emitted host execution.
+  The source conditional survives frontend disposal, executes either arm with
+  only its selected edge charged, and retains both successors through the Omega
+  abstract boundary; fixed-work and target/native lowering refuse it honestly.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
