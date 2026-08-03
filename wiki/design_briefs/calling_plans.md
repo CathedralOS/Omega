@@ -703,6 +703,11 @@ The older Darwin `tick_count` alias uses the same typed row and now consumes its
 `ConstantArgument(8)` through the data-driven clock-read operand path. Windows
 TickCount keeps the same path with no constant row data and therefore no call
 parameter.
+The scalar Objective-C runtime cohort is binding-planned too. Class/selector
+lookup, the two-, three-, and six-word `objc_msgSend` forms, the runtime byte
+string send, and autorelease-pool push/pop retain their exact AAPCS64 word
+signatures. The source-level `pool_pop` scratch result remains part of its
+selected call shape even though the foreign function itself returns void.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and

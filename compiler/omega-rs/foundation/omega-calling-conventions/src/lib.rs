@@ -1758,6 +1758,59 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn darwin_scalar_objective_c_bindings_retain_exact_import_plans() {
+        let plan = build_host_abi_plan(NativeTarget::macos_arm64());
+        for (operation, symbol, parameter_count) in [
+            (HostOperation::GetClass, "_objc_getClass", 1),
+            (HostOperation::RegisterSelector, "_sel_registerName", 1),
+            (HostOperation::MsgSend, "_objc_msgSend", 2),
+            (HostOperation::MsgSendScalar, "_objc_msgSend", 3),
+            (HostOperation::MsgSendString, "_objc_msgSend", 3),
+            (HostOperation::MsgSendScalar4, "_objc_msgSend", 6),
+            (HostOperation::MsgSendByteString, "_objc_msgSend", 3),
+            (HostOperation::PoolPush, "_objc_autoreleasePoolPush", 0),
+            (HostOperation::PoolPop, "_objc_autoreleasePoolPop", 1),
+        ] {
+            let (_, binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == HostCapability::ObjectiveC
+                        && binding.operation_key.operation == operation
+                })
+                .expect("built-in Darwin Objective-C binding");
+            assert!(matches!(
+                binding.mechanism,
+                HostBindingMechanism::Import {
+                    symbol: ref actual_symbol,
+                    ..
+                } if actual_symbol.as_ref() == symbol
+            ));
+            let boundary = binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("fixed scalar Objective-C signature must retain its plan");
+            assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
+            assert_eq!(boundary.call.parameters.len(), parameter_count);
+            assert!(
+                boundary
+                    .call
+                    .parameters
+                    .iter()
+                    .all(|placement| placement.shape == ValueShape::integer(8, 8))
+            );
+            assert_eq!(
+                boundary
+                    .call
+                    .result
+                    .as_ref()
+                    .map(|placement| placement.shape),
+                Some(ValueShape::integer(8, 8))
+            );
+        }
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),
