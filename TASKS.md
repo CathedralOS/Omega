@@ -1050,9 +1050,11 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   direct bare-self transition preserves the same state namespace and therefore
   retains its finite collected frame. A named edge back to that exact state
   does too only when it forwards every state parameter by exact symbol
-  identity; computed, projected, omitted, reordered, rebinding, multi-state,
-  and truly unresolved cycles stay opaque, so consumers fail closed rather
-  than extrapolating across changing parameter bindings.
+  identity. Multi-state cycles retain the same finite summary when every edge
+  closing the cycle forwards the complete parameter namespace at the same
+  ordinal; computed, projected, omitted, reordered, rebinding, and truly
+  unresolved cycles stay opaque, so consumers fail closed rather than
+  extrapolating across changing parameter bindings.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,

@@ -1,4 +1,4 @@
-// R5 fail-closed boundary: a reachable state cycle that rebinds a state
+// R5 fail-closed boundary: a reachable multi-state cycle that rebinds a state
 // parameter keeps the inferred frame opaque. This concrete path writes only
 // `self.touched` and exits, but the caller may not preserve `self.stable` from
 // one observed execution path.
@@ -15,12 +15,16 @@ machine Main::main(&mut self) {
 }
 
 machine Main::cycle_touch(&mut self, carried: u32) {
-    transition { _ -> loop_(carried) }
+    transition { _ -> first(carried) }
 
-    state loop_(&mut self, carried: u32) {
+    state first(&mut self, carried: u32) {
         self.touched = 1;
+        transition { _ -> second(carried) }
+    }
+
+    state second(&mut self, carried: u32) {
         transition self.touched == 0 {
-            true -> loop_(self.touched)
+            true -> first(self.touched)
             false -> done()
         }
     }
