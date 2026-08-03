@@ -36081,11 +36081,22 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
 
 #[test]
 fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.negate-is-nan.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "binary32 signed-zero and infinity negation",
+        "binary64 signed-zero and infinity negation",
+        "binary32 NaN/infinity/finite predicate separation",
+        "binary64 NaN/infinity/finite predicate separation",
+        "selected-root unary evaluation shape",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x57aa_3468_2983_05e9;
+
     let canary = pass_canary("float/named_provider_negate_is_nan_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named negate/is_nan provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         if operator_use.provider_plan_identity == 0 {
             continue;
@@ -36103,6 +36114,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
             panic!("named float plan must select a compiler intrinsic");
         };
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
 
         if name.contains("::negate.") {
             let psi_typed_trees::expression::ExpressionNode::Binary(binary) = checked
@@ -36169,6 +36181,13 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         .into_iter()
         .collect()
     );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        4,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per operation/format slot"
+    );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
     assert_eq!(
@@ -36227,6 +36246,21 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
