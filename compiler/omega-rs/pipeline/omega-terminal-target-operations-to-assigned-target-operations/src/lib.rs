@@ -145,7 +145,15 @@ fn assign_expression_locations(
         match location {
             TerminalScalarParameterLocation::Register(register) => {
                 require_register_architecture(source_value, register, architecture)?;
-                if architecture == Architecture::Aarch64 {
+                if architecture == Architecture::X86_64 && register == MachineRegister::X86Rsp {
+                    return Err(AssignmentError::ExpressionRegisterCannotHoldParameter {
+                        value: source_value,
+                        register,
+                    });
+                }
+                if architecture == Architecture::Aarch64
+                    || x86_expression_scratch_conflict(register)
+                {
                     let byte_offset = u32::try_from(register_spills.len())
                         .ok()
                         .and_then(|count| count.checked_mul(8))
@@ -411,6 +419,13 @@ fn require_register_architecture(
     }
 }
 
+fn x86_expression_scratch_conflict(register: MachineRegister) -> bool {
+    matches!(
+        register,
+        MachineRegister::X86Rax | MachineRegister::X86R10 | MachineRegister::X86R11
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentError {
     EntryFunctionMissing(MachineId),
@@ -428,6 +443,10 @@ pub enum AssignmentError {
         parameter_index: usize,
     },
     ExpressionStackFrameNotEncodable,
+    ExpressionRegisterCannotHoldParameter {
+        value: ValueId,
+        register: MachineRegister,
+    },
 }
 
 impl std::fmt::Display for AssignmentError {
@@ -522,6 +541,51 @@ mod tests {
                 location: TerminalAssignedScalarLocation::IncomingStack { byte_offset: 16 },
                 ..
             }
+        ));
+    }
+
+    #[test]
+    fn x86_scratch_conflicting_parameter_receives_a_frame_spill() {
+        let plan = expression_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86R10),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+        );
+        let assigned = assign_registers(&plan).expect("assign x86-64 scratch conflict");
+        let TerminalAssignedOperation::ReturnIntegerExpression {
+            frame, expression, ..
+        } = &assigned.functions[0].operation
+        else {
+            panic!("fixture must remain an expression")
+        };
+        assert_eq!(frame.byte_size, 16);
+        assert_eq!(frame.register_spills.len(), 1);
+        assert_eq!(frame.register_spills[0].register, MachineRegister::X86R10);
+        let TerminalAssignedIntegerExpression::WrappingAdd { left, .. } = expression else {
+            panic!("fixture must remain wrapping addition")
+        };
+        assert!(matches!(
+            left.as_ref(),
+            TerminalAssignedIntegerExpression::Parameter {
+                location: TerminalAssignedScalarLocation::FrameSpill { byte_offset: 0 },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn x86_stack_pointer_cannot_be_an_expression_parameter_home() {
+        let plan = expression_plan(
+            NativeTarget::linux_x64(),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rsp),
+            TerminalScalarParameterLocation::Register(MachineRegister::X86Rdi),
+        );
+        assert!(matches!(
+            assign_registers(&plan),
+            Err(AssignmentError::ExpressionRegisterCannotHoldParameter {
+                register: MachineRegister::X86Rsp,
+                ..
+            })
         ));
     }
 

@@ -1184,8 +1184,9 @@ improvements do not change public identity.
   rejects repeated-parameter home drift, and assigns referenced AArch64
   argument registers to stable aligned frame spills before evaluation into
   `x0`. Terminal machine emission accepts only that assigned representation;
-  both emitters retain the original incoming-stack base across recursive
-  evaluation. A nested v4
+  scratch-conflicting x86-64 inputs likewise receive stable frame spills, and
+  `rsp` rejects as an expression-parameter home. Both emitters retain the
+  original incoming-stack base across recursive evaluation. A nested v4
   `u8` canary consumes the ninth stack argument, wraps to 4, saturates to 255,
   and matches interpretation through a real C ABI call; a signed `i64` canary
   independently reaches both saturation bounds. General value liveness, spill

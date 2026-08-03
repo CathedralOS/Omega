@@ -311,21 +311,56 @@ fn emit_x86_64_integer_expression(
     frame: &TerminalExpressionFrame,
     expression: &TerminalAssignedIntegerExpression,
 ) -> Result<Vec<u8>, EmissionError> {
-    if frame.byte_size != 0 || !frame.register_spills.is_empty() {
-        return Err(EmissionError::AssignedFrameArchitectureMismatch(
-            Architecture::X86_64,
-        ));
+    if frame.byte_size == 0 && !frame.register_spills.is_empty() {
+        return Err(EmissionError::AssignedFrameSizeMismatch);
     }
     let mut bytes = Vec::new();
-    emit_x86_64_expression_node(&mut bytes, scalar_type, expression, 0)?;
+    if frame.byte_size != 0 {
+        emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, false);
+        for spill in &frame.register_spills {
+            let register = x86_gpr_code(spill.source_value, spill.register)?;
+            if register == 4 {
+                return Err(EmissionError::ExpressionScratchRegisterConflict {
+                    value: spill.source_value,
+                    register: spill.register,
+                });
+            }
+            emit_x86_64_stack_store(&mut bytes, register, spill.byte_offset);
+        }
+    }
+    emit_x86_64_expression_node(&mut bytes, scalar_type, expression, frame.byte_size, 0)?;
+    if frame.byte_size != 0 {
+        emit_x86_64_adjust_sp(&mut bytes, frame.byte_size, true);
+    }
     bytes.push(0xc3); // ret
     Ok(bytes)
+}
+
+fn emit_x86_64_adjust_sp(bytes: &mut Vec<u8>, byte_size: u32, add: bool) {
+    if byte_size <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x48, 0x83, if add { 0xc4 } else { 0xec }, byte_size as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x48, 0x81, if add { 0xc4 } else { 0xec }]);
+        bytes.extend_from_slice(&byte_size.to_le_bytes());
+    }
+}
+
+fn emit_x86_64_stack_store(bytes: &mut Vec<u8>, register: u8, byte_offset: u32) {
+    bytes.push(0x48 | (((register >> 3) & 1) << 2));
+    bytes.push(0x89); // mov [rsp + displacement], selected incoming register
+    if byte_offset <= i8::MAX as u32 {
+        bytes.extend_from_slice(&[0x44 | ((register & 7) << 3), 0x24, byte_offset as u8]);
+    } else {
+        bytes.extend_from_slice(&[0x84 | ((register & 7) << 3), 0x24]);
+        bytes.extend_from_slice(&byte_offset.to_le_bytes());
+    }
 }
 
 fn emit_x86_64_expression_node(
     bytes: &mut Vec<u8>,
     scalar_type: IntegerType,
     expression: &TerminalAssignedIntegerExpression,
+    frame_byte_size: u32,
     stack_depth: u32,
 ) -> Result<(), EmissionError> {
     match expression {
@@ -355,9 +390,25 @@ fn emit_x86_64_expression_node(
                     let rex = 0x48 | (((register_code >> 3) & 1) << 2);
                     bytes.extend_from_slice(&[rex, 0x89, 0xc0 | ((register_code & 7) << 3)]); // mov rax, selected argument register
                 }
+                TerminalAssignedScalarLocation::FrameSpill { byte_offset } => {
+                    let displacement = byte_offset.checked_add(stack_depth).ok_or(
+                        EmissionError::IncomingStackOffsetNotEncodable {
+                            value: *source_value,
+                            byte_offset: *byte_offset,
+                        },
+                    )?;
+                    bytes.extend_from_slice(&[0x48, 0x8b]); // mov rax, [rsp + spill]
+                    if displacement <= i8::MAX as u32 {
+                        bytes.extend_from_slice(&[0x44, 0x24, displacement as u8]);
+                    } else {
+                        bytes.extend_from_slice(&[0x84, 0x24]);
+                        bytes.extend_from_slice(&displacement.to_le_bytes());
+                    }
+                }
                 TerminalAssignedScalarLocation::IncomingStack { byte_offset } => {
                     let displacement = byte_offset
                         .checked_add(8)
+                        .and_then(|offset| offset.checked_add(frame_byte_size))
                         .and_then(|offset| offset.checked_add(stack_depth))
                         .ok_or(EmissionError::IncomingStackOffsetNotEncodable {
                             value: *source_value,
@@ -371,11 +422,6 @@ fn emit_x86_64_expression_node(
                         bytes.extend_from_slice(&displacement.to_le_bytes());
                     }
                 }
-                TerminalAssignedScalarLocation::FrameSpill { .. } => {
-                    return Err(EmissionError::AssignedFrameArchitectureMismatch(
-                        Architecture::X86_64,
-                    ));
-                }
             }
             emit_x86_64_normalize(bytes, scalar_type);
         }
@@ -385,14 +431,14 @@ fn emit_x86_64_expression_node(
         | TerminalAssignedIntegerExpression::SaturatingSubtract { left, right, .. }
         | TerminalAssignedIntegerExpression::WrappingMultiply { left, right, .. }
         | TerminalAssignedIntegerExpression::SaturatingMultiply { left, right, .. } => {
-            emit_x86_64_expression_node(bytes, scalar_type, left, stack_depth)?;
+            emit_x86_64_expression_node(bytes, scalar_type, left, frame_byte_size, stack_depth)?;
             bytes.push(0x50); // push rax
             let nested_depth = stack_depth.checked_add(8).ok_or(
                 EmissionError::ExpressionStackDepthNotEncodable {
                     value: expression_source(left),
                 },
             )?;
-            emit_x86_64_expression_node(bytes, scalar_type, right, nested_depth)?;
+            emit_x86_64_expression_node(bytes, scalar_type, right, frame_byte_size, nested_depth)?;
             bytes.extend_from_slice(&[0x41, 0x5a]); // pop r10
             match expression {
                 TerminalAssignedIntegerExpression::WrappingAdd { .. } => {
@@ -934,6 +980,7 @@ pub enum EmissionError {
     ExpressionStackFrameNotEncodable,
     AssignedFrameSpillOutsideExpression(ValueId),
     AssignedFrameArchitectureMismatch(Architecture),
+    AssignedFrameSizeMismatch,
     EntryFunctionMissing(MachineId),
 }
 
@@ -1217,6 +1264,29 @@ mod tests {
                 0xd65f_03c0,
             ]
         );
+    }
+
+    #[test]
+    fn emits_x86_expression_after_assignment_spills_a_scratch_conflict() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let emitted = emit_machine_code(&expression_plan(
+            NativeTarget::linux_x64(),
+            scalar_type,
+            wrapping_expression(
+                TerminalScalarParameterLocation::Register(MachineRegister::X86R10),
+                TerminalScalarParameterLocation::IncomingStack { byte_offset: 0 },
+            ),
+        ))
+        .expect("assigned scratch conflict should emit");
+        let bytes = &emitted.functions[0].bytes;
+        assert_eq!(&bytes[..4], &[0x48, 0x83, 0xec, 16]); // sub rsp, frame
+        assert_eq!(&bytes[4..9], &[0x4c, 0x89, 0x54, 0x24, 0]); // spill r10
+        assert!(
+            bytes
+                .windows(5)
+                .any(|window| window == [0x48, 0x8b, 0x44, 0x24, 32])
+        ); // frame + return + expression push
+        assert_eq!(&bytes[bytes.len() - 5..], &[0x48, 0x83, 0xc4, 16, 0xc3]);
     }
 
     #[test]
