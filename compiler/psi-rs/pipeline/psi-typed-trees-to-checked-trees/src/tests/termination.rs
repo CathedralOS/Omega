@@ -2046,6 +2046,12 @@ fn contract_plans_fingerprint_published_halves() {
         transition { _ -> cycle() }
         state cycle(&mut self) { transition { _ -> cycle() } }
     }
+    machine reordered_cycle(first: u64, second: u64) {
+        transition { _ -> cycle(first, second) }
+        state cycle(left: u64, right: u64) {
+            transition { _ -> cycle(right, left) }
+        }
+    }
     machine Main::direct_self_loop(&mut self) {
         self.left = 9;
         transition { _ -> self }
@@ -2105,6 +2111,7 @@ fn contract_plans_fingerprint_published_halves() {
     let transitioning = symbol_of("Main::transitioning");
     let write_through_transition = symbol_of("write_through_transition");
     let cyclic = symbol_of("Main::cyclic");
+    let reordered_cycle = symbol_of("reordered_cycle");
     let direct_self_loop = symbol_of("Main::direct_self_loop");
     let branching = symbol_of("Main::branching");
     let call_bearing = symbol_of("Main::call_bearing");
@@ -2133,9 +2140,14 @@ fn contract_plans_fingerprint_published_halves() {
     assert_eq!(frame(write_alpha), frame(write_beta));
     assert_eq!(frame(transitioning).paths(), &["self.left".to_owned()]);
     assert_eq!(frame(write_through_transition).paths(), &["$P0".to_owned()]);
+    assert_eq!(
+        frame(cyclic).complete_paths(),
+        Some([].as_slice()),
+        "an argument-free named state cycle preserves its complete empty namespace"
+    );
     assert!(
-        !frame(cyclic).is_complete(),
-        "a named state cycle may rebind parameters and must retain an opaque inferred frame"
+        !frame(reordered_cycle).is_complete(),
+        "a named state cycle that reorders parameters must retain an opaque inferred frame"
     );
     assert_eq!(
         frame(direct_self_loop).paths(),
