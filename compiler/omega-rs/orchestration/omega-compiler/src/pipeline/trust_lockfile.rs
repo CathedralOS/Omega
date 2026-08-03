@@ -132,7 +132,7 @@ pub(super) fn enforce_trust_lockfile(
                 && (grant == machine.name.as_str()
                     || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
         }) && let Some(identity) =
-            omega_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
+            psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
                 typed,
                 machine.symbol,
             )

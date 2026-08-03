@@ -352,6 +352,10 @@ fn frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/pipeline/omega-symbol-resolved-trees-to-typed-trees/src/lib.rs",
             "pub use psi_symbol_resolved_trees_to_typed_trees::*;",
         ),
+        (
+            "compiler/omega-rs/pipeline/omega-typed-trees-to-checked-trees/src/lib.rs",
+            "pub use psi_typed_trees_to_checked_trees::*;",
+        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
@@ -571,6 +575,29 @@ fn frontend_implementation_is_psi_owned() {
     assert!(
         !source.contains("mod "),
         "legacy symbols module must not regain implementation modules"
+    );
+}
+
+#[test]
+fn provider_approval_stays_in_omega_after_psi_checking() {
+    let root = workspace_root();
+    let psi_checks =
+        root.join("compiler/psi-rs/pipeline/psi-typed-trees-to-checked-trees/src/checks.rs");
+    let psi_source = std::fs::read_to_string(&psi_checks)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", psi_checks.display()));
+    assert!(
+        !psi_source.contains("boundary_provider_approval"),
+        "Psi semantic checking must not perform Omega provider admission"
+    );
+
+    let omega_approval = root
+        .join("compiler/omega-rs/orchestration/omega-compiler/src/pipeline/provider_approval.rs");
+    let omega_source = std::fs::read_to_string(&omega_approval)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_approval.display()));
+    assert!(
+        omega_source.contains("build_boundary_provider_approval_registry")
+            && omega_source.contains("audit_boundary_provider_calls"),
+        "Omega orchestration must retain boundary-provider admission after Psi checking"
     );
 }
 

@@ -1,0 +1,60 @@
+use crate::context::*;
+mod lookup;
+mod traversal;
+
+use crate::lookup::machine_by_symbol;
+use traversal::{CallSiteTraversal, find_call_site_in_statement};
+
+pub(crate) enum CallSite<'program> {
+    Statement(&'program psi_typed_trees::statement::TableCall),
+    Expression {
+        expression: ExpressionHandle,
+        call: &'program psi_typed_trees::expression::TableCallExpression,
+    },
+    TransitionNamed(psi_arena::HandleSpan<ExpressionHandle>),
+}
+
+pub(crate) fn find_call_site<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<CallSite<'program>> {
+    let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
+    let machine = machine_by_symbol(program, machine_symbol)?;
+
+    for (current_statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let mut current_ordinal = 0usize;
+        let mut traversal = CallSiteTraversal::new(
+            program,
+            machine,
+            state,
+            current_statement_index,
+            statement_index,
+            call_ordinal,
+            &mut current_ordinal,
+        );
+        if let Some(call_site) = find_call_site_in_statement(&mut traversal, statement) {
+            return Some(call_site);
+        }
+    }
+
+    None
+}
+
+pub(crate) fn call_site_argument_expressions<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    call_site: &CallSite<'program>,
+) -> &'program [ExpressionHandle] {
+    lookup::call_site_argument_expressions(program, call_site)
+}
+
+pub(crate) use lookup::{
+    call_target_parameters, call_target_type_parameters, find_state, find_state_in_machine,
+};

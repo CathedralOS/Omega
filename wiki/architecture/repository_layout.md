@@ -81,7 +81,8 @@ Omega/
 |   |   |   |-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
 |   |   |   |-- [CRATE] psi-tokens-to-syntax-trees/     # Psi-owned unresolved Omega parser.
 |   |   |   |-- [CRATE] psi-syntax-trees-to-symbol-resolved-trees/ # Psi-owned name and symbol resolution.
-|   |   |   `-- [CRATE] psi-symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
+|   |   |   |-- [CRATE] psi-symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
+|   |   |   `-- [CRATE] psi-typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
 |   |   `-- semantics/
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.
@@ -100,7 +101,7 @@ Omega/
 |   |-- representations/
 |   |   |-- [CRATE] omega-tokens/                       # Transitional re-export of Psi-owned tokens.
 |   |   |-- [CRATE] omega-syntax-trees/                 # Transitional re-export of Psi-owned syntax trees.
-|   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
+|   |   |-- [CRATE] omega-symbol-resolved-trees/        # Transitional re-export of Psi-owned resolved trees.
 |   |   |-- [CRATE] omega-typed-trees/                  # Transitional re-export of Psi-owned typed trees.
 |   |   |-- [CRATE] omega-facts/                        # Transitional re-export of Psi-owned checked fact vocabulary.
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
@@ -118,9 +119,9 @@ Omega/
 |   |-- pipeline/
 |   |   |-- [CRATE] omega-source-files-to-tokens/                            # Transitional re-export of the Psi lexer.
 |   |   |-- [CRATE] omega-tokens-to-syntax-trees/                            # Transitional re-export of the Psi parser.
-|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/             # Syntax trees to SymbolResolvedTrees with symbol identity attached.
-|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/              # SymbolResolvedTrees to typed/effect-annotated trees.
-|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/                      # Typed trees to validated/proof-checked trees with semantic facts.
+|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/             # Transitional re-export of Psi name resolution.
+|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/              # Transitional re-export of Psi type normalization.
+|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/                      # Transitional re-export of Psi semantic checking.
 |   |   |-- [CRATE] omega-checked-trees-to-state-graph/                      # Checked trees to explicit machine/state graph.
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/                       # State graph to control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-control-flow-to-abstract-operations/               # Lower control flow into target-independent abstract operations with virtual registers.

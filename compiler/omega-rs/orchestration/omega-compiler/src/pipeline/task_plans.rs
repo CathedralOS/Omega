@@ -871,7 +871,7 @@ mod tests {
             &[provider_plans[0].name.clone()],
         )
         .expect("select complete TaskRuntime provider");
-        let checked = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check and specialize task start");
 
         let task_activations =

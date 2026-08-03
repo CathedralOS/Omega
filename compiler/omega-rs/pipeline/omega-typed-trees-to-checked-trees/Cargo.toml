@@ -9,16 +9,4 @@ name = "omega_typed_trees_to_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
-omega-checked-trees = { path = "../../representations/omega-checked-trees" }
-omega-core = { path = "../../foundation/omega-core" }
-omega-effects = { path = "../../representations/omega-effects" }
-omega-facts = { path = "../../representations/omega-facts" }
-omega-proof = { path = "../../semantics/omega-proof" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
-omega-validation = { path = "../../semantics/omega-validation" }
-
-[dev-dependencies]
-omega-source-files-to-tokens = { path = "../omega-source-files-to-tokens" }
-omega-symbol-resolved-trees-to-typed-trees = { path = "../omega-symbol-resolved-trees-to-typed-trees" }
-omega-syntax-trees-to-symbol-resolved-trees = { path = "../omega-syntax-trees-to-symbol-resolved-trees" }
-omega-tokens-to-syntax-trees = { path = "../omega-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi-rs/pipeline/psi-typed-trees-to-checked-trees" }

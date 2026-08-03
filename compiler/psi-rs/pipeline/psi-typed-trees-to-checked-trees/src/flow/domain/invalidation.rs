@@ -1,0 +1,72 @@
+mod matching;
+
+use super::*;
+
+use self::matching::matching_mutation_for_fact_place;
+
+pub(crate) fn filter_contexts_after_place_mutations(
+    program: &psi_typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    domain_dependencies: &DomainFacts,
+    semantic_context_refs: &mut psi_arena::Arena<FlowSemanticContextRef>,
+    invalidation_segments: &mut psi_arena::Arena<psi_facts::PlaceSegment>,
+    invalidations: &mut psi_arena::Arena<FlowInvalidationFact>,
+    source: psi_arena::HandleSpan<FlowSemanticContextRef>,
+    mutated_places: &[CanonicalPlace],
+    invalidation_source: FlowInvalidationSource,
+) -> psi_arena::HandleSpan<FlowSemanticContextRef> {
+    if mutated_places.is_empty() {
+        return source;
+    }
+
+    let mut filtered = psi_arena::HandleSpan::empty();
+    let mut removed_any = false;
+    let copied: Vec<_> = semantic_context_refs
+        .span_or_empty(source)
+        .iter()
+        .copied()
+        .collect();
+    for context_ref in copied {
+        let context = semantic.contexts.get(context_ref.context);
+        let mut invalidated_any = false;
+        for fact_ref in semantic.refs.span_or_empty(context.facts) {
+            let fact = semantic.facts.get(fact_ref.fact);
+            let FactPlace::Place(place) = fact.place else {
+                continue;
+            };
+            let Some((mutated_place, dependency_segments)) = matching_mutation_for_fact_place(
+                program,
+                semantic,
+                domain_dependencies,
+                fact,
+                place,
+                mutated_places,
+            ) else {
+                continue;
+            };
+
+            invalidated_any = true;
+            removed_any = true;
+            invalidations.append(FlowInvalidationFact {
+                source: invalidation_source,
+                context: context_ref.context,
+                fact: fact_ref.fact,
+                mutated_root: mutated_place.root,
+                mutated_segments: append_place_segments(
+                    invalidation_segments,
+                    &mutated_place.segments,
+                ),
+                dependency_segments: append_place_segments(
+                    invalidation_segments,
+                    dependency_segments,
+                ),
+            });
+        }
+
+        if !invalidated_any {
+            semantic_context_refs.append_to_span(&mut filtered, context_ref);
+        }
+    }
+
+    if removed_any { filtered } else { source }
+}

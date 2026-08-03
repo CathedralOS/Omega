@@ -424,7 +424,8 @@ pub(super) fn typed_trees_to_checked_trees(
     timings: &mut CompileTimings,
 ) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
-        let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
+        let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
+        crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
         Ok(CheckedProgramSurface {
             program: Arc::new(program),
             selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),

@@ -118,7 +118,7 @@ pub(crate) fn compute_build_config(
     // lowering sees. Keep the caller's tree untouched; it still needs the
     // complete checked validation and specialization-contract artifacts.
     let mut specialized = typed.clone();
-    omega_typed_trees_to_checked_trees::specialize_static_machine_calls(&mut specialized)?;
+    psi_typed_trees_to_checked_trees::specialize_static_machine_calls(&mut specialized)?;
     let typed = &specialized;
 
     let mut build_machines = typed

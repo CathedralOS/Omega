@@ -1,0 +1,119 @@
+use crate::context::*;
+mod contracts;
+mod obligations;
+
+use contracts::{
+    append_inherited_trait_contract_facts, append_machine_contract_facts,
+    append_state_contract_facts, append_state_signature_contract_facts, build_contract_call_facts,
+    build_contract_exit_facts, build_contract_operator_use_facts, estimated_contract_fact_capacity,
+};
+use obligations::lower_proof_obligation;
+
+#[cfg(test)]
+pub(crate) fn build_proof_facts(
+    program: &psi_typed_trees::TypedTrees,
+    proof_plan: &psi_proof::obligations::ProofPlan,
+    borrow: &BorrowFacts,
+) -> ProofFacts {
+    build_proof_facts_with_operators(
+        program,
+        proof_plan,
+        borrow,
+        &CheckedOperatorFacts::default(),
+    )
+}
+
+pub(crate) fn build_proof_facts_with_operators(
+    program: &psi_typed_trees::TypedTrees,
+    proof_plan: &psi_proof::obligations::ProofPlan,
+    borrow: &BorrowFacts,
+    operators: &CheckedOperatorFacts,
+) -> ProofFacts {
+    let mut obligations = psi_arena::Arena::with_capacity(proof_plan.obligations.len());
+    let mut contract_facts =
+        psi_arena::Arena::with_capacity(estimated_contract_fact_capacity(program));
+
+    for (_, obligation) in proof_plan.obligations.iter() {
+        obligations.append(lower_proof_obligation(obligation));
+    }
+
+    for machine in program.machines() {
+        append_machine_contract_facts(program, machine, &mut contract_facts);
+        for state in program.machine_states(machine) {
+            append_state_contract_facts(program, machine, state, &mut contract_facts);
+        }
+        append_inherited_trait_contract_facts(program, machine, &mut contract_facts);
+        for parameter in program.machine_type_parameters(machine) {
+            let psi_typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+            else {
+                continue;
+            };
+            append_state_signature_contract_facts(
+                program,
+                parameter.symbol,
+                std::slice::from_ref(contract),
+                &mut contract_facts,
+            );
+        }
+    }
+    for trait_definition in program.traits() {
+        append_state_signature_contract_facts(
+            program,
+            trait_definition.symbol,
+            program.trait_machine_signatures(trait_definition),
+            &mut contract_facts,
+        );
+    }
+    let (mut contract_fact_refs, contract_calls) =
+        build_contract_call_facts(program, borrow, &contract_facts);
+    let contract_operator_uses = build_contract_operator_use_facts(
+        program,
+        operators,
+        &mut contract_facts,
+        &mut contract_fact_refs,
+    );
+    let contract_exits =
+        build_contract_exit_facts(program, &contract_facts, &mut contract_fact_refs);
+
+    ProofFacts::with_roots(
+        obligations,
+        contract_facts,
+        contract_fact_refs,
+        contract_calls,
+        contract_exits,
+        contract_operator_uses,
+    )
+}
+
+fn fact_handles(
+    facts: HandleSpan<psi_typed_trees::domain::ProofFact>,
+) -> impl Iterator<Item = Handle<psi_typed_trees::domain::ProofFact>> {
+    (0..facts.count()).map(move |offset| {
+        Handle::from_parts(
+            facts
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("proof fact handle index overflow"),
+            facts.start().generation(),
+        )
+    })
+}
+
+fn contract_fact_kind(
+    kind: psi_typed_trees::signature::SignatureContractKind,
+) -> ContractProofFactKind {
+    match kind {
+        psi_typed_trees::signature::SignatureContractKind::Requires => {
+            ContractProofFactKind::Requires
+        }
+        psi_typed_trees::signature::SignatureContractKind::Ensures => {
+            ContractProofFactKind::Ensures
+        }
+        psi_typed_trees::signature::SignatureContractKind::Boundary => {
+            ContractProofFactKind::Boundary
+        }
+    }
+}
+
+pub(crate) use contracts::contract_target_from_state_symbol;

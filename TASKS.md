@@ -1051,6 +1051,10 @@ improvements do not change public identity.
   the separate Omega provider-admission subsystem.
   `psi-proof` owns source proof-surface collection, obligation planning, and
   checking; `omega-proof` is now only a compatibility export.
+  `psi-typed-trees-to-checked-trees` owns semantic checking and checked-fact
+  construction; the old Omega package is a compatibility export. Boundary
+  provider approval now runs explicitly in Omega orchestration after the Psi
+  check instead of entering the checker dependency graph.
   `psi-effects` owns operational ceilings, service reach, synchronous
   invocation inference, and capability-flow facts. Provider declarations,
   target/provider bindings, approval, installation, and the exact selected-plan

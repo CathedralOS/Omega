@@ -397,7 +397,7 @@ impl Compiler {
         // including for generic trust receipts emitted before checked
         // lowering. Bind it on the typed tree before snapshots and lockfile
         // fingerprints consume the declaration graph.
-        omega_typed_trees_to_checked_trees::normalize_open_index_identities(&mut typed)?;
+        psi_typed_trees_to_checked_trees::normalize_open_index_identities(&mut typed)?;
         // BUILD CONFIG (build_and_package_model.md): image facts from
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
@@ -416,7 +416,7 @@ impl Compiler {
         // intrinsics (`hlt`, port I/O) are permitted only in a FREESTANDING
         // boundary root. The gate lives here because it consumes a
         // BuildConfig fact the typed->checked validations never see.
-        omega_typed_trees_to_checked_trees::validate_asm_discharge(
+        psi_typed_trees_to_checked_trees::validate_asm_discharge(
             &typed,
             build_config.freestanding,
         )?;
