@@ -25,6 +25,7 @@ const POLICY: &str = r#"
 use omega::language::std::calling;
 
 data NoResultPolicy { }
+NoResultPolicy satisfies CallingPolicy;
 
 machine NoResultPolicy::plan(
     signature: BoundarySignature
@@ -64,6 +65,7 @@ use omega::language::std::calling;
 use omega::language::core::interrupt;
 
 data X86InterruptPolicy { }
+X86InterruptPolicy satisfies CallingPolicy;
 
 machine X86InterruptPolicy::plan(
     signature: BoundarySignature
@@ -519,6 +521,7 @@ fn full_width_unsigned_calling_values_are_not_reinterpreted_as_signed() {
 use omega::language::std::calling;
 
 data FullWidthPolicy { }
+FullWidthPolicy satisfies CallingPolicy;
 machine FullWidthPolicy::plan(
     signature: BoundarySignature
 ) -> BoundaryPlanResult
@@ -609,7 +612,7 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
 fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
     let source = POLICY.replace(
         "boundary trait Tick: Calling<NoResultPolicy> {\n    machine tick();\n}",
-        "boundary trait Tick<C>: Calling<C> {\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick<NoResultPolicy>::tick {\n    self.count = 1;\n}",
+        "boundary trait Tick<C>: Calling<C>\nwhere C satisfies CallingPolicy\n{\n    machine tick(&mut self);\n}\n\ndata TickProvider { count: i64; }\nTickProvider satisfies Tick<NoResultPolicy>;\nmachine TickProvider::tick(&mut self) satisfies Tick<NoResultPolicy>::tick {\n    self.count = 1;\n}",
     );
     let main_path = write_program("generic-boundary-policy", &source);
     let checked = compile_to_checked(&main_path, None).expect("generic policy instance compiles");
@@ -652,7 +655,7 @@ fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
 fn uninstantiated_generic_boundary_does_not_publish_an_abi() {
     let source = POLICY.replace(
         "boundary trait Tick: Calling<NoResultPolicy> {",
-        "boundary trait Tick<C>: Calling<C> {",
+        "boundary trait Tick<C>: Calling<C>\nwhere C satisfies CallingPolicy\n{",
     );
     let main_path = write_program("uninstantiated-generic-boundary", &source);
     let checked = compile_to_checked(&main_path, None).expect("generic declaration compiles");
@@ -679,6 +682,7 @@ data Pair {
 }
 
 data RecursiveShapePolicy { }
+RecursiveShapePolicy satisfies CallingPolicy;
 
 machine RecursiveShapePolicy::plan(
     signature: BoundarySignature
