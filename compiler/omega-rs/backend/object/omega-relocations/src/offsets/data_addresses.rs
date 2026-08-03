@@ -3,6 +3,8 @@ use omega_calling_conventions::HostOperationKey;
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::InstructionOperandLike;
 
+use super::CallPlanSource;
+
 /// The fixup-relevant shape of a field-model (vtable/table-function) call:
 /// whether the receiver is a wire argument and whether a result place leads
 /// the operands. Computed from the binding mechanism at collection.
@@ -24,7 +26,7 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
     authored_import: bool,
     authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
-    data_address_relocation_offset_for_target_optional_plan(
+    data_address_relocation_offset_for_target_for_plan(
         target,
         operation_key,
         operands,
@@ -33,7 +35,7 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
         is_syscall,
         field_model_shape,
         authored_import,
-        Some(authoritative_plan),
+        CallPlanSource::Authoritative(authoritative_plan),
     )
 }
 
@@ -48,7 +50,7 @@ pub(crate) fn data_address_relocation_offset_for_target_no_plan(
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
 ) -> usize {
-    data_address_relocation_offset_for_target_optional_plan(
+    data_address_relocation_offset_for_target_for_plan(
         target,
         operation_key,
         operands,
@@ -57,12 +59,12 @@ pub(crate) fn data_address_relocation_offset_for_target_no_plan(
         is_syscall,
         field_model_shape,
         authored_import,
-        None,
+        CallPlanSource::CompatibilityOracle,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn data_address_relocation_offset_for_target_optional_plan(
+fn data_address_relocation_offset_for_target_for_plan(
     target: NativeTarget,
     operation_key: Option<HostOperationKey>,
     operands: &[InstructionOperand],
@@ -71,8 +73,9 @@ fn data_address_relocation_offset_for_target_optional_plan(
     is_syscall: bool,
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    plan_source: CallPlanSource<'_>,
 ) -> usize {
+    let authoritative_plan = plan_source.authoritative();
     if operand_index == 0
         && target.object_format != omega_target::ObjectFormat::Coff
         && operation_key.is_some_and(HostOperationKey::lowers_to_constant_result)
@@ -124,8 +127,8 @@ fn data_address_relocation_offset_for_target_optional_plan(
         && field_model_shape.is_none()
         && !is_syscall
         && let Some(operation_key) = operation_key
-        && let Some(site) = authoritative_plan
-            .and_then(|plan| {
+        && let Some(site) = match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_isa_x86_64::host_call_data_relocation_site_with_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     operation_key,
@@ -133,19 +136,20 @@ fn data_address_relocation_offset_for_target_optional_plan(
                     operand_index,
                     plan,
                 )
-            })
-            .or_else(|| {
+            }
+            CallPlanSource::CompatibilityOracle => {
                 omega_isa_x86_64::host_call_data_relocation_site_no_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     operation_key,
                     operands,
                     operand_index,
                 )
-            })
+            }
+        }
     {
         return selected_text_offset + site.byte_offset;
     }
-    data_address_relocation_offset_with_plan(
+    data_address_relocation_offset_for_plan(
         target.architecture,
         operation_key,
         operands,
@@ -154,7 +158,7 @@ fn data_address_relocation_offset_for_target_optional_plan(
         is_syscall,
         field_model_shape,
         authored_import,
-        authoritative_plan,
+        plan_source,
     )
 }
 
@@ -170,7 +174,7 @@ pub(crate) fn data_address_relocation_offset(
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
 ) -> usize {
-    data_address_relocation_offset_with_plan(
+    data_address_relocation_offset_for_plan(
         architecture,
         operation_key,
         operands,
@@ -179,12 +183,12 @@ pub(crate) fn data_address_relocation_offset(
         is_syscall,
         field_model_shape,
         authored_import,
-        None,
+        CallPlanSource::CompatibilityOracle,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-fn data_address_relocation_offset_with_plan(
+fn data_address_relocation_offset_for_plan(
     architecture: Architecture,
     operation_key: Option<HostOperationKey>,
     operands: &[InstructionOperand],
@@ -193,8 +197,9 @@ fn data_address_relocation_offset_with_plan(
     is_syscall: bool,
     field_model_shape: Option<FieldModelCallShape>,
     authored_import: bool,
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    plan_source: CallPlanSource<'_>,
 ) -> usize {
+    let authoritative_plan = plan_source.authoritative();
     let plan_returns_value = authoritative_plan.map(|plan| plan.result.is_some());
     let plan_returns_float = authoritative_plan
         .and_then(|plan| plan.result.as_ref())
@@ -209,8 +214,8 @@ fn data_address_relocation_offset_with_plan(
         && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_result)
     {
         let number = omega_calling_conventions::linux_clock_gettime_syscall_number(architecture);
-        let byte_offset = match authoritative_plan {
-            Some(plan) => {
+        let byte_offset = match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_instruction_selection::linux_timespec_result_relocation_byte_offset_with_plan(
                     architecture,
                     operands,
@@ -218,7 +223,7 @@ fn data_address_relocation_offset_with_plan(
                     plan,
                 )
             }
-            None => {
+            CallPlanSource::CompatibilityOracle => {
                 omega_instruction_selection::linux_timespec_result_relocation_byte_offset_no_plan(
                     architecture,
                     operands,
@@ -235,12 +240,12 @@ fn data_address_relocation_offset_with_plan(
         && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_argument)
     {
         let number = omega_calling_conventions::linux_nanosleep_syscall_number(architecture);
-        let byte_offset = match authoritative_plan {
-            Some(plan) =>
+        let byte_offset = match plan_source {
+            CallPlanSource::Authoritative(plan) =>
                 omega_instruction_selection::linux_timespec_argument_relocation_byte_offset_with_plan(
                     architecture, operands, number, plan,
                 ),
-            None =>
+            CallPlanSource::CompatibilityOracle =>
                 omega_instruction_selection::linux_timespec_argument_relocation_byte_offset_no_plan(
                     architecture, operands, number,
                 ),
@@ -256,8 +261,8 @@ fn data_address_relocation_offset_with_plan(
         // Linux syscall numbers fit one normalized immediate chunk on AArch64;
         // zero therefore has the same instruction width while avoiding a
         // second syscall-number table in the relocation planner.
-        && let Ok(byte_offset) = match authoritative_plan {
-            Some(plan) =>
+        && let Ok(byte_offset) = match plan_source {
+            CallPlanSource::Authoritative(plan) =>
                 omega_instruction_selection::value_syscall_relocation_byte_offset_with_plan(
                     architecture,
                     operands,
@@ -265,7 +270,7 @@ fn data_address_relocation_offset_with_plan(
                     0,
                     plan,
                 ),
-            None => omega_instruction_selection::value_syscall_relocation_byte_offset_no_plan(
+            CallPlanSource::CompatibilityOracle => omega_instruction_selection::value_syscall_relocation_byte_offset_no_plan(
                 architecture,
                 operands,
                 operand_index,
@@ -482,8 +487,8 @@ fn data_address_relocation_offset_with_plan(
             // walker, which sees the binding mechanism.
             || authored_import)
     {
-        let argument_placements = match authoritative_plan {
-            Some(plan) => {
+        let argument_placements = match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                     operation_key,
                     operands,
@@ -491,7 +496,7 @@ fn data_address_relocation_offset_with_plan(
                     plan,
                 )
             }
-            None => {
+            CallPlanSource::CompatibilityOracle => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
                     operation_key,
                     operands,
@@ -526,8 +531,9 @@ fn data_address_relocation_offset_with_plan(
                 0
             };
             let float_return_bytes = if plan_returns_float
-                || (authoritative_plan.is_none() && operation_key.returns_float())
-                || (authoritative_plan.is_none()
+                || (matches!(plan_source, CallPlanSource::CompatibilityOracle)
+                    && operation_key.returns_float())
+                || (matches!(plan_source, CallPlanSource::CompatibilityOracle)
                     && authored_import
                     && operands
                         .first()
@@ -561,8 +567,8 @@ fn data_address_relocation_offset_with_plan(
 
     if architecture == Architecture::Aarch64
         && let Some(operation_key) = operation_key
-        && let Ok(argument_placements) = match authoritative_plan {
-            Some(plan) => {
+        && let Ok(argument_placements) = match plan_source {
+            CallPlanSource::Authoritative(plan) => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                     operation_key,
                     operands,
@@ -570,7 +576,7 @@ fn data_address_relocation_offset_with_plan(
                     plan,
                 )
             }
-            None => {
+            CallPlanSource::CompatibilityOracle => {
                 omega_instruction_selection::normalized_aarch64_host_argument_placements_no_plan(
                     operation_key,
                     operands,
