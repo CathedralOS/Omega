@@ -968,7 +968,8 @@ Remaining:
   an optional plan to select that boundary. The duplicated `+8`/`+12`
   accounting and trailing-mode operation classifier are retired; and
 - delete compatibility fields after their final consumer migrates. The
-  vtable-field and service-table declared-parameter-count copies are retired;
+  vtable-field and service-table declared-parameter-count copies are retired,
+  including the unused source-extraction copy on `ExternalBindingRow`;
   result presence now comes from the retained wire plan plus the service
   table's explicit dispatch-only operand topology. Backend reports likewise
   render a missing retained plan explicitly instead of fabricating zero- or

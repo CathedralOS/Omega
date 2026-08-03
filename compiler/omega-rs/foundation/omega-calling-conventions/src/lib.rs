@@ -1120,11 +1120,6 @@ pub struct ExternalBindingRow {
     /// The attached provider data type that owns the table layout. Empty for
     /// free leaves and required for table-field bindings.
     pub table_type: String,
-    /// The bound trait method's DECLARED parameter count, read from the
-    /// boundary trait's signature at row extraction. The field-model
-    /// encoders compare it against a call's operand list to detect a
-    /// prepended result place. Zero for static mechanisms.
-    pub parameter_count: usize,
     /// Canonical source-selected plan for this concrete service method.
     pub boundary_entry_plan: Option<BoundaryEntryPlan>,
     pub binding: ExternalBindingKind,
@@ -2119,7 +2114,6 @@ mod binding_plan_tests {
             method: method.to_owned(),
             requirement_identity: String::new(),
             table_type: "ConsoleNativeProvider".to_owned(),
-            parameter_count: 1,
             boundary_entry_plan: None,
             binding: ExternalBindingKind::CompilerIntrinsic {
                 name: name.to_owned(),
@@ -2162,7 +2156,6 @@ mod binding_plan_tests {
             method: "convert".to_owned(),
             requirement_identity: identity.to_owned(),
             table_type: String::new(),
-            parameter_count: 1,
             boundary_entry_plan: None,
             binding: ExternalBindingKind::DllImport {
                 module: "convert.dll".to_owned(),
@@ -2489,7 +2482,6 @@ mod binding_plan_tests {
                 method: "invoke".to_owned(),
                 requirement_identity: String::new(),
                 table_type: String::new(),
-                parameter_count: 1,
                 boundary_entry_plan: Some(source_boundary.clone()),
                 binding: ExternalBindingKind::DllImport {
                     module: "source.dll".to_owned(),
