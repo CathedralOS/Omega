@@ -4,7 +4,7 @@ use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
-fn typed_program_from_source(source: &str) -> omega_typed_trees::TypedTrees {
+fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
     let source = format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
     let tokens = Lexer::new(&source)
         .tokenize()
@@ -335,7 +335,7 @@ fn explicit_lifetime_arguments_survive_typed_lowering_and_validate() {
         .expect("consume");
     let entry = &typed.machine_states(consume)[0];
     let parameter = &typed.state_parameters(entry)[0];
-    let omega_typed_trees::types::TypeReferenceNode::Generic {
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
         base_name,
         lifetime_arguments,
         arguments,
@@ -450,7 +450,7 @@ fn compiler_carry_permissions_are_subject_polymorphic_and_portable_is_canonical(
         .data_members(carrier)
         .iter()
         .filter_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field) => Some(field),
+            psi_typed_trees::data::DataMember::Field(field) => Some(field),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -506,7 +506,7 @@ fn transparent_domain_alias_may_expand_compiler_carry_portable() {
         .iter()
         .find(|parameter| parameter.name.as_str() == "token")
         .expect("token parameter");
-    let omega_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+    let psi_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
         .type_reference_table
         .type_reference(token.type_reference)
     else {
@@ -517,7 +517,7 @@ fn transparent_domain_alias_may_expand_compiler_carry_portable() {
         .constraints(*constraints)
         .iter()
         .map(|constraint| match constraint {
-            omega_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+            psi_typed_trees::types::TypeConstraintNode::Domain(domain) => {
                 domain.name.as_str().to_owned()
             }
             other => panic!("portable alias atom became {other:?}"),
@@ -1540,7 +1540,7 @@ fn higher_order_machine_parameter_refines_and_forwards_distinct_schema() {
         .expression_table
         .iter_expressions()
         .find_map(|(_, expression)| match expression {
-            omega_typed_trees::expression::ExpressionNode::Call(call)
+            psi_typed_trees::expression::ExpressionNode::Call(call)
                 if call.target.as_str() == "Schema" =>
             {
                 Some(call)
@@ -1697,9 +1697,9 @@ fn validates_local_state_call_arguments_from_source_pipeline() {
         .statements(entry.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            omega_typed_trees::statement::StatementNode::Call(call) => Some(call.arguments.len()),
-            omega_typed_trees::statement::StatementNode::Expression(expression) => {
-                let omega_typed_trees::expression::ExpressionNode::Call(call) =
+            psi_typed_trees::statement::StatementNode::Call(call) => Some(call.arguments.len()),
+            psi_typed_trees::statement::StatementNode::Expression(expression) => {
+                let psi_typed_trees::expression::ExpressionNode::Call(call) =
                     typed.expression_table.expression(*expression)
                 else {
                     return None;
@@ -1850,7 +1850,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
                 .any(|constraint| {
                     matches!(
                         constraint,
-                        omega_typed_trees::types::TypeConstraintNode::Domain(_)
+                        psi_typed_trees::types::TypeConstraintNode::Domain(_)
                     )
                 })
         })
@@ -1860,7 +1860,7 @@ fn declared_domain_constraint_with_missing_normalized_identity_fails_closed() {
         .constraints_mut(constraints)
         .iter_mut()
         .find_map(|constraint| match constraint {
-            omega_typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
+            psi_typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
             _ => None,
         })
         .expect("domain constraint");
@@ -3351,7 +3351,7 @@ mod effects_analysis {
         audit_boundary_provider_calls, build_boundary_provider_approval_registry,
         infer_operational_may, infer_service_reaches,
     };
-    use omega_typed_trees::TypedTrees;
+    use psi_typed_trees::TypedTrees;
 
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -3542,7 +3542,7 @@ mod effects_analysis {
 mod provider_registry {
     use omega_core::operator_spelling::ProviderCategory;
     use omega_effects::build_provider_registry;
-    use omega_syntax_trees::SyntaxTrees;
+    use psi_syntax_trees::SyntaxTrees;
 
     use psi_source_files_to_tokens::Lexer;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
@@ -4182,7 +4182,7 @@ mod provider_plan {
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
-    fn typed(source: &str) -> omega_typed_trees::TypedTrees {
+    fn typed(source: &str) -> psi_typed_trees::TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
@@ -4255,11 +4255,11 @@ mod provider_plan {
         assert_eq!(parents.len(), 2);
         assert_eq!(
             program.trait_composition_kind(&parents[0]),
-            Some(omega_typed_trees::trait_definition::TraitCompositionKind::ServiceReach)
+            Some(psi_typed_trees::trait_definition::TraitCompositionKind::ServiceReach)
         );
         assert_eq!(
             program.trait_composition_kind(&parents[1]),
-            Some(omega_typed_trees::trait_definition::TraitCompositionKind::Policy)
+            Some(psi_typed_trees::trait_definition::TraitCompositionKind::Policy)
         );
 
         let schema = ServiceSchema::from_typed(&program, timer).expect("boundary schema");

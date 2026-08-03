@@ -309,10 +309,6 @@ fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
     for (relative, expected_export) in [
         (
-            "compiler/omega-rs/representations/omega-syntax-trees/src/lib.rs",
-            "pub use psi_syntax_trees::*;",
-        ),
-        (
             "compiler/omega-rs/representations/omega-typed-trees/src/lib.rs",
             "pub use psi_typed_trees::*;",
         ),
@@ -553,6 +549,7 @@ fn retired_omega_frontend_adapters_do_not_return() {
         "compiler/omega-rs/pipeline/omega-typed-trees-to-checked-trees",
         "compiler/omega-rs/representations/omega-tokens",
         "compiler/omega-rs/representations/omega-symbol-resolved-trees",
+        "compiler/omega-rs/representations/omega-syntax-trees",
     ] {
         assert!(
             !root.join(relative).join("Cargo.toml").exists(),
