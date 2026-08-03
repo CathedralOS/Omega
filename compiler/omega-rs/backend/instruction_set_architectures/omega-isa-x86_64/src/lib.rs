@@ -4861,9 +4861,17 @@ fn validate_win64_call_plan_operand_shapes<T: InstructionOperandLike>(
     result_index: Option<usize>,
     arg_start: usize,
 ) -> Result<(), Diagnostic> {
-    let parameters = operands
+    let arguments = operands
         .get(arg_start..)
-        .ok_or_else(|| Diagnostic::error("Microsoft x64 call has no argument slice"))?
+        .ok_or_else(|| Diagnostic::error("Microsoft x64 call has no argument slice"))?;
+    if arguments.len() != plan.parameters.len() {
+        return Err(Diagnostic::error(format!(
+            "Microsoft x64 source calling plan has {} parameter(s) for {} selected argument(s)",
+            plan.parameters.len(),
+            arguments.len()
+        )));
+    }
+    let parameters = arguments
         .iter()
         .zip(&plan.parameters)
         .map(|(operand, placement)| win64_operand_shape_for_plan(operand, placement))
@@ -6606,9 +6614,14 @@ fn win64_import_call_relocation_sites_for_plan<T: InstructionOperandLike>(
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
     let plan = match plan_source {
-        HostCallPlan::Authoritative(plan) => (validate_win64_encoder_plan(plan).is_ok()
-            && validate_win64_plan_operand_shapes(plan, operands, returns_value).is_ok())
-        .then(|| plan.clone()),
+        HostCallPlan::Authoritative(plan) => {
+            if validate_win64_encoder_plan(plan).is_err()
+                || validate_win64_plan_operand_shapes(plan, operands, returns_value).is_err()
+            {
+                return Vec::new();
+            }
+            Some(plan.clone())
+        }
         HostCallPlan::CompatibilityOracle => {
             normalized_win64_import_plan(operands, returns_value).ok()
         }

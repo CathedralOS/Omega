@@ -55,23 +55,8 @@ fn external_call_relocation_offset_for_plan<T: InstructionOperandLike>(
         .map(|plan| plan.result.is_some())
         .unwrap_or_else(|| operation_key.returns_value());
     if architecture == Architecture::X86_64
-        && let Some(site) = match plan_source {
-            CallPlanSource::Authoritative(plan) => {
-                omega_isa_x86_64::host_call_external_relocation_site_with_plan(
-                    omega_calling_conventions::CallingPolicy::native_for_target(target),
-                    operation_key,
-                    operands,
-                    plan,
-                )
-            }
-            CallPlanSource::CompatibilityOracle => {
-                omega_isa_x86_64::host_call_external_relocation_site_no_plan(
-                    omega_calling_conventions::CallingPolicy::native_for_target(target),
-                    operation_key,
-                    operands,
-                )
-            }
-        }
+        && let Some(site) =
+            x86_host_external_relocation_site_for_plan(target, operation_key, operands, plan_source)
     {
         return selected_text_offset + site.byte_offset;
     }
@@ -158,6 +143,31 @@ fn external_call_relocation_offset_for_plan<T: InstructionOperandLike>(
         }
 }
 
+fn x86_host_external_relocation_site_for_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    plan_source: CallPlanSource<'_>,
+) -> Option<omega_isa_x86_64::X86_64RelocationSite> {
+    match plan_source {
+        CallPlanSource::Authoritative(plan) => {
+            omega_isa_x86_64::host_call_external_relocation_site_with_plan(
+                omega_calling_conventions::CallingPolicy::native_for_target(target),
+                operation_key,
+                operands,
+                plan,
+            )
+        }
+        CallPlanSource::CompatibilityOracle => {
+            omega_isa_x86_64::host_call_external_relocation_site_no_plan(
+                omega_calling_conventions::CallingPolicy::native_for_target(target),
+                operation_key,
+                operands,
+            )
+        }
+    }
+}
+
 pub(crate) fn external_call_relocation_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 4,
@@ -174,8 +184,10 @@ pub(crate) fn external_call_relocation_kind(architecture: Architecture) -> Reloc
 
 #[cfg(test)]
 mod tests {
+    use super::super::CallPlanSource;
     use super::{
         external_call_relocation_offset_no_plan, external_call_relocation_offset_with_plan,
+        x86_host_external_relocation_site_for_plan,
     };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
     use omega_calling_conventions::{
@@ -259,6 +271,41 @@ mod tests {
             ),
             66
         );
+    }
+
+    #[test]
+    fn invalid_authoritative_plan_does_not_retry_the_compatibility_oracle() {
+        let operands = [InstructionOperand {
+            kind: InstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_count: 4,
+            },
+        }];
+        let operation = HostOperationKey::new(HostCapability::Process, HostOperation::ExitProcess);
+        let invalid = evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .expect("zero-parameter Microsoft x64 plan");
+        let compatibility = x86_host_external_relocation_site_for_plan(
+            NativeTarget::windows_x64(),
+            operation,
+            &operands,
+            CallPlanSource::CompatibilityOracle,
+        );
+        let authoritative = x86_host_external_relocation_site_for_plan(
+            NativeTarget::windows_x64(),
+            operation,
+            &operands,
+            CallPlanSource::Authoritative(&invalid),
+        );
+
+        assert!(compatibility.is_some());
+        assert!(authoritative.is_none());
     }
 
     #[test]
