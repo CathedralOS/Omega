@@ -1565,9 +1565,11 @@ move it to a convenience library.
   frontiers cross the same way, can accumulate over several states, and survive
   disjoint sibling mutation; overlapping or dynamically indexed mutation, a
   missing predecessor fact, or an opaque statement call clears the affected
-  shortcut. Parameter-backed storage, runtime-indexed cross-state propagation,
-  call mutation summaries, and general state-parameter loan-root rebasing
-  remain.
+  shortcut. Complete R5 statement/value-call frames now preserve paths proven
+  disjoint or read-only and invalidate only overlapping paths; unresolved
+  frames remain opaque. Parameter-backed storage, runtime-indexed cross-state
+  propagation, broader exact R5 summaries, and general state-parameter
+  loan-root rebasing remain.
 - Implement constant data parameters after their identity/coherence rules are
   pinned by existing generic machinery.
 - Implement local dynamic traits as two-word borrowed descriptors selecting one
