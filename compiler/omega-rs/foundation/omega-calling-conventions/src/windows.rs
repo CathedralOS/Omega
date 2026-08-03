@@ -697,15 +697,13 @@ fn windows_import(
     symbol: &str,
     policy: &std::sync::Arc<str>,
 ) -> HostBinding {
+    let signature = windows_fixed_import_signature(capability, operation)
+        .expect("every built-in Windows import must have a fixed native signature");
     let boundary_entry_plan =
-        windows_fixed_import_signature(capability, operation).map(|signature| {
-            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
-                .expect(
-                    "the fixed built-in Windows import signature must have a Microsoft x64 plan",
-                )
-                .plan()
-                .clone()
-        });
+        evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
+            .expect("the fixed built-in Windows import signature must have a Microsoft x64 plan")
+            .plan()
+            .clone();
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {

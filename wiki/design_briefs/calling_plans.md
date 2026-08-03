@@ -954,7 +954,10 @@ publish only its contract fingerprint. Outbound binding construction projects
 the `CallPlan`; inbound stub construction can therefore recover the associated
 `StatePlan` without re-evaluating policy source or trying to infer state
 obligations from the fingerprint. The selected `ExternalBindingRow` and backend
-`HostBinding` retain that complete plan too. Existing emission, layout, and
+`HostBinding` retain that complete plan too. `HostBinding` is structurally
+plan-bearing; optionality exists only on a pre-selection external row, which
+must either select an existing compiler intrinsic or acquire an evaluated plan
+before entering the host ABI plan. Existing emission, layout, and
 relocation consumers borrow only its call half, so the selected state policy
 reaches the backend without creating a parallel lowering table. External
 bindings resolve through the same complete-plan API and project their outbound
@@ -1033,9 +1036,9 @@ through machine emission, layout, and x86-64 relocation accounting instead of
 reconstructing placement at those consumers. Direct scalar Windows x64 and
 macOS arm64 calls have the same byte/width differential lock as authored
 imports, and the Windows x64 comparison includes the call, argument, and result
-relocation sites. Machine emission now rejects a selected built-in import whose
-plan is absent instead of reaching the catalog-shaped compatibility encoder;
-the no-plan route remains only an explicit differential oracle. The lock now
+relocation sites. A selected built-in import cannot represent an absent plan;
+unresolved external rows reject before host binding construction, and the
+no-plan route remains only an explicit differential oracle. The lock now
 also covers void imports, the errno-style
 pointer-result dereference tail, Windows key-state postprocessing, and AAPCS64
 scalar-float arguments/results. The obsolete semantic-operation classifier for
@@ -1055,9 +1058,10 @@ outer source binding plan.
 
 The object relocation walk independently sends every ordinary selected import
 and its exact operands through that retained plan's encoder before accepting
-call or data offsets. A missing or incompatible import plan therefore rejects
-relocation planning instead of letting offset helpers reconstruct catalog- or
-architecture-shaped placement. Compiler-materialized host constants remain
+call or data offsets. An incompatible import plan therefore rejects relocation
+planning instead of letting offset helpers reconstruct catalog- or
+architecture-shaped placement; absence is excluded by the selected binding
+carrier itself. Compiler-materialized host constants remain
 outside this rule because they have no foreign call or selected binding.
 
 The unused x86-64 call/data relocation wrappers that silently selected

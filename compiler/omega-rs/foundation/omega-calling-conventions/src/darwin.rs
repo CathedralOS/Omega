@@ -1039,7 +1039,7 @@ fn darwin_typed_import(
             symbol: symbol.into(),
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: Some(boundary_entry_plan),
+        boundary_entry_plan,
     }
 }
 
@@ -1083,6 +1083,6 @@ fn darwin_open_create_import(policy: &std::sync::Arc<str>) -> HostBinding {
             symbol: "_open".into(),
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: Some(boundary_entry_plan),
+        boundary_entry_plan,
     }
 }

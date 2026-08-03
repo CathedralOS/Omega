@@ -658,7 +658,7 @@ fn linux_clock_gettime_syscall(
             number,
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: Some(boundary_entry_plan),
+        boundary_entry_plan,
     }
 }
 
@@ -689,7 +689,7 @@ fn linux_timespec_syscall(
             number,
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: Some(boundary_entry_plan),
+        boundary_entry_plan,
     }
 }
 
@@ -722,7 +722,7 @@ fn linux_value_syscall(
             number,
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: Some(boundary_entry_plan),
+        boundary_entry_plan,
     }
 }
 
@@ -753,6 +753,6 @@ fn linux_void_syscall(
             number,
         },
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: Some(boundary_entry_plan),
+        boundary_entry_plan,
     }
 }

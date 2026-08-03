@@ -819,9 +819,10 @@ Remaining:
   vtable-field and service-table declared-parameter-count copies are retired,
   including the unused source-extraction copy on `ExternalBindingRow`;
   result presence now comes from the retained wire plan plus the service
-  table's explicit dispatch-only operand topology. Backend reports likewise
-  render a missing retained plan explicitly instead of fabricating zero- or
-  one-parameter legacy arity.
+  table's explicit dispatch-only operand topology. A selected `HostBinding`
+  now structurally owns one complete `BoundaryEntryPlan`; unresolved external
+  rows reject before entering the host ABI plan, and backend reports derive
+  arity directly from the required call half.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing
 only policy source while producing the same canonical plan preserves contract

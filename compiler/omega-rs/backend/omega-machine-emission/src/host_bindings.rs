@@ -55,7 +55,7 @@ pub(super) fn windows_get_std_handle_plan<'plan>(
     let get_std_handle_key =
         HostOperationKey::new(operation_key.capability, HostOperation::GetStdHandle);
     host_binding(input, get_std_handle_key)
-        .and_then(HostBinding::call_plan)
+        .map(HostBinding::call_plan)
         .map(Some)
         .ok_or_else(|| {
             Diagnostic::error(format!(
@@ -71,13 +71,7 @@ pub(super) fn runtime_text_call_plans<'plan>(
     operation_key: HostOperationKey,
     binding: &'plan HostBinding,
 ) -> Result<omega_instruction_selection::RuntimeTextCallPlans<'plan>, Diagnostic> {
-    let operation_plan = binding.call_plan().ok_or_else(|| {
-        Diagnostic::error(format!(
-            "runtime text operation {}.{} has no retained call plan",
-            operation_key.capability_name(),
-            operation_key.operation_name()
-        ))
-    })?;
+    let operation_plan = binding.call_plan();
     match windows_get_std_handle_plan(input, operation_key)? {
         Some(get_std_handle) => Ok(
             omega_instruction_selection::RuntimeTextCallPlans::WindowsFileAdapter {

@@ -54,18 +54,14 @@ pub(super) fn encode_host_operation(
                 operands,
                 *index,
                 binding
-                    .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    .ok_or_else(|| {
-                        Diagnostic::error("selected vtable-slot binding has no evaluated call plan")
-                    })?,
+                    .map(omega_calling_conventions::HostBinding::call_plan)
+                    .expect("the matched vtable-slot binding is plan-bearing"),
             )
         }
         Some(HostBindingMechanism::VtableField { byte_offset, .. }) => {
             let plan = binding
-                .and_then(omega_calling_conventions::HostBinding::call_plan)
-                .ok_or_else(|| {
-                    Diagnostic::error("selected vtable-field binding has no evaluated call plan")
-                })?;
+                .map(omega_calling_conventions::HostBinding::call_plan)
+                .expect("the matched vtable-field binding is plan-bearing");
             architecture::encode_vtable_call_sequence_at_offset_with_plan(
                 input.target,
                 operands,
@@ -76,10 +72,8 @@ pub(super) fn encode_host_operation(
         }
         Some(HostBindingMechanism::TableFunction { byte_offset, .. }) => {
             let plan = binding
-                .and_then(omega_calling_conventions::HostBinding::call_plan)
-                .ok_or_else(|| {
-                    Diagnostic::error("selected table-function binding has no evaluated call plan")
-                })?;
+                .map(omega_calling_conventions::HostBinding::call_plan)
+                .expect("the matched table-function binding is plan-bearing");
             architecture::encode_table_function_call_sequence_with_plan(
                 input.target,
                 operands,
@@ -99,12 +93,8 @@ pub(super) fn encode_host_operation(
                 input.target,
                 operands,
                 binding
-                    .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "selected authored-import binding has no evaluated call plan",
-                        )
-                    })?,
+                    .map(omega_calling_conventions::HostBinding::call_plan)
+                    .expect("the matched authored-import binding is plan-bearing"),
             )
         }
         Some(HostBindingMechanism::Import { .. }) => {
@@ -127,18 +117,16 @@ fn required_import_call_plan(
     binding: Option<&omega_calling_conventions::HostBinding>,
 ) -> Result<&omega_calling_conventions::CallPlan, Diagnostic> {
     binding
-        .and_then(omega_calling_conventions::HostBinding::call_plan)
-        .ok_or_else(|| {
-            Diagnostic::error("selected built-in import binding has no evaluated call plan")
-        })
+        .map(omega_calling_conventions::HostBinding::call_plan)
+        .ok_or_else(|| Diagnostic::error("built-in import has no selected host binding"))
 }
 
 fn required_syscall_call_plan(
     binding: Option<&omega_calling_conventions::HostBinding>,
 ) -> Result<&omega_calling_conventions::CallPlan, Diagnostic> {
     binding
-        .and_then(omega_calling_conventions::HostBinding::call_plan)
-        .ok_or_else(|| Diagnostic::error("selected syscall binding has no evaluated call plan"))
+        .map(omega_calling_conventions::HostBinding::call_plan)
+        .ok_or_else(|| Diagnostic::error("syscall has no selected host binding"))
 }
 
 #[cfg(test)]
@@ -146,24 +134,17 @@ mod tests {
     use super::{required_import_call_plan, required_syscall_call_plan};
 
     #[test]
-    fn built_in_import_cannot_reconstruct_a_missing_plan() {
-        let binding = omega_calling_conventions::HostBinding::default();
-        let error = required_import_call_plan(Some(&binding))
-            .expect_err("an import without a retained plan must reject");
+    fn built_in_import_requires_a_selected_binding() {
+        let error = required_import_call_plan(None).expect_err("a missing binding must reject");
         assert_eq!(
             error.message,
-            "selected built-in import binding has no evaluated call plan"
+            "built-in import has no selected host binding"
         );
     }
 
     #[test]
-    fn syscall_cannot_reconstruct_a_missing_plan() {
-        let binding = omega_calling_conventions::HostBinding::default();
-        let error = required_syscall_call_plan(Some(&binding))
-            .expect_err("a syscall without a retained plan must reject");
-        assert_eq!(
-            error.message,
-            "selected syscall binding has no evaluated call plan"
-        );
+    fn syscall_requires_a_selected_binding() {
+        let error = required_syscall_call_plan(None).expect_err("a missing binding must reject");
+        assert_eq!(error.message, "syscall has no selected host binding");
     }
 }
