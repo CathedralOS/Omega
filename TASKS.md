@@ -486,12 +486,13 @@ remains implementation work.
   requests now retain the logical field fragments separately from the complete
   concrete transfer footprint; the foundation conflict judgment shares
   repeatable reads and exact same-container atomics while rejecting destructive,
-  write/RMW, and mixed-width overlapping atomic events. Plan validation also
-  requires a destructive accessor to cover its whole transfer container and
+  write/RMW, and mixed-width overlapping atomic events. Plan validation rejects
+  overlapping atomic fields that select different transfer granularities,
+  requires a destructive accessor to cover its whole transfer container, and
   rejects a second accessor overlapping that one-shot snapshot; generic
   External writes likewise reject when the logical field does not cover the
   complete transfer container. Qualified-borrow admission, placed-content
-  establishment/retirement, and compiler view-set integration of those
+  establishment/retirement, and compiler view-set integration of cross-view
   footprint conflicts remain implementation work rather than language-design
   blockers.
 - Publish one sealed `omega::core` requirement per atomic operation. Use shared
