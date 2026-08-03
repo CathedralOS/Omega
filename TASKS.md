@@ -834,6 +834,9 @@ Remaining:
   retains its one-argument/no-result plan. The matching Darwin `Stdin::read`,
   `Stdout::write`, and `Stderr::write` rows retain their three-word/result
   AAPCS64 plan too, and `Process::exit` retains its one-word/no-result plan.
+  Darwin's fixed `lround`, `sqrt`, `hypot`, and `fma` rows likewise retain
+  their exact F64 parameter and F64/I64 result plans instead of asking the
+  encoder to reconstruct vector-register placement.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized

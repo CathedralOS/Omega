@@ -1631,6 +1631,75 @@ mod binding_plan_tests {
     }
 
     #[test]
+    fn darwin_math_bindings_retain_exact_float_import_plans() {
+        let plan = build_host_abi_plan(NativeTarget::macos_arm64());
+        for (operation, symbol, parameters, result) in [
+            (
+                HostOperation::RoundNearest,
+                "_lround",
+                vec![ValueShape::float(8)],
+                ValueShape::integer(8, 8),
+            ),
+            (
+                HostOperation::SquareRoot,
+                "_sqrt",
+                vec![ValueShape::float(8)],
+                ValueShape::float(8),
+            ),
+            (
+                HostOperation::Hypotenuse,
+                "_hypot",
+                vec![ValueShape::float(8); 2],
+                ValueShape::float(8),
+            ),
+            (
+                HostOperation::FusedMultiplyAdd,
+                "_fma",
+                vec![ValueShape::float(8); 3],
+                ValueShape::float(8),
+            ),
+        ] {
+            let (_, binding) = plan
+                .bindings
+                .iter()
+                .find(|(_, binding)| {
+                    binding.operation_key.capability == HostCapability::Math
+                        && binding.operation_key.operation == operation
+                })
+                .expect("built-in Darwin math binding");
+            assert!(matches!(
+                binding.mechanism,
+                HostBindingMechanism::Import {
+                    symbol: ref actual_symbol,
+                    ..
+                } if actual_symbol.as_ref() == symbol
+            ));
+            let boundary = binding
+                .boundary_entry_plan
+                .as_ref()
+                .expect("fixed Darwin libm signature must retain its plan");
+            assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
+            assert_eq!(
+                boundary
+                    .call
+                    .parameters
+                    .iter()
+                    .map(|placement| placement.shape)
+                    .collect::<Vec<_>>(),
+                parameters
+            );
+            assert_eq!(
+                boundary
+                    .call
+                    .result
+                    .as_ref()
+                    .map(|placement| placement.shape),
+                Some(result)
+            );
+        }
+    }
+
+    #[test]
     fn compiler_intrinsic_selects_only_an_exact_existing_target_lowering() {
         let row = |name: &str, method: &str| ExternalBindingRow {
             target_name: "macos_arm64".to_owned(),
