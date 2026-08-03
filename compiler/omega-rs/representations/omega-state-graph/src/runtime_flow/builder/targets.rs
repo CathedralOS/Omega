@@ -1,8 +1,8 @@
 use super::RuntimeFlowBuilder;
 use crate::{CallContext, RuntimeTransitionTarget};
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
-use omega_core::symbols::SymbolHandle;
 use psi_diagnostics::Diagnostic;
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::name::Identifier;
 
 impl RuntimeFlowBuilder<'_> {

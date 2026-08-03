@@ -53,7 +53,7 @@ pub(in crate::selection) fn dispatch_receiver_base(
 pub(in crate::selection) fn receiver_base_for(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    source_machine: omega_core::symbols::SymbolHandle,
+    source_machine: psi_symbols::SymbolHandle,
 ) -> Option<usize> {
     let state = input
         .runtime_flow
@@ -189,7 +189,7 @@ type ParamEnv = Vec<(psi_checked_trees::name::Identifier, usize)>;
 /// foreign-data self calls, unresolved paths, unbound params).
 fn call_receiver_base(
     input: &InstructionSelectionInput<'_>,
-    source_machine: omega_core::symbols::SymbolHandle,
+    source_machine: psi_symbols::SymbolHandle,
     call: &omega_state_calls::StateCall,
     base: usize,
     env: &ParamEnv,
@@ -248,7 +248,7 @@ fn call_receiver_base(
 /// blocking that shape.
 fn descend_param_env(
     input: &InstructionSelectionInput<'_>,
-    source_machine: omega_core::symbols::SymbolHandle,
+    source_machine: psi_symbols::SymbolHandle,
     call: &omega_state_calls::StateCall,
     base: usize,
     env: &ParamEnv,
@@ -338,7 +338,7 @@ fn collect_expression_path_segments<'table>(
 
 fn attached_data_of<'plan>(
     input: &'plan InstructionSelectionInput<'_>,
-    machine: omega_core::symbols::SymbolHandle,
+    machine: psi_symbols::SymbolHandle,
 ) -> Option<&'plan str> {
     input
         .layouts

@@ -22,7 +22,7 @@ use super::build_time_admission::BuildTimeAdmissionPlan;
 
 struct PendingMembership {
     fact: Handle<ProofFact>,
-    data_symbol: omega_core::symbols::SymbolHandle,
+    data_symbol: psi_symbols::SymbolHandle,
     instance_name: String,
     membership: ProofMembershipFact,
 }
@@ -245,7 +245,7 @@ fn evaluate_domain_facts(
     admission: &BuildTimeAdmissionPlan,
     domain: &psi_typed_trees::domain::DomainDefinition,
     self_value: i64,
-    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> Result<Option<bool>, String> {
     for fact in typed.proof_facts.span_or_empty(domain.facts) {
         match fact {
@@ -299,9 +299,9 @@ fn evaluate_domain_facts(
 fn evaluate_nested_domain_membership(
     typed: &TypedTrees,
     admission: &BuildTimeAdmissionPlan,
-    domain_symbol: omega_core::symbols::SymbolHandle,
+    domain_symbol: psi_symbols::SymbolHandle,
     self_value: i64,
-    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> Result<Option<bool>, String> {
     if visiting.contains(&domain_symbol) {
         return Ok(None);

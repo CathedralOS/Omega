@@ -258,9 +258,9 @@ impl ServiceSchema {
 fn collect_service_methods(
     program: &psi_typed_trees::TypedTrees,
     trait_definition: &psi_typed_trees::trait_definition::TraitDefinition,
-    policy_owner: omega_core::symbols::SymbolHandle,
+    policy_owner: psi_symbols::SymbolHandle,
     boundary_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
-    visited: &mut Vec<omega_core::symbols::SymbolHandle>,
+    visited: &mut Vec<psi_symbols::SymbolHandle>,
     methods: &mut Vec<ServiceMethod>,
 ) {
     if visited.contains(&trait_definition.symbol) {
@@ -400,8 +400,8 @@ fn service_result_claims(
 fn append_bodyless_result_claims(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
-    boundary_trait: omega_core::symbols::SymbolHandle,
-    requirement: omega_core::symbols::SymbolHandle,
+    boundary_trait: psi_symbols::SymbolHandle,
+    requirement: psi_symbols::SymbolHandle,
     claims: &mut Vec<ServiceResultClaim>,
 ) {
     use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -453,8 +453,8 @@ fn append_bodyless_entry_claims(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
     parameter_index: usize,
-    boundary_trait: omega_core::symbols::SymbolHandle,
-    requirement: omega_core::symbols::SymbolHandle,
+    boundary_trait: psi_symbols::SymbolHandle,
+    requirement: psi_symbols::SymbolHandle,
     claims: &mut Vec<ServiceEntryClaim>,
 ) {
     use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};

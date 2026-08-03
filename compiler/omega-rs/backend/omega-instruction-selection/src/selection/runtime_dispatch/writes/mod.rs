@@ -29,7 +29,6 @@ use omega_abstract_operations::{
 };
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use psi_checked_trees::expression::{
@@ -37,6 +36,7 @@ use psi_checked_trees::expression::{
     TableMemberExpression,
 };
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 pub(crate) use static_values::RuntimeStaticValues;
 use static_values::invalidate_runtime_static_value_in_table;
 

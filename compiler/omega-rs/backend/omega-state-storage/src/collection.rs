@@ -4,7 +4,6 @@ use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_core::symbols::SymbolHandle;
 use omega_state_values::simplify_state_expression;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
@@ -16,6 +15,7 @@ use psi_checked_trees::statement::{
     StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode,
 };
 use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(

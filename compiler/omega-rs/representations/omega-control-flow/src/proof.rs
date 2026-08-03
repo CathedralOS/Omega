@@ -1,4 +1,4 @@
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ProofFactKind {

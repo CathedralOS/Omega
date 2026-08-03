@@ -1,11 +1,11 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableIndexedExpression, TableNamePath,
 };
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 use super::storage_places::indexed_expression_path;
 use omega_runtime_branching::{

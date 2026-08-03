@@ -34,10 +34,10 @@ pub struct SelectedExternalRootEntryFactBinding {
     parameter_index: usize,
     domain: String,
     effective_carry: psi_language_semantics::CarryPolicy,
-    implementation_machine: omega_core::symbols::SymbolHandle,
-    implementation_state: omega_core::symbols::SymbolHandle,
-    parameter_symbol: omega_core::symbols::SymbolHandle,
-    domain_symbol: omega_core::symbols::SymbolHandle,
+    implementation_machine: psi_symbols::SymbolHandle,
+    implementation_state: psi_symbols::SymbolHandle,
+    parameter_symbol: psi_symbols::SymbolHandle,
+    domain_symbol: psi_symbols::SymbolHandle,
     checked_fact: psi_facts::FactHandle,
 }
 
@@ -52,7 +52,7 @@ pub struct SelectedExternalRootEntryFactBinding {
 pub struct AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
     occurrence: &'entry omega_external_roots::AdmittedEntryQualification,
     checked_fact: psi_facts::FactHandle,
-    parameter_symbol: omega_core::symbols::SymbolHandle,
+    parameter_symbol: psi_symbols::SymbolHandle,
     storage: &'storage omega_instruction_selection::DerivedBoundaryEntryParameterStorage,
 }
 
@@ -65,7 +65,7 @@ impl<'entry, 'storage> AdmittedExternalRootEntryFactHandoff<'entry, 'storage> {
         self.checked_fact
     }
 
-    pub const fn parameter_symbol(&self) -> omega_core::symbols::SymbolHandle {
+    pub const fn parameter_symbol(&self) -> psi_symbols::SymbolHandle {
         self.parameter_symbol
     }
 
@@ -97,19 +97,19 @@ impl SelectedExternalRootEntryFactBinding {
         self.effective_carry
     }
 
-    pub const fn implementation_machine(&self) -> omega_core::symbols::SymbolHandle {
+    pub const fn implementation_machine(&self) -> psi_symbols::SymbolHandle {
         self.implementation_machine
     }
 
-    pub const fn implementation_state(&self) -> omega_core::symbols::SymbolHandle {
+    pub const fn implementation_state(&self) -> psi_symbols::SymbolHandle {
         self.implementation_state
     }
 
-    pub const fn parameter_symbol(&self) -> omega_core::symbols::SymbolHandle {
+    pub const fn parameter_symbol(&self) -> psi_symbols::SymbolHandle {
         self.parameter_symbol
     }
 
-    pub const fn domain_symbol(&self) -> omega_core::symbols::SymbolHandle {
+    pub const fn domain_symbol(&self) -> psi_symbols::SymbolHandle {
         self.domain_symbol
     }
 
@@ -418,7 +418,7 @@ fn selected_operator_provider_identity(
     checked: &psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
-    operator_symbol: omega_core::symbols::SymbolHandle,
+    operator_symbol: psi_symbols::SymbolHandle,
 ) -> Result<Option<u64>, psi_diagnostics::Diagnostic> {
     let Some(operator) = checked
         .typed
@@ -732,7 +732,7 @@ fn expected_float_intrinsic(
 
 fn evidence_source_names_boundary(
     checked: &psi_checked_trees::CheckedTrees,
-    source_symbol: omega_core::symbols::SymbolHandle,
+    source_symbol: psi_symbols::SymbolHandle,
     boundary_name: &str,
 ) -> bool {
     if checked.typed.traits().iter().any(|definition| {
@@ -2085,9 +2085,9 @@ mod tests {
 
     #[test]
     fn granted_selected_plan_attaches_receipt_to_matching_admitted_fact() {
-        let boundary_symbol = omega_core::symbols::SymbolHandle::from_arena_index(7);
-        let subject_symbol = omega_core::symbols::SymbolHandle::from_arena_index(8);
-        let domain_symbol = omega_core::symbols::SymbolHandle::from_arena_index(9);
+        let boundary_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
+        let subject_symbol = psi_symbols::SymbolHandle::from_arena_index(8);
+        let domain_symbol = psi_symbols::SymbolHandle::from_arena_index(9);
         let mut checked = psi_checked_trees::CheckedTrees::default();
         checked
             .typed

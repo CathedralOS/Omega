@@ -1,4 +1,4 @@
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;

@@ -1,7 +1,7 @@
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,

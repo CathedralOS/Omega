@@ -1,7 +1,7 @@
 use crate::BackendReportInput;
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
 use omega_machine_bytes::EncodedMachineBoundarySummary;
+use psi_symbols::SymbolHandle;
 
 pub(super) fn write_artifact_semantic_spine(
     output: &mut String,
@@ -348,7 +348,7 @@ mod tests {
             permission_source_text(psi_language_semantics::PermissionEventSource::Call {
                 statement_index: 1,
                 call_ordinal: 0,
-                target_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                target_symbol: psi_symbols::SymbolHandle::invalid(),
             }),
             "call ordinal 0 in statement 1"
         );

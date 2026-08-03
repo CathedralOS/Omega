@@ -5,11 +5,11 @@ use omega_calling_conventions::{
     host_operation_fixed_leading_immediate,
 };
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::statement::TableCall;
+use psi_symbols::SymbolHandle;
 
 pub(crate) fn platform_call_receiver_type<'program>(
     program: &'program CheckedTrees,
@@ -134,7 +134,7 @@ fn receiver_surface_name(program: &CheckedTrees, symbol: SymbolHandle) -> Option
 /// symbol is a signature of exactly one boundary trait.
 pub(crate) fn expression_platform_receiver_type<'program>(
     program: &'program CheckedTrees,
-    target_symbol: omega_core::symbols::SymbolHandle,
+    target_symbol: psi_symbols::SymbolHandle,
 ) -> Option<&'program str> {
     if !target_symbol.is_valid() {
         return None;

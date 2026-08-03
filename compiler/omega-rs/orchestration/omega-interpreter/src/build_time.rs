@@ -55,7 +55,7 @@ impl BuildTimeValue {
                     cells.insert(name, value.into_value().cell());
                 }
                 Value::Struct {
-                    type_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                    type_symbol: psi_symbols::SymbolHandle::invalid(),
                     type_name,
                     fields: cells,
                 }
@@ -64,7 +64,7 @@ impl BuildTimeValue {
                 // The build-time boundary carries no type identity (same as
                 // the Struct arm above); tag-ordinal resolution falls back to
                 // the name-global scan for these values.
-                type_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                type_symbol: psi_symbols::SymbolHandle::invalid(),
                 variant_name: variant,
                 payload: payload
                     .into_iter()

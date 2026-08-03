@@ -39,7 +39,7 @@ impl fmt::Display for StateKeyDisplay<'_, '_> {
 impl<'plan> RuntimeFlowBuilder<'plan> {
     pub(super) fn machine_flow_by_symbol(
         &self,
-        machine_symbol: omega_core::symbols::SymbolHandle,
+        machine_symbol: psi_symbols::SymbolHandle,
     ) -> Result<&MachineFlow, Diagnostic> {
         self.control_flow
             .machines

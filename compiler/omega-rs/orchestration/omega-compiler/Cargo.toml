@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }

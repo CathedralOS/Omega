@@ -33,7 +33,7 @@ impl StateStoragePlanningContext {
     pub fn borrow_root_kind_by_symbol(
         &self,
         state_key: StateKey,
-        symbol: omega_core::symbols::SymbolHandle,
+        symbol: psi_symbols::SymbolHandle,
     ) -> Option<omega_control_flow::StateBorrowRootKind> {
         if !symbol.is_valid() {
             return None;

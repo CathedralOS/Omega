@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::ExpressionHandle;
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 const INLINE_RUNTIME_BRANCH_ALIAS_COUNT: usize = 8;
 const INLINE_BRANCH_PARAMETER_BINDING_COUNT: usize = 8;

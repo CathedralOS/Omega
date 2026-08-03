@@ -1,6 +1,6 @@
 use crate::BackendReportInput;
 use omega_control_flow::ProofObligationOwner;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 pub(super) fn write_checked_semantics_section(
     output: &mut String,

@@ -1,12 +1,12 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use crate::service_reach::{append_reach_and_operation_lines, service_names};
-use omega_core::symbols::SymbolHandle;
 use omega_state_graph::{
     MachineGraph, Operation, OperationExpressionRefs, OperationKind, PlannedTransitionTarget,
     StateBorrowAccessKind, StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall,
     StateBorrowEventSource, StateBorrowLoan, StateBorrowWeakening, StateBorrowWeakeningReason,
     StateGraph, StateKey, StateNode, TransitionEdge,
 };
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;
 
 pub fn state_graph_html(graph: &StateGraph) -> String {

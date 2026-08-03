@@ -1,11 +1,11 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use crate::service_reach::{append_reach_and_operation_lines, service_names};
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowLoanFact, CheckedTrees,
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowCallFact,
     FlowInvalidationSource, FlowStateFact,
 };
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::state::State;
 use psi_typed_trees::statement::{
@@ -2620,7 +2620,6 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
         push_termination_interface_json, qualification_evidence_manifest_json,
     };
-    use omega_core::symbols::SymbolHandle;
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
         ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution, DataCarryFact,
@@ -2643,6 +2642,7 @@ mod tests {
         RankingViewId, RankingWitness, SemanticDomainId, SuspensionInterface, SuspensionPlan,
         TerminationGuarantee, TerminationInterface,
     };
+    use psi_symbols::SymbolHandle;
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::typed_trees::MachineSpecialization;

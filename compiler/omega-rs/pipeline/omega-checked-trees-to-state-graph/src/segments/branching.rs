@@ -1,8 +1,8 @@
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;
 use psi_checked_trees::statement::{StatementNode, TableCall};
+use psi_symbols::SymbolHandle;
 
 pub(super) struct BranchCallTargetResolver {
     visiting: VisitingStatesBuffer,

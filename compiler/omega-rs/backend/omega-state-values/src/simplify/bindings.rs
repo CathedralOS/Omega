@@ -1,5 +1,4 @@
 use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, ExpressionHandle, ExpressionNode,
@@ -7,6 +6,7 @@ use psi_checked_trees::expression::{
 };
 use psi_checked_trees::state::State;
 use psi_checked_trees::statement::StatementNode;
+use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]

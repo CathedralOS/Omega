@@ -7,10 +7,10 @@ use classify::classify_guard_operand;
 use layout::resolve_guard_operand_layout;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_symbols::SymbolHandle;
 use values::{enum_variant_tag_value, resolved_guard_operand_value};
 
 pub(crate) struct GuardOperands {

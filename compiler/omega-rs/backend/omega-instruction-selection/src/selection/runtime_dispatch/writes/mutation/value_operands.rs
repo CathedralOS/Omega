@@ -654,7 +654,7 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
         symbol
             if symbol
                 == input.program.symbols.builtin_function_symbol(
-                    omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF32,
+                    psi_symbols::BuiltinFunction::FloatMultiplyThenAddF32,
                 ) =>
         {
             (4, StateGuardOperator::MultiplyThenAdd)
@@ -662,7 +662,7 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
         symbol
             if symbol
                 == input.program.symbols.builtin_function_symbol(
-                    omega_core::symbols::BuiltinFunction::FloatMultiplyThenAddF64,
+                    psi_symbols::BuiltinFunction::FloatMultiplyThenAddF64,
                 ) =>
         {
             (8, StateGuardOperator::MultiplyThenAdd)
@@ -670,7 +670,7 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
         symbol
             if symbol
                 == input.program.symbols.builtin_function_symbol(
-                    omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF32,
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddF32,
                 ) =>
         {
             (4, StateGuardOperator::FusedMultiplyAdd)
@@ -678,7 +678,7 @@ pub(super) fn resolve_selected_ternary_float_operand_in_table_with_root(
         symbol
             if symbol
                 == input.program.symbols.builtin_function_symbol(
-                    omega_core::symbols::BuiltinFunction::FloatFusedMultiplyAddF64,
+                    psi_symbols::BuiltinFunction::FloatFusedMultiplyAddF64,
                 ) =>
         {
             (8, StateGuardOperator::FusedMultiplyAdd)

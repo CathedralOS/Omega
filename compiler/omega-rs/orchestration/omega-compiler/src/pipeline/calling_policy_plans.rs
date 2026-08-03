@@ -24,7 +24,7 @@ const REGISTER_CAPACITY: usize = 64;
 
 #[derive(Clone)]
 struct TraitTypeBinding {
-    parameter_symbol: omega_core::symbols::SymbolHandle,
+    parameter_symbol: psi_symbols::SymbolHandle,
     parameter_name: String,
     actual: TypeReferenceHandle,
 }
@@ -71,9 +71,9 @@ struct MaterializedBoundarySignature {
 /// consumes them.
 #[derive(Debug, Clone)]
 pub(crate) struct BoundaryCallingPlanRealization {
-    pub(crate) boundary_trait: omega_core::symbols::SymbolHandle,
+    pub(crate) boundary_trait: psi_symbols::SymbolHandle,
     pub(crate) boundary_arguments: Vec<TypeReferenceHandle>,
-    pub(crate) requirement_machine: omega_core::symbols::SymbolHandle,
+    pub(crate) requirement_machine: psi_symbols::SymbolHandle,
     pub(crate) fingerprint: u64,
     pub(crate) boundary_entry_plan: BoundaryEntryPlan,
 }
@@ -362,7 +362,7 @@ fn collect_boundary_signatures<'a>(
     typed: &'a TypedTrees,
     definition: &'a psi_typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
-    visited: &mut Vec<omega_core::symbols::SymbolHandle>,
+    visited: &mut Vec<psi_symbols::SymbolHandle>,
     signatures: &mut Vec<BoundarySignatureInstance<'a>>,
 ) {
     if visited.contains(&definition.symbol) {
@@ -483,7 +483,7 @@ fn value_shape_from_type(
     typed: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
     bindings: &[TraitTypeBinding],
-    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
     shapes: &mut Vec<BoundaryValueShape>,
     fields: &mut Vec<BoundaryValueField>,
 ) -> Result<(ValueShape, u16), String> {
@@ -642,10 +642,10 @@ fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String>
 
 fn plain_data_value_shape(
     typed: &TypedTrees,
-    symbol: omega_core::symbols::SymbolHandle,
+    symbol: psi_symbols::SymbolHandle,
     name: &str,
     bindings: &[TraitTypeBinding],
-    visiting: &mut Vec<omega_core::symbols::SymbolHandle>,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
     shapes: &mut Vec<BoundaryValueShape>,
     fields: &mut Vec<BoundaryValueField>,
 ) -> Result<(ValueShape, u16), String> {

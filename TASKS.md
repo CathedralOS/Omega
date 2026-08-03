@@ -950,7 +950,7 @@ improvements do not change public identity.
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
   The unused `omega-core` source/span, exact-bignum, const-value, content,
   built-in-value-domain, byte-predicate, normalized-wire, atomic-ordering,
-  cast-form, operator-spelling, inline-assembly, diagnostics,
+  cast-form, operator-spelling, inline-assembly, diagnostics, symbols,
   resolved-language-semantics, arithmetic-domain, float-semantics, and
   literal-payload aliases are retired; their
   remaining Omega consumers depend on the Psi owners directly. High-fanout

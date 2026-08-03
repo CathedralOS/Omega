@@ -4,7 +4,7 @@ use omega_abstract_operations::{
 };
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 pub(super) struct SelectedInstructionSink<'arena, 'plan> {
     instructions: &'arena mut Arena<SelectedInstruction>,

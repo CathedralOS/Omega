@@ -12,7 +12,7 @@ path = "src/lib.rs"
 
 [dev-dependencies]
 omega-control-flow = { path = "../../representations/omega-control-flow" }
-omega-core = { path = "../../foundation/omega-core" }
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-effects = { path = "../../representations/omega-effects" }
 psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 psi-effects = { path = "../../../psi-rs/representations/psi-effects" }

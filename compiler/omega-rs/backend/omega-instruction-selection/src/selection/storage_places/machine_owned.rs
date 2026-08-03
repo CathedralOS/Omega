@@ -7,12 +7,12 @@ use super::nested_fields::{
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
 };
 use omega_abstract_operations::RuntimeStorageRegion;
-use omega_core::symbols::SymbolHandle;
 use omega_layout::{
     DataShape, ENUM_TAG_BYTES, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor,
 };
 use psi_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use psi_checked_trees::name::Identifier;
+use psi_symbols::SymbolHandle;
 
 #[derive(Clone)]
 pub(in crate::selection) struct MachineOwnedCollectionTarget {

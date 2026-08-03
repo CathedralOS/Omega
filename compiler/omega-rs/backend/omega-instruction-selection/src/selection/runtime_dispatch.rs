@@ -594,8 +594,8 @@ fn computed_host_builtin_operands(
     }
     let symbols = &input.program.symbols;
     let is_binary = [
-        omega_core::symbols::BuiltinFunction::Max,
-        omega_core::symbols::BuiltinFunction::Min,
+        psi_symbols::BuiltinFunction::Max,
+        psi_symbols::BuiltinFunction::Min,
     ]
     .into_iter()
     .any(|builtin| symbols.builtin_function_symbol(builtin) == Some(call.target_symbol));
@@ -606,14 +606,14 @@ fn computed_host_builtin_operands(
         ));
     }
     let is_unary_float = [
-        omega_core::symbols::BuiltinFunction::Sqrt,
-        omega_core::symbols::BuiltinFunction::FloatIsNan,
-        omega_core::symbols::BuiltinFunction::FloatIsFinite,
-        omega_core::symbols::BuiltinFunction::FloatIsInfinite,
-        omega_core::symbols::BuiltinFunction::FloatIsNormal,
-        omega_core::symbols::BuiltinFunction::FloatIsSubnormal,
-        omega_core::symbols::BuiltinFunction::FloatClassifyF32,
-        omega_core::symbols::BuiltinFunction::FloatClassifyF64,
+        psi_symbols::BuiltinFunction::Sqrt,
+        psi_symbols::BuiltinFunction::FloatIsNan,
+        psi_symbols::BuiltinFunction::FloatIsFinite,
+        psi_symbols::BuiltinFunction::FloatIsInfinite,
+        psi_symbols::BuiltinFunction::FloatIsNormal,
+        psi_symbols::BuiltinFunction::FloatIsSubnormal,
+        psi_symbols::BuiltinFunction::FloatClassifyF32,
+        psi_symbols::BuiltinFunction::FloatClassifyF64,
     ]
     .into_iter()
     .any(|builtin| symbols.builtin_function_symbol(builtin) == Some(call.target_symbol));

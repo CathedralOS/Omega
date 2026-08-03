@@ -261,7 +261,7 @@ fn unmeasured_recursion_message(name: &str) -> String {
 fn is_local_transition_path(
     source_key: StateKey,
     path: &[psi_checked_trees::name::Identifier],
-    head_symbol: omega_core::symbols::SymbolHandle,
+    head_symbol: psi_symbols::SymbolHandle,
 ) -> bool {
     path.len() == 1 || path.len() == 2 && head_symbol == source_key.machine
 }
@@ -307,7 +307,7 @@ fn free_machine_self_entry_segment<'segments>(
 
 fn find_initial_segment_by_symbol(
     segments: &[StateSegment],
-    symbol: omega_core::symbols::SymbolHandle,
+    symbol: psi_symbols::SymbolHandle,
 ) -> Option<(usize, &StateSegment)> {
     segments
         .iter()

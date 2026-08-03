@@ -1,5 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateOwnershipEventSource {

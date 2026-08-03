@@ -25,7 +25,7 @@ mod tests {
         AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin,
         AbstractValueStatementRole,
     };
-    use omega_core::symbols::SymbolHandle;
+    use psi_symbols::SymbolHandle;
 
     #[test]
     fn preserves_target_value_summary_into_machine_program() {

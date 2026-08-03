@@ -1,6 +1,6 @@
 use super::*;
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn remap_contract_summary_preserves_call_and_exit_spans() {

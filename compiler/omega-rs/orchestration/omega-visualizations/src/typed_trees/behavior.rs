@@ -1,9 +1,9 @@
-use omega_core::symbols::SymbolHandle;
 use psi_effects::{
     CallOperational, MachineOperational, OperationalPlan, ServiceReachInferencePlan,
     StateOperational,
 };
 use psi_language_semantics::{OperationalMaySummary, ServiceReachRowTable, ServiceReachSummary};
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 
 /// The typed-tree report's normalized behavior view. Service identities and

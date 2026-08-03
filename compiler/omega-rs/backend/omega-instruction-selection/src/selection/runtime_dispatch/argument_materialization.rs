@@ -1717,7 +1717,7 @@ fn local_root_identity(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<(
-    omega_core::symbols::SymbolHandle,
+    psi_symbols::SymbolHandle,
     psi_checked_trees::name::Identifier,
 )> {
     match expressions.expression(expression) {
@@ -1737,7 +1737,7 @@ fn local_root_identity(
 fn place_symbol_signature(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-) -> Option<Vec<omega_core::symbols::SymbolHandle>> {
+) -> Option<Vec<psi_symbols::SymbolHandle>> {
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => Some(vec![path.head_symbol]),
         ExpressionNode::Member(member) => {
@@ -1756,7 +1756,7 @@ fn place_symbol_signature(
 fn collect_read_place_signatures(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-    out: &mut Vec<Vec<omega_core::symbols::SymbolHandle>>,
+    out: &mut Vec<Vec<psi_symbols::SymbolHandle>>,
 ) {
     if let Some(signature) = place_symbol_signature(expressions, expression) {
         out.push(signature);
@@ -1822,7 +1822,7 @@ fn initializer_reads_field_reassigned_after_decl(
         return false;
     };
 
-    let mut read_signatures: Vec<Vec<omega_core::symbols::SymbolHandle>> = Vec::new();
+    let mut read_signatures: Vec<Vec<psi_symbols::SymbolHandle>> = Vec::new();
     collect_read_place_signatures(
         &input.program.expression_table,
         initial_value,

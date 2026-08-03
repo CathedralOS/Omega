@@ -29,7 +29,7 @@ struct AdapterRow {
     requirement: String,
     requirement_identity: String,
     adapter_target: String,
-    symbol: omega_core::symbols::SymbolHandle,
+    symbol: psi_symbols::SymbolHandle,
     /// Self-forwarding shape: prepend the call's receiver as argument 0.
     forward_receiver: bool,
 }
@@ -261,7 +261,7 @@ pub(crate) fn rewrite_adapter_calls(
                     );
                 }
                 rewritten.receiver = omega_core::arena::HandleSpan::empty();
-                rewritten.receiver_symbol = omega_core::symbols::SymbolHandle::invalid();
+                rewritten.receiver_symbol = psi_symbols::SymbolHandle::invalid();
                 rewritten.target =
                     psi_typed_trees::name::Identifier::generated(row.adapter_target.clone());
                 rewritten.target_symbol = row.symbol;
@@ -353,7 +353,7 @@ fn adapter_matches_call(
     row: &AdapterRow,
     trait_leaf: &str,
     target_name: &str,
-    target_symbol: omega_core::symbols::SymbolHandle,
+    target_symbol: psi_symbols::SymbolHandle,
 ) -> bool {
     if row.trait_leaf != trait_leaf || row.requirement != target_name {
         return false;
@@ -403,7 +403,7 @@ fn parameter_type_leaf(
 fn synthesize_place_expression(
     expressions: &mut psi_typed_trees::expression::ExpressionTable,
     members: &[psi_typed_trees::name::Identifier],
-    receiver_symbol: omega_core::symbols::SymbolHandle,
+    receiver_symbol: psi_symbols::SymbolHandle,
 ) -> psi_typed_trees::expression::ExpressionHandle {
     use psi_typed_trees::expression::{ExpressionNode, TableMemberExpression, TableNamePath};
     match members {
@@ -413,8 +413,8 @@ fn synthesize_place_expression(
             let head_expression = expressions.insert(ExpressionNode::Name(TableNamePath {
                 members: head_span,
                 member_symbols: omega_core::arena::HandleSpan::empty(),
-                head_symbol: omega_core::symbols::SymbolHandle::invalid(),
-                symbol: omega_core::symbols::SymbolHandle::invalid(),
+                head_symbol: psi_symbols::SymbolHandle::invalid(),
+                symbol: psi_symbols::SymbolHandle::invalid(),
             }));
             expressions.insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: head_expression,

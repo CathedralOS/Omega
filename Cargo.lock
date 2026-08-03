@@ -94,6 +94,7 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
  "psi-typed-trees",
 ]
 
@@ -108,6 +109,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "psi-language-semantics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -115,7 +117,6 @@ name = "omega-architecture-test"
 version = "0.1.0"
 dependencies = [
  "omega-control-flow",
- "omega-core",
  "omega-effects",
  "psi-diagnostics",
  "psi-effects",
@@ -123,6 +124,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
  "psi-syntax-trees",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
@@ -145,6 +147,7 @@ dependencies = [
  "psi-checked-trees",
  "psi-diagnostics",
  "psi-layout-plans",
+ "psi-symbols",
  "serde_json",
 ]
 
@@ -170,6 +173,7 @@ dependencies = [
  "omega-machine-instructions",
  "psi-diagnostics",
  "psi-language-semantics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -212,6 +216,7 @@ dependencies = [
  "omega-target-operations-to-assigned-target-operations",
  "psi-checked-trees",
  "psi-diagnostics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -276,6 +281,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -306,6 +312,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -367,6 +374,7 @@ dependencies = [
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees",
  "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
  "psi-syntax-trees",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens",
@@ -384,6 +392,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
  "psi-typed-trees",
 ]
 
@@ -415,6 +424,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -423,7 +433,6 @@ version = "0.1.0"
 dependencies = [
  "psi-arena",
  "psi-language-semantics",
- "psi-symbols",
 ]
 
 [[package]]
@@ -445,11 +454,11 @@ dependencies = [
 name = "omega-effects"
 version = "0.1.0"
 dependencies = [
- "omega-core",
  "psi-diagnostics",
  "psi-effects",
  "psi-language-core",
  "psi-language-semantics",
+ "psi-symbols",
  "psi-syntax-trees",
  "psi-typed-trees",
 ]
@@ -482,6 +491,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "psi-checked-trees",
+ "psi-symbols",
  "psi-typed-trees",
 ]
 
@@ -604,6 +614,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -630,6 +641,7 @@ dependencies = [
  "psi-layout-plans",
  "psi-numerics",
  "psi-proof-kernel",
+ "psi-symbols",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",
@@ -677,6 +689,7 @@ dependencies = [
  "psi-diagnostics",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -755,6 +768,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "psi-diagnostics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -769,6 +783,7 @@ dependencies = [
  "psi-diagnostics",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
@@ -814,6 +829,7 @@ dependencies = [
  "omega-state-storage",
  "psi-checked-trees",
  "psi-language-core",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -830,6 +846,7 @@ dependencies = [
  "omega-state-guards",
  "omega-state-storage",
  "psi-checked-trees",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -860,6 +877,7 @@ dependencies = [
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -889,6 +907,7 @@ dependencies = [
  "psi-checked-trees",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees-to-checked-trees",
@@ -915,6 +934,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
  "psi-typed-trees",
 ]
 
@@ -929,6 +949,7 @@ dependencies = [
  "psi-diagnostics",
  "psi-language-semantics",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -945,6 +966,7 @@ dependencies = [
  "omega-target-operations",
  "psi-checked-trees",
  "psi-numerics",
+ "psi-symbols",
  "psi-typed-trees",
 ]
 
@@ -957,6 +979,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-state-calls",
  "psi-checked-trees",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -970,6 +993,7 @@ dependencies = [
  "omega-state-values",
  "psi-checked-trees",
  "psi-numerics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -982,6 +1006,7 @@ dependencies = [
  "omega-state-graph",
  "psi-checked-trees",
  "psi-numerics",
+ "psi-symbols",
  "psi-typed-trees",
 ]
 
@@ -1012,10 +1037,10 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-assigned-target-operations",
- "omega-core",
  "omega-target",
  "omega-target-operations",
  "psi-language-semantics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -1024,13 +1049,13 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-assigned-target-operations-to-machine-instructions",
- "omega-core",
  "omega-machine-instructions",
  "omega-machine-program",
  "omega-target-operations",
  "omega-target-operations-to-assigned-target-operations",
  "psi-diagnostics",
  "psi-language-semantics",
+ "psi-symbols",
 ]
 
 [[package]]
@@ -1141,6 +1166,7 @@ dependencies = [
  "psi-facts",
  "psi-language-semantics",
  "psi-symbol-resolved-trees",
+ "psi-symbols",
  "psi-syntax-trees",
  "psi-typed-trees",
 ]

@@ -1,6 +1,6 @@
 use crate::StateScheduleContext;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 pub(super) fn machine_flow_by_symbol<'plan>(
     context: &StateScheduleContext<'plan>,

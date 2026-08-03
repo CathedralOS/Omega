@@ -4,7 +4,7 @@ use omega_control_flow::{
     StateOwnershipEventSource, StatePermissionEvent,
 };
 use omega_core::arena::HandleSpan;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn lowers_only_semantic_permission_events() {

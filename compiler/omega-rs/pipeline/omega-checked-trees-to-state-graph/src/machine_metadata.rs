@@ -25,7 +25,7 @@ pub(crate) fn machine_owned_data(
 
 pub(crate) fn machine_service_reach(
     program: &CheckedTrees,
-    machine_symbol: omega_core::symbols::SymbolHandle,
+    machine_symbol: psi_symbols::SymbolHandle,
 ) -> ServiceReachSummary {
     program
         .facts
@@ -40,7 +40,7 @@ pub(crate) fn machine_service_reach(
 
 pub(crate) fn state_service_reach(
     program: &CheckedTrees,
-    state_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
 ) -> ServiceReachSummary {
     program
         .facts
@@ -55,7 +55,7 @@ pub(crate) fn state_service_reach(
 
 pub(crate) fn machine_operational_summary(
     program: &CheckedTrees,
-    machine_symbol: omega_core::symbols::SymbolHandle,
+    machine_symbol: psi_symbols::SymbolHandle,
 ) -> OperationalMaySummary {
     let Some(machine) = program
         .facts
@@ -91,7 +91,7 @@ pub(crate) fn machine_operational_summary(
 
 pub(crate) fn state_operational_summary(
     program: &CheckedTrees,
-    state_symbol: omega_core::symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
 ) -> OperationalMaySummary {
     let Some(state) = program
         .facts

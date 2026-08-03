@@ -1,5 +1,5 @@
 use super::*;
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[test]
 fn state_boundary_summary_keeps_edges_for_matching_state() {

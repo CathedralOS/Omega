@@ -1,7 +1,7 @@
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{CallExpression, Expression};
 use psi_checked_trees::machine::Machine;
+use psi_symbols::SymbolHandle;
 
 pub(super) fn resolve_call_target_machine<'program>(
     program: &'program CheckedTrees,

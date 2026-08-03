@@ -1,6 +1,6 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
 use psi_numerics::arithmetic::ArithmeticPolicyAdapter;
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;
 
 pub type StateValueHandle = Handle<StateValueFact>;

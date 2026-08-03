@@ -677,15 +677,15 @@ fn assignment_value_calls_in_evaluation_order<'plan>(
     fn receiver_symbol(
         expressions: &ExpressionTable,
         expression: ExpressionHandle,
-    ) -> omega_core::symbols::SymbolHandle {
+    ) -> psi_symbols::SymbolHandle {
         if !expression.is_valid() {
-            return omega_core::symbols::SymbolHandle::invalid();
+            return psi_symbols::SymbolHandle::invalid();
         }
         match expressions.expression(expression) {
             ExpressionNode::Member(member) => member.member_symbol,
             ExpressionNode::Mutable(inner) => receiver_symbol(expressions, *inner),
             ExpressionNode::Name(path) => path.symbol,
-            _ => omega_core::symbols::SymbolHandle::invalid(),
+            _ => psi_symbols::SymbolHandle::invalid(),
         }
     }
 

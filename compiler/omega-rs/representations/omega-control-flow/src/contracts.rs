@@ -1,5 +1,5 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::symbols::SymbolHandle;
+use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum StateContractFactKind {

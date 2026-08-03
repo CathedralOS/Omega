@@ -32,10 +32,10 @@ use omega_abstract_operations::{
     RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
 };
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::statement::StatementNode;
 use psi_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
+use psi_symbols::SymbolHandle;
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
