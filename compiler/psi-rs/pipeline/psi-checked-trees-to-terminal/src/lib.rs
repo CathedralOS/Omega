@@ -802,7 +802,7 @@ pub fn lower_machine(
         );
     };
     if !checked.state_parameters(entry_state).is_empty() {
-        return unsupported("entry-state parameters are not supported");
+        return lower_parameterized_two_state_machine(checked, machine, entry_state, return_state);
     }
     let [return_parameter] = checked.state_parameters(return_state) else {
         return unsupported("return state must have exactly one parameter");
@@ -892,6 +892,123 @@ pub fn lower_machine(
         return_type,
         value,
         lowered_return,
+        contract_value,
+        identity_reshuffles,
+        partition_compositions,
+    ))
+}
+
+fn lower_parameterized_two_state_machine(
+    checked: &CheckedTrees,
+    machine: &psi_checked_trees::machine::Machine,
+    entry_state: &psi_checked_trees::state::State,
+    return_state: &psi_checked_trees::state::State,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let entry_parameters = checked.state_parameters(entry_state);
+    if entry_parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+    {
+        return unsupported("qualified two-state machine parameters are not supported");
+    }
+    let parameter_types = entry_parameters
+        .iter()
+        .map(|parameter| {
+            integer_scalar_type(
+                checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "two-state machine parameters must be primitive integers",
+                    ))?,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type = integer_scalar_type(
+        checked
+            .primitive_type_reference(entry_state.return_type)
+            .ok_or(LoweringError::Unsupported(
+                "two-state machine result must be a primitive integer",
+            ))?,
+    )?;
+    let [return_parameter] = checked.state_parameters(return_state) else {
+        return unsupported("return state must have exactly one parameter");
+    };
+    if return_parameter.is_self || return_parameter.is_const || return_parameter.is_mutable {
+        return unsupported("qualified return-state parameters are not supported");
+    }
+    if integer_scalar_type(
+        checked
+            .primitive_type_reference(return_state.return_type)
+            .ok_or(LoweringError::Unsupported(
+                "return-state result must be a primitive integer",
+            ))?,
+    )? != result_type
+        || integer_scalar_type(
+            checked
+                .primitive_type_reference(return_parameter.type_reference)
+                .ok_or(LoweringError::Unsupported(
+                    "return-state parameter must be a primitive integer",
+                ))?,
+        )? != result_type
+    {
+        return unsupported("machine, return-state, and parameter types must match exactly");
+    }
+    if !checked.state_contracts(entry_state).is_empty()
+        || !checked.state_contracts(return_state).is_empty()
+    {
+        return unsupported("state contracts are not supported");
+    }
+
+    let entry_statements = checked
+        .statement_table
+        .statements(entry_state.statement_nodes);
+    let [StatementNode::Transition(transition)] = entry_statements else {
+        return unsupported("entry state must contain exactly one transition");
+    };
+    if transition.guard != TransitionGuardNode::Always || transition.continuation.is_valid() {
+        return unsupported("entry transition must be unconditional and have no continuation");
+    }
+    let TransitionTargetNode::Named { path, arguments } =
+        checked.statement_table.transition_target(transition.target)
+    else {
+        return unsupported("entry transition must target the return state by name");
+    };
+    if path.symbol != return_state.symbol {
+        return unsupported("entry transition must target the sole return state");
+    }
+    let [argument] = checked.statement_table.expression_handles(*arguments) else {
+        return unsupported("entry transition must carry exactly one argument");
+    };
+    let (jump_expression, _) = lower_direct_return_expression(
+        checked,
+        *argument,
+        entry_parameters,
+        &parameter_types,
+        result_type,
+    )?;
+
+    let return_statements = checked
+        .statement_table
+        .statements(return_state.statement_nodes);
+    let [StatementNode::Expression(return_expression)] = return_statements else {
+        return unsupported("return state must contain exactly one value expression");
+    };
+    let (return_expression, _) = lower_direct_return_expression(
+        checked,
+        *return_expression,
+        std::slice::from_ref(return_parameter),
+        &[result_type],
+        result_type,
+    )?;
+
+    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let (identity_reshuffles, partition_compositions) =
+        lower_content_evidence(checked, machine, entry_state)?;
+    Ok(build_parameterized_two_state_module(
+        &parameter_types,
+        jump_expression,
+        return_expression,
+        result_type,
         contract_value,
         identity_reshuffles,
         partition_compositions,
@@ -1679,6 +1796,134 @@ fn emit_direct_expression(
             });
             id
         }
+    }
+}
+
+fn build_parameterized_two_state_module(
+    parameter_types: &[ScalarType],
+    jump_expression: LoweredDirectExpression,
+    return_expression: LoweredDirectExpression,
+    result_type: ScalarType,
+    contract_value: IntegerValue,
+    identity_reshuffles: LoweredContentIdentityReshuffles,
+    partition_compositions: LoweredContentPartitionCompositions,
+) -> LoweredTerminalPsi {
+    let terminal_parameters = parameter_types
+        .iter()
+        .enumerate()
+        .map(|(index, scalar_type)| ValueDeclaration {
+            id: value_id(
+                u64::try_from(index)
+                    .expect("parameter index fits a semantic identity")
+                    .checked_add(1)
+                    .expect("parameter identity is nonzero"),
+            ),
+            scalar_type: *scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let mut next_value_identity = u64::try_from(parameter_types.len())
+        .expect("parameter count fits a semantic identity")
+        .checked_add(1)
+        .expect("generated identities follow the parameter identities");
+    let mut operations = Vec::new();
+    let jump_value = emit_direct_expression(
+        &jump_expression,
+        &terminal_parameters,
+        result_type,
+        &mut next_value_identity,
+        &mut operations,
+    );
+    let return_operation_start = operations.len();
+    let block_parameter = ValueDeclaration {
+        id: value_id(next_value_identity),
+        scalar_type: result_type,
+    };
+    next_value_identity = next_value_identity
+        .checked_add(1)
+        .expect("generated identities advance after the block parameter");
+    let return_value = emit_direct_expression(
+        &return_expression,
+        std::slice::from_ref(&block_parameter),
+        result_type,
+        &mut next_value_identity,
+        &mut operations,
+    );
+    let return_operations = operations.split_off(return_operation_start);
+    let entry_operations = operations;
+    let result_id = value_id(next_value_identity);
+
+    let ScalarType::Integer(integer_type) = result_type else {
+        unreachable!("source slice accepts only integer results");
+    };
+    let literal = ScalarTerm::integer(integer_type, contract_value)
+        .expect("validated source contract value fits its terminal integer type");
+    let goal = Proposition::Equal(literal.clone(), literal);
+    let obligation = obligation_id(1);
+    let mut structural_places = identity_reshuffles
+        .structural_places
+        .into_iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    for place in partition_compositions.structural_places {
+        merge_content_place_declaration(&mut structural_places, place)
+            .expect("checked lowering rejects conflicting structural places");
+    }
+
+    LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            semantic_version: SemanticVersion::CURRENT,
+            entry: machine_id(1),
+            machines: vec![TerminalMachine {
+                id: machine_id(1),
+                parameters: terminal_parameters,
+                result: ValueDeclaration {
+                    id: result_id,
+                    scalar_type: result_type,
+                },
+                structural_places: structural_places
+                    .into_iter()
+                    .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
+                    .collect(),
+                content_identity_reshuffles: identity_reshuffles.reshuffles,
+                content_partition_compositions: partition_compositions.compositions,
+                entry: block_id(1),
+                blocks: vec![
+                    Block {
+                        id: block_id(1),
+                        parameters: Vec::new(),
+                        operations: entry_operations,
+                        terminator: Terminator::Jump {
+                            edge: edge_id(1),
+                            target: block_id(2),
+                            arguments: vec![jump_value],
+                        },
+                    },
+                    Block {
+                        id: block_id(2),
+                        parameters: vec![block_parameter],
+                        operations: return_operations,
+                        terminator: Terminator::Return {
+                            edge: edge_id(2),
+                            value: return_value,
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: contract_id(1),
+                    requires: vec![goal.clone()],
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: goal,
+                    }],
+                },
+            }],
+        },
+        proof_bundle: ProofBundle {
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
+            }],
+        },
     }
 }
 

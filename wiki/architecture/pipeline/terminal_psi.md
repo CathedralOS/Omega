@@ -70,9 +70,13 @@ machine may declare any nonempty sequence of ordinary primitive-integer
 parameters and return one exact named parameter or a recursively nested
 expression over parameters and landed literals using the six builtin
 add/subtract/multiply operations in the settled Wrapping or Saturating domains.
-A two-state machine may carry one typed integer constant through an unconditional
-jump and return either the matching literal or one builtin
-parameter-plus-literal add/subtract/multiply in the settled Wrapping or
+A two-state integer machine may carry one typed constant through an
+unconditional jump and return either the matching literal or one builtin
+parameter-plus-literal operation. It may also declare a nonempty sequence of
+ordinary integer parameters, compute a recursively nested
+parameter/literal add/subtract/multiply expression for the jump argument, and
+continue with another recursively nested expression over the return-state
+parameter and landed literals. Both paths use the settled Wrapping or
 Saturating domains. All three forms require a matching closed
 `requires`/`ensures` pair. The producer rejects all other checked-tree shapes,
 including selected domain-owned operator meanings. The source canary lowers
@@ -85,7 +89,11 @@ code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
 combines the first register argument with the ninth stack argument. A nested
 wrapping add-then-multiply source expression also crosses those ABI locations
-and reaches emitted host code. The
+and reaches emitted host code. A two-state runtime canary now computes from the
+first register and ninth stack arguments, binds that result through an
+unconditional edge, and continues arithmetic from the block parameter; its
+five-unit fixed-fuel certificate, interpretation, and emitted host result agree.
+The
 artifacts therefore have no frontend lifetime dependency.
 This is the correct ownership direction, but the accepted expression grammar
 remains this deliberately narrow integer/control/contract slice. An
@@ -564,7 +572,10 @@ generic installation ladder. Migrating the Cathedral hard-root graph remains.
    machine also returns its ninth `u8` through the selected host incoming-stack
    ABI, and a runtime wrapping-add source machine combines that stack argument
    with the first register argument. A recursive add-then-multiply source
-   expression reaches the same interpreted/native result. The same exact-text image
+   expression reaches the same interpreted/native result. A parameterized
+   two-state source machine carries a register-plus-stack expression through a
+   jump binding, continues from the block parameter, and matches the same
+   interpreted/native result with a five-unit fixed-fuel certificate. The same exact-text image
    boundary is structurally exercised for all four currently supported
    architecture/format pairs.
 4. Add the remaining arithmetic variants, calls, continuations, cleanup,

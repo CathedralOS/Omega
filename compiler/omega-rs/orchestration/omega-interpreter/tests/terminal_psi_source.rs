@@ -348,6 +348,12 @@ fn checked_source_runtime_integer_policy_operations_survive_frontend_drop() {
             132,
             3,
         ),
+        (
+            "terminal_runtime_jump_wrapping",
+            vec![5_u128, 2, 3, 4, 5, 6, 7, 8, 40],
+            135,
+            5,
+        ),
         ("terminal_runtime_saturating_add", vec![200], 255, 3),
         ("terminal_runtime_wrapping_subtract", vec![5], 251, 3),
         ("terminal_runtime_saturating_subtract", vec![5], 0, 3),
@@ -407,24 +413,36 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi runtime arithmetic source canary should compile");
     let lowered = [
-        ("terminal_runtime_wrapping_add", 2_u8, 44_i32, 1_usize),
-        ("terminal_runtime_nested_wrapping", 3, 132, 2),
+        (
+            "terminal_runtime_wrapping_add",
+            100_u8,
+            2_u8,
+            200_u8,
+            44_i32,
+            1_usize,
+        ),
+        ("terminal_runtime_nested_wrapping", 100, 3, 200, 132, 2),
+        ("terminal_runtime_jump_wrapping", 5, 2, 40, 135, 3),
     ]
     .into_iter()
-    .map(|(machine, second, expected, operation_count)| {
-        (
-            machine,
-            second,
-            expected,
-            operation_count,
-            lower_machine(&checked, machine)
-                .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
-        )
-    })
+    .map(
+        |(machine, first, second, ninth, expected, operation_count)| {
+            (
+                machine,
+                first,
+                second,
+                ninth,
+                expected,
+                operation_count,
+                lower_machine(&checked, machine)
+                    .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}")),
+            )
+        },
+    )
     .collect::<Vec<_>>();
     drop(checked);
 
-    for (machine, second, expected, operation_count, lowered) in lowered {
+    for (machine, first, second, ninth, expected, operation_count, lowered) in lowered {
         let verified = verify_module(
             &lowered.semantic_module,
             &lowered.proof_bundle,
@@ -443,7 +461,7 @@ fn source_runtime_arithmetic_combines_register_and_stack_parameters() {
         let entry = object_artifact.entry_function();
         assert_eq!(entry.provenance.operations.len(), operation_count);
         assert_eq!(
-            run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact), 100, second, 200,),
+            run_host_machine_code_with_nine_u8(entry.bytes(&object_artifact), first, second, ninth,),
             expected,
             "{machine} native result"
         );
