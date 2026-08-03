@@ -313,6 +313,184 @@ fn generic_trait_header_conformance_bound_rejects_unknown_subject() {
 }
 
 #[test]
+fn concrete_trait_application_discharge_header_conformance_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        data Convention {}
+        Convention satisfies CallingPolicy;
+
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+
+        data Device {}
+        Device satisfies Calling<Convention>;
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the argument's nominal conformance should discharge the trait header bound");
+}
+
+#[test]
+fn concrete_trait_application_rejects_unmet_header_conformance_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        data Convention {}
+
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+
+        data Device {}
+        Device satisfies Calling<Convention>;
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a concrete trait argument must satisfy its header obligation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "conformance `Device satisfies Calling` does not meet trait `Calling` header obligation `C satisfies CallingPolicy` for argument `Convention`",
+        )
+    }));
+}
+
+#[test]
+fn generic_trait_application_uses_enclosing_conformance_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+
+        machine inspect<T, C>(value: &T)
+        where
+            C satisfies CallingPolicy,
+            T satisfies Calling<C>
+        {}
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("an enclosing generic bound should discharge the applied trait header bound");
+}
+
+#[test]
+fn generic_trait_header_obligation_substitutes_nested_arguments() {
+    let typed = typed_program_from_source(
+        r#"
+        data Envelope<T> {}
+        trait PolicyFor<T> {}
+        trait Routed<C, Message>
+        where C satisfies PolicyFor<Envelope<Message>>
+        {}
+
+        machine inspect<T, C, Message>(value: &T)
+        where
+            C satisfies PolicyFor<Envelope<Message>>,
+            T satisfies Routed<C, Message>
+        {}
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("nested header arguments should substitute the applied trait parameters");
+}
+
+#[test]
+fn generic_trait_header_exact_obligation_uses_enclosing_named_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        Item satisfies Marker as Primary;
+
+        trait Selected<C>
+        where C satisfies Item::Primary
+        {}
+
+        machine inspect<T, C>(value: &T)
+        where
+            C satisfies Item::Primary,
+            T satisfies Selected<C>
+        {}
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("the exact enclosing evidence should discharge an exact header obligation");
+}
+
+#[test]
+fn generic_trait_application_rejects_missing_enclosing_conformance_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+
+        machine inspect<T, C>(value: &T)
+        where T satisfies Calling<C>
+        {}
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("an applied generic trait must prove its header obligation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "machine `inspect` conformance bound `T satisfies Calling` does not meet trait `Calling` header obligation `C satisfies CallingPolicy` for argument `C`",
+        )
+    }));
+}
+
+#[test]
+fn trait_parent_application_uses_child_header_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+
+        trait Routed<C>: Calling<C>
+        where C satisfies CallingPolicy
+        {}
+        "#,
+    );
+
+    validate_program(&typed)
+        .expect("a child trait header bound should discharge its parent's header obligation");
+}
+
+#[test]
+fn trait_parent_application_rejects_missing_child_header_bound() {
+    let typed = typed_program_from_source(
+        r#"
+        trait CallingPolicy {}
+        trait Calling<C>
+        where C satisfies CallingPolicy
+        {}
+
+        trait Routed<C>: Calling<C> {}
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a parent application must prove its generic trait header obligation");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "trait `Routed` parent `Calling` does not meet trait `Calling` header obligation `C satisfies CallingPolicy` for argument `C`",
+        )
+    }));
+}
+
+#[test]
 fn generic_bound_authorizes_requirement_call_in_body() {
     let typed = typed_program_from_source(
         r#"
