@@ -39,7 +39,7 @@ pub(super) fn collect_instruction_relocations(
     instruction: &SelectedInstruction,
     relocation_plan: &mut RelocationPlan,
 ) -> Result<(), Diagnostic> {
-    validate_win64_runtime_adapter_plans(input.target, input.host_abi, &instruction.kind)?;
+    validate_runtime_host_plans(input.target, input.host_abi, &instruction.kind)?;
     // Foreign-control trampolines live outside the architecture-specific call
     // program. Existing relocation walkers continue to describe that inner
     // program; rebasing its instruction origin keeps every call/data fixup in
@@ -76,14 +76,11 @@ pub(super) fn collect_instruction_relocations(
     Ok(())
 }
 
-fn validate_win64_runtime_adapter_plans(
+fn validate_runtime_host_plans(
     target: NativeTarget,
     host_abi: &HostAbiPlan,
     instruction: &SelectedInstructionKind,
 ) -> Result<(), Diagnostic> {
-    if target.architecture != Architecture::X86_64 || target.object_format != ObjectFormat::Coff {
-        return Ok(());
-    }
     let operation_key = match instruction {
         SelectedInstructionKind::ReadRuntimeTextLine {
             source: RuntimeTextReadSource::HostOperation { operation_key },
@@ -105,11 +102,14 @@ fn validate_win64_runtime_adapter_plans(
         .find_map(|(_, binding)| (binding.operation_key == operation_key).then_some(binding))
         .ok_or_else(|| {
             Diagnostic::error(format!(
-                "Win64 runtime adapter relocation has no binding for {}.{}",
+                "runtime host relocation has no binding for {}.{}",
                 operation_key.capability_name(),
                 operation_key.operation_name()
             ))
         })?;
+    if target.architecture != Architecture::X86_64 || target.object_format != ObjectFormat::Coff {
+        return Ok(());
+    }
     if !matches!(binding.mechanism, HostBindingMechanism::Import { .. }) {
         return Ok(());
     }
@@ -147,16 +147,13 @@ mod plan_tests {
     use omega_calling_conventions::{HostCapability, build_host_abi_plan};
     use omega_target_operations::RuntimeStorageRegion;
 
-    fn stdin_byte_read() -> SelectedInstructionKind {
+    fn stdin_byte_read(operation: HostOperation) -> SelectedInstructionKind {
         SelectedInstructionKind::ReadRuntimeByte {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: 0,
             payload_offset: 8,
             source: RuntimeTextReadSource::HostOperation {
-                operation_key: HostOperationKey::new(
-                    HostCapability::Stdin,
-                    HostOperation::ReadFile,
-                ),
+                operation_key: HostOperationKey::new(HostCapability::Stdin, operation),
             },
         }
     }
@@ -164,8 +161,8 @@ mod plan_tests {
     #[test]
     fn win64_runtime_adapter_relocations_require_an_imported_handle_binding() {
         let mut host_abi = build_host_abi_plan(NativeTarget::windows_x64());
-        let instruction = stdin_byte_read();
-        validate_win64_runtime_adapter_plans(NativeTarget::windows_x64(), &host_abi, &instruction)
+        let instruction = stdin_byte_read(HostOperation::ReadFile);
+        validate_runtime_host_plans(NativeTarget::windows_x64(), &host_abi, &instruction)
             .expect("complete retained composite plans");
 
         let get_std_handle_key =
@@ -182,12 +179,9 @@ mod plan_tests {
             number: 0,
         };
 
-        let error = validate_win64_runtime_adapter_plans(
-            NativeTarget::windows_x64(),
-            &host_abi,
-            &instruction,
-        )
-        .expect_err("a non-import GetStdHandle binding must reject");
+        let error =
+            validate_runtime_host_plans(NativeTarget::windows_x64(), &host_abi, &instruction)
+                .expect_err("a non-import GetStdHandle binding must reject");
         assert!(
             error
                 .message
@@ -198,11 +192,30 @@ mod plan_tests {
     #[test]
     fn non_windows_runtime_relocations_do_not_require_win64_subplans() {
         let host_abi = build_host_abi_plan(NativeTarget::linux_x64());
-        validate_win64_runtime_adapter_plans(
+        validate_runtime_host_plans(
             NativeTarget::linux_x64(),
             &host_abi,
-            &stdin_byte_read(),
+            &stdin_byte_read(HostOperation::Read),
         )
         .expect("Linux syscall relocation has no GetStdHandle subcall");
+    }
+
+    #[test]
+    fn runtime_host_relocations_require_the_selected_binding_on_every_target() {
+        let host_abi = build_host_abi_plan(NativeTarget::linux_x64());
+        let instruction = SelectedInstructionKind::ReadRuntimeByte {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: 0,
+            payload_offset: 8,
+            source: RuntimeTextReadSource::HostOperation {
+                operation_key: HostOperationKey::new(
+                    HostCapability::Unknown,
+                    HostOperation::Unknown,
+                ),
+            },
+        };
+        let error = validate_runtime_host_plans(NativeTarget::linux_x64(), &host_abi, &instruction)
+            .expect_err("runtime host relocation cannot omit its selected binding");
+        assert!(error.message.contains("has no binding"));
     }
 }
