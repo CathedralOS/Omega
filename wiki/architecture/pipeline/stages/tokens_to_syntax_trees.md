@@ -26,11 +26,17 @@ source shape without turning nested syntax into scattered heap objects.
 - `compiler/psi-rs/foundation/psi-diagnostics` owns the target-neutral
   `PhaseSnapshot` contract used to materialize readable source-shaped trees.
 - `compiler/psi-rs/foundation/psi-language-core` owns the grammar-facing
-  atomic-ordering plans, cast forms, and operator spelling. The corresponding
-  `omega-core` modules are compatibility exports during parser migration.
+  multiplicity, data-supply, carry, domain-body, call-acknowledgement,
+  atomic-ordering, cast-form, and operator-spelling vocabulary. The
+  corresponding `omega-core` modules are compatibility exports during parser
+  migration.
 - `compiler/psi-rs/foundation/psi-numerics` owns exact numeric meanings,
   arithmetic-domain vocabulary, and integer/float literal payloads. Parser-side
   literal validation therefore remains target-neutral when the stage migrates.
+- `compiler/psi-rs/foundation/psi-symbols` owns shared symbol identities and
+  hierarchy storage. This parser stage does not assign symbols, but later
+  Psi-owned resolution can consume its source-shaped output without an Omega
+  foundation dependency.
 - `parser.rs` owns public entrypoints and whole-file parse completion checks.
 - `parser/input.rs` owns token cursor movement, span mapping, and parser
   lookahead helpers.

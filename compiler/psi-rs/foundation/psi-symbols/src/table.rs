@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use crate::arena::{
-    Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles,
-};
-use crate::source::{SourceMap, SourceSpan};
+use psi_arena::{Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles};
+use psi_source::{SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
 use super::{
@@ -200,10 +198,7 @@ impl SymbolTable {
     /// focused source-free trees return `None`; semantic consumers that admit
     /// source-free fixtures must make that fallback explicit rather than
     /// mistaking a spelling for toolchain ownership.
-    pub fn symbol_source_origin(
-        &self,
-        symbol: SymbolHandle,
-    ) -> Option<crate::source::SourceOrigin> {
+    pub fn symbol_source_origin(&self, symbol: SymbolHandle) -> Option<SourceOrigin> {
         let sources = self.sources.as_deref()?;
         let source_span = self.names.get(self.get(symbol).name).source_span()?;
         sources.file_at(source_span).map(|file| file.origin)

@@ -62,6 +62,7 @@ Omega/
 |   |   |   |-- [CRATE] psi-numerics/                   # Exact numerics, float semantics, and literal payloads.
 |   |   |   |-- [CRATE] psi-source/                     # Loaded-source data and coordinates owned by the Psi frontend.
 |   |   |   |-- [CRATE] psi-source-loader/              # Root-file loading into Psi-owned source maps.
+|   |   |   |-- [CRATE] psi-symbols/                    # Stable symbol identities and hierarchy storage.
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
 |   |   |-- representations/
 |   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.

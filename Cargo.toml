@@ -7,6 +7,7 @@ members = [
     "compiler/psi-rs/foundation/psi-numerics",
     "compiler/psi-rs/foundation/psi-source",
     "compiler/psi-rs/foundation/psi-source-loader",
+    "compiler/psi-rs/foundation/psi-symbols",
     "compiler/psi-rs/foundation/psi-core",
     "compiler/psi-rs/representations/psi-tokens",
     "compiler/psi-rs/representations/psi-terminal",
