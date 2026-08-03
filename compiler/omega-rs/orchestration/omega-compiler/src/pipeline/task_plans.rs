@@ -1,16 +1,14 @@
-use omega_checked_trees::{
-    CheckedTrees, SelectedTaskRuntimeProviderFact, SuspensionCrossingStorage,
-    TaskActivationPlanFact, TaskStartOperation,
-};
+use omega_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
 use omega_layout::TypeLayout;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
-    CanonicalSuspensionCrossing, MachineContractId, MachineEntryId, StackPlan,
-    StackRepresentationId, SuspensionCrossingId, TaskRuntimeId, ValueLayoutId,
-    validate_activation_plan,
+    CanonicalSuspensionCrossing, MachineContractId, MachineEntryId,
+    SelectedTaskRuntimeProviderFact, StackPlan, StackRepresentationId, SuspensionCrossingId,
+    TaskActivationPlanFact, TaskActivationPlanSet, TaskRuntimeId, TaskStartOperation,
+    ValueLayoutId, validate_activation_plan,
 };
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
@@ -18,14 +16,13 @@ use omega_task_plans::{
 /// deliberately nominal and closed: an unrelated method named `start` does
 /// not become a task operation.
 pub(super) fn elaborate_task_activation_plans(
-    program: &mut CheckedTrees,
+    program: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     target: NativeTarget,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<TaskActivationPlanSet, Vec<Diagnostic>> {
     let selections = task_start_selections(program)?;
     if selections.is_empty() {
-        program.facts.contract_plans.task_activations.clear();
-        return Ok(());
+        return Ok(TaskActivationPlanSet::default());
     }
     let layouts = omega_layout::build_layout_plan(program, target).map_err(|error| vec![error])?;
     let mut activations = Vec::new();
@@ -160,8 +157,7 @@ pub(super) fn elaborate_task_activation_plans(
         });
     }
 
-    program.facts.contract_plans.task_activations = activations;
-    Ok(())
+    Ok(TaskActivationPlanSet { activations })
 }
 
 fn selected_task_runtime_provider(
@@ -875,12 +871,13 @@ mod tests {
             &[provider_plans[0].name.clone()],
         )
         .expect("select complete TaskRuntime provider");
-        let mut checked = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        let checked = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check and specialize task start");
 
-        elaborate_task_activation_plans(&mut checked, &selected, NativeTarget::macos_arm64())
-            .expect("elaborate activation plan");
-        let activations = checked.facts.contract_plans.task_activations.as_slice();
+        let task_activations =
+            elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64())
+                .expect("elaborate activation plan");
+        let activations = task_activations.as_slice();
         assert_eq!(activations.len(), 2);
         let activation = activations
             .iter()
@@ -931,7 +928,8 @@ mod tests {
                 .contains("TaskRuntime")
         );
 
-        let manifest = omega_visualizations::task_activation_manifest_json(&checked);
+        let manifest =
+            omega_visualizations::task_activation_manifest_json(&checked, &task_activations);
         assert!(manifest.contains("\"operation\": \"start\""));
         assert!(manifest.contains("\"operation\": \"try_start\""));
         assert!(manifest.contains("\"target_machine\": \"Worker::run\""));

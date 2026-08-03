@@ -601,6 +601,10 @@ fn checked_semantics_do_not_retain_provider_realization() {
         !manifest_source.contains("omega-effects"),
         "checked semantics must depend on Psi effect facts, not Omega provider realization"
     );
+    assert!(
+        !manifest_source.contains("omega-task-plans"),
+        "checked semantics must not depend on target/provider task activation realization"
+    );
 
     let checked_root = root.join("compiler/omega-rs/representations/omega-checked-trees/src");
     for relative in ["lib.rs", "trees.rs"] {
@@ -611,6 +615,8 @@ fn checked_semantics_do_not_retain_provider_realization() {
             "SelectedProviderPlanFacts",
             "selected_provider_plans",
             "retain_selected_provider_plans",
+            "TaskActivationPlanFact",
+            "task_activations",
         ] {
             assert!(
                 !source.contains(forbidden),
@@ -624,6 +630,13 @@ fn checked_semantics_do_not_retain_provider_realization() {
     assert!(
         omega_provider_carrier.exists(),
         "selected concrete provider plans must remain in the Omega provider subsystem"
+    );
+    let omega_task_carrier = root.join("compiler/omega-rs/foundation/omega-task-plans/src/lib.rs");
+    let task_source = std::fs::read_to_string(&omega_task_carrier)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
+    assert!(
+        task_source.contains("pub struct TaskActivationPlanSet"),
+        "target/layout-specific task activation plans must remain an Omega sidecar"
     );
 }
 

@@ -169,6 +169,7 @@ pub(super) fn write_checked_snapshot(
     options: &CompileOptions,
     checked: &omega_checked_trees::CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    task_activations: &omega_task_plans::TaskActivationPlanSet,
 ) -> Result<(), Vec<Diagnostic>> {
     write_phase_diagram(
         options,
@@ -216,7 +217,7 @@ pub(super) fn write_checked_snapshot(
     write_phase_json(
         options,
         "05_task_activations.json",
-        &omega_visualizations::task_activation_manifest_json(checked),
+        &omega_visualizations::task_activation_manifest_json(checked, task_activations),
     )
 }
 

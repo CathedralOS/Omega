@@ -43,8 +43,9 @@ this path.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 target-neutral facts and effect summaries are Psi-owned, while concrete
-selected provider plans are Omega-owned and travel as an orchestration sidecar.
-`CheckedTrees` does not embed that target/provider realization state.
+selected provider plans and target/layout-specific task activation plans are
+Omega-owned and travel as orchestration sidecars. `CheckedTrees` does not
+embed that target/provider realization state.
 
 The first transitional source producer is now live as
 `omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:

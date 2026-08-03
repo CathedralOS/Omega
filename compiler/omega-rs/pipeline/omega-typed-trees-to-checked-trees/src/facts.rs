@@ -359,10 +359,7 @@ fn build_contract_plans(
             fingerprint,
         });
     }
-    omega_checked_trees::MachineContractPlans {
-        machines,
-        task_activations: Vec::new(),
-    }
+    omega_checked_trees::MachineContractPlans { machines }
 }
 
 fn encode_type_spelling(text: &str, binders: &[(String, String)], output: &mut Vec<u8>) {

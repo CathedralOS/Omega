@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "omega_task_plans"
 path = "src/lib.rs"
+
+[dependencies]
+psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }

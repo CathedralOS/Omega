@@ -175,6 +175,52 @@ pub fn validate_activation_plan(
     Ok(ValidatedActivationPlan(candidate))
 }
 
+/// Which ordinary `TaskRuntime` operation requested one concrete activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskStartOperation {
+    Start,
+    TryStart,
+}
+
+/// Exact selected runtime evidence paired with one Omega activation plan.
+/// This is post-check provider realization state, not part of Psi checked
+/// semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTaskRuntimeProviderFact {
+    pub runtime: TaskRuntimeId,
+    pub provider_plan_name: String,
+    pub requirement_identity: String,
+}
+
+/// One target/layout-specific task activation elaborated by Omega after Psi
+/// semantic checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskActivationPlanFact {
+    pub start_requirement: psi_symbols::SymbolHandle,
+    pub target_machine: psi_symbols::SymbolHandle,
+    pub target_entry: psi_symbols::SymbolHandle,
+    pub specialization_fingerprint: u64,
+    pub operation: TaskStartOperation,
+    pub selected_runtime: SelectedTaskRuntimeProviderFact,
+    pub plan: ValidatedActivationPlan,
+}
+
+/// Omega-owned task activation sidecar for one checked compilation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TaskActivationPlanSet {
+    pub activations: Vec<TaskActivationPlanFact>,
+}
+
+impl TaskActivationPlanSet {
+    pub fn as_slice(&self) -> &[TaskActivationPlanFact] {
+        &self.activations
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.activations.is_empty()
+    }
+}
+
 /// One independent affinity axis an executor can prove it preserves.
 ///
 /// Suspension and address stability are deliberately absent. Suspension is a

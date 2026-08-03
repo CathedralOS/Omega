@@ -1337,8 +1337,12 @@ fn carry_call_target_name(program: &CheckedTrees, symbol: SymbolHandle) -> &str 
 /// Provider-independent task activation demands. Runtime/provider admission
 /// consumes these normalized facts; the artifact keeps target/layout and
 /// canonical carry derivation inspectable without exposing provider handles.
-pub fn task_activation_manifest_json(program: &CheckedTrees) -> String {
-    use omega_checked_trees::{TaskStartOperation, machine::Machine};
+pub fn task_activation_manifest_json(
+    program: &CheckedTrees,
+    task_activations: &omega_task_plans::TaskActivationPlanSet,
+) -> String {
+    use omega_checked_trees::machine::Machine;
+    use omega_task_plans::TaskStartOperation;
 
     fn machine_name<'a>(machines: &'a [Machine], symbol: SymbolHandle) -> &'a str {
         machines
@@ -1368,13 +1372,7 @@ pub fn task_activation_manifest_json(program: &CheckedTrees) -> String {
             .unwrap_or_else(|| "<unknown>".to_owned())
     }
     let mut json = String::from("{\n  \"activations\": [");
-    for (index, activation) in program
-        .facts
-        .contract_plans
-        .task_activations
-        .iter()
-        .enumerate()
-    {
+    for (index, activation) in task_activations.as_slice().iter().enumerate() {
         if index > 0 {
             json.push(',');
         }
