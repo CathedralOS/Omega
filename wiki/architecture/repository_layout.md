@@ -45,7 +45,9 @@ current packages.
 > retired. The unused `omega-core` source/span, exact-bignum, const-value,
 > content, built-in-value-domain, atomic-ordering, cast-form,
 > operator-spelling, and inline-assembly aliases are retired; consumers use
-> their Psi owners directly. Remaining high-fanout `omega-core` module
+> their Psi owners directly. The unused generic trust grant/receipt carrier is
+> also retired; concrete semantic commitments keep their identities and
+> receipts with their admission consumers. Remaining high-fanout `omega-core` module
 > re-exports are a separate incremental foundation migration. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
 > `compiler/` also holds the bootstrap lattice rungs documented in

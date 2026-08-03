@@ -7,6 +7,3 @@ version.workspace = true
 [lib]
 name = "omega_core"
 path = "src/lib.rs"
-
-[dependencies]
-psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
