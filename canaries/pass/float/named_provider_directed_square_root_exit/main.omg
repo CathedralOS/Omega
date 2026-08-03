@@ -1,0 +1,57 @@
+// sqrt(2) lies strictly between adjacent values in both IEEE formats.
+// Directed modes choose those neighbors while ordinary square root remains
+// nearest-even after each local floating-control-state envelope.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    two32: f32;
+    lower32: f32;
+    upper32: f32;
+    positive32: f32;
+    zero32: f32;
+    negative32: f32;
+    ordinary32: f32;
+    two64: f64;
+    lower64: f64;
+    upper64: f64;
+    positive64: f64;
+    zero64: f64;
+    negative64: f64;
+    ordinary64: f64;
+}
+
+machine Main::main(&mut self) {
+    self.two32 = 2.0f32;
+    self.lower32 = 1.41421353816986083984375f32;
+    self.upper32 = 1.414213657379150390625f32;
+    self.positive32 = F32::square_root_toward_positive(self.two32);
+    self.zero32 = F32::square_root_toward_zero(self.two32);
+    self.negative32 = F32::square_root_toward_negative(self.two32);
+    self.ordinary32 = F32::square_root(self.two32);
+
+    self.two64 = 2.0;
+    self.lower64 = 1.41421356237309492343001693370752036571502685546875;
+    self.upper64 = 1.4142135623730951454746218587388284504413604736328125;
+    self.positive64 = F64::square_root_toward_positive(self.two64);
+    self.zero64 = F64::square_root_toward_zero(self.two64);
+    self.negative64 = F64::square_root_toward_negative(self.two64);
+    self.ordinary64 = F64::square_root(self.two64);
+
+    transition self.positive32 == self.upper32
+        && self.zero32 == self.lower32
+        && self.negative32 == self.lower32
+        && self.ordinary32 == self.lower32
+        && self.positive64 == self.upper64
+        && self.zero64 == self.lower64
+        && self.negative64 == self.lower64
+        && self.ordinary64 == self.upper64 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

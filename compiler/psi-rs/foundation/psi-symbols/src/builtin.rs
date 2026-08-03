@@ -133,10 +133,16 @@ pub enum BuiltinFunction {
     FloatDivideTowardPositiveF64,
     FloatDivideTowardNegativeF32,
     FloatDivideTowardNegativeF64,
+    FloatSqrtTowardZeroF32,
+    FloatSqrtTowardZeroF64,
+    FloatSqrtTowardPositiveF32,
+    FloatSqrtTowardPositiveF64,
+    FloatSqrtTowardNegativeF32,
+    FloatSqrtTowardNegativeF64,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 59;
+    pub const COUNT: usize = 65;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -197,6 +203,12 @@ impl BuiltinFunction {
             Self::FloatDivideTowardPositiveF64 => "float#divide_toward_positive_f64",
             Self::FloatDivideTowardNegativeF32 => "float#divide_toward_negative_f32",
             Self::FloatDivideTowardNegativeF64 => "float#divide_toward_negative_f64",
+            Self::FloatSqrtTowardZeroF32 => "float#sqrt_toward_zero_f32",
+            Self::FloatSqrtTowardZeroF64 => "float#sqrt_toward_zero_f64",
+            Self::FloatSqrtTowardPositiveF32 => "float#sqrt_toward_positive_f32",
+            Self::FloatSqrtTowardPositiveF64 => "float#sqrt_toward_positive_f64",
+            Self::FloatSqrtTowardNegativeF32 => "float#sqrt_toward_negative_f32",
+            Self::FloatSqrtTowardNegativeF64 => "float#sqrt_toward_negative_f64",
             Self::ContentEntry => "entry",
             Self::ContentSeparate => "separate",
         }
@@ -263,6 +275,12 @@ impl BuiltinFunction {
             Self::FloatDivideTowardPositiveF64 => 56,
             Self::FloatDivideTowardNegativeF32 => 57,
             Self::FloatDivideTowardNegativeF64 => 58,
+            Self::FloatSqrtTowardZeroF32 => 59,
+            Self::FloatSqrtTowardZeroF64 => 60,
+            Self::FloatSqrtTowardPositiveF32 => 61,
+            Self::FloatSqrtTowardPositiveF64 => 62,
+            Self::FloatSqrtTowardNegativeF32 => 63,
+            Self::FloatSqrtTowardNegativeF64 => 64,
         }
     }
 
@@ -324,6 +342,12 @@ impl BuiltinFunction {
             | Self::FloatDivideTowardPositiveF64
             | Self::FloatDivideTowardNegativeF32
             | Self::FloatDivideTowardNegativeF64
+            | Self::FloatSqrtTowardZeroF32
+            | Self::FloatSqrtTowardZeroF64
+            | Self::FloatSqrtTowardPositiveF32
+            | Self::FloatSqrtTowardPositiveF64
+            | Self::FloatSqrtTowardNegativeF32
+            | Self::FloatSqrtTowardNegativeF64
             | Self::ContentEntry
             | Self::ContentSeparate
             | Self::AsmLoadFence
@@ -666,6 +690,30 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatDivideTowardNegativeF64.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardZeroF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardZeroF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardPositiveF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardPositiveF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardNegativeF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSqrtTowardNegativeF64.name()),
+        ),
     ]
 }
 
@@ -755,6 +803,12 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatDivideTowardPositiveF64,
             BuiltinFunction::FloatDivideTowardNegativeF32,
             BuiltinFunction::FloatDivideTowardNegativeF64,
+            BuiltinFunction::FloatSqrtTowardZeroF32,
+            BuiltinFunction::FloatSqrtTowardZeroF64,
+            BuiltinFunction::FloatSqrtTowardPositiveF32,
+            BuiltinFunction::FloatSqrtTowardPositiveF64,
+            BuiltinFunction::FloatSqrtTowardNegativeF32,
+            BuiltinFunction::FloatSqrtTowardNegativeF64,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

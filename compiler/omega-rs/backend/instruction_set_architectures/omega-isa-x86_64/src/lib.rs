@@ -7923,6 +7923,9 @@ fn runtime_value_operand_uses_control_state(
                 | StateGuardOperator::DivideTowardZero
                 | StateGuardOperator::DivideTowardPositive
                 | StateGuardOperator::DivideTowardNegative
+                | StateGuardOperator::SqrtTowardZero
+                | StateGuardOperator::SqrtTowardPositive
+                | StateGuardOperator::SqrtTowardNegative
         ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
             || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
@@ -14921,24 +14924,30 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
             | StateGuardOperator::Min
             | StateGuardOperator::Max
             | StateGuardOperator::Sqrt
+            | StateGuardOperator::SqrtTowardZero
+            | StateGuardOperator::SqrtTowardPositive
+            | StateGuardOperator::SqrtTowardNegative
     )
 }
 
-fn directed_binary_mxcsr(operator: StateGuardOperator) -> Option<u32> {
+fn directed_float_mxcsr(operator: StateGuardOperator) -> Option<u32> {
     match operator {
         // Canonical 0x1f80 plus MXCSR.RC in bits 13..14.
         StateGuardOperator::AddTowardNegative
         | StateGuardOperator::SubtractTowardNegative
         | StateGuardOperator::MultiplyTowardNegative
-        | StateGuardOperator::DivideTowardNegative => Some(0x3f80),
+        | StateGuardOperator::DivideTowardNegative
+        | StateGuardOperator::SqrtTowardNegative => Some(0x3f80),
         StateGuardOperator::AddTowardPositive
         | StateGuardOperator::SubtractTowardPositive
         | StateGuardOperator::MultiplyTowardPositive
-        | StateGuardOperator::DivideTowardPositive => Some(0x5f80),
+        | StateGuardOperator::DivideTowardPositive
+        | StateGuardOperator::SqrtTowardPositive => Some(0x5f80),
         StateGuardOperator::AddTowardZero
         | StateGuardOperator::SubtractTowardZero
         | StateGuardOperator::MultiplyTowardZero
-        | StateGuardOperator::DivideTowardZero => Some(0x7f80),
+        | StateGuardOperator::DivideTowardZero
+        | StateGuardOperator::SqrtTowardZero => Some(0x7f80),
         _ => None,
     }
 }
@@ -15320,7 +15329,7 @@ fn append_runtime_float_binary_operation(
     }
     // F2 = scalar-double prefix (`*sd`), F3 = scalar-single (`*ss`).
     let scalar_prefix = if wide { 0xf2 } else { 0xf3 };
-    let directed_mxcsr = directed_binary_mxcsr(operator);
+    let directed_mxcsr = directed_float_mxcsr(operator);
     if let Some(mxcsr) = directed_mxcsr {
         append_directed_float_control_prefix(bytes, mxcsr);
     }
@@ -15350,7 +15359,10 @@ fn append_runtime_float_binary_operation(
         // sqrt is UNARY, carried with both operands = x: `sqrtsd xmm0, xmm1`
         // computes sqrt(xmm1) = sqrt(x) into xmm0, so the shared final line
         // below (op on xmm0, xmm1) already produces the right result.
-        StateGuardOperator::Sqrt => 0x51, // sqrtsd/sqrtss
+        StateGuardOperator::Sqrt
+        | StateGuardOperator::SqrtTowardZero
+        | StateGuardOperator::SqrtTowardPositive
+        | StateGuardOperator::SqrtTowardNegative => 0x51, // sqrtsd/sqrtss
         StateGuardOperator::IsNan => {
             if wide {
                 bytes.extend([0x66, 0x0f, 0x2e, 0xc0]); // ucomisd xmm0,xmm0
@@ -15502,7 +15514,10 @@ fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> us
         | StateGuardOperator::MultiplyTowardNegative
         | StateGuardOperator::DivideTowardZero
         | StateGuardOperator::DivideTowardPositive
-        | StateGuardOperator::DivideTowardNegative => 19 + DIRECTED_FLOAT_CONTROL_WIDTH,
+        | StateGuardOperator::DivideTowardNegative
+        | StateGuardOperator::SqrtTowardZero
+        | StateGuardOperator::SqrtTowardPositive
+        | StateGuardOperator::SqrtTowardNegative => 19 + DIRECTED_FLOAT_CONTROL_WIDTH,
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
         StateGuardOperator::IsNan
         | StateGuardOperator::Greater
@@ -16719,6 +16734,9 @@ mod float_arithmetic_policy_tests {
                 StateGuardOperator::DivideTowardZero,
                 StateGuardOperator::DivideTowardPositive,
                 StateGuardOperator::DivideTowardNegative,
+                StateGuardOperator::SqrtTowardZero,
+                StateGuardOperator::SqrtTowardPositive,
+                StateGuardOperator::SqrtTowardNegative,
                 StateGuardOperator::MultiplyThenAdd,
             ] {
                 for domain in [
@@ -16743,7 +16761,7 @@ mod float_arithmetic_policy_tests {
     }
 
     #[test]
-    fn directed_binary_operations_balance_mxcsr_and_widths() {
+    fn directed_operations_balance_mxcsr_and_widths() {
         for (operator, mxcsr, opcode) in [
             (StateGuardOperator::AddTowardNegative, 0x3f80_u32, 0x58),
             (StateGuardOperator::AddTowardPositive, 0x5f80_u32, 0x58),
@@ -16757,6 +16775,9 @@ mod float_arithmetic_policy_tests {
             (StateGuardOperator::DivideTowardNegative, 0x3f80_u32, 0x5e),
             (StateGuardOperator::DivideTowardPositive, 0x5f80_u32, 0x5e),
             (StateGuardOperator::DivideTowardZero, 0x7f80_u32, 0x5e),
+            (StateGuardOperator::SqrtTowardNegative, 0x3f80_u32, 0x51),
+            (StateGuardOperator::SqrtTowardPositive, 0x5f80_u32, 0x51),
+            (StateGuardOperator::SqrtTowardZero, 0x7f80_u32, 0x51),
         ] {
             for byte_size in [4usize, 8] {
                 let mut bytes = Vec::new();
@@ -16766,7 +16787,7 @@ mod float_arithmetic_policy_tests {
                     byte_size,
                     ArithmeticDomain::Exact,
                 )
-                .expect("encode directed add");
+                .expect("encode directed operation");
                 assert_eq!(
                     bytes.len(),
                     runtime_float_binary_operation_width_with_domain(
