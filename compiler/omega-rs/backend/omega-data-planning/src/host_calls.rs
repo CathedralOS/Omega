@@ -24,6 +24,7 @@ pub(super) fn collect_host_call_data(
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. }
         | PlatformCallData::ConstantArguments { .. }
+        | PlatformCallData::DirectoryRelativePathPair { .. }
         | PlatformCallData::TimespecResult { .. }
         | PlatformCallData::TimespecArgument => {}
     }

@@ -20,6 +20,9 @@ struct LinuxSyscallNumbers {
     fchmod: u32,
     mkdirat: u32,
     unlinkat: u32,
+    symlinkat: u32,
+    linkat: u32,
+    renameat: u32,
     fchmodat: u32,
     readlinkat: u32,
     fchown: u32,
@@ -203,6 +206,33 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "readlinkat",
             syscall_numbers.readlinkat,
             4,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "rename",
+            "renameat",
+            syscall_numbers.renameat,
+            4,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "link",
+            "linkat",
+            syscall_numbers.linkat,
+            5,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "symlink",
+            "symlinkat",
+            syscall_numbers.symlinkat,
+            3,
             &policy,
             plan.target.architecture,
         ),
@@ -412,6 +442,23 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Filesystem", "open")],
         PlatformCallData::ConstantArgument { value: -100 },
     );
+    for (method, operation, first_dirfd, trailing_flags) in [
+        ("rename", "rename", Some(-100), None),
+        ("hard_link", "link", Some(-100), Some(0)),
+        ("symlink", "symlink", None, None),
+    ] {
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            method,
+            [host_operation("Filesystem", operation)],
+            PlatformCallData::DirectoryRelativePathPair {
+                first_dirfd,
+                second_dirfd: -100,
+                trailing_flags,
+            },
+        );
+    }
     for method in ["remove", "remove_name"] {
         insert_platform_lowering(
             plan,
@@ -484,6 +531,9 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             fchmod: 52,
             mkdirat: 34,
             unlinkat: 35,
+            symlinkat: 36,
+            linkat: 37,
+            renameat: 38,
             fchmodat: 53,
             readlinkat: 78,
             fchown: 55,
@@ -507,6 +557,9 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             fchmod: 91,
             mkdirat: 258,
             unlinkat: 263,
+            symlinkat: 266,
+            linkat: 265,
+            renameat: 264,
             fchmodat: 268,
             readlinkat: 267,
             fchown: 93,

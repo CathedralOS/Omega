@@ -1621,8 +1621,9 @@ ordinary code never receives a raw executable address.
   permission changes with plan-owned `AT_FDCWD`; direct `unlink_at` and
   plan-prefixed `readlinkat` are normalized too. Plain-path removal now injects
   both `AT_FDCWD` and Linux's `AT_REMOVEDIR` through retained plan data.
-  Remaining Linux work is the real target `StatLayout`, metadata, rename/link,
-  directory-record, and errno adapters.
+  `renameat`/`linkat`/`symlinkat` retain their directory descriptors and flags
+  through the same plan surface. Remaining Linux work is the real target
+  `StatLayout`, metadata, directory-record, and errno adapters.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement

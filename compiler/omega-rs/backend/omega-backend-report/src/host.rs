@@ -185,6 +185,13 @@ fn write_platform_call_lowering(
         PlatformCallData::ConstantArguments { leading, trailing } => output.push_str(&format!(
             " data constant_arguments leading={leading} trailing={trailing}"
         )),
+        PlatformCallData::DirectoryRelativePathPair {
+            first_dirfd,
+            second_dirfd,
+            trailing_flags,
+        } => output.push_str(&format!(
+            " data directory_relative_path_pair first_dirfd={first_dirfd:?} second_dirfd={second_dirfd} trailing_flags={trailing_flags:?}"
+        )),
         PlatformCallData::TimespecResult { clock_id } => {
             output.push_str(&format!(" data timespec_result clock_id={clock_id}"))
         }
