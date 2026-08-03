@@ -1,5 +1,6 @@
 use crate::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, HostBoundaryPolicy, PlatformCallData,
+    CallSignature, CallingPolicy, HostAbiPlan, HostBinding, HostBindingMechanism,
+    HostBoundaryPolicy, PlatformCallData, ValueShape, evaluate_ordinary_boundary_entry_plan,
     host_operation, insert_platform_lowering,
 };
 
@@ -696,6 +697,15 @@ fn windows_import(
     symbol: &str,
     policy: &std::sync::Arc<str>,
 ) -> HostBinding {
+    let boundary_entry_plan =
+        windows_fixed_import_signature(capability, operation).map(|signature| {
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &signature)
+                .expect(
+                    "the fixed built-in Windows import signature must have a Microsoft x64 plan",
+                )
+                .plan()
+                .clone()
+        });
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
@@ -705,6 +715,18 @@ fn windows_import(
         // Share ONE policy allocation across every binding (all name the same
         // target path) -- an Arc refcount bump, not a fresh string per row.
         boundary_policy: std::sync::Arc::clone(policy),
-        boundary_entry_plan: None,
+        boundary_entry_plan,
     }
+}
+
+fn windows_fixed_import_signature(capability: &str, operation: &str) -> Option<CallSignature> {
+    let result = match (capability, operation) {
+        ("Clock", "tick_count") | ("Gui", "foreground_window") => ValueShape::integer(8, 8),
+        ("Filesystem", "get_last_error" | "read_errno") => ValueShape::integer(4, 4),
+        _ => return None,
+    };
+    Some(CallSignature {
+        parameters: Vec::new(),
+        result: Some(result),
+    })
 }
