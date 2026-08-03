@@ -1022,9 +1022,11 @@ improvements do not change public identity.
   exact-width wrapping integer addition, v4 exact-width saturating integer
   addition, v5 exact-width wrapping integer subtraction, v6 exact-width
   saturating integer subtraction, v7 exact-width wrapping integer
-  multiplication, v8 exact-width saturating integer multiplication, and
-  current-v9 proof-only structural-place/content-conservation propositions,
-  unconditional jump/return edges,
+  multiplication, v8 exact-width saturating integer multiplication, v9
+  proof-only structural-place/content-conservation propositions, v10 canonical
+  identity-preserving claim reshuffles, v11 stable sum-case content paths, and
+  current-v12 exact authored-partition substitution rows; the executable slice
+  retains unconditional jump/return edges,
   bodyful contracts, verifier-reconstructed semantic axioms, exhaustive proof-
   bundle checking, and direct execution of the verified module in
   `omega-interpreter`. Its validator rejects unreachable axiom sources and
@@ -1206,7 +1208,7 @@ improvements do not change public identity.
   schedules, and reports logical fuel rather than structural work; continue
   from terminal Psi and its interpreter meter rather than treating that
   provider-authored precursor as a Psi proof. The terminal-Psi
-  v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11
+  v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11/v12
   schemas, serialization, migration, and verifier/lowering boundary are owned
   by PSIIR.
   The current TypedTrees evaluator now publishes an explicitly versioned deterministic

@@ -340,6 +340,14 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "pub use psi_source::SourceId;",
         ),
         (
+            "compiler/omega-rs/foundation/omega-core/src/source/source_file.rs",
+            "pub use psi_source::{SourceFile, SourceOrigin, SourcePosition};",
+        ),
+        (
+            "compiler/omega-rs/foundation/omega-core/src/source/source_map.rs",
+            "pub use psi_source::SourceMap;",
+        ),
+        (
             "compiler/omega-rs/foundation/omega-core/src/source/source_span.rs",
             "pub use psi_source::SourceSpan;",
         ),

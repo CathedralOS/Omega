@@ -9,7 +9,8 @@ semantic and evidence contract is owned by
 
 Implementation status (2026-08-02): `compiler/psi-rs` is the Psi-owned
 workspace root. The first source-facing ownership slice is live:
-`psi-source` owns source identities, byte spans, and source-backed text;
+`psi-source` owns loaded-source records/maps, identities, byte spans, and
+source-backed text;
 `psi-tokens` owns token streams; and
 `psi-source-files-to-tokens` owns the Omega lexer without depending on any
 Omega crate. The old Omega-named token and lexer crates are thin compatibility
