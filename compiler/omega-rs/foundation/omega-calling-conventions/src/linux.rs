@@ -18,6 +18,8 @@ struct LinuxSyscallNumbers {
     fsync: u32,
     ftruncate: u32,
     fchmod: u32,
+    mkdirat: u32,
+    fchmodat: u32,
     fchown: u32,
     fstat: u32,
     openat: u32,
@@ -145,6 +147,24 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "fchmod",
             syscall_numbers.fchmod,
             2,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "mkdir",
+            "mkdirat",
+            syscall_numbers.mkdirat,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "chmod",
+            "fchmodat",
+            syscall_numbers.fchmodat,
+            3,
             &policy,
             plan.target.architecture,
         ),
@@ -360,6 +380,22 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Filesystem", "open_create")],
         PlatformCallData::ConstantArgument { value: -100 },
     );
+    for method in ["create_dir", "create_dir_name"] {
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            method,
+            [host_operation("Filesystem", "mkdir")],
+            PlatformCallData::ConstantArgument { value: -100 },
+        );
+    }
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "set_permissions",
+        [host_operation("Filesystem", "chmod")],
+        PlatformCallData::ConstantArgument { value: -100 },
+    );
 }
 
 fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
@@ -376,6 +412,8 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             fsync: 82,
             ftruncate: 46,
             fchmod: 52,
+            mkdirat: 34,
+            fchmodat: 53,
             fchown: 55,
             fstat: 80,
             openat: 56,
@@ -395,6 +433,8 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
             fsync: 74,
             ftruncate: 77,
             fchmod: 91,
+            mkdirat: 258,
+            fchmodat: 268,
             fchown: 93,
             fstat: 5,
             openat: 257,
