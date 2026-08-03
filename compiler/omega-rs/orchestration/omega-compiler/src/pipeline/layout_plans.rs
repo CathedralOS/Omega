@@ -7,7 +7,7 @@
 //! field.
 
 use omega_interpreter::BuildTimeValue;
-pub use omega_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
+pub use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
 

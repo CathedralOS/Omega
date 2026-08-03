@@ -6,7 +6,7 @@
 //! Approval is exact to the boundary trait symbol; service rows are unrelated.
 
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::TypedTrees;
+use psi_typed_trees::TypedTrees;
 
 use crate::OperationalPlan;
 use crate::capabilities::provider_approval::{

@@ -27,7 +27,7 @@
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_layout_plans::LayoutPlacementReport;
+use psi_layout_plans::LayoutPlacementReport;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{DataDefinition, DataMember, DataProperties, Item};

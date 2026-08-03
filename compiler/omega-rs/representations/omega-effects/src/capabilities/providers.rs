@@ -7,9 +7,9 @@
 
 use omega_core::diagnostics::Diagnostic;
 use omega_core::operator_spelling::ProviderCategory;
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{
     BoundaryLevel, CapabilityContract, CapabilityContractKind, Item, OperatorDefinition,
 };
 
@@ -260,7 +260,7 @@ pub fn validate_provider_bindings(
 fn validate_operator_binding(
     syntax: &SyntaxTrees,
     registry: &BoundaryProviderRegistry,
-    operator: &omega_syntax_trees::item::OperatorDefinition,
+    operator: &psi_syntax_trees::item::OperatorDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(provider) = operator.provider else {

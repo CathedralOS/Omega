@@ -306,7 +306,6 @@ dependencies = [
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
- "omega-access-plans",
  "omega-artifacts",
  "omega-backend-pipeline",
  "omega-backend-plan",
@@ -324,7 +323,6 @@ dependencies = [
  "omega-instruction-selection",
  "omega-interpreter",
  "omega-layout",
- "omega-layout-plans",
  "omega-machine-bytes",
  "omega-object-file",
  "omega-platform-interface",
@@ -343,8 +341,10 @@ dependencies = [
  "omega-target-operations",
  "omega-task-plans",
  "omega-visualizations",
+ "psi-access-plans",
  "psi-checked-trees",
  "psi-facts",
+ "psi-layout-plans",
  "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees",
@@ -429,9 +429,9 @@ name = "omega-effects"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-syntax-trees",
- "omega-typed-trees",
  "psi-effects",
+ "psi-syntax-trees",
+ "psi-typed-trees",
 ]
 
 [[package]]

@@ -638,6 +638,8 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
         .expect("omega-compiler must remain in the governed workspace graph");
 
     for stale_adapter in [
+        "omega-access-plans",
+        "omega-layout-plans",
         "omega-source-files-to-tokens",
         "omega-tokens",
         "omega-tokens-to-syntax-trees",
@@ -658,6 +660,8 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
     }
 
     for psi_stage in [
+        "psi-access-plans",
+        "psi-layout-plans",
         "psi-source",
         "psi-source-files-to-tokens",
         "psi-tokens",
@@ -676,6 +680,34 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
                 .iter()
                 .any(|dependency| dependency == psi_stage),
             "Omega orchestration must invoke Psi-owned frontend stage {psi_stage} directly"
+        );
+    }
+}
+
+#[test]
+fn omega_provider_selection_consumes_psi_frontend_directly() {
+    let graph = load_graph();
+    let effects = graph
+        .get("omega-effects")
+        .expect("omega-effects must remain in the governed workspace graph");
+
+    for stale_adapter in ["omega-syntax-trees", "omega-typed-trees"] {
+        assert!(
+            !effects
+                .deps
+                .iter()
+                .any(|dependency| dependency == stale_adapter),
+            "Omega provider selection must consume Psi directly instead of frontend compatibility package {stale_adapter}"
+        );
+    }
+
+    for psi_input in ["psi-syntax-trees", "psi-typed-trees"] {
+        assert!(
+            effects
+                .deps
+                .iter()
+                .any(|dependency| dependency == psi_input),
+            "Omega provider selection must consume Psi-owned input {psi_input} directly"
         );
     }
 }
