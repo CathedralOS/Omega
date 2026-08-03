@@ -92,7 +92,8 @@ The same normalized geometry may feed different compiler-owned consumers:
 - direct field projection for ordinary plan-laid values;
 - shared byte-region record views containing a plan-laid subrecord (implemented
   for fixed scalar records in both native and interpreter execution, including
-  stored integer widening from projected fields on x86-64 and AArch64);
+  ordinary semantic widening after an equal-width stored field has been
+  projected on x86-64 and AArch64; this is not width-varying foreign storage);
 - mutable byte-region record views for recursively fact-free fixed records
   (implemented with nested plan-laid field write-through in both native and
   interpreter execution, plus x86-64/AArch64 compile rails);
@@ -246,6 +247,28 @@ negative-capable integers retain their full carrier width. Omitting a
 representable bit remains an invalid plan. This is packing, not truncation:
 the validator derives the width from checked type facts, while the policy only
 chooses where those bits go.
+
+Width-varying foreign integer fields use a distinct closed placement, not
+`At` or partial `Bits` tiling. Conceptually:
+
+```text
+IntegerAt {
+    offset,
+    stored_width,
+    interpretation: Signed | Unsigned,
+}
+```
+
+The semantic field retains its portable integer carrier. A read loads exactly
+the stored width and sign- or zero-extends according to the placement. This is
+a total decode when the stored integer range fits the semantic carrier. A
+mutable view is derived only when every admitted semantic value encodes at the
+stored width, or the concrete write carries a proof that it fits, and the
+consumer's ordinary transfer/observation rules authorize that store. The
+compiler never truncates or invents a fitting qualification. Target-owned
+checked adapters remain appropriate for normalization more complex than one
+integer encoding, but are not required merely because two targets store the
+same semantic field at different widths.
 
 ## Recast views
 

@@ -81,6 +81,12 @@ pub boundary trait ExtentRootProvider {
 }
 ```
 
+Program image and initial stack/storage roots use a second core-owned route on
+the same `Extent::Granted` domain. One stable program-storage entry requirement
+names the exact qualified parameter positions; target entry traits inherit it
+and refine only their plan/ABI. Installation introduces those roots. Target-
+owned root domains or name-based role recognition are not alternatives.
+
 The fields carry runtime geometry. `Extent::Granted` states that the geometry
 descends from a live admitted or checked authority claim. Constructing the same
 fields creates an unqualified linear value. Operations that consume range
@@ -1036,6 +1042,14 @@ save/restore and return sequences, decoded compiler-function handler regions,
 relaxation products, veneers, generated stubs, and admitted indirect leaves
 after final placement.
 
+That certificate is the canonical boundary. It is self-describing and
+versioned, binds every normalized row to exact final bytes and placement, and
+is replayed against the closed target instruction specifications by the
+admission checker. The checker also proves that the region inventory covers
+every executable byte. Admitted leaves remain explicit accepted rows with
+separate provenance. There is no alternative whole-image decoder whose
+derived answer bypasses or competes with certificate validation.
+
 ## Symbolic materialization and admitted executable installation
 
 Runtime-known addresses are ordinary `addr` data, used only with separate
@@ -1641,13 +1655,7 @@ materialized-table fact, or Cathedral's CPU/table publication authority; cannot
 publish a structurally valid but semantically inadmissible table; and cannot
 hide installer reach behind a wrapper or direct checked assembly.
 
-## Open decisions
-
-These are the remaining design questions, not permission to invent local
-syntax while implementing:
-
-- the final artifact-footprint certificate format and validation boundary for
-  static and dynamically loaded admitted artifacts (`OWNER_QUESTIONS.md` Q2).
+## Deliberately deferred work
 
 Dynamic source-visible entry references, movable continuations, asynchronous
 revocation, live patching policy, general quantitative resource/WCET algebra,

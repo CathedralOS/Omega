@@ -55,6 +55,15 @@ checked allocations from an existing root. It does not admit every object
 individually, and a static array cannot originate physical-memory content merely
 because its size is known.
 
+Those roots use one core-owned stable program-storage entry requirement. Its
+exact qualified parameter positions identify the image and initial storage
+roots. Target entry traits such as `UefiApplication::entry` inherit that
+semantic requirement; `Calling<C>`, target policy, and generated stubs refine
+its plan and ABI without replacing its identity. `Extent::Granted` authorizes
+the core requirement as an alternative route, and installation introduces the
+matching parameters. Core therefore never depends on a UEFI/Cathedral domain,
+and the compiler never recognizes target-friendly names as storage authority.
+
 ## Facts, authority, reach, and trust remain separate
 
 - domains and contracts carry value/layout propositions;
@@ -448,7 +457,8 @@ remaining implementation order is:
 4. external-root ledger and IDT/timer slice; and
 5. placed views, external loans, and the wider driver gauntlet.
 
-Open design details live in
-[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
-and `OWNER_QUESTIONS.md`. Implementations must not invent local grammar to
-bypass them.
+The remaining hardware-foundation engineering contract lives in
+[`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md).
+Unrelated unresolved source-language decisions remain in
+`OWNER_QUESTIONS.md`; this boot sequence must not invent local grammar to bypass
+either document.

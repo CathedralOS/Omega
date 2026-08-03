@@ -46,6 +46,16 @@ exact operation/edge/return axioms, and checks every `ensures` from a separate
 proof bundle. `omega-interpreter` executes only a `VerifiedTerminalModule` on
 this path.
 
+The next control-flow slice uses one conditional terminator over an
+already-defined Boolean value. It owns ordered true and false successor edge
+records, each with its own stable `EdgeId`, target, typed block-parameter
+bindings, edge actions, and fuel site. Mutual exclusion and exhaustiveness are
+structural properties of the terminator, not propositions reconstructed from
+two arbitrary guards. Predicate terms never appear as executable guards. Only
+the selected successor edge is charged and reported in exact-path evidence.
+The verifier, canonical codec, interpreter, fuel derivation, and Omega lowering
+must land this semantic-version extension together.
+
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
 the legacy state/control representations and transforms, artifact/backend
@@ -373,18 +383,18 @@ represents that proposition. Composition through surrounding non-direct
 rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
-Design block discovered by the first real-source integration attempt
-(2026-08-03, tracked as `OWNER_QUESTIONS.md` Q6): a direct partition wrapper
-has checked entry claim identities and
-an exact partition substitution, but correctly has no one-to-one identity
-reshuffles. Aggregate conservation does not establish that either input equals
-a particular output. Terminal v12 currently declares `input_claims` only by
-referencing `ContentIdentityReshuffle` rows and requires each derived entry
-projection to match one, which would force that stronger and potentially false
-equality. The producer must continue to fail closed. Before a content-bearing
-source canary lands, terminal Psi needs a versioned entry-claim binding that
-records claim, projection, algebra, and structural place without asserting an
-output equality, or an equivalent reviewed redesign of partition input claims.
+The first real-source integration attempt exposed one missing semantic row. A
+direct partition wrapper has checked entry claim identities and an exact
+partition substitution, but correctly has no one-to-one identity reshuffles:
+aggregate conservation does not establish that either input equals a particular
+output. Terminal Psi therefore adds a fingerprinted machine-local entry-claim
+binding containing dense claim identity, projection, algebra, and entry
+structural place, with no output and no equality assertion. Partition
+compositions reference those bindings; `ContentIdentityReshuffle` remains the
+one-to-one equality case. Validation requires one canonical binding per claim
+identity and permits other content axioms to reference the same semantic
+subject. The producer remains fail-closed until the semantic version, codec,
+verifier, proof adapter, and producer land together.
 
 Correction checkpoint (2026-08-02): checked-to-terminal content production now
 lives in `psi-checked-trees-to-terminal`. It consumes Psi-owned checked facts;

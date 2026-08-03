@@ -11,8 +11,8 @@
 // positions. Access mode 0/1/2 is the POSIX O_RDONLY/O_WRONLY/O_RDWR field.
 // Linux arm64 metadata currently follows the hermetic Darwin-shaped carrier
 // used by the unwired native Linux stat seam. It is not native coverage: the
-// kernel record's integer widths cannot be normalized by the current At-only
-// direct view (OWNER_QUESTIONS Q3).
+// kernel record's integer widths require the settled closed integer-placement
+// extension; the current At-only direct view remains transitional.
 linux_arm64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
     self.entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     self.entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };

@@ -343,6 +343,17 @@ Checked Omega leaves produce derived footprint evidence. Raw/admitted leaves
 carry accepted footprint claims under receipt. The trust report must distinguish
 the two.
 
+The canonical evidence boundary is one self-describing, versioned footprint
+certificate bound to exact final bytes, placements, and complete executable-
+region inventory. Its normalized instruction and region rows are replayed by
+the admission checker against the closed target instruction specifications;
+the checker proves exact byte coverage before composing the realized footprint.
+This is certificate checking, not trust in the producer. A second independent
+whole-image decoder that produces a competing admission result is not another
+supported path. Admitted leaves join only through explicit accepted rows with
+their own provider provenance. Static and dynamically loaded artifacts use the
+same certificate and checker boundary.
+
 Exit realization is a second implementation-evidence axis. The external-root
 admission path now checks the realized return-control mechanism against
 `CallPlan::entry_control` and the exact restored-state set against `StatePlan`.
@@ -942,11 +953,12 @@ their trusted-name twins also lower through `unlinkat`; plan data injects both
 `AT_REMOVEDIR = 512`). Two-path plan data likewise places the portable path
 pair into `renameat`, `linkat`, or `symlinkat`, injecting both directory
 descriptors and `linkat`'s trailing flags where the selected syscall requires
-them. Path and descriptor metadata are design-blocked on
-`OWNER_QUESTIONS.md` Q3: the real Linux ABIs vary integer field widths, while
-the current layout vocabulary only relocates representation-identical fields.
-The known Darwin-shaped Linux `StatLayout` placeholder must not be treated as
-native coverage. Linux directory reads now retain the real three-argument
+them. Path and descriptor metadata use the settled closed integer-placement
+extension: the real Linux ABIs may store one semantic integer field at
+different signed or unsigned widths, and projection widens it into the
+portable carrier. The known Darwin-shaped Linux `StatLayout` placeholder must
+not be treated as native coverage while that placement is implemented. Linux
+directory reads now retain the real three-argument
 `getdents64` plan: selection omits the portable seam's Darwin-only cursor, and
 the x86-64/AArch64 target packages decode `d_reclen` at 16, `d_type` at 18, and
 the NUL-terminated name at 19. Direct syscall failures remain `-errno` at the
