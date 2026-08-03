@@ -211,7 +211,7 @@ pub(in crate::aarch64) fn encode_ldadd(
     add_register: u8,
     result_register: u8,
     address_register: u8,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -225,11 +225,11 @@ pub(in crate::aarch64) fn encode_ldadd(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
-        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::ReceivePublish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
+        psi_language_core::MemoryOrdering::NoOrdering => 0,
+        psi_language_core::MemoryOrdering::Receive => 0x0080_0000,
+        psi_language_core::MemoryOrdering::Publish => 0x0040_0000,
+        psi_language_core::MemoryOrdering::ReceivePublish
+        | psi_language_core::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_0000
@@ -248,7 +248,7 @@ pub(in crate::aarch64) fn encode_ldeor(
     value_register: u8,
     result_register: u8,
     address_register: u8,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -262,11 +262,11 @@ pub(in crate::aarch64) fn encode_ldeor(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
-        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::ReceivePublish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
+        psi_language_core::MemoryOrdering::NoOrdering => 0,
+        psi_language_core::MemoryOrdering::Receive => 0x0080_0000,
+        psi_language_core::MemoryOrdering::Publish => 0x0040_0000,
+        psi_language_core::MemoryOrdering::ReceivePublish
+        | psi_language_core::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_2000
@@ -285,7 +285,7 @@ pub(in crate::aarch64) fn encode_ldset(
     value_register: u8,
     result_register: u8,
     address_register: u8,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -299,11 +299,11 @@ pub(in crate::aarch64) fn encode_ldset(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
-        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::ReceivePublish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
+        psi_language_core::MemoryOrdering::NoOrdering => 0,
+        psi_language_core::MemoryOrdering::Receive => 0x0080_0000,
+        psi_language_core::MemoryOrdering::Publish => 0x0040_0000,
+        psi_language_core::MemoryOrdering::ReceivePublish
+        | psi_language_core::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_3000
@@ -322,7 +322,7 @@ pub(in crate::aarch64) fn encode_ldclr(
     value_register: u8,
     result_register: u8,
     address_register: u8,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -336,11 +336,11 @@ pub(in crate::aarch64) fn encode_ldclr(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
-        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::ReceivePublish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
+        psi_language_core::MemoryOrdering::NoOrdering => 0,
+        psi_language_core::MemoryOrdering::Receive => 0x0080_0000,
+        psi_language_core::MemoryOrdering::Publish => 0x0040_0000,
+        psi_language_core::MemoryOrdering::ReceivePublish
+        | psi_language_core::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_1000
@@ -379,7 +379,7 @@ pub(in crate::aarch64) fn encode_swp(
     replacement_register: u8,
     result_register: u8,
     address_register: u8,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -393,11 +393,11 @@ pub(in crate::aarch64) fn encode_swp(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
-        omega_core::atomic::MemoryOrdering::Receive => 0x0080_0000,
-        omega_core::atomic::MemoryOrdering::Publish => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::ReceivePublish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x00C0_0000,
+        psi_language_core::MemoryOrdering::NoOrdering => 0,
+        psi_language_core::MemoryOrdering::Receive => 0x0080_0000,
+        psi_language_core::MemoryOrdering::Publish => 0x0040_0000,
+        psi_language_core::MemoryOrdering::ReceivePublish
+        | psi_language_core::MemoryOrdering::GlobalOrder => 0x00C0_0000,
     };
     Ok(encode_instruction(
         0x3820_8000
@@ -417,7 +417,7 @@ pub(in crate::aarch64) fn encode_cas(
     compare_register: u8,
     new_value_register: u8,
     address_register: u8,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -431,11 +431,11 @@ pub(in crate::aarch64) fn encode_cas(
         }
     };
     let ordering_bits = match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => 0,
-        omega_core::atomic::MemoryOrdering::Receive => 0x0040_0000,
-        omega_core::atomic::MemoryOrdering::Publish => 0x0000_8000,
-        omega_core::atomic::MemoryOrdering::ReceivePublish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => 0x0040_8000,
+        psi_language_core::MemoryOrdering::NoOrdering => 0,
+        psi_language_core::MemoryOrdering::Receive => 0x0040_0000,
+        psi_language_core::MemoryOrdering::Publish => 0x0000_8000,
+        psi_language_core::MemoryOrdering::ReceivePublish
+        | psi_language_core::MemoryOrdering::GlobalOrder => 0x0040_8000,
     };
     Ok(encode_instruction(
         0x08A0_7C00

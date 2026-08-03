@@ -734,7 +734,7 @@ fn recast_view_slot_layout(
     // Shared recast views may reserve referee-sized content slots for flat
     // reads. A mutable recast is always pointer-bearing: writes and reads must
     // reach the backing place even when the referee fits in a machine word.
-    if cast.form == omega_core::cast_form::CastForm::RecastMutable {
+    if cast.form == psi_language_core::CastForm::RecastMutable {
         return None;
     }
     super::layout::recast_view_layout(

@@ -1,15 +1,11 @@
 pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
-pub mod atomic;
 pub mod byte_predicates;
-pub mod cast_form;
 pub mod diagnostics;
 pub mod float_semantics;
-pub mod inline_assembly;
 pub mod literals;
 pub mod operations;
-pub mod operator_spelling;
 pub mod parallel;
 pub mod runtime_storage;
 pub mod semantics;

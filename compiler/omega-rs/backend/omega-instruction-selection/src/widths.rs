@@ -524,7 +524,7 @@ pub fn control_register_read_width() -> usize {
 }
 
 pub fn encode_control_register_read_bytes(
-    register: omega_core::inline_assembly::AsmControlRegister,
+    register: psi_language_core::inline_assembly::AsmControlRegister,
     dest_byte_offset: usize,
 ) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
     x86_64::encode_control_register_read(register, dest_byte_offset)
@@ -539,7 +539,7 @@ pub fn control_register_write_width(
 
 pub fn encode_control_register_write_bytes(
     source: &impl RuntimeValueOperandSource,
-    register: omega_core::inline_assembly::AsmControlRegister,
+    register: psi_language_core::inline_assembly::AsmControlRegister,
     operand: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
     x86_64::encode_control_register_write(source, register, operand)

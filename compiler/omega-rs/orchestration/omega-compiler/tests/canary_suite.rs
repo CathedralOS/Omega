@@ -35158,9 +35158,7 @@ fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
         .facts
         .operators
         .resolved_uses()
-        .filter(|operator_use| {
-            operator_use.spelling == omega_core::operator_spelling::OperatorSpelling::Add
-        })
+        .filter(|operator_use| operator_use.spelling == psi_language_core::OperatorSpelling::Add)
         .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
         .filter(|candidate| candidate.is_domain_owned())
         .count();

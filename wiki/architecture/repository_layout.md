@@ -43,9 +43,10 @@ current packages.
 > `semantics/psi-proof-kernel`, and `semantics/psi-terminal-verifier`; parsing-through-
 > lowering crates now live there; their former Omega package adapters are
 > retired. The unused `omega-core` source/span, exact-bignum, const-value,
-> content, and built-in-value-domain aliases are retired; consumers use their
-> Psi owners directly. Remaining high-fanout `omega-core` module re-exports are
-> a separate incremental foundation migration. The
+> content, built-in-value-domain, atomic-ordering, cast-form,
+> operator-spelling, and inline-assembly aliases are retired; consumers use
+> their Psi owners directly. Remaining high-fanout `omega-core` module
+> re-exports are a separate incremental foundation migration. The
 > diagram still uses the old unprefixed shorthand for the larger Omega tree.
 > `compiler/` also holds the bootstrap lattice rungs documented in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
@@ -96,7 +97,7 @@ Omega/
 |   |       `-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |
 |   |-- foundation/
-|   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.
+|   |   `-- [CRATE] omega-core/                         # Omega execution/build utilities plus transitional high-fanout aliases.
 |   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings, selection, and admission.
@@ -163,6 +164,7 @@ Omega/
 |       |-- [CRATE] omega-artifacts/                  # Phase artifact data and text/binary dumping.
 |       |-- [CRATE] omega-backend-pipeline/           # Backend phase sequencing at the orchestration edge.
 |       |-- [CRATE] omega-compiler/                   # Top-level check/build API used by cli/tests.
+|       |-- [CRATE] omega-external-roots/             # Installed provider/root execution, receipts, and resource evidence.
 |       `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
 |-- omega/

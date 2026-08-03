@@ -128,8 +128,10 @@ pub const fn memory_fence_width() -> usize {
 
 /// Exact x86 SSE2 fence encodings: `0f ae /5`, `/7`, and `/6` for load,
 /// store, and full ordering respectively.
-pub const fn encode_memory_fence_bytes(kind: omega_core::inline_assembly::AsmFenceKind) -> [u8; 3] {
-    use omega_core::inline_assembly::AsmFenceKind;
+pub const fn encode_memory_fence_bytes(
+    kind: psi_language_core::inline_assembly::AsmFenceKind,
+) -> [u8; 3] {
+    use psi_language_core::inline_assembly::AsmFenceKind;
     match kind {
         AsmFenceKind::Load => [0x0f, 0xae, 0xe8],
         AsmFenceKind::Store => [0x0f, 0xae, 0xf8],
@@ -145,9 +147,9 @@ pub const fn interrupt_control_width() -> usize {
 /// with STI's architectural one-instruction recognition delay represented in
 /// the catalog contract.
 pub const fn encode_interrupt_control_bytes(
-    kind: omega_core::inline_assembly::AsmInterruptControlKind,
+    kind: psi_language_core::inline_assembly::AsmInterruptControlKind,
 ) -> [u8; 1] {
-    use omega_core::inline_assembly::AsmInterruptControlKind;
+    use psi_language_core::inline_assembly::AsmInterruptControlKind;
     match kind {
         AsmInterruptControlKind::Disable => [0xfa],
         AsmInterruptControlKind::Enable => [0xfb],
@@ -305,8 +307,10 @@ pub const fn control_register_read_width() -> usize {
     4 + CONTROL_REGISTER_DESTINATION_STORE_WIDTH
 }
 
-const fn control_register_modrm(register: omega_core::inline_assembly::AsmControlRegister) -> u8 {
-    use omega_core::inline_assembly::AsmControlRegister;
+const fn control_register_modrm(
+    register: psi_language_core::inline_assembly::AsmControlRegister,
+) -> u8 {
+    use psi_language_core::inline_assembly::AsmControlRegister;
     match register {
         AsmControlRegister::Cr0 => 0xc2,
         AsmControlRegister::Cr2 => 0xd2,
@@ -317,7 +321,7 @@ const fn control_register_modrm(register: omega_core::inline_assembly::AsmContro
 
 /// Read CR0/CR2/CR3/CR4 into R10, then store the exact u64 value to `dest`.
 pub fn encode_control_register_read(
-    register: omega_core::inline_assembly::AsmControlRegister,
+    register: psi_language_core::inline_assembly::AsmControlRegister,
     dest_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(control_register_read_width());
@@ -338,7 +342,7 @@ pub fn control_register_write_width(
 /// Load a u64 source into R10 and write it to CR0/CR3/CR4.
 pub fn encode_control_register_write(
     source: &impl RuntimeValueOperandSource,
-    register: omega_core::inline_assembly::AsmControlRegister,
+    register: psi_language_core::inline_assembly::AsmControlRegister,
     operand: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(control_register_write_width(source, operand));
@@ -17261,7 +17265,7 @@ mod machine_control_tests {
 
     #[test]
     fn memory_fences_have_exact_sse2_encodings() {
-        use omega_core::inline_assembly::AsmFenceKind;
+        use psi_language_core::inline_assembly::AsmFenceKind;
 
         for (kind, bytes) in [
             (AsmFenceKind::Load, [0x0f, 0xae, 0xe8]),
@@ -17275,7 +17279,7 @@ mod machine_control_tests {
 
     #[test]
     fn interrupt_control_has_exact_cli_sti_encodings() {
-        use omega_core::inline_assembly::AsmInterruptControlKind;
+        use psi_language_core::inline_assembly::AsmInterruptControlKind;
 
         assert_eq!(
             encode_interrupt_control_bytes(AsmInterruptControlKind::Disable),
@@ -17494,7 +17498,7 @@ mod machine_control_tests {
 
     #[test]
     fn control_register_reads_use_exact_modrm_and_store_u64() {
-        use omega_core::inline_assembly::AsmControlRegister;
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         for (register, modrm) in [
             (AsmControlRegister::Cr0, 0xc2),
@@ -17515,7 +17519,7 @@ mod machine_control_tests {
 
     #[test]
     fn control_register_writes_use_exact_modrm_after_u64_materialization() {
-        use omega_core::inline_assembly::AsmControlRegister;
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         let source = ImmediateOperands(vec![0x1122_3344_5566_7788]);
         let value = RuntimeValueOperandHandle::from_parts(0, 1);

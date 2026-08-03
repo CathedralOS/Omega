@@ -1581,8 +1581,8 @@ fn require_absolute64_text_relocation(
     Ok(())
 }
 
-fn control_register_modrm(register: omega_core::inline_assembly::AsmControlRegister) -> u8 {
-    use omega_core::inline_assembly::AsmControlRegister;
+fn control_register_modrm(register: psi_language_core::inline_assembly::AsmControlRegister) -> u8 {
+    use psi_language_core::inline_assembly::AsmControlRegister;
     match register {
         AsmControlRegister::Cr0 => 0xc2,
         AsmControlRegister::Cr2 => 0xd2,
@@ -2032,12 +2032,12 @@ mod tests {
     #[test]
     fn validates_direct_storage_operand_loader_semantics() {
         use omega_core::arena::{Arena, Handle};
-        use omega_core::inline_assembly::AsmControlRegister;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
         encoded.extend([0x49, 0xbf]);
@@ -2132,11 +2132,11 @@ mod tests {
         RelocationPlan,
     ) {
         use omega_core::arena::Arena;
-        use omega_core::inline_assembly::AsmControlRegister;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderRegister,
             CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
         };
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
         encoded.extend([0x49, 0xbf]);
@@ -2251,12 +2251,12 @@ mod tests {
     #[test]
     fn validates_frame_base_indexed_operand_loader_semantics() {
         use omega_core::arena::Arena;
-        use omega_core::inline_assembly::AsmControlRegister;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
         encoded.extend([0x49, 0xbf]);
@@ -2348,12 +2348,12 @@ mod tests {
     #[test]
     fn validates_cross_region_frame_indexed_operand_loader_semantics() {
         use omega_core::arena::Arena;
-        use omega_core::inline_assembly::AsmControlRegister;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
         encoded.extend([0x49, 0xbf]);
@@ -2459,12 +2459,12 @@ mod tests {
     #[test]
     fn validates_cross_region_machine_indexed_operand_loader_semantics() {
         use omega_core::arena::Arena;
-        use omega_core::inline_assembly::AsmControlRegister;
         use omega_machine_bytes::{
             CheckedInstructionValidationKind, CheckedOperandLoaderKind,
             CheckedOperandLoaderRegister, CheckedOperandLoaderValidation, EncodedMachineCode,
             EncodedMachineInstruction,
         };
+        use psi_language_core::inline_assembly::AsmControlRegister;
 
         let mut encoded = Vec::new();
         encoded.extend([0x49, 0xbf]);

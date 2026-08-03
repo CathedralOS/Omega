@@ -938,9 +938,10 @@ improvements do not change public identity.
   numerics, host-independent float semantics, arithmetic domains, and literal
   payloads; `psi-source-loader` owns root-file loading; and
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
-  The unused `omega-core` source/span, exact-bignum, const-value, content, and
-  built-in-value-domain aliases are retired; their remaining Omega consumers
-  depend on the Psi owners directly. High-fanout `omega-core` aliases remain an
+  The unused `omega-core` source/span, exact-bignum, const-value, content,
+  built-in-value-domain, atomic-ordering, cast-form, operator-spelling, and
+  inline-assembly aliases are retired; their remaining Omega consumers depend
+  on the Psi owners directly. High-fanout `omega-core` aliases remain an
   incremental ownership migration rather than a second semantic owner.
   `psi-syntax-trees` owns the parsed source representation; the unused former
   Omega compatibility package is retired.
@@ -1219,11 +1220,18 @@ improvements do not change public identity.
   block-to-edge segment certificates also recompute against that identity and
   schedule, include the endpoint charge, and reject an edge not reached before
   return. Semantic safe-point selection, build-time migration, branch/loop
-  certificates, response outcomes, provider-summary migration, and trusted
-  native metering remain.
+  certificates, response outcomes, exact installed-executable binding, and
+  trusted native metering remain.
   External-root provider summaries and provisions now use the Psi-owned fuel
-  schedule identity directly; their unit claims still need replacement by the
-  entry/segment certificates rather than a parallel Omega denomination.
+  schedule identity directly. Local summary evidence now separates sealed
+  terminal-Psi entry/segment certificates from admitted opaque-provider unit
+  claims; certificate units and schedule are derived, provider receipts exclude
+  them, and the external-root report retains exact terminal identity. The
+  real-source four-unit canary composes through this path. Bind that identity
+  to the exact installed executable and migrate Cathedral's hard-root graph;
+  opaque provider leaves remain admitted summaries. Because this carrier now
+  joins selected installation state with terminal semantic certificates,
+  `omega-external-roots` lives in Omega orchestration rather than foundation.
 - **FFIVAL:** validate the settled boundary model before adding any new
   construct. The returned-custody-from-borrow rejection canary now lands
   through content-algebra facts. The provider-independent executor-selection

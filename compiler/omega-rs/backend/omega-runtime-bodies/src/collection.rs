@@ -319,7 +319,7 @@ fn append_state_body_operations(
             ..
         } = &operation.kind
             && let Some(register) =
-                omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
+                psi_language_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
                     target.as_str(),
                 )
         {
@@ -336,7 +336,9 @@ fn append_state_body_operations(
             ..
         } = &operation.kind
             && let Some(kind) =
-                omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(target.as_str())
+                psi_language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                    target.as_str(),
+                )
         {
             operations.insert(body_operation(
                 state_key,
@@ -351,7 +353,7 @@ fn append_state_body_operations(
             ..
         } = &operation.kind
             && let Some(kind) =
-                omega_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
+                psi_language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
                     target.as_str(),
                 )
         {
@@ -416,7 +418,7 @@ fn append_state_body_operations(
             && let psi_checked_trees::expression::ExpressionNode::Call(call) =
                 context.state_storage.expressions.expression(mutation.value)
             && let Some(register) =
-                omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+                psi_language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
                     call.target.as_str(),
                 )
         {

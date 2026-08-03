@@ -3540,8 +3540,8 @@ mod effects_analysis {
 /// front-of-pipeline lexer/parser (dev-dependencies allowed here, but not on
 /// `omega-effects` itself - see `effects_analysis` above for the rationale).
 mod provider_registry {
-    use omega_core::operator_spelling::ProviderCategory;
     use omega_effects::build_provider_registry;
+    use psi_language_core::ProviderCategory;
     use psi_syntax_trees::SyntaxTrees;
 
     use psi_source_files_to_tokens::Lexer;

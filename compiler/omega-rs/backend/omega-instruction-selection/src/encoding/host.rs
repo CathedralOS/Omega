@@ -1480,7 +1480,7 @@ pub fn encode_machine_halt_bytes(architecture: Architecture) -> Vec<u8> {
 
 pub fn encode_memory_fence_bytes(
     architecture: Architecture,
-    kind: omega_core::inline_assembly::AsmFenceKind,
+    kind: psi_language_core::inline_assembly::AsmFenceKind,
 ) -> Option<Vec<u8>> {
     match architecture {
         Architecture::Aarch64 => None,
@@ -1490,7 +1490,7 @@ pub fn encode_memory_fence_bytes(
 
 pub fn encode_interrupt_control_bytes(
     architecture: Architecture,
-    kind: omega_core::inline_assembly::AsmInterruptControlKind,
+    kind: psi_language_core::inline_assembly::AsmInterruptControlKind,
 ) -> Option<Vec<u8>> {
     match architecture {
         Architecture::Aarch64 => None,

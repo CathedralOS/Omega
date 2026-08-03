@@ -766,7 +766,7 @@ pub(super) fn asm_control_register_read_destination(
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<(
-    omega_core::inline_assembly::AsmControlRegister,
+    psi_language_core::inline_assembly::AsmControlRegister,
     ExpressionHandle,
 )> {
     let mutation = state_mutation_for_statement(input, source_key, statement_index)?;
@@ -774,9 +774,10 @@ pub(super) fn asm_control_register_read_destination(
     else {
         return None;
     };
-    let register = omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
-        call.target.as_str(),
-    )?;
+    let register =
+        psi_language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
+            call.target.as_str(),
+        )?;
     Some((register, mutation.target))
 }
 
@@ -785,7 +786,7 @@ pub(super) fn asm_control_register_write_source(
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<(
-    omega_core::inline_assembly::AsmControlRegister,
+    psi_language_core::inline_assembly::AsmControlRegister,
     ExpressionHandle,
 )> {
     let psi_checked_trees::statement::StatementNode::Call(call) =
@@ -793,9 +794,10 @@ pub(super) fn asm_control_register_write_source(
     else {
         return None;
     };
-    let register = omega_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
-        call.target.as_str(),
-    )?;
+    let register =
+        psi_language_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
+            call.target.as_str(),
+        )?;
     let state_call = state_call_for_statement(input, source_key, statement_index)?;
     let source = input
         .state_calls

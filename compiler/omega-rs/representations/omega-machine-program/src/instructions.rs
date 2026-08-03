@@ -123,9 +123,9 @@ pub enum MachineInstructionKind {
     /// no relocation. See the privileged_effects_and_binary_trust brief.
     MachineHalt,
     /// An x86 load/store/full memory-ordering fence.
-    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    MemoryFence(psi_language_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
-    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    InterruptControl(psi_language_core::inline_assembly::AsmInterruptControlKind),
     /// Compiler-balanced RFLAGS snapshot.
     FlagsSnapshot,
     /// Compiler-balanced RFLAGS restore.
@@ -134,8 +134,8 @@ pub enum MachineInstructionKind {
     MsrRead,
     /// Structured x86 WRMSR.
     MsrWrite,
-    ControlRegisterRead(omega_core::inline_assembly::AsmControlRegister),
-    ControlRegisterWrite(omega_core::inline_assembly::AsmControlRegister),
+    ControlRegisterRead(psi_language_core::inline_assembly::AsmControlRegister),
+    ControlRegisterWrite(psi_language_core::inline_assembly::AsmControlRegister),
     /// The x86 `out dx, al` port write (`asm { out .. }`). Storage operands
     /// relocate like any runtime-value read.
     PortWrite,
@@ -169,7 +169,9 @@ impl MachineInstructionKind {
 #[cfg(test)]
 mod tests {
     use super::MachineInstructionKind;
-    use omega_core::inline_assembly::{AsmControlRegister, AsmFenceKind, AsmInterruptControlKind};
+    use psi_language_core::inline_assembly::{
+        AsmControlRegister, AsmFenceKind, AsmInterruptControlKind,
+    };
 
     #[test]
     fn checked_catalog_instruction_classes_fail_closed() {

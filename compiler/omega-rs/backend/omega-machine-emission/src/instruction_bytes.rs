@@ -300,7 +300,7 @@ fn checked_instruction_validation_kind(
     emission_context: MachineEmissionContext<'_>,
     kind: &SelectedInstructionKind,
 ) -> Option<CheckedInstructionValidationKind> {
-    use omega_core::inline_assembly::{AsmFenceKind, AsmInterruptControlKind};
+    use psi_language_core::inline_assembly::{AsmFenceKind, AsmInterruptControlKind};
 
     match kind {
         SelectedInstructionKind::MachineHalt => Some(CheckedInstructionValidationKind::MachineHalt),

@@ -9,12 +9,13 @@ name = "omega_external_roots"
 path = "src/lib.rs"
 
 [dependencies]
-omega-calling-conventions = { path = "../omega-calling-conventions" }
-omega-core = { path = "../omega-core" }
-omega-executable-installation = { path = "../omega-executable-installation" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 psi-core = { path = "../../../psi-rs/foundation/psi-core" }
+psi-terminal-fixed-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fixed-fuel" }
 
 [dev-dependencies]
 psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }
-omega-target = { path = "../omega-target" }
+omega-target = { path = "../../foundation/omega-target" }

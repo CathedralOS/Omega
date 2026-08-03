@@ -3,6 +3,9 @@
 //! execution.
 
 use omega_compiler::compile_to_checked;
+use omega_external_roots::{
+    FixedFuelProviderSummary, ProviderFuelSummaryId, RootProviderId, compose_fixed_fuel,
+};
 use omega_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_measured,
 };
@@ -33,6 +36,7 @@ use psi_terminal_codec::{
 use psi_terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_verifier::verify_module;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
@@ -103,6 +107,22 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         .expect("source-independent consumer should recompute the certificate");
     assert_eq!(fixed_fuel.terminal_psi(), original_identity);
     assert_eq!(fixed_fuel.ceiling_units(), 4);
+    let fuel_summary_identity =
+        ProviderFuelSummaryId::from_normalized_identity(0x5100).expect("fuel summary identity");
+    let certified_summary = FixedFuelProviderSummary::from_terminal_entry(
+        fuel_summary_identity,
+        RootProviderId::from_normalized_identity(0x5200).expect("root provider identity"),
+        fixed_fuel.clone(),
+        BTreeSet::new(),
+    );
+    let certified_demand = compose_fixed_fuel(fuel_summary_identity, [&certified_summary])
+        .expect("verified terminal Psi should supply its hard-root local fuel demand");
+    assert_eq!(certified_demand.schedule(), fixed_fuel.schedule());
+    assert_eq!(certified_demand.units(), fixed_fuel.ceiling_units());
+    assert!(
+        certified_demand.provider_receipts().is_empty(),
+        "a recomputable terminal-Psi certificate is not an opaque provider receipt"
+    );
     let abstract_operations = lower_verified_module(&verified)
         .expect("verified terminal Psi should lower without source state");
     let measured = interpret_terminal_measured(&verified, &[])

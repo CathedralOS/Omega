@@ -285,7 +285,7 @@ pub(super) fn encode_atomic_load_to_storage(
     source_offset: usize,
     byte_size: usize,
     result_offset: usize,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_atomic_load_to_storage(
         input.target.architecture,
@@ -301,7 +301,7 @@ pub(super) fn encode_atomic_store_from_operand(
     target_offset: usize,
     byte_size: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, value)?;
     architecture::encode_atomic_store_from_operand(
@@ -320,7 +320,7 @@ pub(super) fn encode_atomic_fetch_add(
     byte_size: usize,
     result_offset: usize,
     delta: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, delta)?;
     architecture::encode_atomic_fetch_add(
@@ -340,7 +340,7 @@ pub(super) fn encode_atomic_fetch_sub(
     byte_size: usize,
     result_offset: usize,
     delta: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, delta)?;
     architecture::encode_atomic_fetch_sub(
@@ -360,7 +360,7 @@ pub(super) fn encode_atomic_fetch_xor(
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, value)?;
     architecture::encode_atomic_fetch_xor(
@@ -380,7 +380,7 @@ pub(super) fn encode_atomic_fetch_or(
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, value)?;
     architecture::encode_atomic_fetch_or(
@@ -400,7 +400,7 @@ pub(super) fn encode_atomic_fetch_and(
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, value)?;
     architecture::encode_atomic_fetch_and(
@@ -420,7 +420,7 @@ pub(super) fn encode_atomic_swap(
     byte_size: usize,
     result_offset: usize,
     new_value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, new_value)?;
     architecture::encode_atomic_swap(
@@ -441,7 +441,7 @@ pub(super) fn encode_atomic_compare_exchange(
     result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, expected)?;
     validate_runtime_value_home(input, new_value)?;

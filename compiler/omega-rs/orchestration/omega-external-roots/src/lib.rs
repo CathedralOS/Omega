@@ -550,18 +550,111 @@ pub struct FixedFuelCall {
     pub maximum_invocations: u64,
 }
 
-/// Public fixed-fuel summary supplied by a selected provider. Units are
-/// deterministic logical cost under the named schedule, not native
-/// instructions, cycles, elapsed time, or WCET. Absence of a summary fails
-/// closed; recursive summary graphs are rejected by composition.
+/// Exact evidence for the local part of one fixed-fuel summary.
+///
+/// Checked terminal Psi contributes a sealed recomputable entry or segment
+/// certificate. An opaque provider may instead contribute an admitted summary
+/// under its validation receipt. Both use the same Psi-owned schedule identity;
+/// a provider-authored number can no longer masquerade as an IR certificate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FixedFuelLocalEvidence {
+    TerminalEntry(psi_terminal_fixed_fuel::FixedEntryFuelCertificate),
+    TerminalSegment(psi_terminal_fixed_fuel::FixedSegmentFuelCertificate),
+    AdmittedProvider {
+        schedule: FuelScheduleIdentity,
+        units: u64,
+        validation_receipt: ProviderFuelValidationReceiptId,
+    },
+}
+
+impl FixedFuelLocalEvidence {
+    pub const fn schedule(&self) -> FuelScheduleIdentity {
+        match self {
+            Self::TerminalEntry(certificate) => certificate.schedule(),
+            Self::TerminalSegment(certificate) => certificate.schedule(),
+            Self::AdmittedProvider { schedule, .. } => *schedule,
+        }
+    }
+
+    pub const fn units(&self) -> u64 {
+        match self {
+            Self::TerminalEntry(certificate) => certificate.ceiling_units(),
+            Self::TerminalSegment(certificate) => certificate.ceiling_units(),
+            Self::AdmittedProvider { units, .. } => *units,
+        }
+    }
+
+    pub const fn provider_validation_receipt(&self) -> Option<ProviderFuelValidationReceiptId> {
+        match self {
+            Self::TerminalEntry(_) | Self::TerminalSegment(_) => None,
+            Self::AdmittedProvider {
+                validation_receipt, ..
+            } => Some(*validation_receipt),
+        }
+    }
+}
+
+/// Public fixed-fuel summary supplied by checked terminal Psi or a selected
+/// opaque provider. Units are deterministic logical cost under the retained
+/// evidence's schedule, not native instructions, cycles, elapsed time, or
+/// WCET. Absence of a summary fails closed; recursive summary graphs are
+/// rejected by composition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedFuelProviderSummary {
     pub identity: ProviderFuelSummaryId,
     pub provider: RootProviderId,
-    pub schedule: FuelScheduleIdentity,
-    pub local_units: u64,
+    pub local_evidence: FixedFuelLocalEvidence,
     pub calls: BTreeSet<FixedFuelCall>,
-    pub validation_receipt: ProviderFuelValidationReceiptId,
+}
+
+impl FixedFuelProviderSummary {
+    pub fn from_admitted_provider(
+        identity: ProviderFuelSummaryId,
+        provider: RootProviderId,
+        schedule: FuelScheduleIdentity,
+        units: u64,
+        calls: BTreeSet<FixedFuelCall>,
+        validation_receipt: ProviderFuelValidationReceiptId,
+    ) -> Self {
+        Self {
+            identity,
+            provider,
+            local_evidence: FixedFuelLocalEvidence::AdmittedProvider {
+                schedule,
+                units,
+                validation_receipt,
+            },
+            calls,
+        }
+    }
+
+    pub fn from_terminal_entry(
+        identity: ProviderFuelSummaryId,
+        provider: RootProviderId,
+        certificate: psi_terminal_fixed_fuel::FixedEntryFuelCertificate,
+        calls: BTreeSet<FixedFuelCall>,
+    ) -> Self {
+        Self {
+            identity,
+            provider,
+            local_evidence: FixedFuelLocalEvidence::TerminalEntry(certificate),
+            calls,
+        }
+    }
+
+    pub fn from_terminal_segment(
+        identity: ProviderFuelSummaryId,
+        provider: RootProviderId,
+        certificate: psi_terminal_fixed_fuel::FixedSegmentFuelCertificate,
+        calls: BTreeSet<FixedFuelCall>,
+    ) -> Self {
+        Self {
+            identity,
+            provider,
+            local_evidence: FixedFuelLocalEvidence::TerminalSegment(certificate),
+            calls,
+        }
+    }
 }
 
 /// Exact canonical provider graph retained by a composed fuel demand.
@@ -615,6 +708,16 @@ impl ComposedFuelDemand {
     pub const fn provider_receipts(&self) -> &BTreeSet<ProviderFuelValidationReceiptId> {
         &self.provider_receipts
     }
+
+    /// Exact local evidence retained for every summary that participated in
+    /// composition. This exposes terminal certificate identity separately
+    /// from opaque-provider validation receipts without permitting callers to
+    /// alter the sealed graph.
+    pub fn summary_evidence(
+        &self,
+    ) -> impl Iterator<Item = (&ProviderFuelSummaryId, &FixedFuelProviderSummary)> {
+        self.composition_evidence.summaries.iter()
+    }
 }
 
 /// Compose an acyclic graph of admitted fixed-fuel summaries. Each edge's
@@ -643,7 +746,7 @@ pub fn compose_fixed_fuel<'a>(
     let mut visiting = BTreeSet::new();
     let mut memo = BTreeMap::new();
     let mut used = BTreeSet::new();
-    let schedule = root_summary.schedule;
+    let schedule = root_summary.local_evidence.schedule();
     let units = compose_fixed_fuel_summary(
         root,
         schedule,
@@ -654,11 +757,12 @@ pub fn compose_fixed_fuel<'a>(
     )?;
     let provider_receipts = used
         .iter()
-        .map(|identity| {
+        .filter_map(|identity| {
             by_identity
                 .get(identity)
                 .expect("used fixed-fuel summary exists")
-                .validation_receipt
+                .local_evidence
+                .provider_validation_receipt()
         })
         .collect();
     let composition_fingerprint = fingerprint_fixed_fuel_composition(schedule, &used, &by_identity);
@@ -712,15 +816,15 @@ fn compose_fixed_fuel_summary(
             identity.normalized_identity()
         ))
     })?;
-    if summary.schedule != schedule {
+    if summary.local_evidence.schedule() != schedule {
         return Err(ExternalRootDiagnostic(format!(
             "fixed-fuel summary 0x{:016x} uses schedule version {}, but the root uses version {}",
             identity.normalized_identity(),
-            summary.schedule.schedule_version(),
+            summary.local_evidence.schedule().schedule_version(),
             schedule.schedule_version()
         )));
     }
-    let mut units = summary.local_units;
+    let mut units = summary.local_evidence.units();
     for call in &summary.calls {
         if call.maximum_invocations == 0 {
             return Err(ExternalRootDiagnostic(format!(
@@ -760,8 +864,7 @@ fn fingerprint_fixed_fuel_composition(
             .expect("used fixed-fuel summary exists");
         hash.u64(summary.identity.normalized_identity());
         hash.u64(summary.provider.normalized_identity());
-        hash.u64(summary.local_units);
-        hash.u64(summary.validation_receipt.normalized_identity());
+        fingerprint_fixed_fuel_local_evidence(&mut hash, &summary.local_evidence);
         hash.u64(summary.calls.len() as u64);
         for call in &summary.calls {
             hash.u64(call.callee.normalized_identity());
@@ -769,6 +872,44 @@ fn fingerprint_fixed_fuel_composition(
         }
     }
     hash.finish()
+}
+
+fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelLocalEvidence) {
+    match evidence {
+        FixedFuelLocalEvidence::TerminalEntry(certificate) => {
+            hash.u64(0);
+            let terminal_psi = certificate.terminal_psi();
+            hash.u64(u64::from(terminal_psi.semantic_version.get()));
+            hash.bytes(terminal_psi.program_fingerprint.as_bytes());
+            hash.u64(u64::from(certificate.schedule().schedule_version()));
+            hash.u64(certificate.entry().get());
+            hash.u64(certificate.return_edge().get());
+            hash.u64(certificate.relevant_preconditions().len() as u64);
+            hash.u64(certificate.ceiling_units());
+        }
+        FixedFuelLocalEvidence::TerminalSegment(certificate) => {
+            hash.u64(1);
+            let terminal_psi = certificate.terminal_psi();
+            hash.u64(u64::from(terminal_psi.semantic_version.get()));
+            hash.bytes(terminal_psi.program_fingerprint.as_bytes());
+            hash.u64(u64::from(certificate.schedule().schedule_version()));
+            hash.u64(certificate.machine().get());
+            hash.u64(certificate.start_block().get());
+            hash.u64(certificate.end_edge().get());
+            hash.u64(certificate.relevant_preconditions().len() as u64);
+            hash.u64(certificate.ceiling_units());
+        }
+        FixedFuelLocalEvidence::AdmittedProvider {
+            schedule,
+            units,
+            validation_receipt,
+        } => {
+            hash.u64(2);
+            hash.u64(u64::from(schedule.schedule_version()));
+            hash.u64(*units);
+            hash.u64(validation_receipt.normalized_identity());
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2676,6 +2817,14 @@ impl Fnv1a {
         }
     }
 
+    fn bytes(&mut self, value: &[u8]) {
+        self.u64(value.len() as u64);
+        for byte in value {
+            self.0 ^= u64::from(*byte);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
     const fn finish(self) -> u64 {
         self.0
     }
@@ -2876,31 +3025,31 @@ mod tests {
     }
 
     fn fixed_fuel() -> ComposedFuelDemand {
-        let leaf = FixedFuelProviderSummary {
-            identity: root_id(31, ProviderFuelSummaryId::from_normalized_identity),
-            provider: root_id(12, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 5,
-            calls: BTreeSet::new(),
-            validation_receipt: root_id(
+        let leaf = FixedFuelProviderSummary::from_admitted_provider(
+            root_id(31, ProviderFuelSummaryId::from_normalized_identity),
+            root_id(12, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            5,
+            BTreeSet::new(),
+            root_id(
                 41,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
-        let root = FixedFuelProviderSummary {
-            identity: root_id(30, ProviderFuelSummaryId::from_normalized_identity),
-            provider: root_id(2, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 2,
-            calls: BTreeSet::from([FixedFuelCall {
+        );
+        let root = FixedFuelProviderSummary::from_admitted_provider(
+            root_id(30, ProviderFuelSummaryId::from_normalized_identity),
+            root_id(2, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            2,
+            BTreeSet::from([FixedFuelCall {
                 callee: leaf.identity,
                 maximum_invocations: 1,
             }]),
-            validation_receipt: root_id(
+            root_id(
                 40,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
+        );
         compose_fixed_fuel(root.identity, [&root, &leaf]).expect("fixed-fuel composition")
     }
 
@@ -4394,31 +4543,31 @@ mod tests {
 
         let leaf_identity = root_id(61, ProviderFuelSummaryId::from_normalized_identity);
         let root_identity = root_id(60, ProviderFuelSummaryId::from_normalized_identity);
-        let leaf = FixedFuelProviderSummary {
-            identity: leaf_identity,
-            provider: root_id(62, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 4,
-            calls: BTreeSet::new(),
-            validation_receipt: root_id(
+        let leaf = FixedFuelProviderSummary::from_admitted_provider(
+            leaf_identity,
+            root_id(62, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            4,
+            BTreeSet::new(),
+            root_id(
                 63,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
-        let root = FixedFuelProviderSummary {
-            identity: root_identity,
-            provider: root_id(2, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 3,
-            calls: BTreeSet::from([FixedFuelCall {
+        );
+        let root = FixedFuelProviderSummary::from_admitted_provider(
+            root_identity,
+            root_id(2, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            3,
+            BTreeSet::from([FixedFuelCall {
                 callee: leaf_identity,
                 maximum_invocations: 2,
             }]),
-            validation_receipt: root_id(
+            root_id(
                 64,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
+        );
 
         let forward = compose_fixed_fuel(root_identity, [&root, &leaf]).expect("composition");
         let reverse = compose_fixed_fuel(root_identity, [&leaf, &root]).expect("composition");
@@ -4432,7 +4581,14 @@ mod tests {
         assert!(error.0.contains("missing"));
 
         let mismatched_leaf = FixedFuelProviderSummary {
-            schedule: FuelScheduleIdentity::new(2).expect("different fuel schedule"),
+            local_evidence: FixedFuelLocalEvidence::AdmittedProvider {
+                schedule: FuelScheduleIdentity::new(2).expect("different fuel schedule"),
+                units: 4,
+                validation_receipt: root_id(
+                    63,
+                    ProviderFuelValidationReceiptId::from_normalized_identity,
+                ),
+            },
             ..leaf.clone()
         };
         let error = compose_fixed_fuel(root_identity, [&root, &mismatched_leaf])
@@ -4455,35 +4611,42 @@ mod tests {
     fn fixed_fuel_composition_retains_exact_graph_beyond_compact_fingerprint() {
         let leaf_identity = root_id(71, ProviderFuelSummaryId::from_normalized_identity);
         let root_identity = root_id(70, ProviderFuelSummaryId::from_normalized_identity);
-        let leaf = FixedFuelProviderSummary {
-            identity: leaf_identity,
-            provider: root_id(72, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 4,
-            calls: BTreeSet::new(),
-            validation_receipt: root_id(
+        let leaf = FixedFuelProviderSummary::from_admitted_provider(
+            leaf_identity,
+            root_id(72, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            4,
+            BTreeSet::new(),
+            root_id(
                 73,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
-        let root = FixedFuelProviderSummary {
-            identity: root_identity,
-            provider: root_id(74, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 3,
-            calls: BTreeSet::from([FixedFuelCall {
+        );
+        let root = FixedFuelProviderSummary::from_admitted_provider(
+            root_identity,
+            root_id(74, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            3,
+            BTreeSet::from([FixedFuelCall {
                 callee: leaf_identity,
                 maximum_invocations: 2,
             }]),
-            validation_receipt: root_id(
+            root_id(
                 75,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
+        );
         let exact = compose_fixed_fuel(root_identity, [&root, &leaf]).expect("original fuel graph");
 
         let drifted_leaf = FixedFuelProviderSummary {
-            local_units: 2,
+            local_evidence: FixedFuelLocalEvidence::AdmittedProvider {
+                schedule: fuel_schedule(),
+                units: 2,
+                validation_receipt: root_id(
+                    73,
+                    ProviderFuelValidationReceiptId::from_normalized_identity,
+                ),
+            },
             ..leaf
         };
         let drifted_root = FixedFuelProviderSummary {
@@ -4519,27 +4682,29 @@ mod tests {
         let wake_identity = root_id(103, ProviderFuelSummaryId::from_normalized_identity);
         let return_identity = root_id(104, ProviderFuelSummaryId::from_normalized_identity);
 
-        let leaf = |identity, provider_identity, receipt_identity| FixedFuelProviderSummary {
-            identity,
-            provider: root_id(provider_identity, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 1,
-            calls: BTreeSet::new(),
-            validation_receipt: root_id(
-                receipt_identity,
-                ProviderFuelValidationReceiptId::from_normalized_identity,
-            ),
+        let leaf = |identity, provider_identity, receipt_identity| {
+            FixedFuelProviderSummary::from_admitted_provider(
+                identity,
+                root_id(provider_identity, RootProviderId::from_normalized_identity),
+                fuel_schedule(),
+                1,
+                BTreeSet::new(),
+                root_id(
+                    receipt_identity,
+                    ProviderFuelValidationReceiptId::from_normalized_identity,
+                ),
+            )
         };
         let acknowledge = leaf(acknowledge_identity, 201, 301);
         let clock = leaf(clock_identity, 202, 302);
         let wake = leaf(wake_identity, 203, 303);
         let return_path = leaf(return_identity, 204, 304);
-        let timer = FixedFuelProviderSummary {
-            identity: root_identity,
-            provider: root_id(200, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 1,
-            calls: BTreeSet::from([
+        let timer = FixedFuelProviderSummary::from_admitted_provider(
+            root_identity,
+            root_id(200, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            1,
+            BTreeSet::from([
                 FixedFuelCall {
                     callee: acknowledge_identity,
                     maximum_invocations: 1,
@@ -4557,11 +4722,11 @@ mod tests {
                     maximum_invocations: 1,
                 },
             ]),
-            validation_receipt: root_id(
+            root_id(
                 300,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
+        );
 
         let forward = compose_fixed_fuel(
             root_identity,

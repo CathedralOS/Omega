@@ -493,8 +493,16 @@ execution after source and producer state are discarded. Exact machine-local
 block-to-edge segment certificates now reuse the same canonical identity and
 schedule, include their selected jump or return edge, and reject an endpoint
 that is not reached before return. Semantic safe-point selection, branch/loop
-outcomes, relevant-precondition subsets, and provider-summary migration remain
-later slices.
+outcomes, relevant-precondition subsets, installed-executable binding, and
+Cathedral hard-root migration remain later slices.
+
+Omega external-root composition now accepts those sealed entry and segment
+certificates as a distinct local-evidence form beside admitted opaque-provider
+summaries. It derives local units and schedule from the certificate, retains no
+provider receipt for recomputable Psi evidence, and reports the terminal
+semantic identity and exact entry/segment endpoint. The real-source canary
+crosses this bridge. Binding that identity to the installed executable and
+migrating the Cathedral hard-root graph remain.
 
 ## Migration plan
 

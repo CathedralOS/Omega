@@ -2693,7 +2693,7 @@ fn select_runtime_binary_mutation_write(
 ) -> Option<SelectedInstructionKind> {
     let (value, atomic_ordering) = match value {
         Expression::Atomic(atomic) => match atomic.ordering {
-            omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_) => {
+            psi_language_core::AtomicOrderingPlan::ReadModifyWrite(_) => {
                 (&atomic.value, Some(atomic.ordering))
             }
             // Compare-exchange is selected from the authoritative table shape;
