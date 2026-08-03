@@ -619,6 +619,30 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
 }
 
 #[test]
+fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
+    let root = workspace_root();
+    let path =
+        root.join("compiler/omega-rs/orchestration/omega-compiler/src/pipeline/provider_plans.rs");
+    let source = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+
+    assert!(
+        source.contains("pub fn dispatch_checked_adapter_body"),
+        "the provider-entry executor must expose the checked-body dispatch gate"
+    );
+    assert!(
+        !source.contains("pub fn admit_acknowledgement<")
+            && !source.contains("pub fn admit_acknowledgement_handoff<"),
+        "live admitted entry evidence must not detach from checked-body dispatch"
+    );
+    assert!(
+        source.contains("let handoff = self.admit_acknowledgement_handoff")
+            && source.contains("Ok(execute(handoff))"),
+        "checked-body execution must occur only after the exact occurrence/prologue join"
+    );
+}
+
+#[test]
 fn typed_frontend_does_not_retain_concrete_calling_conventions() {
     let root = workspace_root();
     let manifest = root.join("compiler/psi-rs/representations/psi-typed-trees/Cargo.toml");
