@@ -1709,6 +1709,13 @@ move it to a convenience library.
   lower checked adapters, retain compile-time operational envelopes, add
   transparent trait refinements and named-conformance generic bounds, and
   prototype envelope/effect-row inference before committing the full lowering.
+  The first nominal-dispatch correction is live: typed/checked dynamic
+  candidate discovery now consults only explicit whole-trait data conformance
+  items, excludes unbound generic conformances, and never infers an edge from
+  same-named attached machines. Existing interpreter/native dispatch canaries
+  now declare their conformance edges. The two-word descriptor, coherent
+  named-conformance selection, per-requirement eligibility/adapters, and
+  envelope inference remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's
