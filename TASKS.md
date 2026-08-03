@@ -1009,8 +1009,9 @@ improvements do not change public identity.
   small structural proof kernel, versioned certificate envelope, total truth /
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
-  The first frontend-ownership migration slice is live: `psi-source` owns byte
-  spans, `psi-tokens` owns the token representation, and
+  The first frontend-ownership migration slice is live: `psi-source` owns
+  source identities, byte spans, and source-backed text; `psi-tokens` owns the
+  token representation; and
   `psi-source-files-to-tokens` owns Omega lexing with no Omega dependency. The
   former Omega token and lexer crates are now implementation-free compatibility
   re-exports for the unmigrated parser. The checked-tree-to-terminal adapter is
