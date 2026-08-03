@@ -90,3 +90,28 @@ branch exclusivity/exhaustiveness is proven, which selected edge is charged,
 and how exact-path and safe-point fuel certificates identify the untaken arm.
 Do not freeze semantic v13, extend the codec, or publish branch certificates
 until this shape is settled as one reviewed vertical slice.
+
+## Q5 — What is the source surface for proposition families and aliases?
+
+The law-bearing-relation ruling requires nominal proposition families over
+representative values, typed proof-static index telescopes, and transparent
+proposition aliases backed by carrierless selected-conformance evidence. It
+does not settle how any of those declarations are written. The live grammar
+has executable `bool` machines and transparent domain aliases, but neither is
+a proposition family: running a decider is not evidence, and a domain
+classifies one carrier rather than relating independently indexed values.
+Which source model is canonical?
+
+- add a dedicated proposition-family declaration with explicit static-index
+  and representative-value binders, plus a distinct transparent proposition-
+  alias declaration whose right side names carrierless evidence; or
+- define proposition families entirely as a normalized projection of an
+  ordinary proof trait/conformance, with a separate alias form naming that
+  projection and no new nominal declaration kind?
+
+The choice fixes proposition symbol identity, generic/index binder syntax,
+how proposition application appears in `requires`/`ensures` and proof bodies,
+how aliases bind hidden evidence terms, and which declaration selected
+`Reflexive`/`Symmetric`/`Transitive` conformances name. Do not migrate `%` from
+its executable-`bool` pilot or add a parser-only `Prop` spelling until this
+surface is settled end to end.

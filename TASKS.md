@@ -1404,7 +1404,9 @@ and allocation handles expose no compiler-owned stack/control storage.
 - **N6:** implement law-bearing relations and quotient evidence in the ordered
   sequence fixed by
   `wiki/design_briefs/law_bearing_relations_and_quotients.md`:
-  1. land the proof-side Prop-family/index-telescope fragment;
+  1. **PROP-FAMILY-SURFACE — DESIGN BLOCKED (`OWNER_QUESTIONS.md` Q5):**
+     land the proof-side Prop-family/index-telescope fragment after choosing
+     the source declaration/application and transparent-alias surface;
   2. add the proof stratum to selected-conformance projection and permit
      by-value `dyn` only when the complete normalized value has no runtime
      carrier;
@@ -1807,6 +1809,10 @@ ordinary code never receives a raw executable address.
   arithmetic earns a distinct public library carrier beyond exact-by-default
   obligations and the existing explicit policy families, as recorded in
   `wiki/language_guide/appendix_open_questions.md`.
+- **PROP-FAMILY-SURFACE:** blocked on `OWNER_QUESTIONS.md` Q5's choice of
+  nominal proposition-family declaration, application, and transparent-alias
+  surface over carrierless selected-conformance evidence. This blocks N6's
+  ordered first rung and therefore its later quotient migration.
 
 ## Vertical acceptance slices
 
