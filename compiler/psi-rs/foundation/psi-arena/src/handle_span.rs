@@ -1,7 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::arena::Handle;
+use crate::Handle;
 
 pub struct HandleSpan<T> {
     start: Handle<T>,
@@ -104,7 +104,7 @@ impl<T> fmt::Debug for HandleSpan<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::arena::{Handle, HandleSpan};
+    use crate::{Handle, HandleSpan};
 
     #[test]
     fn pushes_contiguous_handles() {

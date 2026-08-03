@@ -19,6 +19,10 @@ source shape without turning nested syntax into scattered heap objects.
 
 ## Implementation Map
 
+- `compiler/psi-rs/foundation/psi-arena` owns the generic typed arena handles,
+  contiguous handle spans, and dense arena storage required by the syntax
+  representation. `omega-core::arena` temporarily re-exports these exact types
+  for unmigrated frontend consumers.
 - `parser.rs` owns public entrypoints and whole-file parse completion checks.
 - `parser/input.rs` owns token cursor movement, span mapping, and parser
   lookahead helpers.

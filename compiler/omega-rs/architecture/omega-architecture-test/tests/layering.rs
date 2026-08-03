@@ -364,6 +364,22 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "legacy source primitive must re-export its Psi-owned implementation: {relative}"
         );
     }
+
+    let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
+    let source = std::fs::read_to_string(&arena_module)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", arena_module.display()));
+    assert!(
+        source.contains(
+            "pub use psi_arena::{Arena, ArenaIter, ArenaSpanInserter, Handle, HandleSpan};"
+        ),
+        "legacy arena module must re-export the Psi-owned syntax-storage primitives"
+    );
+    for forbidden in ["mod arena;", "mod handle;", "mod handle_span;"] {
+        assert!(
+            !source.contains(forbidden),
+            "legacy arena module must not regain Psi-owned implementation module {forbidden}"
+        );
+    }
 }
 
 #[test]

@@ -1011,7 +1011,8 @@ improvements do not change public identity.
   validator are live; architecture tests forbid Psi dependencies on Omega.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
-  token representation; and
+  token representation; `psi-arena` owns the generic typed arena storage needed
+  by source representations; and
   `psi-source-files-to-tokens` owns Omega lexing with no Omega dependency. The
   former Omega token and lexer crates are now implementation-free compatibility
   re-exports for the unmigrated parser. The checked-tree-to-terminal adapter is

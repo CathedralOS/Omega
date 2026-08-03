@@ -1,0 +1,9 @@
+[package]
+name = "psi-arena"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "psi_arena"
+path = "src/lib.rs"
