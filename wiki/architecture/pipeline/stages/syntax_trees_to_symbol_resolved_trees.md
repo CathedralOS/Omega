@@ -50,6 +50,10 @@ Must not own:
 
 The implementation should stay split by identity task:
 
+- `compiler/psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees` owns the
+  stage implementation. The old Omega package is an implementation-free
+  compatibility export for unmigrated orchestration.
+
 - `compiler/psi-rs/representations/psi-symbol-resolved-trees` owns the stage
   output. The old `omega-symbol-resolved-trees` crate is an implementation-free
   compatibility export for later stages that have not migrated yet.

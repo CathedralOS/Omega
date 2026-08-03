@@ -9,10 +9,4 @@ name = "omega_syntax_trees_to_symbol_resolved_trees"
 path = "src/lib.rs"
 
 [dependencies]
-omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
-omega-core = { path = "../../foundation/omega-core" }
-omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
-
-[dev-dependencies]
-omega-source-files-to-tokens = { path = "../omega-source-files-to-tokens" }
-omega-tokens-to-syntax-trees = { path = "../omega-tokens-to-syntax-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }

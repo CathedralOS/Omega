@@ -42,6 +42,8 @@ Current roots:
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
 - `pipeline/psi-tokens-to-syntax-trees`: the Psi-owned unresolved Omega parser;
+- `pipeline/psi-syntax-trees-to-symbol-resolved-trees`: Psi-owned name lookup,
+  source-scope resolution, and stable symbol stamping;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
   checking, evidence envelopes, and sealed admission validation.
 - `semantics/psi-terminal-verifier`: structural module validation,

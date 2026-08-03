@@ -328,6 +328,10 @@ fn frontend_implementation_is_psi_owned() {
             "compiler/omega-rs/pipeline/omega-tokens-to-syntax-trees/src/lib.rs",
             "pub use psi_tokens_to_syntax_trees::*;",
         ),
+        (
+            "compiler/omega-rs/pipeline/omega-syntax-trees-to-symbol-resolved-trees/src/lib.rs",
+            "pub use psi_syntax_trees_to_symbol_resolved_trees::*;",
+        ),
     ] {
         let path = root.join(relative);
         let source = std::fs::read_to_string(&path)
