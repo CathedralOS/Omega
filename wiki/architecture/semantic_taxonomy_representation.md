@@ -530,6 +530,15 @@ still a known entry but adds an attributed runtime incompleteness cause;
 independent closure and containment evidence remain visible. Union is a
 canonical idempotent set operation and rejects scope mismatch.
 
+Isolation is represented as a manifest set rather than by flattening child code
+into the caller. A selected closure chooses its nonzero isolated-scope identity
+before opaque admission. The parent manifest receives an exact
+`IsolatedProviderEndpoint` entry with independent endpoint/manifest admission
+receipts and containment evidence; the child retains its own scope-relative
+manifest. Attachment rejects child-scope drift, duplicate scope identities,
+and entries attributed to the wrong scope. Parent and child completeness—and
+therefore profile acceptance—remain independent.
+
 Source `boundary` remains insufficient to reconstruct this enum: a checked
 exported callable and an accepted bodyless declaration both mention the word
 but have different supply modes. Likewise, body absence distinguishes a trait

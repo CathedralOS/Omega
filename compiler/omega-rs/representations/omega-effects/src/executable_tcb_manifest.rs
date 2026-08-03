@@ -11,6 +11,7 @@ pub enum ExecutableEntryOrigin {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionScope {
     CallerAddressSpace,
+    IsolatedProvider(u64),
 }
 
 /// Exact identity of the provider selected for one boundary slot.
@@ -28,16 +29,34 @@ pub enum ProviderIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutableIdentity {
     CurrentArtifactMachine(String),
-    CurrentArtifactIntrinsic { target: String, name: String },
+    CurrentArtifactIntrinsic {
+        target: String,
+        name: String,
+    },
     PinnedOpaqueArtifact(String),
+    IsolatedProviderEndpoint {
+        scope_identity: u64,
+        endpoint_identity: String,
+    },
 }
 
 /// Evidence for how the executable implementation is supplied.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImplementationEvidence {
-    CheckedBody { machine: String },
-    CompilerKnown { target: String, intrinsic: String },
-    AdmittedOpaque { receipt_identity: String },
+    CheckedBody {
+        machine: String,
+    },
+    CompilerKnown {
+        target: String,
+        intrinsic: String,
+    },
+    AdmittedOpaque {
+        receipt_identity: String,
+    },
+    AdmittedIsolatedEndpoint {
+        endpoint_receipt_identity: String,
+        isolated_manifest_receipt_identity: String,
+    },
 }
 
 /// Containment guarantees remain independent; one receipt cannot imply the
@@ -199,11 +218,16 @@ pub struct ExecutableTcbManifest {
 }
 
 impl OmegaRuntimeExecutableLedger {
-    pub const fn new(scope: ExecutionScope) -> Self {
-        Self {
+    pub fn new(scope: ExecutionScope) -> Result<Self, String> {
+        if matches!(scope, ExecutionScope::IsolatedProvider(0)) {
+            return Err(
+                "Omega runtime executable ledger has the reserved zero scope identity".into(),
+            );
+        }
+        Ok(Self {
             scope,
             admissions: Vec::new(),
-        }
+        })
     }
 
     pub const fn scope(&self) -> ExecutionScope {
@@ -543,9 +567,9 @@ pub(crate) fn validate_opaque_executable_admission(
 pub(crate) fn derive_static_manifest(
     plans: &[ProviderPlan],
     selected_provider_closure_identity: u64,
+    scope: ExecutionScope,
     admissions: &[ValidatedOpaqueExecutableAdmission],
 ) -> ExecutableTcbManifest {
-    let scope = ExecutionScope::CallerAddressSpace;
     let mut known_entries = Vec::new();
     let mut causes = Vec::new();
     let mut opaque_closure_evidence = Vec::new();
@@ -765,7 +789,8 @@ mod runtime_ledger_tests {
 
     #[test]
     fn mediated_runtime_admission_adds_an_origin_marked_known_entry() {
-        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace)
+            .expect("valid caller scope");
         ledger
             .admit(candidate(
                 "sha256:plugin-a",
@@ -804,7 +829,8 @@ mod runtime_ledger_tests {
 
     #[test]
     fn runtime_admission_without_closure_is_known_but_attributed_incomplete() {
-        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace)
+            .expect("valid caller scope");
         ledger
             .admit(candidate("sha256:plugin-open", None))
             .expect("pinned executable can be reported without closure evidence");
@@ -831,7 +857,8 @@ mod runtime_ledger_tests {
 
     #[test]
     fn ledger_rejects_unmediated_entries_and_receipt_replay() {
-        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace);
+        let mut ledger = OmegaRuntimeExecutableLedger::new(ExecutionScope::CallerAddressSpace)
+            .expect("valid caller scope");
         let mut unmediated = candidate("sha256:no-receipt", None);
         unmediated.admission_receipt_identity.clear();
         assert!(

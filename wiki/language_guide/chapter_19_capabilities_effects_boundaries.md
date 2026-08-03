@@ -1355,6 +1355,11 @@ manifest names each known provider/executable identity, static-selection or
 Omega-mediated-runtime origin, evidence class, execution scope, and admitted
 containment guarantees. An isolated process exposes an endpoint in the caller's
 manifest and has a separate executable manifest for its own scope.
+The artifact carrier enforces this shape: the caller records an admitted
+endpoint and its containment evidence, while the isolated provider's code and
+completeness live in a separately identified child manifest. An incomplete
+child does not make the caller-address-space inventory incomplete; deployment
+profiles evaluate the two scopes independently.
 
 The manifest also reports whether the known-entry list is complete for that
 scope. An uncontained opaque in-process provider makes it incomplete and is
