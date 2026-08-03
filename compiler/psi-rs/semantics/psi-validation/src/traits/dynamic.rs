@@ -1,4 +1,5 @@
 use psi_typed_trees::TypedTrees;
+use psi_typed_trees::trait_definition::DynamicSignatureIneligibility;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Explain why one requirement is absent from a local `dyn Trait` surface.
@@ -19,42 +20,30 @@ pub(crate) fn dynamic_requirement_call_error(
         .iter()
         .find(|signature| signature.name.as_str() == target)?;
 
-    let reason = if trait_definition.is_boundary {
-        Some("boundary-machine requirements are not local dynamic calls")
-    } else if !program
-        .state_signature_type_parameters(requirement)
-        .is_empty()
+    let reason = match program
+        .dynamic_signature_eligibility(trait_definition, requirement)
+        .err()?
     {
-        Some("the requirement has requirement-local generic parameters")
-    } else {
-        let parameters = program.state_signature_parameters(requirement);
-        let receivers = parameters
-            .iter()
-            .filter(|parameter| parameter.is_self)
-            .collect::<Vec<_>>();
-        match receivers.as_slice() {
-            [receiver] if is_reference_to_self(program, receiver.type_reference) => {
-                if parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .any(|parameter| {
-                        type_reference_contains_self(program, parameter.type_reference)
-                    })
-                {
-                    Some("`Self` appears outside the borrowed receiver")
-                } else if requirement.return_type.is_valid()
-                    && type_reference_contains_self(program, requirement.return_type)
-                {
-                    Some("`Self` appears in the result type")
-                } else {
-                    None
-                }
-            }
-            [_] => Some("the receiver is by value rather than `&self` or `&mut self`"),
-            [] => Some("the requirement has no `&self` or `&mut self` receiver"),
-            _ => Some("the requirement has more than one receiver"),
+        DynamicSignatureIneligibility::BoundaryRequirement => {
+            "boundary-machine requirements are not local dynamic calls"
         }
-    }?;
+        DynamicSignatureIneligibility::RequirementLocalGenerics => {
+            "the requirement has requirement-local generic parameters"
+        }
+        DynamicSignatureIneligibility::MissingBorrowedReceiver => {
+            "the requirement has no `&self` or `&mut self` receiver"
+        }
+        DynamicSignatureIneligibility::ByValueReceiver => {
+            "the receiver is by value rather than `&self` or `&mut self`"
+        }
+        DynamicSignatureIneligibility::MultipleReceivers => {
+            "the requirement has more than one receiver"
+        }
+        DynamicSignatureIneligibility::SelfOutsideReceiver => {
+            "`Self` appears outside the borrowed receiver"
+        }
+        DynamicSignatureIneligibility::SelfResult => "`Self` appears in the result type",
+    };
 
     Some(format!(
         "requirement `{}::{}` is absent from `dyn {}`: {reason}",
@@ -73,41 +62,5 @@ fn dynamic_trait_symbol(
         }
         TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
         _ => None,
-    }
-}
-
-fn is_reference_to_self(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return false;
-    };
-    matches!(
-        program.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { name, .. } if name.as_str() == "Self"
-    )
-}
-
-fn type_reference_contains_self(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { name, .. } => name.as_str() == "Self",
-        TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_contains_self(program, *referee)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_contains_self(program, *base_type)
-        }
-        TypeReferenceNode::Generic { arguments, .. } => program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-            .iter()
-            .any(|argument| type_reference_contains_self(program, *argument)),
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            type_reference_contains_self(program, *element_type)
-        }
-        TypeReferenceNode::ConstExpression(_)
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => false,
     }
 }

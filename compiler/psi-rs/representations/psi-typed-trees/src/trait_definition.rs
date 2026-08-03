@@ -59,6 +59,20 @@ pub enum TraitCompositionKind {
     ServiceReach,
 }
 
+/// Why a requirement is absent from the signature-derived portion of a local
+/// dynamic trait surface. Later contract/lifetime/envelope judgments remain
+/// independent and may exclude an otherwise signature-eligible requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DynamicSignatureIneligibility {
+    BoundaryRequirement,
+    RequirementLocalGenerics,
+    MissingBorrowedReceiver,
+    ByValueReceiver,
+    MultipleReceivers,
+    SelfOutsideReceiver,
+    SelfResult,
+}
+
 impl Default for TraitRequirement {
     fn default() -> Self {
         Self {
