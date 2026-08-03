@@ -36439,6 +36439,16 @@ fn named_float_classification_predicates_select_and_execute() {
 
 #[test]
 fn named_float_classify_preserves_enum_layout_and_executes() {
+    const DIFFERENTIAL_SUITE_ID: &str = "omega.float.hardware.macos_arm64.classify-enum.v1";
+    const DIFFERENTIAL_COVERAGE: &[&str] = &[
+        "FloatClass eight-byte layout and source-order tags",
+        "FloatClass sign payload at byte four",
+        "binary32 all class tags and signed payloads",
+        "binary64 all class tags and signed payloads",
+        "exactly-once unary evaluation shape",
+    ];
+    const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xf63a_865e_9bbb_85f2;
+
     let canary = pass_canary("float/named_provider_classify_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float classify calls should compile to checked trees");
@@ -36475,6 +36485,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     }
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
         if operator_use.provider_plan_identity == 0 {
             continue;
@@ -36495,6 +36506,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
             continue;
         }
         selected_intrinsics.insert(name.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
         let (expected_builtin, expected_target) = if name.starts_with("F32::") {
             (
                 psi_symbols::BuiltinFunction::FloatClassifyF32,
@@ -36532,6 +36544,13 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         ]
         .into_iter()
         .collect()
+    );
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(
+        selected_plan_identities.len(),
+        2,
+        "{DIFFERENTIAL_SUITE_ID} must bind one exact plan per format slot"
     );
 
     let outcome = omega_interpreter::interpret(&checked, &[]);
@@ -36584,6 +36603,21 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
         });
         let _ = fs::remove_dir_all(&scratch);
     }
+
+    let result_identity = retained_float_differential_result_identity(
+        DIFFERENTIAL_SUITE_ID,
+        "macos_arm64",
+        DIFFERENTIAL_COVERAGE,
+        &selected_intrinsics,
+        &selected_plan_identities,
+        &outcome,
+        &output,
+        &["linux_x64", "linux_arm64"],
+    );
+    assert_eq!(
+        result_identity, EXPECTED_DIFFERENTIAL_RESULT_IDENTITY,
+        "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, edge corpus, interpreter/native results, and cross-target builds before refreshing the retained identity"
+    );
 }
 
 #[test]
