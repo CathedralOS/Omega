@@ -146,41 +146,82 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // libobjc, so the Mach-O emits a 2nd LC_LOAD_DYLIB and binds this at
         // ordinal 2. (The binding's `library` string below is unused on darwin —
         // the Mach-O backend derives the dylib from the symbol name.)
-        darwin_import("ObjectiveC", "get_class", "_objc_getClass", &policy),
-        darwin_import(
+        darwin_word_import(
+            "ObjectiveC",
+            "get_class",
+            "_objc_getClass",
+            1,
+            true,
+            &policy,
+        ),
+        darwin_word_import(
             "ObjectiveC",
             "register_selector",
             "_sel_registerName",
+            1,
+            true,
             &policy,
         ),
         // `send`/`send_scalar`/`send_string` share the `_objc_msgSend` symbol; the
         // op arm decides how many args to marshal (`[recv, sel, …]`).
-        darwin_import("ObjectiveC", "send", "_objc_msgSend", &policy),
-        darwin_import("ObjectiveC", "send_scalar", "_objc_msgSend", &policy),
-        darwin_import("ObjectiveC", "send_string", "_objc_msgSend", &policy),
+        darwin_word_import("ObjectiveC", "send", "_objc_msgSend", 2, true, &policy),
+        darwin_word_import(
+            "ObjectiveC",
+            "send_scalar",
+            "_objc_msgSend",
+            3,
+            true,
+            &policy,
+        ),
+        darwin_word_import(
+            "ObjectiveC",
+            "send_string",
+            "_objc_msgSend",
+            3,
+            true,
+            &policy,
+        ),
         // The MIXED HFA-plus-scalar send: NSRect (4 doubles → v0–v3) + 3 trailing
         // scalars (→ x2–x4) for `initWithContentRect:styleMask:backing:defer:`.
         darwin_import("ObjectiveC", "send_rect", "_objc_msgSend", &policy),
         // Four scalar args (x2–x5) for the event pump's
         // `nextEventMatchingMask:untilDate:inMode:dequeue:`.
-        darwin_import("ObjectiveC", "send_scalar4", "_objc_msgSend", &policy),
+        darwin_word_import(
+            "ObjectiveC",
+            "send_scalar4",
+            "_objc_msgSend",
+            6,
+            true,
+            &policy,
+        ),
         // Scalar + NSSize (2 doubles → v0,v1) for `initWithCGImage:size:`.
         darwin_import("ObjectiveC", "send_image_size", "_objc_msgSend", &policy),
         // Runtime byte-buffer string send (`initWithUTF8String:` over the samples'
         // title bytes, NUL-terminated by construction). Shares `_objc_msgSend`.
-        darwin_import("ObjectiveC", "send_byte_string", "_objc_msgSend", &policy),
+        darwin_word_import(
+            "ObjectiveC",
+            "send_byte_string",
+            "_objc_msgSend",
+            3,
+            true,
+            &policy,
+        ),
         // The pump's autorelease-pool scope: dequeued NSEvents are autoreleased and
         // the pump runs outside any Cocoa-managed pool, so without a pool they leak.
-        darwin_import(
+        darwin_word_import(
             "ObjectiveC",
             "pool_push",
             "_objc_autoreleasePoolPush",
+            0,
+            true,
             &policy,
         ),
-        darwin_import(
+        darwin_word_import(
             "ObjectiveC",
             "pool_pop",
             "_objc_autoreleasePoolPop",
+            1,
+            true,
             &policy,
         ),
         // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
