@@ -906,7 +906,15 @@ fn normalized_aarch64_import_plan_from_call_operands_with_authoritative(
         parameters: arguments
             .iter()
             .copied()
-            .map(aarch64_operand_shape)
+            .enumerate()
+            .map(|(index, operand)| {
+                aarch64_operand_shape_with_context(
+                    operand,
+                    authoritative_plan
+                        .and_then(|plan| plan.parameters.get(index))
+                        .map(|placement| placement.shape),
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?,
         result: match (result_kind, result_operand) {
             (Aarch64ImportResult::None, None) => None,
@@ -1069,6 +1077,25 @@ fn aarch64_operand_shape(
         | Aarch64CallOperand::ImmediateInteger(_)
         | Aarch64CallOperand::ByteLength(_) => Ok(ValueShape::integer(8, 8)),
     }
+}
+
+fn aarch64_operand_shape_with_context(
+    operand: omega_isa_aarch64::Aarch64CallOperand,
+    expected: Option<ValueShape>,
+) -> Result<ValueShape, Diagnostic> {
+    if matches!(
+        operand,
+        omega_isa_aarch64::Aarch64CallOperand::ImmediateInteger(_)
+    ) && expected.is_some_and(|shape| {
+        matches!(shape.class, omega_calling_conventions::ValueClass::Integer)
+            && shape.byte_size <= 8
+    }) {
+        // Integer literals have no storage width of their own. Their checked
+        // call-site type has already selected the external parameter, so the
+        // retained plan supplies the concrete ABI width at this final seam.
+        return Ok(expected.expect("checked above"));
+    }
+    aarch64_operand_shape(operand)
 }
 
 fn aarch64_result_shape(
@@ -2549,6 +2576,29 @@ mod aarch64_import_plan_tests {
         assert_eq!(&bytes[..4], &0xd100_43ff_u32.to_le_bytes());
         assert_eq!(&bytes[24..28], &0x9400_0000_u32.to_le_bytes());
         assert_eq!(&bytes[28..32], &0x9100_43ff_u32.to_le_bytes());
+    }
+
+    #[test]
+    fn exact_i32_import_plan_accepts_typed_scratch_and_contextual_literal() {
+        let plan = aapcs64_plan(vec![ValueShape::integer(4, 4)], None);
+        for argument in [
+            TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 24,
+                byte_count: 4,
+            },
+            TargetInstructionOperandKind::ImmediateInteger(70),
+        ] {
+            let operands = [operand(argument)];
+            let (parameters, result) = normalized_aarch64_import_plan_with_authoritative(
+                &operands,
+                Aarch64ImportResult::None,
+                Some(&plan),
+            )
+            .expect("exact I32 import argument");
+            assert_eq!(parameters[0].shape, ValueShape::integer(4, 4));
+            assert!(result.is_none());
+        }
     }
 
     #[test]

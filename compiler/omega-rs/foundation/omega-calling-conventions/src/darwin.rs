@@ -50,7 +50,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_word_import("Stdin", "read", "_read", 3, true, &policy),
         darwin_word_import("Stdout", "write", "_write", 3, true, &policy),
         darwin_word_import("Stderr", "write", "_write", 3, true, &policy),
-        darwin_word_import("Process", "exit", "_exit", 1, false, &policy),
+        darwin_typed_import(
+            "Process",
+            "exit",
+            "_exit",
+            CallSignature {
+                parameters: vec![ValueShape::integer(4, 4)],
+                result: None,
+            },
+            &policy,
+        ),
         darwin_compatibility_import("Filesystem", "open", "_open", &policy),
         darwin_compatibility_import("Filesystem", "creat", "_creat", &policy),
         darwin_compatibility_import("Filesystem", "read", "_read", &policy),

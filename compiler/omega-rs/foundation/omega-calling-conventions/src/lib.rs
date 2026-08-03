@@ -1627,6 +1627,13 @@ mod binding_plan_tests {
             assert_eq!(boundary.call.policy, CallingPolicy::Aapcs64);
             assert_eq!(boundary.call.parameters.len(), parameter_count);
             assert_eq!(boundary.call.result.is_some(), has_result);
+            if capability == HostCapability::Process {
+                assert_eq!(
+                    boundary.call.parameters[0].shape,
+                    ValueShape::integer(4, 4),
+                    "Darwin _exit consumes libc's exact int parameter"
+                );
+            }
         }
     }
 

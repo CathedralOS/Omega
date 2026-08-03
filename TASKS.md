@@ -845,7 +845,7 @@ Remaining:
   activating the no-plan compatibility path; `Process::exit_group` likewise
   retains its one-argument/no-result plan. The matching Darwin `Stdin::read`,
   `Stdout::write`, and `Stderr::write` rows retain their three-word/result
-  AAPCS64 plan too, and `Process::exit` retains its one-word/no-result plan.
+  AAPCS64 plan too, and `Process::exit` retains its exact I32/no-result plan.
   Darwin's fixed `lround`, `sqrt`, `hypot`, and `fma` rows likewise retain
   their exact F64 parameter and F64/I64 result plans instead of asking the
   encoder to reconstruct vector-register placement. Its `poll` sleep adapter
@@ -1646,8 +1646,6 @@ move it to a convenience library.
   frames remain opaque. Parameter-backed storage, broader runtime-indexed
   expressions, broader exact R5 summaries, and general state-parameter
   loan-root rebasing remain.
-- Implement constant data parameters after their identity/coherence rules are
-  pinned by existing generic machinery.
 - Implement local dynamic traits as two-word borrowed descriptors selecting one
   complete nominal conformance. Derive the per-requirement dynamic surface,
   lower checked adapters, retain compile-time operational envelopes, add
