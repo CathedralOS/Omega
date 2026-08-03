@@ -919,13 +919,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-syntax-trees"
-version = "0.1.0"
-dependencies = [
- "psi-syntax-trees",
-]
-
-[[package]]
 name = "omega-target"
 version = "0.1.0"
 dependencies = [
@@ -1077,14 +1070,14 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-effects",
- "omega-facts",
- "omega-syntax-trees",
- "omega-typed-trees",
  "psi-access-plans",
+ "psi-facts",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees",
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
  "psi-validation",
 ]
 

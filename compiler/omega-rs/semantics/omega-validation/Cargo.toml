@@ -15,10 +15,10 @@ psi-validation = { path = "../../../psi-rs/semantics/psi-validation" }
 psi-access-plans = { path = "../../../psi-rs/foundation/psi-access-plans" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-effects = { path = "../../representations/omega-effects" }
-omega-facts = { path = "../../representations/omega-facts" }
+psi-facts = { path = "../../../psi-rs/representations/psi-facts" }
 psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
-omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
+psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-tokens-to-syntax-trees = { path = "../../../psi-rs/pipeline/psi-tokens-to-syntax-trees" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+psi-typed-trees = { path = "../../../psi-rs/representations/psi-typed-trees" }

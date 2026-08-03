@@ -52,26 +52,10 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
         "omega-source-files-to-tokens",
     ];
 
-    // omega-effects was deliberately relocated from semantics into
-    // representations (commit b7da094f) so checked IRs can embed its types
-    // without an upward edge; its provider registry reads boundary `operator`
-    // items straight from the parsed source shape, so its sideways edge onto
-    // the syntax-trees representation is the one tolerated pair.
-    let tolerated = [("omega-effects", "omega-syntax-trees")];
-
     for cargo_toml in cargo_tomls_under(&representations_root) {
         let contents = fs::read_to_string(&cargo_toml)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
-        let crate_directory = cargo_toml
-            .parent()
-            .and_then(|directory| directory.file_name())
-            .map(|file_name| file_name.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
         for crate_name in forbidden {
-            if tolerated.contains(&(crate_directory.as_str(), crate_name)) {
-                continue;
-            }
             assert!(
                 !has_dependency(&contents, crate_name),
                 "{} must not depend on early-phase crate `{crate_name}`; put transform edges under compiler/pipeline instead",

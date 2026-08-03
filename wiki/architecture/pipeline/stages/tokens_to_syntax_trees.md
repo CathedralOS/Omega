@@ -21,8 +21,7 @@ source shape without turning nested syntax into scattered heap objects.
 
 - `compiler/psi-rs/representations/psi-syntax-trees` owns `SyntaxTrees`, its
   arena-backed tables, identity/snapshot materialization, and all source-shaped
-  nodes. The old `omega-syntax-trees` crate is an implementation-free
-  compatibility export for unmigrated resolver consumers.
+  nodes. The unused `omega-syntax-trees` compatibility package is retired.
 - `compiler/psi-rs/pipeline/psi-tokens-to-syntax-trees` owns the parser modules
   listed below. The old `omega-tokens-to-syntax-trees` package is retired after
   every workspace harness moved to this Psi stage.
