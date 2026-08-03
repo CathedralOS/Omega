@@ -202,13 +202,6 @@ fn extract_external_binding_rows(
                 method: requirement.as_str().to_owned(),
                 requirement_identity: requirement_identity.clone(),
                 table_type: provider_type.to_owned(),
-                parameter_count: boundary_trait_method_parameter_count(
-                    syntax_trees,
-                    typed,
-                    clause.trait_name.as_str(),
-                    requirement.as_str(),
-                    &requirement_identity,
-                ),
                 boundary_entry_plan,
                 binding,
             });
@@ -282,57 +275,6 @@ fn selected_source_boundary_entry_plan(
                 })
         })
         .map(|realization| realization.boundary_entry_plan.clone())
-}
-
-/// The declared parameter count of `method` on the boundary trait named
-/// `trait_name`, or 0 when either is not found (the static mechanisms never
-/// read it; the field-model merge sees 0 only for a binding whose trait is
-/// missing, which the resolver refuses elsewhere).
-fn boundary_trait_method_parameter_count(
-    syntax_trees: &psi_syntax_trees::SyntaxTrees,
-    typed: &psi_typed_trees::TypedTrees,
-    trait_name: &str,
-    method: &str,
-    requirement_identity: &str,
-) -> usize {
-    if !requirement_identity.is_empty()
-        && let Some(count) = typed.traits().iter().find_map(|definition| {
-            typed
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|signature| {
-                    signature.name.as_str() == method
-                        && typed
-                            .normalized_trait_requirement_overload_identity(definition, signature)
-                            .identity()
-                            == requirement_identity
-                })
-                .map(|signature| typed.state_signature_parameters(signature).len())
-        })
-    {
-        return count;
-    }
-    for item in syntax_trees.root_items() {
-        let psi_syntax_trees::item::Item::Trait(trait_definition) = item else {
-            continue;
-        };
-        if trait_definition.name.as_str() != trait_name {
-            continue;
-        }
-        for signature_handle in syntax_trees
-            .items
-            .state_signatures(trait_definition.machines)
-        {
-            let signature = syntax_trees.items.state_signature(*signature_handle);
-            if signature.name.as_str() == method {
-                return syntax_trees
-                    .items
-                    .state_parameters(signature.parameters)
-                    .len();
-            }
-        }
-    }
-    0
 }
 
 pub struct Compiler {
