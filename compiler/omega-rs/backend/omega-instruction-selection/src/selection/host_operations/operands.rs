@@ -1198,9 +1198,16 @@ pub(super) fn select_host_operation_operands(
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
             match (result, path) {
-                (Some(result), Some(path)) => {
-                    operands.insert_many([operand(result), operand(path)])
-                }
+                (Some(result), Some(path)) => match host_call.data {
+                    PlatformCallData::ConstantArguments { leading, trailing } => operands
+                        .insert_many([
+                            operand(result),
+                            operand(InstructionOperandKind::ImmediateInteger(leading)),
+                            operand(path),
+                            operand(InstructionOperandKind::ImmediateInteger(trailing)),
+                        ]),
+                    _ => operands.insert_many([operand(result), operand(path)]),
+                },
                 _ => HandleSpan::empty(),
             }
         }

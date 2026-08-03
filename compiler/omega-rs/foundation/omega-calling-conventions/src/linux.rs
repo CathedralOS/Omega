@@ -181,6 +181,24 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         ),
         linux_value_syscall(
             "Filesystem",
+            "unlink",
+            "unlinkat",
+            syscall_numbers.unlinkat,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
+            "rmdir",
+            "unlinkat",
+            syscall_numbers.unlinkat,
+            3,
+            &policy,
+            plan.target.architecture,
+        ),
+        linux_value_syscall(
+            "Filesystem",
             "readlink",
             "readlinkat",
             syscall_numbers.readlinkat,
@@ -394,6 +412,30 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Filesystem", "open")],
         PlatformCallData::ConstantArgument { value: -100 },
     );
+    for method in ["remove", "remove_name"] {
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            method,
+            [host_operation("Filesystem", "unlink")],
+            PlatformCallData::ConstantArguments {
+                leading: -100,
+                trailing: 0,
+            },
+        );
+    }
+    for method in ["remove_dir", "remove_dir_name"] {
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            method,
+            [host_operation("Filesystem", "rmdir")],
+            PlatformCallData::ConstantArguments {
+                leading: -100,
+                trailing: 512,
+            },
+        );
+    }
     insert_platform_lowering(
         plan,
         "FilesystemHost",

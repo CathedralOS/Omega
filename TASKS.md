@@ -1619,8 +1619,9 @@ ordinary code never receives a raw executable address.
 - Run the Linux host/time/filesystem rows natively on AArch64. x86-64 WSL
   coverage exists. `mkdirat`/`fchmodat` now normalize path creation and
   permission changes with plan-owned `AT_FDCWD`; direct `unlink_at` and
-  plan-prefixed `readlinkat` are normalized too. Remaining Linux work is the
-  real target `StatLayout`, metadata, plain-path removal, rename/link,
+  plan-prefixed `readlinkat` are normalized too. Plain-path removal now injects
+  both `AT_FDCWD` and Linux's `AT_REMOVEDIR` through retained plan data.
+  Remaining Linux work is the real target `StatLayout`, metadata, rename/link,
   directory-record, and errno adapters.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.

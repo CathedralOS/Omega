@@ -514,7 +514,7 @@ linux_x64 machine Filesystem::rda_step(&mut self, step: u64) {
 
     // TOP is empty: close + pop. If a parent remains, the drained child is
     // (still) the parent's FIRST entry -- re-read its name fresh and remove
-    // it (AT_REMOVEDIR = 128). The ROOT (depth hits 0) is the caller's.
+    // it (Linux AT_REMOVEDIR = 512). The ROOT (depth hits 0) is the caller's.
     state rds_pop(&mut self) {
         self.rda_close_rc = self.host.close(self.rda_fd);
         transition self.rda_depth >= 1 { true -> rds_pop_go() _ -> rds_fail() }
@@ -542,7 +542,7 @@ linux_x64 machine Filesystem::rda_step(&mut self, step: u64) {
         transition entry.name_len < 256 { true -> rds_rm_child_go(entry) _ -> rds_fail() }
     }
     state rds_rm_child_go(&mut self, entry: DirEntry) {
-        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 128);
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 512);
         transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
     }
 

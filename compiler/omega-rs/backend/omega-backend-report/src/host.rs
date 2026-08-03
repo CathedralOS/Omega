@@ -182,6 +182,9 @@ fn write_platform_call_lowering(
         PlatformCallData::ConstantArgument { value } => {
             output.push_str(&format!(" data constant_argument value={value}"))
         }
+        PlatformCallData::ConstantArguments { leading, trailing } => output.push_str(&format!(
+            " data constant_arguments leading={leading} trailing={trailing}"
+        )),
         PlatformCallData::TimespecResult { clock_id } => {
             output.push_str(&format!(" data timespec_result clock_id={clock_id}"))
         }
