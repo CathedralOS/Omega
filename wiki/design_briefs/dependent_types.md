@@ -335,7 +335,9 @@ substitute positionally into the source namespace before the entry frame is
 normalized. Value-position calls in every state expression root contribute the
 shared call resolver's complete may-write paths before the surrounding
 statement or transition is summarized, with one recursion frontier spanning
-statement- and value-position calls. Every reachable state-transition cycle
+statement- and value-position calls. A bare `-> self` target retains the exact
+finite frame already collected for that state because it preserves the same
+receiver and parameter namespace. Named cycles, which may rebind parameters,
 and every genuinely unresolved frame remain opaque; completeness never depends
 on selecting one runtime arm or assuming a cycle terminates.
 
@@ -570,10 +572,11 @@ Ordered rungs, each independently shippable, each with its acceptance driver:
   read-consumption precision, and broader exact summaries for implementation
   shapes that remain opaque. Acyclic state-transition graphs now compose exact
   frames, including conditional-arm union, positional argument forwarding, and
-  nested value-call frames across every state expression position; reachable
-  state cycles and genuinely unresolved frames remain opaque. Normalized
-  per-state frame publication is live and kept outside public contract
-  identity. Driver: dependent facts across sibling-machine calls.
+  nested value-call frames across every state expression position. Direct
+  bare-self loops retain that finite frame, while named/rebinding cycles and
+  genuinely unresolved frames remain opaque. Normalized per-state frame
+  publication is live and kept outside public contract identity. Driver:
+  dependent facts across sibling-machine calls.
 - **R6 — Proof propositions and index telescopes:** add Prop-valued families
   over representative values, typed proof-static carrier-family index packs,
   and carrierless selected-conformance evidence. Establish one requirement

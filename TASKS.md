@@ -1027,8 +1027,10 @@ application-handler re-entry restrictions use ordinary local reach analysis.
   assignment operands, statement-call arguments, transition subjects and
   arguments, and returned values all contribute their may-write paths.
   Recursion detection is shared across statement- and value-position calls. A
-  reachable state-transition cycle or truly unresolved frame stays opaque, so
-  consumers fail closed rather than extrapolating from one observed route.
+  direct bare-self transition preserves the same state namespace and therefore
+  retains its finite collected frame; named/rebinding cycles and truly
+  unresolved frames stay opaque, so consumers fail closed rather than
+  extrapolating across changing parameter bindings.
 - **STR/EFX:** the source reach clause is now canonically `reaches`; the parser
   rejects legacy `effects` with directed migration guidance, and the Omega,
   canary, sample, and Cathedral source corpora use the new spelling. Syntax,
