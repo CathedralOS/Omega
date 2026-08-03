@@ -398,10 +398,24 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_host_call_sequence_with_plan(target, operation_key, operands, None)
+    encode_host_call_sequence_optional_plan(target, operation_key, operands, None)
 }
 
 pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
+    target: NativeTarget,
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authoritative_plan: &CallPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    encode_host_call_sequence_optional_plan(
+        target,
+        operation_key,
+        operands,
+        Some(authoritative_plan),
+    )
+}
+
+fn encode_host_call_sequence_optional_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
@@ -499,12 +513,19 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
                 &arguments,
             )
         }
-        Architecture::X86_64 => x86_64::encode_host_call_sequence_with_plan(
-            CallingPolicy::native_for_target(target),
-            operation_key,
-            operands,
-            authoritative_plan,
-        ),
+        Architecture::X86_64 => match authoritative_plan {
+            Some(plan) => x86_64::encode_host_call_sequence_with_plan(
+                CallingPolicy::native_for_target(target),
+                operation_key,
+                operands,
+                plan,
+            ),
+            None => x86_64::encode_host_call_sequence(
+                CallingPolicy::native_for_target(target),
+                operation_key,
+                operands,
+            ),
+        },
     }
 }
 
@@ -593,7 +614,7 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
     operands: &[T],
     authored_import: bool,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    normalized_aarch64_host_argument_placements_with_plan(
+    normalized_aarch64_host_argument_placements_optional_plan(
         operation_key,
         operands,
         authored_import,
@@ -602,6 +623,20 @@ pub fn normalized_aarch64_host_argument_placements<T: InstructionOperandLike>(
 }
 
 pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOperandLike>(
+    operation_key: HostOperationKey,
+    operands: &[T],
+    authored_import: bool,
+    authoritative_plan: &CallPlan,
+) -> Result<Vec<ValuePlacement>, Diagnostic> {
+    normalized_aarch64_host_argument_placements_optional_plan(
+        operation_key,
+        operands,
+        authored_import,
+        Some(authoritative_plan),
+    )
+}
+
+fn normalized_aarch64_host_argument_placements_optional_plan<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
     authored_import: bool,
@@ -2213,18 +2248,12 @@ mod compatibility_encoder_differential_tests {
             let plan = plan(target, 1, true);
             let compatibility = encode_host_call_sequence(target, operation, &operands)
                 .expect("compatibility built-in import encoding");
-            let planned =
-                encode_host_call_sequence_with_plan(target, operation, &operands, Some(&plan))
-                    .expect("explicit-plan built-in import encoding");
+            let planned = encode_host_call_sequence_with_plan(target, operation, &operands, &plan)
+                .expect("explicit-plan built-in import encoding");
             assert_eq!(compatibility, planned, "target {target:?}");
             assert_eq!(
                 crate::host_call_sequence_width(target, operation, &operands),
-                crate::host_call_sequence_width_with_plan(
-                    target,
-                    operation,
-                    &operands,
-                    Some(&plan),
-                ),
+                crate::host_call_sequence_width_with_plan(target, operation, &operands, &plan,),
                 "target {target:?}"
             );
         }
@@ -2237,10 +2266,7 @@ mod compatibility_encoder_differential_tests {
                 policy, operation, &operands,
             ),
             omega_isa_x86_64::host_call_external_relocation_site_with_plan(
-                policy,
-                operation,
-                &operands,
-                Some(&plan),
+                policy, operation, &operands, &plan,
             )
         );
         for operand_index in 0..operands.len() {
@@ -2256,7 +2282,7 @@ mod compatibility_encoder_differential_tests {
                     operation,
                     &operands,
                     operand_index,
-                    Some(&plan),
+                    &plan,
                 ),
                 "operand {operand_index}"
             );
@@ -2280,23 +2306,13 @@ mod compatibility_encoder_differential_tests {
             assert_eq!(
                 encode_host_call_sequence(target, operation, &void_operands)
                     .expect("compatibility void import"),
-                encode_host_call_sequence_with_plan(
-                    target,
-                    operation,
-                    &void_operands,
-                    Some(&plan),
-                )
-                .expect("planned void import"),
+                encode_host_call_sequence_with_plan(target, operation, &void_operands, &plan,)
+                    .expect("planned void import"),
                 "void target {target:?}"
             );
             assert_eq!(
                 crate::host_call_sequence_width(target, operation, &void_operands),
-                crate::host_call_sequence_width_with_plan(
-                    target,
-                    operation,
-                    &void_operands,
-                    Some(&plan),
-                ),
+                crate::host_call_sequence_width_with_plan(target, operation, &void_operands, &plan,),
                 "void width target {target:?}"
             );
         }
@@ -2308,23 +2324,13 @@ mod compatibility_encoder_differential_tests {
             assert_eq!(
                 encode_host_call_sequence(target, dereference, &result_only)
                     .expect("compatibility pointer-dereference import"),
-                encode_host_call_sequence_with_plan(
-                    target,
-                    dereference,
-                    &result_only,
-                    Some(&plan),
-                )
-                .expect("planned pointer-dereference import"),
+                encode_host_call_sequence_with_plan(target, dereference, &result_only, &plan,)
+                    .expect("planned pointer-dereference import"),
                 "dereference target {target:?}"
             );
             assert_eq!(
                 crate::host_call_sequence_width(target, dereference, &result_only),
-                crate::host_call_sequence_width_with_plan(
-                    target,
-                    dereference,
-                    &result_only,
-                    Some(&plan),
-                ),
+                crate::host_call_sequence_width_with_plan(target, dereference, &result_only, &plan,),
                 "dereference width target {target:?}"
             );
         }
@@ -2340,7 +2346,7 @@ mod compatibility_encoder_differential_tests {
                 key_target,
                 key_operation,
                 &key_operands,
-                Some(&key_plan),
+                &key_plan,
             )
             .expect("planned key-state import")
         );
@@ -2350,7 +2356,7 @@ mod compatibility_encoder_differential_tests {
                 key_target,
                 key_operation,
                 &key_operands,
-                Some(&key_plan),
+                &key_plan,
             )
         );
 
@@ -2372,7 +2378,7 @@ mod compatibility_encoder_differential_tests {
                 float_target,
                 float_operation,
                 &float_operands,
-                Some(&float_plan),
+                &float_plan,
             )
             .expect("planned float import")
         );
@@ -2382,7 +2388,7 @@ mod compatibility_encoder_differential_tests {
                 float_target,
                 float_operation,
                 &float_operands,
-                Some(&float_plan),
+                &float_plan,
             )
         );
     }
@@ -2403,14 +2409,14 @@ mod compatibility_encoder_differential_tests {
             target,
             HostOperationKey::from_names("Math", "square_root"),
             &operands,
-            Some(&float_plan),
+            &float_plan,
         )
         .expect("catalog float import");
         let plan_only_float = encode_host_call_sequence_with_plan(
             target,
             HostOperationKey::default(),
             &operands,
-            Some(&float_plan),
+            &float_plan,
         )
         .expect("plan-classified float import");
         assert_eq!(catalog_float, plan_only_float);
@@ -2421,7 +2427,7 @@ mod compatibility_encoder_differential_tests {
             target,
             HostOperationKey::from_names("Math", "square_root"),
             &void_operands,
-            Some(&void_plan),
+            &void_plan,
         )
         .expect("plan-classified void import");
         assert_eq!(
@@ -2430,7 +2436,7 @@ mod compatibility_encoder_differential_tests {
                 target,
                 HostOperationKey::from_names("Process", "exit"),
                 &void_operands,
-                Some(&void_plan),
+                &void_plan,
             )
             .expect("catalog void import")
         );
@@ -2716,7 +2722,7 @@ mod aarch64_import_plan_tests {
             omega_target::NativeTarget::macos_arm64(),
             HostOperationKey::new(HostCapability::Filesystem, HostOperation::Close),
             &operands,
-            Some(&plan),
+            &plan,
         )
         .expect("exact I32 returning import");
     }

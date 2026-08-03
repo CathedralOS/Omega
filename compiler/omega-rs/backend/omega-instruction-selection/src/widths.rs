@@ -236,16 +236,11 @@ pub fn host_call_sequence_width_with_plan<T: InstructionOperandLike>(
     target: NativeTarget,
     operation_key: HostOperationKey,
     operands: &[T],
-    authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
+    authoritative_plan: &omega_calling_conventions::CallPlan,
 ) -> usize {
-    match authoritative_plan {
-        Some(plan) => {
-            crate::encode_host_call_sequence_with_plan(target, operation_key, operands, Some(plan))
-                .map(|bytes| bytes.len())
-                .unwrap_or(0)
-        }
-        None => host_call_sequence_width(target, operation_key, operands),
-    }
+    crate::encode_host_call_sequence_with_plan(target, operation_key, operands, authoritative_plan)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
 }
 
 pub fn authored_import_call_sequence_width<T: InstructionOperandLike>(

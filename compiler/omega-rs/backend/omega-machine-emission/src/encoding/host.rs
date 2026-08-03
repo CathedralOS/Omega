@@ -116,15 +116,14 @@ pub(super) fn encode_host_operation(
                 input.target,
                 operation_key,
                 operands,
-                Some(required_import_call_plan(binding)?),
+                required_import_call_plan(binding)?,
             )
         }
-        _ => architecture::encode_host_call_sequence_with_plan(
-            input.target,
-            operation_key,
-            operands,
-            binding.and_then(omega_calling_conventions::HostBinding::call_plan),
-        ),
+        _ => Err(Diagnostic::error(format!(
+            "host operation {}.{} has no selected host binding",
+            operation_key.capability_name(),
+            operation_key.operation_name(),
+        ))),
     }
 }
 

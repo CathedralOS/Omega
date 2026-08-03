@@ -100,13 +100,24 @@ pub(crate) fn data_address_relocation_offset_for_target_with_plan(
         && field_model_shape.is_none()
         && !is_syscall
         && let Some(operation_key) = operation_key
-        && let Some(site) = omega_isa_x86_64::host_call_data_relocation_site_with_plan(
-            omega_calling_conventions::CallingPolicy::native_for_target(target),
-            operation_key,
-            operands,
-            operand_index,
-            authoritative_plan,
-        )
+        && let Some(site) = authoritative_plan
+            .and_then(|plan| {
+                omega_isa_x86_64::host_call_data_relocation_site_with_plan(
+                    omega_calling_conventions::CallingPolicy::native_for_target(target),
+                    operation_key,
+                    operands,
+                    operand_index,
+                    plan,
+                )
+            })
+            .or_else(|| {
+                omega_isa_x86_64::host_call_data_relocation_site_for_policy(
+                    omega_calling_conventions::CallingPolicy::native_for_target(target),
+                    operation_key,
+                    operands,
+                    operand_index,
+                )
+            })
     {
         return selected_text_offset + site.byte_offset;
     }
@@ -426,14 +437,22 @@ fn data_address_relocation_offset_with_plan(
             // walker, which sees the binding mechanism.
             || authored_import)
     {
-        let argument_placements =
-            omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+        let argument_placements = match authoritative_plan {
+            Some(plan) => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+                    operation_key,
+                    operands,
+                    authored_import,
+                    plan,
+                )
+            }
+            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 authored_import,
-                authoritative_plan,
-            )
-            .unwrap_or_default();
+            ),
+        }
+        .unwrap_or_default();
         let arg_bytes = |range: std::ops::Range<usize>| {
             operands[range]
                 .iter()
@@ -495,13 +514,21 @@ fn data_address_relocation_offset_with_plan(
 
     if architecture == Architecture::Aarch64
         && let Some(operation_key) = operation_key
-        && let Ok(argument_placements) =
-            omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+        && let Ok(argument_placements) = match authoritative_plan {
+            Some(plan) => {
+                omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
+                    operation_key,
+                    operands,
+                    false,
+                    plan,
+                )
+            }
+            None => omega_instruction_selection::normalized_aarch64_host_argument_placements(
                 operation_key,
                 operands,
                 false,
-                authoritative_plan,
-            )
+            ),
+        }
     {
         return selected_text_offset
             + operands
