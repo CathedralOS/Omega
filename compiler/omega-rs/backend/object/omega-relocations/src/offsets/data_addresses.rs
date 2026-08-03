@@ -185,14 +185,24 @@ fn data_address_relocation_offset_with_plan(
         && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_result)
     {
         let number = omega_calling_conventions::linux_clock_gettime_syscall_number(architecture);
-        if let Ok(byte_offset) =
-            omega_instruction_selection::linux_timespec_result_relocation_byte_offset(
-                architecture,
-                operands,
-                number,
-                authoritative_plan,
-            )
-        {
+        let byte_offset = match authoritative_plan {
+            Some(plan) => {
+                omega_instruction_selection::linux_timespec_result_relocation_byte_offset_with_plan(
+                    architecture,
+                    operands,
+                    number,
+                    plan,
+                )
+            }
+            None => {
+                omega_instruction_selection::linux_timespec_result_relocation_byte_offset_no_plan(
+                    architecture,
+                    operands,
+                    number,
+                )
+            }
+        };
+        if let Ok(byte_offset) = byte_offset {
             return selected_text_offset + byte_offset;
         }
     }
@@ -201,14 +211,17 @@ fn data_address_relocation_offset_with_plan(
         && operation_key.is_some_and(HostOperationKey::uses_linux_timespec_argument)
     {
         let number = omega_calling_conventions::linux_nanosleep_syscall_number(architecture);
-        if let Ok(Some(byte_offset)) =
-            omega_instruction_selection::linux_timespec_argument_relocation_byte_offset(
-                architecture,
-                operands,
-                number,
-                authoritative_plan,
-            )
-        {
+        let byte_offset = match authoritative_plan {
+            Some(plan) =>
+                omega_instruction_selection::linux_timespec_argument_relocation_byte_offset_with_plan(
+                    architecture, operands, number, plan,
+                ),
+            None =>
+                omega_instruction_selection::linux_timespec_argument_relocation_byte_offset_no_plan(
+                    architecture, operands, number,
+                ),
+        };
+        if let Ok(Some(byte_offset)) = byte_offset {
             return selected_text_offset + byte_offset;
         }
     }
@@ -219,14 +232,22 @@ fn data_address_relocation_offset_with_plan(
         // Linux syscall numbers fit one normalized immediate chunk on AArch64;
         // zero therefore has the same instruction width while avoiding a
         // second syscall-number table in the relocation planner.
-        && let Ok(byte_offset) =
-            omega_instruction_selection::value_syscall_relocation_byte_offset(
+        && let Ok(byte_offset) = match authoritative_plan {
+            Some(plan) =>
+                omega_instruction_selection::value_syscall_relocation_byte_offset_with_plan(
+                    architecture,
+                    operands,
+                    operand_index,
+                    0,
+                    plan,
+                ),
+            None => omega_instruction_selection::value_syscall_relocation_byte_offset_no_plan(
                 architecture,
                 operands,
                 operand_index,
                 0,
-                authoritative_plan,
-            )
+            ),
+        }
     {
         return selected_text_offset + byte_offset;
     }

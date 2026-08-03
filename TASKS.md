@@ -833,10 +833,12 @@ Remaining:
   value-result, timespec-result, and timespec-argument syscall families now
   prove byte and width equality on x86-64/AArch64; result/argument relocation
   sites are differential-locked too. Their `with_plan` encoder/width APIs now
-  require `&CallPlan`; separately named no-plan functions retain only the
-  differential oracle. Ordinary non-variadic scalar built-in
-  imports now consume the binding-retained plan in emission, layout, and relocation
-  accounting; their Windows x64/macOS arm64 compatibility bytes and widths,
+  require `&CallPlan`; value, timespec-result, and timespec-argument relocation
+  helpers now expose the same mandatory-plan/named-no-plan split. Separately
+  named no-plan functions retain only the differential oracle. Ordinary
+  non-variadic scalar built-in imports now consume the binding-retained plan in
+  emission, layout, and relocation accounting; their Windows x64/macOS arm64
+  compatibility bytes and widths,
   plus Windows x64 relocation sites, are differential-locked. A selected
   built-in import with no retained plan now rejects in layout/emission instead
   of activating catalog-shaped compatibility placement. Void imports,
