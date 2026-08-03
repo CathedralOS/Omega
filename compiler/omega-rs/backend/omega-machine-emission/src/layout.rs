@@ -5,7 +5,6 @@ use omega_assigned_target_operations::{
     RuntimeTextReadSource, SelectedInstructionKind, StateGuardLowering, StateGuardOperator,
 };
 use omega_calling_conventions::HostBindingMechanism;
-use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     authored_import_call_sequence_width, control_register_read_width, control_register_write_width,
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
@@ -29,6 +28,7 @@ use omega_instruction_selection::{
     vtable_call_sequence_width_at_offset_with_plan, vtable_call_sequence_width_with_plan,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionKind};
+use psi_diagnostics::Diagnostic;
 
 #[derive(Debug, Clone)]
 pub(crate) struct LaidOutMachineInstruction {

@@ -12,10 +12,7 @@ impl ImportQueue {
         self.push(path);
     }
 
-    pub fn enqueue(
-        &mut self,
-        paths: Vec<PathBuf>,
-    ) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    pub fn enqueue(&mut self, paths: Vec<PathBuf>) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
         for path in paths {
             self.push(path);
         }

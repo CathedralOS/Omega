@@ -286,10 +286,10 @@ pub(crate) fn bind_selected_provider_plan_facts(
     candidates: &[ProviderPlan],
     selected_names: &[String],
     root_grants: &[String],
-) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<omega_effects::SelectedProviderPlanFacts, Vec<psi_diagnostics::Diagnostic>> {
     let facts =
         omega_effects::SelectedProviderPlanFacts::from_selection(candidates, selected_names)
-            .map_err(|error| vec![omega_core::diagnostics::Diagnostic::error(error)])?;
+            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])?;
     let granted_receipts = facts
         .plans()
         .iter()
@@ -337,7 +337,7 @@ fn retain_selected_operator_provider_evidence(
     checked: &mut psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
-) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     // Validate selected operator plans independently of use-site discovery.
     // A malformed realization is invalid policy even when dead code happens
     // not to mention its requirement, and later annotation may consume only
@@ -419,7 +419,7 @@ fn selected_operator_provider_identity(
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
     operator_symbol: omega_core::symbols::SymbolHandle,
-) -> Result<Option<u64>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Option<u64>, psi_diagnostics::Diagnostic> {
     let Some(operator) = checked
         .typed
         .operators()
@@ -441,19 +441,19 @@ fn selected_operator_provider_identity(
         .iter()
         .find(|plan| plan.schema.trait_name == slot)
     else {
-        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+        return Err(psi_diagnostics::Diagnostic::error(format!(
             "boundary operator `{slot}` has provider candidates but no exact selected ProviderPlan realization for this target"
         )));
     };
     let [row] = plan.rows.as_slice() else {
-        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+        return Err(psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
             plan.name,
         )));
     };
     if let ProviderBinding::CheckedAdapter { machine } = &row.binding {
         let [namespace, requirement] = checked.typed.operator_path_members(operator.name) else {
-            return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            return Err(psi_diagnostics::Diagnostic::error(format!(
                 "selected checked boundary-operator ProviderPlan `{}` targets `{slot}`, whose source path is not the supported `Namespace::requirement` shape",
                 plan.name,
             )));
@@ -480,7 +480,7 @@ fn selected_operator_provider_identity(
                     })
             });
         if checked_provider.is_none() {
-            return Err(omega_core::diagnostics::Diagnostic::error(format!(
+            return Err(psi_diagnostics::Diagnostic::error(format!(
                 "selected boundary-operator ProviderPlan `{}` binds checked adapter `{machine}`, but that machine does not satisfy exact slot `{slot}` with a checked body",
                 plan.name,
             )));
@@ -488,19 +488,19 @@ fn selected_operator_provider_identity(
         return Ok(Some(plan.identity_fingerprint()));
     }
     let ProviderBinding::CompilerIntrinsic { name } = &row.binding else {
-        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+        return Err(psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` uses unsupported binding `{:?}`; boundary operators require a checked adapter or compiler intrinsic",
             plan.name, row.binding,
         )));
     };
     let expected = expected_float_intrinsic(&checked.typed, operator).ok_or_else(|| {
-        omega_core::diagnostics::Diagnostic::error(format!(
+        psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
             plan.name,
         ))
     })?;
     if name != &expected {
-        return Err(omega_core::diagnostics::Diagnostic::error(format!(
+        return Err(psi_diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` binds `{name}`, but `{slot}` requires exact intrinsic `{expected}`",
             plan.name,
         )));
@@ -1428,7 +1428,7 @@ pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type:
 pub(crate) fn validate_provider_plan_candidates(
     typed: &TypedTrees,
     plans: &[omega_effects::provider_plan::ProviderPlan],
-) -> Vec<omega_core::diagnostics::Diagnostic> {
+) -> Vec<psi_diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     let effect_plan = psi_effects::infer_operational_may(typed);
     let service_reach_plan = psi_effects::infer_service_reaches(typed, &effect_plan);
@@ -1437,12 +1437,12 @@ pub(crate) fn validate_provider_plan_candidates(
         diagnostics.extend(
             plan.validate_candidate_against_schema()
                 .into_iter()
-                .map(omega_core::diagnostics::Diagnostic::error),
+                .map(psi_diagnostics::Diagnostic::error),
         );
         for row in &plan.rows {
             match &row.binding {
                 ProviderBinding::CheckedAdapter { machine } if plan.provider_type.is_empty() => {
-                    diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                         "checked adapter `{machine}` for `{}::{}` has no nominal provider type; attach it as `machine ProviderType::{machine}(...) satisfies {}::{}` and select that provider for the boundary slot",
                         plan.schema.trait_name,
                         row.method,
@@ -1454,7 +1454,7 @@ pub(crate) fn validate_provider_plan_candidates(
                 | ProviderBinding::TableFunction { table, .. }
                     if table.is_empty() =>
                 {
-                    diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                         "external leaf for `{}::{}` uses a table field without an attached provider data type; declare it as `machine TableType::leaf(...) satisfies {}::{} via Binding::...`",
                         plan.schema.trait_name,
                         row.method,
@@ -1490,7 +1490,7 @@ pub(crate) fn validate_provider_plan_candidates(
                 .filter(|target| !invocation_ceiling.contains(target))
                 .collect::<Vec<_>>();
             if !hidden_invocations.is_empty() {
-                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "adapter `{}` does not refine `{}::{}`: its body may synchronously invoke boundary binding(s) [{}], but the requirement omits those `invokes` edges",
                     machine,
                     plan.schema.trait_name,
@@ -1511,7 +1511,7 @@ pub(crate) fn validate_provider_plan_candidates(
                 })
                 .collect::<Vec<_>>();
             if !hidden_services.is_empty() {
-                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "adapter `{}` does not refine `{}::{}`: its body reaches boundary service(s) [{}] outside the requirement's declared service ceiling [{}] -- the satisfied requirement is the public contract; widen it or drop the service reach",
                     machine,
                     plan.schema.trait_name,
@@ -1533,7 +1533,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_names: &[String],
-) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     let selected = selected_names
         .iter()
         .filter_map(|name| plans.iter().find(|plan| plan.name == *name))
@@ -1606,7 +1606,7 @@ pub(crate) fn validate_selected_synchronous_invocation_cycles(
                 ))
                 .collect::<Vec<_>>()
                 .join(" -> ");
-            return Err(vec![omega_core::diagnostics::Diagnostic::error(format!(
+            return Err(vec![psi_diagnostics::Diagnostic::error(format!(
                 "selected providers realize a cyclic synchronous `invokes` graph: {names}; break one edge with a mailbox, queue, scheduler handoff, or other new activation",
             ))]);
         }
@@ -1709,7 +1709,7 @@ fn resolve_provider_selection_slots(
     owner: &str,
 ) -> (
     Vec<(String, crate::pipeline::build_config::ProviderSelection)>,
-    Vec<omega_core::diagnostics::Diagnostic>,
+    Vec<psi_diagnostics::Diagnostic>,
 ) {
     let mut resolved = Vec::new();
     let mut diagnostics = Vec::new();
@@ -1724,11 +1724,11 @@ fn resolve_provider_selection_slots(
             .collect::<Vec<_>>();
         match matching_slots.as_slice() {
             [slot] => resolved.push(((*slot).to_owned(), declaration.clone())),
-            [] => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+            [] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
                 declaration.provider_type, declaration.boundary_trait,
             ))),
-            many => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+            many => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "{owner} names ambiguous boundary slot `{}`; it matches {} -- qualify the slot type",
                 declaration.boundary_trait,
                 many.iter()
@@ -1751,7 +1751,7 @@ pub(crate) fn select_provider_plan_names(
     selected_target: omega_target::NativeTarget,
     defaults: &[crate::pipeline::build_config::ProviderSelection],
     requested: &[crate::pipeline::build_config::ProviderSelection],
-) -> Result<Vec<String>, Vec<omega_core::diagnostics::Diagnostic>> {
+) -> Result<Vec<String>, Vec<psi_diagnostics::Diagnostic>> {
     // Target inertness (the fail-canary host-portability convention): a
     // plan scoped to a NON-selected target is inert and never collides --
     // only plans that RESOLVE to the selected target participate.
@@ -1791,7 +1791,7 @@ pub(crate) fn select_provider_plan_names(
             .map(|(_, declaration)| declaration)
             .collect::<Vec<_>>();
         if declarations.len() > 1 {
-            diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                 "build declares provider selection for slot `{slot_name}` more than once: {}",
                 declarations
                     .iter()
@@ -1862,7 +1862,7 @@ pub(crate) fn select_provider_plan_names(
             distinct_provider_types.sort_unstable();
             distinct_provider_types.dedup();
             if distinct_provider_types.len() > 1 {
-                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "slot `{slot_name}` has conflicting target-package defaults: {} -- a target supplies at most one default provider type per slot",
                     distinct_provider_types
                         .iter()
@@ -1894,7 +1894,7 @@ pub(crate) fn select_provider_plan_names(
                 .collect();
             match matching.as_slice() {
                 [plan] if plan.covers_schema() => selected.push(plan.name.clone()),
-                [plan] => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                [plan] => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "{owner} selects provider `{}` for slot `{slot_name}`, but candidate `{}` is partial ({}/{}) and cannot be selected",
                     declaration.provider_type,
                     plan.name,
@@ -1914,13 +1914,13 @@ pub(crate) fn select_provider_plan_names(
                                 exact_exists,
                             )
                     });
-                    diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                         "{owner} selects provider `{}` for slot `{slot_name}`, but no {}candidate exists in the loaded dependency closure",
                         declaration.provider_type,
                         if wrong_target { "selected-target " } else { "" },
                     )));
                 }
-                _ => diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                _ => diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "{owner} selection `{}` for slot `{slot_name}` resolves to multiple provider candidates; qualify the provider type",
                     declaration.provider_type,
                 ))),
@@ -1937,7 +1937,7 @@ pub(crate) fn select_provider_plan_names(
                 } else {
                     many.len().to_string()
                 };
-                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `b.select_provider<{slot_name}, ProviderType>();`",
                     many.iter()
                         .map(|plan| format!("`{}` [{:016x}]", plan.name, plan.identity_fingerprint()))

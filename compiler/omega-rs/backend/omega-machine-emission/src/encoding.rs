@@ -6,7 +6,7 @@ use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
 use crate::selected_instruction_queries::{selected_host_operation, selected_host_text_read};
 use omega_assigned_target_operations::SelectedInstructionKind;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn encode_machine_instruction_bytes(
     input: MachineEmissionContext<'_>,
@@ -102,7 +102,7 @@ pub(super) fn encode_machine_instruction_bytes(
                     element_byte_size,
                     field_byte_offset,
                 ),
-                _ => Err(omega_core::diagnostics::Diagnostic::error(
+                _ => Err(psi_diagnostics::Diagnostic::error(
                     "MaterializeTextBufferToPlace serves direct, pointee, and \
                      frame-indexed place shapes only; this shape refuses loudly",
                 )),
@@ -144,7 +144,7 @@ pub(super) fn encode_machine_instruction_bytes(
                 element_byte_size,
                 field_byte_offset,
             ),
-            _ => Err(omega_core::diagnostics::Diagnostic::error(
+            _ => Err(psi_diagnostics::Diagnostic::error(
                 "AppendTextStoredToPlace serves direct, pointee, and frame-indexed \
                  place shapes only; this shape refuses loudly",
             )),
@@ -179,7 +179,7 @@ pub(super) fn encode_machine_instruction_bytes(
                 field_byte_offset,
                 literal,
             ),
-            _ => Err(omega_core::diagnostics::Diagnostic::error(
+            _ => Err(psi_diagnostics::Diagnostic::error(
                 "AppendTextLiteralToPlace serves direct, pointee, and frame-indexed \
                  place shapes only; this shape refuses loudly",
             )),
@@ -692,7 +692,7 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::MemoryFence(kind) => {
             omega_instruction_selection::encode_memory_fence_bytes(input.target.architecture, *kind)
                 .ok_or_else(|| {
-                    omega_core::diagnostics::Diagnostic::error(format!(
+                    psi_diagnostics::Diagnostic::error(format!(
                         "asm instruction `{}` is x86_64-only",
                         kind.mnemonic(),
                     ))
@@ -704,7 +704,7 @@ pub(super) fn encode_machine_instruction_bytes(
                 *kind,
             )
             .ok_or_else(|| {
-                omega_core::diagnostics::Diagnostic::error(format!(
+                psi_diagnostics::Diagnostic::error(format!(
                     "asm instruction `{}` is x86_64-only",
                     kind.mnemonic(),
                 ))
@@ -714,7 +714,7 @@ pub(super) fn encode_machine_instruction_bytes(
             dest_byte_offset, ..
         } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(omega_core::diagnostics::Diagnostic::error(
+                return Err(psi_diagnostics::Diagnostic::error(
                     "asm instruction `pushfq` is x86_64-only",
                 ));
             }
@@ -722,7 +722,7 @@ pub(super) fn encode_machine_instruction_bytes(
         }
         SelectedInstructionKind::FlagsRestore { source } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(omega_core::diagnostics::Diagnostic::error(
+                return Err(psi_diagnostics::Diagnostic::error(
                     "asm instruction `popfq` is x86_64-only",
                 ));
             }
@@ -737,7 +737,7 @@ pub(super) fn encode_machine_instruction_bytes(
             ..
         } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(omega_core::diagnostics::Diagnostic::error(
+                return Err(psi_diagnostics::Diagnostic::error(
                     "asm instruction `rdmsr` is x86_64-only",
                 ));
             }
@@ -749,7 +749,7 @@ pub(super) fn encode_machine_instruction_bytes(
         }
         SelectedInstructionKind::MsrWrite { index, value } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(omega_core::diagnostics::Diagnostic::error(
+                return Err(psi_diagnostics::Diagnostic::error(
                     "asm instruction `wrmsr` is x86_64-only",
                 ));
             }
@@ -765,7 +765,7 @@ pub(super) fn encode_machine_instruction_bytes(
             ..
         } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(omega_core::diagnostics::Diagnostic::error(format!(
+                return Err(psi_diagnostics::Diagnostic::error(format!(
                     "asm instruction `{}` is x86_64-only",
                     register.read_mnemonic()
                 )));
@@ -777,7 +777,7 @@ pub(super) fn encode_machine_instruction_bytes(
         }
         SelectedInstructionKind::ControlRegisterWrite { register, source } => {
             if input.target.architecture != omega_target::Architecture::X86_64 {
-                return Err(omega_core::diagnostics::Diagnostic::error(format!(
+                return Err(psi_diagnostics::Diagnostic::error(format!(
                     "asm instruction `{}` is x86_64-only",
                     register
                         .write_mnemonic()

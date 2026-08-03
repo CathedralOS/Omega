@@ -5,7 +5,7 @@ mod read;
 mod write;
 
 use omega_calling_conventions::MachineRegister;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 #[derive(Clone, Copy)]
 struct Aarch64SyscallRegisters {

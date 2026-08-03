@@ -3,8 +3,8 @@ mod builder;
 use crate::pipeline::compile_options::CompileOptions;
 use builder::{append_capability_blast_radius, build_boundary_report};
 use omega_artifacts::ArtifactWriter;
-use omega_core::diagnostics::Diagnostic;
 use psi_checked_trees::CheckedTrees;
+use psi_diagnostics::Diagnostic;
 use psi_syntax_trees::SyntaxTrees;
 
 pub(super) fn write_boundary_report(

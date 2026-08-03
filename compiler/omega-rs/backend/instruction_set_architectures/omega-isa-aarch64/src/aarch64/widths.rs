@@ -1,10 +1,10 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
 use omega_calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
-use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
+use psi_diagnostics::Diagnostic;
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
     host_call_sequence_width_from_operands(operands.iter().copied())

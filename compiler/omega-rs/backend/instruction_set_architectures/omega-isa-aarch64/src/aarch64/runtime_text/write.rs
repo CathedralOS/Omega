@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use super::super::primitives::{
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_movz_w,

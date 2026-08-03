@@ -2,7 +2,7 @@ use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::stages::AssembledSyntax;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use std::path::Path;
 
 pub(super) fn write_pipeline_index(options: &CompileOptions) -> Result<(), Vec<Diagnostic>> {

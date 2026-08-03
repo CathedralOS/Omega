@@ -25,8 +25,8 @@
 //! else REFUSES LOUDLY -- legalization, not silent truncation.
 
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
-use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{Place, PlaceStep};
+use psi_diagnostics::Diagnostic;
 
 /// Which side of the copy a base-materialization relocation site belongs to.
 /// The relocation walker maps a side to that place's own region -- this is

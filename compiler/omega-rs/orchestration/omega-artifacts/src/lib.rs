@@ -8,12 +8,12 @@ use omega_calling_conventions::{
 };
 use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
-use omega_core::diagnostics::Diagnostic;
 use omega_executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 use omega_external_roots::{InstalledRootLedger, InstalledRootRecord};
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::NativeTarget;
 use psi_checked_trees::{CheckedTrees, machine::Machine};
+use psi_diagnostics::Diagnostic;
 
 // Foundational report/plan data types live in `omega-backend-report-types` so the
 // backend report passes can depend on them downward. Re-exported here so existing

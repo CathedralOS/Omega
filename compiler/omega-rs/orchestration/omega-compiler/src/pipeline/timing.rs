@@ -2,7 +2,7 @@ use crate::pipeline::stage::StageMeta;
 use omega_artifacts::PhaseTiming;
 use omega_core::allocations::AllocationDelta;
 use omega_core::allocations::snapshot as allocation_snapshot;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use std::time::Instant;
 
 #[derive(Default)]

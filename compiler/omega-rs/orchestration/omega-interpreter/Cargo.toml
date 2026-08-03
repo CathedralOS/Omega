@@ -23,6 +23,7 @@ psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifie
 [dev-dependencies]
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-external-roots = { path = "../omega-external-roots" }
+psi-diagnostics = { path = "../../../psi-rs/foundation/psi-diagnostics" }
 psi-checked-trees-to-terminal = { path = "../../../psi-rs/pipeline/psi-checked-trees-to-terminal" }
 omega-compiler = { path = "../omega-compiler" }
 omega-target = { path = "../../foundation/omega-target" }

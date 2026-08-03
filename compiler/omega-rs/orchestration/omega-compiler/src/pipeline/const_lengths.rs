@@ -31,7 +31,7 @@
 //! differentially), so the result carries TARGET integer semantics, never
 //! host widths.
 
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};

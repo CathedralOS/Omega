@@ -18,8 +18,8 @@ use crate::pipeline::stages::{
 };
 use crate::pipeline::timing::CompileTimings;
 use omega_artifacts::build_backend_surface_report;
-use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
+use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {

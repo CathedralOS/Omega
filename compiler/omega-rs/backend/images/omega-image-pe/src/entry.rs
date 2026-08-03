@@ -1,6 +1,6 @@
 use crate::constants::TEXT_RVA;
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{FinalImage, FinalImageSection, final_image_symbol_name};
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
     let entry_symbol = image

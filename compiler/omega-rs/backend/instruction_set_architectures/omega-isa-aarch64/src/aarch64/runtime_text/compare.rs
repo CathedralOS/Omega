@@ -1,5 +1,5 @@
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use super::super::primitives::{
     append_add_x_constant, append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder,

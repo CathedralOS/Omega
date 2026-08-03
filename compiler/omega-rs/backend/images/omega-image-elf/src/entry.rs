@@ -1,5 +1,5 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{FinalImage, FinalImageSection, final_image_symbol_name};
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result<u64, Diagnostic> {
     let entry_symbol = image

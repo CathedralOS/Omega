@@ -25,8 +25,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_core::arena::{Handle, HandleSpan};
-use omega_core::diagnostics::Diagnostic;
 use psi_access_plans::{ExternalRead, FieldAccess, PlacementPlanId, ValidatedPlacementPlan};
+use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;

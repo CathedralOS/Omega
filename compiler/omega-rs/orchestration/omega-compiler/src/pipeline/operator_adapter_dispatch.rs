@@ -6,9 +6,9 @@
 //! the operator analogue of boundary-trait adapter dispatch; compiler
 //! intrinsics remain in `float_intrinsic_dispatch`.
 
-use omega_core::diagnostics::Diagnostic;
 use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::CheckedTrees;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::expression::ExpressionNode;
 
 pub(crate) fn rewrite_selected_operator_adapter_calls(

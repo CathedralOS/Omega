@@ -1,6 +1,6 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::MachineProgram;
 use omega_target_operations::InstructionPlan;
+use psi_diagnostics::Diagnostic;
 
 mod builder;
 

@@ -6,7 +6,7 @@
 //! execution engines, and override precedence all reuse the established paths.
 
 use omega_core::arena::HandleSpan;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,

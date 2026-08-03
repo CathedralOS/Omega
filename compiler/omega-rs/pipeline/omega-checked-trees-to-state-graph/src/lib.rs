@@ -1,7 +1,7 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::StateGraph;
 use psi_checked_trees::CheckedTrees;
+use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
 mod borrows;

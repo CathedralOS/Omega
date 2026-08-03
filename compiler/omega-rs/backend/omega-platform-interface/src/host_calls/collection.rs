@@ -13,12 +13,12 @@ use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReas
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
-use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::state::State;
 use psi_checked_trees::statement::{StatementNode, TableCall};
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn collect_machine_host_calls(
     program: &CheckedTrees,

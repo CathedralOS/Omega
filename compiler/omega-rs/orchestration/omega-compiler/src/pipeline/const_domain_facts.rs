@@ -9,8 +9,8 @@
 //! with the ordinary `true` fact consumed by checking.
 
 use omega_core::arena::Handle;
-use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::{ProofFact, ProofMembershipFact};
 use psi_typed_trees::expression::{

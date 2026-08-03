@@ -25,8 +25,8 @@
 //! - Absent build.omg == an empty `build` machine == the zero `Build`: the
 //!   hosted console default.
 
-use omega_core::diagnostics::Diagnostic;
 use omega_interpreter::BuildTimeValue;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
 const BUILD_MACHINE: &str = "build";

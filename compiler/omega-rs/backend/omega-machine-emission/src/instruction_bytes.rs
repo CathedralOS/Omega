@@ -6,13 +6,13 @@ use omega_assigned_target_operations::{
     SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind,
 };
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_bytes::{
     CheckedInstructionValidationKind, CheckedOperandLoaderKind, CheckedOperandLoaderRegister,
     CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::RuntimeValueOperandSource;
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn emit_function_bytes(
     emission_context: MachineEmissionContext<'_>,

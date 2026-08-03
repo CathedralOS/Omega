@@ -3,8 +3,8 @@ use crate::pipeline::stages::{
     syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
-use omega_core::diagnostics::Diagnostic;
 use psi_checked_trees::CheckedTrees;
+use psi_diagnostics::Diagnostic;
 use std::path::Path;
 use std::sync::Arc;
 

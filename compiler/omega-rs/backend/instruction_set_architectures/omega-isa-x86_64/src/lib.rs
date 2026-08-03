@@ -19,11 +19,11 @@ use omega_calling_conventions::{
     RegisterSet, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan, validate_call_plan,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     InstructionOperandLike, RuntimeStorageRegion, RuntimeValueOperandHandle,
     RuntimeValueOperandSource, StateGuardOperator,
 };
+use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

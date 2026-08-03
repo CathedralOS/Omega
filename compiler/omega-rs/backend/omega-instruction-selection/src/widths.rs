@@ -1,7 +1,6 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::HostBindingMechanism;
 use omega_calling_conventions::HostOperationKey;
-use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::{Architecture, NativeTarget};
@@ -9,6 +8,7 @@ use omega_target_operations::{
     InstructionOperandLike, RuntimeBitFieldFragment, RuntimeTextReadTarget,
     RuntimeValueOperandHandle, RuntimeValueOperandSource, StateGuardOperator,
 };
+use psi_diagnostics::Diagnostic;
 
 pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
     target: NativeTarget,
@@ -477,14 +477,14 @@ pub fn flags_restore_width(
 
 pub fn encode_flags_snapshot_bytes(
     dest_byte_offset: usize,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_flags_snapshot(dest_byte_offset)
 }
 
 pub fn encode_flags_restore_bytes(
     source: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_flags_restore(source, operand)
 }
 
@@ -507,7 +507,7 @@ pub fn encode_msr_read_bytes(
     source: &impl RuntimeValueOperandSource,
     index: RuntimeValueOperandHandle,
     dest_byte_offset: usize,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_msr_read(source, index, dest_byte_offset)
 }
 
@@ -515,7 +515,7 @@ pub fn encode_msr_write_bytes(
     source: &impl RuntimeValueOperandSource,
     index: RuntimeValueOperandHandle,
     value: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_msr_write(source, index, value)
 }
 
@@ -526,7 +526,7 @@ pub fn control_register_read_width() -> usize {
 pub fn encode_control_register_read_bytes(
     register: psi_language_core::inline_assembly::AsmControlRegister,
     dest_byte_offset: usize,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_control_register_read(register, dest_byte_offset)
 }
 
@@ -541,7 +541,7 @@ pub fn encode_control_register_write_bytes(
     source: &impl RuntimeValueOperandSource,
     register: psi_language_core::inline_assembly::AsmControlRegister,
     operand: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_control_register_write(source, register, operand)
 }
 
@@ -567,7 +567,7 @@ pub fn encode_port_write_bytes(
     source: &impl RuntimeValueOperandSource,
     port: RuntimeValueOperandHandle,
     value: RuntimeValueOperandHandle,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_port_write(source, port, value)
 }
 
@@ -575,7 +575,7 @@ pub fn encode_port_read_bytes(
     source: &impl RuntimeValueOperandSource,
     port: RuntimeValueOperandHandle,
     dest_byte_offset: usize,
-) -> Result<Vec<u8>, omega_core::diagnostics::Diagnostic> {
+) -> Result<Vec<u8>, psi_diagnostics::Diagnostic> {
     x86_64::encode_port_read(source, port, dest_byte_offset)
 }
 
@@ -2280,7 +2280,7 @@ pub fn copy_places_width(
     source: &omega_target_operations::Place,
     target: &omega_target_operations::Place,
     byte_count: usize,
-) -> Result<usize, omega_core::diagnostics::Diagnostic> {
+) -> Result<usize, psi_diagnostics::Diagnostic> {
     crate::encoding::encode_copy_places(architecture, source, target, byte_count)
         .map(|bytes| bytes.len())
 }

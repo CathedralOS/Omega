@@ -4,11 +4,11 @@ use omega_calling_conventions::{
     DARWIN_LIBOBJC_PATH, MachineRegister, MachineState, MachineStateSet, RegisterSet,
     StateFootprintEvidence, darwin_import_library,
 };
-use omega_core::diagnostics::Diagnostic;
 use omega_image::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
     FinalImageSection,
 };
+use psi_diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachoImportThunk {

@@ -5,9 +5,9 @@
 //! content remain in the separate invocation plan.
 
 use omega_calling_conventions::{MachineRegister, StateFootprintEvidence};
-use omega_core::diagnostics::Diagnostic;
 use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
 use omega_target::{Architecture, NativeTarget};
+use psi_diagnostics::Diagnostic;
 use psi_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

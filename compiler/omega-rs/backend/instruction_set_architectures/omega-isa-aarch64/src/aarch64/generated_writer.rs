@@ -11,7 +11,7 @@ use super::primitives::{
     encode_orr_x_register, encode_store_w_to_x, encode_store_x_to_x,
 };
 use omega_calling_conventions::{MachineRegister, MachineStateSet, RegisterSet};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_layout_plans::{
     ByteOrder, GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,

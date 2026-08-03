@@ -1,7 +1,7 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_target::NativeTarget;
 use psi_checked_trees::CheckedTrees;
+use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
 use omega_control_flow::ControlFlowPlan;

@@ -1,6 +1,6 @@
 use omega_control_flow::ControlFlowPlan;
-use omega_core::diagnostics::Diagnostic;
 use omega_state_graph::StateGraph;
+use psi_diagnostics::Diagnostic;
 
 use crate::code::remap_code_roots_owned;
 use crate::semantics::remap_semantic_roots_owned;

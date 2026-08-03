@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use super::super::primitives::{
     append_add_x_constant, append_unsigned_immediate_padded, encode_add_page_offset_placeholder,

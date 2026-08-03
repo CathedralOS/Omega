@@ -2,7 +2,7 @@ use omega_assigned_target_operations::{
     AssignedValueHomeKind, RuntimeValueOperandHandle, SelectedInstructionKind,
 };
 use omega_core::arena::Handle;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn ensure_runtime_value_homes(
     assigned_target_operations: &omega_assigned_target_operations::AssignedTargetOperationPlan,

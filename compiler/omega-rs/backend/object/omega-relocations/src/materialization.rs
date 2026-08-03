@@ -1,8 +1,8 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_object_file::{
     ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
     SectionKind,
 };
+use psi_diagnostics::Diagnostic;
 use psi_layout_plans::{
     ByteOrder, MaterializationAction, RelocationTarget, SymbolicMaterializationPlan,
 };

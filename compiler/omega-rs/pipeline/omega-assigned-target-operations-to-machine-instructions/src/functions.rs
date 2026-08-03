@@ -3,8 +3,8 @@ use omega_assigned_target_operations::{
     AssignedTargetOperationFunction, AssignedTargetOperationPlan,
 };
 use omega_core::arena::{Arena, HandleSpan};
-use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::MachineInstruction;
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn append_machine_instructions(
     assigned_target_operations: &AssignedTargetOperationPlan,

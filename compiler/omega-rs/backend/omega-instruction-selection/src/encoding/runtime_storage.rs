@@ -1,4 +1,3 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
@@ -6,6 +5,7 @@ use omega_target_operations::{
     RuntimeBitFieldFragment, RuntimeValueOperandHandle, RuntimeValueOperandSource,
     StateGuardOperator,
 };
+use psi_diagnostics::Diagnostic;
 
 pub fn encode_runtime_value_compare(
     architecture: Architecture,

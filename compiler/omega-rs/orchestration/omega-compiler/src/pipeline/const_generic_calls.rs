@@ -6,7 +6,7 @@
 //! fixed-array lengths, then substitute canonical decimal leaves into the
 //! authoritative syntax tree before monomorphization.
 
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_numerics::literals::{IntegerLiteral, IntegerRadix};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};

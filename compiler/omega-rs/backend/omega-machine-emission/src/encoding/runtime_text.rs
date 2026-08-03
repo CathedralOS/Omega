@@ -4,8 +4,8 @@ use crate::branch_distances::{
 };
 use crate::layout::LaidOutMachineInstruction;
 use omega_assigned_target_operations::{RuntimeTextReadSource, RuntimeTextReadTarget};
-use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
+use psi_diagnostics::Diagnostic;
 
 pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,

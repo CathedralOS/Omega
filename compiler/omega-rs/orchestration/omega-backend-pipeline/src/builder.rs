@@ -10,7 +10,6 @@ use omega_control_flow_to_abstract_operations::{
     AbstractOperationLoweringInput, build_abstract_operation_plan,
 };
 use omega_core::arena::Arena;
-use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_data_planning::build_target_data_plan;
 use omega_layout::build_layout_plan;
@@ -49,6 +48,7 @@ use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_
 use omega_target::NativeTarget;
 use omega_target_operations_to_assigned_target_operations::build_assigned_target_operations;
 use psi_checked_trees::CheckedTrees;
+use psi_diagnostics::Diagnostic;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(

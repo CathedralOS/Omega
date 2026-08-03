@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;

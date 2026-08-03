@@ -15,7 +15,7 @@
 //! names it. The `defer`-tooling item owns the one-command re-approve UX.
 
 use crate::pipeline::compile_options::CompileOptions;
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
 fn fnv1a(text: &str) -> u64 {

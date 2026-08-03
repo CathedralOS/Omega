@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn read_u32(
     bytes: &[u8],

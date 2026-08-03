@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 

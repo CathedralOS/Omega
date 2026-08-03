@@ -1,9 +1,9 @@
 use omega_calling_conventions::HostBindingMechanism;
-use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::RuntimeTextReadTarget;
+use psi_diagnostics::Diagnostic;
 
 use super::host::normalized_syscall_registers;
 

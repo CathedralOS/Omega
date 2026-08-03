@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 pub(crate) fn write_u16(bytes: &mut Vec<u8>, value: u16) {
     bytes.extend(value.to_le_bytes());

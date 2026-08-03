@@ -1,10 +1,10 @@
 //! Per-architecture dispatch for the compact_binary v0 wire-decode reads.
 
-use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::RuntimeStorageRegion;
+use psi_diagnostics::Diagnostic;
 
 pub fn encode_read_wire_expected_byte(
     architecture: Architecture,

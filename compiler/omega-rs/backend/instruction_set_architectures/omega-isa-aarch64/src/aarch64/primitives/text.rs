@@ -1,4 +1,4 @@
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 
 use super::branch::{encode_conditional_branch_equal, encode_unconditional_branch};
 use super::compare::encode_compare_w17_immediate;

@@ -21,7 +21,7 @@
 //!   trait's remaining primitives through it. This is how a std surface
 //!   method becomes proven Omega code over its own byte-level primitives.
 
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 
 struct AdapterRow {

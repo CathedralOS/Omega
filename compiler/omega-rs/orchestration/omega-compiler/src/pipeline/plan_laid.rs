@@ -26,7 +26,7 @@
 //! `CLayout<Gdt> { ... }` literal is not spellable).
 
 use omega_core::arena::{Handle, HandleSpan};
-use omega_core::diagnostics::Diagnostic;
+use psi_diagnostics::Diagnostic;
 use psi_layout_plans::LayoutPlacementReport;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
