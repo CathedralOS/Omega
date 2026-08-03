@@ -28,6 +28,7 @@
 // a rolling autorelease pool, so a long-running app's memory stays flat.
 
 use omega::language::core::numeric_conversion;
+use omega::language::core::float_operations;
 
 domain [u8]::CString
 requires
@@ -143,10 +144,10 @@ data MacosGui {
 //   a bare mach-o CAN show a window, but without activation it opens unfocused
 //   behind other windows and the samples' keyWindow focus gate never passes.
 machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 {
-    self.rx = x as f64;
-    self.ry = y as f64;
-    self.rw = width as f64;
-    self.rh = height as f64;
+    self.rx = F64::from_i32(x);
+    self.ry = F64::from_i32(y);
+    self.rw = F64::from_i32(width);
+    self.rh = F64::from_i32(height);
     self.rw = self.rw - 16.0;
     self.rh = self.rh - 39.0;
     self.cls = self.objc.get_class("NSApplication");
@@ -218,8 +219,8 @@ machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32
     self.fbw = source_width_wide;
     self.fbh = source_height_wide;
     self.stride = source_width_wide << 2;
-    self.fbwf = source_width as f64;
-    self.fbhf = source_height as f64;
+    self.fbwf = F64::from_u32(source_width);
+    self.fbhf = F64::from_u32(source_height);
     self.ctx = self.cg.bitmap_context(&pixels, self.fbw, self.fbh, 8, self.stride, self.space, 8198);
     self.cgimg = self.cg.bitmap_context_image(self.ctx);
     self.cls = self.objc.get_class("NSImage");
