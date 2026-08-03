@@ -292,8 +292,12 @@ artifact.
   step schedule v1 while preserving the old value-only entry points. Canonical
   usage telemetry beyond the scalar, progress attribution, cache charging, and
   root-selected warning/ceiling policy remain.
-- Canonical service reach plus recursive suspension/blocking summaries are
-  checked. Authority, trust, termination, abnormal-outcome, resource, and
+- Canonical service reach, recursive suspension/blocking summaries, and
+  ordinary checked termination across the concrete typed call closure are
+  checked. Pre-check semantic positions consume the same pure termination
+  judgment later retained in checked facts; machine-entry-symbol backedges
+  normalize to their entry state, so unmeasured recursion cannot masquerade as
+  an acyclic body. Authority, trust, abnormal-outcome, resource, and
   escaping-mutation axes still need to complete the common admission floor.
 - The positive normalized termination variant, snapshots, artifacts,
   diagnostics, and code use the settled `Terminates` vocabulary.

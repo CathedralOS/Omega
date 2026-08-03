@@ -193,7 +193,7 @@ fn evaluate_machine_fact(
     };
     let machine_name = machine.name.as_str();
 
-    admission.require_service_and_operational_floor(typed, machine)?;
+    admission.require_common_floor(typed, machine)?;
 
     let parameters = typed.state_parameters(state);
     if parameters.len() != 1

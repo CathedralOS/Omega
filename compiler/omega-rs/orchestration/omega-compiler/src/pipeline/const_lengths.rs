@@ -130,7 +130,7 @@ pub(super) fn evaluate_zero_argument_machine(
         ));
     }
 
-    admission.require_service_and_operational_floor(typed, machine)?;
+    admission.require_common_floor(typed, machine)?;
 
     omega_interpreter::evaluate_const_machine(typed, machine_name)
 }

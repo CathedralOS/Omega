@@ -21,7 +21,7 @@ pub(super) fn guarded_self_loop<'program>(
     let TransitionTargetNode::Named { path, arguments } = target else {
         return None;
     };
-    if path.symbol != state.symbol {
+    if !target_symbol_matches_state(program, state, path.symbol) {
         return None;
     }
 
@@ -71,7 +71,7 @@ pub(super) fn fall_through_self_loop<'program>(
         let TransitionTargetNode::Named { path, arguments } = target else {
             continue;
         };
-        if path.symbol != state.symbol {
+        if !target_symbol_matches_state(program, state, path.symbol) {
             continue;
         }
         return Some(FallThroughSelfLoop {
@@ -142,7 +142,7 @@ pub(super) fn edge_to_any_guard<'program>(
         else {
             continue;
         };
-        if path.symbol != target_symbol {
+        if !target_symbol_matches_state_symbol(program, target_symbol, path.symbol) {
             continue;
         }
         return Some(GuardedEdge {
@@ -151,6 +151,43 @@ pub(super) fn edge_to_any_guard<'program>(
         });
     }
     None
+}
+
+fn target_symbol_matches_state(
+    program: &psi_typed_trees::TypedTrees,
+    state: &psi_typed_trees::state::State,
+    target_symbol: psi_symbols::SymbolHandle,
+) -> bool {
+    target_symbol_matches_state_symbol(program, state.symbol, target_symbol)
+}
+
+fn target_symbol_matches_state_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: psi_symbols::SymbolHandle,
+    target_symbol: psi_symbols::SymbolHandle,
+) -> bool {
+    if target_symbol == state_symbol {
+        return true;
+    }
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target_symbol)
+    else {
+        return false;
+    };
+    let entry_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default();
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|candidate| candidate.name.as_str() == entry_name)
+        .or_else(|| program.machine_states(machine).first())
+        .is_some_and(|entry| entry.symbol == state_symbol)
 }
 
 pub(super) fn parameter_matched_by_expression<'program>(

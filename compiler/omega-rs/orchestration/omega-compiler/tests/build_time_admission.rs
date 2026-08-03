@@ -83,3 +83,96 @@ machine Main::main(&mut self) { }
     assert!(!error.contains("may suspend"), "{error}");
     assert!(!error.contains("service reach ["), "{error}");
 }
+
+#[test]
+fn const_evaluation_rejects_a_transitive_callee_without_checked_termination() {
+    let error = compile_error(
+        "unterminating-callee-contract",
+        r#"
+machine countdown(remaining: u64) -> u64 {
+    transition remaining > 0 {
+        true -> countdown(remaining - 1)
+        false -> 4
+    }
+}
+
+machine length() -> u64 {
+    countdown(3)
+}
+
+data Buffer { bytes: [u8; length()]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+
+    assert!(
+        error.contains("machine `length` is not build-time admissible"),
+        "{error}"
+    );
+    assert!(
+        error.contains(
+            "machine call path `length -> countdown` has no ordinary checked `Terminates` guarantee"
+        ),
+        "{error}"
+    );
+    assert!(!error.contains("may suspend"), "{error}");
+    assert!(!error.contains("may block"), "{error}");
+    assert!(!error.contains("service reach ["), "{error}");
+}
+
+#[test]
+fn const_evaluation_accepts_a_transitive_ranked_termination_proof() {
+    let main_path = write_program(
+        "terminating-callee-contract",
+        r#"
+machine countdown(remaining: u64) -> u64
+terminates by remaining;
+{
+    transition remaining > 0 {
+        true -> countdown(remaining - 1)
+        false -> 4
+    }
+}
+
+machine length() -> u64 {
+    countdown(3)
+}
+
+data Buffer { bytes: [u8; length()]; }
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+
+    let checked = compile_to_checked(&main_path, None)
+        .expect("a transitive checked termination proof should admit constant evaluation");
+    let buffer = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Buffer")
+        .expect("Buffer data definition");
+    let field = checked
+        .typed
+        .data_members(buffer)
+        .iter()
+        .find_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .expect("Buffer.bytes field");
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray { length, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("Buffer.bytes should remain a fixed array");
+    };
+    assert_eq!(
+        length,
+        &psi_typed_trees::types::FixedArrayLength::Literal(4)
+    );
+
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary program has a parent"));
+}

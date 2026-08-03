@@ -190,7 +190,7 @@ fn evaluate_wire_policy(
         .iter()
         .find(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY)
         .expect("caller checked the policy exists");
-    admission.require_service_and_operational_floor(typed, machine)?;
+    admission.require_common_floor(typed, machine)?;
 
     let schema_value = build_wire_schema_value(fields);
     let plan = omega_interpreter::evaluate_build_time_machine(
