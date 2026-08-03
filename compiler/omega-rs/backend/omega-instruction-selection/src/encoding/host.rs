@@ -171,7 +171,7 @@ pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
             )
         }
         Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::MicrosoftX64 => {
-            x86_64::encode_win64_vtable_call_with_plan(operands, index, Some(authoritative_plan))
+            x86_64::encode_win64_vtable_call_with_plan(operands, index, authoritative_plan)
         }
         Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::SystemVAMD64 => {
             let byte_offset = index
@@ -181,7 +181,7 @@ pub fn encode_vtable_call_sequence_with_plan<T: InstructionOperandLike>(
                 operands,
                 byte_offset,
                 false,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
@@ -275,7 +275,7 @@ pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::SystemVAMD64 => {
@@ -284,7 +284,7 @@ pub fn encode_vtable_call_sequence_at_offset_with_plan<T: InstructionOperandLike
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("vtable field offset overflows i64"))?,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
@@ -378,7 +378,7 @@ pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 if authoritative_plan.policy == CallingPolicy::SystemVAMD64 => {
@@ -387,7 +387,7 @@ pub fn encode_table_function_call_sequence_with_plan<T: InstructionOperandLike>(
                 i64::try_from(byte_offset)
                     .map_err(|_| Diagnostic::error("service table field offset overflows i64"))?,
                 result_present,
-                Some(authoritative_plan),
+                authoritative_plan,
             )
         }
         Architecture::X86_64 => Err(Diagnostic::error(
