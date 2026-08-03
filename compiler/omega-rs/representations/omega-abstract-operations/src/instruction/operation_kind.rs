@@ -393,7 +393,7 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         result_region: RuntimeStorageRegion,
         result_offset: usize,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic store of one computed operand into a direct storage place.
     AtomicStore {
@@ -401,7 +401,7 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         byte_size: usize,
         value: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// An atomic `fetch_add`: atomically add `delta` to the storage place via a
     /// single target RMW. The instruction-observed prior value is written to
@@ -413,7 +413,7 @@ pub enum AbstractOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         delta: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// An atomic `fetch_sub`: atomically subtract `delta` from the storage
     /// place while returning the instruction-observed prior value.
@@ -424,7 +424,7 @@ pub enum AbstractOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         delta: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// An atomic `fetch_xor`: atomically XOR `value` into the storage place
     /// while returning the instruction-observed prior value.
@@ -435,7 +435,7 @@ pub enum AbstractOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         value: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// An atomic `fetch_or`: atomically OR `value` into the storage place
     /// while returning the instruction-observed prior value.
@@ -446,7 +446,7 @@ pub enum AbstractOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         value: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// An atomic `fetch_and`: atomically AND `value` into the storage place
     /// while returning the instruction-observed prior value.
@@ -457,7 +457,7 @@ pub enum AbstractOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         value: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomically replace the storage value and return the instruction-observed
     /// prior value through a distinct result place.
@@ -468,7 +468,7 @@ pub enum AbstractOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         new_value: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// An atomic `compare_exchange`: atomically compare the storage place against
     /// `expected` and, only if equal, swap in `new_value`, via a single `LOCK
@@ -482,7 +482,7 @@ pub enum AbstractOperationKind {
         result_offset: usize,
         expected: AbstractValueOperandHandle,
         new_value: AbstractValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// A numeric `as` cast: load `source` into a register, convert it between
     /// integer and floating-point representations (`cvttsd2si`/`cvtsi2sd`/
@@ -693,9 +693,9 @@ pub enum AbstractOperationKind {
     MachineHalt,
     /// An x86 load/store/full memory-ordering fence. Zero operands and no
     /// relocations; the kind selects the exact opcode at emission.
-    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    MemoryFence(psi_language_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
-    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    InterruptControl(psi_language_core::inline_assembly::AsmInterruptControlKind),
     /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
     FlagsSnapshot {
         dest_region: RuntimeStorageRegion,
@@ -717,12 +717,12 @@ pub enum AbstractOperationKind {
         value: AbstractValueOperandHandle,
     },
     ControlRegisterRead {
-        register: omega_core::inline_assembly::AsmControlRegister,
+        register: psi_language_core::inline_assembly::AsmControlRegister,
         dest_region: RuntimeStorageRegion,
         dest_byte_offset: usize,
     },
     ControlRegisterWrite {
-        register: omega_core::inline_assembly::AsmControlRegister,
+        register: psi_language_core::inline_assembly::AsmControlRegister,
         source: AbstractValueOperandHandle,
     },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),

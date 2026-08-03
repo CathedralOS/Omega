@@ -61,10 +61,10 @@ pub enum RuntimeDispatchBodyOperationKind {
     MachineHalt,
     /// An x86 memory-ordering fence. The shared kind survives until encoding
     /// so target gating and opcode selection use the catalog distinction.
-    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    MemoryFence(psi_language_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control. The kind retains the catalog's
     /// disable versus delayed-enable distinction through selection.
-    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    InterruptControl(psi_language_core::inline_assembly::AsmInterruptControlKind),
     /// Compiler-balanced RFLAGS snapshot into a u64 destination place.
     FlagsSnapshot,
     /// Compiler-balanced RFLAGS restore from a u64 source place.
@@ -73,8 +73,8 @@ pub enum RuntimeDispatchBodyOperationKind {
     MsrRead,
     /// Structured x86 WRMSR from a u32 index and u64 value.
     MsrWrite,
-    ControlRegisterRead(omega_core::inline_assembly::AsmControlRegister),
-    ControlRegisterWrite(omega_core::inline_assembly::AsmControlRegister),
+    ControlRegisterRead(psi_language_core::inline_assembly::AsmControlRegister),
+    ControlRegisterWrite(psi_language_core::inline_assembly::AsmControlRegister),
     /// An `asm { out <port>, <value> }` statement (a Call to `asm#port_out`):
     /// a raw port write, operands resolved at selection.
     PortWrite,

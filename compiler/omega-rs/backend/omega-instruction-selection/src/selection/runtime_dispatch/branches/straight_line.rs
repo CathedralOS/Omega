@@ -1156,7 +1156,7 @@ fn select_runtime_straight_line_local_initializer_write(
         // Mutable recasts always carry the backing ADDRESS. Unlike a shared
         // scalar view, a writable view may not content-spill into its slot:
         // later mutation resolves the slot as a pointer and writes through it.
-        if cast.form == omega_core::cast_form::CastForm::RecastMutable {
+        if cast.form == psi_language_core::CastForm::RecastMutable {
             if let Some(place) = resolve_runtime_storage_place_in_table(
                 input,
                 expansion.dispatch_index,

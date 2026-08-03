@@ -3115,7 +3115,7 @@ fn select_runtime_dispatch_local_initializer_write(
         // fits in a word. Shared scalar recasts deliberately content-spill for
         // flat reads; doing that here would make `view = value` dereference the
         // copied bits as a pointer. Materialize the backing place address.
-        if cast.form == omega_core::cast_form::CastForm::RecastMutable {
+        if cast.form == psi_language_core::CastForm::RecastMutable {
             if let Some(place) =
                 crate::selection::storage_places::resolve_runtime_storage_place_in_table(
                     input,

@@ -1005,6 +1005,72 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
             .iter()
             .map(|identity| identity.normalized_identity()),
     );
+    output.push_str("], \"summary_evidence\": [");
+    for (index, (identity, summary)) in record
+        .logical_fuel
+        .realization
+        .summary_evidence()
+        .enumerate()
+    {
+        if index != 0 {
+            output.push_str(", ");
+        }
+        output.push_str("{\"summary\": ");
+        push_hex_identity(output, identity.normalized_identity());
+        output.push_str(", \"provider\": ");
+        push_hex_identity(output, summary.provider.normalized_identity());
+        output.push_str(", \"local_units\": ");
+        output.push_str(&summary.local_evidence.units().to_string());
+        match &summary.local_evidence {
+            omega_external_roots::FixedFuelLocalEvidence::TerminalEntry(certificate) => {
+                output
+                    .push_str(", \"origin\": \"terminal_entry\", \"terminal_semantic_version\": ");
+                output.push_str(
+                    &certificate
+                        .terminal_psi()
+                        .semantic_version
+                        .get()
+                        .to_string(),
+                );
+                output.push_str(", \"terminal_fingerprint\": \"");
+                output.push_str(&certificate.terminal_psi().program_fingerprint.to_string());
+                output.push_str("\", \"entry\": ");
+                push_hex_identity(output, certificate.entry().get());
+                output.push_str(", \"return_edge\": ");
+                push_hex_identity(output, certificate.return_edge().get());
+            }
+            omega_external_roots::FixedFuelLocalEvidence::TerminalSegment(certificate) => {
+                output.push_str(
+                    ", \"origin\": \"terminal_segment\", \"terminal_semantic_version\": ",
+                );
+                output.push_str(
+                    &certificate
+                        .terminal_psi()
+                        .semantic_version
+                        .get()
+                        .to_string(),
+                );
+                output.push_str(", \"terminal_fingerprint\": \"");
+                output.push_str(&certificate.terminal_psi().program_fingerprint.to_string());
+                output.push_str("\", \"machine\": ");
+                push_hex_identity(output, certificate.machine().get());
+                output.push_str(", \"start_block\": ");
+                push_hex_identity(output, certificate.start_block().get());
+                output.push_str(", \"end_edge\": ");
+                push_hex_identity(output, certificate.end_edge().get());
+            }
+            omega_external_roots::FixedFuelLocalEvidence::AdmittedProvider {
+                validation_receipt,
+                ..
+            } => {
+                output.push_str(
+                    ", \"origin\": \"admitted_provider\", \"provider_validation_receipt\": ",
+                );
+                push_hex_identity(output, validation_receipt.normalized_identity());
+            }
+        }
+        output.push('}');
+    }
     output.push_str("], \"provider_validation_receipts\": [");
     push_identity_set(
         output,
@@ -2280,31 +2346,31 @@ mod tests {
             },
         )
         .expect("boundary plan");
-        let leaf = FixedFuelProviderSummary {
-            identity: root_id(21, ProviderFuelSummaryId::from_normalized_identity),
-            provider: root_id(22, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 4,
-            calls: BTreeSet::new(),
-            validation_receipt: root_id(
+        let leaf = FixedFuelProviderSummary::from_admitted_provider(
+            root_id(21, ProviderFuelSummaryId::from_normalized_identity),
+            root_id(22, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            4,
+            BTreeSet::new(),
+            root_id(
                 23,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
-        let work_root = FixedFuelProviderSummary {
-            identity: root_id(20, ProviderFuelSummaryId::from_normalized_identity),
-            provider: root_id(8, RootProviderId::from_normalized_identity),
-            schedule: fuel_schedule(),
-            local_units: 3,
-            calls: BTreeSet::from([FixedFuelCall {
+        );
+        let work_root = FixedFuelProviderSummary::from_admitted_provider(
+            root_id(20, ProviderFuelSummaryId::from_normalized_identity),
+            root_id(8, RootProviderId::from_normalized_identity),
+            fuel_schedule(),
+            3,
+            BTreeSet::from([FixedFuelCall {
                 callee: leaf.identity,
                 maximum_invocations: 2,
             }]),
-            validation_receipt: root_id(
+            root_id(
                 24,
                 ProviderFuelValidationReceiptId::from_normalized_identity,
             ),
-        };
+        );
         let composed_fuel =
             compose_fixed_fuel(work_root.identity, [&work_root, &leaf]).expect("fixed fuel");
         let root_identity = root_id(1, ExternalRootId::from_normalized_identity);
@@ -2428,6 +2494,14 @@ mod tests {
         assert_eq!(
             parsed["roots"][0]["resources"]["logical_fuel"]["provision"],
             "0x000000000000001c"
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["logical_fuel"]["summary_evidence"][0]["origin"],
+            "admitted_provider"
+        );
+        assert_eq!(
+            parsed["roots"][0]["resources"]["logical_fuel"]["summary_evidence"][1]["origin"],
+            "admitted_provider"
         );
         assert!(
             parsed["roots"][0]["resources"]

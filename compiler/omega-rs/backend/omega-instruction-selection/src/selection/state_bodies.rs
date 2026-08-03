@@ -266,7 +266,9 @@ pub(super) fn select_state_body_instructions(
             ..
         } = &operation.kind
             && let Some(kind) =
-                omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(target.as_str())
+                psi_language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                    target.as_str(),
+                )
         {
             selected_instructions.push(SelectedInstruction {
                 kind: omega_abstract_operations::SelectedInstructionKind::MemoryFence(kind),
@@ -282,7 +284,7 @@ pub(super) fn select_state_body_instructions(
             ..
         } = &operation.kind
             && let Some(kind) =
-                omega_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
+                psi_language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
                     target.as_str(),
                 )
         {

@@ -315,14 +315,14 @@ pub enum TargetOperationKind {
         byte_size: usize,
         result_region: RuntimeStorageRegion,
         result_offset: usize,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     AtomicStore {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_size: usize,
         value: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic `fetch_add`: `LOCK xadd` of `delta` into the storage place.
     AtomicFetchAdd {
@@ -332,7 +332,7 @@ pub enum TargetOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         delta: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic `fetch_sub`, returning the instruction-observed prior value.
     AtomicFetchSub {
@@ -342,7 +342,7 @@ pub enum TargetOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         delta: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic `fetch_xor`, returning the instruction-observed prior value.
     AtomicFetchXor {
@@ -352,7 +352,7 @@ pub enum TargetOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         value: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic `fetch_or`, returning the instruction-observed prior value.
     AtomicFetchOr {
@@ -362,7 +362,7 @@ pub enum TargetOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         value: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic `fetch_and`, returning the instruction-observed prior value.
     AtomicFetchAnd {
@@ -372,7 +372,7 @@ pub enum TargetOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         value: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic exchange returning the instruction-observed prior value.
     AtomicSwap {
@@ -382,7 +382,7 @@ pub enum TargetOperationKind {
         result_region: RuntimeStorageRegion,
         result_offset: usize,
         new_value: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Atomic `compare_exchange`: `LOCK CMPXCHG` (x86) / `CASAL` (aarch64) of the
     /// storage place against `expected`, swapping in `new_value` only on match.
@@ -394,7 +394,7 @@ pub enum TargetOperationKind {
         result_offset: usize,
         expected: TargetValueOperandHandle,
         new_value: TargetValueOperandHandle,
-        ordering: omega_core::atomic::AtomicOrderingPlan,
+        ordering: psi_language_core::AtomicOrderingPlan,
     },
     /// Append a source carrier's content onto a target carrier through two
     /// place-shaped operands. See the abstract-operations twin.
@@ -530,9 +530,9 @@ pub enum TargetOperationKind {
     /// privileged_effects_and_binary_trust brief.
     MachineHalt,
     /// An x86 load/store/full memory-ordering fence.
-    MemoryFence(omega_core::inline_assembly::AsmFenceKind),
+    MemoryFence(psi_language_core::inline_assembly::AsmFenceKind),
     /// x86 CLI/STI interrupt-flag control.
-    InterruptControl(omega_core::inline_assembly::AsmInterruptControlKind),
+    InterruptControl(psi_language_core::inline_assembly::AsmInterruptControlKind),
     /// Compiler-balanced `pushfq` snapshot into explicit runtime storage.
     FlagsSnapshot {
         dest_region: RuntimeStorageRegion,
@@ -554,12 +554,12 @@ pub enum TargetOperationKind {
         value: TargetValueOperandHandle,
     },
     ControlRegisterRead {
-        register: omega_core::inline_assembly::AsmControlRegister,
+        register: psi_language_core::inline_assembly::AsmControlRegister,
         dest_region: RuntimeStorageRegion,
         dest_byte_offset: usize,
     },
     ControlRegisterWrite {
-        register: omega_core::inline_assembly::AsmControlRegister,
+        register: psi_language_core::inline_assembly::AsmControlRegister,
         source: TargetValueOperandHandle,
     },
     /// The x86 `out dx, al` port write (`asm { out <port>, <value> }`),

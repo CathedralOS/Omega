@@ -421,10 +421,16 @@ Provider-local `FixedFuelProviderSummary` and `LogicalFuelResourceColumn` are
 the current implementation precursor for hard roots. Each summary and
 provision now names the `psi-core`-owned nonzero `FuelScheduleIdentity` directly;
 composition rejects mixed schedules, and the external-root artifact publishes
-the schedule version, provision, ceiling, and composed units. These units are
-still provider-authored logical-fuel summaries, not a derivation from terminal
-Psi. The precursor still must migrate to Psi-derived entry/segment certificates
-and does not grow into general symbolic complexity analysis.
+the schedule version, provision, ceiling, and composed units. A summary's local
+evidence now distinguishes a sealed recomputable terminal-Psi entry/segment
+certificate from an admitted opaque-provider unit claim. Certificate-backed
+units derive from the certificate, contribute no provider-validation receipt,
+and retain exact terminal identity in the external-root artifact. The real
+source canary composes its four-unit entry certificate through this path.
+Opaque provider leaves remain admitted summaries. Installation still must bind
+the certified terminal identity to the exact installed executable, and the
+Cathedral hard-root graph still needs migration. This precursor does not grow
+into general symbolic complexity analysis.
 
 ## Response and physical time
 

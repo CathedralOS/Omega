@@ -328,9 +328,13 @@ fn frontend_implementation_is_psi_owned() {
     }
 
     for relative in [
+        "compiler/omega-rs/foundation/omega-core/src/atomic.rs",
         "compiler/omega-rs/foundation/omega-core/src/bignum.rs",
+        "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
         "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
         "compiler/omega-rs/foundation/omega-core/src/content.rs",
+        "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
+        "compiler/omega-rs/foundation/omega-core/src/operator_spelling.rs",
         "compiler/omega-rs/foundation/omega-core/src/source",
         "compiler/omega-rs/foundation/omega-core/src/span.rs",
         "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
@@ -351,33 +355,6 @@ fn frontend_implementation_is_psi_owned() {
         ),
         "legacy diagnostics module must re-export the Psi-owned diagnostic contracts"
     );
-
-    for (relative, expected_export) in [
-        (
-            "compiler/omega-rs/foundation/omega-core/src/atomic.rs",
-            "pub use psi_language_core::{AtomicOrderingPlan, MemoryOrdering};",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
-            "pub use psi_language_core::CastForm;",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/operator_spelling.rs",
-            "pub use psi_language_core::{OperatorSpelling, ProviderCategory};",
-        ),
-        (
-            "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
-            "pub use psi_language_core::inline_assembly::*;",
-        ),
-    ] {
-        let path = root.join(relative);
-        let source = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-        assert!(
-            source.contains(expected_export),
-            "legacy language-vocabulary module must re-export its Psi-owned implementation: {relative}"
-        );
-    }
 
     let semantics_module = root.join("compiler/omega-rs/foundation/omega-core/src/semantics.rs");
     let source = std::fs::read_to_string(&semantics_module)

@@ -1572,9 +1572,9 @@ impl<'program> Evaluator<'program> {
                     .clone()
                     && matches!(
                         atomic.ordering,
-                        omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
-                            | omega_core::atomic::AtomicOrderingPlan::Swap(_)
-                            | omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
+                        psi_language_core::AtomicOrderingPlan::ReadModifyWrite(_)
+                            | psi_language_core::AtomicOrderingPlan::Swap(_)
+                            | psi_language_core::AtomicOrderingPlan::CompareExchange { .. }
                     )
                 {
                     if !atomic.result.is_valid() {
@@ -1924,9 +1924,11 @@ impl<'program> Evaluator<'program> {
         // cannot reproduce and stays unsupported.
         if call.target.as_str() == "asm#hlt"
             || call.target.as_str() == "asm#popfq"
-            || omega_core::inline_assembly::AsmFenceKind::from_intrinsic_name(call.target.as_str())
-                .is_some()
-            || omega_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
+            || psi_language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || psi_language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
                 call.target.as_str(),
             )
             .is_some()
@@ -5967,7 +5969,7 @@ impl<'program> Evaluator<'program> {
         let cast_handle = match self.program.expression_table.expression(initializer) {
             ExpressionNode::Mutable(inner) => *inner,
             ExpressionNode::Cast(cast)
-                if cast.form == omega_core::cast_form::CastForm::RecastMutable =>
+                if cast.form == psi_language_core::CastForm::RecastMutable =>
             {
                 initializer
             }
@@ -5977,7 +5979,7 @@ impl<'program> Evaluator<'program> {
         else {
             return Ok(None);
         };
-        if cast.form != omega_core::cast_form::CastForm::RecastMutable {
+        if cast.form != psi_language_core::CastForm::RecastMutable {
             return Ok(None);
         }
         let target = self.cast_target_primitive(cast.target_type);

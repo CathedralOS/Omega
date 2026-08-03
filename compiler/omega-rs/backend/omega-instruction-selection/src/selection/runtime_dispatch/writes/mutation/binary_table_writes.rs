@@ -52,7 +52,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load
         return None;
     };
     match atomic.ordering {
-        omega_core::atomic::AtomicOrderingPlan::Load(_) => {
+        psi_language_core::AtomicOrderingPlan::Load(_) => {
             if !runtime_storage_target_is_atomic_in_table(
                 input,
                 dispatch_index,
@@ -89,7 +89,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load
                 ordering: atomic.ordering,
             })
         }
-        omega_core::atomic::AtomicOrderingPlan::Store(_) => {
+        psi_language_core::AtomicOrderingPlan::Store(_) => {
             if !runtime_storage_target_is_atomic_in_table(
                 input,
                 dispatch_index,
@@ -128,7 +128,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load
                 ordering: atomic.ordering,
             })
         }
-        omega_core::atomic::AtomicOrderingPlan::Swap(_) => {
+        psi_language_core::AtomicOrderingPlan::Swap(_) => {
             if !runtime_storage_target_is_atomic_in_table(
                 input,
                 dispatch_index,
@@ -176,8 +176,8 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load
                 ordering: atomic.ordering,
             })
         }
-        omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
-        | omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. } => None,
+        psi_language_core::AtomicOrderingPlan::ReadModifyWrite(_)
+        | psi_language_core::AtomicOrderingPlan::CompareExchange { .. } => None,
     }
 }
 
@@ -273,7 +273,7 @@ fn select_runtime_atomic_compare_exchange_in_table(
         ExpressionNode::Atomic(atomic)
             if matches!(
                 atomic.ordering,
-                omega_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
+                psi_language_core::AtomicOrderingPlan::CompareExchange { .. }
             ) =>
         {
             atomic
@@ -376,7 +376,7 @@ fn select_runtime_atomic_fetch_arithmetic_in_table(
         ExpressionNode::Atomic(atomic)
             if matches!(
                 atomic.ordering,
-                omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(_)
+                psi_language_core::AtomicOrderingPlan::ReadModifyWrite(_)
             ) =>
         {
             atomic

@@ -6,7 +6,7 @@ pub(in crate::aarch64) fn encode_atomic_load(
     destination_register: u8,
     address_register: u8,
     byte_size: usize,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -20,20 +20,20 @@ pub(in crate::aarch64) fn encode_atomic_load(
         }
     };
     match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => match byte_size {
+        psi_language_core::MemoryOrdering::NoOrdering => match byte_size {
             1 | 2 | 4 => encode_load_w_from_x(destination_register, address_register, 0, byte_size),
             8 => encode_load_x_from_x(destination_register, address_register, 0),
             _ => unreachable!(),
         },
-        omega_core::atomic::MemoryOrdering::Receive
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => Ok(encode_instruction(
+        psi_language_core::MemoryOrdering::Receive
+        | psi_language_core::MemoryOrdering::GlobalOrder => Ok(encode_instruction(
             0x08DF_FC00
                 | (size << 30)
                 | (u32::from(address_register) << 5)
                 | u32::from(destination_register),
         )),
-        omega_core::atomic::MemoryOrdering::Publish
-        | omega_core::atomic::MemoryOrdering::ReceivePublish => Err(Diagnostic::error(
+        psi_language_core::MemoryOrdering::Publish
+        | psi_language_core::MemoryOrdering::ReceivePublish => Err(Diagnostic::error(
             "publish-bearing ordering reached AArch64 atomic-load encoding",
         )),
     }
@@ -43,7 +43,7 @@ pub(in crate::aarch64) fn encode_atomic_store(
     source_register: u8,
     address_register: u8,
     byte_size: usize,
-    ordering: omega_core::atomic::MemoryOrdering,
+    ordering: psi_language_core::MemoryOrdering,
 ) -> Result<[u8; 4], Diagnostic> {
     let size = match byte_size {
         1 => 0u32,
@@ -57,20 +57,20 @@ pub(in crate::aarch64) fn encode_atomic_store(
         }
     };
     match ordering {
-        omega_core::atomic::MemoryOrdering::NoOrdering => match byte_size {
+        psi_language_core::MemoryOrdering::NoOrdering => match byte_size {
             1 | 2 | 4 => encode_store_w_to_x(source_register, address_register, 0, byte_size),
             8 => encode_store_x_to_x(source_register, address_register, 0),
             _ => unreachable!(),
         },
-        omega_core::atomic::MemoryOrdering::Publish
-        | omega_core::atomic::MemoryOrdering::GlobalOrder => Ok(encode_instruction(
+        psi_language_core::MemoryOrdering::Publish
+        | psi_language_core::MemoryOrdering::GlobalOrder => Ok(encode_instruction(
             0x089F_FC00
                 | (size << 30)
                 | (u32::from(address_register) << 5)
                 | u32::from(source_register),
         )),
-        omega_core::atomic::MemoryOrdering::Receive
-        | omega_core::atomic::MemoryOrdering::ReceivePublish => Err(Diagnostic::error(
+        psi_language_core::MemoryOrdering::Receive
+        | psi_language_core::MemoryOrdering::ReceivePublish => Err(Diagnostic::error(
             "receive-bearing ordering reached AArch64 atomic-store encoding",
         )),
     }

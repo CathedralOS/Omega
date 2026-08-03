@@ -14,12 +14,13 @@ psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi-rs/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 psi-access-plans = { path = "../../../psi-rs/foundation/psi-access-plans" }
+psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 omega-task-plans = { path = "../../foundation/omega-task-plans" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-emission-planning = { path = "../../backend/omega-emission-planning" }
-omega-external-roots = { path = "../../foundation/omega-external-roots" }
+omega-external-roots = { path = "../omega-external-roots" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }

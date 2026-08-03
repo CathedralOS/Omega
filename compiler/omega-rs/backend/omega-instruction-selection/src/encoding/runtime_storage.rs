@@ -304,9 +304,9 @@ pub fn encode_atomic_load_to_storage(
     source_offset: usize,
     byte_size: usize,
     result_offset: usize,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::Load(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::Load(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic load reached code generation without a load ordering plan",
         ));
@@ -330,9 +330,9 @@ pub fn encode_atomic_store_from_operand(
     target_offset: usize,
     byte_size: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::Store(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::Store(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic store reached code generation without a store ordering plan",
         ));
@@ -350,7 +350,7 @@ pub fn encode_atomic_store_from_operand(
             target_offset,
             byte_size,
             value,
-            ordering == omega_core::atomic::MemoryOrdering::GlobalOrder,
+            ordering == psi_language_core::MemoryOrdering::GlobalOrder,
         ),
     }
 }
@@ -362,9 +362,9 @@ pub fn encode_atomic_fetch_add(
     byte_size: usize,
     result_offset: usize,
     delta: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic fetch_add reached code generation without an RMW ordering plan",
         ));
@@ -395,9 +395,9 @@ pub fn encode_atomic_fetch_sub(
     byte_size: usize,
     result_offset: usize,
     delta: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic fetch_sub reached code generation without an RMW ordering plan",
         ));
@@ -428,9 +428,9 @@ pub fn encode_atomic_fetch_xor(
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic fetch_xor reached code generation without an RMW ordering plan",
         ));
@@ -461,9 +461,9 @@ pub fn encode_atomic_fetch_or(
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic fetch_or reached code generation without an RMW ordering plan",
         ));
@@ -494,9 +494,9 @@ pub fn encode_atomic_fetch_and(
     byte_size: usize,
     result_offset: usize,
     value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::ReadModifyWrite(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic fetch_and reached code generation without an RMW ordering plan",
         ));
@@ -527,9 +527,9 @@ pub fn encode_atomic_swap(
     byte_size: usize,
     result_offset: usize,
     new_value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::Swap(ordering) = ordering else {
+    let psi_language_core::AtomicOrderingPlan::Swap(ordering) = ordering else {
         return Err(Diagnostic::error(
             "atomic swap reached code generation without a swap ordering plan",
         ));
@@ -562,9 +562,9 @@ pub fn encode_atomic_compare_exchange(
     result_offset: usize,
     expected: RuntimeValueOperandHandle,
     new_value: RuntimeValueOperandHandle,
-    ordering: omega_core::atomic::AtomicOrderingPlan,
+    ordering: psi_language_core::AtomicOrderingPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let omega_core::atomic::AtomicOrderingPlan::CompareExchange { success, .. } = ordering else {
+    let psi_language_core::AtomicOrderingPlan::CompareExchange { success, .. } = ordering else {
         return Err(Diagnostic::error(
             "atomic compare_exchange reached code generation without a CAS ordering plan",
         ));

@@ -125,11 +125,11 @@ pub enum CheckedInstructionValidationKind {
         value_operand_byte_width: u32,
     },
     ControlRegisterRead {
-        register: omega_core::inline_assembly::AsmControlRegister,
+        register: psi_language_core::inline_assembly::AsmControlRegister,
         destination_byte_offset: u32,
     },
     ControlRegisterWrite {
-        register: omega_core::inline_assembly::AsmControlRegister,
+        register: psi_language_core::inline_assembly::AsmControlRegister,
         source_operand_byte_width: u32,
     },
     FlagsSnapshot {

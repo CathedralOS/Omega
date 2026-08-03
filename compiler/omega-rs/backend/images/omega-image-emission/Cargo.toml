@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../../foundation/omega-core" }
+psi-language-core = { path = "../../../../psi-rs/foundation/psi-language-core" }
 omega-image = { path = "../omega-image" }
 omega-image-elf = { path = "../omega-image-elf" }
 omega-image-macho = { path = "../omega-image-macho" }
