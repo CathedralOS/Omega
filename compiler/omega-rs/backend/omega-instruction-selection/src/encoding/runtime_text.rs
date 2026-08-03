@@ -21,13 +21,6 @@ enum ResolvedRuntimeTextCallPlans<'plan> {
 }
 
 impl<'plan> ResolvedRuntimeTextCallPlans<'plan> {
-    const fn direct(self) -> Option<&'plan CallPlan> {
-        match self {
-            Self::Direct(plan) => Some(plan),
-            Self::CompatibilityOracle | Self::WindowsFileAdapter { .. } => None,
-        }
-    }
-
     fn syscall(self) -> Result<SyscallPlan<'plan>, Diagnostic> {
         match self {
             Self::CompatibilityOracle => Ok(SyscallPlan::CompatibilityOracle),
@@ -103,10 +96,16 @@ impl<'plan> RuntimeTextCallPlans<'plan> {
 }
 
 fn validate_aarch64_runtime_import_plan(
-    authoritative_plan: Option<&CallPlan>,
+    plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<(), Diagnostic> {
-    let Some(plan) = authoritative_plan else {
-        return Ok(());
+    let plan = match plans {
+        ResolvedRuntimeTextCallPlans::CompatibilityOracle => return Ok(()),
+        ResolvedRuntimeTextCallPlans::Direct(plan) => plan,
+        ResolvedRuntimeTextCallPlans::WindowsFileAdapter { .. } => {
+            return Err(Diagnostic::error(
+                "the Windows runtime text adapter plan pair cannot validate an AArch64 import",
+            ));
+        }
     };
     let word = ValueShape::integer(8, 8);
     validate_call_plan(
@@ -503,11 +502,10 @@ fn encode_runtime_byte_read_for_plans(
     binding: &HostBindingMechanism,
     plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let authoritative_plan = plans.direct();
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                validate_aarch64_runtime_import_plan(authoritative_plan)?;
+                validate_aarch64_runtime_import_plan(plans)?;
                 aarch64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -601,11 +599,10 @@ fn encode_runtime_byte_write_for_plans(
     binding: &HostBindingMechanism,
     plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let authoritative_plan = plans.direct();
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                validate_aarch64_runtime_import_plan(authoritative_plan)?;
+                validate_aarch64_runtime_import_plan(plans)?;
                 aarch64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
@@ -714,11 +711,10 @@ fn encode_runtime_text_line_read_for_plans(
     target: RuntimeTextReadTarget,
     plans: ResolvedRuntimeTextCallPlans<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let authoritative_plan = plans.direct();
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                validate_aarch64_runtime_import_plan(authoritative_plan)?;
+                validate_aarch64_runtime_import_plan(plans)?;
                 match target {
                     RuntimeTextReadTarget::BoundedByteBuffer => {
                         aarch64::encode_runtime_text_line_read_carrier_import(
