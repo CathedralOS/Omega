@@ -2149,7 +2149,7 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
             HostCapability::Unknown | HostCapability::Custom(_)
         )
     {
-        return Ok(sysv_import_layout_with_plan(operands, true, authoritative_plan)?.bytes);
+        return Ok(sysv_import_layout_for_plan(operands, true, plan_source)?.bytes);
     }
     if policy != CallingPolicy::MicrosoftX64 {
         return Err(Diagnostic::error(format!(
@@ -2162,7 +2162,12 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
             HostOperation::GetStdHandle,
         ) => {
             validate_normalized_win64_get_std_handle_plan(authoritative_plan)?;
-            encode_win64_import_call_with_plan(operands, false, false, None)
+            encode_win64_import_call_for_plan(
+                operands,
+                false,
+                false,
+                HostCallPlan::CompatibilityOracle,
+            )
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
@@ -2173,13 +2178,13 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
         }
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
-            encode_win64_import_call_with_plan(operands, false, false, authoritative_plan)
+            encode_win64_import_call_for_plan(operands, false, false, plan_source)
         }
         // A 0-arg value-returning import through the GENERAL import-call encoder
         // (byte-identical to the original bespoke tick_count sequence for an
         // 8-byte result, and width-correct for a 4-byte one).
         (HostCapability::Clock, HostOperation::TickCount) => {
-            encode_win64_import_call_with_plan(operands, true, false, authoritative_plan)
+            encode_win64_import_call_for_plan(operands, true, false, plan_source)
         }
         // 0-arg value-returning imports whose result arrives through an
         // OUT-PARAM (QueryPerformanceCounter/-Frequency write a LARGE_INTEGER,
@@ -2198,25 +2203,25 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
         // import call: operands[0] = result place, then the full ABI argument
         // list (selection interleaves the hard-wired immediates).
         (HostCapability::Gui, _) => {
-            encode_win64_import_call_with_plan(operands, true, false, authoritative_plan)
+            encode_win64_import_call_for_plan(operands, true, false, plan_source)
         }
         // Every Filesystem raw-seam op is value-returning (fd/count/rc) and
         // rides the same general import call (msvcrt's POSIX-shaped CRT calls
         // marshal like any Win64 import). `read_errno` (`_errno()` returns
         // `&errno`) derefs the returned pointer before the store, exactly the
         // darwin `___error()` shape.
-        (HostCapability::Filesystem, _) => encode_win64_import_call_with_plan(
+        (HostCapability::Filesystem, _) => encode_win64_import_call_for_plan(
             operands,
             true,
             operation_key.dereferences_result(),
-            authoritative_plan,
+            plan_source,
         ),
         // Provides-AUTHORED ops (extern brief §12): outside the closed catalog
         // the key is (Unknown, Unknown), and the op only reaches encoding when
         // its authored DllImport binding exists -- ride the same general
         // value-returning import call as the Filesystem/Gui rows.
         (HostCapability::Unknown | HostCapability::Custom(_), _) => {
-            encode_win64_import_call_with_plan(operands, true, false, authoritative_plan)
+            encode_win64_import_call_for_plan(operands, true, false, plan_source)
         }
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
@@ -2233,11 +2238,17 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match plan.policy {
-        CallingPolicy::MicrosoftX64 => {
-            encode_win64_import_call_with_plan(operands, true, false, Some(plan))
-        }
+        CallingPolicy::MicrosoftX64 => encode_win64_import_call_for_plan(
+            operands,
+            true,
+            false,
+            HostCallPlan::Authoritative(plan),
+        ),
         CallingPolicy::SystemVAMD64 => {
-            Ok(sysv_import_layout_with_plan(operands, true, Some(plan))?.bytes)
+            Ok(
+                sysv_import_layout_for_plan(operands, true, HostCallPlan::Authoritative(plan))?
+                    .bytes,
+            )
         }
         policy => Err(Diagnostic::error(format!(
             "x86-64 authored import encoder cannot realize {policy:?}"
@@ -2250,12 +2261,17 @@ pub fn authored_import_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Vec<X86_64RelocationSite> {
     match plan.policy {
-        CallingPolicy::MicrosoftX64 => {
-            win64_import_call_relocation_sites_with_plan(operands, true, false, Some(plan))
+        CallingPolicy::MicrosoftX64 => win64_import_call_relocation_sites_for_plan(
+            operands,
+            true,
+            false,
+            HostCallPlan::Authoritative(plan),
+        ),
+        CallingPolicy::SystemVAMD64 => {
+            sysv_import_layout_for_plan(operands, true, HostCallPlan::Authoritative(plan))
+                .map(|layout| layout.relocation_sites)
+                .unwrap_or_default()
         }
-        CallingPolicy::SystemVAMD64 => sysv_import_layout_with_plan(operands, true, Some(plan))
-            .map(|layout| layout.relocation_sites)
-            .unwrap_or_default(),
         _ => Vec::new(),
     }
 }
@@ -3405,14 +3421,19 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     returns_value: bool,
     dereferences_result: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_win64_import_call_with_plan(operands, returns_value, dereferences_result, None)
+    encode_win64_import_call_for_plan(
+        operands,
+        returns_value,
+        dereferences_result,
+        HostCallPlan::CompatibilityOracle,
+    )
 }
 
-fn encode_win64_import_call_with_plan<T: InstructionOperandLike>(
+fn encode_win64_import_call_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
     dereferences_result: bool,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if returns_value && operands.is_empty() {
         return Err(Diagnostic::error(
@@ -3421,12 +3442,13 @@ fn encode_win64_import_call_with_plan<T: InstructionOperandLike>(
         ));
     }
     let arg_start = usize::from(returns_value);
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_win64_encoder_plan(plan)?;
-        validate_win64_plan_operand_shapes(plan, operands, returns_value)?;
-        plan.clone()
-    } else {
-        normalized_win64_import_plan(operands, returns_value)?
+    let plan = match plan_source {
+        HostCallPlan::Authoritative(plan) => {
+            validate_win64_encoder_plan(plan)?;
+            validate_win64_plan_operand_shapes(plan, operands, returns_value)?;
+            plan.clone()
+        }
+        HostCallPlan::CompatibilityOracle => normalized_win64_import_plan(operands, returns_value)?,
     };
     let indirect_result = plan.result.as_ref().is_some_and(win64_result_is_indirect);
     let result_register = if indirect_result {
@@ -3775,13 +3797,13 @@ fn sysv_import_layout<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
 ) -> Result<SysvImportLayout, Diagnostic> {
-    sysv_import_layout_with_plan(operands, returns_value, None)
+    sysv_import_layout_for_plan(operands, returns_value, HostCallPlan::CompatibilityOracle)
 }
 
-fn sysv_import_layout_with_plan<T: InstructionOperandLike>(
+fn sysv_import_layout_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Result<SysvImportLayout, Diagnostic> {
     if returns_value && operands.is_empty() {
         return Err(Diagnostic::error(
@@ -3789,12 +3811,13 @@ fn sysv_import_layout_with_plan<T: InstructionOperandLike>(
         ));
     }
     let arg_start = usize::from(returns_value);
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_sysv_import_plan(plan)?;
-        validate_sysv_plan_operand_shapes(plan, operands, returns_value)?;
-        plan.clone()
-    } else {
-        normalized_sysv_import_plan(operands, returns_value)?
+    let plan = match plan_source {
+        HostCallPlan::Authoritative(plan) => {
+            validate_sysv_import_plan(plan)?;
+            validate_sysv_plan_operand_shapes(plan, operands, returns_value)?;
+            plan.clone()
+        }
+        HostCallPlan::CompatibilityOracle => normalized_sysv_import_plan(operands, returns_value)?,
     };
     let stack_bytes = plan
         .parameters
@@ -6540,29 +6563,30 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
     returns_value: bool,
     dereferences_result: bool,
 ) -> Vec<X86_64RelocationSite> {
-    win64_import_call_relocation_sites_with_plan(operands, returns_value, dereferences_result, None)
+    win64_import_call_relocation_sites_for_plan(
+        operands,
+        returns_value,
+        dereferences_result,
+        HostCallPlan::CompatibilityOracle,
+    )
 }
 
-fn win64_import_call_relocation_sites_with_plan<T: InstructionOperandLike>(
+fn win64_import_call_relocation_sites_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
     dereferences_result: bool,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
-    let plan = authoritative_plan
-        .filter(|plan| {
-            validate_win64_encoder_plan(plan).is_ok()
-                && validate_win64_plan_operand_shapes(plan, operands, returns_value).is_ok()
-        })
-        .cloned()
-        .or_else(|| {
-            authoritative_plan
-                .is_none()
-                .then(|| normalized_win64_import_plan(operands, returns_value).ok())
-                .flatten()
-        });
+    let plan = match plan_source {
+        HostCallPlan::Authoritative(plan) => (validate_win64_encoder_plan(plan).is_ok()
+            && validate_win64_plan_operand_shapes(plan, operands, returns_value).is_ok())
+        .then(|| plan.clone()),
+        HostCallPlan::CompatibilityOracle => {
+            normalized_win64_import_plan(operands, returns_value).ok()
+        }
+    };
     let reserve = plan
         .as_ref()
         .map(win64_import_reserve_for_plan)
@@ -7230,7 +7254,7 @@ fn host_call_relocation_sites_for_plan<T: InstructionOperandLike>(
             HostCapability::Unknown | HostCapability::Custom(_)
         )
     {
-        return sysv_import_layout_with_plan(operands, true, authoritative_plan)
+        return sysv_import_layout_for_plan(operands, true, plan_source)
             .map(|layout| layout.relocation_sites)
             .unwrap_or_default();
     }
@@ -7242,14 +7266,19 @@ fn host_call_relocation_sites_for_plan<T: InstructionOperandLike>(
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
         ) => match validate_normalized_win64_get_std_handle_plan(authoritative_plan) {
-            Ok(()) => win64_import_call_relocation_sites_with_plan(operands, false, false, None),
+            Ok(()) => win64_import_call_relocation_sites_for_plan(
+                operands,
+                false,
+                false,
+                HostCallPlan::CompatibilityOracle,
+            ),
             Err(_) => Vec::new(),
         },
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => {
             // Single-u32-arg kernel32 calls now share the plan-driven general
             // import marshaller and therefore its relocation walker.
-            win64_import_call_relocation_sites_with_plan(operands, false, false, authoritative_plan)
+            win64_import_call_relocation_sites_for_plan(operands, false, false, plan_source)
         }
         (HostCapability::Input, HostOperation::KeyState) => {
             if encode_key_state_call(operands, authoritative_plan).is_err() {
@@ -7288,7 +7317,7 @@ fn host_call_relocation_sites_for_plan<T: InstructionOperandLike>(
             // 0-arg value-returning call through the general import-call layout
             // (call at 4+1; result-region base at 13+2 -- identical to the
             // original bespoke site list).
-            win64_import_call_relocation_sites_with_plan(operands, true, false, authoritative_plan)
+            win64_import_call_relocation_sites_for_plan(operands, true, false, plan_source)
         }
         (
             HostCapability::Clock,
@@ -7309,21 +7338,21 @@ fn host_call_relocation_sites_for_plan<T: InstructionOperandLike>(
         ) => constant_result_relocation_sites(),
         (HostCapability::Gui, _) => {
             // Value-returning general import calls (mirrors the encode arm).
-            win64_import_call_relocation_sites_with_plan(operands, true, false, authoritative_plan)
+            win64_import_call_relocation_sites_for_plan(operands, true, false, plan_source)
         }
         (HostCapability::Filesystem, _) => {
             // Value-returning general import calls; read_errno's deref shifts
             // the result-store site by 2 (mirrors the encode arm).
-            win64_import_call_relocation_sites_with_plan(
+            win64_import_call_relocation_sites_for_plan(
                 operands,
                 true,
                 operation_key.dereferences_result(),
-                authoritative_plan,
+                plan_source,
             )
         }
         (HostCapability::Unknown | HostCapability::Custom(_), _) => {
             // Provides-authored imports (mirrors the encode arm).
-            win64_import_call_relocation_sites_with_plan(operands, true, false, authoritative_plan)
+            win64_import_call_relocation_sites_for_plan(operands, true, false, plan_source)
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
