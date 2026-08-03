@@ -183,7 +183,26 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         ),
         // The MIXED HFA-plus-scalar send: NSRect (4 doubles → v0–v3) + 3 trailing
         // scalars (→ x2–x4) for `initWithContentRect:styleMask:backing:defer:`.
-        darwin_import("ObjectiveC", "send_rect", "_objc_msgSend", &policy),
+        darwin_typed_import(
+            "ObjectiveC",
+            "send_rect",
+            "_objc_msgSend",
+            CallSignature {
+                parameters: vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(8, 8),
+                    ValueShape::float(8),
+                    ValueShape::float(8),
+                    ValueShape::float(8),
+                    ValueShape::float(8),
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(8, 8),
+                ],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+            &policy,
+        ),
         // Four scalar args (x2–x5) for the event pump's
         // `nextEventMatchingMask:untilDate:inMode:dequeue:`.
         darwin_word_import(
@@ -195,7 +214,22 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             &policy,
         ),
         // Scalar + NSSize (2 doubles → v0,v1) for `initWithCGImage:size:`.
-        darwin_import("ObjectiveC", "send_image_size", "_objc_msgSend", &policy),
+        darwin_typed_import(
+            "ObjectiveC",
+            "send_image_size",
+            "_objc_msgSend",
+            CallSignature {
+                parameters: vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(8, 8),
+                    ValueShape::float(8),
+                    ValueShape::float(8),
+                ],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+            &policy,
+        ),
         // Runtime byte-buffer string send (`initWithUTF8String:` over the samples'
         // title bytes, NUL-terminated by construction). Shares `_objc_msgSend`.
         darwin_word_import(
@@ -227,8 +261,26 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
         // v0–v3 (`_CG*` routes to CoreGraphics via `darwin_import_library`). The
         // run-verified proof that 4 doubles land in v0–v3.
-        darwin_import("CoreGraphics", "rect_max_x", "_CGRectGetMaxX", &policy),
-        darwin_import("CoreGraphics", "rect_max_y", "_CGRectGetMaxY", &policy),
+        darwin_typed_import(
+            "CoreGraphics",
+            "rect_max_x",
+            "_CGRectGetMaxX",
+            CallSignature {
+                parameters: vec![ValueShape::float(8); 4],
+                result: Some(ValueShape::float(8)),
+            },
+            &policy,
+        ),
+        darwin_typed_import(
+            "CoreGraphics",
+            "rect_max_y",
+            "_CGRectGetMaxY",
+            CallSignature {
+                parameters: vec![ValueShape::float(8); 4],
+                result: Some(ValueShape::float(8)),
+            },
+            &policy,
+        ),
         // The blit path: framebuffer → CGImage via a bitmap context (all
         // integer/pointer args, no stack spill — vs `CGImageCreate`'s 11).
         darwin_import(

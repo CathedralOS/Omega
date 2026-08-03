@@ -708,6 +708,11 @@ lookup, the two-, three-, and six-word `objc_msgSend` forms, the runtime byte
 string send, and autorelease-pool push/pop retain their exact AAPCS64 word
 signatures. The source-level `pool_pop` scratch result remains part of its
 selected call shape even though the foreign function itself returns void.
+The mixed macOS GUI rows are typed rather than reduced to parameter counts.
+Rectangle and image-size message sends retain their ordered word/F64 parameter
+shapes and word result, while the CGRect max-X/max-Y functions retain four F64
+parameters and an F64 result. The AAPCS64 planner derives the independent X/V
+register streams from those exact selected shapes.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
