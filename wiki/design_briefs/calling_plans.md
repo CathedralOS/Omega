@@ -721,6 +721,10 @@ its pointer-dereference adapter. Other Darwin filesystem imports remain on an
 explicitly named compatibility helper until their seam canonicalizes a stored
 I32/U32 and a synthesized immediate to the same typed external scalar; binding
 one plan before that normalization would reject a valid call-site spelling.
+On Microsoft x64, the parameter-free `GetTickCount64` and
+`GetForegroundWindow` rows retain word-result plans, while `_errno` and
+`GetLastError` retain I32 stored-result plans. These rows need no compatibility
+with an untyped synthesized argument, so their selected plans are authoritative.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and

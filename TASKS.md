@@ -854,6 +854,8 @@ Remaining:
   rows remain implementation work: canonicalize stored I32/U32 and synthesized
   immediate operands to one typed external signature before attaching plans;
   do not claim that engineering dependency as a language-design blocker.
+  Windows' parameter-free `GetTickCount64`, `GetForegroundWindow`, `_errno`,
+  and `GetLastError` rows now retain exact Microsoft x64 result plans.
   The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized
