@@ -1047,11 +1047,11 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
 /// STACK, not a register — darwin `open(path, flags, ...)` reads the create `mode`
 /// via `va_arg`, and Apple arm64 places variadic args at `[sp,#0]`. The register
 /// args (`path` -> x0, `flags` -> x1) marshal normally; then the call is bracketed
-/// by `sub sp,sp,#16` … `str w9,[sp]` … `bl` … `add sp,sp,#16`. The `mode` must be
-/// a compile-time immediate (materialized into the caller-saved w9, no relocation
-/// of its own). The +12 (sub+str+add) is why `passes_trailing_mode_on_stack` adds
-/// 12 to the width + result-store relocation and 8 to the `BL` relocation (the add
-/// sits AFTER the BL) — MUST stay in lockstep with those sites.
+/// by `sub sp,sp,#16` … `str w10,[sp]` … `bl` … `add sp,sp,#16`. The `mode` must be
+/// a compile-time immediate (materialized into caller-saved w10, no relocation
+/// of its own). The complete argument plan must place that promoted int at stack
+/// offset zero; relocation and layout consumers derive their prefix/total stack
+/// widths from the same placement.
 pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
     argument_placements: &[ValuePlacement],
@@ -1072,36 +1072,57 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
             "AArch64 open_create result place did not lower to a runtime scalar",
         ));
     };
-    // args = [path, flags, mode]; the trailing `mode` is the stack-passed variadic.
-    let Some((mode_operand, register_args)) = args.split_last() else {
+    // args = [path, flags, mode]; the complete plan owns the fixed/anonymous
+    // boundary and the trailing stack placement.
+    let Some((_, _)) = args.split_last() else {
         return Err(Diagnostic::error(
             "AArch64 open_create host call is missing its mode argument",
         ));
     };
-    let ImmediateInteger(mode) = *mode_operand else {
+    let Some((mode_placement, named_placements)) = argument_placements.split_last() else {
         return Err(Diagnostic::error(
-            "AArch64 open_create mode must be a compile-time immediate (variadic stack marshalling)",
+            "AArch64 open_create call plan has no variadic mode placement",
         ));
     };
-    let mut bytes =
-        Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 12);
-    // `path` -> x0, `flags` -> x1 (the named register args).
-    let named_stack_bytes = append_call_operands(
-        &mut bytes,
-        register_args.iter().copied(),
-        argument_placements,
-    )?;
-    if named_stack_bytes != 0 {
+    if mode_placement.shape != omega_calling_conventions::ValueShape::integer(4, 4)
+        || !matches!(
+            mode_placement.locations.as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 4,
+                alignment: 8,
+            }]
+        )
+        || host_call_stack_total_width_for_placements(argument_placements) != 12
+    {
+        return Err(Diagnostic::error(format!(
+            "AArch64 open_create plan has unsupported variadic mode placement {:?}",
+            mode_placement.locations
+        )));
+    }
+    if named_placements.iter().any(|placement| {
+        placement
+            .locations
+            .iter()
+            .any(|location| !matches!(location, ValueLocation::Register { .. }))
+    }) {
         return Err(Diagnostic::error(
-            "AArch64 open_create cannot combine named stack arguments with its variadic stack seam",
+            "AArch64 open_create fixed parameters require register placements",
         ));
     }
-    // `mode` -> [sp,#0]: reserve a 16-byte-aligned slot, materialize into w9, store.
-    bytes.extend(encode_instruction(0xD100_43FF)); // sub sp, sp, #16
-    append_immediate(&mut bytes, 9, mode)?; // movz w9, #mode (+ movk if wide)
-    bytes.extend(encode_instruction(0xB900_03E9)); // str w9, [sp]
+    let mut bytes = Vec::with_capacity(
+        host_call_sequence_width_from_operands(all.iter().copied())
+            + host_call_stack_total_width_for_placements(argument_placements),
+    );
+    let stack_bytes = append_call_operands(&mut bytes, args.iter().copied(), argument_placements)?;
+    if stack_bytes != 16 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 open_create plan reserved {stack_bytes} stack bytes instead of 16"
+        )));
+    }
     bytes.extend(encode_branch_link_placeholder());
-    bytes.extend(encode_instruction(0x9100_43FF)); // add sp, sp, #16
+    append_call_stack_restore(&mut bytes, stack_bytes)?;
     let MachineRegister::Aarch64X(result_register) = result_register else {
         return Err(Diagnostic::error(format!(
             "AArch64 open_create call plan selected non-GPR result register {result_register:?}"

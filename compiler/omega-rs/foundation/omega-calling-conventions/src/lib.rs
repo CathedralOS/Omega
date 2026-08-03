@@ -152,11 +152,6 @@ impl HostOperationKey {
         )
     }
 
-    pub fn passes_trailing_mode_on_stack(self) -> bool {
-        matches!(self.capability, HostCapability::Filesystem)
-            && matches!(self.operation, HostOperation::OpenCreate)
-    }
-
     /// Whether this op's callee returns its result in the FLOAT return register
     /// (`d0`/`s0`) rather than `x0`: libm `sqrt`/`hypot` and, later, Core Graphics
     /// `double` getters. After the `BL` the lowering moves the bits back with
