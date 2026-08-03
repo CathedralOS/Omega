@@ -28,10 +28,10 @@ pub(super) fn collect_data_address_relocations(
         return;
     };
 
+    let selected_binding = operation_key.and_then(|key| find_host_binding(input, key));
     // A Linux syscall host call lays its arguments out differently than a win32
     // import call, so the data-address fixup offset must use the syscall layout.
-    let is_syscall = operation_key
-        .and_then(|key| find_host_binding(input, key))
+    let is_syscall = selected_binding
         .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }));
     // An AUTHORED import (custom capability + Import mechanism) always rides
     // the value-returning layout on aarch64 -- the operand fixups shift the
@@ -41,37 +41,37 @@ pub(super) fn collect_data_address_relocations(
             key.capability,
             omega_calling_conventions::HostCapability::Custom(_)
                 | omega_calling_conventions::HostCapability::Unknown
-        ) && find_host_binding(input, key)
+        ) && selected_binding
             .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Import { .. }))
     });
-    let authoritative_plan = operation_key
-        .and_then(|key| find_host_binding(input, key))
-        .and_then(omega_calling_conventions::HostBinding::call_plan);
+    let authoritative_plan = selected_binding.map(|binding| {
+        binding
+            .call_plan()
+            .expect("host relocation plan was validated before data-address collection")
+    });
     // A field-model call's fixup layout depends on the mechanism's shape:
     // whether the receiver is a wire argument (This-call vtable) or
     // dispatch-only (service table), and whether a result place leads the
     // operands (more operands than declared parameters).
-    let field_model_shape = operation_key
-        .and_then(|key| find_host_binding(input, key))
-        .and_then(|binding| match &binding.mechanism {
-            HostBindingMechanism::VtableSlot { .. } => Some(FieldModelCallShape {
+    let field_model_shape = selected_binding.and_then(|binding| match &binding.mechanism {
+        HostBindingMechanism::VtableSlot { .. } => Some(FieldModelCallShape {
+            passes_receiver: true,
+            result_present: false,
+        }),
+        HostBindingMechanism::VtableField { .. } => {
+            authoritative_plan.map(|plan| FieldModelCallShape {
                 passes_receiver: true,
-                result_present: false,
-            }),
-            HostBindingMechanism::VtableField { .. } => {
-                authoritative_plan.map(|plan| FieldModelCallShape {
-                    passes_receiver: true,
-                    result_present: operands.len() > plan.parameters.len(),
-                })
-            }
-            HostBindingMechanism::TableFunction { .. } => {
-                authoritative_plan.map(|plan| FieldModelCallShape {
-                    passes_receiver: false,
-                    result_present: operands.len() > plan.parameters.len() + 1,
-                })
-            }
-            _ => None,
-        });
+                result_present: operands.len() > plan.parameters.len(),
+            })
+        }
+        HostBindingMechanism::TableFunction { .. } => {
+            authoritative_plan.map(|plan| FieldModelCallShape {
+                passes_receiver: false,
+                result_present: operands.len() > plan.parameters.len() + 1,
+            })
+        }
+        _ => None,
+    });
 
     for (operand_index, operand) in operands.iter().enumerate() {
         if let Some(data) = operand.data_address() {
