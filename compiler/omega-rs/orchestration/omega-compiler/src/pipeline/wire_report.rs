@@ -636,7 +636,7 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
     }
 }
 
-/// Mirrors the chapter 20 compatibility rules enforced in `omega-validation`,
+/// Mirrors the chapter 20 compatibility rules enforced in `psi-validation`,
 /// applied between an era and its SUCCESSOR in the version chain: stable or
 /// renamed fields and additive fields are compatible; a stable field number
 /// changing type across eras is legal evolution surfaced as "requires

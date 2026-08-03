@@ -94,9 +94,6 @@ Omega/
 |   |-- foundation/
 |   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.
 |   |
-|   |-- semantics/
-|   |   `-- [CRATE] omega-validation/                   # Transitional re-export of Psi-owned source validation.
-|   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-effects/                      # Omega provider bindings/admission plus transitional Psi-effect exports.
 |   |   |-- [CRATE] omega-checked-trees/                # Transitional re-export of Psi-owned checked trees.
@@ -264,9 +261,10 @@ Omega/
   re-exporting the Psi facts for legacy consumers. Checked semantic trees do
   not retain that Omega realization sidecar.
 - `psi-validation` answers target-neutral cross-semantic obligations, including
-  who may read or mutate and what a callable requires or promises. The old
-  `omega-validation` name is a compatibility export; provider installation and
-  approval remain in Omega.
+  who may read or mutate and what a callable requires or promises. The unused
+  former `omega-validation` compatibility package is retired; its cross-owner
+  integration tests live in the architecture harness. Provider installation
+  and approval remain in Omega.
 - `psi-proof` plans and discharges source-level obligations. The unused former
   `omega-proof` package is retired.
 - `omega-compiler` invokes the Psi-owned source-to-checked frontend directly;

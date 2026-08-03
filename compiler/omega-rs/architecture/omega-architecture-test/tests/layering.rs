@@ -76,9 +76,6 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
     ("object", "backend"),
     // `omega-backend-plan` (a representation) depends on `omega-object-file`.
     ("representations", "object"),
-    // The `omega-validation` compatibility crate re-runs the Psi-owned
-    // front-of-pipeline passes (source->tokens->...->typed) in its tests.
-    ("semantics", "pipeline"),
 ];
 
 /// Classify a governed Omega or Psi crate into an architectural layer from its
@@ -307,23 +304,6 @@ fn psi_does_not_depend_on_omega() {
 #[test]
 fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
-    for (relative, expected_export) in [(
-        "compiler/omega-rs/semantics/omega-validation/src/lib.rs",
-        "pub use psi_validation::*;",
-    )] {
-        let path = root.join(relative);
-        let source = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-        assert!(
-            source.contains(expected_export),
-            "legacy frontend crate must re-export its Psi-owned implementation: {relative}"
-        );
-        assert!(
-            !source.contains("pub mod "),
-            "legacy frontend crate must not regain an implementation module: {relative}"
-        );
-    }
-
     for (relative, expected_export) in [
         (
             "compiler/omega-rs/foundation/omega-core/src/arithmetic.rs",
@@ -536,6 +516,7 @@ fn retired_omega_frontend_adapters_do_not_return() {
         "compiler/omega-rs/representations/omega-facts",
         "compiler/omega-rs/semantics/omega-proof",
         "compiler/omega-rs/semantics/omega-types",
+        "compiler/omega-rs/semantics/omega-validation",
     ] {
         assert!(
             !root.join(relative).join("Cargo.toml").exists(),

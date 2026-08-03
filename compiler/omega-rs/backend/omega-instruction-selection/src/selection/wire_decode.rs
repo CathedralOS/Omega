@@ -18,7 +18,7 @@
 //! for memory safety; the exact-end check catches a length that disagrees
 //! with the content in either direction.
 //!
-//! Front-end validation (`omega-validation::wire`) has already guaranteed
+//! Front-end validation (`psi-validation::wire`) has already guaranteed
 //! the call shape, the field coverage, and the stage 2 field set (scalar-only
 //! children, one nesting level), so an unresolvable place here is a planning
 //! blocker rather than a silent skip.

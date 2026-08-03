@@ -1,7 +1,7 @@
 //! R1 dependent-range recognizer (chapter 12): the ADMISSIBLE symbolic
 //! bound shapes a declared range's endpoint may take. One recognizer, three
 //! policy consumers -- the validation fence (which non-constant bounds are
-//! legal, omega-validation type_references.rs), the proof-plan atom minting
+//! legal, psi-validation type_references.rs), the proof-plan atom minting
 //! (psi-proof obligations.rs), and the callee-side range substitution
 //! (psi-typed-trees-to-checked-trees index proofs) -- so "admissible" can
 //! never drift between the gate and the dischargers.

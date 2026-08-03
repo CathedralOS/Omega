@@ -953,8 +953,9 @@ improvements do not change public identity.
   proof, borrow, flow, reach, value-origin, and admissibility evidence;
   `omega-checked-trees` is now only a compatibility export for unmigrated
   consumers.
-  `psi-validation` owns target-neutral cross-semantic source validation;
-  `omega-validation` is a compatibility export whose retained tests also cover
+  `psi-validation` owns target-neutral cross-semantic source validation. The
+  unused former `omega-validation` compatibility package is retired; its
+  integration tests remain in the architecture harness, where they also cover
   the separate Omega provider-admission subsystem.
   `psi-types` owns the unresolved source type-surface analysis; the unused
   former `omega-types` package is retired.

@@ -6994,7 +6994,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// §5b recast (`&x as &T`): bit-REINTERPRET, never convert. Validation
-    /// (omega-validation recasts.rs, rung A) guarantees equal scalar widths
+    /// (psi-validation recasts.rs, rung A) guarantees equal scalar widths
     /// and fences bool/text/records, so the reinterpretation below is total.
     /// A SNAPSHOT of the source's bits is sound for the shared-only rung:
     /// borrow exclusivity freezes the source while the view lives. Native
