@@ -1431,12 +1431,12 @@ pub fn host_call_data_relocation_site_no_plan<T: InstructionOperandLike>(
     operands: &[T],
     operand_index: usize,
 ) -> Option<X86_64RelocationSite> {
-    host_call_data_relocation_site_optional_plan(
+    host_call_data_relocation_site_for_plan(
         policy,
         operation_key,
         operands,
         operand_index,
-        None,
+        HostCallPlan::CompatibilityOracle,
     )
 }
 
@@ -1447,33 +1447,28 @@ pub fn host_call_data_relocation_site_with_plan<T: InstructionOperandLike>(
     operand_index: usize,
     authoritative_plan: &CallPlan,
 ) -> Option<X86_64RelocationSite> {
-    host_call_data_relocation_site_optional_plan(
+    host_call_data_relocation_site_for_plan(
         policy,
         operation_key,
         operands,
         operand_index,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn host_call_data_relocation_site_optional_plan<T: InstructionOperandLike>(
+fn host_call_data_relocation_site_for_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
     operand_index: usize,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Option<X86_64RelocationSite> {
-    host_call_relocation_sites_for_policy_with_plan(
-        policy,
-        operation_key,
-        operands,
-        authoritative_plan,
-    )
-    .into_iter()
-    .find(|site| {
-        site.operand_index == Some(operand_index)
-            && site.kind == X86_64RelocationSiteKind::Absolute64
-    })
+    host_call_relocation_sites_for_plan(policy, operation_key, operands, plan_source)
+        .into_iter()
+        .find(|site| {
+            site.operand_index == Some(operand_index)
+                && site.kind == X86_64RelocationSiteKind::Absolute64
+        })
 }
 
 /// A `mov <arg-reg>, imm64` is 10 bytes (2-byte REX.W+B8 prefix, then the imm64), and
@@ -2055,7 +2050,12 @@ pub fn host_call_external_relocation_site_no_plan<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Option<X86_64RelocationSite> {
-    host_call_external_relocation_site_optional_plan(policy, operation_key, operands, None)
+    host_call_external_relocation_site_for_plan(
+        policy,
+        operation_key,
+        operands,
+        HostCallPlan::CompatibilityOracle,
+    )
 }
 
 pub fn host_call_external_relocation_site_with_plan<T: InstructionOperandLike>(
@@ -2064,28 +2064,23 @@ pub fn host_call_external_relocation_site_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     authoritative_plan: &CallPlan,
 ) -> Option<X86_64RelocationSite> {
-    host_call_external_relocation_site_optional_plan(
+    host_call_external_relocation_site_for_plan(
         policy,
         operation_key,
         operands,
-        Some(authoritative_plan),
+        HostCallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn host_call_external_relocation_site_optional_plan<T: InstructionOperandLike>(
+fn host_call_external_relocation_site_for_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Option<X86_64RelocationSite> {
-    host_call_relocation_sites_for_policy_with_plan(
-        policy,
-        operation_key,
-        operands,
-        authoritative_plan,
-    )
-    .into_iter()
-    .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
+    host_call_relocation_sites_for_plan(policy, operation_key, operands, plan_source)
+        .into_iter()
+        .find(|site| site.kind == X86_64RelocationSiteKind::Relative32)
 }
 
 pub fn encode_host_call_sequence_no_plan<T: InstructionOperandLike>(
@@ -7214,15 +7209,21 @@ fn host_call_relocation_sites_for_policy<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Vec<X86_64RelocationSite> {
-    host_call_relocation_sites_for_policy_with_plan(policy, operation_key, operands, None)
+    host_call_relocation_sites_for_plan(
+        policy,
+        operation_key,
+        operands,
+        HostCallPlan::CompatibilityOracle,
+    )
 }
 
-fn host_call_relocation_sites_for_policy_with_plan<T: InstructionOperandLike>(
+fn host_call_relocation_sites_for_plan<T: InstructionOperandLike>(
     policy: CallingPolicy,
     operation_key: HostOperationKey,
     operands: &[T],
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostCallPlan<'_>,
 ) -> Vec<X86_64RelocationSite> {
+    let authoritative_plan = plan_source.authoritative();
     if policy == CallingPolicy::SystemVAMD64
         && matches!(
             operation_key.capability,
