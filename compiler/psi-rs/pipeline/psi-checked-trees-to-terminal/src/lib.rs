@@ -1136,9 +1136,6 @@ fn lower_direct_parameter_machine(
         return unsupported("state contracts are not supported");
     }
     let parameters = checked.state_parameters(entry_state);
-    if parameters.is_empty() {
-        return unsupported("direct-parameter machine must declare at least one parameter");
-    }
     if parameters
         .iter()
         .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
@@ -1177,7 +1174,13 @@ fn lower_direct_parameter_machine(
         &parameter_types,
         result_type,
     )?;
-    let contract_value = validate_contract(checked, machine, result_type, None)?;
+    let ScalarType::Integer(result_integer_type) = result_type else {
+        unreachable!("integer source result lowered to a non-integer scalar type");
+    };
+    let known_parameters = vec![None; parameter_types.len()];
+    let expected_value =
+        evaluate_direct_expression(&return_expression, &known_parameters, result_integer_type);
+    let contract_value = validate_contract(checked, machine, result_type, expected_value)?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state)?;
     Ok(build_direct_parameter_module(

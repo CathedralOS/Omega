@@ -70,8 +70,9 @@ nonempty linear sequence of unconditional state bindings. Every non-entry
 Boolean state has one ordinary Boolean parameter, and each jump carries a
 literal or an exact parameter from its source state. Compile-known Boolean
 bindings likewise must match the closed reflexive contract. A single-state
-integer machine may declare any nonempty sequence of ordinary primitive-integer
-parameters and return one exact named parameter or a recursively nested
+integer machine may declare any sequence of ordinary primitive-integer
+parameters, including none, and return one exact named parameter, one landed
+literal, or a recursively nested
 expression over parameters and landed literals using the six builtin
 add/subtract/multiply operations in the settled Wrapping or Saturating domains.
 The linear integer form may declare any sequence of ordinary primitive-integer
@@ -88,7 +89,8 @@ including selected domain-owned operator meanings. The source canary lowers
 all six versioned integer-policy operations in both constant-fed and
 runtime-parameter forms, Boolean literal and ninth-parameter returns, a
 three-state Boolean chain carrying its ninth parameter, a closed three-state
-integer chain, plus a nine-parameter integer direct return, discards
+integer chain, a direct zero-parameter integer literal, plus a nine-parameter
+integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;

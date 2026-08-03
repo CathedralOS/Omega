@@ -1102,9 +1102,9 @@ improvements do not change public identity.
   one exact integer block parameter per non-entry state. Optional compile-known
   propagation crosses every binding, so a closed chain's recomputed result must
   match its authored reflexive contract.
-  A second exact form lowers any
-  nonempty sequence of ordinary primitive-integer machine parameters and an
-  exact recursively nested parameter/literal expression using builtin
+  A second exact form lowers any sequence of ordinary primitive-integer machine
+  parameters, including none, and an exact literal, named parameter, or
+  recursively nested parameter/literal expression using builtin
   add/subtract/multiply in a settled arithmetic domain. A third exact form
   lowers a Boolean literal or one exact named parameter from ordinary Boolean
   parameters, either directly or through a nonempty linear sequence of
@@ -1113,9 +1113,9 @@ improvements do not change public identity.
   It emits the module and
   proof bundle separately; real-source canaries cover all six versioned integer
   policy operations in constant-fed and runtime-fed forms, Boolean literal,
-  ninth-parameter direct and three-state bound returns, a closed three-state
-  integer chain, plus a ninth-parameter integer stack return after
-  `CheckedTrees` are dropped. Constant-fed
+  ninth-parameter direct and three-state bound returns, a direct closed integer
+  literal, a closed three-state integer chain, plus a ninth-parameter integer
+  stack return after `CheckedTrees` are dropped. Constant-fed
   wrapping add, the direct stack return, and a register-plus-stack runtime
   wrapping add all reach emitted host machine code; Boolean literal, ninth-
   parameter direct return, and the three-state Boolean binding chain

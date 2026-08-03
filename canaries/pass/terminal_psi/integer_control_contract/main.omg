@@ -9,6 +9,13 @@ ensures 7i32 == 7i32
     state pass(value: i32) -> i32 { 7i32 }
 }
 
+machine terminal_direct_integer_constant() -> u8
+requires 42u8 == 42u8
+ensures 42u8 == 42u8
+{
+    42u8
+}
+
 machine terminal_closed_integer_chain() -> u8 in Wrapping
 requires 42u8 == 42u8
 ensures 42u8 == 42u8
