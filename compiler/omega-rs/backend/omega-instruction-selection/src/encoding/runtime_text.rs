@@ -8,7 +8,7 @@ use omega_target::Architecture;
 use omega_target_operations::RuntimeTextReadTarget;
 use psi_diagnostics::Diagnostic;
 
-use super::host::normalized_syscall_registers_with_plan;
+use super::host::{SyscallPlan, normalized_syscall_registers_for_plan};
 
 #[derive(Debug, Clone, Copy)]
 enum ResolvedRuntimeTextCallPlans<'plan> {
@@ -25,6 +25,16 @@ impl<'plan> ResolvedRuntimeTextCallPlans<'plan> {
         match self {
             Self::Direct(plan) => Some(plan),
             Self::CompatibilityOracle | Self::WindowsFileAdapter { .. } => None,
+        }
+    }
+
+    fn syscall(self) -> Result<SyscallPlan<'plan>, Diagnostic> {
+        match self {
+            Self::CompatibilityOracle => Ok(SyscallPlan::CompatibilityOracle),
+            Self::Direct(plan) => Ok(SyscallPlan::Authoritative(plan)),
+            Self::WindowsFileAdapter { .. } => Err(Diagnostic::error(
+                "the Windows runtime text adapter plan pair cannot encode a syscall",
+            )),
         }
     }
 
@@ -501,12 +511,8 @@ fn encode_runtime_byte_read_for_plans(
                 aarch64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers_with_plan(
-                    architecture,
-                    3,
-                    true,
-                    authoritative_plan,
-                )?;
+                let registers =
+                    normalized_syscall_registers_for_plan(architecture, 3, true, plans.syscall()?)?;
                 aarch64::encode_runtime_byte_read_syscall(
                     target_offset,
                     payload_offset,
@@ -529,12 +535,8 @@ fn encode_runtime_byte_read_for_plans(
                 x86_64::encode_runtime_byte_read_import(target_offset, payload_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers_with_plan(
-                    architecture,
-                    3,
-                    true,
-                    authoritative_plan,
-                )?;
+                let registers =
+                    normalized_syscall_registers_for_plan(architecture, 3, true, plans.syscall()?)?;
                 x86_64::encode_runtime_byte_read_syscall(
                     target_offset,
                     payload_offset,
@@ -607,12 +609,8 @@ fn encode_runtime_byte_write_for_plans(
                 aarch64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers_with_plan(
-                    architecture,
-                    3,
-                    true,
-                    authoritative_plan,
-                )?;
+                let registers =
+                    normalized_syscall_registers_for_plan(architecture, 3, true, plans.syscall()?)?;
                 aarch64::encode_runtime_byte_write_syscall(
                     source_offset,
                     *number,
@@ -634,12 +632,8 @@ fn encode_runtime_byte_write_for_plans(
                 x86_64::encode_runtime_byte_write_import(source_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers_with_plan(
-                    architecture,
-                    3,
-                    true,
-                    authoritative_plan,
-                )?;
+                let registers =
+                    normalized_syscall_registers_for_plan(architecture, 3, true, plans.syscall()?)?;
                 x86_64::encode_runtime_byte_write_syscall(
                     source_offset,
                     *number,
@@ -744,12 +738,8 @@ fn encode_runtime_text_line_read_for_plans(
                 }
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers_with_plan(
-                    architecture,
-                    3,
-                    true,
-                    authoritative_plan,
-                )?;
+                let registers =
+                    normalized_syscall_registers_for_plan(architecture, 3, true, plans.syscall()?)?;
                 let result_register = registers.required_result()?;
                 match target {
                     RuntimeTextReadTarget::BoundedByteBuffer => {
@@ -812,12 +802,8 @@ fn encode_runtime_text_line_read_for_plans(
                 }
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                let registers = normalized_syscall_registers_with_plan(
-                    architecture,
-                    3,
-                    true,
-                    authoritative_plan,
-                )?;
+                let registers =
+                    normalized_syscall_registers_for_plan(architecture, 3, true, plans.syscall()?)?;
                 let result_register = registers.required_result()?;
                 match target {
                     RuntimeTextReadTarget::BoundedByteBuffer => {

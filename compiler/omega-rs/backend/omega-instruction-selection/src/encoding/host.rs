@@ -33,6 +33,21 @@ impl<'plan> HostImportPlan<'plan> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum SyscallPlan<'plan> {
+    CompatibilityOracle,
+    Authoritative(&'plan CallPlan),
+}
+
+impl<'plan> SyscallPlan<'plan> {
+    const fn authoritative(self) -> Option<&'plan CallPlan> {
+        match self {
+            Self::CompatibilityOracle => None,
+            Self::Authoritative(plan) => Some(plan),
+        }
+    }
+}
+
 impl NormalizedSyscallRegisters {
     pub(super) fn required_result(
         &self,
@@ -43,12 +58,13 @@ impl NormalizedSyscallRegisters {
     }
 }
 
-pub(super) fn normalized_syscall_registers_with_plan(
+pub(super) fn normalized_syscall_registers_for_plan(
     architecture: Architecture,
     parameter_count: usize,
     has_result: bool,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<NormalizedSyscallRegisters, Diagnostic> {
+    let authoritative_plan = plan_source.authoritative();
     let policy = match architecture {
         Architecture::Aarch64 => CallingPolicy::LinuxSyscallAarch64,
         Architecture::X86_64 => CallingPolicy::LinuxSyscallX86_64,
@@ -635,11 +651,11 @@ pub fn normalized_aarch64_host_argument_placements_no_plan<T: InstructionOperand
     operands: &[T],
     authored_import: bool,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    normalized_aarch64_host_argument_placements_optional_plan(
+    normalized_aarch64_host_argument_placements_for_plan(
         operation_key,
         operands,
         authored_import,
-        None,
+        HostImportPlan::CompatibilityOracle,
     )
 }
 
@@ -649,20 +665,21 @@ pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOpera
     authored_import: bool,
     authoritative_plan: &CallPlan,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
-    normalized_aarch64_host_argument_placements_optional_plan(
+    normalized_aarch64_host_argument_placements_for_plan(
         operation_key,
         operands,
         authored_import,
-        Some(authoritative_plan),
+        HostImportPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn normalized_aarch64_host_argument_placements_optional_plan<T: InstructionOperandLike>(
+fn normalized_aarch64_host_argument_placements_for_plan<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
     authored_import: bool,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostImportPlan<'_>,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
+    let authoritative_plan = plan_source.authoritative();
     if is_open_create(operation_key) {
         return normalized_darwin_open_create_plan(operands, authoritative_plan)
             .map(|(placements, _)| placements);
@@ -1277,7 +1294,12 @@ pub fn encode_syscall_sequence_no_plan<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_syscall_sequence_optional_plan(architecture, operands, syscall_number, None)
+    encode_syscall_sequence_for_plan(
+        architecture,
+        operands,
+        syscall_number,
+        SyscallPlan::CompatibilityOracle,
+    )
 }
 
 pub fn encode_syscall_sequence_with_plan<T: InstructionOperandLike>(
@@ -1286,26 +1308,22 @@ pub fn encode_syscall_sequence_with_plan<T: InstructionOperandLike>(
     syscall_number: u32,
     authoritative_plan: &CallPlan,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_syscall_sequence_optional_plan(
+    encode_syscall_sequence_for_plan(
         architecture,
         operands,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn encode_syscall_sequence_optional_plan<T: InstructionOperandLike>(
+fn encode_syscall_sequence_for_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let registers = normalized_syscall_registers_with_plan(
-        architecture,
-        operands.len(),
-        false,
-        authoritative_plan,
-    )?;
+    let registers =
+        normalized_syscall_registers_for_plan(architecture, operands.len(), false, plan_source)?;
 
     match architecture {
         Architecture::Aarch64 => aarch64::encode_syscall_sequence_from_operands(
@@ -1329,19 +1347,15 @@ fn encode_value_syscall_sequence_with_site<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {
     let Some((_, arguments)) = operands.split_first() else {
         return Err(Diagnostic::error(
             "value-returning syscall has no result storage operand",
         ));
     };
-    let registers = normalized_syscall_registers_with_plan(
-        architecture,
-        arguments.len(),
-        true,
-        authoritative_plan,
-    )?;
+    let registers =
+        normalized_syscall_registers_for_plan(architecture, arguments.len(), true, plan_source)?;
     let result_register = registers.required_result()?;
     match architecture {
         Architecture::Aarch64 => aarch64::encode_value_syscall_sequence(
@@ -1371,8 +1385,13 @@ pub fn encode_value_syscall_sequence_no_plan<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_value_syscall_sequence_with_site(architecture, operands, syscall_number, None)
-        .map(|(bytes, _)| bytes)
+    encode_value_syscall_sequence_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        SyscallPlan::CompatibilityOracle,
+    )
+    .map(|(bytes, _)| bytes)
 }
 
 pub fn encode_value_syscall_sequence_with_plan<T: InstructionOperandLike>(
@@ -1385,7 +1404,7 @@ pub fn encode_value_syscall_sequence_with_plan<T: InstructionOperandLike>(
         architecture,
         operands,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
     .map(|(bytes, _)| bytes)
 }
@@ -1396,12 +1415,12 @@ pub fn value_syscall_relocation_byte_offset_no_plan<T: InstructionOperandLike>(
     operand_index: usize,
     syscall_number: u32,
 ) -> Result<usize, Diagnostic> {
-    value_syscall_relocation_byte_offset_optional_plan(
+    value_syscall_relocation_byte_offset_for_plan(
         architecture,
         operands,
         operand_index,
         syscall_number,
-        None,
+        SyscallPlan::CompatibilityOracle,
     )
 }
 
@@ -1412,27 +1431,27 @@ pub fn value_syscall_relocation_byte_offset_with_plan<T: InstructionOperandLike>
     syscall_number: u32,
     authoritative_plan: &CallPlan,
 ) -> Result<usize, Diagnostic> {
-    value_syscall_relocation_byte_offset_optional_plan(
+    value_syscall_relocation_byte_offset_for_plan(
         architecture,
         operands,
         operand_index,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn value_syscall_relocation_byte_offset_optional_plan<T: InstructionOperandLike>(
+fn value_syscall_relocation_byte_offset_for_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     operand_index: usize,
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<usize, Diagnostic> {
     let (_, result_site) = encode_value_syscall_sequence_with_site(
         architecture,
         operands,
         syscall_number,
-        authoritative_plan,
+        plan_source,
     )?;
     if operand_index == 0 {
         return Ok(result_site);
@@ -1462,15 +1481,14 @@ fn encode_linux_timespec_syscall_with_site<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {
     if operands.len() != 2 {
         return Err(Diagnostic::error(
             "Linux timespec lowering requires one semantic result and one injected clock id",
         ));
     }
-    let registers =
-        normalized_syscall_registers_with_plan(architecture, 2, true, authoritative_plan)?;
+    let registers = normalized_syscall_registers_for_plan(architecture, 2, true, plan_source)?;
     let result_register = registers.required_result()?;
     match architecture {
         Architecture::Aarch64 => aarch64::encode_linux_timespec_syscall(
@@ -1503,8 +1521,13 @@ pub fn encode_linux_timespec_syscall_no_plan<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_linux_timespec_syscall_with_site(architecture, operands, syscall_number, None)
-        .map(|(bytes, _)| bytes)
+    encode_linux_timespec_syscall_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        SyscallPlan::CompatibilityOracle,
+    )
+    .map(|(bytes, _)| bytes)
 }
 
 pub fn encode_linux_timespec_syscall_with_plan<T: InstructionOperandLike>(
@@ -1517,7 +1540,7 @@ pub fn encode_linux_timespec_syscall_with_plan<T: InstructionOperandLike>(
         architecture,
         operands,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
     .map(|(bytes, _)| bytes)
 }
@@ -1527,11 +1550,11 @@ pub fn linux_timespec_result_relocation_byte_offset_no_plan<T: InstructionOperan
     operands: &[T],
     syscall_number: u32,
 ) -> Result<usize, Diagnostic> {
-    linux_timespec_result_relocation_byte_offset_optional_plan(
+    linux_timespec_result_relocation_byte_offset_for_plan(
         architecture,
         operands,
         syscall_number,
-        None,
+        SyscallPlan::CompatibilityOracle,
     )
 }
 
@@ -1541,42 +1564,36 @@ pub fn linux_timespec_result_relocation_byte_offset_with_plan<T: InstructionOper
     syscall_number: u32,
     authoritative_plan: &CallPlan,
 ) -> Result<usize, Diagnostic> {
-    linux_timespec_result_relocation_byte_offset_optional_plan(
+    linux_timespec_result_relocation_byte_offset_for_plan(
         architecture,
         operands,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn linux_timespec_result_relocation_byte_offset_optional_plan<T: InstructionOperandLike>(
+fn linux_timespec_result_relocation_byte_offset_for_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<usize, Diagnostic> {
-    encode_linux_timespec_syscall_with_site(
-        architecture,
-        operands,
-        syscall_number,
-        authoritative_plan,
-    )
-    .map(|(_, byte_offset)| byte_offset)
+    encode_linux_timespec_syscall_with_site(architecture, operands, syscall_number, plan_source)
+        .map(|(_, byte_offset)| byte_offset)
 }
 
 fn encode_linux_timespec_argument_syscall_with_site<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<(Vec<u8>, Option<usize>), Diagnostic> {
     if operands.len() != 1 {
         return Err(Diagnostic::error(
             "Linux timespec-argument lowering requires one semantic millisecond argument",
         ));
     }
-    let registers =
-        normalized_syscall_registers_with_plan(architecture, 2, true, authoritative_plan)?;
+    let registers = normalized_syscall_registers_for_plan(architecture, 2, true, plan_source)?;
     let result_register = registers.required_result()?;
     match architecture {
         Architecture::Aarch64 => aarch64::encode_linux_timespec_argument_syscall(
@@ -1609,8 +1626,13 @@ pub fn encode_linux_timespec_argument_syscall_no_plan<T: InstructionOperandLike>
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    encode_linux_timespec_argument_syscall_with_site(architecture, operands, syscall_number, None)
-        .map(|(bytes, _)| bytes)
+    encode_linux_timespec_argument_syscall_with_site(
+        architecture,
+        operands,
+        syscall_number,
+        SyscallPlan::CompatibilityOracle,
+    )
+    .map(|(bytes, _)| bytes)
 }
 
 pub fn encode_linux_timespec_argument_syscall_with_plan<T: InstructionOperandLike>(
@@ -1623,7 +1645,7 @@ pub fn encode_linux_timespec_argument_syscall_with_plan<T: InstructionOperandLik
         architecture,
         operands,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
     .map(|(bytes, _)| bytes)
 }
@@ -1633,11 +1655,11 @@ pub fn linux_timespec_argument_relocation_byte_offset_no_plan<T: InstructionOper
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Option<usize>, Diagnostic> {
-    linux_timespec_argument_relocation_byte_offset_optional_plan(
+    linux_timespec_argument_relocation_byte_offset_for_plan(
         architecture,
         operands,
         syscall_number,
-        None,
+        SyscallPlan::CompatibilityOracle,
     )
 }
 
@@ -1647,25 +1669,25 @@ pub fn linux_timespec_argument_relocation_byte_offset_with_plan<T: InstructionOp
     syscall_number: u32,
     authoritative_plan: &CallPlan,
 ) -> Result<Option<usize>, Diagnostic> {
-    linux_timespec_argument_relocation_byte_offset_optional_plan(
+    linux_timespec_argument_relocation_byte_offset_for_plan(
         architecture,
         operands,
         syscall_number,
-        Some(authoritative_plan),
+        SyscallPlan::Authoritative(authoritative_plan),
     )
 }
 
-fn linux_timespec_argument_relocation_byte_offset_optional_plan<T: InstructionOperandLike>(
+fn linux_timespec_argument_relocation_byte_offset_for_plan<T: InstructionOperandLike>(
     architecture: Architecture,
     operands: &[T],
     syscall_number: u32,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: SyscallPlan<'_>,
 ) -> Result<Option<usize>, Diagnostic> {
     encode_linux_timespec_argument_syscall_with_site(
         architecture,
         operands,
         syscall_number,
-        authoritative_plan,
+        plan_source,
     )
     .map(|(_, byte_offset)| byte_offset)
 }
