@@ -659,9 +659,12 @@ Generated entry-prologue derivation now retains the exact semantic parameter
 position, normalized ABI placement, destination, and generated write range.
 The Omega sidecar can produce a borrowed body-handoff carrier only by joining
 that row and propagated checked parameter fact to the matching live occurrence;
-index or placement drift rejects, and no detachable receipt is created. The
-concrete provider entry executor still must require this carrier when it
-dispatches the checked adapter body; the selected schema alone remains
+index or placement drift rejects, and no detachable receipt is created.
+Concrete provider-entry dispatch performs that join internally and invokes the
+checked-body executor only with the resulting borrowed carrier. The carrier
+names the exact implementation machine and state, propagated fact, semantic
+parameter, ABI placement, and generated write range. Failed occurrence or
+placement admission never enters the body; the selected schema alone remains
 insufficient.
 
 Mask transitions use the ordinary routed-result path. Core's `Active` domain
