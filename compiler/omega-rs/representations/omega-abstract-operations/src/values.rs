@@ -1,5 +1,5 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, Handle};
+use psi_arena::{Arena, Handle};
 use psi_numerics::arithmetic::ArithmeticPolicyAdapter;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::expression::ExpressionHandle;

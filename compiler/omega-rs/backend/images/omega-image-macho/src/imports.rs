@@ -335,11 +335,11 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
 mod tests {
     use super::{install_import_thunks, patch_import_thunks, validate_import_thunk_footprints};
     use omega_calling_conventions::MachineRegister;
-    use omega_core::arena::Handle;
     use omega_image::{
         FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageLayout,
         FinalImageRelocation, FinalImageSymbol,
     };
+    use psi_arena::Handle;
 
     fn image_with_referenced_import() -> FinalImage {
         let mut image = FinalImage::with_capacity(

@@ -76,11 +76,11 @@ pub(super) fn plan_transition(
             target: PlannedTransitionTarget::Terminal,
             continuation: PlannedTransitionTarget::None,
             expressions: TransitionExpressionRefs {
-                target_arguments: omega_core::arena::HandleSpan::empty(),
+                target_arguments: psi_arena::HandleSpan::empty(),
                 target_value: state_graph
                     .expressions
                     .copy_from(&program.expression_table, *expression),
-                continuation_arguments: omega_core::arena::HandleSpan::empty(),
+                continuation_arguments: psi_arena::HandleSpan::empty(),
                 continuation_value: ExpressionHandle::invalid(),
                 guard: ExpressionHandle::invalid(),
             },
@@ -106,7 +106,7 @@ pub(super) fn plan_transition(
                         table.arguments,
                     ),
                     target_value: ExpressionHandle::invalid(),
-                    continuation_arguments: omega_core::arena::HandleSpan::empty(),
+                    continuation_arguments: psi_arena::HandleSpan::empty(),
                     continuation_value: ExpressionHandle::invalid(),
                     guard: ExpressionHandle::invalid(),
                 },
@@ -148,9 +148,9 @@ fn table_transition_target_arguments(
     target: psi_checked_trees::statement::TransitionTargetHandle,
     program: &CheckedTrees,
     state_graph: &mut StateGraph,
-) -> omega_core::arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
+) -> psi_arena::HandleSpan<psi_checked_trees::expression::ExpressionHandle> {
     if !target.is_valid() {
-        return omega_core::arena::HandleSpan::empty();
+        return psi_arena::HandleSpan::empty();
     }
 
     match program.statement_table.transition_target(target) {
@@ -165,7 +165,7 @@ fn table_transition_target_arguments(
         psi_checked_trees::statement::TransitionTargetNode::SelfTarget
         | psi_checked_trees::statement::TransitionTargetNode::Terminal
         | psi_checked_trees::statement::TransitionTargetNode::Value(_) => {
-            omega_core::arena::HandleSpan::empty()
+            psi_arena::HandleSpan::empty()
         }
     }
 }

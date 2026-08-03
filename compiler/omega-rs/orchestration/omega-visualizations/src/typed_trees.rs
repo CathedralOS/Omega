@@ -3,7 +3,7 @@ mod behavior;
 use crate::phase_diagram::PhaseDiagramBuilder;
 use crate::service_reach::{append_reach_and_operation_lines, service_names};
 use behavior::TypedBehaviorPlan;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::statement::TableNamePath;
 use psi_typed_trees::statement::{

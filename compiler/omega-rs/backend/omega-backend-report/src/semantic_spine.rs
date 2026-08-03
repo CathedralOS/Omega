@@ -1,6 +1,6 @@
 use crate::BackendReportInput;
-use omega_core::arena::HandleSpan;
 use omega_machine_bytes::EncodedMachineBoundarySummary;
+use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
 pub(super) fn write_artifact_semantic_spine(

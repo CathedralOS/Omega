@@ -1,8 +1,8 @@
-use omega_core::arena::HandleSpan;
 use omega_state_graph::{
     StateDropEvent, StateGraph, StateKey, StateMoveEvent, StateOwnershipEventSource,
     StateOwnershipSummary, StatePermissionEvent,
 };
+use psi_arena::HandleSpan;
 use psi_checked_trees::{CheckedTrees, FlowOwnershipEventSource};
 
 pub(crate) fn state_ownership_summary(

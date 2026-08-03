@@ -1,9 +1,9 @@
 use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_state_calls::StateCall;
 use omega_state_calls::StateCallLowering;
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
+use psi_arena::Arena;
 
 use super::semantic_scope::{proof_scope_suffix, state_call_receiver_name, state_name};
 use super::{EmissionBlocker, blocker};

@@ -32,8 +32,8 @@ pub(crate) fn elf_entry_address(image: &FinalImage, text_address: u64) -> Result
 #[cfg(test)]
 mod tests {
     use super::elf_entry_address;
-    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
+    use psi_arena::Handle;
 
     #[test]
     fn resolves_elf_entry_address_from_final_image_entry_symbol() {

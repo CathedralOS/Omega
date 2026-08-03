@@ -1,6 +1,6 @@
 use omega_control_flow::{ControlFlowCode, StateParameterFlow};
-use omega_core::arena::Arena;
 use omega_state_graph::{StateGraph, StateGraphCode};
+use psi_arena::Arena;
 
 use crate::machines::{
     remap_contained_owned, remap_machine_owned, remap_machines, remap_owned_data_owned,

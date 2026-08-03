@@ -1,8 +1,8 @@
 use crate::EmissionPlanningInput;
-use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardLowering, StateGuardOperator, lower_guard_conjunction};
 use omega_state_schedule::{ScheduledState, ScheduledStateCollector};
+use psi_arena::Arena;
 use psi_checked_trees::statement::TransitionGuard;
 
 use super::{

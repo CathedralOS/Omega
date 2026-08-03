@@ -219,10 +219,10 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                 ExpressionNode::Cast(psi_typed_trees::expression::TableCastExpression {
                     value: arguments[0],
                     target_type,
-                    target_label: omega_core::arena::HandleSpan::empty(),
+                    target_label: psi_arena::HandleSpan::empty(),
                     domain,
-                    semantic_domain: omega_core::arena::HandleSpan::empty(),
-                    semantic_domain_arguments: omega_core::arena::HandleSpan::empty(),
+                    semantic_domain: psi_arena::HandleSpan::empty(),
+                    semantic_domain_arguments: psi_arena::HandleSpan::empty(),
                     semantic_domain_symbol: psi_symbols::SymbolHandle::invalid(),
                     semantic_domain_id: psi_language_semantics::SemanticDomainId::NULL,
                     form: psi_language_core::CastForm::Value,

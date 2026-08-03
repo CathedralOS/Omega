@@ -2,8 +2,8 @@ use crate::shapes::lower_machine_instruction_kind;
 use omega_assigned_target_operations::{
     AssignedTargetOperationFunction, AssignedTargetOperationPlan,
 };
-use omega_core::arena::{Arena, HandleSpan};
 use omega_machine_instructions::MachineInstruction;
+use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
 
 pub(crate) fn append_machine_instructions(
@@ -28,7 +28,7 @@ pub(crate) fn append_machine_instructions(
                 .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
                 .expect("selected instruction overflow");
             let selected_instruction_handle =
-                omega_core::arena::Handle::from_arena_index(selected_instruction_index);
+                psi_arena::Handle::from_arena_index(selected_instruction_index);
 
             Ok(MachineInstruction {
                 selected_instruction_index,

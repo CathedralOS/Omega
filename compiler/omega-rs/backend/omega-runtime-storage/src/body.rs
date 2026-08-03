@@ -1,10 +1,10 @@
 use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
-use omega_core::arena::HandleSpan;
 use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_storage::{StateLocalStorage, StateMutation, StateMutationLowering};
+use psi_arena::HandleSpan;
 use psi_checked_trees::expression::{ExpressionNode, ExpressionTable, ExpressionTableCapacity};
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::statement::StatementNode;

@@ -1,6 +1,6 @@
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{CallResultReturn, RuntimeTransitionTarget};
+use psi_arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchPlan {

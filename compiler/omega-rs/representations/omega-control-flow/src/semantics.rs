@@ -2,7 +2,7 @@ use crate::{
     ControlFlowBorrowRoots, ControlFlowBoundaryRoots, ControlFlowContractRoots,
     ControlFlowOwnershipRoots, ControlFlowValueRoots, InvariantFact, ProofObligationFact,
 };
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_language_semantics::{ServiceReachRowTable, ServiceReachTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -4,7 +4,7 @@ use omega_target_operations::{InstructionOperand, InstructionOperandKind};
 
 pub(super) fn selected_instruction_operands_name(
     backend_plan: &BackendReportInput<'_>,
-    operands: omega_core::arena::HandleSpan<InstructionOperand>,
+    operands: psi_arena::HandleSpan<InstructionOperand>,
 ) -> String {
     let Some(operands) = backend_plan.target_operations.code.operands.span(operands) else {
         return "invalid operands".to_owned();

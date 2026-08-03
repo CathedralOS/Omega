@@ -1,6 +1,6 @@
 mod lookups;
 
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_typed_trees::expression::ExpressionTable;
 
 use crate::{
@@ -73,7 +73,7 @@ impl std::ops::DerefMut for ControlFlowPlan {
 #[cfg(test)]
 mod tests {
     use crate::{ControlFlowCode, ControlFlowPlan, ControlFlowSemanticRoots};
-    use omega_core::arena::Arena;
+    use psi_arena::Arena;
 
     #[test]
     fn plan_constructor_keeps_code_and_semantic_roots_explicit() {

@@ -1,5 +1,5 @@
-use omega_core::arena::HandleSpan;
 use omega_state_graph::{StateBoundaryEdge, StateBoundarySummary, StateGraph, StateKey};
+use psi_arena::HandleSpan;
 use psi_checked_trees::{CheckedTrees, FlowBoundaryEdgeFact};
 
 pub(crate) fn state_boundary_summary(
@@ -32,7 +32,7 @@ pub(crate) fn state_boundary_summary(
 
 fn append_boundary_edges(
     state_graph: &mut StateGraph,
-    source_edges: &omega_core::arena::Arena<FlowBoundaryEdgeFact>,
+    source_edges: &psi_arena::Arena<FlowBoundaryEdgeFact>,
     edges: HandleSpan<FlowBoundaryEdgeFact>,
 ) -> HandleSpan<StateBoundaryEdge> {
     state_graph.semantics.boundaries.edges.insert_many(
@@ -52,7 +52,7 @@ fn append_boundary_edges(
 
 pub(crate) fn remap_state_boundary_summary(
     target: &mut StateGraph,
-    source_edges: &omega_core::arena::Arena<StateBoundaryEdge>,
+    source_edges: &psi_arena::Arena<StateBoundaryEdge>,
     summary: &StateBoundarySummary,
 ) -> StateBoundarySummary {
     StateBoundarySummary {

@@ -1,6 +1,6 @@
 use omega_control_flow::{ContainedFlow, MachineFlow, MachineOwnedDataFlow};
-use omega_core::arena::Arena;
 use omega_state_graph::{ContainedGraph, MachineGraph, MachineOwnedDataGraph, StateGraph};
+use psi_arena::Arena;
 
 use crate::handles::{remap_contained_span, remap_owned_data_span, remap_state_span};
 

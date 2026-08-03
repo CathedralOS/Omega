@@ -1,5 +1,5 @@
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::StateGraph;
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use psi_checked_trees::statement::{TableTransition, TransitionGuardNode};
 

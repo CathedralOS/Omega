@@ -1,4 +1,4 @@
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 /// The only registers the x86 checked-assembly operand evaluator may target.
 /// This is retained as semantic validation input rather than rediscovered from

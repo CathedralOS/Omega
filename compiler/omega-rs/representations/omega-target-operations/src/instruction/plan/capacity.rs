@@ -1,6 +1,6 @@
 use crate::{TargetOperationPlan, TargetSemanticSummary};
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 
 impl TargetOperationPlan {
     pub fn with_capacity(

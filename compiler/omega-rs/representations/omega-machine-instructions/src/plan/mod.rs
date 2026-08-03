@@ -14,8 +14,8 @@ mod tests {
     use crate::{
         MachineInstructionCode, MachineInstructionPlan, MachineInstructionSemanticSummary,
     };
-    use omega_core::arena::Arena;
     use omega_target::NativeTarget;
+    use psi_arena::Arena;
 
     #[test]
     fn plan_constructor_keeps_code_and_semantic_roots_explicit() {

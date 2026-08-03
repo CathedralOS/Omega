@@ -3,8 +3,8 @@ mod operations;
 mod parameters;
 mod transitions;
 
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{Operation, StateGraph, StateKey, StateParameterNode};
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_checked_trees::name::Identifier;

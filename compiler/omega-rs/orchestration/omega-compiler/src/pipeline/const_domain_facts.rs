@@ -8,8 +8,8 @@
 //! other typed const-evaluation pass and replaces a proven concrete membership
 //! with the ordinary `true` fact consumed by checking.
 
-use omega_core::arena::Handle;
 use omega_interpreter::BuildTimeValue;
+use psi_arena::Handle;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::{ProofFact, ProofMembershipFact};

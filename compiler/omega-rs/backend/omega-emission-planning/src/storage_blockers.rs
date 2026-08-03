@@ -1,10 +1,10 @@
 use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_runtime_storage::RuntimeStorageWrite;
 use omega_runtime_text::places::expression_place_eq_across_tables;
 use omega_state_storage::StateMutationLowering;
 use omega_target_operations::SelectedInstructionKind;
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 use super::runtime_text_blockers::{

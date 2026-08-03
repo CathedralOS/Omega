@@ -1,5 +1,5 @@
-use omega_core::arena::Handle;
 use omega_target::NativeTarget;
+use psi_arena::Handle;
 
 use crate::model::{
     FinalExecutableRegion, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolHandle,
@@ -68,8 +68,8 @@ mod tests {
     use crate::model::{
         FinalImage, FinalImageMemory, FinalImageRelocationTable, FinalImageSymbolTable,
     };
-    use omega_core::arena::Handle;
     use omega_target::NativeTarget;
+    use psi_arena::Handle;
 
     #[test]
     fn final_image_constructor_keeps_artifact_roots_explicit() {

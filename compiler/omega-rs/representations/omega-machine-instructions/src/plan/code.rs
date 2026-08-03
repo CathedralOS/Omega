@@ -1,6 +1,6 @@
 use crate::{MachineInstruction, MachineInstructionFunction, MachineInstructionSemanticSummary};
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineInstructionCode {

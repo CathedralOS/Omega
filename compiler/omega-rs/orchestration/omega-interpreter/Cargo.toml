@@ -9,7 +9,7 @@ name = "omega_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }

@@ -1,5 +1,5 @@
 use omega_control_flow::StateBoundaryEdge;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 use super::remap_span;
 

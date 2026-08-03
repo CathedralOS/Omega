@@ -6,7 +6,7 @@ use super::static_values::{
 };
 use crate::StateScheduleContext;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_checked_trees::expression::ExpressionHandle;
 
 pub(super) fn append_local_state_calls(

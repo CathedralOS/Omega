@@ -5,7 +5,7 @@
 //! machine before symbol resolution, so typing, effects, proofs, dispatch, both
 //! execution engines, and override precedence all reuse the established paths.
 
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{

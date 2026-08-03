@@ -7,11 +7,11 @@ use omega_calling_conventions::{
     ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_core::allocations::AllocationDelta;
-use omega_core::arena::Arena;
 use omega_executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 use omega_external_roots::{InstalledRootLedger, InstalledRootRecord};
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 use psi_checked_trees::{CheckedTrees, machine::Machine};
 use psi_diagnostics::Diagnostic;
 
@@ -2330,7 +2330,7 @@ mod tests {
         program.facts.carry.machine_topologies.insert(
             psi_checked_trees::MachineCarryTopologyFact {
                 machine: worker_machine_symbol,
-                fields: omega_core::arena::HandleSpan::empty(),
+                fields: psi_arena::HandleSpan::empty(),
             },
         );
         program.facts.carry.machine_topologies.insert(

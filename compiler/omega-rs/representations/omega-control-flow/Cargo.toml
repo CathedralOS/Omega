@@ -9,7 +9,7 @@ name = "omega_control_flow"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 psi-checked-trees = { path = "../../../psi-rs/representations/psi-checked-trees" }
 psi-facts = { path = "../../../psi-rs/representations/psi-facts" }

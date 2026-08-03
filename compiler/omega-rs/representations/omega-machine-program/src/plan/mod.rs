@@ -12,8 +12,8 @@ impl Default for MachineProgram {
 #[cfg(test)]
 mod tests {
     use crate::{MachineProgram, MachineProgramCode, MachineSemanticSummary};
-    use omega_core::arena::Arena;
     use omega_target::NativeTarget;
+    use psi_arena::Arena;
 
     #[test]
     fn plan_constructor_keeps_code_and_semantic_roots_explicit() {

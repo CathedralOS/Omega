@@ -9,7 +9,7 @@ pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> O
         .iter()
         .find(|(_, symbol)| symbol.name == symbol_name)
         .map(|(handle, _)| handle)
-        .unwrap_or_else(omega_core::arena::Handle::invalid)
+        .unwrap_or_else(psi_arena::Handle::invalid)
 }
 
 pub fn object_symbol_name(object: &ObjectPlan, symbol: ObjectSymbolHandle) -> &str {

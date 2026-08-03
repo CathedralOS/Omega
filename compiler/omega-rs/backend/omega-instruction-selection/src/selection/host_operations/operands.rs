@@ -16,8 +16,8 @@ use crate::selection::storage_places::{
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
-use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_layout::{DataShape, TypeLayoutDescriptor};
+use psi_arena::{Arena, Handle, HandleSpan};
 use psi_checked_trees::expression::{ExpressionNode, ExpressionTable};
 use psi_checked_trees::types::PrimitiveType;
 
@@ -1145,12 +1145,21 @@ pub(super) fn select_host_operation_operands(
             let count =
                 scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
             match (result, path, buffer, count) {
-                (Some(result), Some(path), Some(buffer), Some(count)) => operands.insert_many([
-                    operand(result),
-                    operand(path),
-                    operand(buffer),
-                    operand(count),
-                ]),
+                (Some(result), Some(path), Some(buffer), Some(count)) => match host_call.data {
+                    PlatformCallData::ConstantArgument { value } => operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::ImmediateInteger(value)),
+                        operand(path),
+                        operand(buffer),
+                        operand(count),
+                    ]),
+                    _ => operands.insert_many([
+                        operand(result),
+                        operand(path),
+                        operand(buffer),
+                        operand(count),
+                    ]),
+                },
                 _ => HandleSpan::empty(),
             }
         }

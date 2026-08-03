@@ -1,4 +1,4 @@
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 
 // AssignedOperation is identical to TargetOperation -- the assigned layer adds
 // value-operand homes, not operation fields. Share the one definition.

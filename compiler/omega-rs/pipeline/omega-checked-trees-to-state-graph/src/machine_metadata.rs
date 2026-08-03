@@ -1,5 +1,5 @@
-use omega_core::arena::HandleSpan;
 use omega_state_graph::{ContainedGraph, MachineOwnedDataGraph, StateGraph};
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::machine::Machine;
 use psi_language_semantics::{OperationalMaySummary, ServiceReachSummary};

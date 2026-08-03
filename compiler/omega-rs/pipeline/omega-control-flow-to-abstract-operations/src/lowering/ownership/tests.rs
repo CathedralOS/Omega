@@ -3,7 +3,7 @@ use omega_control_flow::{
     ControlFlowPlan, StateDropEvent, StateFlow, StateKey, StateMoveEvent,
     StateOwnershipEventSource, StatePermissionEvent,
 };
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_symbols::SymbolHandle;
 
 #[test]

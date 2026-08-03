@@ -20,7 +20,7 @@ fn remap_value_summary_preserves_statement_value_handles() {
         operator_provider_plan_identity: Some(0x1234_5678_9abc_def0),
     };
     let mut values = Arena::new();
-    let mut span = omega_core::arena::HandleSpan::empty();
+    let mut span = psi_arena::HandleSpan::empty();
     values.append_to_span(&mut span, value);
 
     let summary = remap_value_summary(&omega_state_graph::StateValueSummary { values: span });

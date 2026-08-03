@@ -2,8 +2,8 @@ use crate::EmissionPlanningInput;
 use crate::blocker;
 use crate::semantic_scope::state_name;
 use omega_backend_report_types::EmissionBlocker;
-use omega_core::arena::Arena;
 use omega_target_operations::SelectedInstructionKind;
+use psi_arena::Arena;
 
 /// Every dispatch-loop edge that carries a `CallResultReturn` must have a
 /// SELECTED return-write (integer/copy/binary) at its clone-terminal state --

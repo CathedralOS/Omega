@@ -4,7 +4,7 @@ use super::{
     RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
 };
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

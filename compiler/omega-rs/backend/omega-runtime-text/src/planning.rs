@@ -5,9 +5,9 @@ use crate::{
     RuntimeTextBuffer, RuntimeTextBuilder, RuntimeTextBuilderSegment,
     RuntimeTextBuilderSegmentKind, RuntimeTextPlan, RuntimeTextWrite, RuntimeTextWriteKind,
 };
-use omega_core::arena::{Arena, ArenaSpanInserter, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
+use psi_arena::{Arena, ArenaSpanInserter, HandleSpan};
 use psi_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };

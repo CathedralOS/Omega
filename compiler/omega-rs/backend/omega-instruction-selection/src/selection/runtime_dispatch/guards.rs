@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
-use omega_core::arena::Arena;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
 use omega_state_guards::{StateGuardKind, StateGuardLowering, StateGuardOperator};
+use psi_arena::Arena;
 use psi_checked_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
     TableBinaryExpression,

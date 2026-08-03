@@ -1,6 +1,6 @@
 use crate::MachineInstruction;
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFunction {

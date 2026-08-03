@@ -1,7 +1,7 @@
 mod builder;
 
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
-use omega_core::arena::{Arena, HandleSpan};
+use psi_arena::{Arena, HandleSpan};
 
 pub use builder::{build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls};
 

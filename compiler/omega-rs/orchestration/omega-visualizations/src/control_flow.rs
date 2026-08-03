@@ -369,7 +369,7 @@ fn borrow_place_label(
     machine: &MachineFlow,
     state: &StateFlow,
     root_symbol: SymbolHandle,
-    segments: omega_core::arena::HandleSpan<psi_facts::PlaceSegment>,
+    segments: psi_arena::HandleSpan<psi_facts::PlaceSegment>,
 ) -> String {
     let mut label = symbol_name_for_state(plan, machine, state, root_symbol);
     for segment in plan

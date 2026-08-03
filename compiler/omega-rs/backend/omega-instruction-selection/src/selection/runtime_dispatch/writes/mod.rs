@@ -28,9 +28,9 @@ use omega_abstract_operations::{
     SelectedInstructionKind,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
+use psi_arena::Arena;
 use psi_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
     TableMemberExpression,
@@ -1288,9 +1288,7 @@ fn unnamed_common_field_zero_writes(
     input: &InstructionSelectionInput<'_>,
     expressions: &mut ExpressionTable,
     type_name: &Identifier,
-    literal_fields: omega_core::arena::HandleSpan<
-        psi_checked_trees::expression::TableStructLiteralField,
-    >,
+    literal_fields: psi_arena::HandleSpan<psi_checked_trees::expression::TableStructLiteralField>,
 ) -> Vec<(Identifier, ExpressionHandle)> {
     let Some(data_layout) = input
         .layouts

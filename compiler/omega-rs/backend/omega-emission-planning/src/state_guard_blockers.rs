@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
-use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
+use psi_arena::Arena;
 use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };

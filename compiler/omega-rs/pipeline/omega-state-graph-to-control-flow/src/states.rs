@@ -1,6 +1,6 @@
 use omega_control_flow::{StateFlow, StateParameterFlow};
-use omega_core::arena::Arena;
 use omega_state_graph::{StateGraph, StateNode, StateParameterNode};
+use psi_arena::Arena;
 
 use crate::borrows::remap_borrow_summary;
 use crate::boundaries::remap_boundary_summary;

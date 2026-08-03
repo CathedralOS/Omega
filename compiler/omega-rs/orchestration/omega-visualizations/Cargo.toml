@@ -13,7 +13,7 @@ omega-abstract-operations = { path = "../../representations/omega-abstract-opera
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
-omega-core = { path = "../../foundation/omega-core" }
+psi-arena = { path = "../../../psi-rs/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi-rs/foundation/psi-symbols" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-effects = { path = "../../representations/omega-effects" }

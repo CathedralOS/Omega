@@ -20,8 +20,8 @@ pub use plans::{
 };
 pub use windows::windows_import_library;
 
-use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::{NativeTarget, ObjectFormat};
+use psi_arena::{Arena, Handle, HandleSpan};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -1655,6 +1655,8 @@ mod binding_plan_tests {
             expected_fstat,
             expected_mkdirat,
             expected_fchmodat,
+            expected_unlinkat,
+            expected_readlinkat,
             expected_policy,
         ) in [
             (
@@ -1664,6 +1666,8 @@ mod binding_plan_tests {
                 5,
                 258,
                 268,
+                263,
+                267,
                 CallingPolicy::LinuxSyscallX86_64,
             ),
             (
@@ -1673,6 +1677,8 @@ mod binding_plan_tests {
                 80,
                 34,
                 53,
+                35,
+                78,
                 CallingPolicy::LinuxSyscallAarch64,
             ),
         ] {
@@ -1684,6 +1690,13 @@ mod binding_plan_tests {
                 (HostOperation::FStat, "fstat", expected_fstat, 2),
                 (HostOperation::MakeDir, "mkdirat", expected_mkdirat, 3),
                 (HostOperation::Chmod, "fchmodat", expected_fchmodat, 3),
+                (HostOperation::UnlinkAt, "unlinkat", expected_unlinkat, 3),
+                (
+                    HostOperation::ReadLink,
+                    "readlinkat",
+                    expected_readlinkat,
+                    4,
+                ),
             ] {
                 let (_, binding) = plan
                     .bindings
@@ -1713,6 +1726,7 @@ mod binding_plan_tests {
                 "create_dir",
                 "create_dir_name",
                 "set_permissions",
+                "read_link",
             ] {
                 let lowering = plan
                     .platform_call_lowerings
@@ -1725,6 +1739,14 @@ mod binding_plan_tests {
                     PlatformCallData::ConstantArgument { value: -100 }
                 );
             }
+
+            let unlink_at = plan
+                .platform_call_lowerings
+                .iter()
+                .find(|(_, row)| row.state.as_ref() == "unlink_at")
+                .map(|(_, row)| row)
+                .expect("Linux unlinkat lowering");
+            assert_eq!(unlink_at.data, PlatformCallData::None);
         }
     }
 

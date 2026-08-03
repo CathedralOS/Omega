@@ -166,19 +166,19 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
 }
 
 fn copy_lowered_host_operations(
-    target: &mut omega_core::arena::Arena<LoweredHostOperation>,
-    source: &omega_core::arena::Arena<LoweredHostOperation>,
-    span: omega_core::arena::HandleSpan<LoweredHostOperation>,
-) -> omega_core::arena::HandleSpan<LoweredHostOperation> {
+    target: &mut psi_arena::Arena<LoweredHostOperation>,
+    source: &psi_arena::Arena<LoweredHostOperation>,
+    span: psi_arena::HandleSpan<LoweredHostOperation>,
+) -> psi_arena::HandleSpan<LoweredHostOperation> {
     target.insert_many(source.span_or_empty(span).iter().cloned())
 }
 
 fn copy_host_call_arguments(
     target: &mut HostCallPlan,
     source_expressions: &psi_checked_trees::expression::ExpressionTable,
-    source_arguments: &omega_core::arena::Arena<HostCallArgument>,
-    span: omega_core::arena::HandleSpan<HostCallArgument>,
-) -> omega_core::arena::HandleSpan<HostCallArgument> {
+    source_arguments: &psi_arena::Arena<HostCallArgument>,
+    span: psi_arena::HandleSpan<HostCallArgument>,
+) -> psi_arena::HandleSpan<HostCallArgument> {
     target
         .arguments
         .insert_many(source_arguments.span_or_empty(span).iter().map(|argument| {

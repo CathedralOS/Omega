@@ -137,8 +137,8 @@ pub(crate) fn plan_macho_image(
 mod tests {
     use super::plan_macho_image;
     use crate::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
-    use omega_core::arena::Handle;
     use omega_image::FinalImage;
+    use psi_arena::Handle;
 
     #[test]
     fn plans_macho_data_bss_and_linkedit_layout() {

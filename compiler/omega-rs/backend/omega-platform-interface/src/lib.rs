@@ -1,7 +1,7 @@
 use omega_calling_conventions::{HostOperationKey, PlatformCallData, PlatformCallLoweringHandle};
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use std::sync::Arc;
 

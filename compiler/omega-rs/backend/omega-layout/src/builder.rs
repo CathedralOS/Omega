@@ -4,8 +4,8 @@ use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
     MachineLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
 };
-use omega_core::arena::Arena;
 use omega_target::NativeTarget;
+use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use psi_checked_trees::machine::Machine;
@@ -787,7 +787,7 @@ impl<'program> LayoutBuilder<'program> {
     fn layout_generic_data_definition(
         &mut self,
         definition: &'program DataDefinition,
-        arguments: omega_core::arena::HandleSpan<TypeReferenceHandle>,
+        arguments: psi_arena::HandleSpan<TypeReferenceHandle>,
         parent_bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<TypeLayout, Diagnostic> {
         let parameters = self.program.data_type_parameters(definition);

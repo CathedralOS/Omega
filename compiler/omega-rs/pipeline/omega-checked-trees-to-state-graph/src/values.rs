@@ -177,7 +177,7 @@ fn statement_origin(
 
 pub(crate) fn remap_state_value_summary(
     target: &mut StateGraph,
-    source_values: &omega_core::arena::Arena<StateValueFact>,
+    source_values: &psi_arena::Arena<StateValueFact>,
     values: &StateValueSummary,
 ) -> StateValueSummary {
     StateValueSummary {

@@ -32,8 +32,8 @@ pub(crate) fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagn
 #[cfg(test)]
 mod tests {
     use super::macho_entry_text_offset;
-    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageSection, FinalImageSymbol};
+    use psi_arena::Handle;
 
     #[test]
     fn resolves_macho_entry_offset_from_final_image_entry_symbol() {

@@ -273,7 +273,7 @@ fn write_runtime_straight_line_branch_expansions(
 fn write_leaf_expansion_bindings(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    bindings: omega_core::arena::HandleSpan<omega_runtime_branching::RuntimeLeafBranchBinding>,
+    bindings: psi_arena::HandleSpan<omega_runtime_branching::RuntimeLeafBranchBinding>,
 ) {
     match backend_plan
         .runtime_branching_calls
@@ -304,9 +304,7 @@ fn write_leaf_expansion_bindings(
 fn write_straight_line_expansion_bindings(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    bindings: omega_core::arena::HandleSpan<
-        omega_runtime_branching::RuntimeStraightLineBranchBinding,
-    >,
+    bindings: psi_arena::HandleSpan<omega_runtime_branching::RuntimeStraightLineBranchBinding>,
 ) {
     match backend_plan
         .runtime_branching_calls

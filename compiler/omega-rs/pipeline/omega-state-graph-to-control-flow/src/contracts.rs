@@ -3,8 +3,8 @@ mod conversions;
 use omega_control_flow::{
     StateContractCall, StateContractExit, StateContractFactRef, StateContractSummary,
 };
-use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
+use psi_arena::Arena;
 
 use crate::arena_remap::remap_arena;
 

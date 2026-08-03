@@ -3,8 +3,8 @@ use crate::{
     AssignedInstructionOperand, AssignedTargetOperationPlan, AssignedValueHomeHandle,
     AssignedValueHomeKind, AssignedValueOperand, RuntimeValueOperandHandle, value_operands,
 };
-use omega_core::arena::{Handle, HandleSpan};
 use omega_target_operations::{HostOperationKey, TargetHostBinding};
+use psi_arena::{Handle, HandleSpan};
 
 impl AssignedTargetOperationPlan {
     pub fn host_binding(&self, operation_key: HostOperationKey) -> Option<&TargetHostBinding> {

@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_state_calls::{StateCallLowering, StateCallRole};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
+use psi_arena::{Arena, HandleSpan, PagedArena};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use psi_checked_trees::name::Identifier;
 use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceTable};

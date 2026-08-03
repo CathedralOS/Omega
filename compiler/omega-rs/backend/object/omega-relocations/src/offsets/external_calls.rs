@@ -137,9 +137,9 @@ mod tests {
     use omega_calling_conventions::{
         CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
     };
-    use omega_core::arena::Handle;
     use omega_target::NativeTarget;
     use omega_target_operations::{RuntimeStorageRegion, TargetDataObject};
+    use psi_arena::Handle;
 
     #[test]
     fn authored_sysv_call_relocation_follows_aggregate_marshalling() {

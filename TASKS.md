@@ -950,12 +950,12 @@ improvements do not change public identity.
   `psi-symbols` owns target-neutral symbol identities and hierarchy storage.
   The unused `omega-core` source/span, exact-bignum, const-value, content,
   built-in-value-domain, byte-predicate, normalized-wire, atomic-ordering,
-  cast-form, operator-spelling, inline-assembly, diagnostics, symbols,
+  cast-form, operator-spelling, inline-assembly, arena storage, diagnostics, symbols,
   resolved-language-semantics, arithmetic-domain, float-semantics, and
   literal-payload aliases are retired; their
-  remaining Omega consumers depend on the Psi owners directly. High-fanout
-  `omega-core` aliases remain an incremental ownership migration rather than a
-  second semantic owner.
+  remaining Omega consumers depend on the Psi owners directly. `omega-core`
+  now contains only Omega-owned compiler/runtime infrastructure rather than a
+  second target-neutral semantic owner.
   `psi-syntax-trees` owns the parsed source representation; the unused former
   Omega compatibility package is retired.
   `psi-symbol-resolved-trees` owns the source-shaped representation carrying
@@ -1618,9 +1618,10 @@ ordinary code never receives a raw executable address.
 
 - Run the Linux host/time/filesystem rows natively on AArch64. x86-64 WSL
   coverage exists. `mkdirat`/`fchmodat` now normalize path creation and
-  permission changes with plan-owned `AT_FDCWD`; remaining Linux work is the
-  real target `StatLayout`, metadata, removal/rename/link, directory-record,
-  and errno adapters.
+  permission changes with plan-owned `AT_FDCWD`; direct `unlink_at` and
+  plan-prefixed `readlinkat` are normalized too. Remaining Linux work is the
+  real target `StatLayout`, metadata, plain-path removal, rename/link,
+  directory-record, and errno adapters.
 - Keep unavailable hosts structurally tested; do not claim runtime verification
   without the host.
 - Build the Windows GUI callback canary through the settled callback-requirement

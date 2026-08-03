@@ -132,8 +132,8 @@ pub(super) fn write_layout_object_sections(
 
 fn write_field_layouts(
     output: &mut String,
-    fields: &omega_core::arena::Arena<FieldLayout>,
-    field_span: omega_core::arena::HandleSpan<FieldLayout>,
+    fields: &psi_arena::Arena<FieldLayout>,
+    field_span: psi_arena::HandleSpan<FieldLayout>,
 ) {
     let Some(fields) = fields.span(field_span) else {
         output.push_str("  fields: invalid span\n");

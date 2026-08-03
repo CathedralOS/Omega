@@ -1,7 +1,7 @@
-use omega_core::arena::HandleSpan;
 use omega_state_graph::{
     StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateGraph,
 };
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 
 pub(crate) fn state_borrow_calls(

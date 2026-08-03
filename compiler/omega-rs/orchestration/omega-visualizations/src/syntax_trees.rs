@@ -1,5 +1,5 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{Item, ItemHandle, StateNode, StateSignatureNode};

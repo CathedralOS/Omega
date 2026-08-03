@@ -533,9 +533,9 @@ mod tests {
     use omega_calling_conventions::{
         CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
     };
-    use omega_core::arena::Handle;
     use omega_target::{Architecture, NativeTarget};
     use omega_target_operations::{RuntimeStorageRegion, TargetDataObject};
+    use psi_arena::Handle;
 
     #[test]
     fn offsets_data_address_by_prior_operand_widths() {

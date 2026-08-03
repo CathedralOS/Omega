@@ -1,6 +1,6 @@
 use omega_backend_plan::BackendPlanPhaseTiming;
 use omega_core::allocations::snapshot as allocation_snapshot;
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 use std::time::Instant;
 
 pub(super) fn record_backend_phase<T>(

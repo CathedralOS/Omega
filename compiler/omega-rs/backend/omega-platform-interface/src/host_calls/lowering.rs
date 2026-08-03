@@ -4,7 +4,7 @@ use omega_calling_conventions::{
     HostAbiPlan, HostOperationKey, PlatformCallLowering, PlatformCallLoweringHandle,
     host_operation_fixed_leading_immediate,
 };
-use omega_core::arena::{Arena, HandleSpan};
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::machine::Machine;

@@ -21,9 +21,9 @@ use crate::selection::storage_places::{
 };
 use omega_abstract_operations::{RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction};
 use omega_control_flow::{StateKey, StateParameterFlow};
-use omega_core::arena::Arena;
 use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_state_calls::{StateCallLowering, StateCallRole};
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::statement::StatementNode;
 
@@ -34,7 +34,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     source_dispatch_index: u32,
     statement_index: usize,
     target_dispatch_index: u32,
-    arguments: omega_core::arena::HandleSpan<ExpressionHandle>,
+    arguments: psi_arena::HandleSpan<ExpressionHandle>,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,

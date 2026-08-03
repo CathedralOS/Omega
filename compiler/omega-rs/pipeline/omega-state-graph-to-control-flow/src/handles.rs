@@ -5,7 +5,7 @@ mod contracts;
 mod ownership;
 mod values;
 
-use omega_core::arena::{Handle, HandleSpan};
+use psi_arena::{Handle, HandleSpan};
 
 pub(crate) use self::borrows::*;
 pub(crate) use self::boundaries::*;

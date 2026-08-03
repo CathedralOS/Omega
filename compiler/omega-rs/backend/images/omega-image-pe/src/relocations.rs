@@ -84,9 +84,9 @@ pub(crate) fn build_base_relocations(
 #[cfg(test)]
 mod tests {
     use super::build_base_relocations;
-    use omega_core::arena::Handle;
     use omega_image::{FinalImage, FinalImageRelocation, FinalImageSection};
     use omega_object_file::RelocationKind;
+    use psi_arena::Handle;
 
     #[test]
     fn data_absolute_relocation_uses_data_rva() {

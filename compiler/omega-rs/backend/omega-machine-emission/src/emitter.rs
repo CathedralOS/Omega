@@ -34,13 +34,13 @@ mod tests {
     use omega_calling_conventions::{
         MachineRegister, MachineStateSet, RegisterSet, StateFootprintEvidence,
     };
-    use omega_core::arena::HandleSpan;
     use omega_machine_instructions::{
         AbstractBoundaryPolicyCheck, AbstractBoundaryPolicyVerdict, BoundaryFootprintFragment,
         BoundaryFootprintFragmentOrigin, MachineInstruction, MachineInstructionFunction,
         MachineInstructionKind, MachineInstructionPlan,
     };
     use omega_target::NativeTarget;
+    use psi_arena::HandleSpan;
 
     #[test]
     fn copies_machine_semantic_summaries_to_encoded_plan() {

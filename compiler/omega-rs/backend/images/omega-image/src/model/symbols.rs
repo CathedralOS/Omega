@@ -1,5 +1,5 @@
-use omega_core::arena::{Arena, Handle};
 use omega_object_file::SymbolKind;
+use psi_arena::{Arena, Handle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImageSymbolTable {
@@ -82,7 +82,7 @@ pub struct FinalImageImport {
 #[cfg(test)]
 mod tests {
     use crate::model::{FinalImageImport, FinalImageSymbol, FinalImageSymbolTable};
-    use omega_core::arena::{Arena, Handle};
+    use psi_arena::{Arena, Handle};
 
     #[test]
     fn symbol_table_constructor_keeps_symbol_and_import_roots_explicit() {

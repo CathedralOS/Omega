@@ -1,7 +1,7 @@
-use omega_core::arena::{Handle, HandleSpan};
 use omega_target_operations::{
     TargetInstructionOperand, TargetOperation, TargetValueOperandHandle,
 };
+use psi_arena::{Handle, HandleSpan};
 
 pub(crate) fn instruction_handle(
     handle: Handle<omega_abstract_operations::AbstractOperation>,

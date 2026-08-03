@@ -1,4 +1,4 @@
-use omega_core::arena::Arena;
+use psi_arena::Arena;
 
 pub(crate) fn remap_arena<Source, Target>(
     source: &Arena<Source>,
@@ -20,7 +20,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::remap_arena;
-    use omega_core::arena::Arena;
+    use psi_arena::Arena;
 
     #[test]
     fn remaps_active_items_without_losing_arena_shape() {

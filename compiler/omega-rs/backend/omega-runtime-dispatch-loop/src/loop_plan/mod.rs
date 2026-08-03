@@ -10,8 +10,8 @@ pub use model::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopCase, RuntimeDispatchLoopEdge,
     RuntimeDispatchLoopPlan,
 };
-use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use psi_arena::Arena;
 use std::sync::Arc;
 
 pub fn build_runtime_dispatch_loop_plan(

@@ -2,8 +2,8 @@ use omega_control_flow::{
     StateDropEvent, StateMoveEvent, StateOwnershipEventSource, StateOwnershipSummary,
     StatePermissionEvent,
 };
-use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
+use psi_arena::Arena;
 
 use crate::arena_remap::remap_arena;
 use crate::handles::{remap_drop_event_span, remap_move_event_span, remap_permission_event_span};

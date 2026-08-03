@@ -5,13 +5,13 @@ use crate::layout::{self, layout_machine_instructions};
 use omega_assigned_target_operations::{
     SelectedInstructionKind, StateGuardLowering, StateGuardOperator, TargetOperationKind,
 };
-use omega_core::arena::{Arena, HandleSpan};
 use omega_machine_bytes::{
     CheckedInstructionValidationKind, CheckedOperandLoaderKind, CheckedOperandLoaderRegister,
     CheckedOperandLoaderValidation, EncodedMachineCode, EncodedMachineInstruction,
 };
 use omega_machine_instructions::{MachineInstruction, MachineInstructionPlan};
 use omega_target_operations::RuntimeValueOperandSource;
+use psi_arena::{Arena, HandleSpan};
 use psi_diagnostics::Diagnostic;
 
 pub(crate) fn emit_function_bytes(
@@ -519,7 +519,7 @@ fn insert_encoded_machine_instruction(
 }
 
 fn insert_fixed_machine_instruction_bytes(
-    inserter: &mut omega_core::arena::ArenaSpanInserter<'_, u8>,
+    inserter: &mut psi_arena::ArenaSpanInserter<'_, u8>,
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
     machine_instruction_index: usize,
@@ -860,7 +860,7 @@ fn insert_fixed_machine_instruction_bytes(
 }
 
 fn insert_dispatch_state_write_bytes(
-    inserter: &mut omega_core::arena::ArenaSpanInserter<'_, u8>,
+    inserter: &mut psi_arena::ArenaSpanInserter<'_, u8>,
     emission_context: MachineEmissionContext<'_>,
     laid_out_instructions: &[layout::LaidOutMachineInstruction],
     machine_instruction_index: usize,

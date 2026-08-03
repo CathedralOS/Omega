@@ -12,7 +12,7 @@ fn remap_boundary_summary_preserves_edge_handles() {
         boundary_signature_symbol: SymbolHandle::from_arena_index(6),
     };
     let mut edges = Arena::new();
-    let mut span = omega_core::arena::HandleSpan::empty();
+    let mut span = psi_arena::HandleSpan::empty();
     edges.append_to_span(&mut span, edge);
 
     let summary = remap_boundary_summary(&omega_state_graph::StateBoundarySummary { edges: span });

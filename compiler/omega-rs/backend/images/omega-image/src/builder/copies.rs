@@ -3,8 +3,8 @@ use crate::model::{
     FinalImageRelocation, FinalImageSymbol,
 };
 use crate::symbols::{final_image_section, final_image_symbol_handle};
-use omega_core::arena::Handle;
 use omega_object_file::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind, SymbolSection};
+use psi_arena::Handle;
 
 pub(super) fn copy_object_symbols(image: &mut FinalImage, object: &ObjectPlan) {
     image

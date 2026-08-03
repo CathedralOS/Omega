@@ -1,6 +1,6 @@
 use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, Handle};
+use psi_arena::{Arena, Handle};
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 

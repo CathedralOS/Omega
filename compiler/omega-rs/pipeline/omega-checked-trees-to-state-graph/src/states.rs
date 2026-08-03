@@ -1,7 +1,7 @@
-use omega_core::arena::HandleSpan;
 use omega_state_graph::{
     PlannedTransitionTarget, StateGraph, StateNode, TransitionEdge, TransitionExpressionRefs,
 };
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 
@@ -18,7 +18,7 @@ pub(crate) fn append_machine_states(
     state_graph: &mut StateGraph,
     program: &CheckedTrees,
     segments: &[StateSegment],
-    segment_transitions: &omega_core::arena::Arena<SegmentTransition>,
+    segment_transitions: &psi_arena::Arena<SegmentTransition>,
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
     let mut states = HandleSpan::empty();
 
@@ -63,7 +63,7 @@ fn append_segment_transitions(
     program: &CheckedTrees,
     segment: &StateSegment,
     segments: &[StateSegment],
-    segment_transitions: &omega_core::arena::Arena<SegmentTransition>,
+    segment_transitions: &psi_arena::Arena<SegmentTransition>,
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
     let mut transitions = HandleSpan::empty();
 

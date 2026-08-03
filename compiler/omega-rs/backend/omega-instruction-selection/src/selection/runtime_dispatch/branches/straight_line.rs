@@ -1,12 +1,12 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
-use omega_core::arena::Arena;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_runtime_branching::{
     RuntimeLeafBranchExpansion, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
+use psi_arena::Arena;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use psi_checked_trees::statement::StatementNode;
 

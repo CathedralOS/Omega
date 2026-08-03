@@ -3,7 +3,7 @@ use crate::{
     RuntimeTextReadTarget, StateGuardLowering, StateGuardOperator, TargetDataObjectHandle,
     TargetValueOperandHandle,
 };
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 mod classification;
 #[cfg(test)]

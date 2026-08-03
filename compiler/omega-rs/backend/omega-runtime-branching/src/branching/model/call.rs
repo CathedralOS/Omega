@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::HandleSpan;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::StateGuardKind;
+use psi_arena::HandleSpan;
 use psi_checked_trees::expression::ExpressionHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

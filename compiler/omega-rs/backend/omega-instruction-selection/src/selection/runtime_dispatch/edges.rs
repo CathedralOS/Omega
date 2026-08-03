@@ -15,11 +15,11 @@ use crate::selection::storage_places::{
     static_integer_value,
 };
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_graph::CallResultReturn;
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 use omega_state_values::simplify_state_expression;
+use psi_arena::Arena;
 use psi_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
@@ -1083,10 +1083,8 @@ fn resolve_literal_field_writes(
     source_dispatch_index: u32,
     source_key: StateKey,
     expressions: &ExpressionTable,
-    fields_span: omega_core::arena::HandleSpan<
-        psi_checked_trees::expression::TableStructLiteralField,
-    >,
-    layout_fields: omega_core::arena::HandleSpan<omega_layout::FieldLayout>,
+    fields_span: psi_arena::HandleSpan<psi_checked_trees::expression::TableStructLiteralField>,
+    layout_fields: psi_arena::HandleSpan<omega_layout::FieldLayout>,
     base_offset: usize,
     writes: &mut Vec<FieldWrite>,
 ) -> bool {

@@ -1,8 +1,8 @@
-use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_state_graph::{
     StateBorrowActivation, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowLoan,
     StateBorrowSummary, StateBorrowWeakening, StateBorrowWritableRoot, StateGraph,
 };
+use psi_arena::{Arena, Handle, HandleSpan};
 
 pub(crate) struct SourceBorrowArenas<'a> {
     pub(crate) writable_roots: &'a Arena<StateBorrowWritableRoot>,

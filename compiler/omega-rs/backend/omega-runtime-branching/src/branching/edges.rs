@@ -1,9 +1,9 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
-use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCallRole;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard_expression;
+use psi_arena::{Arena, HandleSpan};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 
 use super::lookups::state_statement_has_host_call;

@@ -101,8 +101,8 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
 mod tests {
     use super::plan_pe_sections;
     use crate::constants::{FILE_ALIGNMENT, SECTION_ALIGNMENT, TEXT_RVA};
-    use omega_core::arena::Handle;
     use omega_image::FinalImage;
+    use psi_arena::Handle;
 
     #[test]
     fn plans_pe_sections_with_data_and_bss() {

@@ -1,5 +1,5 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbol_resolved_trees::data::DataMember;
 use psi_symbol_resolved_trees::machine::Machine;

@@ -2,8 +2,8 @@ use omega_artifacts::{
     BoundaryContract, BoundaryProviderEntry, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
     UncheckedBoundaryPolicy,
 };
-use omega_core::arena::HandleSpan;
 use omega_effects::build_boundary_provider_approval_registry;
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 use psi_effects::CapabilityFlowKind;
 use psi_symbols::SymbolHandle;

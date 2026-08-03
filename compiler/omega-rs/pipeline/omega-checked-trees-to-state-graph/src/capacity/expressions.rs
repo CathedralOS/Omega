@@ -1,4 +1,4 @@
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTableCapacity};
 use psi_checked_trees::machine::Machine;

@@ -38,9 +38,9 @@
 use crate::EmissionPlanningInput;
 use crate::semantic_scope::{proof_scope_suffix, state_name};
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallRole};
 use omega_target_operations::SelectedInstructionKind;
+use psi_arena::Arena;
 
 use super::{EmissionBlocker, blocker};
 
