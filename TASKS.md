@@ -1884,7 +1884,14 @@ move it to a convenience library.
   aggregate-construction, and peak-live-cell telemetry remain. Declared linear
   runtime carriers in reachable machine storage, signatures, locals, and
   opaque callable contracts now reject by structural multiplicity until an
-  exact proof/build-admission exists. **BUILD-TIME-ABNORMAL-OUTCOME — DESIGN
+  exact proof/build-admission exists. Authored `requires` premises anywhere in
+  the reachable machine/callable closure now reject before evaluation because
+  the pre-check evaluator has no concrete checked invocation proof; a later
+  invocation-sensitive gate must supply the ordinary proof rather than invent
+  a build-time-only rule. Cyclic layout/access policy helpers and their runtime
+  canaries now carry ordinary checked fuel rankings, so enabling the common
+  termination floor no longer leaves those semantic-evaluation consumers on
+  stale unmeasured loops. **BUILD-TIME-ABNORMAL-OUTCOME — DESIGN
   BLOCKED (`OWNER_QUESTIONS.md` Q8):** the failure/control axis is settled, but
   its complete-contract and terminal source surface are not. Contextual `trap`
   currently erases to an ordinary terminal transition and is not usable
