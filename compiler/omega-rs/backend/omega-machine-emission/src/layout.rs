@@ -111,141 +111,109 @@ fn machine_instruction_width(
                 operands,
             )
         } else {
-            match binding.map(|binding| &binding.mechanism) {
-                Some(HostBindingMechanism::Syscall { number, .. })
+            let binding = binding.ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "host operation {}.{} has no selected host binding",
+                    host_operation.operation_key.capability_name(),
+                    host_operation.operation_key.operation_name(),
+                ))
+            })?;
+            let plan = binding.call_plan().ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "host operation {}.{} has no encodable call sequence: selected binding has no evaluated call plan",
+                    host_operation.operation_key.capability_name(),
+                    host_operation.operation_key.operation_name(),
+                ))
+            })?;
+            match &binding.mechanism {
+                HostBindingMechanism::Syscall { number, .. }
                     if host_operation.operation_key.uses_linux_timespec_result() =>
                 {
-                    binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                        .map_or(0, |plan| {
-                            omega_instruction_selection::linux_timespec_syscall_sequence_width_with_plan(
-                                input.target.architecture,
-                                operands,
-                                *number,
-                                plan,
-                            )
-                        })
+                    omega_instruction_selection::linux_timespec_syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::Syscall { number, .. })
+                HostBindingMechanism::Syscall { number, .. }
                     if host_operation
                         .operation_key
                         .uses_linux_timespec_argument() =>
                 {
-                    binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                        .map_or(0, |plan| {
-                            omega_instruction_selection::linux_timespec_argument_syscall_sequence_width_with_plan(
-                                input.target.architecture,
-                                operands,
-                                *number,
-                                plan,
-                            )
-                        })
+                    omega_instruction_selection::linux_timespec_argument_syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::Syscall { number, .. })
-                    if host_operation.operation_key.returns_value() =>
+                HostBindingMechanism::Syscall { number, .. }
+                    if plan.result.is_some() =>
                 {
-                    binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                        .map_or(0, |plan| {
-                            omega_instruction_selection::value_syscall_sequence_width_with_plan(
-                                input.target.architecture,
-                                operands,
-                                *number,
-                                plan,
-                            )
-                        })
+                    omega_instruction_selection::value_syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::Syscall { number, .. }) => {
-                    binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                        .map_or(0, |plan| {
-                            syscall_sequence_width_with_plan(
-                                input.target.architecture,
-                                operands,
-                                *number,
-                                plan,
-                            )
-                        })
+                HostBindingMechanism::Syscall { number, .. } => {
+                    syscall_sequence_width_with_plan(
+                        input.target.architecture,
+                        operands,
+                        *number,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::VtableSlot { index }) => {
-                    binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                        .map_or(0, |plan| {
-                            vtable_call_sequence_width_with_plan(
-                                input.target,
-                                operands,
-                                *index,
-                                false,
-                                plan,
-                            )
-                        })
+                HostBindingMechanism::VtableSlot { index } => {
+                    vtable_call_sequence_width_with_plan(
+                        input.target,
+                        operands,
+                        *index,
+                        false,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::VtableField {
+                HostBindingMechanism::VtableField {
                     byte_offset,
                     ..
-                }) => {
-                    if let Some(plan) = binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    {
-                        vtable_call_sequence_width_at_offset_with_plan(
-                            input.target,
-                            operands,
-                            *byte_offset,
-                            field_model_result_present(operands.len(), plan, 0, "vtable-field")?,
-                            plan,
-                        )
-                    } else {
-                        0
-                    }
+                } => {
+                    vtable_call_sequence_width_at_offset_with_plan(
+                        input.target,
+                        operands,
+                        *byte_offset,
+                        field_model_result_present(operands.len(), plan, 0, "vtable-field")?,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::TableFunction {
+                HostBindingMechanism::TableFunction {
                     byte_offset,
                     ..
-                }) => {
-                    if let Some(plan) = binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    {
-                        table_function_call_sequence_width_with_plan(
-                            input.target,
-                            operands,
-                            *byte_offset,
-                            field_model_result_present(
-                                operands.len(),
-                                plan,
-                                1,
-                                "table-function",
-                            )?,
-                            plan,
-                        )
-                    } else {
-                        0
-                    }
+                } => {
+                    table_function_call_sequence_width_with_plan(
+                        input.target,
+                        operands,
+                        *byte_offset,
+                        field_model_result_present(operands.len(), plan, 1, "table-function")?,
+                        plan,
+                    )
                 }
-                Some(HostBindingMechanism::Import { .. })
+                HostBindingMechanism::Import { .. }
                     if matches!(
                         host_operation.operation_key.capability,
                         omega_calling_conventions::HostCapability::Custom(_)
                             | omega_calling_conventions::HostCapability::Unknown
                     ) =>
                 {
-                    binding
-                        .and_then(omega_calling_conventions::HostBinding::call_plan)
-                        .map_or(0, |plan| {
-                            authored_import_call_sequence_width(input.target, operands, plan)
-                        })
+                    authored_import_call_sequence_width(input.target, operands, plan)
                 }
-                Some(HostBindingMechanism::Import { .. }) => binding
-                    .and_then(omega_calling_conventions::HostBinding::call_plan)
-                    .map_or(0, |plan| {
-                        host_call_sequence_width_with_plan(
-                            input.target,
-                            host_operation.operation_key,
-                            operands,
-                            plan,
-                        )
-                    }),
-                _ => 0,
+                HostBindingMechanism::Import { .. } => host_call_sequence_width_with_plan(
+                    input.target,
+                    host_operation.operation_key,
+                    operands,
+                    plan,
+                ),
             }
         };
         // A host call is never legitimately empty: a zero width means the
@@ -254,32 +222,6 @@ fn machine_instruction_width(
         // import relocation applied, which corrupts whatever instruction
         // lands at that offset and crashes the binary at runtime.
         if width == 0 {
-            if matches!(
-                binding.map(|binding| &binding.mechanism),
-                Some(HostBindingMechanism::Syscall { .. })
-            ) && binding
-                .and_then(omega_calling_conventions::HostBinding::call_plan)
-                .is_none()
-            {
-                return Err(Diagnostic::error(format!(
-                    "host operation {}.{} has no encodable call sequence: selected syscall binding has no evaluated call plan",
-                    host_operation.operation_key.capability_name(),
-                    host_operation.operation_key.operation_name(),
-                )));
-            }
-            if matches!(
-                binding.map(|binding| &binding.mechanism),
-                Some(HostBindingMechanism::Import { .. })
-            ) && binding
-                .and_then(omega_calling_conventions::HostBinding::call_plan)
-                .is_none()
-            {
-                return Err(Diagnostic::error(format!(
-                    "host operation {}.{} has no encodable call sequence: selected import binding has no evaluated call plan",
-                    host_operation.operation_key.capability_name(),
-                    host_operation.operation_key.operation_name(),
-                )));
-            }
             if matches!(
                 binding.map(|binding| &binding.mechanism),
                 Some(HostBindingMechanism::Import { .. })

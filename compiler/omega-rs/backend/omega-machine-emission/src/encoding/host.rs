@@ -16,41 +16,37 @@ pub(super) fn encode_host_operation(
         return architecture::encode_constant_host_result(input.target.architecture, operands);
     }
     match binding.map(|binding| &binding.mechanism) {
-        Some(HostBindingMechanism::Syscall { number, .. })
-            if operation_key.uses_linux_timespec_result() =>
-        {
-            architecture::encode_linux_timespec_syscall_with_plan(
-                input.target.architecture,
-                operands,
-                *number,
-                required_syscall_call_plan(binding)?,
-            )
-        }
-        Some(HostBindingMechanism::Syscall { number, .. })
-            if operation_key.uses_linux_timespec_argument() =>
-        {
-            architecture::encode_linux_timespec_argument_syscall_with_plan(
-                input.target.architecture,
-                operands,
-                *number,
-                required_syscall_call_plan(binding)?,
-            )
-        }
-        Some(HostBindingMechanism::Syscall { number, .. }) if operation_key.returns_value() => {
-            architecture::encode_value_syscall_sequence_with_plan(
-                input.target.architecture,
-                operands,
-                *number,
-                required_syscall_call_plan(binding)?,
-            )
-        }
         Some(HostBindingMechanism::Syscall { number, .. }) => {
-            architecture::encode_syscall_sequence_with_plan(
-                input.target.architecture,
-                operands,
-                *number,
-                required_syscall_call_plan(binding)?,
-            )
+            let plan = required_syscall_call_plan(binding)?;
+            if operation_key.uses_linux_timespec_result() {
+                architecture::encode_linux_timespec_syscall_with_plan(
+                    input.target.architecture,
+                    operands,
+                    *number,
+                    plan,
+                )
+            } else if operation_key.uses_linux_timespec_argument() {
+                architecture::encode_linux_timespec_argument_syscall_with_plan(
+                    input.target.architecture,
+                    operands,
+                    *number,
+                    plan,
+                )
+            } else if plan.result.is_some() {
+                architecture::encode_value_syscall_sequence_with_plan(
+                    input.target.architecture,
+                    operands,
+                    *number,
+                    plan,
+                )
+            } else {
+                architecture::encode_syscall_sequence_with_plan(
+                    input.target.architecture,
+                    operands,
+                    *number,
+                    plan,
+                )
+            }
         }
         Some(HostBindingMechanism::VtableSlot { index }) => {
             architecture::encode_vtable_call_sequence_with_plan(
