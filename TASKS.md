@@ -826,9 +826,12 @@ Remaining:
   The shared ordinary-import encoder now carries that distinction as an
   explicit authoritative-plan versus compatibility-oracle mode through both
   instruction selection and the x86-64 ISA layer, so an internal `None` cannot
-  accidentally select hardcoded placement. The x86-64 external/data relocation
-  walker consumes the same explicit mode, keeping encoded bytes and relocation
-  accounting on one authority route.
+  accidentally select hardcoded placement. The AArch64 ordinary, authored,
+  vtable, and table-function normalizer carries the same explicit mode through
+  its final plan validation/evaluation choice; optional plan context no longer
+  selects the production-versus-oracle route there either. The x86-64
+  external/data relocation walker consumes the same explicit mode, keeping
+  encoded bytes and relocation accounting on one authority route.
   The crate-local object call/data offset helpers enforce the same
   required-plan/named-no-plan split.
   AArch64 vtable/service-table plan normalization and field-call data

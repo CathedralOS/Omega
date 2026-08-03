@@ -475,10 +475,10 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
         // value-returning arm: they share `returns_value()` but insert an extra
         // `ldr` to deref the returned pointer.
         Architecture::Aarch64 if operation_key.dereferences_result() => {
-            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+            let (arguments, result) = normalized_aarch64_import_plan_for_plan(
                 operands,
                 Aarch64ImportResult::Integer,
-                authoritative_plan,
+                plan_source,
             )?;
             aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
                 operands.iter().map(aarch64_call_operand),
@@ -503,10 +503,10 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
         // result comes back in `d0`; the encoder inserts `fmov x0, d0` before the
         // result store. Checked before the plain value-returning arm.
         Architecture::Aarch64 if returns_float => {
-            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+            let (arguments, result) = normalized_aarch64_import_plan_for_plan(
                 operands,
                 Aarch64ImportResult::Float,
-                authoritative_plan,
+                plan_source,
             )?;
             aarch64::encode_host_call_sequence_value_returning_float_from_operands(
                 operands.iter().map(aarch64_call_operand),
@@ -525,10 +525,10 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
             )
         }
         Architecture::Aarch64 if returns_value => {
-            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+            let (arguments, result) = normalized_aarch64_import_plan_for_plan(
                 operands,
                 Aarch64ImportResult::Integer,
-                authoritative_plan,
+                plan_source,
             )?;
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),
@@ -538,10 +538,10 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
             )
         }
         Architecture::Aarch64 => {
-            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+            let (arguments, result) = normalized_aarch64_import_plan_for_plan(
                 operands,
                 Aarch64ImportResult::None,
-                authoritative_plan,
+                plan_source,
             )?;
             debug_assert!(result.is_none());
             aarch64::encode_host_call_sequence_from_operands(
@@ -580,10 +580,10 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
 ) -> Result<Vec<u8>, Diagnostic> {
     match target.architecture {
         Architecture::Aarch64 => {
-            let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
+            let (arguments, result) = normalized_aarch64_import_plan_for_plan(
                 operands,
                 Aarch64ImportResult::Authored,
-                Some(authoritative_plan),
+                HostImportPlan::Authoritative(authoritative_plan),
             )?;
             let result = result.as_ref().ok_or_else(|| {
                 Diagnostic::error("AArch64 authored import has no normalized result placement")
@@ -700,7 +700,7 @@ fn normalized_aarch64_host_argument_placements_for_plan<T: InstructionOperandLik
     } else {
         Aarch64ImportResult::None
     };
-    normalized_aarch64_import_plan_with_authoritative(operands, result_kind, authoritative_plan)
+    normalized_aarch64_import_plan_for_plan(operands, result_kind, plan_source)
         .map(|(placements, _)| placements)
 }
 
@@ -709,14 +709,14 @@ pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
     result_present: bool,
     authoritative_plan: &CallPlan,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    let (placements, result) = normalized_aarch64_import_plan_with_authoritative(
+    let (placements, result) = normalized_aarch64_import_plan_for_plan(
         operands,
         if result_present {
             Aarch64ImportResult::Authored
         } else {
             Aarch64ImportResult::None
         },
-        Some(authoritative_plan),
+        HostImportPlan::Authoritative(authoritative_plan),
     )?;
     debug_assert_eq!(result.is_some(), result_present);
     if !matches!(
@@ -768,16 +768,15 @@ pub fn normalized_aarch64_table_function_plan_with_plan<T: InstructionOperandLik
         wire_operands.push(lowered[0]);
     }
     wire_operands.extend_from_slice(&lowered[table_index + 1..]);
-    let (placements, result) =
-        normalized_aarch64_import_plan_from_call_operands_with_authoritative(
-            &wire_operands,
-            if result_present {
-                Aarch64ImportResult::Authored
-            } else {
-                Aarch64ImportResult::None
-            },
-            Some(authoritative_plan),
-        )?;
+    let (placements, result) = normalized_aarch64_import_plan_from_call_operands_for_plan(
+        &wire_operands,
+        if result_present {
+            Aarch64ImportResult::Authored
+        } else {
+            Aarch64ImportResult::None
+        },
+        HostImportPlan::Authoritative(authoritative_plan),
+    )?;
     debug_assert_eq!(result.is_some(), result_present);
     if let Some(result) = result.as_ref() {
         validate_aarch64_field_result(result, "table-function")?;
@@ -963,30 +962,35 @@ fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_kind: Aarch64ImportResult,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    normalized_aarch64_import_plan_with_authoritative(operands, result_kind, None)
+    normalized_aarch64_import_plan_for_plan(
+        operands,
+        result_kind,
+        HostImportPlan::CompatibilityOracle,
+    )
 }
 
-fn normalized_aarch64_import_plan_with_authoritative<T: InstructionOperandLike>(
+fn normalized_aarch64_import_plan_for_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_kind: Aarch64ImportResult,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostImportPlan<'_>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let aarch64_operands = operands
         .iter()
         .map(aarch64_call_operand)
         .collect::<Vec<_>>();
-    normalized_aarch64_import_plan_from_call_operands_with_authoritative(
+    normalized_aarch64_import_plan_from_call_operands_for_plan(
         &aarch64_operands,
         result_kind,
-        authoritative_plan,
+        plan_source,
     )
 }
 
-fn normalized_aarch64_import_plan_from_call_operands_with_authoritative(
+fn normalized_aarch64_import_plan_from_call_operands_for_plan(
     aarch64_operands: &[omega_isa_aarch64::Aarch64CallOperand],
     result_kind: Aarch64ImportResult,
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostImportPlan<'_>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    let authoritative_plan = plan_source.authoritative();
     let (result_operand, arguments) = match result_kind {
         Aarch64ImportResult::None => (None, aarch64_operands),
         Aarch64ImportResult::Integer
@@ -1034,17 +1038,20 @@ fn normalized_aarch64_import_plan_from_call_operands_with_authoritative(
             }
         },
     };
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_call_plan(plan, &signature).map_err(|error| {
-            Diagnostic::error(format!(
-                "source-selected AArch64 import plan does not match the lowered signature: {error}"
-            ))
-        })?;
-        plan.clone()
-    } else {
-        evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
-            Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
-        })?
+    let plan = match plan_source {
+        HostImportPlan::Authoritative(plan) => {
+            validate_call_plan(plan, &signature).map_err(|error| {
+                Diagnostic::error(format!(
+                    "source-selected AArch64 import plan does not match the lowered signature: {error}"
+                ))
+            })?;
+            plan.clone()
+        }
+        HostImportPlan::CompatibilityOracle => {
+            evaluate_call_plan(CallingPolicy::Aapcs64, &signature).map_err(|error| {
+                Diagnostic::error(format!("cannot evaluate AAPCS64 import plan: {error}"))
+            })?
+        }
     };
     validate_aarch64_import_plan(&plan)?;
     for (index, placement) in plan.parameters.iter().enumerate() {
@@ -2840,10 +2847,10 @@ mod aarch64_import_plan_tests {
             TargetInstructionOperandKind::ImmediateInteger(70),
         ] {
             let operands = [operand(argument)];
-            let (parameters, result) = normalized_aarch64_import_plan_with_authoritative(
+            let (parameters, result) = normalized_aarch64_import_plan_for_plan(
                 &operands,
                 Aarch64ImportResult::None,
-                Some(&plan),
+                HostImportPlan::Authoritative(&plan),
             )
             .expect("exact I32 import argument");
             assert_eq!(parameters[0].shape, ValueShape::integer(4, 4));
