@@ -951,8 +951,10 @@ improvements do not change public identity.
   and legacy backend consumers depend on the Psi owner directly.
   `psi-checked-trees` owns the checked semantic representation, including
   proof, borrow, flow, reach, value-origin, and admissibility evidence;
-  `omega-checked-trees` is now only a compatibility export for unmigrated
-  consumers.
+  the state/control representations and transforms, artifact/backend
+  orchestration, and interpreter consume the Psi owner directly.
+  `omega-checked-trees` remains only as a compatibility export for unmigrated
+  backend leaf consumers.
   `psi-validation` owns target-neutral cross-semantic source validation. The
   unused former `omega-validation` compatibility package is retired; its
   integration tests remain in the architecture harness, where they also cover
