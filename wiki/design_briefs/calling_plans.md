@@ -814,11 +814,14 @@ use the same plan-owned adaptation through `mkdirat` and `fchmodat`; semantic
 portable path-plus-mode shape while Linux injects `AT_FDCWD`. The already
 directory-relative `unlink_at` seam maps directly to `unlinkat`, while
 `read_link` keeps its portable path-buffer-count shape and receives the same
-plan-owned prefix through `readlinkat`. Path-based metadata must first replace
-the known Darwin-shaped Linux `StatLayout` placeholder with the real target
-ABI. Metadata, plain-path removal, rename/link, directory-record, and
-failure-code adaptation remain explicit engineering work rather than a reason
-to add hidden libc state to the syscall path.
+plan-owned prefix through `readlinkat`. Plain-path `remove`/`remove_dir` and
+their trusted-name twins also lower through `unlinkat`; plan data injects both
+`AT_FDCWD` and the target-specific trailing flag (`0` or Linux
+`AT_REMOVEDIR = 512`). Path-based metadata must first replace the known
+Darwin-shaped Linux `StatLayout` placeholder with the real target ABI.
+Metadata, rename/link, directory-record, and failure-code adaptation remain
+explicit engineering work rather than a reason to add hidden libc state to
+the syscall path.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still

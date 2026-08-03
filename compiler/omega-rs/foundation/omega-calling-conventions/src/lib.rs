@@ -1018,6 +1018,15 @@ pub enum PlatformCallData {
     ConstantArgument {
         value: i64,
     },
+    /// The call takes one leading and one trailing per-target constant around
+    /// the semantic arguments. Linux plain-path removal uses this to retain
+    /// `unlinkat(AT_FDCWD, path, flags)` as plan data: neither the compatibility
+    /// directory descriptor nor the target-specific `AT_REMOVEDIR` value leaks
+    /// into the portable filesystem seam.
+    ConstantArguments {
+        leading: i64,
+        trailing: i64,
+    },
     /// Linux `clock_gettime(clock_id, &timespec)`: selection carries the
     /// semantic result place plus this injected clock id; target emission
     /// owns the 16-byte temporary and combines its two signed 64-bit fields
@@ -1691,6 +1700,8 @@ mod binding_plan_tests {
                 (HostOperation::MakeDir, "mkdirat", expected_mkdirat, 3),
                 (HostOperation::Chmod, "fchmodat", expected_fchmodat, 3),
                 (HostOperation::UnlinkAt, "unlinkat", expected_unlinkat, 3),
+                (HostOperation::Unlink, "unlinkat", expected_unlinkat, 3),
+                (HostOperation::RemoveDir, "unlinkat", expected_unlinkat, 3),
                 (
                     HostOperation::ReadLink,
                     "readlinkat",
@@ -1747,6 +1758,27 @@ mod binding_plan_tests {
                 .map(|(_, row)| row)
                 .expect("Linux unlinkat lowering");
             assert_eq!(unlink_at.data, PlatformCallData::None);
+
+            for (method, trailing) in [
+                ("remove", 0),
+                ("remove_name", 0),
+                ("remove_dir", 512),
+                ("remove_dir_name", 512),
+            ] {
+                let lowering = plan
+                    .platform_call_lowerings
+                    .iter()
+                    .find(|(_, row)| row.state.as_ref() == method)
+                    .map(|(_, row)| row)
+                    .expect("Linux plain-path removal lowering");
+                assert_eq!(
+                    lowering.data,
+                    PlatformCallData::ConstantArguments {
+                        leading: -100,
+                        trailing,
+                    }
+                );
+            }
         }
     }
 

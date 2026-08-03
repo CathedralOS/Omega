@@ -23,6 +23,7 @@ pub(super) fn collect_host_call_data(
         | PlatformCallData::SingleByteRead
         | PlatformCallData::ConstantResult { .. }
         | PlatformCallData::ConstantArgument { .. }
+        | PlatformCallData::ConstantArguments { .. }
         | PlatformCallData::TimespecResult { .. }
         | PlatformCallData::TimespecArgument => {}
     }
