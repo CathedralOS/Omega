@@ -398,8 +398,14 @@ cohort retains
 `omega.float.hardware.macos_arm64.primitive-arithmetic-comparison.v1` /
 `0xab789e8539fe9f96`, binding all twenty exact operation/format plan identities
 to finite add/subtract/multiply/divide and all six equality/ordered comparisons
-in both formats, interpreter/native outputs, and both Linux cross-builds.
-Directed FMA separately
+in both formats, interpreter/native outputs, and both Linux cross-builds. The
+policy-adapter cohort retains
+`omega.float.hardware.macos_arm64.policy-adapters.v1` /
+`0x72c8984fc8703b9b`, binding all eight primitive arithmetic plan identities to
+both result adapters in both formats, finite and nested success paths, overflow-
+only saturation, unclamped division by zero, every Trapping non-finite class,
+interpreter/native observations, and both Linux builds for every case. Directed
+FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
