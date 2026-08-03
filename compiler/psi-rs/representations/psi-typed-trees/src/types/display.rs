@@ -51,7 +51,16 @@ impl TypeReferenceNode {
                 )
             }
             TypeReferenceNode::ConstExpression(_) => "const <expression>".to_owned(),
-            TypeReferenceNode::DynamicTrait { name, .. } => format!("dyn {name}"),
+            TypeReferenceNode::DynamicTrait {
+                name,
+                conformance_carrier,
+                conformance_name,
+                ..
+            } => dynamic_trait_label(
+                name,
+                conformance_carrier.as_ref(),
+                conformance_name.as_ref(),
+            ),
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }
@@ -119,7 +128,16 @@ impl TypeReferenceNode {
             TypeReferenceNode::ConstExpression(expression) => {
                 format!("const {}", expressions.display_name(*expression))
             }
-            TypeReferenceNode::DynamicTrait { name, .. } => format!("dyn {name}"),
+            TypeReferenceNode::DynamicTrait {
+                name,
+                conformance_carrier,
+                conformance_name,
+                ..
+            } => dynamic_trait_label(
+                name,
+                conformance_carrier.as_ref(),
+                conformance_name.as_ref(),
+            ),
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }
@@ -128,6 +146,17 @@ impl TypeReferenceNode {
 
 fn reference_qualifier(is_mutable: bool) -> &'static str {
     if is_mutable { "mut " } else { "" }
+}
+
+fn dynamic_trait_label(
+    trait_name: &crate::name::Identifier,
+    conformance_carrier: Option<&crate::name::Identifier>,
+    conformance_name: Option<&crate::name::Identifier>,
+) -> String {
+    match (conformance_carrier, conformance_name) {
+        (Some(carrier), Some(conformance)) => format!("dyn {carrier}::{conformance}"),
+        _ => format!("dyn {trait_name}"),
+    }
 }
 
 impl TypeConstraintNode {

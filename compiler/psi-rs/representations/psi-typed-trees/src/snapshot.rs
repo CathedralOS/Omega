@@ -625,6 +625,8 @@ pub enum TypeReferenceSnapshot {
     },
     DynamicTrait {
         name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        conformance: Option<String>,
     },
     Named {
         name: String,
@@ -1531,8 +1533,17 @@ fn type_reference_snapshot(
                         .collect(),
                 }),
         },
-        TypeReferenceNode::DynamicTrait { name, .. } => TypeReferenceSnapshot::DynamicTrait {
+        TypeReferenceNode::DynamicTrait {
+            name,
+            conformance_carrier,
+            conformance_name,
+            ..
+        } => TypeReferenceSnapshot::DynamicTrait {
             name: name.to_string(),
+            conformance: conformance_carrier
+                .as_ref()
+                .zip(conformance_name.as_ref())
+                .map(|(carrier, selection)| format!("{carrier}::{selection}")),
         },
         TypeReferenceNode::Named { name, .. } => TypeReferenceSnapshot::Named {
             name: name.to_string(),

@@ -508,7 +508,13 @@ fn validate_type_reference_handle_with_context(
                 }
             }
         }
-        TypeReferenceNode::DynamicTrait { name, .. } => {
+        TypeReferenceNode::DynamicTrait {
+            name,
+            conformance,
+            conformance_carrier,
+            conformance_name,
+            ..
+        } => {
             let Some(trait_definition) = symbols.trait_definition(name.as_str()) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown dynamic trait `{name}`"
@@ -526,6 +532,17 @@ fn validate_type_reference_handle_with_context(
             if generic_parameter_count != 0 {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses generic trait `{name}` as an unbound dynamic value; bind its {generic_parameter_count} generic parameter(s) before deriving a dynamic surface"
+                )));
+            }
+
+            if conformance_name.is_some() && conformance.is_none() {
+                let selection = conformance_carrier
+                    .as_ref()
+                    .zip(conformance_name.as_ref())
+                    .map(|(carrier, conformance)| format!("{carrier}::{conformance}"))
+                    .unwrap_or_else(|| "<invalid named conformance>".to_owned());
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} selects unresolved named conformance `{selection}` for dynamic trait `{name}`"
                 )));
             }
         }

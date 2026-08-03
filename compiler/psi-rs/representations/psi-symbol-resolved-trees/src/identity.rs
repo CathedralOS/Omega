@@ -461,7 +461,20 @@ fn count_type_reference_node(
             }
         }
         TypeReferenceNode::ConstExpression(_) => {}
-        TypeReferenceNode::DynamicTrait { name, .. } => count_type_name(name, counts),
+        TypeReferenceNode::DynamicTrait {
+            name,
+            conformance_carrier,
+            conformance_name,
+            ..
+        } => {
+            count_type_name(name, counts);
+            if let Some(carrier) = conformance_carrier {
+                count_type_name(carrier, counts);
+            }
+            if let Some(conformance) = conformance_name {
+                count_type_name(conformance, counts);
+            }
+        }
         TypeReferenceNode::Named { name, .. } => count_type_name(name, counts),
         TypeReferenceNode::SelfType { .. } => {}
         TypeReferenceNode::Unit => {}
@@ -652,7 +665,20 @@ fn count_type_reference(
         TypeReference::ConstExpression(expression) => {
             count_expression_handle(expression_table, *expression, counts);
         }
-        TypeReference::DynamicTrait { name, .. } => count_type_name(name, counts),
+        TypeReference::DynamicTrait {
+            name,
+            conformance_carrier,
+            conformance_name,
+            ..
+        } => {
+            count_type_name(name, counts);
+            if let Some(carrier) = conformance_carrier {
+                count_type_name(carrier, counts);
+            }
+            if let Some(conformance) = conformance_name {
+                count_type_name(conformance, counts);
+            }
+        }
         TypeReference::Named { name, .. } => count_type_name(name, counts),
         TypeReference::SelfType { .. } => {}
         TypeReference::Unit => {}

@@ -425,12 +425,19 @@ impl TypeReferenceTable {
                 let expression = target_expressions.copy_from(source_expressions, *expression);
                 self.insert(TypeReferenceNode::ConstExpression(expression))
             }
-            TypeReferenceNode::DynamicTrait { symbol, name } => {
-                self.insert(TypeReferenceNode::DynamicTrait {
-                    symbol: *symbol,
-                    name: name.clone(),
-                })
-            }
+            TypeReferenceNode::DynamicTrait {
+                symbol,
+                name,
+                conformance,
+                conformance_carrier,
+                conformance_name,
+            } => self.insert(TypeReferenceNode::DynamicTrait {
+                symbol: *symbol,
+                name: name.clone(),
+                conformance: *conformance,
+                conformance_carrier: conformance_carrier.clone(),
+                conformance_name: conformance_name.clone(),
+            }),
             TypeReferenceNode::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: name.clone(),
@@ -659,6 +666,9 @@ pub enum TypeReferenceNode {
     DynamicTrait {
         symbol: SymbolHandle,
         name: Identifier,
+        conformance: Option<SymbolHandle>,
+        conformance_carrier: Option<Identifier>,
+        conformance_name: Option<Identifier>,
     },
     Named {
         symbol: SymbolHandle,

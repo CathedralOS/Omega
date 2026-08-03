@@ -545,10 +545,27 @@ fn normalize_type_reference(
             "index-expression",
             [normalize_index_expression(program, *expression, context)],
         ),
-        TypeReferenceNode::DynamicTrait { symbol, name } => compound(
-            "dynamic-trait",
-            [atom("name", &context.name(program, *symbol, name.as_str()))],
-        ),
+        TypeReferenceNode::DynamicTrait {
+            symbol,
+            name,
+            conformance,
+            conformance_carrier,
+            conformance_name,
+        } => {
+            let mut identity = vec![atom("name", &context.name(program, *symbol, name.as_str()))];
+            if let (Some(carrier), Some(selection)) =
+                (conformance_carrier.as_ref(), conformance_name.as_ref())
+            {
+                let fallback = format!("{carrier}::{selection}");
+                identity.push(atom(
+                    "conformance",
+                    &conformance
+                        .map(|selected| context.name(program, selected, &fallback))
+                        .unwrap_or(fallback),
+                ));
+            }
+            compound("dynamic-trait", identity)
+        }
         TypeReferenceNode::Named { symbol, name } => compound(
             "named",
             [atom("name", &context.name(program, *symbol, name.as_str()))],

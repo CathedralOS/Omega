@@ -396,6 +396,53 @@ fn retains_generic_and_named_conformance_bounds() {
 }
 
 #[test]
+fn retains_named_dynamic_conformance_path() {
+    let source = r#"
+        machine inspect(value: &dyn Card::PowerOrder) {}
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("named dynamic conformance should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let state = parsed.items.state(
+        parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state"),
+    );
+    let parameter = parsed.items.state_parameter(
+        parsed
+            .items
+            .state_parameters(state.parameters)
+            .first()
+            .copied()
+            .expect("value parameter"),
+    );
+    let TypeReferenceNode::Reference { referee, .. } = parsed
+        .type_references
+        .type_reference(parameter.type_reference)
+    else {
+        panic!("parameter should be borrowed");
+    };
+    assert!(matches!(
+        parsed.type_references.type_reference(*referee),
+        TypeReferenceNode::DynamicTrait { name, conformance }
+            if name.as_str() == "Card"
+                && conformance.as_ref().is_some_and(|name| name.as_str() == "PowerOrder")
+    ));
+}
+
+#[test]
 fn retains_generic_trait_header_conformance_bounds() {
     let source = r#"
         trait CallingPolicy { }
