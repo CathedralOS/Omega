@@ -43,6 +43,22 @@ windows_x64 machine Filesystem::encode_open_options(&mut self) {
         | 32768);
 }
 
+// MSVCRT operations report -1 and retain detail in thread-local errno. Map its
+// EWOULDBLOCK value (140) onto the common portable classifier's canonical 35.
+windows_x64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32 {
+    self.err_code = self.host.errno();
+    transition self.err_code == 140 { true -> would_block() _ -> other() }
+    state would_block(&mut self) -> i32 { 35 }
+    state other(&mut self) -> i32 { self.err_code }
+}
+
+windows_x64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32 {
+    self.err_code = self.host.errno();
+    transition self.err_code == 140 { true -> would_block() _ -> other() }
+    state would_block(&mut self) -> i32 { 35 }
+    state other(&mut self) -> i32 { self.err_code }
+}
+
 windows_x64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
     self.open_options = options;
     self.encode_open_options();

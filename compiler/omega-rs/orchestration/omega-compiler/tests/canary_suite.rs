@@ -124,6 +124,27 @@ fn filesystem_open_flags_are_not_provider_values() {
 }
 
 #[test]
+fn linux_direct_syscall_wrappers_do_not_read_ambient_errno() {
+    let root = repo_root();
+    for target in ["linux_x64", "linux_arm64"] {
+        let relative = format!("omega/language/std/targets/{target}/filesystem_impl.omg");
+        let source = fs::read_to_string(root.join(&relative))
+            .unwrap_or_else(|error| panic!("read {relative}: {error}"));
+        assert!(
+            !source.contains("self.host.errno()"),
+            "{relative} must decode explicit -errno syscall results, not ambient libc state"
+        );
+        assert!(
+            source.contains("Filesystem::native_error_code_i32")
+                && source.contains("Filesystem::native_error_code_i64")
+                && source.contains("self.last_error_i32(")
+                && source.contains("self.last_error_i64("),
+            "{relative} must retain both direct-syscall result widths through target-owned classification"
+        );
+    }
+}
+
+#[test]
 fn provides_syntax_is_retired_from_omega_sources() {
     let root = repo_root();
     let tracked = Command::new("git")

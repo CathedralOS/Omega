@@ -827,9 +827,13 @@ The known Darwin-shaped Linux `StatLayout` placeholder must not be treated as
 native coverage. Linux directory reads now retain the real three-argument
 `getdents64` plan: selection omits the portable seam's Darwin-only cursor, and
 the x86-64/AArch64 target packages decode `d_reclen` at 16, `d_type` at 18, and
-the NUL-terminated name at 19. Multi-fill iteration and failure-code adaptation
-remain explicit engineering work rather than a reason to add hidden libc state
-to the syscall path.
+the NUL-terminated name at 19. Direct syscall failures remain `-errno` at the
+raw seam and flow explicitly into target-package classification; Linux never
+binds the libc-shaped zero-argument `FilesystemHost::errno` operation or gains
+a hidden last-error slot. The common wrappers now retain the failed i32/i64
+result through their error arms, while the selected target normalizes its
+native code set (including Linux EAGAIN/EWOULDBLOCK 11). Multi-fill directory
+iteration remains engineering work.
 
 The compiler's retained source-policy identity carries the complete canonical
 `BoundaryEntryPlan` through checked lowering. Public provider schemas still
