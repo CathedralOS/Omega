@@ -2,9 +2,9 @@
 
 Status: canonical Psi architecture settled 2026-08-02. The hard-root accounting
 precursor is schedule-keyed and uses logical-fuel provisions. The first
-terminal-Psi schedule, interpreter meter, and straight-line fixed-entry checker
-are live; build-time migration, general safe-point segment checking, response
-outcomes, and native metering remain implementation work. The current
+terminal-Psi schedule, interpreter meter, and acyclic maximum-path fixed-entry
+and safe-point checkers are live; build-time migration, response outcomes, and
+native metering remain implementation work. The current
 TypedTrees evaluator-step schedule is
 telemetry precursor evidence, not canonical-Psi fuel. The implementation cut
 and migration are detailed in
@@ -149,16 +149,17 @@ operation and one unit per taken terminal edge. The verified interpreter returns
 exact schedule-keyed usage attributed to stable operation/edge identities; a
 finite sponsor allowance fails atomically before an unpaid site. Explicit
 in-memory execution state resumes at that exact site after checked allowance
-replenishment without replaying prior work. The unconditional acyclic subset
-also has an exact entry-to-return certificate keyed by semantic
-identity, entry, return edge, and fuel schedule; consumers recompute every field
-without trusting the producer. The same checker now derives exact selected
+replenishment without replaying prior work. The acyclic subset has an exact
+maximum entry-to-return certificate keyed by semantic identity, entry, and fuel
+schedule; consumers recompute every field without trusting the producer. A
+memoized CFG walk takes the maximum successor cost at each conditional rather
+than summing mutually exclusive arms. The same checker derives exact selected
 block-to-edge segment certificates, including the endpoint charge, so adjacent
 segments neither omit nor double-charge a jump. The current-vocabulary semantic
-safe-point selector now returns the complete ordered partition at every
-explicit jump/return edge; validation rejects omitted or reordered segments.
-Build-time migration, branch/loop certificates, target/native conditional
-lowering, and native metering remain.
+safe-point selector now returns the complete canonical graph partition at every
+explicit jump, conditional, or return edge; validation rejects omitted or
+reordered segments. Build-time migration, loop certificates, target/native
+conditional lowering, and native metering remain.
 Attributed response reporting additionally waits on executable terminal
 wait/foreign-edge variants carrying their response-contract status. The current
 total operation plus unconditional jump/return vocabulary can close a bounded

@@ -494,10 +494,9 @@ fn checked_source_conditional_survives_frontend_drop() {
     )
     .expect("source conditional should verify after frontend drop");
     assert_eq!(semantic_module.semantic_version.get(), 13);
-    assert!(matches!(
-        derive_fixed_entry_fuel(&verified, semantic_module.entry),
-        Err(psi_terminal_fixed_fuel::FixedFuelError::BranchingNotYetSupported(_))
-    ));
+    let fixed = derive_fixed_entry_fuel(&verified, semantic_module.entry)
+        .expect("source conditional should have an exact maximum fuel bound");
+    assert_eq!(fixed.ceiling_units(), 2);
 
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     for (condition, expected, selected, unselected) in [

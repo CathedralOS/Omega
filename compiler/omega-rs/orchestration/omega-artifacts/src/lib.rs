@@ -1037,8 +1037,6 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
                 output.push_str(&certificate.terminal_psi().program_fingerprint.to_string());
                 output.push_str("\", \"entry\": ");
                 push_hex_identity(output, certificate.entry().get());
-                output.push_str(", \"return_edge\": ");
-                push_hex_identity(output, certificate.return_edge().get());
                 output.push_str(", \"installed_code\": ");
                 push_hex_identity(output, binding.installed_code().normalized_identity());
                 output.push_str(", \"artifact\": ");

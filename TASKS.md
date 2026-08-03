@@ -1003,8 +1003,9 @@ improvements do not change public identity.
   lowering retains canonical block entries plus both successors. The first
   checked-source producer lowers an ordered positive-Boolean/fallback branch
   whose successors bind already-defined integer entry parameters to direct-
-  return branch states. Branch fixed-work certificates and target/native block
-  lowering remain implementation work.
+  return branch states. The restricted fixed-work checker derives the maximum
+  acyclic branch cost and complete safe-point graph partition. Target/native
+  block lowering remains implementation work.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1159,7 +1160,8 @@ improvements do not change public identity.
   and emitted host execution.
   The source conditional survives frontend disposal, executes either arm with
   only its selected edge charged, and retains both successors through the Omega
-  abstract boundary; fixed-work and target/native lowering refuse it honestly.
+  abstract boundary. Its fixed-work certificate is two units; target/native
+  lowering refuses it honestly.
   Because the
   legacy exit prover cannot establish ordinary `result == literal` contracts,
   this bootstrap canary preserves a closed typed `requires`/`ensures` fact and
@@ -1383,9 +1385,11 @@ improvements do not change public identity.
   canary's four-unit certificate equals measured usage. Exact selected
   block-to-edge segment certificates also recompute against that identity and
   schedule, include the endpoint charge, and reject an edge not reached before
-  return. The current-vocabulary semantic safe-point selector partitions the
-  complete reachable path at every explicit jump/return edge and validation
-  rejects omitted or reordered segments. Build-time migration, branch/loop
+  return. A memoized acyclic CFG walk derives the maximum conditional path
+  without summing mutually exclusive arms. The current-vocabulary semantic
+  safe-point selector partitions the complete reachable graph at every explicit
+  jump, conditional, or return edge in canonical block/edge order; validation
+  rejects omitted or reordered segments. Build-time migration, loop
   certificates, response outcomes, and trusted native metering remain. Honest
   attributed response outcomes are implementation-sequenced after terminal Psi
   gains wait/foreign-edge variants and their finite-response contract field;

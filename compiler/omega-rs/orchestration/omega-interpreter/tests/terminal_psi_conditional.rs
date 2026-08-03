@@ -6,16 +6,19 @@ use omega_terminal_abstract_operations_to_target_operations::{
 };
 use omega_terminal_psi_to_abstract_operations::lower_verified_module;
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType,
-    ValueId,
+    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
+    ScalarType, ValueId,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal::{
-    Block, MachineContract, SemanticVersion, SuccessorEdge, TerminalMachine, TerminalModule,
-    Terminator, ValueDeclaration,
+    Block, MachineContract, Operation, OperationKind, SemanticVersion, SuccessorEdge,
+    TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
 };
 use psi_terminal_codec::{decode_module, encode_module, terminal_psi_identity};
-use psi_terminal_fixed_fuel::{FixedFuelError, derive_fixed_entry_fuel};
+use psi_terminal_fixed_fuel::{
+    derive_fixed_entry_fuel, derive_fixed_safe_point_segments, validate_fixed_entry_fuel,
+    validate_fixed_safe_point_segments,
+};
 use psi_terminal_fuel::FuelChargeSite;
 use psi_terminal_verifier::{ProofBundle, verify_module};
 
@@ -36,12 +39,25 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
         &AdmissionProfile::default(),
     )
     .expect("proof-free conditional module verifies");
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("acyclic conditional has a maximum fuel bound");
+    assert_eq!(fixed.ceiling_units(), 2);
+    validate_fixed_entry_fuel(&verified, &fixed).expect("conditional bound recomputes");
+    let segments = derive_fixed_safe_point_segments(&verified, MachineId::new(1).unwrap())
+        .expect("conditional graph has a complete safe-point partition");
     assert_eq!(
-        derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap()),
-        Err(FixedFuelError::BranchingNotYetSupported(
-            BlockId::new(1).unwrap()
-        ))
+        segments
+            .iter()
+            .map(|segment| (
+                segment.start_block().get(),
+                segment.end_edge().get(),
+                segment.ceiling_units()
+            ))
+            .collect::<Vec<_>>(),
+        [(1, 1, 1), (1, 2, 1), (2, 3, 1), (3, 4, 1)]
     );
+    validate_fixed_safe_point_segments(&verified, MachineId::new(1).unwrap(), &segments)
+        .expect("conditional safe-point partition recomputes");
 
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let true_edge = EdgeId::new(1).expect("true edge");
@@ -115,6 +131,33 @@ fn v13_conditional_round_trips_executes_and_lowers_both_ordered_successors() {
             MachineId::new(1).unwrap()
         ))
     );
+}
+
+#[test]
+fn conditional_fixed_bound_uses_the_maximum_path_not_the_sum() {
+    let mut module = conditional_module(SemanticVersion::V13);
+    module.machines[0].blocks[1].operations.push(Operation {
+        id: OperationId::new(1).unwrap(),
+        result: ValueDeclaration {
+            id: ValueId::new(7).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        },
+        kind: OperationKind::BooleanConstant { value: true },
+    });
+    let verified = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("unequal acyclic branch costs verify");
+
+    let fixed = derive_fixed_entry_fuel(&verified, MachineId::new(1).unwrap())
+        .expect("maximum branch cost derives");
+    assert_eq!(fixed.ceiling_units(), 3);
+    let segments = derive_fixed_safe_point_segments(&verified, MachineId::new(1).unwrap())
+        .expect("unequal branch segments derive");
+    assert_eq!(segments[2].ceiling_units(), 2);
+    assert_eq!(segments[3].ceiling_units(), 1);
 }
 
 #[test]

@@ -27,7 +27,6 @@ fn straight_line_entry_has_an_exact_recomputable_bound() {
     );
     assert_eq!(certificate.schedule().schedule_version(), 1);
     assert_eq!(certificate.entry(), machine_id(1));
-    assert_eq!(certificate.return_edge(), edge_id(2));
     assert!(certificate.relevant_preconditions().is_empty());
     assert_eq!(certificate.ceiling_units(), 3);
     validate_fixed_entry_fuel(&verified, &certificate).unwrap();

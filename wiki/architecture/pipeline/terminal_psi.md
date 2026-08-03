@@ -60,8 +60,8 @@ path. The canonical codec round-trips both ordered successors, the interpreter
 executes and charges only the selected edge, and Omega's source-independent
 abstract plan retains canonical block entries and both successor records.
 The checked-source producer lowers one exact direct-binding conditional form.
-Restricted branch-bound certificates and target/native block lowering remain
-implementation work.
+The restricted fixed-work checker derives its maximum acyclic branch bound;
+target/native block lowering remains implementation work.
 
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
@@ -117,7 +117,8 @@ integer direct return, discards
 `CheckedTrees`, then verifies and executes the produced semantic modules.
 The source conditional likewise survives frontend disposal, selects both arms,
 charges only the taken edge, and crosses Omega's abstract boundary with both
-successors intact; fixed-work and target lowering continue to refuse it.
+successors intact. Its fixed-work certificate is two units; target lowering
+continues to refuse it.
 Constant-fed wrapping add and the Boolean literal reach emitted host machine
 code; direct ninth `bool` and `u8` returns cross the host incoming-stack ABI;
 and runtime wrapping add
@@ -236,9 +237,8 @@ than the enclosing machine declaration. The real-source
 canary encodes and manifests the debug section,
 drops checked trees, and decodes it against the reconstructed semantic module.
 Target/native conditional lowering, the remaining arithmetic-policy variants,
-general register assignment, general
-safe-point/branch fixed-work checking, build-time fuel migration, and native
-fuel metering remain next.
+general register assignment, build-time fuel migration, and native fuel
+metering remain next.
 The v5 wrapping-subtract canary independently round-trips, verifies,
 costs one operation plus one return edge, lowers, and executes parameter-fed
 `u8` 5-10 as 251 through a real C ABI call.
@@ -567,8 +567,8 @@ semantic identity before and after accounting. `TerminalExecution` retains the
 exact block/operation cursor and values across that sponsor event; checked
 replenishment resumes at the unpaid site without replaying or double-charging
 earlier work, including in the serialized real-source/native canary. Build-time
-migration, general fixed-work/segment certificates, attributed response
-outcomes, and trusted native block metering remain later IRFUEL slices.
+migration, attributed response outcomes, and trusted native block metering
+remain later IRFUEL slices.
 
 The v3 wrapping canary also costs four v1 units: two constants, one addition,
 and one return edge. Semantic-version migration therefore does not imply a fuel
@@ -585,23 +585,24 @@ The v8 parameter-fed saturating-multiply canary costs two units and
 reaches both signed `i64` bounds.
 
 `psi-terminal-fixed-fuel` provides the first restricted checker over this same
-schedule. Because the supported v1/v2/v3/v4/v5/v6/v7/v8/v9/v10/v11 control vocabulary currently
-permits one acyclic straight-line path, it derives an exact entry-to-return
-ceiling with no additional precondition assumptions. The certificate keys the
-canonical terminal-Psi identity, entry machine, reached return edge, schedule
-identity, and ceiling.
+schedule. It derives the maximum entry-to-return cost over the verified acyclic
+CFG with no additional precondition assumptions, memoizing shared tails and
+taking the greater successor cost at a conditional rather than summing mutually
+exclusive arms. The certificate keys the canonical terminal-Psi identity,
+entry machine, schedule identity, and ceiling.
 Validation recomputes every field from the verified decoded module; changing
 program semantics invalidates an old certificate even when the numeric cost is
 unchanged, and a verified but noncanonical module cannot acquire semantic
 identity. The source canary's exact four-unit certificate equals measured
 execution after source and producer state are discarded. Exact machine-local
 block-to-edge segment certificates now reuse the same canonical identity and
-schedule, include their selected jump or return edge, and reject an endpoint
-that is not reached before return. For the current total, unconditional
-vocabulary, every explicit jump/return edge is a semantic safe point; the
-checker derives and validates the complete ordered path partition so no segment
-can be omitted or reordered. Branch/loop outcomes, relevant-precondition
-subsets, and Cathedral hard-root migration remain later slices.
+schedule, include their selected jump, conditional, or return edge, and reject
+an endpoint that is not reached before return. Every explicit edge is a
+semantic safe point; the checker derives and validates the complete reachable
+graph partition in canonical block/edge order so no branch segment can be
+omitted or reordered. Crossing a conditional within one unselected segment
+still fails closed. Loop outcomes, relevant-precondition subsets, and Cathedral
+hard-root migration remain later slices.
 
 Omega external-root composition now accepts those sealed entry and segment
 certificates as a distinct local-evidence form beside admitted opaque-provider

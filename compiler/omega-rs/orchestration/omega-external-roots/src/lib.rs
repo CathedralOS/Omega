@@ -1109,7 +1109,6 @@ fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelL
             hash.bytes(terminal_psi.program_fingerprint.as_bytes());
             hash.u64(u64::from(certificate.schedule().schedule_version()));
             hash.u64(certificate.entry().get());
-            hash.u64(certificate.return_edge().get());
             hash.u64(certificate.relevant_preconditions().len() as u64);
             hash.u64(certificate.ceiling_units());
         }
