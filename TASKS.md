@@ -942,8 +942,10 @@ Remaining:
   the Darwin AAPCS64 planner places anonymous scalar arguments on the outgoing
   stack and pins the `open(path, flags, mode)` shape. The `open_create`
   encoder, layout width, call relocation, and data relocation now consume that
-  complete concrete plan; the duplicated `+8`/`+12` accounting and trailing-mode
-  operation classifier are retired; and
+  complete plan through the shared explicit authoritative-plan versus
+  compatibility-oracle mode; its concrete variadic normalizer no longer uses
+  an optional plan to select that boundary. The duplicated `+8`/`+12`
+  accounting and trailing-mode operation classifier are retired; and
 - delete compatibility fields after their final consumer migrates. The
   vtable-field and service-table declared-parameter-count copies are retired;
   result presence now comes from the retained wire plan plus the service

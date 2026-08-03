@@ -491,8 +491,7 @@ fn encode_host_call_sequence_for_plan<T: InstructionOperandLike>(
         // promoted anonymous mode parameter is stack-placed by its normalized
         // Apple AAPCS64 plan.
         Architecture::Aarch64 if is_open_create(operation_key) => {
-            let (arguments, result) =
-                normalized_darwin_open_create_plan(operands, authoritative_plan)?;
+            let (arguments, result) = normalized_darwin_open_create_plan(operands, plan_source)?;
             aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
@@ -681,7 +680,7 @@ fn normalized_aarch64_host_argument_placements_for_plan<T: InstructionOperandLik
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
     let authoritative_plan = plan_source.authoritative();
     if is_open_create(operation_key) {
-        return normalized_darwin_open_create_plan(operands, authoritative_plan)
+        return normalized_darwin_open_create_plan(operands, plan_source)
             .map(|(placements, _)| placements);
     }
     let result_kind = if authored_import {
@@ -878,10 +877,11 @@ pub fn aarch64_host_call_stack_total_width_for_placements(placements: &[ValuePla
 
 fn normalized_darwin_open_create_plan<T: InstructionOperandLike>(
     operands: &[T],
-    authoritative_plan: Option<&CallPlan>,
+    plan_source: HostImportPlan<'_>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     use omega_isa_aarch64::Aarch64CallOperand;
 
+    let authoritative_plan = plan_source.authoritative();
     let operands = operands
         .iter()
         .map(aarch64_call_operand)
@@ -925,20 +925,21 @@ fn normalized_darwin_open_create_plan<T: InstructionOperandLike>(
             "cannot evaluate Darwin AAPCS64 open_create plan: {error}"
         ))
     })?;
-    let plan = if let Some(plan) = authoritative_plan {
-        validate_call_plan(plan, &signature.flattened()).map_err(|error| {
-            Diagnostic::error(format!(
-                "retained Darwin open_create plan does not match its concrete signature: {error}"
-            ))
-        })?;
-        if plan != &evaluated {
-            return Err(Diagnostic::error(
-                "retained Darwin open_create plan does not preserve the Apple variadic parameter boundary",
-            ));
+    let plan = match plan_source {
+        HostImportPlan::Authoritative(plan) => {
+            validate_call_plan(plan, &signature.flattened()).map_err(|error| {
+                Diagnostic::error(format!(
+                    "retained Darwin open_create plan does not match its concrete signature: {error}"
+                ))
+            })?;
+            if plan != &evaluated {
+                return Err(Diagnostic::error(
+                    "retained Darwin open_create plan does not preserve the Apple variadic parameter boundary",
+                ));
+            }
+            plan.clone()
         }
-        plan.clone()
-    } else {
-        evaluated
+        HostImportPlan::CompatibilityOracle => evaluated,
     };
     validate_aarch64_import_plan(&plan)?;
     Ok((plan.parameters, plan.result))
@@ -2745,7 +2746,8 @@ mod aarch64_import_plan_tests {
             operand(TargetInstructionOperandKind::ImmediateInteger(0o644)),
         ];
         let (parameters, result) =
-            normalized_darwin_open_create_plan(&operands, None).expect("Darwin variadic open plan");
+            normalized_darwin_open_create_plan(&operands, HostImportPlan::CompatibilityOracle)
+                .expect("Darwin variadic open plan");
 
         assert_eq!(
             parameters
@@ -2804,7 +2806,7 @@ mod aarch64_import_plan_tests {
         };
         let retained = evaluate_darwin_aapcs64_variadic_call_plan(&signature)
             .expect("retained Darwin variadic plan");
-        normalized_darwin_open_create_plan(&operands, Some(&retained))
+        normalized_darwin_open_create_plan(&operands, HostImportPlan::Authoritative(&retained))
             .expect("retained Darwin variadic plan must validate");
 
         let mut flattened = retained;
@@ -2813,8 +2815,11 @@ mod aarch64_import_plan_tests {
             value_byte_offset: 0,
             byte_size: 4,
         }];
-        let error = normalized_darwin_open_create_plan(&operands, Some(&flattened))
-            .expect_err("flattening the anonymous mode into x2 must reject");
+        let error = normalized_darwin_open_create_plan(
+            &operands,
+            HostImportPlan::Authoritative(&flattened),
+        )
+        .expect_err("flattening the anonymous mode into x2 must reject");
         assert!(error.message.contains("variadic parameter boundary"));
     }
 
