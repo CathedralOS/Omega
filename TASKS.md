@@ -831,8 +831,10 @@ Remaining:
   explicit plan. The base `Stdin::read`, `Stdout::write`, and `Stderr::write`
   rows now actually retain those exact plans on both Linux targets rather than
   activating the no-plan compatibility path; `Process::exit_group` likewise
-  retains its one-argument/no-result plan. The matching AArch64 direct-import
-  composites now validate
+  retains its one-argument/no-result plan. The matching Darwin `Stdin::read`,
+  `Stdout::write`, and `Stderr::write` rows retain their three-word/result
+  AAPCS64 plan too, and `Process::exit` retains its one-word/no-result plan.
+  The matching AArch64 direct-import composites now validate
   that same retained native signature and reject placement drift in lockstep
   with layout; Windows composites retain their independently normalized
   GetStdHandle/ReadFile/WriteFile subcall plans. The unused x86-64 relocation

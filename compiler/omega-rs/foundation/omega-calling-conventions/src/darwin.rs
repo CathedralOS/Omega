@@ -1,5 +1,6 @@
 use crate::{
-    HostAbiPlan, HostBinding, HostBindingMechanism, HostBoundaryPolicy, PlatformCallData,
+    CallSignature, CallingPolicy, HostAbiPlan, HostBinding, HostBindingMechanism,
+    HostBoundaryPolicy, PlatformCallData, ValueShape, evaluate_ordinary_boundary_entry_plan,
     host_operation, insert_platform_lowering,
 };
 
@@ -46,10 +47,10 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     });
 
     plan.bindings.insert_many([
-        darwin_import("Stdin", "read", "_read", &policy),
-        darwin_import("Stdout", "write", "_write", &policy),
-        darwin_import("Stderr", "write", "_write", &policy),
-        darwin_import("Process", "exit", "_exit", &policy),
+        darwin_planned_import("Stdin", "read", "_read", 3, true, &policy),
+        darwin_planned_import("Stdout", "write", "_write", 3, true, &policy),
+        darwin_planned_import("Stderr", "write", "_write", 3, true, &policy),
+        darwin_planned_import("Process", "exit", "_exit", 1, false, &policy),
         darwin_import("Filesystem", "open", "_open", &policy),
         darwin_import("Filesystem", "creat", "_creat", &policy),
         darwin_import("Filesystem", "read", "_read", &policy),
@@ -816,6 +817,35 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Clock", "sleep_poll")],
         PlatformCallData::None,
     );
+}
+
+fn darwin_planned_import(
+    capability: &str,
+    operation: &str,
+    symbol: &str,
+    parameter_count: usize,
+    has_result: bool,
+    policy: &std::sync::Arc<str>,
+) -> HostBinding {
+    let word = ValueShape::integer(8, 8);
+    let signature = CallSignature {
+        parameters: vec![word; parameter_count],
+        result: has_result.then_some(word),
+    };
+    let boundary_entry_plan =
+        evaluate_ordinary_boundary_entry_plan(CallingPolicy::Aapcs64, &signature)
+            .expect("the built-in Darwin import signature must have an AAPCS64 plan")
+            .plan()
+            .clone();
+    HostBinding {
+        operation_key: crate::HostOperationKey::from_names(capability, operation),
+        mechanism: HostBindingMechanism::Import {
+            library: "libSystem.B.dylib".into(),
+            symbol: symbol.into(),
+        },
+        boundary_policy: std::sync::Arc::clone(policy),
+        boundary_entry_plan: Some(boundary_entry_plan),
+    }
 }
 
 fn darwin_import(
