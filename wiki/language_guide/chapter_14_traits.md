@@ -420,8 +420,12 @@ The checked implementation now retains the first selection rung for a direct
 place coercion bound to a borrowed local. A bare `&T as &dyn Trait` selects only
 when one complete nominal conformance is unique and records the exact data,
 trait, and optional named-conformance symbols for later descriptor lowering;
-missing or ambiguous selection rejects. Named coercion-path retention and the
-runtime table/adapter lowering are subsequent implementation rungs.
+missing or ambiguous selection rejects. Exact `&dyn Type::Conformance`
+coercion targets now retain that path through parsing, resolved and typed
+identity, derive the dynamic trait from the named declaration, and consume its
+stable child symbol during checked selection. Unknown paths and paths belonging
+to a different source carrier reject. Runtime table/adapter lowering remains a
+subsequent implementation rung.
 
 The table is a private realization. Logical identity records the trait,
 selected conformance, and normalized contracts rather than a table address.

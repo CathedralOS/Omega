@@ -392,7 +392,7 @@ fn collect_type_reference(
                 collect_type_reference(report, syntax_trees, *argument, kind, owner);
             }
         }
-        TypeReferenceNode::DynamicTrait(name) | TypeReferenceNode::Named(name) => {
+        TypeReferenceNode::DynamicTrait { name, .. } | TypeReferenceNode::Named(name) => {
             insert_reference(report, name.as_str(), kind, owner)
         }
         // Const generic arguments name values, not types. Their referenced

@@ -681,7 +681,12 @@ fn count_type_reference_handle(
         crate::types::TypeReferenceNode::ConstExpression(expression) => {
             count_expression_handle(syntax_trees, *expression, counts);
         }
-        crate::types::TypeReferenceNode::DynamicTrait(name) => count_identifier(name, counts),
+        crate::types::TypeReferenceNode::DynamicTrait { name, conformance } => {
+            count_identifier(name, counts);
+            if let Some(conformance) = conformance {
+                count_identifier(conformance, counts);
+            }
+        }
         crate::types::TypeReferenceNode::Named(name) => count_identifier(name, counts),
         crate::types::TypeReferenceNode::SelfType => {}
         crate::types::TypeReferenceNode::Unit => {}

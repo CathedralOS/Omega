@@ -377,7 +377,7 @@ fn collect_bounded_type_site(
                 collect_bounded_type_site(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait(_) => {}
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {}
         TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
@@ -417,7 +417,7 @@ fn collect_bounded_type_site_tree(
                 collect_bounded_type_site_tree(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait(_) => {}
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {}
         TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
@@ -470,7 +470,10 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
                 syntax_trees.expressions.display_name(*expression)
             )
         }
-        TypeReferenceNode::DynamicTrait(name) => format!("dyn {name}"),
+        TypeReferenceNode::DynamicTrait { name, conformance } => conformance
+            .as_ref()
+            .map(|selection| format!("dyn {name}::{selection}"))
+            .unwrap_or_else(|| format!("dyn {name}")),
         TypeReferenceNode::Named(name) => name.to_string(),
         TypeReferenceNode::SelfType => "Self".to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),

@@ -5,9 +5,9 @@ use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::trait_definition::DynamicSignatureIneligibility;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// One bare local dynamic coercion whose complete nominal conformance is
-/// unique in the checked artifact. Runtime descriptor lowering consumes this
-/// exact selection rather than rediscovering implementations from names.
+/// One local dynamic coercion whose complete nominal conformance is fixed in
+/// the checked artifact. Runtime descriptor lowering consumes this exact
+/// selection rather than rediscovering implementations from names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DynamicConformanceSelection {
     pub occurrence: ExpressionHandle,
@@ -19,9 +19,9 @@ pub struct DynamicConformanceSelection {
 }
 
 /// Select complete nominal conformances for the currently admitted local
-/// coercion form: a direct place cast bound to a reference-typed local.
-/// Ambiguous conformances reject until the named `dyn Type::Conformance`
-/// spelling is retained by the type representation.
+/// coercion form: a direct place cast bound to a reference-typed local. Bare
+/// `dyn Trait` requires a unique conformance; `dyn Type::Conformance` selects
+/// the named declaration exactly.
 pub fn collect_dynamic_conformance_selections(
     program: &TypedTrees,
 ) -> Result<Vec<DynamicConformanceSelection>, Vec<Diagnostic>> {
@@ -39,9 +39,21 @@ pub fn collect_dynamic_conformance_selections(
                 else {
                     continue;
                 };
-                let Some(target_trait) = dynamic_trait_symbol(program, cast.target_type) else {
+                let Some(dynamic_target) = dynamic_trait_reference(program, cast.target_type)
+                else {
                     continue;
                 };
+                let TypeReferenceNode::DynamicTrait {
+                    symbol: target_trait,
+                    conformance: exact_conformance,
+                    conformance_carrier,
+                    conformance_name,
+                    ..
+                } = dynamic_target
+                else {
+                    unreachable!("dynamic_trait_reference returns a dynamic-trait node")
+                };
+                let target_trait = *target_trait;
                 let Some(source_type) = crate::places::declared_place_type_raw(
                     program,
                     machine,
@@ -78,6 +90,39 @@ pub fn collect_dynamic_conformance_selections(
                             && conformance.arguments.is_empty()
                     })
                     .collect::<Vec<_>>();
+                if conformance_name.is_some() {
+                    let selection_name = conformance_carrier
+                        .as_ref()
+                        .zip(conformance_name.as_ref())
+                        .map(|(carrier, conformance)| format!("{carrier}::{conformance}"))
+                        .unwrap_or_else(|| "<invalid named conformance>".to_owned());
+                    let Some(exact_symbol) = exact_conformance else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "local dynamic coercion selects unresolved named conformance `{selection_name}`"
+                        )));
+                        continue;
+                    };
+                    let Some(selected) = matches
+                        .iter()
+                        .find(|candidate| candidate.symbol == *exact_symbol)
+                    else {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "local dynamic coercion from `{source_name}` to `dyn {}` cannot use named conformance `{selection_name}`",
+                            trait_definition.name
+                        )));
+                        continue;
+                    };
+                    let selection = DynamicConformanceSelection {
+                        occurrence,
+                        source_data,
+                        target_trait,
+                        conformance: Some(selected.symbol),
+                    };
+                    if !selections.contains(&selection) {
+                        selections.push(selection);
+                    }
+                    continue;
+                }
                 match matches.as_slice() {
                     [conformance] => {
                         let selection = DynamicConformanceSelection {
@@ -170,6 +215,20 @@ pub(crate) fn dynamic_trait_symbol(
             dynamic_trait_symbol(program, *base_type)
         }
         TypeReferenceNode::DynamicTrait { symbol, .. } => Some(*symbol),
+        _ => None,
+    }
+}
+
+fn dynamic_trait_reference(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&TypeReferenceNode> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => dynamic_trait_reference(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            dynamic_trait_reference(program, *base_type)
+        }
+        dynamic @ TypeReferenceNode::DynamicTrait { .. } => Some(dynamic),
         _ => None,
     }
 }

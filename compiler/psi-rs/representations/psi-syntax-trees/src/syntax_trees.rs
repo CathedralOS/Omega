@@ -1010,9 +1010,13 @@ impl SyntaxTrees {
                 self.type_references
                     .insert(TypeReferenceNode::ConstExpression(expression))
             }
-            TypeReferenceNode::DynamicTrait(name) => self
-                .type_references
-                .insert(TypeReferenceNode::DynamicTrait(name.clone())),
+            TypeReferenceNode::DynamicTrait { name, conformance } => {
+                self.type_references
+                    .insert(TypeReferenceNode::DynamicTrait {
+                        name: name.clone(),
+                        conformance: conformance.clone(),
+                    })
+            }
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),

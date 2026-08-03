@@ -128,12 +128,21 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 .type_reference_table
                 .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
         }
-        resolved::types::TypeReferenceNode::DynamicTrait { symbol, name } => Ok(typed_trees
-            .type_reference_table
-            .insert(typed::types::TypeReferenceNode::DynamicTrait {
+        resolved::types::TypeReferenceNode::DynamicTrait {
+            symbol,
+            name,
+            conformance,
+            conformance_carrier,
+            conformance_name,
+        } => Ok(typed_trees.type_reference_table.insert(
+            typed::types::TypeReferenceNode::DynamicTrait {
                 symbol: *symbol,
                 name: crate::name::lower_name(name),
-            })),
+                conformance: *conformance,
+                conformance_carrier: conformance_carrier.as_ref().map(crate::name::lower_name),
+                conformance_name: conformance_name.as_ref().map(crate::name::lower_name),
+            },
+        )),
         resolved::types::TypeReferenceNode::Named { symbol, name } => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {

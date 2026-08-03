@@ -1,6 +1,6 @@
 use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolTable};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::top_level_type_symbol;
 
@@ -234,12 +234,31 @@ fn assign_type_reference_symbol_with_context(
         // typed index normalization resolves them against the enclosing const
         // telescope and records the exact selected operation separately.
         psi_symbol_resolved_trees::types::TypeReference::ConstExpression(_) => {}
-        psi_symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, name } => {
-            *symbol = crate::symbols::lookup::top_level_symbol(
-                symbols,
-                psi_symbols::SymbolKind::Trait,
-                name.as_str(),
-            );
+        psi_symbol_resolved_trees::types::TypeReference::DynamicTrait {
+            symbol,
+            name,
+            conformance,
+            conformance_carrier,
+            conformance_name,
+        } => {
+            *symbol =
+                crate::symbols::lookup::top_level_symbol(symbols, SymbolKind::Trait, name.as_str());
+            if let (Some(data_name), Some(conformance_name)) =
+                (conformance_carrier, conformance_name)
+            {
+                let carrier = crate::symbols::lookup::top_level_symbol(
+                    symbols,
+                    SymbolKind::Data,
+                    data_name.as_str(),
+                );
+                let selected = crate::symbols::lookup::child_symbol_by_kinds(
+                    symbols,
+                    carrier,
+                    &[SymbolKind::Conformance],
+                    conformance_name.as_str(),
+                );
+                *conformance = selected.is_valid().then_some(selected);
+            }
         }
         psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } => {
             *symbol = resolve_type_symbol(symbols, local_type_parameters, name);

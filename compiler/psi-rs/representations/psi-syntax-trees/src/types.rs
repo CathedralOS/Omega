@@ -308,7 +308,12 @@ pub enum TypeReferenceNode {
     /// replaces it with the canonical decimal `Named` leaf used by literal
     /// const arguments. It must never survive into symbol-resolved trees.
     ConstExpression(crate::expression::ExpressionHandle),
-    DynamicTrait(Identifier),
+    DynamicTrait {
+        /// Bare `dyn Trait`, or the data carrier in `dyn Data::Conformance`.
+        name: Identifier,
+        /// Exact named nominal conformance selected for this descriptor.
+        conformance: Option<Identifier>,
+    },
     Named(Identifier),
     SelfType,
     Unit,

@@ -135,11 +135,22 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
 
     if input.at_contextual("dyn") {
         let input = input.take_contextual("dyn")?;
-        let (trait_name, input) = input.take_identifier()?;
+        let (trait_name, mut input) = input.take_identifier()?;
+        let conformance = if input.at_punctuation(PunctuationKind::ColonColon) {
+            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (conformance, rest) = input.take_identifier()?;
+            input = rest;
+            Some(conformance)
+        } else {
+            None
+        };
         return Ok((
             syntax_trees
                 .type_references
-                .insert(TypeReferenceNode::DynamicTrait(trait_name)),
+                .insert(TypeReferenceNode::DynamicTrait {
+                    name: trait_name,
+                    conformance,
+                }),
             input,
         ));
     }

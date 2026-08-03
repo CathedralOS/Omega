@@ -461,6 +461,8 @@ pub enum TypeReferenceSnapshot {
     },
     DynamicTrait {
         name: IdentifierSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        conformance: Option<IdentifierSnapshot>,
     },
     Named {
         name: IdentifierSnapshot,
@@ -1450,9 +1452,12 @@ fn snapshot_type_reference_handle(
         TypeReferenceNode::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
             expression: snapshot_expression_handle(syntax_trees, *expression),
         },
-        TypeReferenceNode::DynamicTrait(name) => TypeReferenceSnapshot::DynamicTrait {
-            name: snapshot_identifier(name),
-        },
+        TypeReferenceNode::DynamicTrait { name, conformance } => {
+            TypeReferenceSnapshot::DynamicTrait {
+                name: snapshot_identifier(name),
+                conformance: conformance.as_ref().map(snapshot_identifier),
+            }
+        }
         TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
             name: snapshot_identifier(name),
         },

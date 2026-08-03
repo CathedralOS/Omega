@@ -190,6 +190,107 @@ fn bare_local_dynamic_coercion_rejects_ambiguous_conformances() {
 }
 
 #[test]
+fn named_local_dynamic_coercion_selects_one_exact_conformance() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        Item satisfies Marker as First;
+        Item satisfies Marker as Second;
+
+        machine erase(item: Item) {
+            let erased: &dyn Marker = &item as &dyn Item::First;
+        }
+        "#,
+    );
+
+    let cast_target = typed
+        .machine_states(&typed.machines()[1])
+        .iter()
+        .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| {
+            let psi_typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            let psi_typed_trees::expression::ExpressionNode::Cast(cast) =
+                typed.expression_table.expression(local.initial_value)
+            else {
+                return None;
+            };
+            Some(cast.target_type)
+        })
+        .expect("named dynamic cast target");
+    let identity = typed.normalized_type_identity(cast_target);
+    assert!(
+        identity.as_str().contains("Item::First"),
+        "named dynamic identity: {identity}"
+    );
+
+    validate_program(&typed).expect("an exact named conformance resolves ambiguity");
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("checked lowering retains the exact named selection");
+    let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one named dynamic conformance selection");
+    };
+    assert_eq!(checked.symbols.name(selection.source_data), "Item");
+    assert_eq!(checked.symbols.name(selection.target_trait), "Marker");
+    assert_eq!(
+        selection
+            .conformance
+            .map(|symbol| checked.symbols.name(symbol)),
+        Some("First")
+    );
+}
+
+#[test]
+fn named_local_dynamic_coercion_rejects_unknown_selection() {
+    let source = r#"
+        trait Marker {}
+        data Item {}
+        Item satisfies Marker as Primary;
+
+        machine erase(item: Item) {
+            let erased: &dyn Marker = &item as &dyn Item::Missing;
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic =
+        lower_syntax_trees(&syntax).expect_err("a named dynamic selection must resolve exactly");
+    assert!(
+        diagnostic
+            .message
+            .contains("dynamic coercion selects unknown named conformance `Item::Missing`")
+    );
+}
+
+#[test]
+fn named_local_dynamic_coercion_rejects_wrong_source_carrier() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        data Other {}
+        Item satisfies Marker as Primary;
+
+        machine erase(other: Other) {
+            let erased: &dyn Item::Primary = &other as &dyn Item::Primary;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a named conformance cannot erase a value of another carrier");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "local dynamic coercion from `Other` to `dyn Marker` cannot use named conformance `Item::Primary`",
+        )
+    }));
+}
+
+#[test]
 fn local_dynamic_coercion_rejects_missing_conformance() {
     let typed = typed_program_from_source(
         r#"
