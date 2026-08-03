@@ -1,11 +1,11 @@
 use crate::StateGuardOperandStorage;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
 use omega_runtime_storage::RuntimeStoragePlan;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::name::Identifier;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ResolvedOperandLayout {
@@ -354,7 +354,7 @@ fn reference_scalar_referee_layout(
         return None;
     };
     let size =
-        omega_checked_trees::types::PrimitiveType::from_name(name.as_str())?.scalar_byte_size()?;
+        psi_checked_trees::types::PrimitiveType::from_name(name.as_str())?.scalar_byte_size()?;
     Some(TypeLayout {
         size,
         alignment: root_layout.alignment,
@@ -379,7 +379,7 @@ fn reference_named_record_referee(descriptor: &TypeLayoutDescriptor) -> bool {
     }
     match referee {
         TypeLayoutDescriptor::Named { name, .. } => {
-            omega_checked_trees::types::PrimitiveType::from_name(name.as_str()).is_none()
+            psi_checked_trees::types::PrimitiveType::from_name(name.as_str()).is_none()
         }
         _ => false,
     }

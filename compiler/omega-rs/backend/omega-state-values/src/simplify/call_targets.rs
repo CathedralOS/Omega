@@ -1,7 +1,7 @@
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{CallExpression, Expression};
-use omega_checked_trees::machine::Machine;
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{CallExpression, Expression};
+use psi_checked_trees::machine::Machine;
 
 pub(super) fn resolve_call_target_machine<'program>(
     program: &'program CheckedTrees,
@@ -45,7 +45,7 @@ pub(super) fn resolve_call_target_machine<'program>(
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    omega_checked_trees::data::DataMember::Field(field)
+                    psi_checked_trees::data::DataMember::Field(field)
                         if field.symbol == contained_symbol =>
                     {
                         Some(program.type_reference_symbol(field.type_reference))
@@ -96,7 +96,7 @@ pub(super) fn resolve_call_target_state<'machine>(
     program: &'machine CheckedTrees,
     machine: &'machine Machine,
     call: &CallExpression,
-) -> Option<&'machine omega_checked_trees::state::State> {
+) -> Option<&'machine psi_checked_trees::state::State> {
     if !call.target_symbol.is_valid() {
         return None;
     }

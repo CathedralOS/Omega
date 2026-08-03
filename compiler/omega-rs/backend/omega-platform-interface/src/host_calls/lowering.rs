@@ -4,12 +4,12 @@ use omega_calling_conventions::{
     HostAbiPlan, HostOperationKey, PlatformCallLowering, PlatformCallLoweringHandle,
     host_operation_fixed_leading_immediate,
 };
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::TableCall;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::statement::TableCall;
 
 pub(crate) fn platform_call_receiver_type<'program>(
     program: &'program CheckedTrees,
@@ -38,7 +38,7 @@ pub(crate) fn platform_call_receiver_type<'program>(
                         .data_members(data_definition)
                         .iter()
                         .find_map(|member| match member {
-                            omega_checked_trees::data::DataMember::Field(field)
+                            psi_checked_trees::data::DataMember::Field(field)
                                 if field.symbol == call.receiver_symbol
                                     || receiver_leaf_name == Some(field.name.as_str()) =>
                             {
@@ -108,7 +108,7 @@ fn data_field_type_symbol(
                 .data_members(data_definition)
                 .iter()
                 .find_map(|member| match member {
-                    omega_checked_trees::data::DataMember::Field(field)
+                    psi_checked_trees::data::DataMember::Field(field)
                         if field.symbol == field_symbol =>
                     {
                         let type_symbol = program.type_reference_symbol(field.type_reference);
@@ -163,7 +163,7 @@ pub(crate) fn find_platform_call_lowering_by_target<'abi>(
     program: &CheckedTrees,
     host_abi: &'abi HostAbiPlan,
     platform_name: &str,
-    target: &omega_checked_trees::name::Identifier,
+    target: &psi_checked_trees::name::Identifier,
     target_symbol: SymbolHandle,
 ) -> Option<(PlatformCallLoweringHandle, &'abi PlatformCallLowering)> {
     find_lowering_prefer_exact(
@@ -335,11 +335,11 @@ pub(crate) fn call_parameter_expects_reference(
 
 fn type_reference_is_reference(
     program: &CheckedTrees,
-    type_reference: omega_checked_trees::types::TypeReferenceHandle,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
 ) -> bool {
     match program.type_reference_table.type_reference(type_reference) {
-        omega_checked_trees::types::TypeReferenceNode::Reference { .. } => true,
-        omega_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+        psi_checked_trees::types::TypeReferenceNode::Reference { .. } => true,
+        psi_checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_is_reference(program, *base_type)
         }
         _ => false,

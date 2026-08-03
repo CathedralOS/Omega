@@ -1,8 +1,4 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::name::Identifier;
 use omega_control_flow::{Operation, StateKey, StateParameterFlow};
 use omega_core::arithmetic::{ArithmeticDomain, ArithmeticPolicyAdapter};
 use omega_core::float_semantics::FloatFormat;
@@ -10,6 +6,10 @@ use omega_core::symbols::SymbolHandle;
 use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
 use omega_state_storage::StateMutation;
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_checked_trees::name::Identifier;
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
@@ -54,7 +54,7 @@ pub(super) fn carried_float_provider_plan(
 }
 
 fn checked_float_provider_plan_for_statement(
-    program: &omega_checked_trees::CheckedTrees,
+    program: &psi_checked_trees::CheckedTrees,
     source_key: StateKey,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -87,7 +87,7 @@ fn checked_float_provider_plan_for_statement(
                 }),
         )
     {
-        let omega_checked_trees::CheckedValueOrigin::StateStatement {
+        let psi_checked_trees::CheckedValueOrigin::StateStatement {
             machine_symbol,
             state_symbol,
             statement_index: candidate_statement,
@@ -611,7 +611,7 @@ fn checked_statement_node<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<&'plan omega_checked_trees::statement::StatementNode> {
+) -> Option<&'plan psi_checked_trees::statement::StatementNode> {
     let machine = input
         .program
         .machines()
@@ -641,7 +641,7 @@ pub(super) fn asm_port_write_operands<'plan>(
     statement_index: usize,
 ) -> Option<(ExpressionHandle, ExpressionHandle)> {
     // Confirm the statement really is the asm#port_out intrinsic.
-    let omega_checked_trees::statement::StatementNode::Call(call) =
+    let psi_checked_trees::statement::StatementNode::Call(call) =
         checked_statement_node(input, source_key, statement_index)?
     else {
         return None;
@@ -701,7 +701,7 @@ pub(super) fn asm_flags_restore_source(
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<ExpressionHandle> {
-    let omega_checked_trees::statement::StatementNode::Call(call) =
+    let psi_checked_trees::statement::StatementNode::Call(call) =
         checked_statement_node(input, source_key, statement_index)?
     else {
         return None;
@@ -748,7 +748,7 @@ pub(super) fn asm_msr_write_operands(
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<(ExpressionHandle, ExpressionHandle)> {
-    let omega_checked_trees::statement::StatementNode::Call(call) =
+    let psi_checked_trees::statement::StatementNode::Call(call) =
         checked_statement_node(input, source_key, statement_index)?
     else {
         return None;
@@ -788,7 +788,7 @@ pub(super) fn asm_control_register_write_source(
     omega_core::inline_assembly::AsmControlRegister,
     ExpressionHandle,
 )> {
-    let omega_checked_trees::statement::StatementNode::Call(call) =
+    let psi_checked_trees::statement::StatementNode::Call(call) =
         checked_statement_node(input, source_key, statement_index)?
     else {
         return None;

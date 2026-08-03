@@ -13,12 +13,12 @@ use omega_abstract_operations::{
     Place, PlaceStep, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
     SelectedInstructionKind, StateGuardOperator,
 };
-use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use psi_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_checked_trees::types::PrimitiveType;
 
 use super::super::static_values::{
     RuntimeStaticValues, invalidate_runtime_static_value_in_table,
@@ -994,8 +994,8 @@ pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_t
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     value_source_key: StateKey,
-    left_expression: &omega_checked_trees::expression::Expression,
-    right_expression: &omega_checked_trees::expression::Expression,
+    left_expression: &psi_checked_trees::expression::Expression,
+    right_expression: &psi_checked_trees::expression::Expression,
     operator: StateGuardOperator,
 ) -> StateGuardOperator {
     if unsigned_operator_form(operator).is_none() {

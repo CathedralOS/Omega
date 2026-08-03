@@ -11,14 +11,14 @@ use crate::host_calls::static_values::{
 };
 use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReason};
 use omega_calling_conventions::HostAbiPlan;
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::state::State;
-use omega_checked_trees::statement::{StatementNode, TableCall};
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::state::State;
+use psi_checked_trees::statement::{StatementNode, TableCall};
 
 pub(super) fn collect_machine_host_calls(
     program: &CheckedTrees,
@@ -126,11 +126,11 @@ fn collect_assignment_result_host_lowering(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    assignment: &omega_checked_trees::statement::TableAssignment,
+    assignment: &psi_checked_trees::statement::TableAssignment,
     static_values: &StaticValues,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    let omega_checked_trees::expression::ExpressionNode::Call(call) =
+    let psi_checked_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(assignment.value)
     else {
         return Ok(());
@@ -205,7 +205,7 @@ fn collect_assignment_result_host_lowering(
                 ),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
-                    omega_checked_trees::expression::ExpressionNode::Mutable(_)
+                    psi_checked_trees::expression::ExpressionNode::Mutable(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
                     program,
@@ -245,11 +245,11 @@ fn collect_local_result_host_lowering(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    local_data: &omega_checked_trees::statement::TableLocalData,
+    local_data: &psi_checked_trees::statement::TableLocalData,
     static_values: &StaticValues,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    let omega_checked_trees::expression::ExpressionNode::Call(call) = program
+    let psi_checked_trees::expression::ExpressionNode::Call(call) = program
         .expression_table
         .expression(local_data.initial_value)
     else {
@@ -310,8 +310,8 @@ fn collect_local_result_host_lowering(
         .push_name_path_member_symbol(&mut member_symbols, local_data.symbol);
     let result_place =
         plan.expressions
-            .insert(omega_checked_trees::expression::ExpressionNode::Name(
-                omega_checked_trees::expression::TableNamePath {
+            .insert(psi_checked_trees::expression::ExpressionNode::Name(
+                psi_checked_trees::expression::TableNamePath {
                     members,
                     member_symbols,
                     head_symbol: local_data.symbol,
@@ -345,7 +345,7 @@ fn collect_local_result_host_lowering(
                 ),
                 is_borrowed: matches!(
                     program.expression_table.expression(*argument),
-                    omega_checked_trees::expression::ExpressionNode::Mutable(_)
+                    psi_checked_trees::expression::ExpressionNode::Mutable(_)
                 ),
                 expects_reference: call_parameter_expects_reference(
                     program,

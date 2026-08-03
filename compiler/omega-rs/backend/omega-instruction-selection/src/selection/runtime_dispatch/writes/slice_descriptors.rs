@@ -4,9 +4,9 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, StateGuardOperator,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 use super::super::super::storage_places::{
     RuntimeStoragePlace, descriptor_is_fat_slice, resolve_fixed_array_length,
@@ -622,7 +622,7 @@ fn emit_interior_recast_slice_descriptor_write_in_table(
         },
         _ => return false,
     };
-    let omega_checked_trees::types::TypeReferenceNode::Slice { element_type } = input
+    let psi_checked_trees::types::TypeReferenceNode::Slice { element_type } = input
         .program
         .type_reference_table
         .type_reference(cast.target_type)

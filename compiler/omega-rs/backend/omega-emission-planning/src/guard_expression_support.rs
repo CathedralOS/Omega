@@ -1,6 +1,6 @@
 use crate::EmissionPlanningInput;
-use omega_checked_trees::expression::{BinaryOperator, Expression};
-use omega_checked_trees::statement::TransitionGuard;
+use psi_checked_trees::expression::{BinaryOperator, Expression};
+use psi_checked_trees::statement::TransitionGuard;
 
 pub(super) fn transition_guard_can_emit(
     input: &EmissionPlanningInput<'_>,
@@ -227,7 +227,7 @@ fn normalized_boolean_wrapped_expression(expression: &Expression) -> Option<Expr
         _ => return None,
     };
     Some(Expression::Binary(Box::new(
-        omega_checked_trees::expression::BinaryExpression {
+        psi_checked_trees::expression::BinaryExpression {
             left: inner_binary.left.clone(),
             operator: inverted,
             right: inner_binary.right.clone(),

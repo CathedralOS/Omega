@@ -1,7 +1,7 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_core::arena::HandleSpan;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(in crate::identity) fn count_expression_span_strings(
     span: omega_core::arena::HandleSpan<ExpressionHandle>,

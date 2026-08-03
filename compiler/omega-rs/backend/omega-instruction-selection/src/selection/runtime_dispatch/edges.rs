@@ -14,17 +14,17 @@ use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     static_integer_value,
 };
-use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::statement::TransitionGuard;
-use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_graph::CallResultReturn;
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 use omega_state_values::simplify_state_expression;
+use psi_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_checked_trees::statement::TransitionGuard;
+use psi_checked_trees::types::PrimitiveType;
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
@@ -1084,7 +1084,7 @@ fn resolve_literal_field_writes(
     source_key: StateKey,
     expressions: &ExpressionTable,
     fields_span: omega_core::arena::HandleSpan<
-        omega_checked_trees::expression::TableStructLiteralField,
+        psi_checked_trees::expression::TableStructLiteralField,
     >,
     layout_fields: omega_core::arena::HandleSpan<omega_layout::FieldLayout>,
     base_offset: usize,

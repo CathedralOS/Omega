@@ -17,14 +17,14 @@ use crate::selection::storage_places::{
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, StateGuardOperator,
 };
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_calls::StateCallRole;
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_checked_trees::statement::StatementNode;
+use psi_checked_trees::types::PrimitiveType;
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_float_value_in_table,
@@ -787,14 +787,14 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
     dispatch_index: u32,
     source_key: StateKey,
     expressions: &ExpressionTable,
-    operator: omega_checked_trees::expression::BinaryOperator,
+    operator: psi_checked_trees::expression::BinaryOperator,
     left_expression: ExpressionHandle,
     right_expression: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
     let negated = match operator {
-        omega_checked_trees::expression::BinaryOperator::Equal => false,
-        omega_checked_trees::expression::BinaryOperator::NotEqual => true,
+        psi_checked_trees::expression::BinaryOperator::Equal => false,
+        psi_checked_trees::expression::BinaryOperator::NotEqual => true,
         _ => return None,
     };
     // One side an INLINE STRING LITERAL (`self.okf = self.name == "omega"`):
@@ -939,7 +939,7 @@ pub(super) fn resolve_runtime_comparison_operand_in_table_with_root(
     expressions: &ExpressionTable,
     root_expression: ExpressionHandle,
     expression: ExpressionHandle,
-    comparison_operator: Option<omega_checked_trees::expression::BinaryOperator>,
+    comparison_operator: Option<psi_checked_trees::expression::BinaryOperator>,
     other_expression: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
@@ -969,7 +969,7 @@ pub(super) fn resolve_runtime_comparison_operand_in_table_with_root_and_call_ord
     expressions: &ExpressionTable,
     root_expression: ExpressionHandle,
     expression: ExpressionHandle,
-    comparison_operator: Option<omega_checked_trees::expression::BinaryOperator>,
+    comparison_operator: Option<psi_checked_trees::expression::BinaryOperator>,
     other_expression: ExpressionHandle,
     minimum_call_ordinal: Option<usize>,
     static_values: &RuntimeStaticValues,
@@ -978,8 +978,8 @@ pub(super) fn resolve_runtime_comparison_operand_in_table_with_root_and_call_ord
     if matches!(
         comparison_operator,
         Some(
-            omega_checked_trees::expression::BinaryOperator::Equal
-                | omega_checked_trees::expression::BinaryOperator::NotEqual
+            psi_checked_trees::expression::BinaryOperator::Equal
+                | psi_checked_trees::expression::BinaryOperator::NotEqual
         )
     ) && enum_variant_value_in_table(&input.layouts, expressions, other_expression).is_some()
         && let Some(place) = resolve_runtime_storage_place_in_table(
@@ -1429,8 +1429,8 @@ fn prior_local_call_initializer_matches(initializer: &Expression, expression: &E
 fn program_state_statements_by_name<'a>(
     input: &'a InstructionSelectionInput<'_>,
     source_key: StateKey,
-    machine_name: &omega_checked_trees::name::Identifier,
-    state_name: &omega_checked_trees::name::Identifier,
+    machine_name: &psi_checked_trees::name::Identifier,
+    state_name: &psi_checked_trees::name::Identifier,
 ) -> Option<(StateKey, &'a [StatementNode])> {
     for machine in input.program.machines() {
         if machine.name != *machine_name {

@@ -27,15 +27,15 @@ use nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs,
 };
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use omega_state_calls::StateCallRole;
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::types::PrimitiveType;
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
     expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
@@ -876,7 +876,7 @@ fn state_local_initializer(
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| {
-            let omega_checked_trees::statement::StatementNode::LocalData(local_data) = statement
+            let psi_checked_trees::statement::StatementNode::LocalData(local_data) = statement
             else {
                 return None;
             };
@@ -1045,7 +1045,7 @@ pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
-    resolved_target: &omega_checked_trees::expression::Expression,
+    resolved_target: &psi_checked_trees::expression::Expression,
 ) -> bool {
     let mut expressions = ExpressionTable::default();
     let handle = expressions.insert_tree(resolved_target);
@@ -2544,7 +2544,7 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
     // base + i*row_stride + data_off + j*elem_stride, and addition commutes,
     // so it rides the op's field_byte_offset. Collect the chain (outermost
     // receiver first for the descent below).
-    let mut between_members: Vec<&omega_checked_trees::expression::TableMemberExpression> =
+    let mut between_members: Vec<&psi_checked_trees::expression::TableMemberExpression> =
         Vec::new();
     let mut inner = outer_indexed.collection;
     loop {
@@ -3579,7 +3579,7 @@ fn resolve_runtime_frame_fixed_indexed_storage_path_target_in_table(
     })
 }
 
-fn root_member_fixed_index(member: &omega_checked_trees::name::Identifier) -> Option<usize> {
+fn root_member_fixed_index(member: &psi_checked_trees::name::Identifier) -> Option<usize> {
     let (_, suffix) = member.as_str().rsplit_once('[')?;
     suffix.strip_suffix(']')?.parse().ok()
 }
@@ -3645,13 +3645,9 @@ fn const_fold_index_value_in_table(
             let left = const_fold_index_value_in_table(table, binary.left)?;
             let right = const_fold_index_value_in_table(table, binary.right)?;
             match binary.operator {
-                omega_checked_trees::expression::BinaryOperator::Add => left.checked_add(right),
-                omega_checked_trees::expression::BinaryOperator::Subtract => {
-                    left.checked_sub(right)
-                }
-                omega_checked_trees::expression::BinaryOperator::Multiply => {
-                    left.checked_mul(right)
-                }
+                psi_checked_trees::expression::BinaryOperator::Add => left.checked_add(right),
+                psi_checked_trees::expression::BinaryOperator::Subtract => left.checked_sub(right),
+                psi_checked_trees::expression::BinaryOperator::Multiply => left.checked_mul(right),
                 _ => None,
             }
         }
@@ -4072,8 +4068,8 @@ fn primitive_layout(
 
 #[cfg(test)]
 mod tests {
-    use omega_checked_trees::types::PrimitiveType;
     use omega_core::literals::LandedIntegerType;
+    use psi_checked_trees::types::PrimitiveType;
 
     use super::primitive_type_for_landed_integer;
 

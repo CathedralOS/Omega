@@ -1,11 +1,11 @@
 use crate::EmissionPlanningInput;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_storage::RuntimeStorageWrite;
 use omega_runtime_text::places::expression_place_eq_across_tables;
 use omega_state_storage::StateMutationLowering;
 use omega_target_operations::SelectedInstructionKind;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 use super::runtime_text_blockers::{
     runtime_text_write_for_statement, runtime_text_write_is_planned,
@@ -191,10 +191,10 @@ pub(super) fn collect_state_storage_blockers(
 /// deliver through machinery anchored outside the mutation-kind list, but an
 /// arithmetic chain must have its own planned write.
 fn initializer_is_arithmetic(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
-    expression: omega_checked_trees::expression::ExpressionHandle,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
+    expression: psi_checked_trees::expression::ExpressionHandle,
 ) -> bool {
-    use omega_checked_trees::expression::ExpressionNode;
+    use psi_checked_trees::expression::ExpressionNode;
     let mut current = expression;
     while let ExpressionNode::Mutable(inner) = expressions.expression(current) {
         current = *inner;

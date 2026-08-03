@@ -1,21 +1,21 @@
 use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTableCapacity,
-};
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::{
-    StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode,
-};
-use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
 use omega_state_values::simplify_state_expression;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTableCapacity,
+};
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::statement::{
+    StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode,
+};
+use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(
@@ -290,7 +290,7 @@ fn estimated_machine_storage_capacity(program: &CheckedTrees, machine: &Machine)
 
 fn state_has_initialized_locals_before(
     program: &CheckedTrees,
-    state: &omega_checked_trees::state::State,
+    state: &psi_checked_trees::state::State,
     statement_index: usize,
 ) -> bool {
     program
@@ -314,8 +314,8 @@ fn state_has_initialized_locals_before(
 /// or data field.
 fn initializer_carries_trapping_arithmetic(
     program: &CheckedTrees,
-    state: &omega_checked_trees::state::State,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    state: &psi_checked_trees::state::State,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     initial_value: ExpressionHandle,
@@ -330,8 +330,8 @@ fn initializer_carries_trapping_arithmetic(
             == ArithmeticDomain::Trapping
         && matches!(
             expressions.expression(initial_value),
-            omega_checked_trees::expression::ExpressionNode::Binary(_)
-                | omega_checked_trees::expression::ExpressionNode::Cast(_)
+            psi_checked_trees::expression::ExpressionNode::Binary(_)
+                | psi_checked_trees::expression::ExpressionNode::Cast(_)
         )
     {
         return true;
@@ -348,14 +348,14 @@ fn initializer_carries_trapping_arithmetic(
 
 fn expression_contains_trapping_op(
     program: &CheckedTrees,
-    state: &omega_checked_trees::state::State,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    state: &psi_checked_trees::state::State,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     expression: ExpressionHandle,
 ) -> bool {
-    use omega_checked_trees::expression::{BinaryOperator, ExpressionNode};
     use omega_core::arithmetic::ArithmeticDomain;
+    use psi_checked_trees::expression::{BinaryOperator, ExpressionNode};
 
     match expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
@@ -431,16 +431,16 @@ fn expression_contains_trapping_op(
 /// state, or a data field (member path).
 fn operand_declared_trapping(
     program: &CheckedTrees,
-    state: &omega_checked_trees::state::State,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    state: &psi_checked_trees::state::State,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     operand: ExpressionHandle,
 ) -> bool {
-    use omega_checked_trees::expression::ExpressionNode;
     use omega_core::arithmetic::ArithmeticDomain;
+    use psi_checked_trees::expression::ExpressionNode;
 
-    let reference_is_trapping = |handle: omega_checked_trees::types::TypeReferenceHandle| {
+    let reference_is_trapping = |handle: psi_checked_trees::types::TypeReferenceHandle| {
         handle.is_valid()
             && program.type_reference_table.arithmetic_domain(handle) == ArithmeticDomain::Trapping
     };
@@ -472,7 +472,7 @@ fn operand_declared_trapping(
                 program.data_members(data).iter().any(|data_member| {
                     matches!(
                         data_member,
-                        omega_checked_trees::data::DataMember::Field(field)
+                        psi_checked_trees::data::DataMember::Field(field)
                             if field.symbol == member.member_symbol
                                 && reference_is_trapping(field.type_reference)
                     )
@@ -489,8 +489,8 @@ fn local_data_requires_storage(
     // Retained for signature stability; the ref-param deref materialization it
     // used to gate now fires in every machine (bug 2026-07-12).
     _machine_is_boundary: bool,
-    state: &omega_checked_trees::state::State,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    state: &psi_checked_trees::state::State,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statements: &[StatementNode],
     local_statement_index: usize,
@@ -865,7 +865,7 @@ fn local_data_requires_storage(
 /// (a host-call result must be materialized; a state value-call result may not).
 fn initializer_is_boundary_call(
     program: &CheckedTrees,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     let target_symbol = match expressions.expression(expression) {
@@ -897,7 +897,7 @@ fn initializer_is_boundary_call(
 /// an `Atomic`/`Mutable` wrapper. Recasts preserve an address and therefore
 /// cannot participate in the ordinary slot-less scalar alias substitution.
 fn initializer_is_recast(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -915,7 +915,7 @@ fn initializer_is_recast(
 /// form and silently read false. Bare-Name copies are matched by NAME (a bare
 /// local use carries no valid symbol at this stage).
 fn local_or_bare_copy_used_as_arithmetic_operand(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     local_symbol: SymbolHandle,
@@ -949,7 +949,7 @@ fn local_or_bare_copy_used_as_arithmetic_operand(
 /// and indexed reads are NOT "computed" here -- they fold into an index
 /// position as a plain place or constant (or carry their own carve-outs).
 fn initializer_is_computed_value(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -968,7 +968,7 @@ fn initializer_is_computed_value(
 /// runtime-index carve-out). Mirrors
 /// `local_or_bare_copy_used_as_arithmetic_operand`'s alias handling.
 fn local_or_bare_copy_used_as_runtime_index(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statements: &[StatementNode],
     local_statement_index: usize,
@@ -1006,7 +1006,7 @@ fn local_or_bare_copy_used_as_runtime_index(
 /// `Mutable`) into a runtime-indexed target (`arr[<non-literal>] = local`).
 /// Value-side twin of `local_or_bare_copy_used_as_runtime_index`.
 fn local_used_as_runtime_indexed_write_value(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     local_symbol: SymbolHandle,
@@ -1020,13 +1020,13 @@ fn local_used_as_runtime_indexed_write_value(
                 return false;
             };
             let mut value = assignment.value;
-            while let omega_checked_trees::expression::ExpressionNode::Mutable(inner) =
+            while let psi_checked_trees::expression::ExpressionNode::Mutable(inner) =
                 expressions.expression(value)
             {
                 value = *inner;
             }
             let value_is_local = match expressions.expression(value) {
-                omega_checked_trees::expression::ExpressionNode::Name(path) => {
+                psi_checked_trees::expression::ExpressionNode::Name(path) => {
                     (path.symbol.is_valid() && path.symbol == local_symbol)
                         || matches!(
                             expressions.name_path_members(path.members),
@@ -1045,20 +1045,20 @@ fn local_used_as_runtime_indexed_write_value(
 /// Whether a write target contains an `Indexed` layer whose index is not an
 /// integer literal (constant indexes lower through the static element path).
 fn assignment_target_has_runtime_index(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
-    target: omega_checked_trees::expression::ExpressionHandle,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
+    target: psi_checked_trees::expression::ExpressionHandle,
 ) -> bool {
     match expressions.expression(target) {
-        omega_checked_trees::expression::ExpressionNode::Indexed(indexed) => {
+        psi_checked_trees::expression::ExpressionNode::Indexed(indexed) => {
             !matches!(
                 expressions.expression(indexed.index),
-                omega_checked_trees::expression::ExpressionNode::Integer(_)
+                psi_checked_trees::expression::ExpressionNode::Integer(_)
             ) || assignment_target_has_runtime_index(expressions, indexed.collection)
         }
-        omega_checked_trees::expression::ExpressionNode::Member(member) => {
+        psi_checked_trees::expression::ExpressionNode::Member(member) => {
             assignment_target_has_runtime_index(expressions, member.receiver)
         }
-        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+        psi_checked_trees::expression::ExpressionNode::Mutable(inner) => {
             assignment_target_has_runtime_index(expressions, *inner)
         }
         _ => false,
@@ -1066,7 +1066,7 @@ fn assignment_target_has_runtime_index(
 }
 
 fn statement_uses_symbol_as_index(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -1123,9 +1123,9 @@ fn statement_uses_symbol_as_index(
 }
 
 fn transition_target_uses_symbol_as_index(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
 ) -> bool {
@@ -1151,7 +1151,7 @@ fn transition_target_uses_symbol_as_index(
 /// Whether `symbol`/`local_name` appears as the INDEX of an `Indexed` node
 /// anywhere inside the expression (the index peeled of `Mutable`).
 fn expression_uses_symbol_as_index(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1221,7 +1221,7 @@ fn expression_uses_symbol_as_index(
 /// A bare single-member `Name` matching the local (by symbol or name), peeling
 /// `Mutable`.
 fn expression_is_bare_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1242,7 +1242,7 @@ fn expression_is_bare_symbol(
 /// The NAME a bare-Name initializer reads (`let c = t;` -> `t`), peeling
 /// `Mutable`. Anything else (binary, indexed, member, literal) is None.
 fn bare_name_initializer(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<Identifier> {
     match expressions.expression(expression) {
@@ -1262,8 +1262,8 @@ fn bare_name_initializer(
 /// never be folded back to the member.
 fn initializer_is_reference_param_member(
     program: &CheckedTrees,
-    state: &omega_checked_trees::state::State,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    state: &psi_checked_trees::state::State,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -1311,7 +1311,7 @@ fn parameter_is_shared_named_reference(
 /// Matched by FIELD NAME (conservative: a same-named field on another struct
 /// only costs an extra slot, never a fold).
 fn initializer_field_reassignment_index(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statements: &[StatementNode],
     local_statement_index: usize,
     initial_value: ExpressionHandle,
@@ -1340,7 +1340,7 @@ fn initializer_field_reassignment_index(
 /// Collects the member FIELD NAMES an expression reads (`self.v` -> `v`,
 /// including nested receivers and operands).
 fn collect_member_field_names(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     out: &mut Vec<Identifier>,
 ) {
@@ -1370,7 +1370,7 @@ fn collect_member_field_names(
 /// stale-capture clause above must count it because it exists precisely to
 /// BLOCK that fold).
 fn assignment_value_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1384,7 +1384,7 @@ fn assignment_value_references_symbol(
 /// The member FIELD NAME an assignment target writes (`self.v = ..` -> `v`),
 /// peeling `Mutable`/`Indexed` wrappers. A plain-Name target (a local) is None.
 fn assignment_member_field_name(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     target: ExpressionHandle,
 ) -> Option<Identifier> {
     match expressions.expression(target) {
@@ -1405,7 +1405,7 @@ fn assignment_member_field_name(
 /// (regressed `borrow_carrying_data_field`). Value-struct field reads fold to the
 /// literal field and do not need a slot.
 fn initializer_is_array_literal(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -1425,7 +1425,7 @@ fn initializer_is_array_literal(
 /// slot-less (slotting it breaks the fold's borrow-carrying shapes -- the
 /// borrow_carrying_data_field_exit canary regression caught exactly that).
 fn initializer_is_struct_literal(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -1443,7 +1443,7 @@ fn initializer_is_struct_literal(
 /// `expression_references_symbol` so a view nested in any position (a later
 /// `let` value, a transition argument, a call argument) is found.
 fn expression_takes_slice_view_of_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1542,7 +1542,7 @@ fn expression_takes_slice_view_of_symbol(
 /// transition guards/target arguments -- the positions an `as_mut_slice` view
 /// can ride into.
 fn statement_takes_slice_view_of_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -1615,9 +1615,9 @@ fn statement_takes_slice_view_of_symbol(
 }
 
 fn transition_target_takes_slice_view_of_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
 ) -> bool {
@@ -1645,7 +1645,7 @@ fn transition_target_takes_slice_view_of_symbol(
 /// initializer and bound levels. An open bound (invalid handle) is static.
 /// Literal-bounded subslices fold correctly when elided and must NOT match.
 fn initializer_is_runtime_bounded_subslice(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -1674,7 +1674,7 @@ fn initializer_is_runtime_bounded_subslice(
 /// Whether a LocalData (`let`) statement's initializer VALUE references the
 /// symbol/name -- the position `statement_references_local` does not inspect.
 fn local_data_value_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1691,7 +1691,7 @@ fn local_data_value_references_symbol(
 /// `Call` qualifies. Only used (with the arithmetic-operand test) to keep a
 /// call-result local's slot where substitution cannot reach.
 fn expression_contains_call(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -1738,7 +1738,7 @@ fn expression_contains_call(
 /// so substitution cannot supply the operand). A CONSTANT-index read folds to a
 /// plain place and does not need this carve-out.
 fn initializer_is_runtime_indexed_read(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -1807,7 +1807,7 @@ fn is_bitwise_operator(operator: BinaryOperator) -> bool {
 
 /// Whether `expression` is directly a reference to `symbol` (a bare `Name`).
 fn expression_is_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1828,7 +1828,7 @@ fn expression_is_symbol(
 /// consumer position where a slot-less call-result local cannot be substituted,
 /// so its presence (with a call initializer) forces the slot to be kept.
 fn expression_uses_symbol_as_arithmetic_operand(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1892,7 +1892,7 @@ fn expression_uses_symbol_as_arithmetic_operand(
 /// local initializer, an assignment value, a terminal expression, or a call
 /// argument).
 fn statement_uses_symbol_as_arithmetic_operand(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -1939,7 +1939,7 @@ fn statement_uses_symbol_as_arithmetic_operand(
 /// (`local_referenced_in_other_machine_states`) agree on what "uses the local"
 /// means.
 fn statement_references_local(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statement: &StatementNode,
     local_symbol: SymbolHandle,
@@ -2016,7 +2016,7 @@ fn local_referenced_in_other_machine_states(
 /// site is the caller-visible mark that the callee's body splices mutation
 /// operations before the result is available.
 fn expression_contains_mutating_call(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
 ) -> bool {
     match expressions.expression(expression) {
@@ -2087,7 +2087,7 @@ fn expression_contains_mutating_call(
 /// Without a slot the bare name cannot resolve as a place at selection and the
 /// result write silently dropped (callee returned 0).
 fn statement_expression_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2099,7 +2099,7 @@ fn statement_expression_references_symbol(
 }
 
 fn statement_call_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -2116,7 +2116,7 @@ fn statement_call_references_symbol(
 }
 
 fn statement_references_symbol_in_transition(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -2144,7 +2144,7 @@ fn statement_references_symbol_in_transition(
 }
 
 fn assignment_targets_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2159,7 +2159,7 @@ fn assignment_targets_symbol(
 }
 
 fn assignment_target_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2172,10 +2172,10 @@ fn assignment_target_references_symbol(
 }
 
 fn assignment_target_head_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
-    expression: omega_checked_trees::expression::ExpressionHandle,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
+    expression: psi_checked_trees::expression::ExpressionHandle,
 ) -> SymbolHandle {
-    use omega_checked_trees::expression::ExpressionNode;
+    use psi_checked_trees::expression::ExpressionNode;
 
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -2194,10 +2194,10 @@ fn assignment_target_head_symbol(
 }
 
 fn assignment_target_head_name(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
-    expression: omega_checked_trees::expression::ExpressionHandle,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
+    expression: psi_checked_trees::expression::ExpressionHandle,
 ) -> Option<&Identifier> {
-    use omega_checked_trees::expression::ExpressionNode;
+    use psi_checked_trees::expression::ExpressionNode;
 
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => expressions.name_path_members(path.members).first(),
@@ -2211,7 +2211,7 @@ fn assignment_target_head_name(
 }
 
 fn statement_uses_symbol_mutably(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statement: &StatementNode,
     symbol: SymbolHandle,
@@ -2262,7 +2262,7 @@ fn statement_uses_symbol_mutably(
 }
 
 fn transition_guard_uses_symbol_mutably(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     guard: TransitionGuardNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2276,7 +2276,7 @@ fn transition_guard_uses_symbol_mutably(
 }
 
 fn transition_guard_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     guard: TransitionGuardNode,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2290,9 +2290,9 @@ fn transition_guard_references_symbol(
 }
 
 fn transition_target_uses_symbol_mutably(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
 ) -> bool {
@@ -2316,9 +2316,9 @@ fn transition_target_uses_symbol_mutably(
 }
 
 fn transition_target_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
-    target: omega_checked_trees::statement::TransitionTargetHandle,
+    target: psi_checked_trees::statement::TransitionTargetHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
 ) -> bool {
@@ -2342,7 +2342,7 @@ fn transition_target_references_symbol(
 }
 
 fn expression_uses_symbol_mutably(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2407,7 +2407,7 @@ fn expression_uses_symbol_mutably(
 }
 
 fn expression_references_symbol(
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
     expression: ExpressionHandle,
     symbol: SymbolHandle,
     local_name: &Identifier,
@@ -2504,7 +2504,7 @@ fn collect_type_reference_invariant_names(
             collect_type_reference_invariant_names(program, *base_type, names, span);
 
             for constraint in program.type_reference_table.constraints(*constraints) {
-                let omega_checked_trees::types::TypeConstraintNode::Named(name) = constraint else {
+                let psi_checked_trees::types::TypeConstraintNode::Named(name) = constraint else {
                     continue;
                 };
 

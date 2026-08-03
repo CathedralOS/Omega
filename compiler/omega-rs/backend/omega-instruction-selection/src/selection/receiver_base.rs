@@ -177,7 +177,7 @@ pub(in crate::selection) fn receiver_base_for(
 /// `&mut` parameters, each bound to the ABSOLUTE storage base its argument
 /// named at the (unique) call that brought the walk here. Small and cloned
 /// per descent -- chains are shallow and the walk is compile-time.
-type ParamEnv = Vec<(omega_checked_trees::name::Identifier, usize)>;
+type ParamEnv = Vec<(psi_checked_trees::name::Identifier, usize)>;
 
 /// The ABSOLUTE storage base a call's receiver refers to, given the source
 /// position's own `base` and param environment: `base` itself for a
@@ -267,7 +267,7 @@ fn descend_param_env(
         if argument.kind != omega_state_calls::StateCallArgumentKind::MutableAlias {
             continue;
         }
-        let mut segments: Vec<&omega_checked_trees::name::Identifier> = Vec::new();
+        let mut segments: Vec<&psi_checked_trees::name::Identifier> = Vec::new();
         if !collect_expression_path_segments(
             &input.state_calls.expressions,
             argument.expression,
@@ -296,7 +296,7 @@ fn descend_param_env(
                 }),
             [] => None,
             path => source_layout.and_then(|layout| {
-                let owned: Vec<omega_checked_trees::name::Identifier> =
+                let owned: Vec<psi_checked_trees::name::Identifier> =
                     path.iter().map(|segment| (*segment).clone()).collect();
                 omega_layout::field_path_offset(input.layouts, layout.fields, &owned)
                     .map(|offset| base + offset)
@@ -314,11 +314,11 @@ fn descend_param_env(
 /// paths. Returns false for anything else (calls, literals, indexing --
 /// unresolvable as a receiver identity this round).
 fn collect_expression_path_segments<'table>(
-    table: &'table omega_checked_trees::expression::ExpressionTable,
-    expression: omega_checked_trees::expression::ExpressionHandle,
-    segments: &mut Vec<&'table omega_checked_trees::name::Identifier>,
+    table: &'table psi_checked_trees::expression::ExpressionTable,
+    expression: psi_checked_trees::expression::ExpressionHandle,
+    segments: &mut Vec<&'table psi_checked_trees::name::Identifier>,
 ) -> bool {
-    use omega_checked_trees::expression::ExpressionNode;
+    use psi_checked_trees::expression::ExpressionNode;
     match table.expression(expression) {
         ExpressionNode::Mutable(inner) => collect_expression_path_segments(table, *inner, segments),
         ExpressionNode::Name(path) => {

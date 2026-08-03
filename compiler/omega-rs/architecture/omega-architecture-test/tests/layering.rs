@@ -514,6 +514,7 @@ fn retired_omega_frontend_adapters_do_not_return() {
         "compiler/omega-rs/representations/omega-syntax-trees",
         "compiler/omega-rs/representations/omega-typed-trees",
         "compiler/omega-rs/representations/omega-facts",
+        "compiler/omega-rs/representations/omega-checked-trees",
         "compiler/omega-rs/semantics/omega-proof",
         "compiler/omega-rs/semantics/omega-types",
         "compiler/omega-rs/semantics/omega-validation",
@@ -719,18 +720,6 @@ fn omega_visualizations_consume_psi_semantics_directly() {
 #[test]
 fn checked_semantics_are_psi_owned_without_provider_realization() {
     let root = workspace_root();
-    let legacy = root.join("compiler/omega-rs/representations/omega-checked-trees");
-    let legacy_source = std::fs::read_to_string(legacy.join("src/lib.rs"))
-        .expect("read legacy checked-tree compatibility export");
-    assert!(
-        legacy_source.contains("pub use psi_checked_trees::*;"),
-        "legacy checked-tree crate must re-export the Psi-owned representation"
-    );
-    assert!(
-        !legacy.join("src/trees.rs").exists(),
-        "legacy checked-tree crate must not regain semantic implementation"
-    );
-
     let manifest = root.join("compiler/psi-rs/representations/psi-checked-trees/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));

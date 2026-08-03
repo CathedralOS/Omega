@@ -1,13 +1,13 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-    TableBinaryExpression,
-};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::Arena;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBranchExpansion};
 use omega_state_guards::{StateGuardKind, StateGuardLowering, StateGuardOperator};
+use psi_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    TableBinaryExpression,
+};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::statement::TransitionGuard;
 
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
@@ -538,7 +538,7 @@ fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<Transitio
     };
 
     Some(TransitionGuard::When(Expression::Binary(Box::new(
-        omega_checked_trees::expression::BinaryExpression {
+        psi_checked_trees::expression::BinaryExpression {
             left: inner_binary.left.clone(),
             operator: inverted,
             right: inner_binary.right.clone(),
@@ -1431,7 +1431,7 @@ pub(super) fn runtime_storage_guard_in_table(
     // A bare `self` subject in a case-enum-attached machine compares the
     // attached value's TAG (a guard-compare-only place; see
     // resolve_machine_owned_self_case_tag_place_in_table).
-    let self_tag_place = |operand: omega_checked_trees::expression::ExpressionHandle| {
+    let self_tag_place = |operand: psi_checked_trees::expression::ExpressionHandle| {
         crate::selection::storage_places::resolve_machine_owned_self_case_tag_place_in_table(
             &input.layouts,
             input,

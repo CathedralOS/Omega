@@ -2,11 +2,11 @@ use super::classify::value_kind;
 use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::planning::StateValuePlanningContext;
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTableCapacity};
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 use omega_control_flow::StateKey;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionTableCapacity};
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) fn build_machine_state_value_plan(
     program: &CheckedTrees,
@@ -174,7 +174,7 @@ fn collect_transition_arguments(
     plan: &mut StateValuePlan,
     program: &CheckedTrees,
     machine: &Machine,
-    state: &omega_checked_trees::state::State,
+    state: &psi_checked_trees::state::State,
     source_key: StateKey,
     statement_index: usize,
     target: TransitionTargetHandle,
@@ -205,7 +205,7 @@ fn push_value(
     plan: &mut StateValuePlan,
     program: &CheckedTrees,
     machine: &Machine,
-    state: &omega_checked_trees::state::State,
+    state: &psi_checked_trees::state::State,
     source_key: StateKey,
     statement_index: usize,
     role: StateValueRole,
@@ -244,7 +244,7 @@ fn push_value(
 
 fn state_has_initialized_locals_before(
     program: &CheckedTrees,
-    state: &omega_checked_trees::state::State,
+    state: &psi_checked_trees::state::State,
     statement_index: usize,
 ) -> bool {
     program

@@ -20,12 +20,12 @@ use crate::selection::storage_places::{
     resolve_runtime_transition_argument_call_result_place_by_rank,
 };
 use omega_abstract_operations::{RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
 use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_state_calls::{StateCallLowering, StateCallRole};
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::statement::StatementNode;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_dispatch_argument_materialization(
@@ -656,7 +656,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 // Write each payload field. Field offsets in VariantLayout are
                 // ABSOLUTE within the enum value (0 = start of the tag), so the
                 // frame address of a field is slot.byte_offset + field.offset.
-                let variant_fields: Vec<(omega_checked_trees::name::Identifier, usize, usize)> = {
+                let variant_fields: Vec<(psi_checked_trees::name::Identifier, usize, usize)> = {
                     let type_name = &struct_literal.type_name;
                     input
                         .layouts
@@ -752,7 +752,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             // the record shape fell through to the scalar writer, which plans
             // nothing for an aggregate, so the callee's param slot stayed ZII
             // (pending/calls/struct_literal_transition_arg_native_divergence).
-            let record_fields: Vec<(omega_checked_trees::name::Identifier, usize, usize)> = {
+            let record_fields: Vec<(psi_checked_trees::name::Identifier, usize, usize)> = {
                 let type_name = &struct_literal.type_name;
                 input
                     .layouts
@@ -878,7 +878,7 @@ fn materialize_static_inline_branching_call_argument_result(
     source_key: StateKey,
     dispatch_index: u32,
     statement_index: usize,
-    call: &omega_checked_trees::expression::TableCallExpression,
+    call: &psi_checked_trees::expression::TableCallExpression,
     static_values: &super::writes::RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -1507,7 +1507,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Indexed(
-                    omega_checked_trees::expression::TableIndexedExpression { collection, index },
+                    psi_checked_trees::expression::TableIndexedExpression { collection, index },
                 ))
             }
         }
@@ -1538,7 +1538,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Range(
-                    omega_checked_trees::expression::TableRangeExpression {
+                    psi_checked_trees::expression::TableRangeExpression {
                         start,
                         end,
                         end_inclusive: range.end_inclusive,
@@ -1576,7 +1576,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Call(
-                    omega_checked_trees::expression::TableCallExpression {
+                    psi_checked_trees::expression::TableCallExpression {
                         receiver,
                         target_symbol: call.target_symbol,
                         target: call.target,
@@ -1599,7 +1599,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Member(
-                    omega_checked_trees::expression::TableMemberExpression {
+                    psi_checked_trees::expression::TableMemberExpression {
                         receiver,
                         member_symbol: member.member_symbol,
                         member: member.member,
@@ -1646,7 +1646,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Binary(
-                    omega_checked_trees::expression::TableBinaryExpression {
+                    psi_checked_trees::expression::TableBinaryExpression {
                         left,
                         operator: binary.operator,
                         right,
@@ -1669,7 +1669,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Unary(
-                    omega_checked_trees::expression::TableUnaryExpression {
+                    psi_checked_trees::expression::TableUnaryExpression {
                         operator: unary.operator,
                         operand,
                     },
@@ -1695,7 +1695,7 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Cast(
-                    omega_checked_trees::expression::TableCastExpression {
+                    psi_checked_trees::expression::TableCastExpression {
                         value,
                         target_type: cast.target_type,
                         target_label: cast.target_label,
@@ -1718,7 +1718,7 @@ fn local_root_identity(
     expression: ExpressionHandle,
 ) -> Option<(
     omega_core::symbols::SymbolHandle,
-    omega_checked_trees::name::Identifier,
+    psi_checked_trees::name::Identifier,
 )> {
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => Some((
@@ -1850,7 +1850,7 @@ fn initializer_reads_field_reassigned_after_decl(
 /// caller should NOT block the fold: it re-evaluates at transition time instead.
 fn local_initializer_is_pure_place(
     initial_value: ExpressionHandle,
-    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expressions: &psi_checked_trees::expression::ExpressionTable,
 ) -> bool {
     match expressions.expression(initial_value) {
         ExpressionNode::Name(_) => true,

@@ -4,13 +4,13 @@ use omega_abstract_operations::{
     RuntimeBitFieldFragment, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction,
     SelectedInstructionKind, StateGuardOperator,
 };
-use omega_checked_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-    TableCallExpression, TableMemberExpression,
-};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::{BuiltinFunction, SymbolHandle};
+use psi_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    TableCallExpression, TableMemberExpression,
+};
 
 use super::super::super::storage_places::resolve_runtime_frame_base_indexed_target_in_table;
 use super::super::super::storage_places::{
@@ -39,7 +39,7 @@ use super::super::writes::{
     signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_checked_trees::types::PrimitiveType;
+use psi_checked_trees::types::PrimitiveType;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 2 | 4 | 8)
@@ -564,7 +564,7 @@ fn static_inline_branching_call_value_in_table(
 
 fn static_inline_branching_call_value(
     input: &InstructionSelectionInput<'_>,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> Option<Expression> {
     // Same receiver-type discrimination as the table variant above.
     let receiver_machine = crate::selection::lookups::static_receiver_machine_for_call(
@@ -702,7 +702,7 @@ fn leaf_expansion_bindings_match_table_call_arguments(
 fn leaf_expansion_bindings_match_call_arguments(
     input: &InstructionSelectionInput<'_>,
     expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
-    call: &omega_checked_trees::expression::CallExpression,
+    call: &psi_checked_trees::expression::CallExpression,
 ) -> bool {
     let parameters = state_parameters(input, expansion.branch_key);
     let parameters = if parameters.len() == call.arguments.len().saturating_add(1)

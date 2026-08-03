@@ -1,5 +1,5 @@
 use super::StateValueKind;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn value_kind(table: &ExpressionTable, expression: ExpressionHandle) -> StateValueKind {
     if table.expression_is_stored_place(expression) {

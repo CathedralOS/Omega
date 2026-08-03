@@ -62,7 +62,7 @@ pub fn build_runtime_branching_call_plan(
         // below).
         let mut evaluated_guard_subjects: Vec<(
             StateKey,
-            omega_checked_trees::expression::ExpressionHandle,
+            psi_checked_trees::expression::ExpressionHandle,
         )> = Vec::new();
 
         for operation in operations.iter() {
@@ -201,7 +201,7 @@ pub fn build_runtime_branching_call_plan(
                     branch_edges_slice,
                     state_call,
                     &aliases,
-                    omega_checked_trees::expression::ExpressionHandle::invalid(),
+                    psi_checked_trees::expression::ExpressionHandle::invalid(),
                     omega_state_guards::StateGuardKind::Always,
                 );
             }

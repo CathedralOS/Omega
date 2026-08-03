@@ -4,15 +4,15 @@ use super::lookups::{
     state_call_for_statement, state_has_no_transitions, state_operations,
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use omega_checked_trees::types::TypeReferenceTable;
 use omega_control_flow::{OperationExpressionRefs, OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use psi_checked_trees::types::TypeReferenceTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
@@ -399,7 +399,7 @@ fn append_state_body_operations(
         if matches!(operation.kind, OperationKind::Assignment)
             && let Some(mutation) =
                 mutation_for_statement(context, state_key, operation.statement_index)
-            && let omega_checked_trees::expression::ExpressionNode::Call(call) =
+            && let psi_checked_trees::expression::ExpressionNode::Call(call) =
                 context.state_storage.expressions.expression(mutation.value)
             && call.target.as_str() == "asm#port_in"
         {
@@ -413,7 +413,7 @@ fn append_state_body_operations(
         if matches!(operation.kind, OperationKind::Assignment)
             && let Some(mutation) =
                 mutation_for_statement(context, state_key, operation.statement_index)
-            && let omega_checked_trees::expression::ExpressionNode::Call(call) =
+            && let psi_checked_trees::expression::ExpressionNode::Call(call) =
                 context.state_storage.expressions.expression(mutation.value)
             && let Some(register) =
                 omega_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(
@@ -430,7 +430,7 @@ fn append_state_body_operations(
         if matches!(operation.kind, OperationKind::Assignment)
             && let Some(mutation) =
                 mutation_for_statement(context, state_key, operation.statement_index)
-            && let omega_checked_trees::expression::ExpressionNode::Call(call) =
+            && let psi_checked_trees::expression::ExpressionNode::Call(call) =
                 context.state_storage.expressions.expression(mutation.value)
             && call.target.as_str() == "asm#rdmsr"
         {
@@ -444,7 +444,7 @@ fn append_state_body_operations(
         if matches!(operation.kind, OperationKind::Assignment)
             && let Some(mutation) =
                 mutation_for_statement(context, state_key, operation.statement_index)
-            && let omega_checked_trees::expression::ExpressionNode::Call(call) =
+            && let psi_checked_trees::expression::ExpressionNode::Call(call) =
                 context.state_storage.expressions.expression(mutation.value)
             && call.target.as_str() == "asm#pushfq"
         {
@@ -690,7 +690,7 @@ fn assignment_value_calls_in_evaluation_order<'plan>(
     fn call_matches(
         context: &RuntimeDispatchBodyContext,
         state_call: &StateCall,
-        call: &omega_checked_trees::expression::TableCallExpression,
+        call: &psi_checked_trees::expression::TableCallExpression,
     ) -> bool {
         let target_matches = state_call.target_key.state == call.target_symbol
             || context
@@ -970,14 +970,14 @@ fn append_state_call_result_operation(
 fn terminal_state_value_expression(
     context: &RuntimeDispatchBodyContext,
     target_key: StateKey,
-) -> omega_checked_trees::expression::ExpressionHandle {
+) -> psi_checked_trees::expression::ExpressionHandle {
     let Some(machine) = context
         .program
         .machines()
         .iter()
         .find(|machine| machine.symbol == target_key.machine)
     else {
-        return omega_checked_trees::expression::ExpressionHandle::invalid();
+        return psi_checked_trees::expression::ExpressionHandle::invalid();
     };
     let Some(state) = context
         .program
@@ -985,14 +985,14 @@ fn terminal_state_value_expression(
         .iter()
         .find(|state| state.symbol == target_key.state)
     else {
-        return omega_checked_trees::expression::ExpressionHandle::invalid();
+        return psi_checked_trees::expression::ExpressionHandle::invalid();
     };
     let statements = context
         .program
         .statement_table
         .statements(state.statement_nodes);
     let Some(statement) = statements.last() else {
-        return omega_checked_trees::expression::ExpressionHandle::invalid();
+        return psi_checked_trees::expression::ExpressionHandle::invalid();
     };
     match statement {
         StatementNode::Expression(expression) => *expression,
@@ -1006,10 +1006,10 @@ fn terminal_state_value_expression(
                 .transition_target(transition.target)
             {
                 TransitionTargetNode::Value(expression) => *expression,
-                _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
+                _ => psi_checked_trees::expression::ExpressionHandle::invalid(),
             }
         }
-        _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
+        _ => psi_checked_trees::expression::ExpressionHandle::invalid(),
     }
 }
 

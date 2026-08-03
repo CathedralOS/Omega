@@ -5,9 +5,9 @@ use super::static_values::{
     PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
 };
 use crate::StateScheduleContext;
-use omega_checked_trees::expression::ExpressionHandle;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::arena::HandleSpan;
+use psi_checked_trees::expression::ExpressionHandle;
 
 pub(super) fn append_local_state_calls(
     context: &StateScheduleContext,

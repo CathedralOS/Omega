@@ -16,10 +16,10 @@ use crate::selection::storage_places::{
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
-use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
-use omega_checked_trees::types::PrimitiveType;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_layout::{DataShape, TypeLayoutDescriptor};
+use psi_checked_trees::expression::{ExpressionNode, ExpressionTable};
+use psi_checked_trees::types::PrimitiveType;
 
 pub(super) fn select_host_operation_operands(
     input: &InstructionSelectionInput<'_>,
@@ -1639,7 +1639,7 @@ fn host_call_argument_expression(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     index: usize,
-) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+) -> Option<psi_checked_trees::expression::ExpressionHandle> {
     let argument = input
         .host_calls
         .arguments
@@ -2154,7 +2154,7 @@ fn alias_resolved_integer_at(
         return None;
     }
     match expressions.expression(resolved.expression) {
-        omega_checked_trees::expression::ExpressionNode::Integer(literal) => literal.value_i64(),
+        psi_checked_trees::expression::ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,
     }
 }

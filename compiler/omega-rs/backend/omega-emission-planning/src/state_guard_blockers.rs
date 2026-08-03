@@ -1,10 +1,10 @@
 use crate::EmissionPlanningInput;
-use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
 use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
+use psi_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 
 use super::guard_expression_support::expression_guard_can_emit;
 use super::semantic_scope::proof_scope_suffix;

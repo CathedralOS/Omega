@@ -1,8 +1,8 @@
 use omega_calling_conventions::{HostOperationKey, PlatformCallData, PlatformCallLoweringHandle};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use std::sync::Arc;
 
 mod host_calls;

@@ -1,11 +1,11 @@
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
-    TableIndexedExpression, TableNamePath,
-};
-use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    TableIndexedExpression, TableNamePath,
+};
+use psi_checked_trees::name::Identifier;
 
 use super::storage_places::indexed_expression_path;
 use omega_runtime_branching::{
@@ -185,7 +185,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: left.source_key,
                 expression: Expression::Binary(Box::new(
-                    omega_checked_trees::expression::BinaryExpression {
+                    psi_checked_trees::expression::BinaryExpression {
                         left: left.expression,
                         operator: binary.operator,
                         right: right.expression,
@@ -199,7 +199,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: resolved.source_key,
                 expression: Expression::Cast(Box::new(
-                    omega_checked_trees::expression::CastExpression {
+                    psi_checked_trees::expression::CastExpression {
                         value: resolved.expression,
                         target_type: cast.target_type.clone(),
                         target_label: cast.target_label.clone(),
@@ -234,7 +234,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: resolved_source_key,
                 expression: Expression::Call(Box::new(
-                    omega_checked_trees::expression::CallExpression {
+                    psi_checked_trees::expression::CallExpression {
                         receiver: receiver.map(|resolved| Box::new(resolved.expression)),
                         target_symbol: call.target_symbol,
                         target: call.target.clone(),
@@ -287,7 +287,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: collection.source_key,
                 expression: Expression::Indexed(Box::new(
-                    omega_checked_trees::expression::IndexedExpression {
+                    psi_checked_trees::expression::IndexedExpression {
                         collection: collection.expression,
                         index: index.expression,
                     },
@@ -304,7 +304,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: receiver.source_key,
                 expression: Expression::Member(Box::new(
-                    omega_checked_trees::expression::MemberExpression {
+                    psi_checked_trees::expression::MemberExpression {
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
@@ -318,7 +318,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: resolved_source_key,
                 expression: Expression::StructLiteral(
-                    omega_checked_trees::expression::StructLiteral {
+                    psi_checked_trees::expression::StructLiteral {
                         type_name: struct_literal.type_name.clone(),
                         case_name: struct_literal.case_name.clone(),
                         fields: struct_literal
@@ -332,7 +332,7 @@ pub(super) fn resolve_runtime_alias_binding(
                                     alias_expressions,
                                 );
                                 resolved_source_key = resolved.source_key;
-                                omega_checked_trees::expression::StructLiteralField {
+                                psi_checked_trees::expression::StructLiteralField {
                                     name: field.name.clone(),
                                     value: resolved.expression,
                                 }
@@ -432,7 +432,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             RuntimeResolvedExpressionHandle {
                 source_key: left.source_key,
                 expression: alias_expressions.insert(ExpressionNode::Binary(
-                    omega_checked_trees::expression::TableBinaryExpression {
+                    psi_checked_trees::expression::TableBinaryExpression {
                         left: left.expression,
                         operator: binary.operator,
                         right: right.expression,
@@ -450,7 +450,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             RuntimeResolvedExpressionHandle {
                 source_key: resolved.source_key,
                 expression: alias_expressions.insert(ExpressionNode::Cast(
-                    omega_checked_trees::expression::TableCastExpression {
+                    psi_checked_trees::expression::TableCastExpression {
                         value: resolved.expression,
                         target_type: cast.target_type,
                         target_label: cast.target_label,
@@ -498,7 +498,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             RuntimeResolvedExpressionHandle {
                 source_key: resolved_source_key,
                 expression: alias_expressions.insert(ExpressionNode::Call(
-                    omega_checked_trees::expression::TableCallExpression {
+                    psi_checked_trees::expression::TableCallExpression {
                         receiver: receiver
                             .map(|resolved| resolved.expression)
                             .unwrap_or_else(ExpressionHandle::invalid),
@@ -552,7 +552,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             RuntimeResolvedExpressionHandle {
                 source_key: receiver.source_key,
                 expression: alias_expressions.insert(ExpressionNode::Member(
-                    omega_checked_trees::expression::TableMemberExpression {
+                    psi_checked_trees::expression::TableMemberExpression {
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
@@ -579,7 +579,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 alias_expressions.set_struct_field_at_offset(
                     copied_fields,
                     offset,
-                    omega_checked_trees::expression::TableStructLiteralField {
+                    psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
                         value: resolved.expression,
                     },
@@ -588,7 +588,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             RuntimeResolvedExpressionHandle {
                 source_key: resolved_source_key,
                 expression: alias_expressions.insert(ExpressionNode::StructLiteral(
-                    omega_checked_trees::expression::TableStructLiteral {
+                    psi_checked_trees::expression::TableStructLiteral {
                         type_name: struct_literal.type_name.clone(),
                         case_name: struct_literal.case_name.clone(),
                         fields: copied_fields,
@@ -698,7 +698,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 substitution_depth,
             );
             table.insert(ExpressionNode::Binary(
-                omega_checked_trees::expression::TableBinaryExpression {
+                psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
@@ -714,7 +714,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 substitution_depth,
             );
             table.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -750,7 +750,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
             }
             table.insert(ExpressionNode::Call(
-                omega_checked_trees::expression::TableCallExpression {
+                psi_checked_trees::expression::TableCallExpression {
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
@@ -798,7 +798,7 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 substitution_depth,
             );
             table.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
+                psi_checked_trees::expression::TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
@@ -886,14 +886,14 @@ fn resolve_leaf_binding_expression_handle_at_depth(
                 table.set_struct_field_at_offset(
                     copied_fields,
                     offset,
-                    omega_checked_trees::expression::TableStructLiteralField {
+                    psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
                         value,
                     },
                 );
             }
             table.insert(ExpressionNode::StructLiteral(
-                omega_checked_trees::expression::TableStructLiteral {
+                psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
                     case_name: struct_literal.case_name.clone(),
                     fields: copied_fields,
@@ -958,7 +958,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 substitution_depth,
             );
             table.insert(ExpressionNode::Binary(
-                omega_checked_trees::expression::TableBinaryExpression {
+                psi_checked_trees::expression::TableBinaryExpression {
                     left,
                     operator: binary.operator,
                     right,
@@ -974,7 +974,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 substitution_depth,
             );
             table.insert(ExpressionNode::Cast(
-                omega_checked_trees::expression::TableCastExpression {
+                psi_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
                     target_label: cast.target_label,
@@ -1010,7 +1010,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table.set_expression_handle_at_offset(copied_arguments, offset, resolved);
             }
             table.insert(ExpressionNode::Call(
-                omega_checked_trees::expression::TableCallExpression {
+                psi_checked_trees::expression::TableCallExpression {
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
@@ -1049,7 +1049,7 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 substitution_depth,
             );
             table.insert(ExpressionNode::Member(
-                omega_checked_trees::expression::TableMemberExpression {
+                psi_checked_trees::expression::TableMemberExpression {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
@@ -1128,14 +1128,14 @@ fn resolve_straight_line_binding_expression_handle_at_depth(
                 table.set_struct_field_at_offset(
                     copied_fields,
                     offset,
-                    omega_checked_trees::expression::TableStructLiteralField {
+                    psi_checked_trees::expression::TableStructLiteralField {
                         name: field.name,
                         value,
                     },
                 );
             }
             table.insert(ExpressionNode::StructLiteral(
-                omega_checked_trees::expression::TableStructLiteral {
+                psi_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
                     case_name: struct_literal.case_name.clone(),
                     fields: copied_fields,
@@ -1417,14 +1417,12 @@ pub(super) fn append_place_suffix(expression: &Expression, suffix: &[Identifier]
 fn append_member_suffix(expression: &Expression, suffix: &[Identifier]) -> Expression {
     let mut result = expression.clone();
     for member in suffix {
-        result = Expression::Member(Box::new(
-            omega_checked_trees::expression::MemberExpression {
-                receiver: result,
-                member_symbol: SymbolHandle::invalid(),
-                member: member.clone(),
-                case_variant: None,
-            },
-        ));
+        result = Expression::Member(Box::new(psi_checked_trees::expression::MemberExpression {
+            receiver: result,
+            member_symbol: SymbolHandle::invalid(),
+            member: member.clone(),
+            case_variant: None,
+        }));
     }
     result
 }

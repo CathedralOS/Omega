@@ -1,8 +1,8 @@
 use crate::body::{build_runtime_storage_body_plan, build_straight_line_runtime_storage_plan};
 use crate::layout::align_to;
 use crate::{RuntimeStorageContext, RuntimeStoragePlan, RuntimeStorageWrite};
-use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use psi_checked_trees::expression::ExpressionTableCapacity;
 use std::sync::Arc;
 
 pub fn build_runtime_storage_plan(context: RuntimeStorageContext) -> RuntimeStoragePlan {
@@ -299,7 +299,7 @@ fn statement_binds_local(
         .is_some_and(|statement| {
             matches!(
                 statement,
-                omega_checked_trees::statement::StatementNode::LocalData(_)
+                psi_checked_trees::statement::StatementNode::LocalData(_)
             )
         })
 }
@@ -332,9 +332,9 @@ fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {
 /// call-context stacking).
 pub fn reserve_wire_nested_scratch(
     plan: &mut RuntimeStoragePlan,
-    program: &omega_checked_trees::CheckedTrees,
+    program: &psi_checked_trees::CheckedTrees,
 ) {
-    use omega_checked_trees::wire::WireMember;
+    use psi_checked_trees::wire::WireMember;
 
     let mut staging_bytes = 0usize;
     let mut needs_wire_scratch = false;

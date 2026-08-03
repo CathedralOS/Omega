@@ -1,15 +1,15 @@
 use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
-use omega_checked_trees::expression::{ExpressionNode, ExpressionTable, ExpressionTableCapacity};
-use omega_checked_trees::name::Identifier;
-use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_storage::{StateLocalStorage, StateMutation, StateMutationLowering};
+use psi_checked_trees::expression::{ExpressionNode, ExpressionTable, ExpressionTableCapacity};
+use psi_checked_trees::name::Identifier;
+use psi_checked_trees::statement::StatementNode;
+use psi_checked_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use std::sync::Arc;
 
 use super::layout::{align_to, bounded_byte_buffer_shape, layout_for_type_reference};
@@ -720,10 +720,10 @@ fn recast_view_slot_layout(
     }
     let expressions = &context.state_storage.expressions;
     let initializer = match expressions.expression(local_storage.initial_value) {
-        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => *inner,
+        psi_checked_trees::expression::ExpressionNode::Mutable(inner) => *inner,
         _ => local_storage.initial_value,
     };
-    let omega_checked_trees::expression::ExpressionNode::Cast(cast) =
+    let psi_checked_trees::expression::ExpressionNode::Cast(cast) =
         expressions.expression(initializer)
     else {
         return None;
@@ -1255,10 +1255,10 @@ fn call_result_slot_exists(
 }
 
 fn type_descriptor(
-    table: &omega_checked_trees::types::TypeReferenceTable,
+    table: &psi_checked_trees::types::TypeReferenceTable,
     type_reference: TypeReferenceHandle,
 ) -> omega_layout::TypeLayoutDescriptor {
-    use omega_checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use psi_checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match table.type_reference(type_reference) {
         TypeReferenceNode::Reference {

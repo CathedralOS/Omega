@@ -49,8 +49,8 @@ this path.
 The checked-frontend migration also keeps the ownership firewall explicit:
 `psi-checked-trees` now owns the target-neutral checked representation and
 the legacy state/control representations and transforms, artifact/backend
-orchestration, and interpreter consume it directly. `omega-checked-trees`
-remains a compatibility export only for unmigrated backend leaf consumers.
+orchestration, interpreter, and backend leaf consumers depend on it directly.
+The unused former Omega compatibility package is retired.
 Target-neutral facts and effect summaries are likewise Psi-owned, while concrete selected provider
 plans and target/layout-specific task activation plans are Omega-owned and
 travel as orchestration sidecars. `CheckedTrees` does not embed that

@@ -1,6 +1,6 @@
 use omega_calling_conventions::PlatformCallData;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::places::expression_place_eq_across_tables;
 use super::slots::text_place_for_buffer_target;

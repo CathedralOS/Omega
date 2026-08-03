@@ -238,7 +238,6 @@ dependencies = [
  "omega-assigned-target-operations",
  "omega-backend-report-types",
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-layout",
@@ -260,6 +259,7 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "psi-checked-trees",
  "psi-facts",
 ]
 
@@ -277,13 +277,6 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-target",
-]
-
-[[package]]
-name = "omega-checked-trees"
-version = "0.1.0"
-dependencies = [
- "psi-checked-trees",
 ]
 
 [[package]]
@@ -416,7 +409,6 @@ name = "omega-data-planning"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-platform-interface",
  "omega-runtime-branching",
@@ -424,6 +416,7 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target-operations",
+ "psi-checked-trees",
 ]
 
 [[package]]
@@ -442,7 +435,6 @@ version = "0.1.0"
 dependencies = [
  "omega-backend-report-types",
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-image-emission",
@@ -464,6 +456,7 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "psi-checked-trees",
  "psi-typed-trees",
 ]
 
@@ -548,7 +541,6 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
@@ -572,6 +564,7 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "psi-checked-trees",
  "psi-layout-plans",
 ]
 
@@ -623,10 +616,10 @@ dependencies = [
 name = "omega-layout"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-core",
  "omega-runtime-abi",
  "omega-target",
+ "psi-checked-trees",
 ]
 
 [[package]]
@@ -706,10 +699,10 @@ name = "omega-platform-interface"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-target",
+ "psi-checked-trees",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-syntax-trees-to-symbol-resolved-trees",
@@ -746,7 +739,6 @@ dependencies = [
 name = "omega-runtime-bodies"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
@@ -754,13 +746,13 @@ dependencies = [
  "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-storage",
+ "psi-checked-trees",
 ]
 
 [[package]]
 name = "omega-runtime-branching"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
@@ -770,26 +762,26 @@ dependencies = [
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-storage",
+ "psi-checked-trees",
 ]
 
 [[package]]
 name = "omega-runtime-dispatch-loop"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-runtime-bodies",
  "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-guards",
+ "psi-checked-trees",
 ]
 
 [[package]]
 name = "omega-runtime-storage"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-layout",
@@ -797,6 +789,7 @@ dependencies = [
  "omega-state-calls",
  "omega-state-storage",
  "omega-target",
+ "psi-checked-trees",
 ]
 
 [[package]]
@@ -804,11 +797,11 @@ name = "omega-runtime-text"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
  "omega-state-storage",
+ "psi-checked-trees",
 ]
 
 [[package]]
@@ -816,7 +809,6 @@ name = "omega-state-calls"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-checked-trees-to-state-graph",
  "omega-control-flow",
  "omega-core",
@@ -824,6 +816,7 @@ dependencies = [
  "omega-state-graph",
  "omega-state-graph-to-control-flow",
  "omega-target",
+ "psi-checked-trees",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-syntax-trees-to-symbol-resolved-trees",
@@ -835,10 +828,10 @@ dependencies = [
 name = "omega-state-dispatch"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-state-graph",
+ "psi-checked-trees",
 ]
 
 [[package]]
@@ -866,7 +859,6 @@ dependencies = [
 name = "omega-state-guards"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-layout",
@@ -875,6 +867,7 @@ dependencies = [
  "omega-state-graph",
  "omega-state-values",
  "omega-target-operations",
+ "psi-checked-trees",
  "psi-typed-trees",
 ]
 
@@ -882,34 +875,34 @@ dependencies = [
 name = "omega-state-schedule"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
  "omega-state-calls",
+ "psi-checked-trees",
 ]
 
 [[package]]
 name = "omega-state-storage"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-state-calls",
  "omega-state-graph",
  "omega-state-values",
+ "psi-checked-trees",
 ]
 
 [[package]]
 name = "omega-state-values"
 version = "0.1.0"
 dependencies = [
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-state-calls",
  "omega-state-graph",
+ "psi-checked-trees",
  "psi-typed-trees",
 ]
 

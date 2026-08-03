@@ -1,9 +1,9 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
 use omega_control_flow::StateKey;
 use omega_core::literals::{IntegerLanding, IntegerLiteral};
+use psi_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,

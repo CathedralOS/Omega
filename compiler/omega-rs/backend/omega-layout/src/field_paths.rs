@@ -6,8 +6,8 @@
 //! here.
 
 use crate::{DataShape, FieldLayout, LayoutPlan, MachineLayout};
-use omega_checked_trees::name::Identifier;
 use omega_core::arena::HandleSpan;
+use psi_checked_trees::name::Identifier;
 
 /// The byte offset of a spelled field path (`["sum"]`, `["p", "second"]`)
 /// within `fields_span`, descending contained machines and plain data

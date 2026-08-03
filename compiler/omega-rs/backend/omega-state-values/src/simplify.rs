@@ -13,16 +13,16 @@ use self::folding::{
 };
 use self::helper_stack::HelperStateStack;
 use crate::StateValueRole;
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{
+use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression,
     StructLiteral, StructLiteralField, UnaryOperator,
 };
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::state::State;
-use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-use omega_core::arena::Arena;
-use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::state::State;
+use psi_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use std::sync::Arc;
 
 pub fn simplify_expression(
@@ -216,7 +216,7 @@ fn simplify_expression_with_bindings(
             depth,
         ),
         Expression::Cast(cast) => {
-            Expression::Cast(Box::new(omega_checked_trees::expression::CastExpression {
+            Expression::Cast(Box::new(psi_checked_trees::expression::CastExpression {
                 value: simplify_expression_with_bindings(
                     program,
                     machine,
@@ -251,7 +251,7 @@ fn simplify_expression_with_bindings(
             ),
         })),
         Expression::Range(range) => {
-            Expression::Range(Box::new(omega_checked_trees::expression::RangeExpression {
+            Expression::Range(Box::new(psi_checked_trees::expression::RangeExpression {
                 start: range.start.as_ref().map(|start| {
                     Box::new(simplify_expression_with_bindings(
                         program,
@@ -465,8 +465,8 @@ fn simplify_binary_expression(
     // range semantics).
     let right_landing = if matches!(
         binary.operator,
-        omega_checked_trees::expression::BinaryOperator::ShiftLeft
-            | omega_checked_trees::expression::BinaryOperator::ShiftRight
+        psi_checked_trees::expression::BinaryOperator::ShiftLeft
+            | psi_checked_trees::expression::BinaryOperator::ShiftRight
     ) {
         None
     } else {
@@ -580,7 +580,7 @@ fn derive_integer_landing(
 
 fn landing_from_type_reference(
     program: &CheckedTrees,
-    type_reference: omega_checked_trees::types::TypeReferenceHandle,
+    type_reference: psi_checked_trees::types::TypeReferenceHandle,
 ) -> Option<IntegerLanding> {
     // An inferred `let` has no annotation -- its handle is invalid.
     if !type_reference.is_valid() {
@@ -606,7 +606,7 @@ fn declared_type_reference(
     program: &CheckedTrees,
     machine: &Machine,
     symbol: SymbolHandle,
-) -> Option<omega_checked_trees::types::TypeReferenceHandle> {
+) -> Option<psi_checked_trees::types::TypeReferenceHandle> {
     if !symbol.is_valid() {
         return None;
     }
@@ -630,13 +630,13 @@ fn declared_type_reference(
 fn field_declared_type_reference(
     program: &CheckedTrees,
     symbol: SymbolHandle,
-) -> Option<omega_checked_trees::types::TypeReferenceHandle> {
+) -> Option<psi_checked_trees::types::TypeReferenceHandle> {
     if !symbol.is_valid() {
         return None;
     }
     for data in program.data_definitions() {
         for member in program.data_members(data) {
-            if let omega_checked_trees::data::DataMember::Field(field) = member
+            if let psi_checked_trees::data::DataMember::Field(field) = member
                 && field.symbol == symbol
             {
                 return Some(field.type_reference);
@@ -654,11 +654,11 @@ fn field_declared_type_reference(
 /// compare (the ucomis* path handles NaN correctly).
 fn reflexive_comparison_fold(
     program: &CheckedTrees,
-    operator: omega_checked_trees::expression::BinaryOperator,
+    operator: psi_checked_trees::expression::BinaryOperator,
     left: &Expression,
     right: &Expression,
 ) -> Option<Expression> {
-    use omega_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
+    use psi_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
 
     if !matches!(operator, Equal | NotEqual) || left != right {
         return None;
@@ -685,8 +685,8 @@ fn reflexive_operand_provably_not_nan(program: &CheckedTrees, operand: &Expressi
             .is_some_and(|primitive| {
                 !matches!(
                     primitive,
-                    omega_checked_trees::types::PrimitiveType::F32
-                        | omega_checked_trees::types::PrimitiveType::F64
+                    psi_checked_trees::types::PrimitiveType::F32
+                        | psi_checked_trees::types::PrimitiveType::F64
                 )
             }),
         _ => false,
@@ -698,7 +698,7 @@ fn reflexive_operand_provably_not_nan(program: &CheckedTrees, operand: &Expressi
 fn member_field_primitive(
     program: &CheckedTrees,
     member_symbol: SymbolHandle,
-) -> Option<omega_checked_trees::types::PrimitiveType> {
+) -> Option<psi_checked_trees::types::PrimitiveType> {
     field_declared_type_reference(program, member_symbol)
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
 }
@@ -780,13 +780,13 @@ fn simplify_call_expression(
 fn simplify_guarded_helper_comparison(
     program: &CheckedTrees,
     machine: &Machine,
-    operator: omega_checked_trees::expression::BinaryOperator,
+    operator: psi_checked_trees::expression::BinaryOperator,
     left: &Expression,
     right: &Expression,
     bindings: &(impl BindingScope + ?Sized),
     depth: usize,
 ) -> Option<Expression> {
-    use omega_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
+    use psi_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
 
     if !matches!(operator, Equal | NotEqual) {
         return None;
@@ -1141,19 +1141,19 @@ impl Default for HelperTransition {
 #[cfg(test)]
 mod tests {
     use super::simplify_expression;
-    use omega_checked_trees::CheckedTrees;
-    use omega_checked_trees::expression::{
+    use omega_core::symbols::SymbolHandle;
+    use psi_checked_trees::CheckedTrees;
+    use psi_checked_trees::expression::{
         BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath,
     };
-    use omega_checked_trees::machine::Machine;
-    use omega_checked_trees::name::Identifier;
-    use omega_checked_trees::signature::StateParameter;
-    use omega_checked_trees::state::State;
-    use omega_checked_trees::statement::{
+    use psi_checked_trees::machine::Machine;
+    use psi_checked_trees::name::Identifier;
+    use psi_checked_trees::signature::StateParameter;
+    use psi_checked_trees::state::State;
+    use psi_checked_trees::statement::{
         StatementNode, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
-    use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-    use omega_core::symbols::SymbolHandle;
+    use psi_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
     use std::sync::Arc;
 
     #[test]
@@ -1524,7 +1524,7 @@ mod tests {
                     let initial_value = initial_value
                         .as_ref()
                         .map(|value| program.typed.expression_table.insert_tree(value))
-                        .unwrap_or_else(omega_checked_trees::expression::ExpressionHandle::invalid);
+                        .unwrap_or_else(psi_checked_trees::expression::ExpressionHandle::invalid);
 
                     StatementNode::LocalData(TableLocalData {
                         symbol,
@@ -1551,8 +1551,8 @@ mod tests {
 
                     StatementNode::Transition(TableTransition {
                         target,
-                        continuation:
-                            omega_checked_trees::statement::TransitionTargetHandle::invalid(),
+                        continuation: psi_checked_trees::statement::TransitionTargetHandle::invalid(
+                        ),
                         guard,
                     })
                 }

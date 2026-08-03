@@ -7,9 +7,9 @@ use crate::{
     derive_boundary_static_guard_footprint,
 };
 use omega_abstract_operations::AbstractOperationPlan;
-use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::Arena;
 use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
+use psi_checked_trees::expression::ExpressionTable;
 
 mod bindings;
 mod host_operations;

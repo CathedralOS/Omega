@@ -6,8 +6,8 @@ use crate::selection::storage_places::{
 };
 use omega_abstract_operations::SelectedInstruction;
 use omega_abstract_operations::TargetDataObjectHandle;
-use omega_checked_trees::expression::Expression;
 use omega_control_flow::StateKey;
+use psi_checked_trees::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_string_descriptor_write(
@@ -51,8 +51,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
         return;
     }
 
-    let mut machine_indexed_expressions =
-        omega_checked_trees::expression::ExpressionTable::default();
+    let mut machine_indexed_expressions = psi_checked_trees::expression::ExpressionTable::default();
     let target_handle = machine_indexed_expressions.insert_tree(resolved_target);
     if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
         input,

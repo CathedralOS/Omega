@@ -1,8 +1,8 @@
 use crate::place_keys::PlaceKey;
-use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::machine::Machine;
-use omega_checked_trees::statement::{TableAssignment, TableCall};
+use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use psi_checked_trees::machine::Machine;
+use psi_checked_trees::statement::{TableAssignment, TableCall};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
