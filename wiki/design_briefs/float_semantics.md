@@ -297,6 +297,12 @@ pin the positive fused residual, and intrinsic-label rejection keeps the FMA
 slot distinct from multiply-then-add. The generic x86-64 targets intentionally
 remain SSE2-baseline: selecting FMA3 there without a target feature claim would
 be unsound, so they await a feature-qualified or checked software provider.
+The six directed F32/F64 FMA slots likewise select exact AArch64 satisfiers.
+Their unnameable ternary calls preserve all three operands, the interpreter
+uses the matching directed `FloatSemantics` identity, and native lowering
+balances an FPCR direction change around exactly one scalar `FMADD` before
+result-policy adaptation. Half-ULP edges distinguish all three directions and
+prove that the following ordinary FMA remains nearest-even.
 The reusable checked-software dispatch path now exists for named boundary
 operators. A checked machine body with no `via` must prove equality/`&&`
 guarantees covering the operator contract under positional parameter
@@ -306,7 +312,7 @@ named use before both engines redirect execution to the ordinary Omega body.
 This is provider infrastructure, not an FMA implementation: the x86 slots stay
 unselected until a checked binary32/binary64 algorithm or honest feature-
 qualified target provider is present.
-Primitive spellings, the twenty-two cross-target named slots above, and two
+Primitive spellings, the twenty-two cross-target named slots above, and eight
 AArch64 FMA slots are migrated, not all of rung 3. Fixed generated callable
 frames now save the caller's complete MXCSR/FPCR, install Omega's canonical
 semantic controls, and restore the caller's value on return. Their composed
@@ -327,9 +333,10 @@ operation with a compiler-balanced MXCSR/FPCR save, requested-direction
 install, scalar operation, and exact restore before result-policy adaptation.
 Midpoint native and
 interpreter edges distinguish the three meanings and prove following ordinary
-arithmetic remains nearest-even. x86-64 FMA, the remaining directed FMA cohort,
-checked software fallbacks,
-and admitted-hardware differential evidence remain.
+arithmetic remains nearest-even. AArch64 also selects the six directed FMA
+slots and balances each requested FPCR direction around one scalar `FMADD`.
+x86-64 FMA, checked software fallbacks, and admitted-hardware differential
+evidence remain.
 
 ## 2. Domains: the value/policy split
 

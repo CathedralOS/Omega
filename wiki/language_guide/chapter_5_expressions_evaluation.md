@@ -612,8 +612,12 @@ into the separately named fused operation. Nearest-even F32/F64 FMA selects
 explicit AArch64 satisfiers and lowers to one scalar `FMADD`; its interpreter
 path consumes the same `FloatSemantics::fused_multiply_add` identity. Generic
 x86-64 remains SSE2-baseline and therefore does not claim FMA3: that target
-requires a feature-qualified or checked software satisfier. The first explicit
-directed cohorts supply F32/F64
+requires a feature-qualified or checked software satisfier. AArch64 also
+selects exact F32/F64 FMA-toward-zero/positive/negative satisfiers. Each
+directed ternary operation changes FPCR only around one scalar `FMADD`, while
+the interpreter consumes the corresponding directed `FloatSemantics` identity;
+half-ULP edges distinguish all three results and prove control restoration.
+The cross-target directed cohorts supply F32/F64
 add/subtract/multiply/divide/square-root-toward-zero/positive/negative
 satisfiers on all four native targets. Each operation saves the complete
 floating control state, installs its requested direction for one scalar

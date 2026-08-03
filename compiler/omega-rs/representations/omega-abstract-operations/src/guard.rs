@@ -81,6 +81,9 @@ pub enum StateGuardOperator {
     /// original operands retained for exactly-once evaluation and final-result
     /// policy adaptation.
     FusedMultiplyAdd,
+    FusedMultiplyAddTowardZero,
+    FusedMultiplyAddTowardPositive,
+    FusedMultiplyAddTowardNegative,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

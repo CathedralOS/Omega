@@ -763,9 +763,22 @@ pub(in crate::aarch64) fn runtime_float_binary_operation_width_with_domain(
         // fmov a + fmov b + fmul + fmov c + fadd + fmov result.
         return 24 + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     }
-    if operator == StateGuardOperator::FusedMultiplyAdd {
+    if matches!(
+        operator,
+        StateGuardOperator::FusedMultiplyAdd
+            | StateGuardOperator::FusedMultiplyAddTowardZero
+            | StateGuardOperator::FusedMultiplyAddTowardPositive
+            | StateGuardOperator::FusedMultiplyAddTowardNegative
+    ) {
         // fmov a + fmov b + fmov c + fmadd + fmov result.
-        return 20 + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
+        let directed_control = if operator == StateGuardOperator::FusedMultiplyAdd {
+            0
+        } else {
+            20
+        };
+        return 20
+            + directed_control
+            + super::runtime_storage::float_policy_guard_width(operator, byte_size, domain);
     }
     if matches!(
         operator,

@@ -5102,6 +5102,12 @@ impl<'program> Evaluator<'program> {
                 | "float#multiply_then_add_f64"
                 | "float#fused_multiply_add_f32"
                 | "float#fused_multiply_add_f64"
+                | "float#fused_multiply_add_toward_zero_f32"
+                | "float#fused_multiply_add_toward_zero_f64"
+                | "float#fused_multiply_add_toward_positive_f32"
+                | "float#fused_multiply_add_toward_positive_f64"
+                | "float#fused_multiply_add_toward_negative_f32"
+                | "float#fused_multiply_add_toward_negative_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
             let args = self
@@ -5115,8 +5121,7 @@ impl<'program> Evaluator<'program> {
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                let fused = target.contains("#fused_");
-                return self.eval_rewritten_ternary_float(&args, format, fused, frame);
+                return self.eval_rewritten_ternary_float(&args, format, target, frame);
             }
         }
         if matches!(
@@ -8297,12 +8302,13 @@ impl<'program> Evaluator<'program> {
 
     /// Execute an unnameable provider builtin for a selected ternary float
     /// operation. The named contract chooses fused versus separately rounded
-    /// semantics and adapts only the final result using all original operands.
+    /// semantics and any explicit direction, then adapts only the final result
+    /// using all original operands.
     fn eval_rewritten_ternary_float(
         &mut self,
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
-        fused: bool,
+        intrinsic: &str,
         frame: &Frame,
     ) -> EvalResult<Value> {
         let scalar_type = arguments
@@ -8326,16 +8332,46 @@ impl<'program> Evaluator<'program> {
                 FloatMeaning::from_f64(value)
             });
         }
-        let meaning = if fused {
-            FloatSemantics::fused_multiply_add(format, &operands[0], &operands[1], &operands[2])
-        } else {
-            FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2])
+        let meaning = match intrinsic {
+            "float#multiply_then_add_f32" | "float#multiply_then_add_f64" => {
+                FloatSemantics::multiply_then_add(format, &operands[0], &operands[1], &operands[2])
+            }
+            "float#fused_multiply_add_f32" | "float#fused_multiply_add_f64" => {
+                FloatSemantics::fused_multiply_add(format, &operands[0], &operands[1], &operands[2])
+            }
+            "float#fused_multiply_add_toward_zero_f32"
+            | "float#fused_multiply_add_toward_zero_f64" => {
+                FloatSemantics::fused_multiply_add_toward_zero(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                )
+            }
+            "float#fused_multiply_add_toward_positive_f32"
+            | "float#fused_multiply_add_toward_positive_f64" => {
+                FloatSemantics::fused_multiply_add_toward_positive(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                )
+            }
+            "float#fused_multiply_add_toward_negative_f32"
+            | "float#fused_multiply_add_toward_negative_f64" => {
+                FloatSemantics::fused_multiply_add_toward_negative(
+                    format,
+                    &operands[0],
+                    &operands[1],
+                    &operands[2],
+                )
+            }
+            _ => return unsupported("unknown selected ternary-float intrinsic"),
         };
-        let operation = if fused {
-            "fused_multiply_add"
-        } else {
-            "multiply_then_add"
-        };
+        let operation = intrinsic
+            .strip_prefix("float#")
+            .and_then(|name| name.rsplit_once('_').map(|(operation, _)| operation))
+            .unwrap_or("ternary_float");
         let meaning = match scalar_type.map(|(_, domain)| domain) {
             Some(ArithmeticDomain::Saturating) => {
                 let operand_refs = operands.iter().collect::<Vec<_>>();

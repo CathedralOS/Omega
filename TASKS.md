@@ -1589,9 +1589,14 @@ and allocation handles expose no compiler-owned stack/control storage.
   MXCSR/FPCR, installs the requested direction for one scalar operation, and
   restores the prior state before result-policy adaptation; midpoint dual-engine
   canaries also prove subsequent ordinary arithmetic remains nearest-even.
-  Remaining rung-3 work includes x86-64 FMA realization, the directed FMA
-  cohort, checked software fallbacks,
-  and rung-4 differential evidence.
+  The six directed F32/F64 FMA slots now select exact providers on both AArch64
+  targets. Interpreter lowering consumes the matching directed
+  `FloatSemantics` identity; native lowering balances the requested FPCR
+  direction around exactly one scalar `FMADD`, then restores control before
+  result-policy adaptation. Half-ULP dual-engine canaries distinguish all three
+  directions and prove a following ordinary FMA remains nearest-even. Remaining
+  rung-3 work includes x86-64 FMA realization, checked software fallbacks, and
+  rung-4 differential evidence.
   The first checked-software provider slice is now live independently of a
   float algorithm: an ordinary body may satisfy one exact named boundary
   operator without `via`, provided its machine-checked equality/`&&` ensures
