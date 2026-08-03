@@ -1713,7 +1713,10 @@ move it to a convenience library.
   candidate discovery now consults only explicit whole-trait data conformance
   items, excludes unbound generic conformances, and never infers an edge from
   same-named attached machines. Existing interpreter/native dispatch canaries
-  now declare their conformance edges. The two-word descriptor, coherent
+  now declare their conformance edges. Psi type validation also rejects a
+  boundary trait as a local dynamic value and rejects a bare generic trait
+  whose parameters cannot yet be bound by the `dyn` source form. The two-word
+  descriptor, coherent
   named-conformance selection, per-requirement eligibility/adapters, and
   envelope inference remain.
   Local descriptors must not cross replaceable component boundaries. Add owned

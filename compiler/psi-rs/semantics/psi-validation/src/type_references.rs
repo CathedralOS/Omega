@@ -509,9 +509,23 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::DynamicTrait { name, .. } => {
-            if symbols.trait_definition(name.as_str()).is_none() {
+            let Some(trait_definition) = symbols.trait_definition(name.as_str()) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown dynamic trait `{name}`"
+                )));
+                return;
+            };
+
+            if trait_definition.is_boundary {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses boundary trait `{name}` as a local dynamic value; local dynamic descriptors cannot cross a replaceable component boundary"
+                )));
+            }
+
+            let generic_parameter_count = program.trait_type_parameters(trait_definition).len();
+            if generic_parameter_count != 0 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses generic trait `{name}` as an unbound dynamic value; bind its {generic_parameter_count} generic parameter(s) before deriving a dynamic surface"
                 )));
             }
         }

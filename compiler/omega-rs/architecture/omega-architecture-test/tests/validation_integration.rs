@@ -17,6 +17,48 @@ fn typed_program_from_source(source: &str) -> psi_typed_trees::TypedTrees {
 }
 
 #[test]
+fn local_dynamic_value_rejects_boundary_trait() {
+    let typed = typed_program_from_source(
+        r#"
+        boundary trait Service {
+            machine ping();
+        }
+
+        machine inspect(service: &dyn Service) {}
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a boundary trait is not a local dyn surface");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "uses boundary trait `Service` as a local dynamic value; local dynamic descriptors cannot cross a replaceable component boundary",
+        )
+    }));
+}
+
+#[test]
+fn local_dynamic_value_rejects_unbound_generic_trait() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Projection<T> {
+            machine project(&self) -> T;
+        }
+
+        machine inspect(projection: &dyn Projection) {}
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a generic dyn surface must bind its trait parameters");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "uses generic trait `Projection` as an unbound dynamic value; bind its 1 generic parameter(s)",
+        )
+    }));
+}
+
+#[test]
 fn exact_qualification_may_publish_one_checked_content_projection() {
     let typed = typed_program_from_source(
         r#"
