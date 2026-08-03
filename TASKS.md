@@ -1419,7 +1419,16 @@ improvements do not change public identity.
   a possible opaque holder reserves an unmapped/trapping quarantine
   with attributed capacity loss. A stale call must fault without being reported
   as discharged, and an opaque callback into replaceable code must use a
-  process-lifetime gateway or an accepted unregister/quiescence contract.
+  process-lifetime gateway or an accepted unregister/quiescence contract. The
+  executable-installation ladder now implements the fail-closed mapping half:
+  an exact replacement receipt must prove execute removal, unmapping/trapping,
+  and continued range reservation before consuming installed code into
+  quarantine. The retained record attributes incomplete drain or possible
+  opaque custody, reports exact virtual-address capacity loss, and produces
+  only a non-discharging stale-entry fault. Quiescent retirement remains the
+  sole route that returns reusable W+NX placement. Coexisting-era TCB union,
+  process-static handover, gateway/unregister validation, and the concrete era
+  entry ledger remain.
 - **BLOCKEXEC:** provide an ordinary package-level blocking executor for
   codec-style native calls using activations, bounded queues, moved custody,
   linear completion claims, suspension, and provider selection. It is not a
