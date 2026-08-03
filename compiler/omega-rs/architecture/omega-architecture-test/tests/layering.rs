@@ -688,32 +688,21 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 }
 
 #[test]
-fn omega_to_psi_compatibility_adapter_stays_narrow() {
-    let path = workspace_root()
-        .join("compiler/omega-rs/pipeline/omega-checked-trees-to-terminal-psi/src/lib.rs");
+fn first_terminal_psi_source_slice_stays_fail_closed() {
+    let path =
+        workspace_root().join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 
     assert!(
         source.contains("pub fn lower_machine("),
-        "the bootstrap adapter must retain its one exact source-canary entry"
+        "the first terminal-Psi source slice must retain its checked entry point"
     );
     assert_eq!(
         source.matches("pub fn lower_").count(),
         1,
-        "the Omega-to-Psi bridge is a frozen bootstrap canary, not a frontend migration route"
+        "the first terminal-Psi source slice must expose one fail-closed lowering entry"
     );
-    for forbidden in [
-        "lower_content_",
-        "ContentIdentityReshuffleFact",
-        "ContentPartitionCompositionFact",
-        "ContentConservationPlan",
-    ] {
-        assert!(
-            !source.contains(forbidden),
-            "compatibility adapter widened with target-neutral frontend concept {forbidden}; move that producer under Psi ownership"
-        );
-    }
 }
 
 #[test]

@@ -82,7 +82,8 @@ Omega/
 |   |   |   |-- [CRATE] psi-tokens-to-syntax-trees/     # Psi-owned unresolved Omega parser.
 |   |   |   |-- [CRATE] psi-syntax-trees-to-symbol-resolved-trees/ # Psi-owned name and symbol resolution.
 |   |   |   |-- [CRATE] psi-symbol-resolved-trees-to-typed-trees/ # Psi-owned type/signature normalization.
-|   |   |   `-- [CRATE] psi-typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
+|   |   |   |-- [CRATE] psi-typed-trees-to-checked-trees/ # Psi-owned semantic checking and checked-fact construction.
+|   |   |   `-- [CRATE] psi-checked-trees-to-terminal/   # First fail-closed checked-semantics to terminal-Psi producer.
 |   |   `-- semantics/
 |   |       |-- [CRATE] psi-validation/                 # Cross-semantic source validation and diagnostics.
 |   |       |-- [CRATE] psi-proof/                      # Source proof obligations, planning, and checking.

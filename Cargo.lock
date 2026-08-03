@@ -295,19 +295,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-checked-trees-to-terminal-psi"
-version = "0.1.0"
-dependencies = [
- "omega-checked-trees",
- "omega-core",
- "omega-typed-trees",
- "psi-core",
- "psi-proof-kernel",
- "psi-terminal",
- "psi-terminal-verifier",
-]
-
-[[package]]
 name = "omega-cli"
 version = "0.1.0"
 dependencies = [
@@ -603,7 +590,6 @@ name = "omega-interpreter"
 version = "0.1.0"
 dependencies = [
  "omega-checked-trees",
- "omega-checked-trees-to-terminal-psi",
  "omega-compiler",
  "omega-core",
  "omega-target",
@@ -613,6 +599,7 @@ dependencies = [
  "omega-terminal-machine-emission",
  "omega-terminal-psi-to-abstract-operations",
  "omega-typed-trees",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-kernel",
  "psi-terminal",
@@ -1229,6 +1216,19 @@ dependencies = [
  "psi-language-semantics",
  "psi-numerics",
  "psi-symbols",
+ "psi-typed-trees",
+]
+
+[[package]]
+name = "psi-checked-trees-to-terminal"
+version = "0.1.0"
+dependencies = [
+ "psi-checked-trees",
+ "psi-core",
+ "psi-numerics",
+ "psi-proof-kernel",
+ "psi-terminal",
+ "psi-terminal-verifier",
  "psi-typed-trees",
 ]
 

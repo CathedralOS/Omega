@@ -18,7 +18,7 @@ psi-terminal-fuel = { path = "../../../psi-rs/semantics/psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../../../psi-rs/semantics/psi-terminal-verifier" }
 
 [dev-dependencies]
-omega-checked-trees-to-terminal-psi = { path = "../../pipeline/omega-checked-trees-to-terminal-psi" }
+psi-checked-trees-to-terminal = { path = "../../../psi-rs/pipeline/psi-checked-trees-to-terminal" }
 omega-compiler = { path = "../omega-compiler" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
