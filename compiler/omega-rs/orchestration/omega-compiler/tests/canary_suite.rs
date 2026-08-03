@@ -43179,6 +43179,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dependent/transitive_call_frame_preserves_disjoint_fact_compile",
     "dependent/transition_call_frame_preserves_disjoint_fact_compile",
     "dependent/named_self_transition_call_frame_preserves_disjoint_fact_compile",
+    "dependent/multi_state_cycle_call_frame_preserves_disjoint_fact_compile",
     "dependent/transition_parameter_frame_preserves_disjoint_fact_compile",
     "dependent/call_bearing_transition_frame_preserves_disjoint_fact_compile",
     "dependent/data_where_call_frame_preserves_disjoint_valuation_compile",

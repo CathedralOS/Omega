@@ -1,7 +1,6 @@
-// R5 fail-closed boundary: a reachable multi-state cycle that rebinds a state
-// parameter keeps the inferred frame opaque. This concrete path writes only
-// `self.touched` and exits, but the caller may not preserve `self.stable` from
-// one observed execution path.
+// R5 multi-state inferred transition frame: a cycle that forwards every state
+// parameter at the same ordinal writes only `self.touched`. The caller
+// therefore retains its exact fact for disjoint `self.stable`.
 data Main {
     stable: u32;
     touched: u32;
@@ -24,7 +23,7 @@ machine Main::cycle_touch(&mut self, carried: u32) {
 
     state second(&mut self, carried: u32) {
         transition self.touched == 0 {
-            true -> first(self.touched)
+            true -> first(carried)
             false -> done()
         }
     }

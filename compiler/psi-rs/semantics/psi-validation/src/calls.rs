@@ -1351,8 +1351,9 @@ fn summarize_transition_target_written_paths(
         // A bare `-> self` re-enters this exact state with the same receiver
         // and parameter namespace. The body's writes have already been
         // collected, so another iteration adds no new caller-visible path.
-        // Named cycles remain opaque below unless an exact same-state edge
-        // forwards every state parameter without rebinding.
+        // Named cycles remain opaque below unless every edge around the cycle
+        // forwards the complete state-parameter namespace positionally without
+        // rebinding.
         TransitionTargetNode::SelfTarget => Some(Vec::new()),
         TransitionTargetNode::Named { path, arguments } => {
             let arguments = program.statement_table.expression_handles(*arguments);
@@ -1404,26 +1405,31 @@ fn summarize_transition_target_written_paths(
     }
 }
 
-/// A named edge back to the same state is frame-equivalent to bare `self`
-/// only when every explicit state parameter is forwarded as that exact
-/// parameter. Any projection, computation, omission, reordering, or other
-/// state cycle remains opaque.
+/// A named edge closing a state cycle is frame-equivalent to a bare `self`
+/// edge only when every target parameter is fed by the source parameter at
+/// that same ordinal. Parameter symbols are state-local, so a multi-state
+/// cycle deliberately compares the argument to the source namespace rather
+/// than requiring the target's distinct symbol. Any projection, computation,
+/// omission, reordering, or rebinding keeps the cycle opaque.
 fn named_transition_preserves_state_namespace(
     program: &TypedTrees,
     source_state: &State,
     target_state: &State,
     arguments: &[ExpressionHandle],
 ) -> bool {
-    if source_state.symbol != target_state.symbol {
-        return false;
-    }
-    let parameters = program
+    let source_parameters = program
+        .state_parameters(source_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let target_parameters = program
         .state_parameters(target_state)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    parameters.len() == arguments.len()
-        && parameters
+    source_parameters.len() == target_parameters.len()
+        && target_parameters.len() == arguments.len()
+        && source_parameters
             .into_iter()
             .zip(arguments.iter().copied())
             .all(|(parameter, argument)| {
