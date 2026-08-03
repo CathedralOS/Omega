@@ -144,15 +144,29 @@ machine LookalikeMaskProvider::save(&mut self) -> InterruptMaskGuard in Active
     satisfies LookalikeMaskControl::save
     via Binding::CompilerIntrinsic("LookalikeMaskControl::save");
 
-boundary trait TimerRoot: Calling<X86InterruptPolicy> {
-    machine tick(acknowledgement: InterruptAcknowledgement in Pending)
+boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {
+}
+
+boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending)
     reaches PortIo;
 }
 
 data TimerProvider { }
+TimerProvider satisfies TimerRoot;
 
-machine TimerProvider::timer_leaf(acknowledgement: InterruptAcknowledgement in Pending)
-    satisfies TimerRoot::tick
+machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
+    satisfies InterruptEntry::enter
+    reaches PortIo
+{
+    acknowledgement.complete();
+}
+
+data LookalikeEntryProvider { }
+LookalikeEntryProvider satisfies LookalikeEntry;
+
+machine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
+    satisfies LookalikeEntry::enter
     reaches PortIo
 {
     acknowledgement.complete();
@@ -262,15 +276,18 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         "a requirement not named by the domain route must not publish Active issuance authority"
     );
     assert_eq!(selected.rows.len(), 1);
-    let [tick] = selected.schema.methods.as_slice() else {
-        panic!("TimerRoot must publish one tick requirement");
+    let [entry] = selected.schema.methods.as_slice() else {
+        panic!("TimerRoot must inherit one exact core entry requirement");
     };
-    let [acknowledgement] = tick.parameter_type_identities.as_slice() else {
+    assert_eq!(entry.name, "enter");
+    assert_eq!(entry.requirement_owner, "InterruptEntry");
+    assert!(entry.requirement_identity.contains("InterruptEntry"));
+    let [acknowledgement] = entry.parameter_type_identities.as_slice() else {
         panic!("timer root must bind its acknowledgement parameter identity");
     };
     assert!(acknowledgement.contains("InterruptAcknowledgement"));
     assert!(acknowledgement.contains("Pending"));
-    let [pending] = tick.entry_claims.as_slice() else {
+    let [pending] = entry.entry_claims.as_slice() else {
         panic!("timer root must publish one structured accepted authority claim");
     };
     assert_eq!(pending.parameter_index, 0);
@@ -314,7 +331,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         "the root bridge must carry the structured accepted claim and strict carry policy beside its receipt identity"
     );
     let runtime_claims = root_selection
-        .entry_claims(&tick.requirement_identity)
+        .entry_claims(&entry.requirement_identity)
         .expect("exact timer entry claims should lower into the runtime ledger");
     let [runtime_pending] = runtime_claims.as_slice() else {
         panic!("runtime root bridge must retain one Pending claim");
@@ -324,6 +341,17 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(
         runtime_pending.effective_carry,
         omega_core::semantics::CarryPolicy::STRICT
+    );
+    let lookalike_entry_plan = checked
+        .selected_provider_plans()
+        .plan_by_name("LookalikeEntryProvider::satisfies::LookalikeEntry")
+        .expect("look-alike entry provider plan");
+    let [lookalike_entry] = lookalike_entry_plan.schema.methods.as_slice() else {
+        panic!("look-alike entry provider must publish one requirement");
+    };
+    assert!(
+        lookalike_entry.entry_claims.is_empty(),
+        "a qualified parameter whose requirement is not named by the domain route must remain an ordinary precondition"
     );
     assert_eq!(
         selected_external_root_provider_plan_id(checked.selected_provider_plans(), "TimerRoot")
@@ -339,7 +367,10 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert!(qualification.contains("\"flow\": \"accepts\""));
     assert!(qualification.contains("\"flow\": \"returns\""));
     assert!(qualification.contains("\"boundary\": \"TimerRoot\""));
-    assert!(qualification.contains("\"requirement\": \"TimerRoot::tick\""));
+    assert!(
+        qualification.contains("\"requirement\": \"InterruptEntry::enter\""),
+        "qualification artifact must retain the inherited semantic requirement:\n{qualification}"
+    );
     assert!(qualification.contains("\"parameter_index\": 0"));
     assert!(qualification.contains("\"domain\": \"InterruptAcknowledgement::Pending\""));
     assert!(qualification.contains("\"domain\": \"InterruptMaskGuard::Active\""));

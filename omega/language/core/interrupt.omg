@@ -52,11 +52,18 @@ data InterruptAcknowledgement [linear] {
     acknowledgement: u64;
 }
 
-// The selected external-root schema and invocation evidence bind this accepted
-// claim today. The empty declaration is transitional until the core-owned entry
-// requirement and parameter-position route are implemented; it is not the final
-// authorization surface and must not be treated as vacuous minting authority.
-pub domain InterruptAcknowledgement::Pending;
+// One stable semantic requirement owns inbound acknowledgement establishment.
+// Platform interrupt roots inherit this requirement and may refine only its
+// calling/target plan. Installation—not an ordinary call—turns the exact
+// non-self parameter route into an introduction.
+pub domain InterruptAcknowledgement::Pending {
+    InterruptEntry::enter;
+}
+
+pub boundary trait InterruptEntry {
+    machine enter(acknowledgement: InterruptAcknowledgement in Pending)
+    reaches PortIo;
+}
 
 boundary machine InterruptAcknowledgement::complete(self)
 reaches PortIo

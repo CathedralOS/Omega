@@ -140,19 +140,18 @@ composite claim-frontier work remain.
   transition receipt mints subject/invocation-bound `Active` evidence; explicit
   qualification, missing contracts, claim drift, and receipt substitution
   reject.
-- **INBOUND-ROUTE-ESTABLISHMENT — DESIGN CLEAR:** extend existing exact domain
-  routes to matching non-`self` parameter positions. At an ordinary checked
-  call those qualifications remain caller preconditions; only installation as
-  an external root turns the matching accepted positions into introductions.
-  Add one core-owned acknowledgement-entry requirement, have target interrupt
-  roots inherit that exact semantic requirement, and let `Calling<C>` refine
-  its plan without replacing the identity. Normalize source parameter
-  positions internally, preserve the semantic parameter list through
-  inheritance and specialization, and map it to physical operands only during
-  ABI lowering. Do not add an `[entry]`/`[accepted]` marker, source selector,
-  public receipt, or new trust category. Connect the existing installed-root
-  occurrence evidence to the checked `Pending` parameter fact and make the
-  transitional empty core domain routed before treating the feature complete.
+- **INBOUND-ROUTE-ESTABLISHMENT — IMPLEMENTATION IN PROGRESS:** extend existing exact domain
+  routes to matching non-`self` parameter positions. Static route normalization
+  now accepts exact qualified parameters only on boundary requirements and
+  keeps the same qualification as a precondition on ordinary calls. Core owns
+  `InterruptEntry::enter`; `Pending` names that route, target roots inherit the
+  exact requirement, and a descendant `Calling<C>` policy refines the selected
+  plan without replacing the semantic requirement identity. Selected schemas
+  retain the normalized parameter position and look-alike requirements publish
+  no accepted claim. Do not add an `[entry]`/`[accepted]` marker, source
+  selector, public receipt, or new trust category. Remaining: connect the
+  existing installed-root occurrence evidence to the checked `Pending`
+  parameter fact, preserving the semantic position until ABI lowering.
 - `TaskRuntime` is now an ordinary boundary trait. Each concrete `start<M>` /
   `try_start<M>` Omega activation-sidecar fact binds the exact retained
   selected-provider plan and exact operation requirement, rejecting a missing

@@ -591,6 +591,72 @@ fn normalizes_authored_checked_and_boundary_requirement_routes() {
 }
 
 #[test]
+fn boundary_requirement_route_accepts_exact_non_self_parameter_domain() {
+    use psi_language_semantics::DomainEstablishmentRoute;
+
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Pending {
+        BoundaryIngress::enter;
+    }
+    boundary trait BoundaryIngress {
+        machine enter(token: Token in Pending);
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let domain = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Pending")
+        .expect("pending domain");
+    let ingress = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "BoundaryIngress")
+        .expect("boundary ingress trait");
+    let enter = program
+        .trait_machine_signatures(ingress.machines)
+        .first()
+        .expect("entry requirement");
+    assert!(
+        domain
+            .establishment_routes
+            .contains(&DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: ingress.symbol,
+                requirement: enter.symbol,
+            })
+    );
+}
+
+#[test]
+fn ordinary_requirement_route_rejects_parameter_domain_as_introduction() {
+    let source = r#"
+    data Token { value: u64; }
+    domain Token::Pending {
+        OrdinaryIngress::enter;
+    }
+    trait OrdinaryIngress {
+        machine enter(token: Token in Pending);
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let diagnostic = lower_syntax_trees(&syntax_trees)
+        .expect_err("an ordinary call must treat its parameter domain as a precondition");
+    assert!(diagnostic.message.contains(
+        "does not name the domain on its exact result or an exact non-self external-root parameter"
+    ));
+}
+
+#[test]
 fn rejects_unresolved_authored_domain_requirement_route() {
     let source = r#"
     data Token { value: u64; }

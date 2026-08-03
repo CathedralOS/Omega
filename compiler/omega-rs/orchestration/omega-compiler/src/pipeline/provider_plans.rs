@@ -739,59 +739,51 @@ pub(crate) fn derive_satisfies_plans(
                 .as_ref()
                 .map(|name| name.as_str().to_owned())
                 .unwrap_or_default();
-            let plan_name = satisfies_plan_name(&target, &trait_leaf, &provider_type);
-            let position = plans
-                .iter()
-                .position(|plan| plan.name == plan_name)
-                .unwrap_or_else(|| {
-                    let schema = typed
-                        .traits()
-                        .iter()
-                        .find(|definition| {
-                            definition.name.as_str() == trait_leaf
-                                || definition
-                                    .name
-                                    .as_str()
-                                    .rsplit("::")
-                                    .next()
-                                    .is_some_and(|leaf| leaf == trait_leaf)
-                        })
-                        .and_then(|definition| {
-                            let arguments =
-                                provider_boundary_arguments(typed, definition, &provider_type);
-                            ServiceSchema::from_typed_instance(typed, definition, &arguments)
-                        })
-                        .unwrap_or_else(|| ServiceSchema {
-                            trait_name: trait_leaf.clone(),
-                            methods: Vec::new(),
-                        });
-                    plans.push(ProviderPlan {
-                        name: plan_name.clone(),
-                        provider_type: provider_type.clone(),
-                        target: target.clone(),
-                        schema,
-                        rows: Vec::new(),
-                        origin_package: String::new(),
-                    });
-                    plans.len() - 1
-                });
-            let plan = &mut plans[position];
             let row_binding = match binding {
                 None => ProviderBinding::CheckedAdapter {
                     machine: machine.name.as_str().to_owned(),
                 },
                 Some(binding) => external_provider_binding(binding, &provider_type),
             };
-            plan.rows.push(ProviderPlanRow {
-                method: requirement.as_str().to_owned(),
-                requirement_identity: satisfied_requirement_identity(
-                    typed,
-                    machine.name.as_str(),
-                    clause.trait_name.as_str(),
-                    requirement.as_str(),
-                ),
-                binding: row_binding,
-            });
+            let requirement_identity = satisfied_requirement_identity(
+                typed,
+                machine.name.as_str(),
+                clause.trait_name.as_str(),
+                requirement.as_str(),
+            );
+            let semantic_requirement_identity = exact_satisfied_requirement_identity(
+                typed,
+                machine.name.as_str(),
+                clause.trait_name.as_str(),
+                requirement.as_str(),
+            );
+            for (schema_trait, schema) in provider_plan_schema_targets(
+                typed,
+                &provider_type,
+                &trait_leaf,
+                &semantic_requirement_identity,
+            ) {
+                let plan_name = satisfies_plan_name(&target, &schema_trait, &provider_type);
+                let position = plans
+                    .iter()
+                    .position(|plan| plan.name == plan_name)
+                    .unwrap_or_else(|| {
+                        plans.push(ProviderPlan {
+                            name: plan_name.clone(),
+                            provider_type: provider_type.clone(),
+                            target: target.clone(),
+                            schema,
+                            rows: Vec::new(),
+                            origin_package: String::new(),
+                        });
+                        plans.len() - 1
+                    });
+                plans[position].rows.push(ProviderPlanRow {
+                    method: requirement.as_str().to_owned(),
+                    requirement_identity: requirement_identity.clone(),
+                    binding: row_binding.clone(),
+                });
+            }
         }
     }
     plans.extend(derive_boundary_operator_plans(
@@ -800,6 +792,69 @@ pub(crate) fn derive_satisfies_plans(
         selected_target,
     ));
     plans
+}
+
+/// Select the boundary schema under which an exact inherited routed-input
+/// requirement is installed. A provider may implement the stable parent
+/// requirement while explicitly conforming to a target root that inherits it
+/// and adds `Calling<C>`. In that case the descendant schema owns plan/ABI
+/// refinement, but the row keeps the parent's exact requirement identity.
+/// Requirements without accepted entry claims retain the established direct
+/// provider-plan behavior.
+fn provider_plan_schema_targets(
+    typed: &TypedTrees,
+    provider_type: &str,
+    satisfied_trait: &str,
+    requirement_identity: &str,
+) -> Vec<(String, ServiceSchema)> {
+    let direct = typed.traits().iter().find(|definition| {
+        definition.is_boundary && same_semantic_name(definition.name.as_str(), satisfied_trait)
+    });
+
+    let mut refined = typed
+        .data_conformances()
+        .iter()
+        .filter(|conformance| same_semantic_name(conformance.type_name.as_str(), provider_type))
+        .filter_map(|conformance| {
+            let definition = typed.traits().iter().find(|definition| {
+                definition.is_boundary
+                    && same_semantic_name(definition.name.as_str(), conformance.trait_name.as_str())
+            })?;
+            let arguments = provider_boundary_arguments(typed, definition, provider_type);
+            let schema = ServiceSchema::from_typed_instance(typed, definition, &arguments)?;
+            schema
+                .methods
+                .iter()
+                .any(|method| {
+                    method.requirement_identity == requirement_identity
+                        && !method.entry_claims.is_empty()
+                })
+                .then(|| (definition.name.as_str().to_owned(), schema))
+        })
+        .collect::<Vec<_>>();
+    refined.sort_by(|left, right| left.0.cmp(&right.0));
+    refined.dedup_by(|left, right| left.0 == right.0);
+
+    let has_descendant = refined.iter().any(|(name, _)| {
+        direct.is_some_and(|definition| !same_semantic_name(name, definition.name.as_str()))
+    });
+    if has_descendant {
+        refined.retain(|(name, _)| {
+            direct.is_none_or(|definition| !same_semantic_name(name, definition.name.as_str()))
+        });
+    }
+    if !refined.is_empty() {
+        return refined;
+    }
+
+    direct
+        .and_then(|definition| {
+            let arguments = provider_boundary_arguments(typed, definition, provider_type);
+            ServiceSchema::from_typed_instance(typed, definition, &arguments)
+                .map(|schema| (definition.name.as_str().to_owned(), schema))
+        })
+        .into_iter()
+        .collect()
 }
 
 fn derive_boundary_operator_plans(
@@ -916,8 +971,7 @@ pub(crate) fn satisfied_requirement_identity(
         .collect::<Vec<_>>();
     let selected = match named.as_slice() {
         // A unique human name remains the executable compatibility key. Its
-        // full normalized identity is already carried by ServiceMethod and
-        // folded into the provider artifact fingerprint.
+        // full normalized identity is carried independently by ServiceMethod.
         [_single] => return String::new(),
         many => {
             let implementation_dispatch = typed
@@ -934,6 +988,41 @@ pub(crate) fn satisfied_requirement_identity(
         }
     };
     selected
+        .map(|signature| {
+            typed
+                .normalized_trait_requirement_overload_identity(definition, signature)
+                .identity()
+        })
+        .unwrap_or_default()
+}
+
+fn exact_satisfied_requirement_identity(
+    typed: &TypedTrees,
+    machine_name: &str,
+    trait_name: &str,
+    requirement_name: &str,
+) -> String {
+    let Some(definition) = typed
+        .traits()
+        .iter()
+        .find(|definition| same_semantic_name(definition.name.as_str(), trait_name))
+    else {
+        return String::new();
+    };
+    let named = typed
+        .trait_machine_signatures(definition)
+        .iter()
+        .filter(|signature| signature.name.as_str() == requirement_name)
+        .collect::<Vec<_>>();
+    let signature = match named.as_slice() {
+        [single] => Some(*single),
+        _ => {
+            let selected =
+                satisfied_requirement_identity(typed, machine_name, trait_name, requirement_name);
+            return selected;
+        }
+    };
+    signature
         .map(|signature| {
             typed
                 .normalized_trait_requirement_overload_identity(definition, signature)
@@ -1560,6 +1649,7 @@ mod tests {
                     .iter()
                     .map(|method| omega_effects::provider_plan::ServiceMethod {
                         name: (*method).to_owned(),
+                        requirement_owner: "Pair".to_owned(),
                         requirement_identity: String::new(),
                         parameter_count: 0,
                         parameter_type_identities: Vec::new(),
