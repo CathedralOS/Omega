@@ -1013,6 +1013,14 @@ improvements do not change public identity.
   small structural proof kernel, versioned certificate envelope, total truth /
   reflexive-equality / closed-integer judgments, and sealed exact admission
   validator are live; architecture tests forbid Psi dependencies on Omega.
+  **CONDITIONAL-EDGE — DESIGN BLOCKED (OWNER_QUESTIONS Q4):** the settled
+  executable vocabulary currently defines only total unconditional jumps and
+  returns. Before adding branching, choose the canonical conditional-edge
+  shape, successor ordering/identity, guard representation, reconstructed
+  exclusivity/exhaustiveness obligation, and selected-edge fuel identity.
+  This blocks a semantic-v13 branch slice and branch-aware exact-path
+  certificates, not continued implementation of unrelated terminal-Psi
+  operations or ownership migration.
   The first frontend-ownership migration slice is live: `psi-source` owns
   source identities, byte spans, and source-backed text; `psi-tokens` owns the
   token representation; `psi-arena` owns generic dense, paged, generational,
@@ -1760,6 +1768,8 @@ ordinary code never receives a raw executable address.
   binding that identifies a partition theorem's consumed inputs without
   asserting the stronger, false one-to-one input/output equality. This also
   blocks the dependent bump-allocator canary and frontier work.
+- **CONDITIONAL-EDGE:** blocked on `OWNER_QUESTIONS.md` Q4's choice of canonical
+  terminal-Psi conditional-edge, guard, successor, proof, and fuel identity.
 
 ## Vertical acceptance slices
 
