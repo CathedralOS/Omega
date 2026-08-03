@@ -63,22 +63,19 @@ enum LoweredReturnExpression {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LoweredDirectReturnExpression {
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LoweredDirectExpression {
     Parameter {
         position: usize,
     },
+    IntegerLiteral {
+        value: IntegerValue,
+    },
     IntegerBinary {
         kind: LoweredIntegerBinaryKind,
-        left_position: usize,
-        right: LoweredDirectOperand,
+        left: Box<LoweredDirectExpression>,
+        right: Box<LoweredDirectExpression>,
     },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LoweredDirectOperand {
-    Parameter { position: usize },
-    IntegerLiteral { value: IntegerValue },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -729,8 +726,9 @@ fn lower_content_place(
 /// requires C == C
 /// ensures C == C
 /// {
-///     pN | pN (+|-|*) (pM | L)
+///     E
 /// }
+/// E := pN | L | E (+|-|*) E
 ///
 /// machine name() -> integer
 /// requires L == L
@@ -921,7 +919,7 @@ fn lower_direct_parameter_machine(
     let [StatementNode::Expression(return_expression)] = statements else {
         return unsupported("direct-parameter machine must contain exactly one value expression");
     };
-    let return_expression = lower_direct_return_expression(
+    let (return_expression, _) = lower_direct_return_expression(
         checked,
         *return_expression,
         parameters,
@@ -947,7 +945,7 @@ fn lower_direct_return_expression(
     parameters: &[psi_checked_trees::signature::StateParameter],
     parameter_types: &[ScalarType],
     result_type: ScalarType,
-) -> Result<LoweredDirectReturnExpression, LoweringError> {
+) -> Result<(LoweredDirectExpression, ArithmeticDomain), LoweringError> {
     match checked.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let position = direct_parameter_position(checked, path, parameters)?;
@@ -956,7 +954,19 @@ fn lower_direct_return_expression(
                     "returned parameter and machine result types must match exactly",
                 );
             }
-            Ok(LoweredDirectReturnExpression::Parameter { position })
+            Ok((
+                LoweredDirectExpression::Parameter { position },
+                checked.arithmetic_domain_for_type_reference(parameters[position].type_reference),
+            ))
+        }
+        ExpressionNode::Integer(literal) => Ok((
+            LoweredDirectExpression::IntegerLiteral {
+                value: integer_value(literal, result_type)?,
+            },
+            ArithmeticDomain::Exact,
+        )),
+        ExpressionNode::Mutable(_) => {
+            unsupported("direct terminal expressions do not support mutable-place wrappers")
         }
         ExpressionNode::Binary(binary) => {
             if let Some(operator_use) = checked.facts.operators.expression_use(expression)
@@ -966,56 +976,43 @@ fn lower_direct_return_expression(
                     "terminal integer binary expression must use the builtin operator",
                 );
             }
-            let ExpressionNode::Name(left_path) = checked.expression_table.expression(binary.left)
-            else {
-                return unsupported(
-                    "direct integer binary left operand must be a declared parameter",
-                );
-            };
-            let left_position = direct_parameter_position(checked, left_path, parameters)?;
-            if parameter_types[left_position] != result_type {
-                return unsupported("direct integer binary operands and result must match exactly");
-            }
-            let left_domain = checked
-                .arithmetic_domain_for_type_reference(parameters[left_position].type_reference);
-            let (right, right_domain) = match checked.expression_table.expression(binary.right) {
-                ExpressionNode::Name(right_path) => {
-                    let position = direct_parameter_position(checked, right_path, parameters)?;
-                    if parameter_types[position] != result_type {
-                        return unsupported(
-                            "direct integer binary operands and result must match exactly",
-                        );
-                    }
-                    (
-                        LoweredDirectOperand::Parameter { position },
-                        checked.arithmetic_domain_for_type_reference(
-                            parameters[position].type_reference,
-                        ),
-                    )
-                }
-                ExpressionNode::Integer(literal) => (
-                    LoweredDirectOperand::IntegerLiteral {
-                        value: integer_value(literal, result_type)?,
-                    },
-                    ArithmeticDomain::Exact,
-                ),
-                _ => {
-                    return unsupported(
-                        "direct integer binary right operand must be a parameter or integer literal",
-                    );
-                }
-            };
-            let domain = left_domain.combine(right_domain);
+            let (left, left_domain) = lower_direct_return_expression(
+                checked,
+                binary.left,
+                parameters,
+                parameter_types,
+                result_type,
+            )?;
+            let (right, right_domain) = lower_direct_return_expression(
+                checked,
+                binary.right,
+                parameters,
+                parameter_types,
+                result_type,
+            )?;
+            let domain = combine_terminal_arithmetic_domains(left_domain, right_domain)?;
             let kind = lowered_integer_binary_kind(binary.operator, domain)?;
-            Ok(LoweredDirectReturnExpression::IntegerBinary {
-                kind,
-                left_position,
-                right,
-            })
+            Ok((
+                LoweredDirectExpression::IntegerBinary {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                domain,
+            ))
         }
-        _ => unsupported(
-            "direct-parameter machine must return a parameter or supported integer binary expression",
-        ),
+        _ => unsupported("direct-parameter machine must return a supported integer expression"),
+    }
+}
+
+fn combine_terminal_arithmetic_domains(
+    left: ArithmeticDomain,
+    right: ArithmeticDomain,
+) -> Result<ArithmeticDomain, LoweringError> {
+    match (left, right) {
+        (ArithmeticDomain::Exact, domain) | (domain, ArithmeticDomain::Exact) => Ok(domain),
+        (left, right) if left == right => Ok(left),
+        _ => unsupported("terminal integer binary expression cannot mix arithmetic domains"),
     }
 }
 
@@ -1310,7 +1307,7 @@ fn integer_value(
 
 fn build_direct_parameter_module(
     parameter_types: &[ScalarType],
-    return_expression: LoweredDirectReturnExpression,
+    return_expression: LoweredDirectExpression,
     result_type: ScalarType,
     contract_value: IntegerValue,
     identity_reshuffles: LoweredContentIdentityReshuffles,
@@ -1334,52 +1331,13 @@ fn build_direct_parameter_module(
         .checked_add(1)
         .expect("generated identities follow the parameter identities");
     let mut operations = Vec::new();
-    let returned = match return_expression {
-        LoweredDirectReturnExpression::Parameter { position } => terminal_parameters[position].id,
-        LoweredDirectReturnExpression::IntegerBinary {
-            kind,
-            left_position,
-            right,
-        } => {
-            let left = terminal_parameters[left_position].id;
-            let right = match right {
-                LoweredDirectOperand::Parameter { position } => terminal_parameters[position].id,
-                LoweredDirectOperand::IntegerLiteral { value } => {
-                    let id = value_id(next_value_identity);
-                    next_value_identity = next_value_identity
-                        .checked_add(1)
-                        .expect("binary-result identity follows its literal");
-                    operations.push(Operation {
-                        id: operation_id(1),
-                        result: ValueDeclaration {
-                            id,
-                            scalar_type: result_type,
-                        },
-                        kind: OperationKind::IntegerConstant { value },
-                    });
-                    id
-                }
-            };
-            let id = value_id(next_value_identity);
-            next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("machine-result identity follows its binary result");
-            operations.push(Operation {
-                id: operation_id(
-                    u64::try_from(operations.len())
-                        .expect("operation count fits a semantic identity")
-                        .checked_add(1)
-                        .expect("operation identity is nonzero"),
-                ),
-                result: ValueDeclaration {
-                    id,
-                    scalar_type: result_type,
-                },
-                kind: kind.operation(left, right),
-            });
-            id
-        }
-    };
+    let returned = emit_direct_expression(
+        &return_expression,
+        &terminal_parameters,
+        result_type,
+        &mut next_value_identity,
+        &mut operations,
+    );
     let result_id = value_id(next_value_identity);
     let ScalarType::Integer(integer_type) = result_type else {
         unreachable!("source slice accepts only integer results");
@@ -1440,6 +1398,66 @@ fn build_direct_parameter_module(
                 route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
             }],
         },
+    }
+}
+
+fn emit_direct_expression(
+    expression: &LoweredDirectExpression,
+    parameters: &[ValueDeclaration],
+    scalar_type: ScalarType,
+    next_value_identity: &mut u64,
+    operations: &mut Vec<Operation>,
+) -> ValueId {
+    match expression {
+        LoweredDirectExpression::Parameter { position } => parameters[*position].id,
+        LoweredDirectExpression::IntegerLiteral { value } => {
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after a literal");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration { id, scalar_type },
+                kind: OperationKind::IntegerConstant { value: *value },
+            });
+            id
+        }
+        LoweredDirectExpression::IntegerBinary { kind, left, right } => {
+            let left = emit_direct_expression(
+                left,
+                parameters,
+                scalar_type,
+                next_value_identity,
+                operations,
+            );
+            let right = emit_direct_expression(
+                right,
+                parameters,
+                scalar_type,
+                next_value_identity,
+                operations,
+            );
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after a binary operation");
+            operations.push(Operation {
+                id: operation_id(
+                    u64::try_from(operations.len())
+                        .expect("operation count fits a semantic identity")
+                        .checked_add(1)
+                        .expect("operation identity is nonzero"),
+                ),
+                result: ValueDeclaration { id, scalar_type },
+                kind: kind.operation(left, right),
+            });
+            id
+        }
     }
 }
 

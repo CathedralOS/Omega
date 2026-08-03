@@ -91,6 +91,23 @@ ensures 44u8 == 44u8
     ninth + first
 }
 
+machine terminal_runtime_nested_wrapping(
+    first: u8 in Wrapping,
+    second: u8 in Wrapping,
+    third: u8,
+    fourth: u8,
+    fifth: u8,
+    sixth: u8,
+    seventh: u8,
+    eighth: u8,
+    ninth: u8 in Wrapping
+) -> u8 in Wrapping
+requires 132u8 == 132u8
+ensures 132u8 == 132u8
+{
+    (ninth + first) * second
+}
+
 machine terminal_runtime_saturating_add(value: u8 in Saturating) -> u8 in Saturating
 requires 255u8 == 255u8
 ensures 255u8 == 255u8
