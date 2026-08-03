@@ -388,7 +388,12 @@ integer-to-float cohort retains
 `0x279651cb7ccd80ee`, binding all sixteen exact source/destination plan identities
 to narrow signed/unsigned extension, binary32/binary64 precision-boundary ties,
 maximum unsigned64 conversion, interpreter/native outputs, and both Linux
-cross-builds. Directed FMA separately
+cross-builds. The float-to-integer cohort retains
+`omega.float.hardware.macos_arm64.float-to-integer.v1` /
+`0x297cb8ce8d1adc1c`, binding all twenty exact source/destination/domain plan
+identities to both-format truncation toward zero across every integer width,
+in-range Trapping dispatch, signed/unsigned/NaN saturation, interpreter/native
+outputs, and both Linux cross-builds. Directed FMA separately
 retains `omega.float.hardware.macos_arm64.directed-fma.v1` /
 `0x75be2c4963f3f15a`, binding its six exact plan identities to binary32/binary64
 half-ULP cases, all three requested directions, one fused rounding,
