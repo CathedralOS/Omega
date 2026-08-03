@@ -330,6 +330,7 @@ fn frontend_implementation_is_psi_owned() {
     for relative in [
         "compiler/omega-rs/foundation/omega-core/src/atomic.rs",
         "compiler/omega-rs/foundation/omega-core/src/bignum.rs",
+        "compiler/omega-rs/foundation/omega-core/src/byte_predicates.rs",
         "compiler/omega-rs/foundation/omega-core/src/cast_form.rs",
         "compiler/omega-rs/foundation/omega-core/src/const_value.rs",
         "compiler/omega-rs/foundation/omega-core/src/content.rs",
@@ -338,6 +339,7 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/source",
         "compiler/omega-rs/foundation/omega-core/src/span.rs",
         "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
+        "compiler/omega-rs/foundation/omega-core/src/wire.rs",
     ] {
         assert!(
             !root.join(relative).exists(),
@@ -367,36 +369,6 @@ fn frontend_implementation_is_psi_owned() {
         !source.contains("pub enum ") && !source.contains("pub struct "),
         "legacy semantics module must not regain semantic implementations"
     );
-
-    let byte_predicates_module =
-        root.join("compiler/omega-rs/foundation/omega-core/src/byte_predicates.rs");
-    let source = std::fs::read_to_string(&byte_predicates_module).unwrap_or_else(|error| {
-        panic!(
-            "failed to read {}: {error}",
-            byte_predicates_module.display()
-        )
-    });
-    assert!(
-        source.contains("pub use psi_language_semantics::byte_predicates::*;"),
-        "legacy byte-predicate module must re-export the Psi-owned implementation"
-    );
-
-    for (relative, expected_export) in [(
-        "compiler/omega-rs/foundation/omega-core/src/wire.rs",
-        "pub use psi_language_semantics::wire::*;",
-    )] {
-        let path = root.join(relative);
-        let source = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-        assert!(
-            source.contains(expected_export),
-            "legacy target-neutral foundation must re-export Psi ownership: {relative}"
-        );
-        assert!(
-            !source.contains("pub struct ") && !source.contains("pub enum "),
-            "legacy semantic-vocabulary module must not regain implementations: {relative}"
-        );
-    }
 
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");
     let source = std::fs::read_to_string(&arena_module)

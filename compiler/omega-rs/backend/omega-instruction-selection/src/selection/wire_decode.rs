@@ -50,7 +50,7 @@ enum WireReadContent {
     Scalar {
         encoding: WireScalarEncoding,
         place: RuntimeStoragePlace,
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     Nested {
         /// The child schema (its own plan supplies the expected child tags).
@@ -74,7 +74,7 @@ enum WireReadContent {
         base: RuntimeStoragePlace,
         count: Option<RuntimeStoragePlace>,
         max_count: usize,
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
 }
 
@@ -262,7 +262,7 @@ pub(super) fn select_wire_decode_call(
     let scalar_read_kind =
         |place: &RuntimeStoragePlace,
          encoding: &WireScalarEncoding,
-         range: Option<omega_core::wire::WireScalarRange>| {
+         range: Option<psi_language_semantics::wire::WireScalarRange>| {
             SelectedInstructionKind::ReadWireScalarVarint {
                 buffer_region: buffer_place.region,
                 buffer_offset: buffer_place.byte_offset,

@@ -426,11 +426,15 @@ evidence now distinguishes a sealed recomputable terminal-Psi entry/segment
 certificate from an admitted opaque-provider unit claim. Certificate-backed
 units derive from the certificate, contribute no provider-validation receipt,
 and retain exact terminal identity in the external-root artifact. The real
-source canary composes its four-unit entry certificate through this path.
-Opaque provider leaves remain admitted summaries. Installation still must bind
-the certified terminal identity to the exact installed executable, and the
-Cathedral hard-root graph still needs migration. This precursor does not grow
-into general symbolic complexity analysis.
+source canary composes its four-unit entry certificate through this path after
+the generic installation ladder freezes and validates its code. The sealed
+binding checks terminal semantic identity, architecture, exact
+relocation-free artifact/frozen bytes, installed-code context, and selected
+function offset. External-root installation rechecks the whole-entry
+certificate against the exact root code and stub; a segment certificate alone
+cannot authorize a whole hard-root entry. Opaque provider leaves remain
+admitted summaries, and the Cathedral hard-root graph still needs migration.
+This precursor does not grow into general symbolic complexity analysis.
 
 ## Response and physical time
 

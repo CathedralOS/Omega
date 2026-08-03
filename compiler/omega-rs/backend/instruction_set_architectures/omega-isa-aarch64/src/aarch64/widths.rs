@@ -2630,7 +2630,7 @@ pub fn read_wire_scalar_varint_width(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     // Prologue + length materialization + success/value/shift movz triple +
     // read loop + optional unzigzag + target page pair + truncating store +
@@ -2680,7 +2680,7 @@ pub fn wire_decode_varint_target_page_offset(
 /// `append_wire_byte_predicate_checks`: utf8 is the 77-instruction
 /// compare/branch walk; no_nul 7; ascii_only 8; non_empty 2.
 pub fn wire_byte_predicate_checks_width(predicate_mask: u8) -> usize {
-    use omega_core::byte_predicates::ByteSequencePredicate;
+    use psi_language_semantics::byte_predicates::ByteSequencePredicate;
     ByteSequencePredicate::in_mask(predicate_mask)
         .map(|predicate| match predicate {
             ByteSequencePredicate::ValidUtf8 => 308,
@@ -2832,7 +2832,7 @@ pub fn read_wire_repeated_scalar_varint_width(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     // Prologue + end page pair + end load + cmp/b.hs guard + length
     // materialization + success/value/shift movz triple + read loop +
@@ -2890,7 +2890,7 @@ pub fn wire_decode_repeated_count_page_offset(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     wire_decode_repeated_target_page_offset(
         buffer_offset,

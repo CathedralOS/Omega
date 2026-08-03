@@ -1022,7 +1022,8 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output.push_str(", \"local_units\": ");
         output.push_str(&summary.local_evidence.units().to_string());
         match &summary.local_evidence {
-            omega_external_roots::FixedFuelLocalEvidence::TerminalEntry(certificate) => {
+            omega_external_roots::FixedFuelLocalEvidence::TerminalEntry(binding) => {
+                let certificate = binding.certificate();
                 output
                     .push_str(", \"origin\": \"terminal_entry\", \"terminal_semantic_version\": ");
                 output.push_str(
@@ -1038,8 +1039,15 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
                 push_hex_identity(output, certificate.entry().get());
                 output.push_str(", \"return_edge\": ");
                 push_hex_identity(output, certificate.return_edge().get());
+                output.push_str(", \"installed_code\": ");
+                push_hex_identity(output, binding.installed_code().normalized_identity());
+                output.push_str(", \"artifact\": ");
+                push_hex_identity(output, binding.artifact().normalized_identity());
+                output.push_str(", \"entry_stub\": ");
+                push_hex_identity(output, binding.entry().normalized_identity());
             }
-            omega_external_roots::FixedFuelLocalEvidence::TerminalSegment(certificate) => {
+            omega_external_roots::FixedFuelLocalEvidence::TerminalSegment(binding) => {
+                let certificate = binding.certificate();
                 output.push_str(
                     ", \"origin\": \"terminal_segment\", \"terminal_semantic_version\": ",
                 );
@@ -1058,6 +1066,12 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
                 push_hex_identity(output, certificate.start_block().get());
                 output.push_str(", \"end_edge\": ");
                 push_hex_identity(output, certificate.end_edge().get());
+                output.push_str(", \"installed_code\": ");
+                push_hex_identity(output, binding.installed_code().normalized_identity());
+                output.push_str(", \"artifact\": ");
+                push_hex_identity(output, binding.artifact().normalized_identity());
+                output.push_str(", \"entry_stub\": ");
+                push_hex_identity(output, binding.entry().normalized_identity());
             }
             omega_external_roots::FixedFuelLocalEvidence::AdmittedProvider {
                 validation_receipt,

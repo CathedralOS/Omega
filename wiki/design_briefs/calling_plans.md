@@ -552,11 +552,13 @@ provider-summary composer and logical-fuel provision now use the dependency-ligh
 `psi-core` schedule identity directly. Local-evidence rows distinguish
 recomputable terminal-Psi entry/segment certificates from admitted opaque-
 provider unit claims, and the external-root report retains that distinction.
-They remain the implementation precursor to terminal-Psi fixed-work entry and
-safe-point segment checking in
+Whole-entry certificate rows now bind exact relocation-free frozen executable
+bytes and selected entry offsets, and root installation rechecks the exact
+installed-code context. They remain the implementation precursor to broader
+terminal-Psi fixed-work and safe-point checking in
 [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md),
-not a general symbolic cost model. Exact installed-image binding and migration
-of the remaining provider-authored hard-root rows remain.
+not a general symbolic cost model. Migration of the remaining
+provider-authored hard-root rows remains.
 
 The source-to-checked acceptance path pins the control-state half directly. An
 authored `Calling<C>` policy may publish `InterruptReturn`, a stack class,

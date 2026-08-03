@@ -9705,7 +9705,7 @@ pub fn read_wire_scalar_varint_width(
     _target_offset: usize,
     _byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     // Prologue + success/value/shift init (10) + read loop + optional
     // unzigzag + target imm64 (10) + truncating store (7) + epilogue.
@@ -9735,7 +9735,7 @@ pub fn encode_read_wire_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -9910,7 +9910,7 @@ pub fn encode_read_wire_byte_slice(
 /// this emitter -- it is pure, and a hand-summed constant for the ~90-entry
 /// utf8 block would be pure drift risk).
 fn append_wire_byte_predicate_checks(bytes: &mut Vec<u8>, predicate_mask: u8) {
-    use omega_core::byte_predicates::ByteSequencePredicate;
+    use psi_language_semantics::byte_predicates::ByteSequencePredicate;
     for predicate in ByteSequencePredicate::in_mask(predicate_mask) {
         match predicate {
             ByteSequencePredicate::NonEmpty => {
@@ -10524,7 +10524,7 @@ pub fn read_wire_repeated_scalar_varint_width(
     _target_offset: usize,
     _byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     // Prologue + guard + success/value/shift init (10) + read loop + optional
     // unzigzag + target imm64 (10) + truncating store (7) + count bump +
@@ -10563,7 +10563,7 @@ pub fn encode_read_wire_repeated_scalar_varint(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
@@ -10713,7 +10713,7 @@ pub fn wire_decode_repeated_count_page_offset(
     _target_offset: usize,
     _byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     wire_decode_repeated_target_page_offset(
         buffer_offset,
@@ -18058,7 +18058,7 @@ mod wrapping_shift_clamp_tests {
         // block-prefix bytes are the executable-free sanity available on
         // this host (runtime behavior rides the linux_x64 ELF pin + the
         // differential once an x86 host runs the suite).
-        use omega_core::byte_predicates::ByteSequencePredicate;
+        use psi_language_semantics::byte_predicates::ByteSequencePredicate;
         for predicate in ByteSequencePredicate::ALL {
             let mask = predicate.mask_bit();
             let mut once = Vec::new();

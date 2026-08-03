@@ -3,8 +3,18 @@
 //! execution.
 
 use omega_compiler::compile_to_checked;
+use omega_executable_installation::{
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
+    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
+    InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
+    install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    validate_final_placement,
+};
 use omega_external_roots::{
-    FixedFuelProviderSummary, ProviderFuelSummaryId, RootProviderId, compose_fixed_fuel,
+    FixedFuelProviderSummary, ProviderFuelSummaryId, RootProviderId,
+    bind_installed_terminal_entry_fuel, compose_fixed_fuel, validate_installed_terminal_entry_fuel,
 };
 use omega_interpreter::{
     TerminalExecution, TerminalExecutionStatus, TerminalScalarValue, interpret_terminal_measured,
@@ -16,7 +26,7 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
-    build_terminal_installation_record, build_terminal_object_artifact,
+    TerminalObjectArtifact, build_terminal_installation_record, build_terminal_object_artifact,
     decode_terminal_installation_record, emit_terminal_executable_image,
     emit_terminal_object_container, encode_terminal_installation_record,
     validate_terminal_installation_record,
@@ -27,6 +37,13 @@ use psi_checked_trees_to_terminal::{LoweringError, lower_machine};
 use psi_core::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ProfileDecisionId, ScalarType, ValueId,
+};
+use psi_extents::{
+    AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
+    ExtentRootGrant, MappingEraId,
+};
+use psi_layout_plans::{
+    ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
 use psi_proof_kernel::AdmissionProfile;
 use psi_terminal_codec::{
@@ -107,22 +124,6 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
         .expect("source-independent consumer should recompute the certificate");
     assert_eq!(fixed_fuel.terminal_psi(), original_identity);
     assert_eq!(fixed_fuel.ceiling_units(), 4);
-    let fuel_summary_identity =
-        ProviderFuelSummaryId::from_normalized_identity(0x5100).expect("fuel summary identity");
-    let certified_summary = FixedFuelProviderSummary::from_terminal_entry(
-        fuel_summary_identity,
-        RootProviderId::from_normalized_identity(0x5200).expect("root provider identity"),
-        fixed_fuel.clone(),
-        BTreeSet::new(),
-    );
-    let certified_demand = compose_fixed_fuel(fuel_summary_identity, [&certified_summary])
-        .expect("verified terminal Psi should supply its hard-root local fuel demand");
-    assert_eq!(certified_demand.schedule(), fixed_fuel.schedule());
-    assert_eq!(certified_demand.units(), fixed_fuel.ceiling_units());
-    assert!(
-        certified_demand.provider_receipts().is_empty(),
-        "a recomputable terminal-Psi certificate is not an opaque provider receipt"
-    );
     let abstract_operations = lower_verified_module(&verified)
         .expect("verified terminal Psi should lower without source state");
     let measured = interpret_terminal_measured(&verified, &[])
@@ -315,6 +316,82 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         ]
     );
     let entry_bytes = entry.bytes(&object_artifact).to_vec();
+    let entry_offset = u64::try_from(entry.text_offset).expect("terminal entry offset");
+    let (installed_code, entry_stub) = install_terminal_object(
+        &object_artifact,
+        object_artifact.text_bytes().to_vec(),
+        entry_offset,
+    );
+    let wrong_entry =
+        EntryStubId::from_normalized_identity(0x5302).expect("different entry stub identity");
+    let error = bind_installed_terminal_entry_fuel(
+        fixed_fuel.clone(),
+        &object_artifact,
+        &installed_code,
+        wrong_entry,
+    )
+    .expect_err("terminal fuel binding must reject a different installed entry");
+    assert!(error.0.contains("selected installed entry"));
+    let installed_fixed_fuel = bind_installed_terminal_entry_fuel(
+        fixed_fuel.clone(),
+        &object_artifact,
+        &installed_code,
+        entry_stub,
+    )
+    .expect("terminal fuel theorem should bind the exact installed source artifact");
+    validate_installed_terminal_entry_fuel(&installed_fixed_fuel, &installed_code, entry_stub)
+        .expect("external-root recheck should accept the exact installed code and entry");
+    assert!(
+        validate_installed_terminal_entry_fuel(&installed_fixed_fuel, &installed_code, wrong_entry)
+            .is_err(),
+        "external-root recheck must reject a different selected entry"
+    );
+    let fuel_summary_identity =
+        ProviderFuelSummaryId::from_normalized_identity(0x5100).expect("fuel summary identity");
+    let certified_summary = FixedFuelProviderSummary::from_terminal_entry(
+        fuel_summary_identity,
+        RootProviderId::from_normalized_identity(0x5200).expect("root provider identity"),
+        installed_fixed_fuel,
+        BTreeSet::new(),
+    );
+    let certified_demand = compose_fixed_fuel(fuel_summary_identity, [&certified_summary])
+        .expect("installed terminal Psi should supply its hard-root local fuel demand");
+    assert_eq!(certified_demand.schedule(), fixed_fuel.schedule());
+    assert_eq!(certified_demand.units(), fixed_fuel.ceiling_units());
+    assert!(
+        certified_demand.provider_receipts().is_empty(),
+        "a recomputable terminal-Psi certificate is not an opaque provider receipt"
+    );
+    let mut changed_bytes = object_artifact.text_bytes().to_vec();
+    changed_bytes[0] ^= 1;
+    let (changed_code, changed_entry) =
+        install_terminal_object(&object_artifact, changed_bytes, entry_offset);
+    assert!(
+        bind_installed_terminal_entry_fuel(
+            fixed_fuel.clone(),
+            &object_artifact,
+            &changed_code,
+            changed_entry,
+        )
+        .is_err(),
+        "terminal fuel evidence must reject different installed bytes"
+    );
+    let wrong_offset = if entry_offset == 0 { 4 } else { 0 };
+    let (wrong_entry_code, wrong_entry) = install_terminal_object(
+        &object_artifact,
+        object_artifact.text_bytes().to_vec(),
+        wrong_offset,
+    );
+    assert!(
+        bind_installed_terminal_entry_fuel(
+            fixed_fuel.clone(),
+            &object_artifact,
+            &wrong_entry_code,
+            wrong_entry,
+        )
+        .is_err(),
+        "terminal fuel evidence must reject a stub at the wrong function offset"
+    );
 
     drop(machine_code);
     drop(target_operations);
@@ -393,6 +470,116 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         run_host_executable_image(&image.output().bytes),
         expected_exit
     );
+}
+
+fn install_terminal_object(
+    terminal: &TerminalObjectArtifact,
+    code: Vec<u8>,
+    entry_offset: u64,
+) -> (InstalledCode, EntryStubId) {
+    fn installation_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, omega_executable_installation::InstallationDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized installation identity")
+    }
+
+    fn extent_id<T>(
+        identity: u64,
+        constructor: fn(u64) -> Result<T, psi_extents::ExtentDiagnostic>,
+    ) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    let entry = EntryStubId::from_normalized_identity(0x5300).expect("entry stub");
+    let scope =
+        ArtifactInstallationScopeId::from_normalized_identity(0x5301).expect("artifact scope");
+    let constraints = PlacementConstraints::new(None, 16, PlacementPhase::Load, None, Some(scope))
+        .expect("terminal placement constraints");
+    let artifact = Artifact::from_canonical_decode(
+        installation_id(0x5310, ArtifactId::from_normalized_identity),
+        installation_id(0x5311, ArtifactContentId::from_normalized_identity),
+        terminal.target().architecture,
+        code,
+        installation_id(0x5312, MachineContractSetId::from_normalized_identity),
+        installation_id(0x5313, MachineFootprintId::from_normalized_identity),
+        installation_id(0x5314, PlacementPlanId::from_normalized_identity),
+        constraints,
+        installation_id(0x5315, EntrySetId::from_normalized_identity),
+        vec![ArtifactEntry::from_canonical_decode(entry, entry_offset)],
+        installation_id(0x5316, RelocationSetId::from_normalized_identity),
+        Vec::new(),
+    )
+    .expect("terminal text should decode as an executable artifact");
+    let admitted = admit_executable(
+        &artifact,
+        ArtifactAdmissionEvidence::from_validator(
+            installation_id(0x5320, AdmissionReceiptId::from_normalized_identity),
+            &artifact,
+            true,
+        ),
+    )
+    .expect("terminal artifact admission");
+    let rights = ExtentRights::from_normalized_identities([extent_id(
+        0x5330,
+        ExtentRightId::from_normalized_identity,
+    )]);
+    let extent = ExtentRootGrant::from_admitted_provider(
+        extent_id(0x5331, ExtentLineageId::from_normalized_identity),
+        extent_id(0x5332, AddressSpaceId::from_normalized_identity),
+        rights.clone(),
+        extent_id(0x5333, ExtentProvenanceId::from_normalized_identity),
+        extent_id(0x5334, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x1000, 4096)
+    .expect("terminal placement extent");
+    let placement = CodePlacementAuthority::from_admitted_provider(
+        installation_id(0x5340, CodePlacementId::from_normalized_identity),
+        installation_id(0x5301, InstallationScopeId::from_normalized_identity),
+        InstallationAudience::DormantLocal,
+        &extent,
+        rights,
+        constraints,
+        PlacementSite {
+            base_address: 0x1000,
+            phase: PlacementPhase::Load,
+            machine_regime: None,
+            installation_scope: Some(scope),
+        },
+    )
+    .claim(extent)
+    .expect("terminal code placement");
+    let materialized = materialize_admitted_artifact(&admitted, &placement, |_| None)
+        .expect("relocation-free terminal text should materialize exactly");
+    let frozen = materialize_and_freeze(
+        &admitted,
+        placement,
+        materialized.clone(),
+        MaterializationReceipt::from_materialized(
+            &materialized,
+            installation_id(0x5341, MachineFootprintId::from_normalized_identity),
+            true,
+        ),
+    )
+    .expect("terminal placement freeze");
+    let validation = FinalValidationCertificate::from_validator(
+        installation_id(0x5342, FinalValidationId::from_normalized_identity),
+        &frozen,
+        true,
+    );
+    let validated =
+        validate_final_placement(frozen, &validation).expect("terminal final validation");
+    let authority = InstallAuthority::from_admitted_provider(&validated);
+    let receipt = InstallationReceipt::from_provider(
+        installation_id(0x5343, InstalledCodeId::from_normalized_identity),
+        &validated,
+        true,
+        WxEnforcement::HardwareEnforced,
+    );
+    (
+        install_validated(validated, authority, receipt).expect("terminal code installation"),
+        entry,
+    )
 }
 
 #[cfg(target_os = "macos")]

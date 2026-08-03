@@ -8923,19 +8923,19 @@ enum WireInterpField {
 enum WireInterpScalarField {
     Scalar {
         encoding: psi_typed_trees::wire::WireScalarEncoding,
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     Nested(
         Vec<(
             String,
             u64,
             psi_typed_trees::wire::WireScalarEncoding,
-            Option<omega_core::wire::WireScalarRange>,
+            Option<psi_language_semantics::wire::WireScalarRange>,
         )>,
     ),
     Repeated {
         encoding: psi_typed_trees::wire::WireRepeatedEncoding,
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
     /// from the buffer. Stored as an owned `Array` of byte values --
@@ -8987,7 +8987,7 @@ fn wire_nested_decode_scalar_fields(
         String,
         u64,
         psi_typed_trees::wire::WireScalarEncoding,
-        Option<omega_core::wire::WireScalarRange>,
+        Option<psi_language_semantics::wire::WireScalarRange>,
     )>,
     Halt,
 > {
@@ -9054,7 +9054,7 @@ fn wire_scalar_in_range(
     raw: u64,
     encoding: psi_typed_trees::wire::WireScalarEncoding,
     value: &Value,
-    range: omega_core::wire::WireScalarRange,
+    range: psi_language_semantics::wire::WireScalarRange,
 ) -> bool {
     if range.signed {
         let value = if encoding.zigzag {

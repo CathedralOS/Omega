@@ -2789,7 +2789,7 @@ pub fn read_wire_repeated_scalar_varint_width(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::read_wire_repeated_scalar_varint_width(
@@ -2859,7 +2859,7 @@ pub fn wire_decode_repeated_count_page_offset(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::wire_decode_repeated_count_page_offset(
@@ -2944,7 +2944,7 @@ pub fn read_wire_scalar_varint_width(
     target_offset: usize,
     byte_size: usize,
     zigzag: bool,
-    range: Option<omega_core::wire::WireScalarRange>,
+    range: Option<psi_language_semantics::wire::WireScalarRange>,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::read_wire_scalar_varint_width(

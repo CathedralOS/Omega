@@ -180,7 +180,7 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_size: usize,
         zigzag: bool,
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     /// compact_binary v0 borrowed `&[u8]` decode (#43): read a byte-length
     /// varint, bounds-check it, store `{ptr = &buffer[cursor], len}` into the
@@ -251,7 +251,7 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_size: usize,
         zigzag: bool,
-        range: Option<omega_core::wire::WireScalarRange>,
+        range: Option<psi_language_semantics::wire::WireScalarRange>,
     },
     /// Entry prologue: store the normalized plan's incoming argument register
     /// into the entry parameter's frame slot.
