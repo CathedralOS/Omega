@@ -97,15 +97,18 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                 match program.expression_table.expression(initializer) {
                     ExpressionNode::Cast(cast) if cast.form.is_recast() => {
                         blessed.push(initializer);
-                        judge_scalar_recast(
-                            program,
-                            machine,
-                            state,
-                            cast,
-                            *referee,
-                            *let_is_mutable,
-                            diagnostics,
-                        );
+                        if crate::traits::dynamic_trait_symbol(program, cast.target_type).is_none()
+                        {
+                            judge_scalar_recast(
+                                program,
+                                machine,
+                                state,
+                                cast,
+                                *referee,
+                                *let_is_mutable,
+                                diagnostics,
+                            );
+                        }
                     }
                     _ => {
                         report_unspelled_reference_pun(

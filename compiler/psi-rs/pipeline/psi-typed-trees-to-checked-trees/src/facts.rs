@@ -26,6 +26,7 @@ pub(crate) fn build_check_facts(
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
+    let dynamic_conformances = build_dynamic_conformance_facts(program)?;
     let service_reach_inference = psi_effects::infer_service_reaches(program, &operational);
     let flow = build_flow_facts_with_service_reaches(
         program,
@@ -67,6 +68,7 @@ pub(crate) fn build_check_facts(
         values,
         invariants,
         domains,
+        dynamic_conformances,
         operators,
         operational,
         capabilities,
@@ -78,6 +80,23 @@ pub(crate) fn build_check_facts(
         contract_plans,
         carry,
     ))
+}
+
+fn build_dynamic_conformance_facts(
+    program: &TypedTrees,
+) -> Result<psi_checked_trees::DynamicConformanceFacts, Vec<psi_diagnostics::Diagnostic>> {
+    let selections = psi_validation::collect_dynamic_conformance_selections(program)?
+        .into_iter()
+        .map(
+            |selection| psi_checked_trees::DynamicConformanceSelectionFact {
+                occurrence: selection.occurrence,
+                source_data: selection.source_data,
+                target_trait: selection.target_trait,
+                conformance: selection.conformance,
+            },
+        )
+        .collect();
+    Ok(psi_checked_trees::DynamicConformanceFacts { selections })
 }
 
 /// STR4 checked plans (machine_taxonomy.md): assemble each machine's

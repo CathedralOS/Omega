@@ -135,6 +135,83 @@ fn local_dynamic_call_rejects_self_result() {
 }
 
 #[test]
+fn local_dynamic_coercion_retains_one_complete_nominal_conformance() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        Item satisfies Marker as Primary;
+
+        machine erase(item: Item) {
+            let erased: &dyn Marker = &item as &dyn Marker;
+        }
+        "#,
+    );
+
+    validate_program(&typed).expect("one complete conformance is selected uniquely");
+    let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("checked lowering retains the exact selection");
+    let [selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one dynamic conformance selection");
+    };
+    assert_eq!(checked.symbols.name(selection.source_data), "Item");
+    assert_eq!(checked.symbols.name(selection.target_trait), "Marker");
+    assert_eq!(
+        selection
+            .conformance
+            .map(|symbol| checked.symbols.name(symbol)),
+        Some("Primary")
+    );
+    assert!(selection.occurrence.is_valid());
+}
+
+#[test]
+fn bare_local_dynamic_coercion_rejects_ambiguous_conformances() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+        Item satisfies Marker as First;
+        Item satisfies Marker as Second;
+
+        machine erase(item: Item) {
+            let erased: &dyn Marker = &item as &dyn Marker;
+        }
+        "#,
+    );
+
+    let diagnostics = validate_program(&typed)
+        .expect_err("a bare dynamic coercion cannot choose between conformances");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "local dynamic coercion from `Item` to `dyn Marker` has 2 complete nominal conformances; select one exact named conformance",
+        )
+    }));
+}
+
+#[test]
+fn local_dynamic_coercion_rejects_missing_conformance() {
+    let typed = typed_program_from_source(
+        r#"
+        trait Marker {}
+        data Item {}
+
+        machine erase(item: Item) {
+            let erased: &dyn Marker = &item as &dyn Marker;
+        }
+        "#,
+    );
+
+    let diagnostics =
+        validate_program(&typed).expect_err("a dynamic coercion needs a nominal conformance");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "local dynamic coercion from `Item` to `dyn Marker` has no complete nominal conformance",
+        )
+    }));
+}
+
+#[test]
 fn named_whole_trait_conformance_survives_typing() {
     let typed = typed_program_from_source(
         r#"

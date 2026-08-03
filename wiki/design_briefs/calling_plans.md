@@ -387,6 +387,12 @@ artifact-private requirement table. The requirement owns one erased caller
 call shape; each selected satisfier supplies a checked adapter into its
 physical machine shape.
 
+Checked Psi now retains the first descriptor-selection input: a direct bare
+place coercion succeeds only for one unique complete nominal conformance and
+records its exact source-data, target-trait, and optional stable conformance
+symbol. Missing or ambiguous selections fail before Omega lowering. Named
+selection syntax plus the private table and adapter realization remain.
+
 The dynamic requirement's operational envelope accounts for the complete
 dispatch path:
 
