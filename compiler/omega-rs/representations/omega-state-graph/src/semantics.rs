@@ -3,7 +3,7 @@ use crate::{
     StateGraphContractRoots, StateGraphOwnershipRoots, StateGraphValueRoots,
 };
 use omega_core::arena::Arena;
-use omega_core::semantics::{ServiceReachRowTable, ServiceReachTable};
+use psi_language_semantics::{ServiceReachRowTable, ServiceReachTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGraphServiceReachRoots {

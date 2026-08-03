@@ -36,12 +36,12 @@ pub struct StateDropEvent {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StatePermissionEvent {
-    pub source: omega_core::semantics::PermissionEventSource,
-    pub kind: omega_core::semantics::PermissionEventKind,
-    pub multiplicity: omega_core::semantics::Multiplicity,
-    pub access: omega_core::semantics::PermissionAccess,
-    pub claim_identity: omega_core::semantics::PermissionClaimIdentity,
-    pub provenance: omega_core::semantics::PermissionProvenance,
+    pub source: psi_language_semantics::PermissionEventSource,
+    pub kind: psi_language_semantics::PermissionEventKind,
+    pub multiplicity: psi_language_semantics::Multiplicity,
+    pub access: psi_language_semantics::PermissionAccess,
+    pub claim_identity: psi_language_semantics::PermissionClaimIdentity,
+    pub provenance: psi_language_semantics::PermissionProvenance,
     pub root: psi_facts::PlaceRoot,
     pub segments: HandleSpan<psi_facts::PlaceSegment>,
     pub obligation_live: bool,

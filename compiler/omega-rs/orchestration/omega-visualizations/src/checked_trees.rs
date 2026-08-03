@@ -102,8 +102,8 @@ pub fn qualification_evidence_manifest_json(
     program: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> String {
-    use omega_core::semantics::QualificationEvidenceOrigin;
     use psi_facts::FactPayload;
+    use psi_language_semantics::QualificationEvidenceOrigin;
 
     let rows = program
         .facts
@@ -963,13 +963,13 @@ fn push_claim_path_json(
 fn push_claim_identity_json(
     json: &mut String,
     program: &CheckedTrees,
-    identity: omega_core::semantics::PermissionClaimIdentity,
+    identity: psi_language_semantics::PermissionClaimIdentity,
 ) {
     match identity {
-        omega_core::semantics::PermissionClaimIdentity::Unknown => {
+        psi_language_semantics::PermissionClaimIdentity::Unknown => {
             json.push_str("{\"kind\": \"unknown\"}");
         }
-        omega_core::semantics::PermissionClaimIdentity::Established {
+        psi_language_semantics::PermissionClaimIdentity::Established {
             machine_symbol,
             state_symbol,
             source,
@@ -991,13 +991,13 @@ fn push_claim_identity_json(
 fn push_claim_provenance_json(
     json: &mut String,
     program: &CheckedTrees,
-    provenance: omega_core::semantics::PermissionProvenance,
+    provenance: psi_language_semantics::PermissionProvenance,
 ) {
     match provenance {
-        omega_core::semantics::PermissionProvenance::Unknown => {
+        psi_language_semantics::PermissionProvenance::Unknown => {
             json.push_str("{\"kind\": \"unknown\"}");
         }
-        omega_core::semantics::PermissionProvenance::Established {
+        psi_language_semantics::PermissionProvenance::Established {
             machine_symbol,
             state_symbol,
             source,
@@ -1016,9 +1016,9 @@ fn push_claim_provenance_json(
 fn push_permission_event_source_json(
     json: &mut String,
     program: &CheckedTrees,
-    source: omega_core::semantics::PermissionEventSource,
+    source: psi_language_semantics::PermissionEventSource,
 ) {
-    use omega_core::semantics::PermissionEventSource;
+    use psi_language_semantics::PermissionEventSource;
     match source {
         PermissionEventSource::StateEntry => json.push_str("{\"kind\": \"state_entry\"}"),
         PermissionEventSource::Statement { statement_index } => {
@@ -1194,7 +1194,7 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
             .iter()
             .find(|definition| definition.symbol == fact.data)
             .is_some_and(|definition| {
-                definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque
+                definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque
             });
         json.push_str(if opaque { "true" } else { "false" });
         json.push_str(",\n      \"declared\": ");
@@ -1509,8 +1509,8 @@ pub fn task_activation_manifest_json(
     json
 }
 
-fn push_carry_policy_json(output: &mut String, policy: omega_core::semantics::CarryPolicy) {
-    use omega_core::semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
+fn push_carry_policy_json(output: &mut String, policy: psi_language_semantics::CarryPolicy) {
+    use psi_language_semantics::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
     output.push_str("{\"suspension\": ");
     push_json_string(
@@ -1732,8 +1732,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
     json
 }
 
-fn supply_mode_name(mode: omega_core::semantics::MachineSupplyMode) -> &'static str {
-    use omega_core::semantics::MachineSupplyMode;
+fn supply_mode_name(mode: psi_language_semantics::MachineSupplyMode) -> &'static str {
+    use psi_language_semantics::MachineSupplyMode;
     match mode {
         MachineSupplyMode::CheckedBody => "checked_body",
         MachineSupplyMode::Requirement => "requirement",
@@ -1743,8 +1743,8 @@ fn supply_mode_name(mode: omega_core::semantics::MachineSupplyMode) -> &'static 
     }
 }
 
-fn push_suspension_plan_json(json: &mut String, plan: omega_core::semantics::SuspensionPlan) {
-    use omega_core::semantics::SuspensionInterface;
+fn push_suspension_plan_json(json: &mut String, plan: psi_language_semantics::SuspensionPlan) {
+    use psi_language_semantics::SuspensionInterface;
     match plan.interface {
         SuspensionInterface::InternalInferred => {
             json.push_str("{\"interface\": \"internal_inferred\"}");
@@ -1760,9 +1760,9 @@ fn push_suspension_plan_json(json: &mut String, plan: omega_core::semantics::Sus
 fn push_service_reach_plan_json(
     json: &mut String,
     program: &CheckedTrees,
-    plan: omega_core::semantics::ServiceReachPlan,
+    plan: psi_language_semantics::ServiceReachPlan,
 ) {
-    use omega_core::semantics::ServiceReachInterface;
+    use psi_language_semantics::ServiceReachInterface;
     match plan.interface {
         ServiceReachInterface::InternalInferred => {
             json.push_str("{\"interface\": \"internal_inferred\"}");
@@ -1777,10 +1777,10 @@ fn push_service_reach_plan_json(
 
 fn push_synchronous_invocation_plan_json(
     json: &mut String,
-    plan: &omega_core::semantics::SynchronousInvocationPlan,
+    plan: &psi_language_semantics::SynchronousInvocationPlan,
     include_checked: bool,
 ) {
-    use omega_core::semantics::SynchronousInvocationInterface;
+    use psi_language_semantics::SynchronousInvocationInterface;
     json.push_str("{\"interface\": ");
     push_json_string(
         json,
@@ -1812,7 +1812,7 @@ fn push_string_array(json: &mut String, values: &[String]) {
 fn push_service_row_json(
     json: &mut String,
     program: &CheckedTrees,
-    row: omega_core::semantics::ServiceReachRowId,
+    row: psi_language_semantics::ServiceReachRowId,
 ) {
     let reaches = &program.facts.service_reaches;
     json.push('[');
@@ -1830,8 +1830,8 @@ fn push_service_row_json(
     json.push(']');
 }
 
-fn push_blocking_plan_json(json: &mut String, plan: omega_core::semantics::BlockingPlan) {
-    use omega_core::semantics::BlockingInterface;
+fn push_blocking_plan_json(json: &mut String, plan: psi_language_semantics::BlockingPlan) {
+    use psi_language_semantics::BlockingInterface;
     match plan.interface {
         BlockingInterface::InternalInferred => {
             json.push_str("{\"interface\": \"internal_inferred\"}");
@@ -1846,9 +1846,9 @@ fn push_blocking_plan_json(json: &mut String, plan: omega_core::semantics::Block
 
 fn push_termination_json(
     json: &mut String,
-    guarantee: &omega_core::semantics::TerminationGuarantee,
+    guarantee: &psi_language_semantics::TerminationGuarantee,
 ) {
-    use omega_core::semantics::TerminationGuarantee;
+    use psi_language_semantics::TerminationGuarantee;
     match guarantee {
         TerminationGuarantee::NoGuarantee => json.push_str("{\"kind\": \"no_guarantee\"}"),
         TerminationGuarantee::Terminates { premises } => {
@@ -1866,9 +1866,9 @@ fn push_termination_json(
 
 fn push_termination_interface_json(
     json: &mut String,
-    interface: &omega_core::semantics::TerminationInterface,
+    interface: &psi_language_semantics::TerminationInterface,
 ) {
-    use omega_core::semantics::TerminationInterface;
+    use psi_language_semantics::TerminationInterface;
     match interface {
         TerminationInterface::InternalDerived => {
             json.push_str("{\"interface\": \"internal_derived\"}");
@@ -2183,8 +2183,8 @@ fn checked_call_label(
         (true, true) => "suspend block",
     };
     let origin = match acknowledgement.origin {
-        omega_core::semantics::CallOperationalAcknowledgementOrigin::Source => "source",
-        omega_core::semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => {
+        psi_language_semantics::CallOperationalAcknowledgementOrigin::Source => "source",
+        psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized => {
             "compiler-synthesized"
         }
     };
@@ -2426,12 +2426,12 @@ fn borrow_state_for(
 fn machine_service_reach(
     program: &CheckedTrees,
     symbol: SymbolHandle,
-) -> omega_core::semantics::ServiceReachSummary {
+) -> psi_language_semantics::ServiceReachSummary {
     program
         .facts
         .service_reaches
         .for_machine(symbol)
-        .map(|reach| omega_core::semantics::ServiceReachSummary {
+        .map(|reach| psi_language_semantics::ServiceReachSummary {
             direct: reach.inferred_direct,
             transitive: reach.inferred_transitive,
         })
@@ -2441,8 +2441,8 @@ fn machine_service_reach(
 fn machine_operational_summary(
     program: &CheckedTrees,
     symbol: SymbolHandle,
-) -> omega_core::semantics::OperationalMaySummary {
-    let mut summary = omega_core::semantics::OperationalMaySummary::default();
+) -> psi_language_semantics::OperationalMaySummary {
+    let mut summary = psi_language_semantics::OperationalMaySummary::default();
     for flow in program
         .facts
         .flow
@@ -2620,12 +2620,6 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
         push_termination_interface_json, qualification_evidence_manifest_json,
     };
-    use omega_core::semantics::{
-        BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
-        CarrySuspension, MachineSupplyMode, MachineTerminationPlan, QualificationEvidenceOrigin,
-        RankingViewId, RankingWitness, SemanticDomainId, SuspensionInterface, SuspensionPlan,
-        TerminationGuarantee, TerminationInterface,
-    };
     use omega_core::symbols::SymbolHandle;
     use psi_checked_trees::{
         CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
@@ -2642,6 +2636,12 @@ mod tests {
         ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
         ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
         conservation_fingerprint,
+    };
+    use psi_language_semantics::{
+        BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
+        CarrySuspension, MachineSupplyMode, MachineTerminationPlan, QualificationEvidenceOrigin,
+        RankingViewId, RankingWitness, SemanticDomainId, SuspensionInterface, SuspensionPlan,
+        TerminationGuarantee, TerminationInterface,
     };
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
@@ -2675,18 +2675,18 @@ mod tests {
                     output_segments: Default::default(),
                     source: FlowClaimOutcomeSource::Established {
                         claim_identity:
-                            omega_core::semantics::PermissionClaimIdentity::Established {
+                            psi_language_semantics::PermissionClaimIdentity::Established {
                                 machine_symbol: SymbolHandle::invalid(),
                                 state_symbol: SymbolHandle::invalid(),
-                                source: omega_core::semantics::PermissionEventSource::Statement {
+                                source: psi_language_semantics::PermissionEventSource::Statement {
                                     statement_index: 2,
                                 },
                                 ordinal: 7,
                             },
-                        provenance: omega_core::semantics::PermissionProvenance::Established {
+                        provenance: psi_language_semantics::PermissionProvenance::Established {
                             machine_symbol: SymbolHandle::invalid(),
                             state_symbol: SymbolHandle::invalid(),
-                            source: omega_core::semantics::PermissionEventSource::StateEntry,
+                            source: psi_language_semantics::PermissionEventSource::StateEntry,
                         },
                     },
                 },
@@ -2800,10 +2800,10 @@ mod tests {
             .push(ContentIdentityReshuffleFact {
                 machine_symbol: SymbolHandle::invalid(),
                 state_symbol: SymbolHandle::invalid(),
-                claim_identity: omega_core::semantics::PermissionClaimIdentity::Established {
+                claim_identity: psi_language_semantics::PermissionClaimIdentity::Established {
                     machine_symbol: SymbolHandle::invalid(),
                     state_symbol: SymbolHandle::invalid(),
-                    source: omega_core::semantics::PermissionEventSource::StateEntry,
+                    source: psi_language_semantics::PermissionEventSource::StateEntry,
                     ordinal: 9,
                 },
                 input_parameter_symbol: SymbolHandle::invalid(),
@@ -2825,10 +2825,10 @@ mod tests {
                 statement_index: 4,
                 call_ordinal: 2,
                 input_claim_identities: vec![
-                    omega_core::semantics::PermissionClaimIdentity::Established {
+                    psi_language_semantics::PermissionClaimIdentity::Established {
                         machine_symbol: SymbolHandle::invalid(),
                         state_symbol: SymbolHandle::invalid(),
-                        source: omega_core::semantics::PermissionEventSource::StateEntry,
+                        source: psi_language_semantics::PermissionEventSource::StateEntry,
                         ordinal: 11,
                     },
                 ],
@@ -2953,7 +2953,7 @@ mod tests {
             .carry
             .claim_policies
             .push(ClaimCarryPolicyFact {
-                claim_identity: omega_core::semantics::PermissionClaimIdentity::Unknown,
+                claim_identity: psi_language_semantics::PermissionClaimIdentity::Unknown,
                 effective: CarryPolicy::STRICT,
                 contributing_origins: 2,
             });
@@ -3009,15 +3009,15 @@ mod tests {
             .push(MachineContractPlan {
                 machine: symbol,
                 supply_mode: MachineSupplyMode::CheckedBody,
-                service_reach: omega_core::semantics::ServiceReachPlan {
-                    interface: omega_core::semantics::ServiceReachInterface::PublishedCeiling(
+                service_reach: psi_language_semantics::ServiceReachPlan {
+                    interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
                         service_row,
                     ),
                     checked_inferred: service_row,
                 },
-                synchronous_invocation: omega_core::semantics::SynchronousInvocationPlan {
+                synchronous_invocation: psi_language_semantics::SynchronousInvocationPlan {
                     interface:
-                        omega_core::semantics::SynchronousInvocationInterface::PublishedCeiling,
+                        psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
                     published: vec!["parameter:0".to_owned()],
                     checked_inferred: vec!["parameter:0".to_owned()],
                 },
@@ -3029,7 +3029,7 @@ mod tests {
                     interface: BlockingInterface::PublishedMayBlock(true),
                     checked_may_block: true,
                 },
-                termination: omega_core::semantics::TerminationInterface::Published(
+                termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,
                 ),
                 inferred_write_frames: Vec::new(),

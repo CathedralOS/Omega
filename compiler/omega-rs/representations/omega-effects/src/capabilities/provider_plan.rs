@@ -95,14 +95,14 @@ pub struct ServiceEntryClaim {
     pub domain: String,
     /// Accepted resource claims are born maximally strict. Exact positive
     /// carry permissions remain separate constrained-type facts.
-    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub effective_carry: psi_language_semantics::CarryPolicy,
     pub authority_flow: ServiceEntryAuthorityFlow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceResultClaim {
     pub domain: String,
-    pub effective_carry: omega_core::semantics::CarryPolicy,
+    pub effective_carry: psi_language_semantics::CarryPolicy,
 }
 
 /// How one method binds on one target -- the Binding sum's union with the
@@ -349,7 +349,7 @@ fn service_entry_claims(
         .enumerate()
     {
         if program.type_multiplicity(parameter.type_reference)
-            != omega_core::semantics::Multiplicity::Linear
+            != psi_language_semantics::Multiplicity::Linear
         {
             continue;
         }
@@ -380,7 +380,7 @@ fn service_result_claims(
 ) -> Vec<ServiceResultClaim> {
     if !signature.return_type.is_valid()
         || program.type_multiplicity(signature.return_type)
-            != omega_core::semantics::Multiplicity::Linear
+            != psi_language_semantics::Multiplicity::Linear
     {
         return Vec::new();
     }
@@ -420,11 +420,12 @@ fn append_bodyless_result_claims(
                     continue;
                 };
                 if domain.symbol.is_valid()
-                    && domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+                    && domain.predicate_body
+                        == psi_language_semantics::DomainPredicateBody::Bodyless
                     && domain.establishment_routes.iter().any(|route| {
                         matches!(
                             route,
-                            omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                            psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
                                 boundary_trait: route_trait,
                                 requirement: route_requirement,
                             } if *route_trait == boundary_trait && *route_requirement == requirement
@@ -439,7 +440,7 @@ fn append_bodyless_result_claims(
                             .flatten()
                             .unwrap_or_else(|| domain.name.as_str())
                             .to_owned(),
-                        effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+                        effective_carry: psi_language_semantics::CarryPolicy::STRICT,
                     });
                 }
             }
@@ -486,11 +487,12 @@ fn append_bodyless_entry_claims(
                     continue;
                 };
                 if domain.symbol.is_valid()
-                    && domain.predicate_body == omega_core::semantics::DomainPredicateBody::Bodyless
+                    && domain.predicate_body
+                        == psi_language_semantics::DomainPredicateBody::Bodyless
                     && domain.establishment_routes.iter().any(|route| {
                         matches!(
                             route,
-                            omega_core::semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                            psi_language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
                                 boundary_trait: route_trait,
                                 requirement: route_requirement,
                             } if *route_trait == boundary_trait && *route_requirement == requirement
@@ -506,7 +508,7 @@ fn append_bodyless_entry_claims(
                             .flatten()
                             .unwrap_or_else(|| domain.name.as_str())
                             .to_owned(),
-                        effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+                        effective_carry: psi_language_semantics::CarryPolicy::STRICT,
                         authority_flow: ServiceEntryAuthorityFlow::Accepts,
                     });
                 }
@@ -927,7 +929,7 @@ mod tests {
         accepted.schema.methods[0].entry_claims = vec![ServiceEntryClaim {
             parameter_index: 0,
             domain: "InterruptAcknowledgement::Pending".to_owned(),
-            effective_carry: omega_core::semantics::CarryPolicy::STRICT,
+            effective_carry: psi_language_semantics::CarryPolicy::STRICT,
             authority_flow: ServiceEntryAuthorityFlow::Accepts,
         }];
 
@@ -939,7 +941,7 @@ mod tests {
 
         let mut relaxed = accepted.clone();
         relaxed.schema.methods[0].entry_claims[0].effective_carry =
-            omega_core::semantics::CarryPolicy::PERMISSIVE;
+            psi_language_semantics::CarryPolicy::PERMISSIVE;
         assert_ne!(
             accepted.identity_fingerprint(),
             relaxed.identity_fingerprint(),

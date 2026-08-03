@@ -316,6 +316,7 @@ fn frontend_implementation_is_psi_owned() {
         "compiler/omega-rs/foundation/omega-core/src/inline_assembly.rs",
         "compiler/omega-rs/foundation/omega-core/src/literals.rs",
         "compiler/omega-rs/foundation/omega-core/src/operator_spelling.rs",
+        "compiler/omega-rs/foundation/omega-core/src/semantics.rs",
         "compiler/omega-rs/foundation/omega-core/src/source",
         "compiler/omega-rs/foundation/omega-core/src/span.rs",
         "compiler/omega-rs/foundation/omega-core/src/value_domain.rs",
@@ -336,18 +337,6 @@ fn frontend_implementation_is_psi_owned() {
             "pub use psi_diagnostics::{Diagnostic, DiagnosticSeverity, PhaseSnapshot, format_diagnostics};"
         ),
         "legacy diagnostics module must re-export the Psi-owned diagnostic contracts"
-    );
-
-    let semantics_module = root.join("compiler/omega-rs/foundation/omega-core/src/semantics.rs");
-    let source = std::fs::read_to_string(&semantics_module)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", semantics_module.display()));
-    assert!(
-        source.contains("pub use psi_language_semantics::*;"),
-        "legacy semantics module must re-export the Psi-owned semantic foundation"
-    );
-    assert!(
-        !source.contains("pub enum ") && !source.contains("pub struct "),
-        "legacy semantics module must not regain semantic implementations"
     );
 
     let arena_module = root.join("compiler/omega-rs/foundation/omega-core/src/arena/mod.rs");

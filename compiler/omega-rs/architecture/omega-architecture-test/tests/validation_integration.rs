@@ -423,7 +423,7 @@ fn carry_policy_survives_lowering_and_derives_through_transparent_data() {
         .expect("Outer");
     assert_eq!(
         outer.properties.carry,
-        Some(omega_core::semantics::CarryPolicy::PERMISSIVE)
+        Some(psi_language_semantics::CarryPolicy::PERMISSIVE)
     );
     validate_program(&typed).expect("transparent scalar aggregate should derive permissive carry");
 }
@@ -527,7 +527,7 @@ fn transparent_domain_alias_may_expand_compiler_carry_portable() {
         .collect::<Vec<_>>();
     assert_eq!(
         names,
-        omega_core::semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
+        psi_language_semantics::CarryPermission::ALL.map(|permission| permission.name().to_owned())
     );
 }
 

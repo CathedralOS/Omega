@@ -133,7 +133,7 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
             let unique_call_ordinal = call_ordinal.and_then(|requested| {
                 requested.or_else(|| {
                     let mut ordinals = events.iter().filter_map(|event| match event.source {
-                        omega_core::semantics::PermissionEventSource::Call {
+                        psi_language_semantics::PermissionEventSource::Call {
                             statement_index: event_statement,
                             call_ordinal,
                             target_symbol,
@@ -153,10 +153,10 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
             let mut matched_origins = Vec::new();
             for (event_offset, event) in events.iter().enumerate() {
                 let matches = match event.source {
-                    omega_core::semantics::PermissionEventSource::Statement {
+                    psi_language_semantics::PermissionEventSource::Statement {
                         statement_index: event_statement,
                     } => event_statement == statement_index,
-                    omega_core::semantics::PermissionEventSource::Call {
+                    psi_language_semantics::PermissionEventSource::Call {
                         statement_index: event_statement,
                         call_ordinal: event_ordinal,
                         target_symbol,
@@ -166,11 +166,11 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
                             && unique_call_ordinal == Some(event_ordinal)
                             && call_target.is_none_or(|target| target == target_symbol)
                     }
-                    omega_core::semantics::PermissionEventSource::StateEntry
-                    | omega_core::semantics::PermissionEventSource::StateExit => false,
+                    psi_language_semantics::PermissionEventSource::StateEntry
+                    | psi_language_semantics::PermissionEventSource::StateExit => false,
                 };
                 if matches {
-                    if let omega_core::semantics::PermissionProvenance::Established {
+                    if let psi_language_semantics::PermissionProvenance::Established {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -197,27 +197,27 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
                     // explicit state/transition handoff hook for an internal
                     // target. A later transfer/consume cannot retroactively
                     // prove that the value arrived.
-                    omega_core::semantics::PermissionEventSource::StateEntry => false,
-                    omega_core::semantics::PermissionEventSource::Statement {
+                    psi_language_semantics::PermissionEventSource::StateEntry => false,
+                    psi_language_semantics::PermissionEventSource::Statement {
                         statement_index: event_statement,
                     }
-                    | omega_core::semantics::PermissionEventSource::Call {
+                    | psi_language_semantics::PermissionEventSource::Call {
                         statement_index: event_statement,
                         ..
                     } => event_statement <= statement_index,
-                    omega_core::semantics::PermissionEventSource::StateExit => false,
+                    psi_language_semantics::PermissionEventSource::StateExit => false,
                 };
                 let shares_origin = match event.provenance {
-                    omega_core::semantics::PermissionProvenance::Established {
+                    psi_language_semantics::PermissionProvenance::Established {
                         machine_symbol,
                         state_symbol,
                         source,
                     } => matched_origins.contains(&(machine_symbol, state_symbol, source)),
-                    omega_core::semantics::PermissionProvenance::Unknown => false,
+                    psi_language_semantics::PermissionProvenance::Unknown => false,
                 };
                 let establishes_origin = matches!(
                     event.kind,
-                    omega_core::semantics::PermissionEventKind::Establish
+                    psi_language_semantics::PermissionEventKind::Establish
                 ) && matched_origins.iter().any(
                     |(machine_symbol, state_symbol, source)| {
                         state.key.machine == *machine_symbol
@@ -263,7 +263,7 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
             {
                 if !matches!(
                     event.source,
-                    omega_core::semantics::PermissionEventSource::StateEntry
+                    psi_language_semantics::PermissionEventSource::StateEntry
                 ) {
                     continue;
                 }
@@ -315,8 +315,8 @@ impl<'arena, 'plan> SelectedInstructionSink<'arena, 'plan> {
                         .is_some_and(|event| {
                             matches!(
                                 event.kind,
-                                omega_core::semantics::PermissionEventKind::Consume
-                            ) && event.access == omega_core::semantics::PermissionAccess::Owned
+                                psi_language_semantics::PermissionEventKind::Consume
+                            ) && event.access == psi_language_semantics::PermissionAccess::Owned
                                 && event.obligation_live
                         })
                 })

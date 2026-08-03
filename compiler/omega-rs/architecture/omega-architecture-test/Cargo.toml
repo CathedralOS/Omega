@@ -16,6 +16,7 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-effects = { path = "../../representations/omega-effects" }
 psi-effects = { path = "../../../psi-rs/representations/psi-effects" }
 psi-language-core = { path = "../../../psi-rs/foundation/psi-language-core" }
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }
 psi-source-files-to-tokens = { path = "../../../psi-rs/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi-rs/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees = { path = "../../../psi-rs/representations/psi-syntax-trees" }

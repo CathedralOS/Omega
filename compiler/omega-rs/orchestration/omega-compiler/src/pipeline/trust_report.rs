@@ -77,7 +77,7 @@ pub(super) fn write_trust_report(
     // own-package dev-active with the standing warning, or root-granted
     // when build.omg names the machine.
     for machine in typed.machines() {
-        if machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted {
+        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::Accepted {
             continue;
         }
         let leaf = machine
@@ -108,7 +108,7 @@ pub(super) fn write_trust_report(
                 || Some(grant.as_str()) == domain.name.as_str().rsplit("::").next()
         });
         let names_accepted = typed.machines().iter().any(|machine| {
-            machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted
+            machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
                 && (grant == machine.name.as_str()
                     || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
         });

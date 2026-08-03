@@ -14,3 +14,6 @@ omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 psi-numerics = { path = "../../../psi-rs/foundation/psi-numerics" }
+
+[dev-dependencies]
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }

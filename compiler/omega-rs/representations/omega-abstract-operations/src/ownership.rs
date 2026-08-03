@@ -9,12 +9,12 @@ pub struct AbstractPermissionEvent {
     /// is the stable join key between selected code and the lowered event.
     pub source_event_index: u32,
     pub source_key: StateKey,
-    pub source: omega_core::semantics::PermissionEventSource,
-    pub kind: omega_core::semantics::PermissionEventKind,
-    pub multiplicity: omega_core::semantics::Multiplicity,
-    pub access: omega_core::semantics::PermissionAccess,
-    pub claim_identity: omega_core::semantics::PermissionClaimIdentity,
-    pub provenance: omega_core::semantics::PermissionProvenance,
+    pub source: psi_language_semantics::PermissionEventSource,
+    pub kind: psi_language_semantics::PermissionEventKind,
+    pub multiplicity: psi_language_semantics::Multiplicity,
+    pub access: psi_language_semantics::PermissionAccess,
+    pub claim_identity: psi_language_semantics::PermissionClaimIdentity,
+    pub provenance: psi_language_semantics::PermissionProvenance,
     pub root: psi_facts::PlaceRoot,
     pub segments: HandleSpan<psi_facts::PlaceSegment>,
     pub obligation_live: bool,
@@ -188,15 +188,15 @@ impl AbstractOwnershipSummary {
                     CheckedNoCodePermissionReason::ExplicitZeroCodeConsume => {
                         matches!(
                             event.kind,
-                            omega_core::semantics::PermissionEventKind::Consume
-                        ) && event.access == omega_core::semantics::PermissionAccess::Owned
+                            psi_language_semantics::PermissionEventKind::Consume
+                        ) && event.access == psi_language_semantics::PermissionAccess::Owned
                             && event.obligation_live
                     }
                     CheckedNoCodePermissionReason::ElidedNoDebt => !event.obligation_live,
                     CheckedNoCodePermissionReason::TrivialAffineDrop => {
                         matches!(
                             event.kind,
-                            omega_core::semantics::PermissionEventKind::AffineDrop
+                            psi_language_semantics::PermissionEventKind::AffineDrop
                         ) && !event.obligation_live
                     }
                 };
@@ -237,7 +237,7 @@ mod tests {
         summary.permissions.insert(event(7));
         let drop = summary.permissions.insert(AbstractPermissionEvent {
             source_event_index: 9,
-            kind: omega_core::semantics::PermissionEventKind::AffineDrop,
+            kind: psi_language_semantics::PermissionEventKind::AffineDrop,
             obligation_live: false,
             ..AbstractPermissionEvent::default()
         });
@@ -346,8 +346,8 @@ mod tests {
         let mut summary = AbstractOwnershipSummary::default();
         summary.permissions.insert(AbstractPermissionEvent {
             source_event_index: 5,
-            kind: omega_core::semantics::PermissionEventKind::Establish,
-            access: omega_core::semantics::PermissionAccess::Owned,
+            kind: psi_language_semantics::PermissionEventKind::Establish,
+            access: psi_language_semantics::PermissionAccess::Owned,
             obligation_live: true,
             ..AbstractPermissionEvent::default()
         });
@@ -369,8 +369,8 @@ mod tests {
         summary.permissions.clear();
         summary.permissions.insert(AbstractPermissionEvent {
             source_event_index: 5,
-            kind: omega_core::semantics::PermissionEventKind::Consume,
-            access: omega_core::semantics::PermissionAccess::Owned,
+            kind: psi_language_semantics::PermissionEventKind::Consume,
+            access: psi_language_semantics::PermissionAccess::Owned,
             obligation_live: true,
             ..AbstractPermissionEvent::default()
         });

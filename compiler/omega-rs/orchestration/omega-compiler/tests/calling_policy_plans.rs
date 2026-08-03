@@ -238,7 +238,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(active.domain, "InterruptMaskGuard::Active");
     assert_eq!(
         active.effective_carry,
-        omega_core::semantics::CarryPolicy::STRICT
+        psi_language_semantics::CarryPolicy::STRICT
     );
     let mut missing_active = mask_plan.clone();
     missing_active.schema.methods[0].result_claims.clear();
@@ -294,7 +294,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(pending.domain, "InterruptAcknowledgement::Pending");
     assert_eq!(
         pending.effective_carry,
-        omega_core::semantics::CarryPolicy::STRICT
+        psi_language_semantics::CarryPolicy::STRICT
     );
     assert_eq!(
         pending.authority_flow,
@@ -340,7 +340,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert_eq!(runtime_pending.domain, "InterruptAcknowledgement::Pending");
     assert_eq!(
         runtime_pending.effective_carry,
-        omega_core::semantics::CarryPolicy::STRICT
+        psi_language_semantics::CarryPolicy::STRICT
     );
     let entry_fact_bindings = selected_external_root_entry_fact_bindings(
         &checked,
@@ -384,7 +384,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
             .get(entry_fact.checked_fact())
             .evidence
             .origin,
-        omega_core::semantics::QualificationEvidenceOrigin::Propagated,
+        psi_language_semantics::QualificationEvidenceOrigin::Propagated,
         "the checked adapter fact remains an ordinary parameter precondition until occurrence admission"
     );
     let mut drifted_checked = checked.clone();
@@ -394,7 +394,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .facts
         .get_mut(entry_fact.checked_fact())
         .evidence
-        .origin = omega_core::semantics::QualificationEvidenceOrigin::CheckedTransformation;
+        .origin = psi_language_semantics::QualificationEvidenceOrigin::CheckedTransformation;
     assert!(
         selected_external_root_entry_fact_bindings(
             &drifted_checked,

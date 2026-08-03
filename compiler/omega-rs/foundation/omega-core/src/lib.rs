@@ -4,6 +4,5 @@ pub mod diagnostics;
 pub mod operations;
 pub mod parallel;
 pub mod runtime_storage;
-pub mod semantics;
 pub mod symbols;
 pub mod trust;

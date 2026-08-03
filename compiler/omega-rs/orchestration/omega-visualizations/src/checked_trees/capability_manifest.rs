@@ -165,12 +165,12 @@ fn entry_machine_with_state(
 #[cfg(test)]
 mod tests {
     use super::{capability_manifest_json, capability_manifest_text};
-    use omega_core::semantics::{
+    use omega_core::symbols::SymbolHandle;
+    use psi_checked_trees::{CheckedTrees, MachineContractPlan, StateWriteFramePlan};
+    use psi_language_semantics::{
         BlockingInterface, BlockingPlan, MachineSupplyMode, ServiceReachInterface,
         ServiceReachPlan, SuspensionInterface, SuspensionPlan, TerminationGuarantee,
     };
-    use omega_core::symbols::SymbolHandle;
-    use psi_checked_trees::{CheckedTrees, MachineContractPlan, StateWriteFramePlan};
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::state::State;
@@ -225,7 +225,7 @@ mod tests {
                     interface: BlockingInterface::InternalInferred,
                     checked_may_block: false,
                 },
-                termination: omega_core::semantics::TerminationInterface::Published(
+                termination: psi_language_semantics::TerminationInterface::Published(
                     TerminationGuarantee::NoGuarantee,
                 ),
                 inferred_write_frames: Vec::<StateWriteFramePlan>::new(),

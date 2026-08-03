@@ -33,7 +33,7 @@ pub fn build_layout_plan(
         if !data_definition.type_parameters.is_empty() {
             continue;
         }
-        if data_definition.supply_mode == omega_core::semantics::DataSupplyMode::BoundaryOpaque {
+        if data_definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
             continue;
         }
         if proof_only.is_proof_only(data_definition.symbol) {
@@ -671,7 +671,7 @@ impl<'program> LayoutBuilder<'program> {
                     .any(|constraint| match constraint {
                         TypeConstraintNode::Domain(name) => {
                             !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
-                                && omega_core::semantics::CarryPermission::from_name(name.as_str())
+                                && psi_language_semantics::CarryPermission::from_name(name.as_str())
                                     .is_none()
                         }
                         _ => false,
@@ -1029,7 +1029,7 @@ impl<'program> LayoutBuilder<'program> {
                 let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
                     TypeConstraintNode::Domain(name) => {
                         !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
-                            && omega_core::semantics::CarryPermission::from_name(name.as_str())
+                            && psi_language_semantics::CarryPermission::from_name(name.as_str())
                                 .is_none()
                     }
                     _ => false,

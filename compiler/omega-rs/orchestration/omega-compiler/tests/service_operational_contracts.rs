@@ -1,5 +1,5 @@
 use omega_compiler::compile_to_checked;
-use omega_core::semantics::{
+use psi_language_semantics::{
     BlockingInterface, SuspensionInterface, SynchronousInvocationInterface, TerminationGuarantee,
     TerminationInterface,
 };
@@ -174,7 +174,7 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
         .for_machine(machine.symbol)
         .expect("run_impl contract plan");
     let published_services = match contract.service_reach.interface {
-        omega_core::semantics::ServiceReachInterface::PublishedCeiling(row) => checked
+        psi_language_semantics::ServiceReachInterface::PublishedCeiling(row) => checked
             .facts
             .service_reaches
             .rows
@@ -191,7 +191,7 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
                     .as_str()
             })
             .collect::<Vec<_>>(),
-        omega_core::semantics::ServiceReachInterface::InternalInferred => {
+        psi_language_semantics::ServiceReachInterface::InternalInferred => {
             panic!("provider contract must publish its service ceiling")
         }
     };

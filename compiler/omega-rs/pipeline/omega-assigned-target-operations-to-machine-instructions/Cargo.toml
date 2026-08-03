@@ -16,3 +16,4 @@ omega-machine-instructions = { path = "../../representations/omega-machine-instr
 [dev-dependencies]
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+psi-language-semantics = { path = "../../../psi-rs/foundation/psi-language-semantics" }

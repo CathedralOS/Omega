@@ -119,7 +119,7 @@ fn machine_record_carries_one_public_termination_interface() {
 /// contract-identity carrier) unchanged.
 #[test]
 fn termination_plan_witness_swap_is_contract_invisible() {
-    use omega_core::semantics::{
+    use psi_language_semantics::{
         MachineTerminationPlan, RankingViewId, RankingWitness, TerminationGuarantee,
         TerminationInterface,
     };
@@ -160,7 +160,7 @@ fn termination_plan_witness_swap_is_contract_invisible() {
 /// this pin again.
 #[test]
 fn data_properties_carries_first_class_multiplicity() {
-    use omega_core::semantics::Multiplicity;
+    use psi_language_semantics::Multiplicity;
     let DataProperties {
         copy,
         carry: _,
@@ -178,7 +178,7 @@ fn data_properties_carries_first_class_multiplicity() {
 /// service rows normalize resolved identities as deterministic sets.
 #[test]
 fn service_reach_rows_are_identity_sets_without_global_name_bits() {
-    use omega_core::semantics::{ServiceReachId, ServiceReachRowTable};
+    use psi_language_semantics::{ServiceReachId, ServiceReachRowTable};
     let mut rows = ServiceReachRowTable::default();
     let console = ServiceReachId(2);
     let filesystem = ServiceReachId(3);
@@ -199,7 +199,7 @@ fn service_reach_rows_are_identity_sets_without_global_name_bits() {
 #[test]
 fn downstream_ownership_summary_carries_qualified_permission_events() {
     use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
-    use omega_core::semantics::{
+    use psi_language_semantics::{
         Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionProvenance,
     };
     let StateOwnershipSummary {

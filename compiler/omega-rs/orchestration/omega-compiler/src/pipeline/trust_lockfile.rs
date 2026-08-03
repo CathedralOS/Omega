@@ -56,7 +56,7 @@ fn commitment_statement(typed: &TypedTrees, grant: &str) -> (String, String) {
     // hashes the axiom's rendered ensures -- the statement the grant
     // covers; editing the claim under a grant is drift.
     for machine in typed.machines() {
-        if machine.supply_mode != omega_core::semantics::MachineSupplyMode::Accepted {
+        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::Accepted {
             continue;
         }
         let leaf = machine
@@ -128,7 +128,7 @@ pub(super) fn enforce_trust_lockfile(
         // machine` contract drifts the existing receipt before any instance
         // can reuse it.
         if let Some(machine) = typed.machines().iter().find(|machine| {
-            machine.supply_mode == omega_core::semantics::MachineSupplyMode::Accepted
+            machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
                 && (grant == machine.name.as_str()
                     || Some(grant.as_str()) == machine.name.as_str().rsplit("::").next())
         }) && let Some(identity) =

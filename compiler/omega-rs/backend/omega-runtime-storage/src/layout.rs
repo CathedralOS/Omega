@@ -99,7 +99,7 @@ pub(super) fn bounded_byte_buffer_shape(
             constraint,
             TypeConstraintNode::Domain(name)
                 if !psi_checked_trees::wire::is_layout_domain_name(name.as_str())
-                    && omega_core::semantics::CarryPermission::from_name(name.as_str()).is_none()
+                    && psi_language_semantics::CarryPermission::from_name(name.as_str()).is_none()
         )
     });
     if !has_named_domain {
