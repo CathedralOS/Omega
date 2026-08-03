@@ -473,6 +473,18 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
     operands: &[T],
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<u8>, Diagnostic> {
+    let returns_float = authoritative_plan
+        .and_then(|plan| plan.result.as_ref())
+        .is_some_and(|result| {
+            matches!(
+                result.shape.class,
+                omega_calling_conventions::ValueClass::Float
+            )
+        })
+        || (authoritative_plan.is_none() && operation_key.returns_float());
+    let returns_value = authoritative_plan
+        .map(|plan| plan.result.is_some())
+        .unwrap_or_else(|| operation_key.returns_value());
     match target.architecture {
         // Deref-result ops (errno) must be checked before the plain
         // value-returning arm: they share `returns_value()` but insert an extra
@@ -507,7 +519,7 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
         // Float-returning ops (sqrt/hypot) also share `returns_value()` but the
         // result comes back in `d0`; the encoder inserts `fmov x0, d0` before the
         // result store. Checked before the plain value-returning arm.
-        Architecture::Aarch64 if operation_key.returns_float() => {
+        Architecture::Aarch64 if returns_float => {
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Float,
@@ -529,7 +541,7 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
                 operands.iter().map(aarch64_call_operand),
             )
         }
-        Architecture::Aarch64 if operation_key.returns_value() => {
+        Architecture::Aarch64 if returns_value => {
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Integer,
@@ -673,6 +685,12 @@ pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOpera
         Aarch64ImportResult::Authored
     } else if operation_key.dereferences_result() {
         Aarch64ImportResult::Integer
+    } else if let Some(plan) = authoritative_plan {
+        match plan.result.as_ref().map(|result| result.shape.class) {
+            Some(omega_calling_conventions::ValueClass::Float) => Aarch64ImportResult::Float,
+            Some(_) => Aarch64ImportResult::Integer,
+            None => Aarch64ImportResult::None,
+        }
     } else if operation_key.returns_float() {
         Aarch64ImportResult::Float
     } else if operation_key.returns_value() {
@@ -2392,6 +2410,55 @@ mod compatibility_encoder_differential_tests {
                 &float_operands,
                 Some(&float_plan),
             )
+        );
+    }
+
+    #[test]
+    fn retained_plan_owns_aarch64_result_presence_and_class() {
+        let target = NativeTarget::macos_arm64();
+        let operands = [scalar(0), float(8)];
+        let float_plan = evaluate_call_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![ValueShape::float(8)],
+                result: Some(ValueShape::float(8)),
+            },
+        )
+        .expect("AAPCS64 float import plan");
+        let catalog_float = encode_host_call_sequence_with_plan(
+            target,
+            HostOperationKey::from_names("Math", "square_root"),
+            &operands,
+            Some(&float_plan),
+        )
+        .expect("catalog float import");
+        let plan_only_float = encode_host_call_sequence_with_plan(
+            target,
+            HostOperationKey::default(),
+            &operands,
+            Some(&float_plan),
+        )
+        .expect("plan-classified float import");
+        assert_eq!(catalog_float, plan_only_float);
+
+        let void_plan = plan(target, 1, false);
+        let void_operands = [scalar(8)];
+        let bytes = encode_host_call_sequence_with_plan(
+            target,
+            HostOperationKey::from_names("Math", "square_root"),
+            &void_operands,
+            Some(&void_plan),
+        )
+        .expect("plan-classified void import");
+        assert_eq!(
+            bytes,
+            encode_host_call_sequence_with_plan(
+                target,
+                HostOperationKey::from_names("Process", "exit"),
+                &void_operands,
+                Some(&void_plan),
+            )
+            .expect("catalog void import")
         );
     }
 }

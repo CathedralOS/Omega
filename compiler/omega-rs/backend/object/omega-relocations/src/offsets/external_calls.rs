@@ -30,6 +30,9 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
     authoritative_plan: Option<&omega_calling_conventions::CallPlan>,
 ) -> usize {
     let architecture = target.architecture;
+    let returns_value = authoritative_plan
+        .map(|plan| plan.result.is_some())
+        .unwrap_or_else(|| operation_key.returns_value());
     if architecture == Architecture::X86_64
         && let Some(site) = omega_isa_x86_64::host_call_external_relocation_site_with_plan(
             omega_calling_conventions::CallingPolicy::native_for_target(target),
@@ -51,7 +54,7 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
     // rides the value-returning layout -- the blocker enforces the
     // result-binding shape and the encoder routes it there; the catalog
     // cannot know authored operations.
-    if architecture == Architecture::Aarch64 && (operation_key.returns_value() || authored_import) {
+    if architecture == Architecture::Aarch64 && (returns_value || authored_import) {
         let argument_placements =
             omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                 operation_key,
