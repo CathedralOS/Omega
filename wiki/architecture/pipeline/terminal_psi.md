@@ -63,9 +63,13 @@ verifies and executes the produced semantic module, proving the artifact has no
 frontend lifetime dependency. This is the correct ownership direction, but its
 accepted vocabulary remains the original integer/control/contract canary. An
 architecture test keeps one fail-closed `lower_machine` entry. General terminal
-production—including content conservation, identity reshuffles, and partition
-composition—must extend this Psi stage rather than reintroduce an Omega-to-Psi
-bridge.
+production must extend this Psi stage rather than reintroduce an Omega-to-Psi
+bridge. The stage now independently revalidates and lowers checked content
+conservation, identity reshuffles, and direct partition compositions into the
+existing v9-v12 terminal vocabulary. Those evidence translators retain stable
+semantic paths, dense claim identities, source theorem fingerprints, and exact
+place substitutions. The current executable source canary itself remains
+content-free.
 The current legacy exit prover also cannot establish an ordinary
 `result == literal` contract, so the bootstrap canary carries the closed typed
 fact `7i32 == 7i32` and asserts the executed result separately. An Omega
@@ -266,8 +270,8 @@ semantic domain, projection fingerprint, versioned stable place path, and
 canonical equation without any Omega arena identity. Canonical semantic bytes
 and minimal proof format v8 are golden-pinned; verifier checks restrict content
 propositions to `ensures`, reject invalid roots and `entry(result)`, and accept
-replaceable certificates. Identity-preserving reshuffle inference has a legacy checked
-precursor: exact input-relative outcome maps derive one fingerprinted
+replaceable certificates. Identity-preserving reshuffle inference has a
+Psi-checked producer: exact input-relative outcome maps derive one fingerprinted
 entry/current equality per preserved claim, retaining its claim identity and
 both structural paths. The derivation requires the same terminal projection
 identity and algebra on both places, accepts type or ordinary contract
@@ -290,12 +294,10 @@ represents that proposition. Composition through surrounding non-direct
 rewrites, sealed introduction and custody-exit frontier rows, and the general
 frontier theorem remain to land.
 
-Correction checkpoint (2026-08-02): the legacy checked-to-terminal content
-translator was removed from the initial source slice. The v9-v12
-terminal vocabulary, canonical codec, and verifier remain Psi-owned and
-source-independent; their next real producer belongs in
-`psi-checked-trees-to-terminal`. Checked facts are Psi migration input, not an
-excuse for an Omega-to-Psi stage.
+Correction checkpoint (2026-08-02): checked-to-terminal content production now
+lives in `psi-checked-trees-to-terminal`. It consumes Psi-owned checked facts;
+the v9-v12 terminal vocabulary, canonical codec, and verifier remain Psi-owned
+and source-independent. The deleted Omega-to-Psi translator must not return.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.

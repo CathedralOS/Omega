@@ -11,8 +11,10 @@ path = "src/lib.rs"
 [dependencies]
 psi-checked-trees = { path = "../../representations/psi-checked-trees" }
 psi-core = { path = "../../foundation/psi-core" }
+psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-proof-kernel = { path = "../../semantics/psi-proof-kernel" }
+psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-verifier = { path = "../../semantics/psi-terminal-verifier" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }

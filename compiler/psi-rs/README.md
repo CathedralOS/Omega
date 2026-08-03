@@ -64,8 +64,9 @@ Current roots:
   compatibility, and signature normalization;
 - `pipeline/psi-typed-trees-to-checked-trees`: Psi-owned semantic checking and
   checked-fact construction;
-- `pipeline/psi-checked-trees-to-terminal`: the first fail-closed checked
-  semantics to terminal-Psi source producer;
+- `pipeline/psi-checked-trees-to-terminal`: the first fail-closed executable
+  source producer plus checked content-conservation, reshuffle, and direct
+  partition-composition translation into terminal Psi;
 - `semantics/psi-validation`: target-neutral cross-semantic source validation;
 - `semantics/psi-proof`: source proof-surface collection, obligation planning,
   and checking;

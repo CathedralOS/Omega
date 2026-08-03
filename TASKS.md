@@ -444,15 +444,15 @@ those rows remain absent until their actual checked proofs exist.
   the substitution, and reconstructs only the exact derived theorem as a
   semantic axiom. Canonical bytes include the witness; existing proof format v9
   already carries the resulting content proposition.
-  Archived v1-v11 bytes retain their identities. The content-specific
-  checked-to-terminal translator has been removed from the initial bootstrap
-  slice. The terminal producer itself is now Psi-owned as
-  `psi-checked-trees-to-terminal`; these checked content facts remain migration
-  precursors until that producer consumes them. Before extending wrapper
-  composition, add the real content production there. Then compose identity
-  rewrites around non-direct authored-partition calls, insert sealed
-  introduction and custody-exit rows, and discharge or admit the exact frontier
-  theorem.
+  Archived v1-v11 bytes retain their identities. The content producer now lives
+  in `psi-checked-trees-to-terminal`: it revalidates and lowers checked
+  conservation plans, exact identity reshuffles, and direct partition
+  compositions into the existing v9-v12 terminal vocabulary, including dense
+  claim identities and replayable place substitutions. The executable source
+  canary remains content-free and fail-closed. Next compose identity rewrites
+  around non-direct authored-partition calls, connect a real content-bearing
+  source slice, insert sealed introduction and custody-exit rows, and discharge
+  or admit the exact frontier theorem.
   Contracts call the exact
   owner-unique `Content<A>::project` conformance machine; do not add
   `content(...)`, general `old(...)`, or `retired_via(...)`. Normalize one
@@ -1074,6 +1074,9 @@ improvements do not change public identity.
   orchestration. `psi-checked-trees-to-terminal` owns the first exact,
   fail-closed checked-to-terminal source slice. The reverse-named Omega package
   has been removed; general terminal production grows only in this Psi stage.
+  Its independent content-evidence producer now revalidates checked
+  conservation, reshuffle, and direct partition-composition facts into terminal
+  v9-v12 rows; a content-bearing executable source canary remains.
   The first in-memory executable slice is also live: stable machine/block
   topology, representable integer constants, v2 Boolean constants, v3
   exact-width wrapping integer addition, v4 exact-width saturating integer

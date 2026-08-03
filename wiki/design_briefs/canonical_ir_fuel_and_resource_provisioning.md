@@ -51,7 +51,10 @@ emits the semantic module and proof bundle separately, and fails closed on all
 other shapes. Its canary drops the frontend trees before terminal verification
 and interpretation. Parsing through checked semantics and this first terminal
 producer are now Psi-owned; general terminal vocabulary must extend the same
-direction. A
+direction. The same producer independently revalidates checked content
+conservation fingerprints, exact claim-preserving reshuffles, and direct
+partition-composition substitutions before emitting their canonical terminal
+v9-v12 evidence rows; the executable canary remains content-free. A
 source-independent Omega abstract-operation consumer accepts only the verified
 module and emits owned scalar-materialization, wrapping-add, saturating-add,
 wrapping-subtract, saturating-subtract, wrapping-multiply,
