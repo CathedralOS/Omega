@@ -16,6 +16,8 @@ pub use capabilities::providers::{
 pub use executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
     ExecutableTcbEntry, ExecutableTcbManifest, ExecutionScope, ImplementationEvidence,
-    IncompleteCause, OpaqueInProcessBinding, ProviderIdentity, ScopeCompleteness,
+    IncompleteCause, OpaqueClosureEvidence, OpaqueExecutableAdmissionCandidate,
+    OpaqueInProcessBinding, ProviderIdentity, ScopeCompleteness,
+    ValidatedOpaqueExecutableAdmission,
 };
 pub use selected_provider_plans::SelectedProviderPlanFacts;

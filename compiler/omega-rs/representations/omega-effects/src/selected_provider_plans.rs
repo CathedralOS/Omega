@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 pub struct SelectedProviderPlanFacts {
     plans: Vec<ProviderPlan>,
     normalized_identity: u64,
+    opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
 }
 
 impl Default for SelectedProviderPlanFacts {
@@ -18,6 +19,7 @@ impl Default for SelectedProviderPlanFacts {
         Self {
             plans: Vec::new(),
             normalized_identity: fingerprint_selected_plans(&[]),
+            opaque_executable_admissions: Vec::new(),
         }
     }
 }
@@ -85,6 +87,7 @@ impl SelectedProviderPlanFacts {
         Ok(Self {
             plans,
             normalized_identity,
+            opaque_executable_admissions: Vec::new(),
         })
     }
 
@@ -110,12 +113,68 @@ impl SelectedProviderPlanFacts {
         self.plans.is_empty()
     }
 
+    /// Bind trusted opaque-executable evidence to exact rows in this selected
+    /// closure. Loader names are checked only for row drift; they never become
+    /// executable identity.
+    pub fn with_opaque_executable_admissions(
+        mut self,
+        candidates: impl IntoIterator<Item = crate::OpaqueExecutableAdmissionCandidate>,
+    ) -> Result<Self, String> {
+        let mut occupied = self
+            .opaque_executable_admissions
+            .iter()
+            .map(|admission| {
+                let candidate = admission.candidate();
+                (
+                    candidate.provider_plan_identity,
+                    candidate.method.clone(),
+                    candidate.requirement_identity.clone(),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        for candidate in candidates {
+            let key = (
+                candidate.provider_plan_identity,
+                candidate.method.clone(),
+                candidate.requirement_identity.clone(),
+            );
+            if !occupied.insert(key) {
+                return Err(format!(
+                    "opaque executable admission duplicates selected row `{}` / `{}` in provider plan {:#018x}",
+                    candidate.method,
+                    candidate.requirement_identity,
+                    candidate.provider_plan_identity
+                ));
+            }
+            self.opaque_executable_admissions.push(
+                crate::executable_tcb_manifest::validate_opaque_executable_admission(
+                    &self.plans,
+                    candidate,
+                )?,
+            );
+        }
+        self.opaque_executable_admissions.sort_by(|left, right| {
+            let left = left.candidate();
+            let right = right.candidate();
+            left.provider_plan_identity
+                .cmp(&right.provider_plan_identity)
+                .then_with(|| left.method.cmp(&right.method))
+                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        });
+        Ok(self)
+    }
+
+    pub fn opaque_executable_admissions(&self) -> &[crate::ValidatedOpaqueExecutableAdmission] {
+        &self.opaque_executable_admissions
+    }
+
     /// Derive caller-address-space TCB facts from the selected closure, never
     /// from source service reach or the unselected candidate set.
     pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
         crate::executable_tcb_manifest::derive_static_manifest(
             &self.plans,
             self.normalized_identity,
+            &self.opaque_executable_admissions,
         )
     }
 }
@@ -277,6 +336,218 @@ mod tests {
             causes[0].binding,
             crate::OpaqueInProcessBinding::Import { .. }
         ));
+    }
+
+    #[test]
+    fn pinned_opaque_entry_remains_incomplete_without_executable_closure_evidence() {
+        let mut opaque = candidate("Opaque", "read");
+        opaque.rows[0].binding = ProviderBinding::Import {
+            library: "vendor-storage".into(),
+            symbol: "read".into(),
+        };
+        let plan_identity = opaque.identity_fingerprint();
+        let selected = SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&opaque),
+            std::slice::from_ref(&opaque.name),
+        )
+        .expect("selected opaque provider")
+        .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
+            provider_plan_identity: plan_identity,
+            method: "read".into(),
+            requirement_identity: String::new(),
+            binding: crate::OpaqueInProcessBinding::Import {
+                library: "vendor-storage".into(),
+                symbol: "read".into(),
+            },
+            executable_identity: "sha256:0123456789abcdef".into(),
+            implementation_evidence_identity: "receipt:vendor-storage-v1".into(),
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
+            containment: vec![crate::ContainmentEvidence {
+                guarantee: crate::ContainmentGuarantee::FaultContainment,
+                evidence_identity: "receipt:fault-boundary-v1".into(),
+            }],
+            executable_closure_evidence_identity: None,
+        }])
+        .expect("exact opaque admission");
+
+        let manifest = selected.executable_tcb_manifest();
+        assert_eq!(manifest.known_entries.len(), 1);
+        assert!(matches!(
+            manifest.known_entries[0].executable_identity,
+            crate::ExecutableIdentity::PinnedOpaqueArtifact(ref identity)
+                if identity == "sha256:0123456789abcdef"
+        ));
+        assert!(matches!(
+            manifest.completeness,
+            crate::ScopeCompleteness::Incomplete { ref causes, .. } if causes.len() == 1
+        ));
+    }
+
+    #[test]
+    fn exact_closure_and_containment_receipts_complete_the_opaque_scope() {
+        let mut opaque = candidate("Opaque", "read");
+        opaque.rows[0].binding = ProviderBinding::Import {
+            library: "platform".into(),
+            symbol: "read".into(),
+        };
+        let plan_identity = opaque.identity_fingerprint();
+        let selected = SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&opaque),
+            std::slice::from_ref(&opaque.name),
+        )
+        .expect("selected opaque provider")
+        .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
+            provider_plan_identity: plan_identity,
+            method: "read".into(),
+            requirement_identity: String::new(),
+            binding: crate::OpaqueInProcessBinding::Import {
+                library: "platform".into(),
+                symbol: "read".into(),
+            },
+            executable_identity: "platform-baseline:read-v1".into(),
+            implementation_evidence_identity: "receipt:platform-read-v1".into(),
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
+            containment: vec![
+                crate::ContainmentEvidence {
+                    guarantee: crate::ContainmentGuarantee::BoundedResources,
+                    evidence_identity: "receipt:quota-v1".into(),
+                },
+                crate::ContainmentEvidence {
+                    guarantee: crate::ContainmentGuarantee::MemoryIsolation,
+                    evidence_identity: "receipt:memory-v1".into(),
+                },
+            ],
+            executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
+        }])
+        .expect("exact opaque admission");
+
+        let manifest = selected.executable_tcb_manifest();
+        assert_eq!(manifest.known_entries[0].containment.len(), 2);
+        let crate::ScopeCompleteness::Complete {
+            opaque_closure_evidence,
+            ..
+        } = manifest.completeness
+        else {
+            panic!("closed executable envelope should complete the scope");
+        };
+        assert_eq!(opaque_closure_evidence.len(), 1);
+        assert_eq!(
+            opaque_closure_evidence[0].evidence_identity,
+            "receipt:closed-loader-v1"
+        );
+    }
+
+    #[test]
+    fn exact_closure_evidence_survives_an_unrelated_incomplete_row() {
+        let mut closed = candidate("Closed", "read");
+        closed.rows[0].binding = ProviderBinding::Import {
+            library: "closed-platform".into(),
+            symbol: "read".into(),
+        };
+        let mut open = candidate("Open", "write");
+        open.rows[0].binding = ProviderBinding::Import {
+            library: "open-vendor".into(),
+            symbol: "write".into(),
+        };
+        let closed_identity = closed.identity_fingerprint();
+        let selected = SelectedProviderPlanFacts::from_selection(
+            &[closed.clone(), open.clone()],
+            &[closed.name.clone(), open.name.clone()],
+        )
+        .expect("two distinct selected slots")
+        .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
+            provider_plan_identity: closed_identity,
+            method: "read".into(),
+            requirement_identity: String::new(),
+            binding: crate::OpaqueInProcessBinding::Import {
+                library: "closed-platform".into(),
+                symbol: "read".into(),
+            },
+            executable_identity: "platform-baseline:closed-read-v1".into(),
+            implementation_evidence_identity: "receipt:closed-read-v1".into(),
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
+            containment: Vec::new(),
+            executable_closure_evidence_identity: Some("receipt:closed-loader-v1".into()),
+        }])
+        .expect("closed row admission");
+
+        let manifest = selected.executable_tcb_manifest();
+        let crate::ScopeCompleteness::Incomplete {
+            causes,
+            opaque_closure_evidence,
+            ..
+        } = manifest.completeness
+        else {
+            panic!("unadmitted opaque row keeps scope incomplete");
+        };
+        assert_eq!(causes.len(), 1);
+        assert_eq!(
+            causes[0].provider_plan_identity,
+            open.identity_fingerprint()
+        );
+        assert_eq!(opaque_closure_evidence.len(), 1);
+        assert_eq!(
+            opaque_closure_evidence[0].evidence_identity,
+            "receipt:closed-loader-v1"
+        );
+    }
+
+    #[test]
+    fn opaque_admission_rejects_binding_drift_and_duplicate_containment_axes() {
+        let mut opaque = candidate("Opaque", "read");
+        opaque.rows[0].binding = ProviderBinding::Import {
+            library: "platform".into(),
+            symbol: "read".into(),
+        };
+        let plan_identity = opaque.identity_fingerprint();
+        let selected = SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&opaque),
+            std::slice::from_ref(&opaque.name),
+        )
+        .expect("selected opaque provider");
+        let candidate = crate::OpaqueExecutableAdmissionCandidate {
+            provider_plan_identity: plan_identity,
+            method: "read".into(),
+            requirement_identity: String::new(),
+            binding: crate::OpaqueInProcessBinding::Import {
+                library: "other".into(),
+                symbol: "read".into(),
+            },
+            executable_identity: "sha256:0123456789abcdef".into(),
+            implementation_evidence_identity: "receipt:opaque-v1".into(),
+            execution_scope: crate::ExecutionScope::CallerAddressSpace,
+            containment: Vec::new(),
+            executable_closure_evidence_identity: None,
+        };
+        assert!(
+            selected
+                .clone()
+                .with_opaque_executable_admissions([candidate.clone()])
+                .expect_err("binding drift")
+                .contains("binding drift")
+        );
+
+        let mut candidate = candidate;
+        candidate.binding = crate::OpaqueInProcessBinding::Import {
+            library: "platform".into(),
+            symbol: "read".into(),
+        };
+        candidate.containment = vec![
+            crate::ContainmentEvidence {
+                guarantee: crate::ContainmentGuarantee::FaultContainment,
+                evidence_identity: "receipt:fault-a".into(),
+            },
+            crate::ContainmentEvidence {
+                guarantee: crate::ContainmentGuarantee::FaultContainment,
+                evidence_identity: "receipt:fault-b".into(),
+            },
+        ];
+        assert!(
+            selected
+                .with_opaque_executable_admissions([candidate])
+                .expect_err("duplicate containment axis")
+                .contains("repeats one containment guarantee")
+        );
     }
 
     #[test]
