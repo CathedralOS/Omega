@@ -639,6 +639,9 @@ fn expected_float_intrinsic(
                 "add_toward_zero" | "add_toward_positive" | "add_toward_negative" => {
                     requirement.as_str()
                 }
+                "subtract_toward_zero"
+                | "subtract_toward_positive"
+                | "subtract_toward_negative" => requirement.as_str(),
                 _ => return None,
             };
             let expected_primitive = if namespace.as_str() == "F32" {
@@ -674,6 +677,9 @@ fn expected_float_intrinsic(
                             | "add_toward_zero"
                             | "add_toward_positive"
                             | "add_toward_negative"
+                            | "subtract_toward_zero"
+                            | "subtract_toward_positive"
+                            | "subtract_toward_negative"
                     ) =>
                 {
                     if typed.primitive_type_reference(left.type_reference)

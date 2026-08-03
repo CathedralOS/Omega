@@ -25,8 +25,14 @@ enum NamedFloatRealization {
     Negate(FloatFormat),
     MultiplyThenAdd(FloatFormat),
     FusedMultiplyAdd(FloatFormat),
-    DirectedAdd(FloatFormat, RoundingDirection),
+    DirectedBinary(DirectedFloatBinaryOperation, FloatFormat, RoundingDirection),
     Convert(ArithmeticDomain),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DirectedFloatBinaryOperation {
+    Add,
+    Subtract,
 }
 
 pub(crate) fn rewrite_selected_float_intrinsic_calls(
@@ -92,7 +98,7 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
             NamedFloatRealization::Negate(_) => 1,
             NamedFloatRealization::MultiplyThenAdd(_) => 3,
             NamedFloatRealization::FusedMultiplyAdd(_) => 3,
-            NamedFloatRealization::DirectedAdd(_, _) => 2,
+            NamedFloatRealization::DirectedBinary(_, _, _) => 2,
             NamedFloatRealization::Convert(_) => 1,
         };
         if arguments.len() != expected_arity {
@@ -209,29 +215,71 @@ pub(crate) fn rewrite_selected_float_intrinsic_calls(
                 call.target_symbol = symbol;
                 ExpressionNode::Call(call)
             }
-            NamedFloatRealization::DirectedAdd(format, direction) => {
-                let function = match (format, direction) {
-                    (FloatFormat::F32, RoundingDirection::TowardZero) => {
-                        BuiltinFunction::FloatAddTowardZeroF32
-                    }
-                    (FloatFormat::F64, RoundingDirection::TowardZero) => {
-                        BuiltinFunction::FloatAddTowardZeroF64
-                    }
-                    (FloatFormat::F32, RoundingDirection::TowardPositive) => {
-                        BuiltinFunction::FloatAddTowardPositiveF32
-                    }
-                    (FloatFormat::F64, RoundingDirection::TowardPositive) => {
-                        BuiltinFunction::FloatAddTowardPositiveF64
-                    }
-                    (FloatFormat::F32, RoundingDirection::TowardNegative) => {
-                        BuiltinFunction::FloatAddTowardNegativeF32
-                    }
-                    (FloatFormat::F64, RoundingDirection::TowardNegative) => {
-                        BuiltinFunction::FloatAddTowardNegativeF64
-                    }
-                    (_, RoundingDirection::NearestTiesToEven) => {
+            NamedFloatRealization::DirectedBinary(operation, format, direction) => {
+                let function = match (operation, format, direction) {
+                    (
+                        DirectedFloatBinaryOperation::Add,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatAddTowardZeroF32,
+                    (
+                        DirectedFloatBinaryOperation::Add,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatAddTowardZeroF64,
+                    (
+                        DirectedFloatBinaryOperation::Add,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatAddTowardPositiveF32,
+                    (
+                        DirectedFloatBinaryOperation::Add,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatAddTowardPositiveF64,
+                    (
+                        DirectedFloatBinaryOperation::Add,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatAddTowardNegativeF32,
+                    (
+                        DirectedFloatBinaryOperation::Add,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatAddTowardNegativeF64,
+                    (
+                        DirectedFloatBinaryOperation::Subtract,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatSubtractTowardZeroF32,
+                    (
+                        DirectedFloatBinaryOperation::Subtract,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardZero,
+                    ) => BuiltinFunction::FloatSubtractTowardZeroF64,
+                    (
+                        DirectedFloatBinaryOperation::Subtract,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatSubtractTowardPositiveF32,
+                    (
+                        DirectedFloatBinaryOperation::Subtract,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardPositive,
+                    ) => BuiltinFunction::FloatSubtractTowardPositiveF64,
+                    (
+                        DirectedFloatBinaryOperation::Subtract,
+                        FloatFormat::F32,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatSubtractTowardNegativeF32,
+                    (
+                        DirectedFloatBinaryOperation::Subtract,
+                        FloatFormat::F64,
+                        RoundingDirection::TowardNegative,
+                    ) => BuiltinFunction::FloatSubtractTowardNegativeF64,
+                    (_, _, RoundingDirection::NearestTiesToEven) => {
                         diagnostics.push(Diagnostic::error(
-                            "directed-add realization cannot select nearest-even",
+                            "directed float realization cannot select nearest-even",
                         ));
                         continue;
                     }
@@ -316,27 +364,63 @@ fn named_float_realization(intrinsic: &str) -> Option<NamedFloatRealization> {
         "F64::fused_multiply_add.f64" => {
             Some(NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F64))
         }
-        "F32::add_toward_zero.f32" => Some(NamedFloatRealization::DirectedAdd(
+        "F32::add_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Add,
             FloatFormat::F32,
             RoundingDirection::TowardZero,
         )),
-        "F64::add_toward_zero.f64" => Some(NamedFloatRealization::DirectedAdd(
+        "F64::add_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Add,
             FloatFormat::F64,
             RoundingDirection::TowardZero,
         )),
-        "F32::add_toward_positive.f32" => Some(NamedFloatRealization::DirectedAdd(
+        "F32::add_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Add,
             FloatFormat::F32,
             RoundingDirection::TowardPositive,
         )),
-        "F64::add_toward_positive.f64" => Some(NamedFloatRealization::DirectedAdd(
+        "F64::add_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Add,
             FloatFormat::F64,
             RoundingDirection::TowardPositive,
         )),
-        "F32::add_toward_negative.f32" => Some(NamedFloatRealization::DirectedAdd(
+        "F32::add_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Add,
             FloatFormat::F32,
             RoundingDirection::TowardNegative,
         )),
-        "F64::add_toward_negative.f64" => Some(NamedFloatRealization::DirectedAdd(
+        "F64::add_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Add,
+            FloatFormat::F64,
+            RoundingDirection::TowardNegative,
+        )),
+        "F32::subtract_toward_zero.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Subtract,
+            FloatFormat::F32,
+            RoundingDirection::TowardZero,
+        )),
+        "F64::subtract_toward_zero.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Subtract,
+            FloatFormat::F64,
+            RoundingDirection::TowardZero,
+        )),
+        "F32::subtract_toward_positive.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Subtract,
+            FloatFormat::F32,
+            RoundingDirection::TowardPositive,
+        )),
+        "F64::subtract_toward_positive.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Subtract,
+            FloatFormat::F64,
+            RoundingDirection::TowardPositive,
+        )),
+        "F32::subtract_toward_negative.f32" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Subtract,
+            FloatFormat::F32,
+            RoundingDirection::TowardNegative,
+        )),
+        "F64::subtract_toward_negative.f64" => Some(NamedFloatRealization::DirectedBinary(
+            DirectedFloatBinaryOperation::Subtract,
             FloatFormat::F64,
             RoundingDirection::TowardNegative,
         )),
@@ -519,9 +603,18 @@ mod tests {
         );
         assert_eq!(
             named_float_realization("F64::add_toward_negative.f64"),
-            Some(NamedFloatRealization::DirectedAdd(
+            Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Add,
                 FloatFormat::F64,
                 RoundingDirection::TowardNegative,
+            ))
+        );
+        assert_eq!(
+            named_float_realization("F32::subtract_toward_positive.f32"),
+            Some(NamedFloatRealization::DirectedBinary(
+                DirectedFloatBinaryOperation::Subtract,
+                FloatFormat::F32,
+                RoundingDirection::TowardPositive,
             ))
         );
     }
