@@ -689,8 +689,8 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 
 #[test]
 fn first_terminal_psi_source_slice_stays_fail_closed() {
-    let path =
-        workspace_root().join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
+    let root = workspace_root();
+    let path = root.join("compiler/psi-rs/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 
@@ -702,6 +702,12 @@ fn first_terminal_psi_source_slice_stays_fail_closed() {
         source.matches("pub fn lower_").count(),
         1,
         "the first terminal-Psi source slice must expose one fail-closed lowering entry"
+    );
+    assert!(
+        !root
+            .join("compiler/omega-rs/pipeline/omega-checked-trees-to-terminal-psi")
+            .exists(),
+        "the deleted Omega-to-Psi reverse bridge must not return"
     );
 }
 

@@ -52,6 +52,8 @@ Current roots:
   propositions, and checked-fact plans;
 - `representations/psi-effects`: target-neutral operational ceilings, service
   reach, synchronous invocation summaries, and capability-flow facts;
+- `representations/psi-checked-trees`: checked proof, borrow, flow, reach,
+  value-origin, and admissibility evidence;
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;
@@ -60,6 +62,13 @@ Current roots:
   source-scope resolution, and stable symbol stamping;
 - `pipeline/psi-symbol-resolved-trees-to-typed-trees`: Psi-owned type identity,
   compatibility, and signature normalization;
+- `pipeline/psi-typed-trees-to-checked-trees`: Psi-owned semantic checking and
+  checked-fact construction;
+- `pipeline/psi-checked-trees-to-terminal`: the first fail-closed checked
+  semantics to terminal-Psi source producer;
+- `semantics/psi-validation`: target-neutral cross-semantic source validation;
+- `semantics/psi-proof`: source proof-surface collection, obligation planning,
+  and checking;
 - `semantics/psi-proof-kernel`: total primitive judgments, explicit proof
   checking, evidence envelopes, and sealed admission validation.
 - `semantics/psi-terminal-verifier`: structural module validation,
