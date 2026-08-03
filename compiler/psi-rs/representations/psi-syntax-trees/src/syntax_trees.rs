@@ -22,8 +22,8 @@ use crate::statement::{
 use crate::types::{
     TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
 };
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::source::SourceId;
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_source::SourceId;
 use std::ops::{Deref, DerefMut};
 
 #[cfg(test)]

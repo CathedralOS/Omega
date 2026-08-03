@@ -1,18 +1,18 @@
 use super::{BinaryOperator, ExpressionNode, ExpressionTable, TableBinaryExpression};
 use crate::identifier::Identifier;
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 #[test]
 fn expression_table_stores_recursive_expressions_as_handles() {
     let mut table = ExpressionTable::new();
     let one = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(1),
+        psi_numerics::literals::IntegerLiteral::from_value(1),
     ));
     let two = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(2),
+        psi_numerics::literals::IntegerLiteral::from_value(2),
     ));
     let three = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(3),
+        psi_numerics::literals::IntegerLiteral::from_value(3),
     ));
     let nested = table.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: two,
@@ -41,13 +41,13 @@ fn expression_table_stores_recursive_expressions_as_handles() {
 fn expression_table_stores_array_children_as_handle_spans() {
     let mut table = ExpressionTable::new();
     let one = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(1),
+        psi_numerics::literals::IntegerLiteral::from_value(1),
     ));
     let two = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(2),
+        psi_numerics::literals::IntegerLiteral::from_value(2),
     ));
     let three = table.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(3),
+        psi_numerics::literals::IntegerLiteral::from_value(3),
     ));
     let values = table.insert_expression_handles([one, two, three]);
     let root = table.insert(ExpressionNode::ArrayLiteral(values));

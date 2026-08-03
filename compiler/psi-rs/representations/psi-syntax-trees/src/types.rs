@@ -1,5 +1,5 @@
 use crate::identifier::Identifier;
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use psi_arena::{Arena, Handle, HandleSpan};
 use std::fmt;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
@@ -361,7 +361,7 @@ pub enum TypeConstraintNode {
     },
     /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
     /// 17. A behaviour tag, not a value-range predicate.
-    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    ArithmeticDomain(psi_numerics::arithmetic::ArithmeticDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`) or a closed indexed
     /// domain-family application (`f64 in Quantity<Unit::KM>`).
     Domain(DomainConstraint),
@@ -392,7 +392,7 @@ mod tests {
     use super::{TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::identifier::Identifier;
-    use omega_core::arena::HandleSpan;
+    use psi_arena::HandleSpan;
 
     #[test]
     fn type_reference_table_stores_nested_references_as_handles() {
@@ -429,10 +429,10 @@ mod tests {
         let mut types = TypeReferenceTable::new();
         let base_type = types.insert_named(Identifier::generated("i32"));
         let minimum = expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(0),
+            psi_numerics::literals::IntegerLiteral::from_value(0),
         ));
         let maximum = expressions.insert(ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(10),
+            psi_numerics::literals::IntegerLiteral::from_value(10),
         ));
         let constraint = types.append_constraint(TypeConstraintNode::Range { minimum, maximum });
         let root = types.insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));

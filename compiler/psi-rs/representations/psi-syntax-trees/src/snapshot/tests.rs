@@ -12,13 +12,13 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
     let data = Item::Data(DataDefinition {
         name: Identifier::generated("Example"),
-        supply_mode: omega_core::semantics::DataSupplyMode::CheckedShape,
+        supply_mode: psi_language_core::DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
-        type_parameters: omega_core::arena::HandleSpan::empty(),
+        type_parameters: psi_arena::HandleSpan::empty(),
         properties: crate::item::DataProperties::default(),
         quotient: None,
-        where_facts: omega_core::arena::HandleSpan::empty(),
-        members: omega_core::arena::HandleSpan::from_parts(
+        where_facts: psi_arena::HandleSpan::empty(),
+        members: psi_arena::HandleSpan::from_parts(
             syntax_trees
                 .items
                 .append_data_member(DataMember::Field(DataField {

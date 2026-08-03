@@ -66,6 +66,7 @@ Omega/
 |   |   |   `-- [CRATE] psi-core/                       # Stable semantic ids and typed proposition vocabulary.
 |   |   |-- representations/
 |   |   |   |-- [CRATE] psi-tokens/                     # Omega spelling-level token streams.
+|   |   |   |-- [CRATE] psi-syntax-trees/               # Parsed source shape before symbol resolution.
 |   |   |   `-- [CRATE] psi-terminal/                   # Self-contained terminal module and closed operation vocabulary.
 |   |   |-- pipeline/
 |   |   |   `-- [CRATE] psi-source-files-to-tokens/     # Psi-owned Omega source lexer.
@@ -84,7 +85,7 @@ Omega/
 |   |
 |   |-- representations/
 |   |   |-- [CRATE] omega-tokens/                       # Transitional re-export of Psi-owned tokens.
-|   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
+|   |   |-- [CRATE] omega-syntax-trees/                 # Transitional re-export of Psi-owned syntax trees.
 |   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Symbol-resolved trees with type/effect information attached.
 |   |   |-- [CRATE] omega-facts/                        # Checked semantic facts, invariants, and refinement data embedded in later IRs.

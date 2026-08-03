@@ -1,6 +1,6 @@
 use crate::identifier::Identifier;
-use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::operator_spelling::{OperatorSpelling, ProviderCategory};
+use psi_arena::{Arena, Handle, HandleSpan};
+use psi_language_core::operator_spelling::{OperatorSpelling, ProviderCategory};
 
 pub type ItemHandle = Handle<Item>;
 pub type StateParameterHandle = Handle<StateParameterNode>;
@@ -495,7 +495,7 @@ impl Default for BoundaryMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub name: Identifier,
-    pub supply_mode: omega_core::semantics::DataSupplyMode,
+    pub supply_mode: psi_language_core::DataSupplyMode,
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
@@ -543,11 +543,11 @@ pub struct DataProperties {
     /// unrestricted and `[linear]` selects exact consumption. Keeping the enum
     /// here prevents syntax lowering from reconstructing semantic identity
     /// from compatibility booleans.
-    pub multiplicity: omega_core::semantics::Multiplicity,
+    pub multiplicity: psi_language_core::Multiplicity,
     /// Authored carry-policy floor. Omission remains distinct from an authored
     /// strict policy so transparent derivation and opaque admission can choose
     /// their respective establishment paths later.
-    pub carry: Option<omega_core::semantics::CarryPolicy>,
+    pub carry: Option<psi_language_core::CarryPolicy>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -624,7 +624,7 @@ pub struct DomainDefinition {
     /// Exact trait-requirement paths authored in the declaration body. These
     /// are establishment alternatives, independent from predicate facts.
     pub authored_routes: Vec<Vec<Identifier>>,
-    pub predicate_body: omega_core::semantics::DomainPredicateBody,
+    pub predicate_body: psi_language_core::DomainPredicateBody,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
     pub body_token_count: usize,
@@ -646,7 +646,7 @@ impl Default for DomainDefinition {
             is_public: false,
             alias: None,
             authored_routes: Vec::new(),
-            predicate_body: omega_core::semantics::DomainPredicateBody::Bodyless,
+            predicate_body: psi_language_core::DomainPredicateBody::Bodyless,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 0,

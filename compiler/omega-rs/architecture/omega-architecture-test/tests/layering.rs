@@ -313,6 +313,10 @@ fn lexical_frontend_implementation_is_psi_owned() {
             "pub use psi_tokens::*;",
         ),
         (
+            "compiler/omega-rs/representations/omega-syntax-trees/src/lib.rs",
+            "pub use psi_syntax_trees::*;",
+        ),
+        (
             "compiler/omega-rs/pipeline/omega-source-files-to-tokens/src/lib.rs",
             "pub use psi_source_files_to_tokens::*;",
         ),

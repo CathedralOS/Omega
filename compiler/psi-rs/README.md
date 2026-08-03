@@ -31,6 +31,8 @@ Current roots:
 - `foundation/psi-core`: stable terminal semantic identities and the initial
   typed proposition vocabulary;
 - `representations/psi-tokens`: the spelling-level Omega token stream;
+- `representations/psi-syntax-trees`: parsed Omega source shape before name and
+  symbol resolution;
 - `representations/psi-terminal`: the in-memory terminal semantic module and
   its first integer-constant / jump / return operation vocabulary;
 - `pipeline/psi-source-files-to-tokens`: the Psi-owned Omega lexer;

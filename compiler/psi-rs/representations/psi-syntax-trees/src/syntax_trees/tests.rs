@@ -9,7 +9,7 @@ use crate::statement::{
     TransitionTargetNode,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-use omega_core::arena::HandleSpan;
+use psi_arena::HandleSpan;
 
 #[test]
 fn syntax_trees_collect_state_expression_and_type_payloads() {
@@ -17,7 +17,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
     let guard = syntax_trees
         .expressions
         .insert(crate::expression::ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(1),
+            psi_numerics::literals::IntegerLiteral::from_value(1),
         ));
     let target = syntax_trees
         .statements
@@ -138,7 +138,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let argument = file
         .expressions
         .insert(crate::expression::ExpressionNode::Integer(
-            omega_core::literals::IntegerLiteral::from_value(0),
+            psi_numerics::literals::IntegerLiteral::from_value(0),
         ));
     let argument = file.statements.append_expression_handle(argument);
     let call = file.statements.insert(StatementNode::Call(TableCall {
@@ -250,7 +250,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         }));
 
     let zero = file.expressions.insert(ExpressionNode::Integer(
-        omega_core::literals::IntegerLiteral::from_value(0),
+        psi_numerics::literals::IntegerLiteral::from_value(0),
     ));
     let max_arguments = file
         .expressions

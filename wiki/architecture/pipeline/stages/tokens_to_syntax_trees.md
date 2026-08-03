@@ -19,6 +19,10 @@ source shape without turning nested syntax into scattered heap objects.
 
 ## Implementation Map
 
+- `compiler/psi-rs/representations/psi-syntax-trees` owns `SyntaxTrees`, its
+  arena-backed tables, identity/snapshot materialization, and all source-shaped
+  nodes. The old `omega-syntax-trees` crate is an implementation-free
+  compatibility export for unmigrated parser and resolver consumers.
 - `compiler/psi-rs/foundation/psi-arena` owns the generic typed dense, paged,
   generational, hierarchy, and ordered-root arena storage required by source
   representations. `omega-core::arena` temporarily re-exports these exact
