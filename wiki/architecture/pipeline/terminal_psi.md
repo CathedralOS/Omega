@@ -51,7 +51,8 @@ target/provider realization state. The checking transform itself remains the
 next frontend-ownership migration boundary. Its target-neutral validation
 dependency has already moved to `psi-validation`; `omega-validation` is a
 compatibility export, while provider installation and approval remain Omega
-concerns.
+concerns. Source proof planning and checking likewise live in `psi-proof`, with
+`omega-proof` retained only as a compatibility export.
 
 The first transitional source producer is now live as
 `omega-checked-trees-to-terminal-psi`. It accepts one exact free-machine slice:

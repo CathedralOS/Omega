@@ -126,7 +126,7 @@ Meanwhile, several specific obligation families ARE enforced today:
 - ranked termination (`canaries/pass/termination/`; source migration pending),
 - caller-side `requires` discharge at call sites (`constraints/scalar_requires_satisfied_by_literal`, fail twin `scalar_requires_unproven_literal`),
 - exit `ensures` for machines WITH bodies, via domain-fact flow (`domains/exit_ensures_unproven` and friends),
-- bounded-type constraints (`omega-proof/src/checker.rs` interval checks on assignments, initializers, call arguments).
+- bounded-type constraints (`psi-proof/src/checker.rs` interval checks on assignments, initializers, call arguments).
 
 So the prover plumbing (facts, contexts, interval evaluator) exists; what is
 missing is anchoring and discharging contract entailment for proof-artifact
@@ -171,7 +171,7 @@ to the engine's real diagnostic when promoting).
 | --- | --- | --- | --- |
 | L0 | `proof_constant_arithmetic_identity` (3*3 + 4*4 == 5*5 over Nat) | `fail/proofs/constant_equation_refuted` (ACTIVE) | constant folding + reflexivity; the refutation half is DONE, the proving half needs ensures anchoring for empty bodies |
 | L1 | `proof_order_transitivity` (a<b, b<c -> a<c) | `fail/proofs/order_asymmetry_refuted` (ACTIVE, direct asymmetry); `pending/proofs/order_transitivity_false_twin` (3-variable cycle) | stored-fact matching + transitive closure of the order relation |
-| L2 | `proof_linear_range_sum` (a,b in 1..=10 -> a+b in 2..=20) | `pending/proofs/linear_range_sum_false_twin` (upper corner 19) | interval arithmetic through `+` over requires-derived ranges (the interval evaluator in `omega-proof/src/checker.rs` already does this shape for bounded types; it needs to read contract ranges) |
+| L2 | `proof_linear_range_sum` (a,b in 1..=10 -> a+b in 2..=20) | `pending/proofs/linear_range_sum_false_twin` (upper corner 19) | interval arithmetic through `+` over requires-derived ranges (the interval evaluator in `psi-proof/src/checker.rs` already does this shape for bounded types; it needs to read contract ranges) |
 | L3 | `proof_congruence_add_constant` (a==b -> a+1==b+1) | `pending/proofs/congruence_false_twin` (a+1==b+2) | rewriting under stored equations + constant normalization |
 | L4 | `proof_addition_commutativity` (a+b == b+a) | `pending/proofs/addition_commutativity_false_twin` (b+a+1) | term normalization: canonical sum-of-monomials form |
 | L5 | `proof_nonlinear_square_range` (a in 0..=10 -> a*a in 0..=100) | `pending/proofs/nonlinear_square_range_false_twin` (0..=99) | interval products (first nonlinear step; needs care with correlated operands -- a*a, not independent a*b) |

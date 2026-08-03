@@ -4,12 +4,12 @@ use crate::obligations::{
     ProofConstraint, ProofObligation, ProofPlan, dehoisted_condition, dehoisted_operand,
     integer_binary_range,
 };
-use omega_core::arena::HandleSpan;
-use omega_core::bignum::BigInt;
-use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-use omega_typed_trees::name::Identifier;
-use omega_typed_trees::statement::{StatementNode, TransitionGuardNode};
+use psi_arena::HandleSpan;
+use psi_diagnostics::Diagnostic;
+use psi_numerics::bignum::BigInt;
+use psi_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use psi_typed_trees::name::Identifier;
+use psi_typed_trees::statement::{StatementNode, TransitionGuardNode};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct FloatRange {
@@ -1014,18 +1014,18 @@ fn operand_is_unsigned(
     };
     matches!(
         constraints,
-        omega_typed_trees::types::PrimitiveType::U8
-            | omega_typed_trees::types::PrimitiveType::U16
-            | omega_typed_trees::types::PrimitiveType::U32
-            | omega_typed_trees::types::PrimitiveType::U64
-            | omega_typed_trees::types::PrimitiveType::Addr
+        psi_typed_trees::types::PrimitiveType::U8
+            | psi_typed_trees::types::PrimitiveType::U16
+            | psi_typed_trees::types::PrimitiveType::U32
+            | psi_typed_trees::types::PrimitiveType::U64
+            | psi_typed_trees::types::PrimitiveType::Addr
     )
 }
 
 fn operand_declared_primitive(
     proof_plan: &ProofPlan,
     handle: ExpressionHandle,
-) -> Option<omega_typed_trees::types::PrimitiveType> {
+) -> Option<psi_typed_trees::types::PrimitiveType> {
     // Member place (`self.n`): resolve through the attached data's field.
     let program = proof_plan.program;
     let ExpressionNode::Member(member) = program.expression_table.expression(handle) else {
@@ -1073,7 +1073,7 @@ fn assignment_guard_is_stable(
     obligation: &BoundedAssignmentObligation,
     guard: &TransitionGuardNode,
 ) -> bool {
-    use omega_typed_trees::statement::StatementNode;
+    use psi_typed_trees::statement::StatementNode;
 
     let program = proof_plan.program;
     let Some(machine) = program
@@ -1114,7 +1114,7 @@ fn assignment_guard_is_stable(
         collect_read_place_paths(proof_plan, operands.left, &mut read_paths);
         collect_read_place_paths(proof_plan, operands.right, &mut read_paths);
     }
-    let Some(call_frames) = omega_validation::CallFrameResolver::new(program) else {
+    let Some(call_frames) = psi_validation::CallFrameResolver::new(program) else {
         return false;
     };
 
@@ -1180,7 +1180,7 @@ fn resolved_writes_overlap_reads(written: &[String], reads: &[Vec<String>]) -> b
         let read = read.join(".");
         written
             .iter()
-            .any(|write| omega_validation::frame_paths_overlap(&read, write))
+            .any(|write| psi_validation::frame_paths_overlap(&read, write))
     })
 }
 
@@ -1395,7 +1395,7 @@ fn neutral_range() -> IntegerRange {
 /// The `[v, v]` interval for a literal -- exact at any magnitude (N2); the
 /// D14 width gate still owns which POSITIONS may spell an oversize literal.
 fn integer_range_for_literal(
-    literal: &omega_core::literals::IntegerLiteral,
+    literal: &psi_numerics::literals::IntegerLiteral,
 ) -> Option<IntegerRange> {
     let value = literal.value_bignum()?;
     Some(IntegerRange {
@@ -1480,7 +1480,7 @@ fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<Float
     range
 }
 
-fn finite_float_literal(value: &omega_typed_trees::expression::FloatLiteral) -> Option<f64> {
+fn finite_float_literal(value: &psi_typed_trees::expression::FloatLiteral) -> Option<f64> {
     let value = value.value();
     value.is_finite().then_some(value)
 }
@@ -1667,8 +1667,8 @@ fn apply_source_condition(
     range: IntegerRange,
     argument: ExpressionHandle,
     condition: ExpressionHandle,
-    machine_symbol: omega_core::symbols::SymbolHandle,
-    source_state: omega_core::symbols::SymbolHandle,
+    machine_symbol: psi_symbols::SymbolHandle,
+    source_state: psi_symbols::SymbolHandle,
 ) -> IntegerRange {
     // A hoisted GUARD SUBJECT is a bare name whose initializer is the actual
     // comparison (`transition __hoist_N { .. }`): resolve it in the SOURCE
@@ -2292,7 +2292,7 @@ fn guard_conjunct_proves_dependent_upper(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) = omega_typed_trees::dependent_ranges::symbolic_max_bound(
+    let Some(bound) = psi_typed_trees::dependent_ranges::symbolic_max_bound(
         &proof_plan.program.expression_table,
         bound_side,
     ) else {
@@ -2339,10 +2339,10 @@ fn dependent_field_floor(
 /// permissive -- probed live on the store side -- and must never discharge a
 /// bound). Mirrors the checker crate's `enforced_range_of_type_reference`.
 fn enforced_literal_range_minimum(
-    program: &omega_typed_trees::TypedTrees,
-    handle: omega_typed_trees::types::TypeReferenceHandle,
+    program: &psi_typed_trees::TypedTrees,
+    handle: psi_typed_trees::types::TypeReferenceHandle,
 ) -> Option<i64> {
-    use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             enforced_literal_range_minimum(program, *referee)
@@ -2356,7 +2356,7 @@ fn enforced_literal_range_minimum(
                 matches!(
                     constraint,
                     TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+                        if *domain != psi_numerics::arithmetic::ArithmeticDomain::Exact
                 )
             }) {
                 return None;
@@ -2410,7 +2410,7 @@ fn state_preserves_field(
     state_name: &str,
     field: &Identifier,
 ) -> bool {
-    use omega_typed_trees::statement::StatementNode;
+    use psi_typed_trees::statement::StatementNode;
     let program = &proof_plan.program;
     let Some(machine) = program
         .machines()
@@ -2426,7 +2426,7 @@ fn state_preserves_field(
     else {
         return false;
     };
-    let call_frames = omega_validation::CallFrameResolver::new(program);
+    let call_frames = psi_validation::CallFrameResolver::new(program);
     let field_path = format!("self.{}", field.as_str());
     for statement in program.statement_table.statements(state.statement_nodes) {
         let Some(value_written) = call_frames
@@ -2437,7 +2437,7 @@ fn state_preserves_field(
         };
         if value_written
             .iter()
-            .any(|written| omega_validation::frame_paths_overlap(&field_path, written))
+            .any(|written| psi_validation::frame_paths_overlap(&field_path, written))
         {
             return false;
         }
@@ -2456,7 +2456,7 @@ fn state_preserves_field(
                 };
                 if written
                     .iter()
-                    .any(|written| omega_validation::frame_paths_overlap(&field_path, written))
+                    .any(|written| psi_validation::frame_paths_overlap(&field_path, written))
                 {
                     return false;
                 }
@@ -2571,7 +2571,7 @@ fn sibling_conjunct_proves(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) = omega_typed_trees::dependent_ranges::sibling_len_bound(
+    let Some(bound) = psi_typed_trees::dependent_ranges::sibling_len_bound(
         &proof_plan.program.expression_table,
         bound_side,
     )
