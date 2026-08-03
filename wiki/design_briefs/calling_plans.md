@@ -680,10 +680,10 @@ binding plan is not substituted for those internal signatures.
 Register-resident AArch64 C/import emission now also evaluates AAPCS64 from the
 selected operand shapes and passes the exact planned X/V argument and result
 registers to the ISA encoder. Scalar stack arguments and flat HFA arguments and
-results consume normalized stack or fragmented vector placements. The Darwin
-variadic `open` compatibility seam still handles its anonymous trailing stack
-argument specially, while its named arguments and result consume the normalized
-plan. The general Microsoft
+results consume normalized stack or fragmented vector placements. Darwin
+variadic `open_create` evaluates one concrete fixed-plus-anonymous signature;
+its named arguments, stack mode, and result all consume that complete plan. The
+general Microsoft
 x64 import encoder now receives its policy from the concrete target,
 evaluates selected scalar/pointer operand shapes, and consumes the plan's exact
 RCX/RDX/R8/R9, shadow-relative stack, and RAX-result placements. A non-Microsoft
@@ -934,9 +934,10 @@ consume retained argument placements in both relocation walks, so an
 outgoing-stack placement cannot leave emission and relocation accounting on
 different plans. Composite adapter-owned native calls continue to consume
 their separately normalized concrete subcall signatures; an outer source
-boundary plan is not a replacement for the adapter's internal ABI call. The
-Darwin anonymous-variadic `open_create` seam remains explicitly outside this
-claim until `CallSignature` can represent its concrete trailing variadic.
+boundary plan is not a replacement for the adapter's internal ABI call. Darwin
+anonymous-variadic `open_create` is now covered through its concrete adapter
+signature rather than forcing that internal fixed/anonymous boundary into the
+outer source binding plan.
 
 The unused x86-64 call/data relocation wrappers that silently selected
 Microsoft x64 are now retired. The object relocation walk also no longer makes
@@ -948,9 +949,10 @@ Concrete promoted variadic calls now have a normalized signature that retains
 the fixed/anonymous parameter boundary. The first Darwin AAPCS64 evaluator
 keeps fixed parameters on the ordinary plan and places promoted anonymous
 scalars in the outgoing stack area; a focused `open(path, flags, mode)` plan
-pins `mode` at stack offset zero. The existing open-create encoder and its
-relocation walkers still need to consume that complete plan before the
-operation-key compatibility seam can be retired.
+pins `mode` at stack offset zero. The open-create encoder, layout width, call
+relocation, and data relocation now consume that complete plan. Their former
+manual `+8`/`+12` stack accounting and trailing-mode operation classifier are
+retired; the operation key only selects the concrete adapter subcall.
 
 Remaining order:
 

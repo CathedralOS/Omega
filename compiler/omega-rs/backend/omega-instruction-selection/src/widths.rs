@@ -269,21 +269,15 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             // lockstep with the encoder + the data-address relocation offset.
             // A float-returning op (sqrt/hypot) likewise emits one extra `fmov
             // x0,d0` (4 bytes) in the same slot (same lockstep discipline).
-            // A stack-mode op (`open_create`) brackets the call with `sub sp` +
-            // `str [sp]` + `add sp` = 12 bytes beyond counting the mode immediate
-            // as a register arg (same lockstep discipline).
+            // Outgoing stack reserve/store/restore widths come from the same
+            // normalized placements consumed by emission and relocation.
             let deref = if operation_key.dereferences_result() {
                 4
             } else {
                 0
             };
             let float_return = if operation_key.returns_float() { 4 } else { 0 };
-            let stack_mode = if operation_key.passes_trailing_mode_on_stack() {
-                12
-            } else {
-                0
-            };
-            base + planned_stack + deref + float_return + stack_mode
+            base + planned_stack + deref + float_return
         }
         Architecture::X86_64 => x86_64::host_call_sequence_width(
             omega_calling_conventions::CallingPolicy::native_for_target(target),

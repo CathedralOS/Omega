@@ -46,10 +46,8 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
 
     // AArch64 value-returning layout is `[args (operands[1..])] [BL] [result
     // store]`, so the branch sits after the ARGS only — the result operand[0]
-    // is stored after the call, not marshalled before it. A stack-mode op
-    // (`open_create`) inserts `sub sp` + `str [sp]` (8 bytes) between the register
-    // args and the `BL` (the `add sp` is AFTER the BL, so it does not shift it),
-    // beyond counting the mode immediate as a register arg.
+    // is stored after the call, not marshalled before it. Outgoing stack setup
+    // comes from the same normalized placements consumed by the encoder.
     // A source-authored external import (custom capability) always
     // rides the value-returning layout -- the blocker enforces the
     // result-binding shape and the encoder routes it there; the catalog
@@ -63,18 +61,12 @@ pub(crate) fn external_call_relocation_offset_with_plan<T: InstructionOperandLik
                 authoritative_plan,
             )
             .unwrap_or_default();
-        let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
-            8
-        } else {
-            0
-        };
         return selected_text_offset
             + operands
                 .iter()
                 .skip(1)
                 .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
                 .sum::<usize>()
-            + stack_mode_bytes
             + omega_instruction_selection::aarch64_host_call_stack_prefix_width_for_placements(
                 &argument_placements,
                 argument_placements.len(),
@@ -132,11 +124,47 @@ mod tests {
     use super::{external_call_relocation_offset, external_call_relocation_offset_with_plan};
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
     use omega_calling_conventions::{
-        CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+        CallSignature, CallingPolicy, HostCapability, HostOperation, HostOperationKey,
+        ValueLocation, ValueShape, evaluate_call_plan,
     };
     use omega_target::NativeTarget;
     use omega_target_operations::{RuntimeStorageRegion, TargetDataObject};
     use psi_arena::Handle;
+
+    #[test]
+    fn darwin_open_create_branch_relocation_follows_the_complete_variadic_plan() {
+        let operands = [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 4,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::DataAddress {
+                    data: Handle::<TargetDataObject>::invalid(),
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(0x201),
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(0o644),
+            },
+        ];
+
+        assert_eq!(
+            external_call_relocation_offset(
+                NativeTarget::macos_arm64(),
+                HostOperationKey::new(HostCapability::Filesystem, HostOperation::OpenCreate),
+                20,
+                &operands,
+                false,
+            ),
+            44
+        );
+    }
 
     #[test]
     fn authored_sysv_call_relocation_follows_aggregate_marshalling() {

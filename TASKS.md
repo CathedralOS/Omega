@@ -836,8 +836,10 @@ Remaining:
   callers now name a policy or supply the retained plan. Concrete promoted
   variadic signatures now preserve their fixed/anonymous parameter boundary;
   the Darwin AAPCS64 planner places anonymous scalar arguments on the outgoing
-  stack and pins the `open(path, flags, mode)` shape, while its emission and
-  relocation consumers still need to migrate off the compatibility seam; and
+  stack and pins the `open(path, flags, mode)` shape. The `open_create`
+  encoder, layout width, call relocation, and data relocation now consume that
+  complete concrete plan; the duplicated `+8`/`+12` accounting and trailing-mode
+  operation classifier are retired; and
 - delete compatibility fields after their final consumer migrates.
 
 Acceptance: changing a normalized plan changes lowering or rejects; changing

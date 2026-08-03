@@ -450,10 +450,8 @@ fn data_address_relocation_offset_with_plan(
             // deref-result op (errno) inserts an extra `ldr w0,[x0]` (4) between
             // the BL and the store, pushing the store's page-pair 4 bytes later.
             // A float-returning op (sqrt/hypot) inserts an extra `fmov x0,d0` (4)
-            // in that same slot (same shift). A stack-mode op (`open_create`)
-            // brackets the call with `sub sp` (before BL) + `str [sp]` (before BL)
-            // + `add sp` (after BL) = 12 bytes beyond counting the mode immediate
-            // as a register arg.
+            // in that same slot (same shift). Outgoing stack setup and teardown
+            // come from the same normalized placements consumed by the encoder.
             let deref_bytes = if operation_key.dereferences_result() {
                 4
             } else {
@@ -471,17 +469,11 @@ fn data_address_relocation_offset_with_plan(
             } else {
                 0
             };
-            let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
-                12
-            } else {
-                0
-            };
             return selected_text_offset
                 + arg_bytes(1..operands.len())
                 + 4
                 + deref_bytes
                 + float_return_bytes
-                + stack_mode_bytes
                 + omega_instruction_selection::aarch64_host_call_stack_total_width_for_placements(
                     &argument_placements,
                 );
@@ -538,11 +530,71 @@ mod tests {
     };
     use omega_assigned_target_operations::{InstructionOperand, InstructionOperandKind};
     use omega_calling_conventions::{
-        CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+        CallSignature, CallingPolicy, HostCapability, HostOperation, HostOperationKey,
+        ValueLocation, ValueShape, evaluate_call_plan,
     };
     use omega_target::{Architecture, NativeTarget};
     use omega_target_operations::{RuntimeStorageRegion, TargetDataObject};
     use psi_arena::Handle;
+
+    fn darwin_open_create_operands() -> [InstructionOperand; 4] {
+        [
+            InstructionOperand {
+                kind: InstructionOperandKind::RuntimeScalarInteger {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: 0,
+                    byte_count: 4,
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::DataAddress {
+                    data: Handle::<TargetDataObject>::invalid(),
+                },
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(0x201),
+            },
+            InstructionOperand {
+                kind: InstructionOperandKind::ImmediateInteger(0o644),
+            },
+        ]
+    }
+
+    #[test]
+    fn darwin_open_create_data_relocations_follow_the_complete_variadic_plan() {
+        let operands = darwin_open_create_operands();
+        let operation = Some(HostOperationKey::new(
+            HostCapability::Filesystem,
+            HostOperation::OpenCreate,
+        ));
+
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::macos_arm64(),
+                operation,
+                &operands,
+                20,
+                1,
+                false,
+                None,
+                false,
+            ),
+            24
+        );
+        assert_eq!(
+            data_address_relocation_offset_for_target(
+                NativeTarget::macos_arm64(),
+                operation,
+                &operands,
+                20,
+                0,
+                false,
+                None,
+                false,
+            ),
+            52
+        );
+    }
 
     #[test]
     fn offsets_data_address_by_prior_operand_widths() {

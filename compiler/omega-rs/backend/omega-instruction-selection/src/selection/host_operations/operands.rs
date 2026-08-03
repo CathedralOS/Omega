@@ -1270,9 +1270,9 @@ pub(super) fn select_host_operation_operands(
             // Value-returning `rc = change_owner(path, uid, gid) -> _chown(path,
             // uid, gid)` (and `_lchown`), plus `fd = open_create(path, flags, mode)
             // -> _open(path, flags, mode)` -- ALL `[result, path POINTER, scalar,
-            // scalar]`. `open_create` differs ONLY in the encoder: its trailing
-            // `mode` is marshalled on the STACK (variadic), keyed on
-            // `passes_trailing_mode_on_stack()`. operand[0]=result, [1]=path,
+            // scalar]`. `open_create` differs in its concrete adapter subcall:
+            // the normalized Darwin variadic plan marshals trailing `mode` on
+            // the stack. operand[0]=result, [1]=path,
             // [2]=uid/flags, [3]=gid/mode.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);

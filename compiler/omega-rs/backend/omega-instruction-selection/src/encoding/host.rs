@@ -1,7 +1,9 @@
 use crate::aarch64_call_operand;
 use omega_calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, EntryControl, HostOperationKey, MachineRegister,
-    ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan, validate_call_plan,
+    CallPlan, CallSignature, CallingPolicy, ConcreteVariadicCallSignature, EntryControl,
+    HostCapability, HostOperation, HostOperationKey, MachineRegister, ValueLocation,
+    ValuePlacement, ValueShape, evaluate_call_plan, evaluate_darwin_aapcs64_variadic_call_plan,
+    validate_call_plan,
 };
 use omega_isa_aarch64::aarch64;
 use omega_isa_x86_64 as x86_64;
@@ -493,7 +495,6 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Integer,
-                false,
                 authoritative_plan,
             )?;
             aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
@@ -502,14 +503,11 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
                 scalar_result_register(result.as_ref(), "integer")?,
             )
         }
-        // Stack-mode ops (`open_create`) also share `returns_value()` but bracket
-        // the call with `sub sp`/`str [sp]`/`add sp` to pass the variadic `mode`
-        // on the stack; checked before the plain value-returning arm. Its outer
-        // source signature still describes `mode` as an ordinary parameter, so
-        // it cannot validate the concrete anonymous-variadic subcall plan yet.
-        Architecture::Aarch64 if operation_key.passes_trailing_mode_on_stack() => {
-            let (arguments, result) =
-                normalized_aarch64_import_plan(operands, Aarch64ImportResult::Integer, true)?;
+        // Darwin `open_create` owns a concrete adapter subcall signature whose
+        // promoted anonymous mode parameter is stack-placed by its normalized
+        // Apple AAPCS64 plan.
+        Architecture::Aarch64 if is_open_create(operation_key) => {
+            let (arguments, result) = normalized_darwin_open_create_plan(operands)?;
             aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
                 operands.iter().map(aarch64_call_operand),
                 &arguments,
@@ -523,7 +521,6 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Float,
-                false,
                 authoritative_plan,
             )?;
             aarch64::encode_host_call_sequence_value_returning_float_from_operands(
@@ -545,7 +542,6 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Integer,
-                false,
                 authoritative_plan,
             )?;
             aarch64::encode_host_call_sequence_value_returning_from_operands(
@@ -558,7 +554,6 @@ pub fn encode_host_call_sequence_with_plan<T: InstructionOperandLike>(
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::None,
-                false,
                 authoritative_plan,
             )?;
             debug_assert!(result.is_none());
@@ -595,7 +590,6 @@ pub fn encode_authored_import_call_sequence<T: InstructionOperandLike>(
             let (arguments, result) = normalized_aarch64_import_plan_with_authoritative(
                 operands,
                 Aarch64ImportResult::Authored,
-                false,
                 authoritative_plan,
             )?;
             let result = result.as_ref().ok_or_else(|| {
@@ -681,6 +675,9 @@ pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOpera
     authored_import: bool,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<Vec<ValuePlacement>, Diagnostic> {
+    if is_open_create(operation_key) {
+        return normalized_darwin_open_create_plan(operands).map(|(placements, _)| placements);
+    }
     let result_kind = if authored_import {
         Aarch64ImportResult::Authored
     } else if operation_key.dereferences_result() {
@@ -698,13 +695,8 @@ pub fn normalized_aarch64_host_argument_placements_with_plan<T: InstructionOpera
     } else {
         Aarch64ImportResult::None
     };
-    normalized_aarch64_import_plan_with_authoritative(
-        operands,
-        result_kind,
-        operation_key.passes_trailing_mode_on_stack(),
-        authoritative_plan,
-    )
-    .map(|(placements, _)| placements)
+    normalized_aarch64_import_plan_with_authoritative(operands, result_kind, authoritative_plan)
+        .map(|(placements, _)| placements)
 }
 
 pub fn normalized_aarch64_vtable_argument_placements<T: InstructionOperandLike>(
@@ -732,7 +724,6 @@ pub fn normalized_aarch64_vtable_plan_with_plan<T: InstructionOperandLike>(
         } else {
             Aarch64ImportResult::None
         },
-        false,
         authoritative_plan,
     )?;
     debug_assert_eq!(result.is_some(), result_present);
@@ -800,7 +791,6 @@ pub fn normalized_aarch64_table_function_plan_with_plan<T: InstructionOperandLik
             } else {
                 Aarch64ImportResult::None
             },
-            false,
             authoritative_plan,
         )?;
     debug_assert_eq!(result.is_some(), result_present);
@@ -900,35 +890,78 @@ pub fn aarch64_host_call_stack_total_width_for_placements(placements: &[ValuePla
     omega_isa_aarch64::aarch64::host_call_stack_total_width_for_placements(placements)
 }
 
+fn normalized_darwin_open_create_plan<T: InstructionOperandLike>(
+    operands: &[T],
+) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
+    use omega_isa_aarch64::Aarch64CallOperand;
+
+    let operands = operands
+        .iter()
+        .map(aarch64_call_operand)
+        .collect::<Vec<_>>();
+    let Some((result, arguments)) = operands.split_first() else {
+        return Err(Diagnostic::error(
+            "Darwin open_create import has no result storage operand",
+        ));
+    };
+    let [path, flags, mode] = arguments else {
+        return Err(Diagnostic::error(
+            "Darwin open_create import requires path, flags, and mode operands",
+        ));
+    };
+    let result = aarch64_result_shape(*result, false)?;
+    if result != ValueShape::integer(4, 4)
+        || aarch64_operand_shape(*path)? != ValueShape::integer(8, 8)
+        || !matches!(
+            flags,
+            Aarch64CallOperand::ImmediateInteger(_)
+                | Aarch64CallOperand::RuntimeScalarInteger { byte_count: 4, .. }
+        )
+        || !matches!(mode, Aarch64CallOperand::ImmediateInteger(_))
+    {
+        return Err(Diagnostic::error(
+            "Darwin open_create concrete subcall must be int open(pointer, int, promoted int)",
+        ));
+    }
+
+    let signature = ConcreteVariadicCallSignature {
+        fixed_parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(4, 4)],
+        variadic_parameters: vec![ValueShape::integer(4, 4)],
+        result: Some(result),
+    };
+    let plan = evaluate_darwin_aapcs64_variadic_call_plan(&signature).map_err(|error| {
+        Diagnostic::error(format!(
+            "cannot evaluate Darwin AAPCS64 open_create plan: {error}"
+        ))
+    })?;
+    validate_aarch64_import_plan(&plan)?;
+    Ok((plan.parameters, plan.result))
+}
+
+fn is_open_create(operation_key: HostOperationKey) -> bool {
+    matches!(
+        (operation_key.capability, operation_key.operation),
+        (HostCapability::Filesystem, HostOperation::OpenCreate)
+    )
+}
+
 /// ENT2c: evaluate the AAPCS64 call surface from the actual selected operands.
 /// The encoder receives exact register/stack locations and may no longer
 /// reconstruct x0../v0.. or outgoing offsets independently. Scalar integer,
 /// pointer, and float stack placements plus register-resident flat HFA
 /// fragments, contiguous HFA stack placements, and authored HFA results are
 /// supported.
-///
-/// `trailing_variadic_stack` is the compatibility seam for Darwin `open`:
-/// its anonymous `mode` argument is intentionally stack-passed by Apple's
-/// variadic ABI and is not yet representable in `CallSignature`. The named
-/// arguments and result still consume the normalized plan here; the final
-/// stack operand remains with the existing checked special-case encoder.
+#[cfg(test)]
 fn normalized_aarch64_import_plan<T: InstructionOperandLike>(
     operands: &[T],
     result_kind: Aarch64ImportResult,
-    trailing_variadic_stack: bool,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    normalized_aarch64_import_plan_with_authoritative(
-        operands,
-        result_kind,
-        trailing_variadic_stack,
-        None,
-    )
+    normalized_aarch64_import_plan_with_authoritative(operands, result_kind, None)
 }
 
 fn normalized_aarch64_import_plan_with_authoritative<T: InstructionOperandLike>(
     operands: &[T],
     result_kind: Aarch64ImportResult,
-    trailing_variadic_stack: bool,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
     let aarch64_operands = operands
@@ -938,7 +971,6 @@ fn normalized_aarch64_import_plan_with_authoritative<T: InstructionOperandLike>(
     normalized_aarch64_import_plan_from_call_operands_with_authoritative(
         &aarch64_operands,
         result_kind,
-        trailing_variadic_stack,
         authoritative_plan,
     )
 }
@@ -946,10 +978,9 @@ fn normalized_aarch64_import_plan_with_authoritative<T: InstructionOperandLike>(
 fn normalized_aarch64_import_plan_from_call_operands_with_authoritative(
     aarch64_operands: &[omega_isa_aarch64::Aarch64CallOperand],
     result_kind: Aarch64ImportResult,
-    trailing_variadic_stack: bool,
     authoritative_plan: Option<&CallPlan>,
 ) -> Result<(Vec<ValuePlacement>, Option<ValuePlacement>), Diagnostic> {
-    let (result_operand, mut arguments) = match result_kind {
+    let (result_operand, arguments) = match result_kind {
         Aarch64ImportResult::None => (None, aarch64_operands),
         Aarch64ImportResult::Integer
         | Aarch64ImportResult::Float
@@ -962,15 +993,6 @@ fn normalized_aarch64_import_plan_from_call_operands_with_authoritative(
             (Some(*result), arguments)
         }
     };
-    if trailing_variadic_stack {
-        let Some((_, named_arguments)) = arguments.split_last() else {
-            return Err(Diagnostic::error(
-                "AArch64 variadic import is missing its stack argument",
-            ));
-        };
-        arguments = named_arguments;
-    }
-
     let signature = CallSignature {
         parameters: arguments
             .iter()
@@ -2670,13 +2692,76 @@ mod sysv_field_call_tests {
 #[cfg(test)]
 mod aarch64_import_plan_tests {
     use super::*;
-    use omega_calling_conventions::RegisterSet;
+    use omega_calling_conventions::{HostCapability, HostOperation, RegisterSet};
     use omega_target_operations::{
         RuntimeStorageRegion, TargetInstructionOperand, TargetInstructionOperandKind,
     };
 
     fn operand(kind: TargetInstructionOperandKind) -> TargetInstructionOperand {
         TargetInstructionOperand { kind }
+    }
+
+    #[test]
+    fn darwin_open_create_consumes_one_complete_variadic_plan() {
+        let operands = [
+            operand(TargetInstructionOperandKind::RuntimeScalarInteger {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: 0,
+                byte_count: 4,
+            }),
+            operand(TargetInstructionOperandKind::DataAddress {
+                data: psi_arena::Handle::invalid(),
+            }),
+            operand(TargetInstructionOperandKind::ImmediateInteger(0x201)),
+            operand(TargetInstructionOperandKind::ImmediateInteger(0o644)),
+        ];
+        let (parameters, result) =
+            normalized_darwin_open_create_plan(&operands).expect("Darwin variadic open plan");
+
+        assert_eq!(
+            parameters
+                .iter()
+                .flat_map(|placement| placement.locations.iter().copied())
+                .collect::<Vec<_>>(),
+            [
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(0),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(1),
+                    value_byte_offset: 0,
+                    byte_size: 4,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 4,
+                    alignment: 8,
+                },
+            ]
+        );
+        assert_eq!(
+            result.expect("open result").locations,
+            [ValueLocation::Register {
+                register: MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 4,
+            }]
+        );
+
+        let operation =
+            HostOperationKey::new(HostCapability::Filesystem, HostOperation::OpenCreate);
+        let bytes = encode_host_call_sequence(NativeTarget::macos_arm64(), operation, &operands)
+            .expect("plan-driven Darwin open_create encoding");
+        assert_eq!(
+            bytes.len(),
+            crate::host_call_sequence_width(NativeTarget::macos_arm64(), operation, &operands)
+        );
+        assert_eq!(&bytes[..4], &0xd100_43ff_u32.to_le_bytes());
+        assert_eq!(&bytes[24..28], &0x9400_0000_u32.to_le_bytes());
+        assert_eq!(&bytes[28..32], &0x9100_43ff_u32.to_le_bytes());
     }
 
     #[test]
@@ -2696,7 +2781,7 @@ mod aarch64_import_plan_tests {
         ];
 
         let (parameters, result) =
-            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None, false)
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None)
                 .expect("register-resident mixed AAPCS call");
 
         assert_eq!(
@@ -2882,7 +2967,7 @@ mod aarch64_import_plan_tests {
             .collect::<Vec<_>>();
 
         let (locations, result) =
-            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None, false)
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None)
                 .expect("ninth AAPCS integer argument has a scalar stack placement");
 
         assert_eq!(result, None);
@@ -3140,9 +3225,8 @@ mod aarch64_import_plan_tests {
             })
             .collect::<Vec<_>>();
 
-        let (locations, _) =
-            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None, false)
-                .expect("ninth AAPCS float argument has a stack placement");
+        let (locations, _) = normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None)
+            .expect("ninth AAPCS float argument has a stack placement");
         assert_eq!(
             locations[8].locations[0],
             ValueLocation::Stack {
@@ -3166,7 +3250,7 @@ mod aarch64_import_plan_tests {
         )];
 
         let (placements, result) =
-            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None, false)
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::None)
                 .expect("three-member HFA plan");
         assert_eq!(result, None);
         assert_eq!(placements.len(), 1);
@@ -3196,7 +3280,7 @@ mod aarch64_import_plan_tests {
         ];
 
         let (parameters, result) =
-            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::Authored, false)
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::Authored)
                 .expect("authored HFA result plan");
         let result = result.expect("fragmented result placement");
 
@@ -3232,7 +3316,7 @@ mod aarch64_import_plan_tests {
         };
         let operands = [aggregate(), aggregate()];
         let (parameters, result) =
-            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::Authored, false)
+            normalized_aarch64_import_plan(&operands, Aarch64ImportResult::Authored)
                 .expect("authored large aggregate call plan");
 
         assert!(matches!(
