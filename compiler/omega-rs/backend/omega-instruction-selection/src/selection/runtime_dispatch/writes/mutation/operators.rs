@@ -126,6 +126,36 @@ fn builtin_runtime_call_operator_by_symbol(
     if Some(target_symbol) == symbols.builtin_function_symbol(BuiltinFunction::Min) {
         return Some(StateGuardOperator::Min);
     }
+    for (builtin, operator) in [
+        (
+            BuiltinFunction::FloatAddTowardZeroF32,
+            StateGuardOperator::AddTowardZero,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardZeroF64,
+            StateGuardOperator::AddTowardZero,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardPositiveF32,
+            StateGuardOperator::AddTowardPositive,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardPositiveF64,
+            StateGuardOperator::AddTowardPositive,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardNegativeF32,
+            StateGuardOperator::AddTowardNegative,
+        ),
+        (
+            BuiltinFunction::FloatAddTowardNegativeF64,
+            StateGuardOperator::AddTowardNegative,
+        ),
+    ] {
+        if Some(target_symbol) == symbols.builtin_function_symbol(builtin) {
+            return Some(operator);
+        }
+    }
 
     None
 }

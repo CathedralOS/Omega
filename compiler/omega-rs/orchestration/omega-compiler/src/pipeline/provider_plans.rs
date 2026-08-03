@@ -636,6 +636,9 @@ fn expected_float_intrinsic(
                 "negate" | "square_root" | "classify" | "is_nan" | "is_finite" | "is_infinite"
                 | "is_normal" | "is_subnormal" => requirement.as_str(),
                 "multiply_then_add" | "fused_multiply_add" => requirement.as_str(),
+                "add_toward_zero" | "add_toward_positive" | "add_toward_negative" => {
+                    requirement.as_str()
+                }
                 _ => return None,
             };
             let expected_primitive = if namespace.as_str() == "F32" {
@@ -663,7 +666,16 @@ fn expected_float_intrinsic(
                         return None;
                     }
                 }
-                [left, right] if matches!(operation, "minimum" | "maximum") => {
+                [left, right]
+                    if matches!(
+                        operation,
+                        "minimum"
+                            | "maximum"
+                            | "add_toward_zero"
+                            | "add_toward_positive"
+                            | "add_toward_negative"
+                    ) =>
+                {
                     if typed.primitive_type_reference(left.type_reference)
                         != Some(expected_primitive)
                         || typed.primitive_type_reference(right.type_reference)

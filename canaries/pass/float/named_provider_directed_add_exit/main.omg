@@ -1,0 +1,72 @@
+// The first native directed-rounding provider cohort. Each operation changes
+// rounding for exactly one add and restores the prior control state before the
+// following checked operation. Half-ULP ties distinguish all three directed
+// meanings from an accidental nearest-even or leaked ambient mode.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    one32: f32;
+    half32: f32;
+    next32: f32;
+    negative_one32: f32;
+    negative_next32: f32;
+    positive32: f32;
+    zero32: f32;
+    negative32: f32;
+    ordinary32: f32;
+    one64: f64;
+    half64: f64;
+    next64: f64;
+    negative_one64: f64;
+    negative_next64: f64;
+    positive64: f64;
+    zero64: f64;
+    negative64: f64;
+    ordinary64: f64;
+}
+
+machine Main::main(&mut self) {
+    self.one32 = 1.0f32;
+    self.half32 = 0.000000059604644775390625f32;
+    self.next32 = 1.00000011920928955078125f32;
+    self.negative_one32 = 0.0f32 - self.one32;
+    self.negative_next32 = 0.0f32 - self.next32;
+    self.positive32 = F32::add_toward_positive(self.one32, self.half32);
+    self.zero32 = F32::add_toward_zero(self.one32, self.half32);
+    self.negative32 = F32::add_toward_negative(
+        self.negative_one32,
+        0.0f32 - self.half32
+    );
+    self.ordinary32 = self.one32 + self.half32;
+
+    self.one64 = 1.0;
+    self.half64 = 0.00000000000000011102230246251565404236316680908203125;
+    self.next64 = 1.0000000000000002220446049250313080847263336181640625;
+    self.negative_one64 = 0.0 - self.one64;
+    self.negative_next64 = 0.0 - self.next64;
+    self.positive64 = F64::add_toward_positive(self.one64, self.half64);
+    self.zero64 = F64::add_toward_zero(self.one64, self.half64);
+    self.negative64 = F64::add_toward_negative(
+        self.negative_one64,
+        0.0 - self.half64
+    );
+    self.ordinary64 = self.one64 + self.half64;
+
+    transition self.positive32 == self.next32
+        && self.zero32 == self.one32
+        && self.negative32 == self.negative_next32
+        && self.ordinary32 == self.one32
+        && self.positive64 == self.next64
+        && self.zero64 == self.one64
+        && self.negative64 == self.negative_next64
+        && self.ordinary64 == self.one64 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

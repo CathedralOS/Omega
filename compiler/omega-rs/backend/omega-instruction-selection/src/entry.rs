@@ -407,7 +407,11 @@ pub fn derive_boundary_runtime_value_guard_footprint<'instruction>(
             ),
             omega_target::Architecture::Aarch64 => (
                 omega_isa_aarch64::runtime_value_compare_register_write_ceiling(),
-                omega_isa_aarch64::runtime_value_compare_additional_machine_state(),
+                omega_isa_aarch64::runtime_value_compare_additional_machine_state(
+                    runtime_value_operands,
+                    *left,
+                    *right,
+                ),
             ),
         };
         registers.extend_from_slice(writes.as_slice());
@@ -1475,9 +1479,9 @@ mod tests {
         let right = operands.insert(omega_abstract_operations::ValueOperand::Immediate(2));
         let binary = operands.insert(omega_abstract_operations::ValueOperand::Binary {
             left,
-            operator: omega_abstract_operations::StateGuardOperator::Add,
+            operator: omega_abstract_operations::StateGuardOperator::AddTowardPositive,
             right,
-            is_float: false,
+            is_float: true,
             byte_width: 8,
             arithmetic_domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
             operands_signed: false,
@@ -1527,6 +1531,7 @@ mod tests {
         assert!(evidence.machine_state().contains_all(MachineStateSet::new([
             MachineState::Flags,
             MachineState::StackPointer,
+            MachineState::ControlState,
         ])));
     }
 
@@ -1554,11 +1559,10 @@ mod tests {
                 .chain([MachineRegister::Aarch64V(0), MachineRegister::Aarch64V(1),])
                 .collect::<Vec<_>>()
         );
-        assert!(
-            evidence
-                .machine_state()
-                .contains_all(MachineStateSet::new([MachineState::Flags]))
-        );
+        assert!(evidence.machine_state().contains_all(MachineStateSet::new([
+            MachineState::Flags,
+            MachineState::ControlState,
+        ])));
         assert!(
             !evidence
                 .machine_state()

@@ -7904,6 +7904,25 @@ fn runtime_value_operand_uses_stack(
     }
 }
 
+fn runtime_value_operand_uses_control_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> bool {
+    if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        matches!(
+            operator,
+            StateGuardOperator::AddTowardZero
+                | StateGuardOperator::AddTowardPositive
+                | StateGuardOperator::AddTowardNegative
+        ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
+            || runtime_value_operand_uses_control_state(runtime_value_operands, right)
+    } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
+        runtime_value_operand_uses_control_state(runtime_value_operands, source)
+    } else {
+        false
+    }
+}
+
 pub fn runtime_value_compare_additional_machine_state(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
@@ -7914,6 +7933,11 @@ pub fn runtime_value_compare_additional_machine_state(
         || runtime_value_operand_uses_stack(runtime_value_operands, right)
     {
         state = state.union(MachineStateSet::new([MachineState::StackPointer]));
+    }
+    if runtime_value_operand_uses_control_state(runtime_value_operands, left)
+        || runtime_value_operand_uses_control_state(runtime_value_operands, right)
+    {
+        state = state.union(MachineStateSet::new([MachineState::ControlState]));
     }
     state
 }
@@ -14869,6 +14893,9 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
     ) && matches!(
         operator,
         StateGuardOperator::Add
+            | StateGuardOperator::AddTowardZero
+            | StateGuardOperator::AddTowardPositive
+            | StateGuardOperator::AddTowardNegative
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
             | StateGuardOperator::MultiplyThenAdd
@@ -14878,6 +14905,31 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
             | StateGuardOperator::Sqrt
     )
 }
+
+fn directed_add_mxcsr(operator: StateGuardOperator) -> Option<u32> {
+    match operator {
+        // Canonical 0x1f80 plus MXCSR.RC in bits 13..14.
+        StateGuardOperator::AddTowardNegative => Some(0x3f80),
+        StateGuardOperator::AddTowardPositive => Some(0x5f80),
+        StateGuardOperator::AddTowardZero => Some(0x7f80),
+        _ => None,
+    }
+}
+
+fn append_directed_float_control_prefix(bytes: &mut Vec<u8>, mxcsr: u32) {
+    bytes.extend([0x48, 0x83, 0xec, 0x10]); // sub rsp,16
+    bytes.extend([0x0f, 0xae, 0x1c, 0x24]); // stmxcsr [rsp]
+    bytes.extend([0xc7, 0x44, 0x24, 0x04]); // mov dword [rsp+4],imm32
+    bytes.extend(mxcsr.to_le_bytes());
+    bytes.extend([0x0f, 0xae, 0x54, 0x24, 0x04]); // ldmxcsr [rsp+4]
+}
+
+fn append_directed_float_control_suffix(bytes: &mut Vec<u8>) {
+    bytes.extend([0x0f, 0xae, 0x14, 0x24]); // ldmxcsr [rsp]
+    bytes.extend([0x48, 0x83, 0xc4, 0x10]); // add rsp,16
+}
+
+const DIRECTED_FLOAT_CONTROL_WIDTH: usize = 29;
 
 #[derive(Clone, Copy)]
 enum FloatPolicySource {
@@ -15241,8 +15293,15 @@ fn append_runtime_float_binary_operation(
     }
     // F2 = scalar-double prefix (`*sd`), F3 = scalar-single (`*ss`).
     let scalar_prefix = if wide { 0xf2 } else { 0xf3 };
+    let directed_mxcsr = directed_add_mxcsr(operator);
+    if let Some(mxcsr) = directed_mxcsr {
+        append_directed_float_control_prefix(bytes, mxcsr);
+    }
     let opcode = match operator {
-        StateGuardOperator::Add => 0x58,      // addsd/addss
+        StateGuardOperator::Add
+        | StateGuardOperator::AddTowardZero
+        | StateGuardOperator::AddTowardPositive
+        | StateGuardOperator::AddTowardNegative => 0x58, // addsd/addss
         StateGuardOperator::Subtract => 0x5c, // subsd/subss
         StateGuardOperator::Multiply => 0x59, // mulsd/mulss
         StateGuardOperator::Divide => 0x5e,   // divsd/divss
@@ -15339,6 +15398,9 @@ fn append_runtime_float_binary_operation(
         }
     };
     bytes.extend([scalar_prefix, 0x0f, opcode, 0xc1]); // <op> xmm0, xmm1
+    if directed_mxcsr.is_some() {
+        append_directed_float_control_suffix(bytes);
+    }
     if wide {
         bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10, xmm0
     } else {
@@ -15393,6 +15455,9 @@ fn runtime_float_binary_operation_width_with_domain(
 
 fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     match operator {
+        StateGuardOperator::AddTowardZero
+        | StateGuardOperator::AddTowardPositive
+        | StateGuardOperator::AddTowardNegative => 19 + DIRECTED_FLOAT_CONTROL_WIDTH,
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
         StateGuardOperator::IsNan
         | StateGuardOperator::Greater
@@ -16594,6 +16659,9 @@ mod float_arithmetic_policy_tests {
         for byte_size in [4usize, 8] {
             for operator in [
                 StateGuardOperator::Add,
+                StateGuardOperator::AddTowardZero,
+                StateGuardOperator::AddTowardPositive,
+                StateGuardOperator::AddTowardNegative,
                 StateGuardOperator::Subtract,
                 StateGuardOperator::Multiply,
                 StateGuardOperator::Divide,
@@ -16616,6 +16684,43 @@ mod float_arithmetic_policy_tests {
                         byte_size * 8,
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn directed_add_balances_mxcsr_and_widths() {
+        for (operator, mxcsr) in [
+            (StateGuardOperator::AddTowardNegative, 0x3f80_u32),
+            (StateGuardOperator::AddTowardPositive, 0x5f80_u32),
+            (StateGuardOperator::AddTowardZero, 0x7f80_u32),
+        ] {
+            for byte_size in [4usize, 8] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    operator,
+                    byte_size,
+                    ArithmeticDomain::Exact,
+                )
+                .expect("encode directed add");
+                assert_eq!(
+                    bytes.len(),
+                    runtime_float_binary_operation_width_with_domain(
+                        operator,
+                        byte_size,
+                        ArithmeticDomain::Exact,
+                    )
+                );
+                assert_eq!(
+                    &bytes[10..18],
+                    &[0x48, 0x83, 0xec, 0x10, 0x0f, 0xae, 0x1c, 0x24]
+                );
+                assert_eq!(&bytes[22..26], &mxcsr.to_le_bytes());
+                assert_eq!(
+                    &bytes[35..43],
+                    &[0x0f, 0xae, 0x14, 0x24, 0x48, 0x83, 0xc4, 0x10]
+                );
             }
         }
     }

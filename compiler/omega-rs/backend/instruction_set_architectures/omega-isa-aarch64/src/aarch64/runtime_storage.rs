@@ -29,15 +29,15 @@ use super::primitives::{
     encode_lslv_x_register, encode_lsr_x_immediate, encode_lsrv_w_register, encode_lsrv_x_register,
     encode_move_w_register, encode_move_x_register, encode_movz, encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_mvn_register,
-    encode_orr_x_register, encode_sdiv_w_register, encode_sdiv_x_register,
+    encode_orr_x_register, encode_read_fpcr, encode_sdiv_w_register, encode_sdiv_x_register,
     encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x, encode_sign_extend_halfword_to_w,
     encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x, encode_signed_int_to_float,
     encode_smulh_x, encode_store_byte_w_post_increment, encode_store_byte_w_to_x,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
     encode_sub_w_register, encode_sub_x_register, encode_subs_x_immediate, encode_subs_x_register,
     encode_swp, encode_udiv_w_register, encode_udiv_x_register, encode_umulh_x,
-    encode_unconditional_branch, encode_unsigned_int_to_float, encode_zero_extend_byte_to_w,
-    encode_zero_extend_halfword_to_w,
+    encode_unconditional_branch, encode_unsigned_int_to_float, encode_write_fpcr,
+    encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
 };
 use super::widths::{
     add_constant_width, bit_fragment_container_bytes,
@@ -1260,8 +1260,37 @@ pub fn runtime_value_compare_register_write_ceiling() -> RegisterSet {
     RegisterSet::new(registers)
 }
 
-pub fn runtime_value_compare_additional_machine_state() -> MachineStateSet {
-    MachineStateSet::new([MachineState::Flags])
+fn runtime_value_operand_uses_control_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> bool {
+    if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        matches!(
+            operator,
+            StateGuardOperator::AddTowardZero
+                | StateGuardOperator::AddTowardPositive
+                | StateGuardOperator::AddTowardNegative
+        ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
+            || runtime_value_operand_uses_control_state(runtime_value_operands, right)
+    } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
+        runtime_value_operand_uses_control_state(runtime_value_operands, source)
+    } else {
+        false
+    }
+}
+
+pub fn runtime_value_compare_additional_machine_state(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+) -> MachineStateSet {
+    let mut state = MachineStateSet::new([MachineState::Flags]);
+    if runtime_value_operand_uses_control_state(runtime_value_operands, left)
+        || runtime_value_operand_uses_control_state(runtime_value_operands, right)
+    {
+        state = state.union(MachineStateSet::new([MachineState::ControlState]));
+    }
+    state
 }
 
 pub fn encode_runtime_machine_integer_write(
@@ -5442,6 +5471,9 @@ fn float_policy_guard_bytes(
     ) || !matches!(
         operator,
         StateGuardOperator::Add
+            | StateGuardOperator::AddTowardZero
+            | StateGuardOperator::AddTowardPositive
+            | StateGuardOperator::AddTowardNegative
             | StateGuardOperator::Subtract
             | StateGuardOperator::Multiply
             | StateGuardOperator::MultiplyThenAdd
@@ -6467,9 +6499,30 @@ fn append_runtime_float_binary_operation(
         )?);
         Ok(())
     };
+    let directed_rounding = match operator {
+        // FPCR.RMode bits 22..23: +inf=01, -inf=10, zero=11.
+        StateGuardOperator::AddTowardPositive => Some(0x0040_0000),
+        StateGuardOperator::AddTowardNegative => Some(0x0080_0000),
+        StateGuardOperator::AddTowardZero => Some(0x00c0_0000),
+        _ => None,
+    };
+    if let Some(fpcr) = directed_rounding {
+        // x13 retains the exact prior FPCR while x12 installs the requested
+        // direction. x16 remains the live destination-address register.
+        // Policy adaptation runs only after the prior state is back.
+        bytes.extend(encode_read_fpcr(13));
+        append_unsigned_immediate(bytes, 12, fpcr);
+        bytes.extend(encode_write_fpcr(12));
+    }
     match operator {
-        StateGuardOperator::Add => {
+        StateGuardOperator::Add
+        | StateGuardOperator::AddTowardZero
+        | StateGuardOperator::AddTowardPositive
+        | StateGuardOperator::AddTowardNegative => {
             bytes.extend(encode_float_add(byte_size, 0, 0, 1)?);
+            if directed_rounding.is_some() {
+                bytes.extend(encode_write_fpcr(13));
+            }
             guard(bytes)?;
         }
         StateGuardOperator::Subtract => {
@@ -6898,6 +6951,7 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::primitives::encode_movk;
     use super::super::widths;
     use super::*;
 
@@ -8093,6 +8147,53 @@ mod tests {
                     "f{} must contain a separate scalar add",
                     byte_size * 8,
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn directed_add_balances_fpcr_and_widths() {
+        use psi_numerics::arithmetic::ArithmeticDomain;
+
+        for (operator, fpcr) in [
+            (StateGuardOperator::AddTowardPositive, 0x0040_0000_u64),
+            (StateGuardOperator::AddTowardNegative, 0x0080_0000_u64),
+            (StateGuardOperator::AddTowardZero, 0x00c0_0000_u64),
+        ] {
+            for byte_size in [4usize, 8] {
+                let mut bytes = Vec::new();
+                append_runtime_float_binary_operation(
+                    &mut bytes,
+                    byte_size,
+                    17,
+                    operator,
+                    26,
+                    ArithmeticDomain::Exact,
+                    [15, 14],
+                )
+                .expect("encode directed add");
+                assert_eq!(
+                    bytes.len(),
+                    widths::runtime_float_binary_operation_width_with_domain(
+                        operator,
+                        byte_size,
+                        ArithmeticDomain::Exact,
+                    ),
+                    "f{} {operator:?}",
+                    byte_size * 8,
+                );
+                let words = bytes
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+                    .collect::<Vec<_>>();
+                assert_eq!(words[2], u32::from_le_bytes(encode_read_fpcr(13)));
+                assert_eq!(words[3], u32::from_le_bytes(encode_movz(12, 0)));
+                assert_eq!(
+                    words[4],
+                    u32::from_le_bytes(encode_movk(12, ((fpcr >> 16) & 0xffff) as u16, 1,))
+                );
+                assert_eq!(words[5], u32::from_le_bytes(encode_write_fpcr(12)));
+                assert_eq!(words[7], u32::from_le_bytes(encode_write_fpcr(13)));
             }
         }
     }
