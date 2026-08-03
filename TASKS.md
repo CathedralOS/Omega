@@ -1827,8 +1827,12 @@ move it to a convenience library.
   coercion selection rung is live for a direct place bound to a borrowed local:
   a bare `&T as &dyn Trait` consumes the unique complete nominal conformance,
   retains the exact data/trait/optional named-conformance symbols in checked
-  facts, and rejects missing or ambiguous conformances. Named coercion syntax,
-  the two-word descriptor, requirement adapters, and envelope inference remain.
+  facts, and rejects missing or ambiguous conformances. Exact
+  `&dyn Type::Conformance` targets now retain their carrier and stable child
+  symbol through typed identity, derive the dispatch trait from that declared
+  edge, resolve otherwise-ambiguous conformances, and reject unknown or
+  wrong-carrier selections. The two-word descriptor, requirement adapters,
+  and envelope inference remain.
   Local descriptors must not cross replaceable component boundaries. Add owned
   erased **runtime** values only after general storage ownership,
   size/alignment metadata, and cleanup contracts can support them; N6's
