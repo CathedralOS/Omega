@@ -158,7 +158,7 @@ behaviour qualifiers). Candidate homes:
 Maintainer chose `<primitive> in <ArithmeticDomain>` (reuses the existing `in`
 domain spelling). e.g. `count: u32 in Wrapping`, `total: i32 in Saturating`;
 domain cast `x as u32 in Wrapping`. Parser entry: the named-type path of
-`parse_type_reference_handle` (omega-tokens-to-syntax-trees/parser/type_reference.rs)
+`parse_type_reference_handle` (psi-tokens-to-syntax-trees/parser/type_reference.rs)
 — attach an optional `in <Ident>` suffix at the SAME point the optional
 `[constraints]` suffix is parsed (~line 195), producing a new
 `TypeReferenceNode` shape (e.g. `ArithmeticDomained { base, domain }`) that

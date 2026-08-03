@@ -119,11 +119,6 @@ Omega/
 |   |   `-- [CRATE] omega-backend-plan/                 # Backend planning data shared across lowering stages.
 |   |
 |   |-- pipeline/
-|   |   |-- [CRATE] omega-source-files-to-tokens/                            # Transitional re-export of the Psi lexer.
-|   |   |-- [CRATE] omega-tokens-to-syntax-trees/                            # Transitional re-export of the Psi parser.
-|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/             # Transitional re-export of Psi name resolution.
-|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/              # Transitional re-export of Psi type normalization.
-|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/                      # Transitional re-export of Psi semantic checking.
 |   |   |-- [CRATE] omega-checked-trees-to-state-graph/                      # Checked trees to explicit machine/state graph.
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/                       # State graph to control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-control-flow-to-abstract-operations/               # Lower control flow into target-independent abstract operations with virtual registers.
