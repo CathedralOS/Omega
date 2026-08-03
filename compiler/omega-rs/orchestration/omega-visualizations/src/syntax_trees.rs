@@ -1,13 +1,13 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::arena::HandleSpan;
-use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{Item, ItemHandle, StateNode, StateSignatureNode};
-use omega_syntax_trees::statement::{
+use psi_syntax_trees::SyntaxTrees;
+use psi_syntax_trees::identifier::Identifier;
+use psi_syntax_trees::item::{Item, ItemHandle, StateNode, StateSignatureNode};
+use psi_syntax_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
-use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub struct SyntaxSourceFile {
     pub path: String,
@@ -237,7 +237,7 @@ fn inline_label(label: String) -> String {
 
 fn contract_summary(
     syntax: &SyntaxTrees,
-    contracts: HandleSpan<omega_syntax_trees::item::CapabilityContract>,
+    contracts: HandleSpan<psi_syntax_trees::item::CapabilityContract>,
 ) -> String {
     if contracts.len() == 0 {
         return "0".to_owned();
@@ -252,7 +252,7 @@ fn contract_summary(
 
 fn contract_fact_count(
     syntax: &SyntaxTrees,
-    contracts: HandleSpan<omega_syntax_trees::item::CapabilityContract>,
+    contracts: HandleSpan<psi_syntax_trees::item::CapabilityContract>,
 ) -> usize {
     syntax
         .items
@@ -265,7 +265,7 @@ fn contract_fact_count(
 fn append_contract_facts(
     label: &mut String,
     syntax: &SyntaxTrees,
-    contracts: HandleSpan<omega_syntax_trees::item::CapabilityContract>,
+    contracts: HandleSpan<psi_syntax_trees::item::CapabilityContract>,
 ) {
     for (contract_index, contract) in syntax
         .items
@@ -287,7 +287,7 @@ fn append_contract_facts(
 
 fn proof_fact_labels(
     syntax: &SyntaxTrees,
-    facts: HandleSpan<omega_syntax_trees::item::ProofFact>,
+    facts: HandleSpan<psi_syntax_trees::item::ProofFact>,
 ) -> Vec<String> {
     syntax
         .items
@@ -298,12 +298,12 @@ fn proof_fact_labels(
         .collect()
 }
 
-fn proof_fact_label(syntax: &SyntaxTrees, fact: &omega_syntax_trees::item::ProofFact) -> String {
+fn proof_fact_label(syntax: &SyntaxTrees, fact: &psi_syntax_trees::item::ProofFact) -> String {
     match fact {
-        omega_syntax_trees::item::ProofFact::Expression(expression) => {
+        psi_syntax_trees::item::ProofFact::Expression(expression) => {
             syntax.expressions.display_name(*expression)
         }
-        omega_syntax_trees::item::ProofFact::Membership(membership) => {
+        psi_syntax_trees::item::ProofFact::Membership(membership) => {
             let domain = syntax
                 .items
                 .identifier_path_members(membership.domain)
@@ -657,8 +657,8 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
         StatementNode::AssemblyFact(fact) => format!(
             "asm {} {}",
             match fact.kind {
-                omega_syntax_trees::statement::AssemblyFactKind::Requires => "requires",
-                omega_syntax_trees::statement::AssemblyFactKind::Ensures => "ensures",
+                psi_syntax_trees::statement::AssemblyFactKind::Requires => "requires",
+                psi_syntax_trees::statement::AssemblyFactKind::Ensures => "ensures",
             },
             syntax.expressions.display_name(fact.expression),
         ),

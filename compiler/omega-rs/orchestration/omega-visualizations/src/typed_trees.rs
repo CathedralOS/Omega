@@ -5,14 +5,14 @@ use crate::service_reach::{append_reach_and_operation_lines, service_names};
 use behavior::TypedBehaviorPlan;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::statement::TableNamePath;
-use omega_typed_trees::statement::{
+use psi_typed_trees::statement::TableNamePath;
+use psi_typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
-use omega_typed_trees::trait_definition::TraitDefinition;
-use omega_typed_trees::{TypedTrees, signature::StateSignature, state::State};
-use omega_typed_trees::{data::DataMember, machine::Machine};
+use psi_typed_trees::trait_definition::TraitDefinition;
+use psi_typed_trees::{TypedTrees, signature::StateSignature, state::State};
+use psi_typed_trees::{data::DataMember, machine::Machine};
 
 pub fn typed_trees_html(typed: &TypedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("typed_trees");
@@ -814,7 +814,7 @@ fn inline_label(label: String) -> String {
 
 fn contract_summary(
     program: &TypedTrees,
-    contracts: HandleSpan<omega_typed_trees::signature::SignatureContract>,
+    contracts: HandleSpan<psi_typed_trees::signature::SignatureContract>,
 ) -> String {
     if contracts.len() == 0 {
         return "0".to_owned();
@@ -829,7 +829,7 @@ fn contract_summary(
 
 fn contract_fact_count(
     program: &TypedTrees,
-    contracts: HandleSpan<omega_typed_trees::signature::SignatureContract>,
+    contracts: HandleSpan<psi_typed_trees::signature::SignatureContract>,
 ) -> usize {
     program
         .signature_contracts
@@ -842,7 +842,7 @@ fn contract_fact_count(
 fn append_contract_facts(
     label: &mut String,
     program: &TypedTrees,
-    contracts: HandleSpan<omega_typed_trees::signature::SignatureContract>,
+    contracts: HandleSpan<psi_typed_trees::signature::SignatureContract>,
 ) {
     for (contract_index, contract) in program
         .signature_contracts
@@ -864,7 +864,7 @@ fn append_contract_facts(
 
 fn proof_fact_labels(
     program: &TypedTrees,
-    facts: HandleSpan<omega_typed_trees::domain::ProofFact>,
+    facts: HandleSpan<psi_typed_trees::domain::ProofFact>,
 ) -> Vec<String> {
     program
         .proof_facts
@@ -875,12 +875,12 @@ fn proof_fact_labels(
         .collect()
 }
 
-fn proof_fact_label(program: &TypedTrees, fact: &omega_typed_trees::domain::ProofFact) -> String {
+fn proof_fact_label(program: &TypedTrees, fact: &psi_typed_trees::domain::ProofFact) -> String {
     match fact {
-        omega_typed_trees::domain::ProofFact::Expression(expression) => {
+        psi_typed_trees::domain::ProofFact::Expression(expression) => {
             program.expression_table.display_name(*expression)
         }
-        omega_typed_trees::domain::ProofFact::Membership(membership) => {
+        psi_typed_trees::domain::ProofFact::Membership(membership) => {
             let domain = program
                 .domain_path_members(membership.domain)
                 .iter()
@@ -901,8 +901,8 @@ fn statement_label(program: &TypedTrees, statement: &StatementNode) -> String {
         StatementNode::AssemblyFact(fact) => format!(
             "asm {} {}",
             match fact.kind {
-                omega_typed_trees::statement::AssemblyFactKind::Requires => "requires",
-                omega_typed_trees::statement::AssemblyFactKind::Ensures => "ensures",
+                psi_typed_trees::statement::AssemblyFactKind::Requires => "requires",
+                psi_typed_trees::statement::AssemblyFactKind::Ensures => "ensures",
             },
             program.expression_table.display_name(fact.expression),
         ),

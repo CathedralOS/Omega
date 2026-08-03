@@ -131,8 +131,8 @@ dependencies = [
  "omega-executable-installation",
  "omega-external-roots",
  "omega-image",
- "omega-layout-plans",
  "omega-target",
+ "psi-layout-plans",
  "serde_json",
 ]
 
@@ -469,9 +469,9 @@ dependencies = [
 name = "omega-executable-installation"
 version = "0.1.0"
 dependencies = [
- "omega-extents",
- "omega-layout-plans",
  "omega-target",
+ "psi-extents",
+ "psi-layout-plans",
 ]
 
 [[package]]
@@ -488,9 +488,9 @@ dependencies = [
  "omega-calling-conventions",
  "omega-core",
  "omega-executable-installation",
- "omega-extents",
- "omega-layout-plans",
  "omega-target",
+ "psi-extents",
+ "psi-layout-plans",
 ]
 
 [[package]]
@@ -568,7 +568,6 @@ dependencies = [
  "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-layout",
- "omega-layout-plans",
  "omega-object-file",
  "omega-platform-interface",
  "omega-runtime-abi",
@@ -585,6 +584,7 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "psi-layout-plans",
 ]
 
 [[package]]
@@ -617,8 +617,8 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-core",
- "omega-layout-plans",
  "omega-target-operations",
+ "psi-layout-plans",
 ]
 
 [[package]]
@@ -627,8 +627,8 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-core",
- "omega-layout-plans",
  "omega-target-operations",
+ "psi-layout-plans",
 ]
 
 [[package]]
@@ -754,11 +754,11 @@ dependencies = [
  "omega-executable-installation",
  "omega-instruction-selection",
  "omega-isa-x86_64",
- "omega-layout-plans",
  "omega-machine-bytes",
  "omega-object-file",
  "omega-target",
  "omega-target-operations",
+ "psi-layout-plans",
 ]
 
 [[package]]
@@ -1145,7 +1145,6 @@ dependencies = [
 name = "omega-validation"
 version = "0.1.0"
 dependencies = [
- "omega-access-plans",
  "omega-core",
  "omega-effects",
  "omega-facts",
@@ -1155,6 +1154,7 @@ dependencies = [
  "omega-syntax-trees-to-symbol-resolved-trees",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
+ "psi-access-plans",
  "psi-validation",
 ]
 
@@ -1165,20 +1165,21 @@ dependencies = [
  "omega-abstract-operations",
  "omega-assigned-target-operations",
  "omega-calling-conventions",
- "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
- "omega-facts",
  "omega-machine-bytes",
  "omega-machine-instructions",
  "omega-object-file",
  "omega-state-graph",
- "omega-symbol-resolved-trees",
- "omega-syntax-trees",
  "omega-target-operations",
  "omega-task-plans",
- "omega-typed-trees",
+ "psi-checked-trees",
+ "psi-effects",
+ "psi-facts",
+ "psi-symbol-resolved-trees",
+ "psi-syntax-trees",
+ "psi-typed-trees",
 ]
 
 [[package]]

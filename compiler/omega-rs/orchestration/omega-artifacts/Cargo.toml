@@ -19,5 +19,5 @@ omega-image = { path = "../../backend/images/omega-image" }
 omega-target = { path = "../../foundation/omega-target" }
 
 [dev-dependencies]
-omega-layout-plans = { path = "../../foundation/omega-layout-plans" }
+psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 serde_json = "1.0"

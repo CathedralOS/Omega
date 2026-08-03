@@ -6,13 +6,13 @@
 
 use std::sync::Arc;
 
-use omega_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
-use omega_layout_plans::{
+use omega_target::Architecture;
+use psi_extents::{AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights};
+use psi_layout_plans::{
     EntryStubId, MaterializationDiagnostic, POST_HANDOFF_WRITER_CONTEXT_ABI_V1,
     PlacementConstraints, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterSourceSlot, RelocationTarget,
 };
-use omega_target::Architecture;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -331,8 +331,8 @@ struct CodePlacementExtentEvidence {
     address_space: AddressSpaceId,
     rights: ExtentRights,
     provenance: ExtentProvenanceId,
-    era: omega_extents::MappingEraId,
-    lineage: omega_extents::ExtentLineageId,
+    era: psi_extents::MappingEraId,
+    lineage: psi_extents::ExtentLineageId,
 }
 
 impl CodePlacementExtentEvidence {
@@ -680,8 +680,8 @@ struct ValidatedPlacementEvidence {
     address_space: AddressSpaceId,
     rights: ExtentRights,
     provenance: ExtentProvenanceId,
-    era: omega_extents::MappingEraId,
-    lineage: omega_extents::ExtentLineageId,
+    era: psi_extents::MappingEraId,
+    lineage: psi_extents::ExtentLineageId,
     final_bytes: Vec<u8>,
     realized_footprint: MachineFootprintId,
     validation: FinalValidationId,
@@ -1337,10 +1337,10 @@ impl std::error::Error for InstallationDiagnostic {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_extents::{
+    use psi_extents::{
         ExtentDiagnostic, ExtentLineageId, ExtentRightId, ExtentRootGrant, MappingEraId,
     };
-    use omega_layout_plans::{
+    use psi_layout_plans::{
         ArtifactInstallationScopeId, ByteOrder, MaterializationWrite, PlacementAddressRange,
         PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep,
     };

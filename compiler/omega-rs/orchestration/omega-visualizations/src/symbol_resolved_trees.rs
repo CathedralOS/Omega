@@ -1,16 +1,16 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_symbol_resolved_trees::SymbolResolvedTrees;
-use omega_symbol_resolved_trees::data::DataMember;
-use omega_symbol_resolved_trees::machine::Machine;
-use omega_symbol_resolved_trees::signature::StateSignature;
-use omega_symbol_resolved_trees::state::State;
-use omega_symbol_resolved_trees::statement::{
+use psi_symbol_resolved_trees::SymbolResolvedTrees;
+use psi_symbol_resolved_trees::data::DataMember;
+use psi_symbol_resolved_trees::machine::Machine;
+use psi_symbol_resolved_trees::signature::StateSignature;
+use psi_symbol_resolved_trees::state::State;
+use psi_symbol_resolved_trees::statement::{
     Statement, Transition, TransitionGuard, TransitionTarget,
 };
-use omega_symbol_resolved_trees::trait_definition::TraitDefinition;
-use omega_symbol_resolved_trees::types::TypeReference;
+use psi_symbol_resolved_trees::trait_definition::TraitDefinition;
+use psi_symbol_resolved_trees::types::TypeReference;
 
 pub fn symbol_resolved_trees_html(program: &SymbolResolvedTrees) -> String {
     let mut diagram = PhaseDiagramBuilder::new("symbol_resolved_trees");
@@ -624,7 +624,7 @@ fn call_scope_target<'nodes>(
     state_scope_nodes: &'nodes [(SymbolHandle, String)],
     machine_scope_nodes: &'nodes [(String, String, String)],
     source_machine_name: &str,
-    call: &omega_symbol_resolved_trees::statement::Call,
+    call: &psi_symbol_resolved_trees::statement::Call,
 ) -> Option<CallTarget<'nodes>> {
     if let Some(scope_id) = scope_id_for_state(state_scope_nodes, call.target_symbol) {
         let label = machine_scope_label_for_id(machine_scope_nodes, scope_id)
@@ -774,7 +774,7 @@ fn inline_label(label: String) -> String {
 
 fn contract_summary(
     program: &SymbolResolvedTrees,
-    contracts: HandleSpan<omega_symbol_resolved_trees::signature::SignatureContract>,
+    contracts: HandleSpan<psi_symbol_resolved_trees::signature::SignatureContract>,
 ) -> String {
     if contracts.len() == 0 {
         return "0".to_owned();
@@ -789,7 +789,7 @@ fn contract_summary(
 
 fn contract_fact_count(
     program: &SymbolResolvedTrees,
-    contracts: HandleSpan<omega_symbol_resolved_trees::signature::SignatureContract>,
+    contracts: HandleSpan<psi_symbol_resolved_trees::signature::SignatureContract>,
 ) -> usize {
     program
         .signature_contracts(contracts)
@@ -801,7 +801,7 @@ fn contract_fact_count(
 fn append_contract_facts(
     label: &mut String,
     program: &SymbolResolvedTrees,
-    contracts: HandleSpan<omega_symbol_resolved_trees::signature::SignatureContract>,
+    contracts: HandleSpan<psi_symbol_resolved_trees::signature::SignatureContract>,
 ) {
     for (contract_index, contract) in program.signature_contracts(contracts).iter().enumerate() {
         let facts = proof_fact_labels(program, contract.facts);
@@ -818,7 +818,7 @@ fn append_contract_facts(
 
 fn proof_fact_labels(
     program: &SymbolResolvedTrees,
-    facts: HandleSpan<omega_symbol_resolved_trees::domain::ProofFact>,
+    facts: HandleSpan<psi_symbol_resolved_trees::domain::ProofFact>,
 ) -> Vec<String> {
     program
         .proof_facts(facts)
@@ -830,13 +830,13 @@ fn proof_fact_labels(
 
 fn proof_fact_label(
     program: &SymbolResolvedTrees,
-    fact: &omega_symbol_resolved_trees::domain::ProofFact,
+    fact: &psi_symbol_resolved_trees::domain::ProofFact,
 ) -> String {
     match fact {
-        omega_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+        psi_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
             program.tables.bodies.expressions.display_name(*expression)
         }
-        omega_symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+        psi_symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
             let domain = program
                 .domain_path_members(membership.domain)
                 .iter()
@@ -861,8 +861,8 @@ fn statement_label(program: &SymbolResolvedTrees, statement: &Statement) -> Stri
         Statement::AssemblyFact(fact) => format!(
             "asm {} {}",
             match fact.kind {
-                omega_symbol_resolved_trees::statement::AssemblyFactKind::Requires => "requires",
-                omega_symbol_resolved_trees::statement::AssemblyFactKind::Ensures => "ensures",
+                psi_symbol_resolved_trees::statement::AssemblyFactKind::Requires => "requires",
+                psi_symbol_resolved_trees::statement::AssemblyFactKind::Ensures => "ensures",
             },
             program
                 .tables

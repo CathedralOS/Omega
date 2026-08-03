@@ -12,8 +12,8 @@ path = "src/lib.rs"
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-core = { path = "../omega-core" }
 omega-executable-installation = { path = "../omega-executable-installation" }
-omega-layout-plans = { path = "../omega-layout-plans" }
+psi-layout-plans = { path = "../../../psi-rs/foundation/psi-layout-plans" }
 
 [dev-dependencies]
-omega-extents = { path = "../omega-extents" }
+psi-extents = { path = "../../../psi-rs/foundation/psi-extents" }
 omega-target = { path = "../omega-target" }

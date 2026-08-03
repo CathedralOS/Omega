@@ -1,14 +1,14 @@
 use crate::phase_diagram::PhaseDiagramBuilder;
 use crate::service_reach::{append_reach_and_operation_lines, service_names};
-use omega_checked_trees::{
+use omega_core::symbols::SymbolHandle;
+use psi_checked_trees::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowLoanFact, CheckedTrees,
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowCallFact,
     FlowInvalidationSource, FlowStateFact,
 };
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{
+use psi_typed_trees::machine::Machine;
+use psi_typed_trees::state::State;
+use psi_typed_trees::statement::{
     StatementNode, TableTransition, TransitionTargetHandle, TransitionTargetNode,
 };
 
@@ -103,7 +103,7 @@ pub fn qualification_evidence_manifest_json(
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> String {
     use omega_core::semantics::QualificationEvidenceOrigin;
-    use omega_facts::FactPayload;
+    use psi_facts::FactPayload;
 
     let rows = program
         .facts
@@ -358,7 +358,7 @@ fn service_requirement_label(
 /// Public PDI3 compatibility surface. The named condition and its exact
 /// discharge route are retained independently of indexed-domain identity.
 pub fn index_compatibility_manifest_json(program: &CheckedTrees) -> String {
-    use omega_checked_trees::IndexCompatibilityDischarge;
+    use psi_checked_trees::IndexCompatibilityDischarge;
 
     let mut rows = program
         .facts
@@ -884,13 +884,13 @@ fn push_content_structural_place_json(
 fn push_claim_outcome_source_json(
     json: &mut String,
     program: &CheckedTrees,
-    source: omega_checked_trees::FlowClaimOutcomeSource,
+    source: psi_checked_trees::FlowClaimOutcomeSource,
 ) {
     match source {
-        omega_checked_trees::FlowClaimOutcomeSource::Unknown => {
+        psi_checked_trees::FlowClaimOutcomeSource::Unknown => {
             json.push_str("{\"kind\": \"unknown\"}");
         }
-        omega_checked_trees::FlowClaimOutcomeSource::Input {
+        psi_checked_trees::FlowClaimOutcomeSource::Input {
             parameter_symbol,
             segments,
         } => {
@@ -909,7 +909,7 @@ fn push_claim_outcome_source_json(
             );
             json.push('}');
         }
-        omega_checked_trees::FlowClaimOutcomeSource::Established {
+        psi_checked_trees::FlowClaimOutcomeSource::Established {
             claim_identity,
             provenance,
         } => {
@@ -925,7 +925,7 @@ fn push_claim_outcome_source_json(
 fn push_claim_path_json(
     json: &mut String,
     program: &CheckedTrees,
-    path: &[omega_facts::PlaceSegment],
+    path: &[psi_facts::PlaceSegment],
 ) {
     json.push('[');
     for (index, segment) in path.iter().enumerate() {
@@ -933,22 +933,22 @@ fn push_claim_path_json(
             json.push_str(", ");
         }
         match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
+            psi_facts::PlaceSegment::Field { symbol } => {
                 json.push_str("{\"field\": ");
                 push_json_string(json, &symbol_label(program, *symbol));
                 json.push('}');
             }
-            omega_facts::PlaceSegment::Case { variant } => {
+            psi_facts::PlaceSegment::Case { variant } => {
                 json.push_str("{\"case\": ");
                 push_json_string(json, &symbol_label(program, *variant));
                 json.push('}');
             }
-            omega_facts::PlaceSegment::FixedIndex { index } => {
+            psi_facts::PlaceSegment::FixedIndex { index } => {
                 json.push_str("{\"fixed_index\": ");
                 json.push_str(&index.to_string());
                 json.push('}');
             }
-            omega_facts::PlaceSegment::Index { expression } => {
+            psi_facts::PlaceSegment::Index { expression } => {
                 json.push_str("{\"index\": ");
                 push_json_string(json, &program.expression_table.display_name(*expression));
                 json.push('}');
@@ -1041,8 +1041,8 @@ fn push_permission_event_source_json(
     }
 }
 
-fn qualification_subject(program: &CheckedTrees, fact: &omega_facts::Fact) -> String {
-    use omega_facts::{FactPlace, PlaceRoot, PlaceSegment};
+fn qualification_subject(program: &CheckedTrees, fact: &psi_facts::Fact) -> String {
+    use psi_facts::{FactPlace, PlaceRoot, PlaceSegment};
 
     let FactPlace::Place(place) = fact.place else {
         return match fact.place {
@@ -1103,8 +1103,8 @@ fn qualification_symbol_label(program: &CheckedTrees, symbol: SymbolHandle) -> S
     }
 }
 
-fn program_point_name(point: omega_facts::ProgramPoint) -> &'static str {
-    use omega_facts::ProgramPoint;
+fn program_point_name(point: psi_facts::ProgramPoint) -> &'static str {
+    use psi_facts::ProgramPoint;
     match point {
         ProgramPoint::Global => "global",
         ProgramPoint::Definition { .. } => "definition",
@@ -1118,8 +1118,8 @@ fn program_point_name(point: omega_facts::ProgramPoint) -> &'static str {
     }
 }
 
-fn exact_program_point_label(program: &CheckedTrees, point: omega_facts::ProgramPoint) -> String {
-    use omega_facts::ProgramPoint;
+fn exact_program_point_label(program: &CheckedTrees, point: psi_facts::ProgramPoint) -> String {
+    use psi_facts::ProgramPoint;
 
     let symbol = |symbol| qualification_symbol_label(program, symbol);
     match point {
@@ -1249,10 +1249,10 @@ pub fn carry_manifest_json(program: &CheckedTrees) -> String {
             push_json_string(
                 &mut json,
                 match live.storage {
-                    omega_checked_trees::SuspensionCrossingStorage::Persistent => "persistent",
-                    omega_checked_trees::SuspensionCrossingStorage::Parameter => "parameter",
-                    omega_checked_trees::SuspensionCrossingStorage::Local => "local",
-                    omega_checked_trees::SuspensionCrossingStorage::CallArgument => "call_argument",
+                    psi_checked_trees::SuspensionCrossingStorage::Persistent => "persistent",
+                    psi_checked_trees::SuspensionCrossingStorage::Parameter => "parameter",
+                    psi_checked_trees::SuspensionCrossingStorage::Local => "local",
+                    psi_checked_trees::SuspensionCrossingStorage::CallArgument => "call_argument",
                 },
             );
             json.push_str(", \"effective\": ");
@@ -1352,8 +1352,8 @@ pub fn task_activation_manifest_json(
     program: &CheckedTrees,
     task_activations: &omega_task_plans::TaskActivationPlanSet,
 ) -> String {
-    use omega_checked_trees::machine::Machine;
     use omega_task_plans::TaskStartOperation;
+    use psi_checked_trees::machine::Machine;
 
     fn machine_name<'a>(machines: &'a [Machine], symbol: SymbolHandle) -> &'a str {
         machines
@@ -1620,8 +1620,8 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 push_json_string(
                     &mut json,
                     match state_frame.frame.completeness() {
-                        omega_facts::WriteFrameCompleteness::Complete => "complete",
-                        omega_facts::WriteFrameCompleteness::Opaque => "opaque",
+                        psi_facts::WriteFrameCompleteness::Complete => "complete",
+                        psi_facts::WriteFrameCompleteness::Opaque => "opaque",
                     },
                 );
                 json.push_str(", \"fingerprint\": \"0x");
@@ -1970,7 +1970,7 @@ fn append_loan_preview(
     program: &CheckedTrees,
     machine: &Machine,
     state: &State,
-    constraints: omega_core::arena::HandleSpan<omega_checked_trees::FlowConstraintRef>,
+    constraints: omega_core::arena::HandleSpan<psi_checked_trees::FlowConstraintRef>,
 ) {
     let loans = program
         .facts
@@ -2229,20 +2229,20 @@ fn borrow_access_label(
         .span_or_empty(access.segments)
     {
         match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
+            psi_facts::PlaceSegment::Field { symbol } => {
                 label.push('.');
                 label.push_str(&symbol_name_for_state(program, machine, state, *symbol));
             }
-            omega_facts::PlaceSegment::Case { variant } => {
+            psi_facts::PlaceSegment::Case { variant } => {
                 label.push_str("::");
                 label.push_str(&symbol_name_for_state(program, machine, state, *variant));
             }
-            omega_facts::PlaceSegment::FixedIndex { index } => {
+            psi_facts::PlaceSegment::FixedIndex { index } => {
                 label.push('[');
                 label.push_str(&index.to_string());
                 label.push(']');
             }
-            omega_facts::PlaceSegment::Index { expression } => {
+            psi_facts::PlaceSegment::Index { expression } => {
                 label.push('[');
                 label.push_str(&program.expression_table.display_name(*expression));
                 label.push(']');
@@ -2271,20 +2271,20 @@ fn borrow_loan_label(
         .span_or_empty(loan.segments)
     {
         match segment {
-            omega_facts::PlaceSegment::Field { symbol } => {
+            psi_facts::PlaceSegment::Field { symbol } => {
                 place.push('.');
                 place.push_str(&symbol_name_for_state(program, machine, state, *symbol));
             }
-            omega_facts::PlaceSegment::Case { variant } => {
+            psi_facts::PlaceSegment::Case { variant } => {
                 place.push_str("::");
                 place.push_str(&symbol_name_for_state(program, machine, state, *variant));
             }
-            omega_facts::PlaceSegment::FixedIndex { index } => {
+            psi_facts::PlaceSegment::FixedIndex { index } => {
                 place.push('[');
                 place.push_str(&index.to_string());
                 place.push(']');
             }
-            omega_facts::PlaceSegment::Index { expression } => {
+            psi_facts::PlaceSegment::Index { expression } => {
                 place.push('[');
                 place.push_str(&program.expression_table.display_name(*expression));
                 place.push(']');
@@ -2414,7 +2414,7 @@ fn borrow_state_for(
     program: &CheckedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Option<&omega_checked_trees::StateBorrowFact> {
+) -> Option<&psi_checked_trees::StateBorrowFact> {
     program.facts.borrow.states.iter().find_map(|(_, state)| {
         (state.machine_symbol == machine_symbol && state.state_symbol == state_symbol)
             .then_some(state)
@@ -2533,12 +2533,10 @@ fn semantic_symbol_name(program: &CheckedTrees, symbol: SymbolHandle) -> String 
         }
         for member in program.data_members(data) {
             match member {
-                omega_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                psi_typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
                     return field.name.as_str().to_owned();
                 }
-                omega_typed_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == symbol =>
-                {
+                psi_typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
                     return variant.name.as_str().to_owned();
                 }
                 _ => {}
@@ -2620,12 +2618,6 @@ mod tests {
         carry_manifest_json, claim_outcome_manifest_json, machine_contract_manifest_json,
         push_termination_interface_json, qualification_evidence_manifest_json,
     };
-    use omega_checked_trees::{
-        CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
-        ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution, DataCarryFact,
-        FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
-        MachineActivationCarryFact, MachineContractPlan, MachineTerminationFact,
-    };
     use omega_core::content::{
         ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationEquation,
         ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
@@ -2640,21 +2632,27 @@ mod tests {
         TerminationGuarantee, TerminationInterface,
     };
     use omega_core::symbols::SymbolHandle;
-    use omega_facts::{
+    use psi_checked_trees::{
+        CheckedTrees, ClaimCarryPolicyFact, ContentIdentityReshuffleFact,
+        ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution, DataCarryFact,
+        FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
+        MachineActivationCarryFact, MachineContractPlan, MachineTerminationFact,
+    };
+    use psi_facts::{
         Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence,
     };
-    use omega_typed_trees::machine::Machine;
-    use omega_typed_trees::name::Identifier;
-    use omega_typed_trees::typed_trees::MachineSpecialization;
+    use psi_typed_trees::machine::Machine;
+    use psi_typed_trees::name::Identifier;
+    use psi_typed_trees::typed_trees::MachineSpecialization;
 
     #[test]
     fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         let mut program = CheckedTrees::default();
         let output_segments = program.facts.flow.ownership.segments.insert_many([
-            omega_facts::PlaceSegment::Case {
+            psi_facts::PlaceSegment::Case {
                 variant: SymbolHandle::invalid(),
             },
-            omega_facts::PlaceSegment::Field {
+            psi_facts::PlaceSegment::Field {
                 symbol: SymbolHandle::invalid(),
             },
         ]);
@@ -2921,7 +2919,7 @@ mod tests {
         let mut program = CheckedTrees::default();
         program
             .typed
-            .push_data_definition(omega_typed_trees::data::DataDefinition {
+            .push_data_definition(psi_typed_trees::data::DataDefinition {
                 symbol,
                 name: Identifier::generated("PerCpuLease"),
                 ..Default::default()

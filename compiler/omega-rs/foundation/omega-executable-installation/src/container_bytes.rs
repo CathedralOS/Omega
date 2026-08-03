@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use omega_layout_plans::{
+use psi_layout_plans::{
     ArtifactInstallationScopeId, ByteOrder, DataSymbolId, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MachineRegimeId, PlacementAddressRange,
     PlacementConstraints, PlacementPhase, ScalarFieldSchema, ScalarFieldValue,

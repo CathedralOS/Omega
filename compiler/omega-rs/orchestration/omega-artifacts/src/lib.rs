@@ -2045,8 +2045,8 @@ mod tests {
         StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
         compose_artifact_stacks, compose_fixed_fuel,
     };
-    use omega_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
     use omega_target::Architecture;
+    use psi_layout_plans::{EntryStubId, PlacementConstraints, PlacementPhase};
 
     use super::{
         ArtifactWriter, build_backend_surface_report, external_root_records_manifest_json,

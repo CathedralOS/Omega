@@ -6,7 +6,7 @@
 
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use omega_core::diagnostics::Diagnostic;
-use omega_layout_plans::{
+use psi_layout_plans::{
     ByteOrder, GeneratedPostHandoffWriterFragmentPlan, GeneratedPostHandoffWriterStep,
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, POST_HANDOFF_WRITER_SOURCE_SLOT_WIDTH,
     POST_HANDOFF_WRITER_SOURCE_SLOTS_OFFSET, post_handoff_writer_context_byte_len,
@@ -237,7 +237,7 @@ const fn low_mask(width: u16) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_layout_plans::{
+    use psi_layout_plans::{
         EntryStubId, MaterializationWrite, PlacementConstraints, PlacementPhase,
         PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
     };

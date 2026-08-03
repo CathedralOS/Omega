@@ -16,7 +16,7 @@ use omega_calling_conventions::{
 };
 pub use omega_executable_installation::{ArtifactId, InstalledCodeId};
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
-use omega_layout_plans::EntryStubId;
+use psi_layout_plans::EntryStubId;
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -2715,11 +2715,11 @@ mod tests {
         PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable, install_validated,
         materialize_admitted_artifact, materialize_and_freeze, validate_final_placement,
     };
-    use omega_extents::{
+    use psi_extents::{
         AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
         ExtentRights, ExtentRootGrant, MappingEraId,
     };
-    use omega_layout_plans::{
+    use psi_layout_plans::{
         ArtifactInstallationScopeId, PlacementAddressRange, PlacementConstraints, PlacementPhase,
         PlacementSite,
     };

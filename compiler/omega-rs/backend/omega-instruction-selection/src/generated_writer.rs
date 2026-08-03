@@ -7,8 +7,8 @@
 use omega_calling_conventions::{MachineRegister, StateFootprintEvidence};
 use omega_core::diagnostics::Diagnostic;
 use omega_executable_installation::{InstalledCode, ResolvedPostHandoffEntryWriterContext};
-use omega_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 use omega_target::{Architecture, NativeTarget};
+use psi_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPostHandoffWriterFragment {
@@ -142,7 +142,7 @@ pub fn bind_post_handoff_entry_writer_invocation(
     installed: &InstalledCode,
     writer: &PostHandoffWriterPlan,
     destination_len: usize,
-    destination_site: omega_layout_plans::PlacementSite,
+    destination_site: psi_layout_plans::PlacementSite,
 ) -> Result<PreparedPostHandoffEntryWriterInvocation, Diagnostic> {
     if installed.architecture() != lowered.fragment.target.architecture {
         return Err(Diagnostic::error(format!(
@@ -190,7 +190,7 @@ fn emitted_writer_fingerprint(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_layout_plans::{
+    use psi_layout_plans::{
         ByteOrder, DataSymbolId, EntryStubId, MaterializationWrite, PlacementConstraints,
         PlacementPhase, PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
     };
