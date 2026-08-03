@@ -1,5 +1,6 @@
 mod capabilities;
 mod executable_tcb_manifest;
+mod executable_tcb_profile;
 mod selected_provider_plans;
 
 pub use capabilities::analysis::{
@@ -19,5 +20,10 @@ pub use executable_tcb_manifest::{
     IncompleteCause, OpaqueClosureEvidence, OpaqueExecutableAdmissionCandidate,
     OpaqueInProcessBinding, ProviderIdentity, ScopeCompleteness,
     ValidatedOpaqueExecutableAdmission,
+};
+pub use executable_tcb_profile::{
+    ExactExecutableTcbAllowance, ExecutableTcbProfile, ExecutableTcbProfileAcceptance,
+    ExecutableTcbProfileRejection, ExecutableTcbProfileViolation, IncompleteScopePolicy,
+    evaluate_executable_tcb_profile,
 };
 pub use selected_provider_plans::SelectedProviderPlanFacts;

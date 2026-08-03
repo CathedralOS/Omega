@@ -1385,8 +1385,14 @@ improvements do not change public identity.
   the attributed incompleteness cause; only a separate executable-closure
   receipt removes it, and closure evidence survives when another row keeps the
   overall scope incomplete. Compiler/build-policy wiring for real admissions,
-  runtime-ledger union, isolated-scope manifests, and profile enforcement
-  remain.
+  runtime-ledger union, and isolated-scope manifests remain. The normalized
+  profile gate now allows static current-artifact checked bodies only through
+  an explicit class rule; every compiler-known or opaque entry otherwise needs
+  an exact provider/plan/executable/evidence/origin/scope allowance and any
+  required containment axes. Incomplete scopes either reject or produce a
+  sealed acceptance marked with the original causes, retaining the exact
+  manifest and profile against replay. Build-profile selection/wiring and
+  consumption of that acceptance by installation remain.
 - **REPLACE-OPAQUE:** extend component acceptance tests with selected-provider
   manifest union across coexisting eras, process-static service handover
   contracts, and mapping reuse only after proof that no live authority reaches
