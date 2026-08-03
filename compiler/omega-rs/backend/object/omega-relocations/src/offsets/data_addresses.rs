@@ -510,10 +510,11 @@ fn data_address_relocation_offset_with_plan(
     if architecture == Architecture::Aarch64
         && let Some(operation_key) = operation_key
         && let Ok(argument_placements) =
-            omega_instruction_selection::normalized_aarch64_host_argument_placements(
+            omega_instruction_selection::normalized_aarch64_host_argument_placements_with_plan(
                 operation_key,
                 operands,
                 false,
+                authoritative_plan,
             )
     {
         return selected_text_offset
@@ -673,6 +674,42 @@ mod tests {
                 false,
                 None,
                 true,
+                Some(&plan),
+            ),
+            24
+        );
+    }
+
+    #[test]
+    fn void_aarch64_data_relocation_uses_the_retained_stack_plan() {
+        let operands = [InstructionOperand {
+            kind: InstructionOperandKind::DataAddress {
+                data: Handle::<TargetDataObject>::invalid(),
+            },
+        }];
+        let signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let mut plan =
+            evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("baseline AAPCS64 plan");
+        plan.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        };
+
+        assert_eq!(
+            data_address_relocation_offset_for_target_with_plan(
+                NativeTarget::linux_arm64(),
+                Some(omega_calling_conventions::HostOperationKey::default()),
+                &operands,
+                20,
+                0,
+                false,
+                None,
+                false,
                 Some(&plan),
             ),
             24
