@@ -7914,6 +7914,9 @@ fn runtime_value_operand_uses_control_state(
             StateGuardOperator::AddTowardZero
                 | StateGuardOperator::AddTowardPositive
                 | StateGuardOperator::AddTowardNegative
+                | StateGuardOperator::SubtractTowardZero
+                | StateGuardOperator::SubtractTowardPositive
+                | StateGuardOperator::SubtractTowardNegative
         ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
             || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
@@ -14897,6 +14900,9 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
             | StateGuardOperator::AddTowardPositive
             | StateGuardOperator::AddTowardNegative
             | StateGuardOperator::Subtract
+            | StateGuardOperator::SubtractTowardZero
+            | StateGuardOperator::SubtractTowardPositive
+            | StateGuardOperator::SubtractTowardNegative
             | StateGuardOperator::Multiply
             | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::Divide
@@ -14906,12 +14912,16 @@ fn float_policy_applies(operator: StateGuardOperator, domain: ArithmeticDomain) 
     )
 }
 
-fn directed_add_mxcsr(operator: StateGuardOperator) -> Option<u32> {
+fn directed_binary_mxcsr(operator: StateGuardOperator) -> Option<u32> {
     match operator {
         // Canonical 0x1f80 plus MXCSR.RC in bits 13..14.
-        StateGuardOperator::AddTowardNegative => Some(0x3f80),
-        StateGuardOperator::AddTowardPositive => Some(0x5f80),
-        StateGuardOperator::AddTowardZero => Some(0x7f80),
+        StateGuardOperator::AddTowardNegative | StateGuardOperator::SubtractTowardNegative => {
+            Some(0x3f80)
+        }
+        StateGuardOperator::AddTowardPositive | StateGuardOperator::SubtractTowardPositive => {
+            Some(0x5f80)
+        }
+        StateGuardOperator::AddTowardZero | StateGuardOperator::SubtractTowardZero => Some(0x7f80),
         _ => None,
     }
 }
@@ -15293,7 +15303,7 @@ fn append_runtime_float_binary_operation(
     }
     // F2 = scalar-double prefix (`*sd`), F3 = scalar-single (`*ss`).
     let scalar_prefix = if wide { 0xf2 } else { 0xf3 };
-    let directed_mxcsr = directed_add_mxcsr(operator);
+    let directed_mxcsr = directed_binary_mxcsr(operator);
     if let Some(mxcsr) = directed_mxcsr {
         append_directed_float_control_prefix(bytes, mxcsr);
     }
@@ -15302,7 +15312,10 @@ fn append_runtime_float_binary_operation(
         | StateGuardOperator::AddTowardZero
         | StateGuardOperator::AddTowardPositive
         | StateGuardOperator::AddTowardNegative => 0x58, // addsd/addss
-        StateGuardOperator::Subtract => 0x5c, // subsd/subss
+        StateGuardOperator::Subtract
+        | StateGuardOperator::SubtractTowardZero
+        | StateGuardOperator::SubtractTowardPositive
+        | StateGuardOperator::SubtractTowardNegative => 0x5c, // subsd/subss
         StateGuardOperator::Multiply => 0x59, // mulsd/mulss
         StateGuardOperator::Divide => 0x5e,   // divsd/divss
         // `maxsd a, b` / `minsd a, b` return b on unordered (NaN) or equal, so
@@ -15457,7 +15470,10 @@ fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> us
     match operator {
         StateGuardOperator::AddTowardZero
         | StateGuardOperator::AddTowardPositive
-        | StateGuardOperator::AddTowardNegative => 19 + DIRECTED_FLOAT_CONTROL_WIDTH,
+        | StateGuardOperator::AddTowardNegative
+        | StateGuardOperator::SubtractTowardZero
+        | StateGuardOperator::SubtractTowardPositive
+        | StateGuardOperator::SubtractTowardNegative => 19 + DIRECTED_FLOAT_CONTROL_WIDTH,
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
         StateGuardOperator::IsNan
         | StateGuardOperator::Greater
@@ -16663,6 +16679,9 @@ mod float_arithmetic_policy_tests {
                 StateGuardOperator::AddTowardPositive,
                 StateGuardOperator::AddTowardNegative,
                 StateGuardOperator::Subtract,
+                StateGuardOperator::SubtractTowardZero,
+                StateGuardOperator::SubtractTowardPositive,
+                StateGuardOperator::SubtractTowardNegative,
                 StateGuardOperator::Multiply,
                 StateGuardOperator::Divide,
                 StateGuardOperator::MultiplyThenAdd,
@@ -16689,11 +16708,14 @@ mod float_arithmetic_policy_tests {
     }
 
     #[test]
-    fn directed_add_balances_mxcsr_and_widths() {
-        for (operator, mxcsr) in [
-            (StateGuardOperator::AddTowardNegative, 0x3f80_u32),
-            (StateGuardOperator::AddTowardPositive, 0x5f80_u32),
-            (StateGuardOperator::AddTowardZero, 0x7f80_u32),
+    fn directed_binary_operations_balance_mxcsr_and_widths() {
+        for (operator, mxcsr, opcode) in [
+            (StateGuardOperator::AddTowardNegative, 0x3f80_u32, 0x58),
+            (StateGuardOperator::AddTowardPositive, 0x5f80_u32, 0x58),
+            (StateGuardOperator::AddTowardZero, 0x7f80_u32, 0x58),
+            (StateGuardOperator::SubtractTowardNegative, 0x3f80_u32, 0x5c),
+            (StateGuardOperator::SubtractTowardPositive, 0x5f80_u32, 0x5c),
+            (StateGuardOperator::SubtractTowardZero, 0x7f80_u32, 0x5c),
         ] {
             for byte_size in [4usize, 8] {
                 let mut bytes = Vec::new();
@@ -16717,6 +16739,7 @@ mod float_arithmetic_policy_tests {
                     &[0x48, 0x83, 0xec, 0x10, 0x0f, 0xae, 0x1c, 0x24]
                 );
                 assert_eq!(&bytes[22..26], &mxcsr.to_le_bytes());
+                assert_eq!(bytes[33], opcode);
                 assert_eq!(
                     &bytes[35..43],
                     &[0x0f, 0xae, 0x14, 0x24, 0x48, 0x83, 0xc4, 0x10]

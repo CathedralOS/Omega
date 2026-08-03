@@ -5127,6 +5127,12 @@ impl<'program> Evaluator<'program> {
                 | "float#add_toward_positive_f64"
                 | "float#add_toward_negative_f32"
                 | "float#add_toward_negative_f64"
+                | "float#subtract_toward_zero_f32"
+                | "float#subtract_toward_zero_f64"
+                | "float#subtract_toward_positive_f32"
+                | "float#subtract_toward_positive_f64"
+                | "float#subtract_toward_negative_f32"
+                | "float#subtract_toward_negative_f64"
         ) && call.receiver == ExpressionHandle::invalid()
         {
             let args = self
@@ -5140,7 +5146,7 @@ impl<'program> Evaluator<'program> {
                 } else {
                     SemanticFloatFormat::BINARY64
                 };
-                return self.eval_rewritten_directed_add(&args, format, target, frame);
+                return self.eval_rewritten_directed_binary(&args, format, target, frame);
             }
         }
         // Builtin: sqrt over a single float operand. The interpreter consumes
@@ -8314,10 +8320,10 @@ impl<'program> Evaluator<'program> {
         Ok(Value::Float(meaning.to_interpreter_value(format)))
     }
 
-    /// Execute an unnameable one-step directed add selected by an exact
+    /// Execute an unnameable one-step directed binary operation selected by an exact
     /// provider plan. The shared semantic engine supplies the result; policy
     /// adapts only that result exactly like the native lowering.
-    fn eval_rewritten_directed_add(
+    fn eval_rewritten_directed_binary(
         &mut self,
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
@@ -8337,7 +8343,7 @@ impl<'program> Evaluator<'program> {
         let mut operands = Vec::with_capacity(2);
         for operand in arguments {
             let Value::Float(value) = self.eval_expression(*operand, frame)? else {
-                return unsupported("selected directed-add operand is not a float");
+                return unsupported("selected directed-float operand is not a float");
             };
             operands.push(if format == SemanticFloatFormat::BINARY32 {
                 FloatMeaning::from_f32(value as f32)
@@ -8345,14 +8351,31 @@ impl<'program> Evaluator<'program> {
                 FloatMeaning::from_f64(value)
             });
         }
-        let meaning = if intrinsic.contains("toward_zero") {
-            FloatSemantics::add_toward_zero(format, &operands[0], &operands[1])
-        } else if intrinsic.contains("toward_positive") {
-            FloatSemantics::add_toward_positive(format, &operands[0], &operands[1])
-        } else if intrinsic.contains("toward_negative") {
-            FloatSemantics::add_toward_negative(format, &operands[0], &operands[1])
-        } else {
-            return unsupported("unknown selected directed-add intrinsic");
+        let meaning = match (
+            intrinsic.starts_with("float#subtract_"),
+            intrinsic.contains("toward_zero"),
+            intrinsic.contains("toward_positive"),
+            intrinsic.contains("toward_negative"),
+        ) {
+            (false, true, false, false) => {
+                FloatSemantics::add_toward_zero(format, &operands[0], &operands[1])
+            }
+            (false, false, true, false) => {
+                FloatSemantics::add_toward_positive(format, &operands[0], &operands[1])
+            }
+            (false, false, false, true) => {
+                FloatSemantics::add_toward_negative(format, &operands[0], &operands[1])
+            }
+            (true, true, false, false) => {
+                FloatSemantics::subtract_toward_zero(format, &operands[0], &operands[1])
+            }
+            (true, false, true, false) => {
+                FloatSemantics::subtract_toward_positive(format, &operands[0], &operands[1])
+            }
+            (true, false, false, true) => {
+                FloatSemantics::subtract_toward_negative(format, &operands[0], &operands[1])
+            }
+            _ => return unsupported("unknown selected directed-float intrinsic"),
         };
         let meaning = match scalar_type.map(|(_, domain)| domain) {
             Some(ArithmeticDomain::Saturating) => {
@@ -8362,7 +8385,7 @@ impl<'program> Evaluator<'program> {
             Some(ArithmeticDomain::Trapping) => FloatSemantics::apply_trapping_policy(meaning)
                 .map_err(|trap_class| {
                     Halt::Trap(format!(
-                        "directed float add produced {} in Trapping domain",
+                        "directed float operation produced {} in Trapping domain",
                         match trap_class {
                             FloatPolicyTrap::NaNResult => "NaN",
                             FloatPolicyTrap::InfinityResult => "infinity",

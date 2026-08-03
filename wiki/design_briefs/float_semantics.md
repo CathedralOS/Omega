@@ -320,14 +320,14 @@ envelope. Layout, emission, and relocation planning share that mechanism
 classification; a hostile AArch64 canary calls `_fesetround(FE_UPWARD)` and
 proves the following half-ULP checked addition still ties nearest-even. An
 explicit preservation-proof optimization may later remove redundant envelopes.
-The first directed-rounding provider cohort selects exact F32/F64
-`add_toward_zero`, `add_toward_positive`, and `add_toward_negative` slots on all
-four native targets. Baseline x86-64 and AArch64 realize each one-step operation
-with a compiler-balanced MXCSR/FPCR save, requested-direction install, scalar
-add, and exact restore before result-policy adaptation. Half-ULP native and
-interpreter edges distinguish the three meanings and prove the following
-ordinary add remains nearest-even. x86-64 FMA, the remaining directed
-subtract/multiply/divide/square-root/FMA cohorts, checked software fallbacks,
+The first directed-rounding provider cohorts select exact F32/F64
+add/subtract-toward-zero/positive/negative slots on all four native targets.
+Baseline x86-64 and AArch64 realize each one-step operation with a compiler-balanced
+MXCSR/FPCR save, requested-direction install, scalar operation, and exact restore
+before result-policy adaptation. Midpoint native and
+interpreter edges distinguish the three meanings and prove following ordinary
+arithmetic remains nearest-even. x86-64 FMA, the remaining directed
+multiply/divide/square-root/FMA cohorts, checked software fallbacks,
 and admitted-hardware differential evidence remain.
 
 ## 2. Domains: the value/policy split

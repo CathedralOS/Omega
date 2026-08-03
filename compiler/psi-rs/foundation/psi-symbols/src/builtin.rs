@@ -105,7 +105,7 @@ pub enum BuiltinFunction {
     /// algebras. Validation selects the algebra from the exact projection
     /// terms; packages cannot implement or override this operation.
     ContentSeparate,
-    /// Internal binary operations selected only by exact directed-add plans.
+    /// Internal binary operations selected only by exact directed-float plans.
     /// The format and rounding direction remain explicit in the symbol after
     /// state-local expression copying. These append to the stable builtin
     /// ordinal sequence rather than renumbering existing content operations.
@@ -115,10 +115,16 @@ pub enum BuiltinFunction {
     FloatAddTowardPositiveF64,
     FloatAddTowardNegativeF32,
     FloatAddTowardNegativeF64,
+    FloatSubtractTowardZeroF32,
+    FloatSubtractTowardZeroF64,
+    FloatSubtractTowardPositiveF32,
+    FloatSubtractTowardPositiveF64,
+    FloatSubtractTowardNegativeF32,
+    FloatSubtractTowardNegativeF64,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 41;
+    pub const COUNT: usize = 47;
 
     pub fn name(self) -> &'static str {
         match self {
@@ -161,6 +167,12 @@ impl BuiltinFunction {
             Self::FloatAddTowardPositiveF64 => "float#add_toward_positive_f64",
             Self::FloatAddTowardNegativeF32 => "float#add_toward_negative_f32",
             Self::FloatAddTowardNegativeF64 => "float#add_toward_negative_f64",
+            Self::FloatSubtractTowardZeroF32 => "float#subtract_toward_zero_f32",
+            Self::FloatSubtractTowardZeroF64 => "float#subtract_toward_zero_f64",
+            Self::FloatSubtractTowardPositiveF32 => "float#subtract_toward_positive_f32",
+            Self::FloatSubtractTowardPositiveF64 => "float#subtract_toward_positive_f64",
+            Self::FloatSubtractTowardNegativeF32 => "float#subtract_toward_negative_f32",
+            Self::FloatSubtractTowardNegativeF64 => "float#subtract_toward_negative_f64",
             Self::ContentEntry => "entry",
             Self::ContentSeparate => "separate",
         }
@@ -209,6 +221,12 @@ impl BuiltinFunction {
             Self::FloatAddTowardPositiveF64 => 38,
             Self::FloatAddTowardNegativeF32 => 39,
             Self::FloatAddTowardNegativeF64 => 40,
+            Self::FloatSubtractTowardZeroF32 => 41,
+            Self::FloatSubtractTowardZeroF64 => 42,
+            Self::FloatSubtractTowardPositiveF32 => 43,
+            Self::FloatSubtractTowardPositiveF64 => 44,
+            Self::FloatSubtractTowardNegativeF32 => 45,
+            Self::FloatSubtractTowardNegativeF64 => 46,
         }
     }
 
@@ -252,6 +270,12 @@ impl BuiltinFunction {
             | Self::FloatAddTowardPositiveF64
             | Self::FloatAddTowardNegativeF32
             | Self::FloatAddTowardNegativeF64
+            | Self::FloatSubtractTowardZeroF32
+            | Self::FloatSubtractTowardZeroF64
+            | Self::FloatSubtractTowardPositiveF32
+            | Self::FloatSubtractTowardPositiveF64
+            | Self::FloatSubtractTowardNegativeF32
+            | Self::FloatSubtractTowardNegativeF64
             | Self::ContentEntry
             | Self::ContentSeparate
             | Self::AsmLoadFence
@@ -522,6 +546,30 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::FloatAddTowardNegativeF64.name()),
         ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardZeroF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardZeroF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardPositiveF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardPositiveF64.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardNegativeF32.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::FloatSubtractTowardNegativeF64.name()),
+        ),
     ]
 }
 
@@ -593,6 +641,12 @@ mod builtin_ordinal_tests {
             BuiltinFunction::FloatAddTowardPositiveF64,
             BuiltinFunction::FloatAddTowardNegativeF32,
             BuiltinFunction::FloatAddTowardNegativeF64,
+            BuiltinFunction::FloatSubtractTowardZeroF32,
+            BuiltinFunction::FloatSubtractTowardZeroF64,
+            BuiltinFunction::FloatSubtractTowardPositiveF32,
+            BuiltinFunction::FloatSubtractTowardPositiveF64,
+            BuiltinFunction::FloatSubtractTowardNegativeF32,
+            BuiltinFunction::FloatSubtractTowardNegativeF64,
         ] {
             assert_eq!(
                 table[function.ordinal()].1.as_str(),

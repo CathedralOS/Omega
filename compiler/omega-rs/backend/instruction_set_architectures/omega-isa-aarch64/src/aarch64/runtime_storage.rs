@@ -1270,6 +1270,9 @@ fn runtime_value_operand_uses_control_state(
             StateGuardOperator::AddTowardZero
                 | StateGuardOperator::AddTowardPositive
                 | StateGuardOperator::AddTowardNegative
+                | StateGuardOperator::SubtractTowardZero
+                | StateGuardOperator::SubtractTowardPositive
+                | StateGuardOperator::SubtractTowardNegative
         ) || runtime_value_operand_uses_control_state(runtime_value_operands, left)
             || runtime_value_operand_uses_control_state(runtime_value_operands, right)
     } else if let Some((source, ..)) = runtime_value_operands.convert(operand) {
@@ -5475,6 +5478,9 @@ fn float_policy_guard_bytes(
             | StateGuardOperator::AddTowardPositive
             | StateGuardOperator::AddTowardNegative
             | StateGuardOperator::Subtract
+            | StateGuardOperator::SubtractTowardZero
+            | StateGuardOperator::SubtractTowardPositive
+            | StateGuardOperator::SubtractTowardNegative
             | StateGuardOperator::Multiply
             | StateGuardOperator::MultiplyThenAdd
             | StateGuardOperator::FusedMultiplyAdd
@@ -6501,9 +6507,15 @@ fn append_runtime_float_binary_operation(
     };
     let directed_rounding = match operator {
         // FPCR.RMode bits 22..23: +inf=01, -inf=10, zero=11.
-        StateGuardOperator::AddTowardPositive => Some(0x0040_0000),
-        StateGuardOperator::AddTowardNegative => Some(0x0080_0000),
-        StateGuardOperator::AddTowardZero => Some(0x00c0_0000),
+        StateGuardOperator::AddTowardPositive | StateGuardOperator::SubtractTowardPositive => {
+            Some(0x0040_0000)
+        }
+        StateGuardOperator::AddTowardNegative | StateGuardOperator::SubtractTowardNegative => {
+            Some(0x0080_0000)
+        }
+        StateGuardOperator::AddTowardZero | StateGuardOperator::SubtractTowardZero => {
+            Some(0x00c0_0000)
+        }
         _ => None,
     };
     if let Some(fpcr) = directed_rounding {
@@ -6525,8 +6537,14 @@ fn append_runtime_float_binary_operation(
             }
             guard(bytes)?;
         }
-        StateGuardOperator::Subtract => {
+        StateGuardOperator::Subtract
+        | StateGuardOperator::SubtractTowardZero
+        | StateGuardOperator::SubtractTowardPositive
+        | StateGuardOperator::SubtractTowardNegative => {
             bytes.extend(encode_float_subtract(byte_size, 0, 0, 1)?);
+            if directed_rounding.is_some() {
+                bytes.extend(encode_write_fpcr(13));
+            }
             guard(bytes)?;
         }
         StateGuardOperator::Multiply => {
@@ -8152,13 +8170,36 @@ mod tests {
     }
 
     #[test]
-    fn directed_add_balances_fpcr_and_widths() {
+    fn directed_binary_operations_balance_fpcr_and_widths() {
         use psi_numerics::arithmetic::ArithmeticDomain;
 
-        for (operator, fpcr) in [
-            (StateGuardOperator::AddTowardPositive, 0x0040_0000_u64),
-            (StateGuardOperator::AddTowardNegative, 0x0080_0000_u64),
-            (StateGuardOperator::AddTowardZero, 0x00c0_0000_u64),
+        for (operator, fpcr, subtract) in [
+            (
+                StateGuardOperator::AddTowardPositive,
+                0x0040_0000_u64,
+                false,
+            ),
+            (
+                StateGuardOperator::AddTowardNegative,
+                0x0080_0000_u64,
+                false,
+            ),
+            (StateGuardOperator::AddTowardZero, 0x00c0_0000_u64, false),
+            (
+                StateGuardOperator::SubtractTowardPositive,
+                0x0040_0000_u64,
+                true,
+            ),
+            (
+                StateGuardOperator::SubtractTowardNegative,
+                0x0080_0000_u64,
+                true,
+            ),
+            (
+                StateGuardOperator::SubtractTowardZero,
+                0x00c0_0000_u64,
+                true,
+            ),
         ] {
             for byte_size in [4usize, 8] {
                 let mut bytes = Vec::new();
@@ -8193,6 +8234,14 @@ mod tests {
                     u32::from_le_bytes(encode_movk(12, ((fpcr >> 16) & 0xffff) as u16, 1,))
                 );
                 assert_eq!(words[5], u32::from_le_bytes(encode_write_fpcr(12)));
+                assert_eq!(
+                    words[6],
+                    u32::from_le_bytes(if subtract {
+                        encode_float_subtract(byte_size, 0, 0, 1).unwrap()
+                    } else {
+                        encode_float_add(byte_size, 0, 0, 1).unwrap()
+                    })
+                );
                 assert_eq!(words[7], u32::from_le_bytes(encode_write_fpcr(13)));
             }
         }

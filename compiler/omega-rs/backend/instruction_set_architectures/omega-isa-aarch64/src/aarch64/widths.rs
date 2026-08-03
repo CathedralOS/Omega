@@ -787,7 +787,10 @@ fn runtime_float_binary_operation_width_base(operator: StateGuardOperator) -> us
     8 + match operator {
         StateGuardOperator::AddTowardZero
         | StateGuardOperator::AddTowardPositive
-        | StateGuardOperator::AddTowardNegative => 20 + 4 + 4,
+        | StateGuardOperator::AddTowardNegative
+        | StateGuardOperator::SubtractTowardZero
+        | StateGuardOperator::SubtractTowardPositive
+        | StateGuardOperator::SubtractTowardNegative => 20 + 4 + 4,
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual

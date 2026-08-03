@@ -4,7 +4,7 @@
 // arithmetic and comparison overloads now have explicit native-target
 // satisfiers and selected-ProviderPlan realizations. The migrated named cohort
 // includes min/max, square root, negate, bool and enum classification,
-// multiply-then-add, and the three directed-add families; remaining named
+// multiply-then-add, and the directed add/subtract families; remaining named
 // requirements retain bootstrap compiler lowering while their semantic
 // identities and contracts no longer live only in Rust match arms.
 //
