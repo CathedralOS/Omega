@@ -589,5 +589,5 @@ makes format-as-data descriptive, not speculative.
 7. **Engineering order.** Signed Rat -> `FloatMeaning` -> executable semantic
    functions -> policy adapters -> target conformances -> differential
    validation. Signed Rat belongs to the quotient/Real lane and is a hard F7
-   dependency. The stale bounded-float canaries remain a cleanup rung; the core
-   format-record vocabulary v1 already covers fixed-precision radix-2.
+   dependency. The core format-record vocabulary v1 already covers
+   fixed-precision radix-2.

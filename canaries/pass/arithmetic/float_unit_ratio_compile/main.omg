@@ -1,0 +1,12 @@
+// A source integer may land in binary64 and participate in ordinary runtime
+// arithmetic without passing through mathematical Real. This compile canary
+// retains the generic unit-ratio helper independently of any bounded-float
+// type, which is not part of the settled language surface.
+machine unit_ratio(raw: u32) -> f64 {
+    (raw as f64) / (4294967295u32 as f64)
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+}
