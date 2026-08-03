@@ -1,5 +1,7 @@
 use crate::packing::{PlannedField, pack_fields, pack_fields_at, place_fields_by_plan};
-use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
+use crate::sizing::{
+    dynamic_trait_descriptor_layout, fat_descriptor_layout, primitive_type_layout,
+};
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, FieldLayout, LayoutPlan,
     MachineLayout, TypeLayout, TypeLayoutDescriptor, VariantLayout,
@@ -718,7 +720,9 @@ impl<'program> LayoutBuilder<'program> {
                 })
             }
             TypeReferenceNode::Slice { .. } => Ok(self.slice_layout()),
-            TypeReferenceNode::DynamicTrait { .. } => Ok(fat_descriptor_layout(self.target)),
+            TypeReferenceNode::DynamicTrait { .. } => {
+                Ok(dynamic_trait_descriptor_layout(self.target))
+            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
@@ -1073,12 +1077,19 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor_with_bindings(*element_type, bindings)),
             },
-            TypeReferenceNode::DynamicTrait { symbol, name, .. } => {
-                TypeLayoutDescriptor::DynamicTrait {
-                    symbol: *symbol,
-                    name: name.clone(),
-                }
-            }
+            TypeReferenceNode::DynamicTrait {
+                symbol,
+                name,
+                conformance,
+                conformance_carrier,
+                conformance_name,
+            } => TypeLayoutDescriptor::DynamicTrait {
+                symbol: *symbol,
+                name: name.clone(),
+                conformance: *conformance,
+                conformance_carrier: conformance_carrier.clone(),
+                conformance_name: conformance_name.clone(),
+            },
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,

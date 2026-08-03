@@ -3960,7 +3960,7 @@ fn descriptor_layout(
             };
         }
         TypeLayoutDescriptor::DynamicTrait { .. } => {
-            let descriptor = input.runtime_abi.slice_descriptor();
+            let descriptor = input.runtime_abi.dynamic_trait_descriptor();
             return TypeLayout {
                 size: descriptor.total_size(),
                 alignment: descriptor.align(),

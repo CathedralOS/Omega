@@ -70,9 +70,8 @@ pub(super) fn layout_for_type_reference(
                 alignment: element.alignment,
             }
         }
-        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-            slice_layout(context)
-        }
+        TypeReferenceNode::Slice { .. } => slice_layout(context),
+        TypeReferenceNode::DynamicTrait { .. } => dynamic_trait_layout(context),
         TypeReferenceNode::Generic {
             base_symbol: symbol,
             base_name: name,
@@ -124,9 +123,8 @@ fn layout_for_reference_type(
         TypeReferenceNode::Constrained { base_type, .. } => {
             layout_for_reference_type(context, table, *base_type)
         }
-        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-            slice_layout(context)
-        }
+        TypeReferenceNode::Slice { .. } => slice_layout(context),
+        TypeReferenceNode::DynamicTrait { .. } => dynamic_trait_layout(context),
         _ => pointer_layout(context),
     }
 }
@@ -180,6 +178,15 @@ fn slice_layout(context: &RuntimeStorageContext) -> TypeLayout {
     TypeLayout {
         size: context.target.pointer_size * 2,
         alignment: context.target.pointer_alignment,
+    }
+}
+
+fn dynamic_trait_layout(context: &RuntimeStorageContext) -> TypeLayout {
+    let descriptor =
+        omega_runtime_abi::build_runtime_abi_plan(context.target).dynamic_trait_descriptor();
+    TypeLayout {
+        size: descriptor.total_size(),
+        alignment: descriptor.align(),
     }
 }
 

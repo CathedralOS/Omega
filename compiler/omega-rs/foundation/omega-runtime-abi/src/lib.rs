@@ -40,6 +40,19 @@ pub struct FatDescriptorAbi {
     kind: FatDescriptorKind,
 }
 
+/// Artifact-local borrowed dynamic-trait carrier `{ instance, table }`.
+///
+/// Its two words happen to have the same size and alignment as a slice
+/// descriptor, but the second word is a selected-conformance table pointer,
+/// never a length. Keeping a distinct ABI view prevents later lowering from
+/// applying slice operations to dynamic values merely because their layouts
+/// coincide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DynamicTraitDescriptorAbi {
+    pointer_size: usize,
+    pointer_alignment: usize,
+}
+
 /// Result of resolving a subslice against a base descriptor.
 ///
 /// `ptr_delta` is the byte offset to add to the base pointer to reach the first
@@ -127,6 +140,37 @@ impl FatDescriptorAbi {
     }
 }
 
+impl DynamicTraitDescriptorAbi {
+    pub const fn new(plan: RuntimeAbiPlan) -> Self {
+        Self {
+            pointer_size: plan.pointer_size,
+            pointer_alignment: plan.pointer_alignment,
+        }
+    }
+
+    /// Byte offset of the borrowed concrete instance pointer.
+    pub const fn instance_offset(self) -> usize {
+        0
+    }
+
+    /// Byte offset of the artifact-private selected-conformance table pointer.
+    pub const fn table_offset(self) -> usize {
+        self.pointer_size
+    }
+
+    pub const fn word_size(self) -> usize {
+        self.pointer_size
+    }
+
+    pub const fn total_size(self) -> usize {
+        self.pointer_size.saturating_mul(2)
+    }
+
+    pub const fn align(self) -> usize {
+        self.pointer_alignment
+    }
+}
+
 impl RuntimeAbiPlan {
     /// Slice fat-descriptor view (`len` = element count).
     pub const fn slice_descriptor(self) -> FatDescriptorAbi {
@@ -136,6 +180,11 @@ impl RuntimeAbiPlan {
     /// Text-window fat-descriptor view (`len` = byte count).
     pub const fn text_descriptor(self) -> FatDescriptorAbi {
         FatDescriptorAbi::text_window(self)
+    }
+
+    /// Borrowed local dynamic-trait descriptor (`{ instance, table }`).
+    pub const fn dynamic_trait_descriptor(self) -> DynamicTraitDescriptorAbi {
+        DynamicTraitDescriptorAbi::new(self)
     }
 
     /// Thin shim retained for source compatibility; equals the canonical
@@ -197,6 +246,18 @@ mod tests {
         assert_eq!(slice.kind(), FatDescriptorKind::Slice);
         assert_eq!(text.kind(), FatDescriptorKind::TextWindow);
         assert_ne!(slice.kind(), text.kind());
+    }
+
+    #[test]
+    fn dynamic_trait_descriptor_names_both_pointer_words() {
+        let p = plan(8);
+        let dynamic = p.dynamic_trait_descriptor();
+        assert_eq!(dynamic.instance_offset(), 0);
+        assert_eq!(dynamic.table_offset(), 8);
+        assert_eq!(dynamic.word_size(), 8);
+        assert_eq!(dynamic.total_size(), 16);
+        assert_eq!(dynamic.align(), 8);
+        assert_eq!(dynamic.total_size(), p.slice_descriptor().total_size());
     }
 
     #[test]
